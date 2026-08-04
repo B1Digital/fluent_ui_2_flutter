@@ -30,3 +30,10 @@ migrate_working_dir/
 build/
 /coverage/
 pubspec_overrides.yaml
+
+# Local tools & documentation
+.serena/
+doc/
+docs/
+tool/
+
