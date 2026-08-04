@@ -1,0 +1,16 @@
+{
+  "component": "acrylic",
+  "source": {
+    "fileKey": "Heyk4N9SnwfIzupHlk3l7s",
+    "pageId": "8994:47268",
+    "nodeId": "9114:811",
+    "setName": "Material acrylic"
+  },
+  "note": "HAND-ASSEMBLED from the tool/extract_component_spec.py --emit-js traversal, because --build refuses this set: 'Material=Acrylic: 2 fills / 1 strokes. The fixture stores one resolved colour each; stacked paints need a richer shape before this component can be extracted.' Every value below is verbatim from that traversal. Two schema fields are therefore null rather than wrong: `fill`, because two stacked translucent paints have no single resolved colour, and `stroke`, because the stroke is a GRADIENT_LINEAR and the extractor's argb() only resolves SOLID paints. Both live in `material` below, which the loader ignores. Order note: Figma paints `fills` in array order, LAST on top — confirmed by rendering node 9114:812 in isolation and sampling the centre pixel, rgba(246,247,250,217), which is Secondary composited under Primary (Primary under Secondary would give rgba(235,239,245,217)).",
+  "properties": {
+    "Material": ["Acrylic"]
+  },
+  "variants": [
+    {"name": "Material=Acrylic", "figmaName": "Material=Acrylic", "nodeId": "9114:812", "props": {"Material": "Acrylic"}, "size": {"width": 282, "height": 76}, "padding": {"top": 16, "right": 16, "bottom": 16, "left": 16}, "gap": 0, "radius": 0, "strokeWidth": 1, "fill": null, "stroke": null, "text": null, "tokens": {"paddingLeft": ["Spacing/Horizontal/L"], "paddingTop": ["Spacing/Horizontal/L"], "paddingRight": ["Spacing/Horizontal/L"], "paddingBottom": ["Spacing/Horizontal/L"], "fills": ["Material/Acrylic/Background/Secondary", "Material/Acrylic/Background/Primary"], "strokes": ["Material/Acrylic/Stroke/Stop 2", "Material/Acrylic/Stroke/Stop 3", "Material/Acrylic/Stroke/Stop 1"], "radius": ["material-radius"], "strokeWidth": ["Stroke width/Thin"]}, "material": {"fills": [{"argb": "#B2E7ECF3", "token": "Material/Acrylic/Background/Secondary"}, {"argb": "#80FFFFFF", "token": "Material/Acrylic/Background/Primary"}], "stroke": {"type": "GRADIENT_LINEAR", "align": "INSIDE", "stops": [{"position": 0, "argb": "#33FFFFFF", "token": "Material/Acrylic/Stroke/Stop 1"}, {"position": 0.5, "argb": "#33CFE4FA", "token": "Material/Acrylic/Stroke/Stop 2"}, {"position": 1, "argb": "#33FFFFFF", "token": "Material/Acrylic/Stroke/Stop 3"}], "gradientTransform": [[0.6165643930435181, 0.5000001788139343, -0.05828232318162918], [-0.5000002384185791, 0.40547269582748413, 0.5472638010978699]]}, "effects": [{"type": "BACKGROUND_BLUR", "radius": 60, "visible": true, "blurType": "NORMAL"}], "radiusVariable": {"name": "material-radius", "remote": true, "collection": "MaterialShape", "modes": ["None", "Small", "Medium", "Large", "X-Large", "Circular"], "resolvedInFile": 0}}}
+  ]
+}

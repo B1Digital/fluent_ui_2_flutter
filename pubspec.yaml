@@ -1,0 +1,63 @@
+name: fluent_2
+description: "Fluent 2 design system for Flutter — a Dart pub workspace."
+publish_to: none
+
+environment:
+  sdk: ^3.12.2
+
+# Native pub workspace does resolution; the `melos:` section below drives the
+# scripts. Melos 7 dropped support for a separate melos.yaml — config lives here.
+workspace:
+  - packages/fluent_2_fonts
+  - packages/fluent_2_fonts_android
+  - packages/fluent_2_fonts_ios
+  - packages/fluent_2_fonts_macos
+  - packages/fluent_2_fonts_web
+  - packages/fluent_2_fonts_windows
+  - packages/fluent_2_core
+  - packages/fluent_2_web
+  - packages/fluent_2_mobile
+  - packages/fluent_2_web/example
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  melos: ^7.0.0
+
+melos:
+  scripts:
+    analyze:
+      run: dart analyze --fatal-infos
+      exec:
+        concurrency: 4
+      description: Analyze every package.
+
+    format:
+      run: dart format --set-exit-if-changed .
+      exec:
+        concurrency: 4
+      description: Verify formatting.
+
+    test:
+      run: flutter test
+      exec:
+        concurrency: 4
+        failFast: false
+      packageFilters:
+        dirExists: test
+      description: Run tests in every package that has them.
+
+    no-material:
+      # The whole point of the design system: nothing may depend on Material.
+      # Anchored to real import/export directives so doc comments mentioning
+      # Material don't trip it.
+      run: |
+        if grep -rnE "^\s*(import|export) 'package:flutter/(material|cupertino)\.dart'" packages/*/lib packages/*/test; then
+          echo "ERROR: Material/Cupertino import found — fluent_2 replaces them."
+          exit 1
+        fi
+        echo "OK: no Material or Cupertino imports."
+      description: Fail if any package imports Material.
+
+    ci:
+      run: melos run analyze && melos run format && melos run no-material && melos run test
+      description: Everything CI runs.

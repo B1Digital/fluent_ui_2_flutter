@@ -1,0 +1,18 @@
+name: fluent_2_core
+description: "Shared Fluent 2 design tokens and theming. Consumed by every fluent_2_* UI package."
+version: 0.0.1
+resolution: workspace
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=3.41.0"
+
+dependencies:
+  fluent_2_fonts: ^0.0.1
+  fluentui_system_icons: ^1.1.273
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

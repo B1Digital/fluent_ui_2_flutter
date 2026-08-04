@@ -1,0 +1,32 @@
+{
+  "component": "spin_button_stepper",
+  "source": {
+    "fileKey": "Heyk4N9SnwfIzupHlk3l7s",
+    "pageId": "8934:16",
+    "nodeId": "9116:28330",
+    "setName": ".Spin button stepper"
+  },
+  "properties": {
+    "Style": [
+      "Default",
+      "Darker"
+    ],
+    "State": [
+      "Rest",
+      "Hover",
+      "Pressed",
+      "Disabled"
+    ]
+  },
+  "aliases": {},
+  "variants": [
+    {"name": "Style=Darker, State=Disabled", "figmaName": "Style=Darker, State=Disabled", "nodeId": "9116:28345", "props": {"Style": "Darker", "State": "Disabled"}, "size": {"width": 24, "height": 12}, "padding": {"top": 0, "right": 6, "bottom": 0, "left": 6}, "gap": 0, "radius": 0, "strokeWidth": 0, "fill": null, "stroke": null, "text": null, "tokens": {"paddingLeft": ["Spacing/Horizontal/SNudge"], "paddingRight": ["Spacing/Horizontal/SNudge"]}, "parts": [{"name": "Shape", "nodeId": "I9116:28346;13868:8327", "type": "VECTOR", "depth": 2, "size": {"width": 8, "height": 4.5}, "padding": null, "gap": null, "radius": null, "strokeWidth": 0, "fill": "#FFBDBDBD", "stroke": null, "tokens": {"fills": ["Neutral/Foreground/Disabled/Rest"]}}]},
+    {"name": "Style=Darker, State=Hover", "figmaName": "Style=Darker, State=Hover", "nodeId": "9116:28341", "props": {"Style": "Darker", "State": "Hover"}, "size": {"width": 24, "height": 12}, "padding": {"top": 0, "right": 6, "bottom": 0, "left": 6}, "gap": 0, "radius": 0, "strokeWidth": 0, "fill": "#FFEBEBEB", "stroke": null, "text": null, "tokens": {"paddingLeft": ["Spacing/Horizontal/SNudge"], "paddingRight": ["Spacing/Horizontal/SNudge"], "fills": ["Neutral/Background/3/Hover"]}, "parts": [{"name": "Shape", "nodeId": "I9116:28342;13868:8327", "type": "VECTOR", "depth": 2, "size": {"width": 8, "height": 4.5}, "padding": null, "gap": null, "radius": null, "strokeWidth": 0, "fill": "#FF424242", "stroke": null, "tokens": {"fills": ["Neutral/Foreground/3/Hover"]}}]},
+    {"name": "Style=Darker, State=Pressed", "figmaName": "Style=Darker, State=Pressed", "nodeId": "9116:28343", "props": {"Style": "Darker", "State": "Pressed"}, "size": {"width": 24, "height": 12}, "padding": {"top": 0, "right": 6, "bottom": 0, "left": 6}, "gap": 0, "radius": 0, "strokeWidth": 0, "fill": "#FFD6D6D6", "stroke": null, "text": null, "tokens": {"paddingLeft": ["Spacing/Horizontal/SNudge"], "paddingRight": ["Spacing/Horizontal/SNudge"], "fills": ["Neutral/Background/3/Pressed"]}, "parts": [{"name": "Shape", "nodeId": "I9116:28344;13868:8327", "type": "VECTOR", "depth": 2, "size": {"width": 8, "height": 4.5}, "padding": null, "gap": null, "radius": null, "strokeWidth": 0, "fill": "#FF424242", "stroke": null, "tokens": {"fills": ["Neutral/Foreground/3/Hover"]}}]},
+    {"name": "Style=Darker, State=Rest", "figmaName": "Style=Darker, State=Rest", "nodeId": "9116:28339", "props": {"Style": "Darker", "State": "Rest"}, "size": {"width": 24, "height": 12}, "padding": {"top": 0, "right": 6, "bottom": 0, "left": 6}, "gap": 0, "radius": 0, "strokeWidth": 0, "fill": null, "stroke": null, "text": null, "tokens": {"paddingLeft": ["Spacing/Horizontal/SNudge"], "paddingRight": ["Spacing/Horizontal/SNudge"]}, "parts": [{"name": "Shape", "nodeId": "I9116:28340;13868:8327", "type": "VECTOR", "depth": 2, "size": {"width": 8, "height": 4.5}, "padding": null, "gap": null, "radius": null, "strokeWidth": 0, "fill": "#FF616161", "stroke": null, "tokens": {"fills": ["Neutral/Foreground/3/Rest"]}}]},
+    {"name": "Style=Default, State=Disabled", "figmaName": "Style=Default, State=Disabled", "nodeId": "9116:28337", "props": {"Style": "Default", "State": "Disabled"}, "size": {"width": 24, "height": 12}, "padding": {"top": 0, "right": 6, "bottom": 0, "left": 6}, "gap": 0, "radius": 0, "strokeWidth": 0, "fill": null, "stroke": null, "text": null, "tokens": {"paddingLeft": ["Spacing/Horizontal/SNudge"], "paddingRight": ["Spacing/Horizontal/SNudge"]}, "parts": [{"name": "Shape", "nodeId": "I9116:28338;13868:8327", "type": "VECTOR", "depth": 2, "size": {"width": 8, "height": 4.5}, "padding": null, "gap": null, "radius": null, "strokeWidth": 0, "fill": "#FFBDBDBD", "stroke": null, "tokens": {"fills": ["Neutral/Foreground/Disabled/Rest"]}}]},
+    {"name": "Style=Default, State=Hover", "figmaName": "Style=Default, State=Hover", "nodeId": "9116:28333", "props": {"Style": "Default", "State": "Hover"}, "size": {"width": 24, "height": 12}, "padding": {"top": 0, "right": 6, "bottom": 0, "left": 6}, "gap": 0, "radius": 0, "strokeWidth": 0, "fill": "#FFF5F5F5", "stroke": null, "text": null, "tokens": {"paddingLeft": ["Spacing/Horizontal/SNudge"], "paddingRight": ["Spacing/Horizontal/SNudge"], "fills": ["Neutral/Background/1/Hover"]}, "parts": [{"name": "Shape", "nodeId": "I9116:28334;13868:8327", "type": "VECTOR", "depth": 2, "size": {"width": 8, "height": 4.5}, "padding": null, "gap": null, "radius": null, "strokeWidth": 0, "fill": "#FF424242", "stroke": null, "tokens": {"fills": ["Neutral/Foreground/3/Hover"]}}]},
+    {"name": "Style=Default, State=Pressed", "figmaName": "Style=Default, State=Pressed", "nodeId": "9116:28335", "props": {"Style": "Default", "State": "Pressed"}, "size": {"width": 24, "height": 12}, "padding": {"top": 0, "right": 6, "bottom": 0, "left": 6}, "gap": 0, "radius": 0, "strokeWidth": 0, "fill": "#FFE0E0E0", "stroke": null, "text": null, "tokens": {"paddingLeft": ["Spacing/Horizontal/SNudge"], "paddingRight": ["Spacing/Horizontal/SNudge"], "fills": ["Neutral/Background/1/Pressed"]}, "parts": [{"name": "Shape", "nodeId": "I9116:28336;13868:8327", "type": "VECTOR", "depth": 2, "size": {"width": 8, "height": 4.5}, "padding": null, "gap": null, "radius": null, "strokeWidth": 0, "fill": "#FF424242", "stroke": null, "tokens": {"fills": ["Neutral/Foreground/3/Hover"]}}]},
+    {"name": "Style=Default, State=Rest", "figmaName": "Style=Default, State=Rest", "nodeId": "9116:28331", "props": {"Style": "Default", "State": "Rest"}, "size": {"width": 24, "height": 12}, "padding": {"top": 0, "right": 6, "bottom": 0, "left": 6}, "gap": 0, "radius": 0, "strokeWidth": 0, "fill": null, "stroke": null, "text": null, "tokens": {"paddingLeft": ["Spacing/Horizontal/SNudge"], "paddingRight": ["Spacing/Horizontal/SNudge"]}, "parts": [{"name": "Shape", "nodeId": "I9116:28332;13868:8327", "type": "VECTOR", "depth": 2, "size": {"width": 8, "height": 4.5}, "padding": null, "gap": null, "radius": null, "strokeWidth": 0, "fill": "#FF616161", "stroke": null, "tokens": {"fills": ["Neutral/Foreground/3/Rest"]}}]}
+  ]
+}

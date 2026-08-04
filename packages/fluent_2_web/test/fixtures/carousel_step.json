@@ -1,0 +1,38 @@
+{
+  "component": "carousel_step",
+  "source": {
+    "fileKey": "Heyk4N9SnwfIzupHlk3l7s",
+    "pageId": "8995:2",
+    "nodeId": "9380:3589",
+    "setName": ".Carousel step"
+  },
+  "properties": {
+    "Type": [
+      "Inactive",
+      "Active"
+    ],
+    "State": [
+      "Rest",
+      "Hover",
+      "Pressed"
+    ]
+  },
+  "aliases": {
+    "button-corner-radius": {
+      "collection": "Button shape",
+      "modes": {
+        "Rounded (Default)": "Corner-radius/Button/Default",
+        "Circular": "Corner radius/Circular",
+        "Square": "Corner radius/None"
+      }
+    }
+  },
+  "variants": [
+    {"name": "Type=Active, State=Hover", "figmaName": "Type=Active, State=Hover", "nodeId": "9380:3596", "props": {"Type": "Active", "State": "Hover"}, "size": {"width": 24, "height": 24}, "padding": {"top": 8, "right": 4, "bottom": 8, "left": 4}, "gap": 0, "radius": 4, "strokeWidth": 0, "fill": "#00FFFFFF", "stroke": null, "text": null, "tokens": {"paddingLeft": ["Horizontal/XS"], "paddingTop": ["Vertical/S"], "paddingRight": ["Horizontal/XS"], "paddingBottom": ["Vertical/S"], "fills": ["Neutral/Background/Transparent/Hover"], "radius": ["button-corner-radius"]}, "parts": [{"name": "Container", "nodeId": "9380:3597", "type": "FRAME", "depth": 1, "size": {"width": 16, "height": 8}, "padding": {"top": 0, "right": 0, "bottom": 0, "left": 0}, "gap": 4, "radius": 0, "strokeWidth": 0, "fill": null, "stroke": null, "tokens": {"itemSpacing": ["Horizontal/XS"]}}, {"name": "Active carousel step", "nodeId": "9380:3598", "type": "RECTANGLE", "depth": 2, "size": {"width": 16, "height": 8}, "padding": null, "gap": null, "radius": 9999, "strokeWidth": 0, "fill": "#FF242424", "stroke": null, "tokens": {"fills": ["Hover"]}}]},
+    {"name": "Type=Active, State=Pressed", "figmaName": "Type=Active, State=Pressed", "nodeId": "9380:3599", "props": {"Type": "Active", "State": "Pressed"}, "size": {"width": 24, "height": 24}, "padding": {"top": 8, "right": 4, "bottom": 8, "left": 4}, "gap": 0, "radius": 4, "strokeWidth": 0, "fill": "#00FFFFFF", "stroke": null, "text": null, "tokens": {"paddingLeft": ["Horizontal/XS"], "paddingTop": ["Vertical/S"], "paddingRight": ["Horizontal/XS"], "paddingBottom": ["Vertical/S"], "fills": ["Neutral/Background/Transparent/Pressed"], "radius": ["button-corner-radius"]}, "parts": [{"name": "Container", "nodeId": "9380:3600", "type": "FRAME", "depth": 1, "size": {"width": 16, "height": 8}, "padding": {"top": 0, "right": 0, "bottom": 0, "left": 0}, "gap": 4, "radius": 0, "strokeWidth": 0, "fill": null, "stroke": null, "tokens": {"itemSpacing": ["Horizontal/XS"]}}, {"name": "Active carousel step", "nodeId": "9380:3601", "type": "RECTANGLE", "depth": 2, "size": {"width": 16, "height": 8}, "padding": null, "gap": null, "radius": 9999, "strokeWidth": 0, "fill": "#FF242424", "stroke": null, "tokens": {"fills": ["Pressed"]}}]},
+    {"name": "Type=Active, State=Rest", "figmaName": "Type=Active, State=Rest", "nodeId": "9380:3590", "props": {"Type": "Active", "State": "Rest"}, "size": {"width": 24, "height": 24}, "padding": {"top": 8, "right": 4, "bottom": 8, "left": 4}, "gap": 0, "radius": 4, "strokeWidth": 0, "fill": "#00FFFFFF", "stroke": null, "text": null, "tokens": {"paddingLeft": ["Horizontal/XS"], "paddingTop": ["Vertical/S"], "paddingRight": ["Horizontal/XS"], "paddingBottom": ["Vertical/S"], "fills": ["Neutral/Background/Transparent/Rest"], "radius": ["button-corner-radius"]}, "parts": [{"name": "Container", "nodeId": "9380:3591", "type": "FRAME", "depth": 1, "size": {"width": 16, "height": 8}, "padding": {"top": 0, "right": 0, "bottom": 0, "left": 0}, "gap": 4, "radius": 0, "strokeWidth": 0, "fill": null, "stroke": null, "tokens": {"itemSpacing": ["Horizontal/XS"]}}, {"name": "Active carousel step", "nodeId": "9380:3592", "type": "RECTANGLE", "depth": 2, "size": {"width": 16, "height": 8}, "padding": null, "gap": null, "radius": 9999, "strokeWidth": 0, "fill": "#FF424242", "stroke": null, "tokens": {"fills": ["Rest"]}}]},
+    {"name": "Type=Inactive, State=Hover", "figmaName": "Type=Inactive, State=Hover", "nodeId": "9380:3606", "props": {"Type": "Inactive", "State": "Hover"}, "size": {"width": 24, "height": 24}, "padding": {"top": 8, "right": 8, "bottom": 8, "left": 8}, "gap": 0, "radius": 4, "strokeWidth": 0, "fill": "#00FFFFFF", "stroke": null, "text": null, "tokens": {"paddingLeft": ["Horizontal/S"], "paddingTop": ["Vertical/S"], "paddingRight": ["Horizontal/S"], "paddingBottom": ["Vertical/S"], "fills": ["Neutral/Background/Transparent/Hover"], "radius": ["button-corner-radius"]}, "parts": [{"name": "Inactive carousel step", "nodeId": "9380:3607", "type": "RECTANGLE", "depth": 1, "size": {"width": 8, "height": 8}, "padding": null, "gap": null, "radius": 9999, "strokeWidth": 0, "fill": "#FF242424", "stroke": null, "tokens": {"fills": ["Hover"]}}]},
+    {"name": "Type=Inactive, State=Pressed", "figmaName": "Type=Inactive, State=Pressed", "nodeId": "9380:3608", "props": {"Type": "Inactive", "State": "Pressed"}, "size": {"width": 24, "height": 24}, "padding": {"top": 8, "right": 8, "bottom": 8, "left": 8}, "gap": 0, "radius": 4, "strokeWidth": 0, "fill": "#00FFFFFF", "stroke": null, "text": null, "tokens": {"paddingLeft": ["Horizontal/S"], "paddingTop": ["Vertical/S"], "paddingRight": ["Horizontal/S"], "paddingBottom": ["Vertical/S"], "fills": ["Neutral/Background/Transparent/Pressed"], "radius": ["button-corner-radius"]}, "parts": [{"name": "Inactive carousel step", "nodeId": "9380:3609", "type": "RECTANGLE", "depth": 1, "size": {"width": 8, "height": 8}, "padding": null, "gap": null, "radius": 9999, "strokeWidth": 0, "fill": "#FF242424", "stroke": null, "tokens": {"fills": ["Pressed"]}}]},
+    {"name": "Type=Inactive, State=Rest", "figmaName": "Type=Inactive, State=Rest", "nodeId": "9380:3602", "props": {"Type": "Inactive", "State": "Rest"}, "size": {"width": 24, "height": 24}, "padding": {"top": 8, "right": 8, "bottom": 8, "left": 8}, "gap": 0, "radius": 4, "strokeWidth": 0, "fill": "#00FFFFFF", "stroke": null, "text": null, "tokens": {"paddingLeft": ["Horizontal/S"], "paddingTop": ["Vertical/S"], "paddingRight": ["Horizontal/S"], "paddingBottom": ["Vertical/S"], "fills": ["Neutral/Background/Transparent/Rest"], "radius": ["button-corner-radius"]}, "parts": [{"name": "Inactive carousel step", "nodeId": "9380:3603", "type": "RECTANGLE", "depth": 1, "size": {"width": 8, "height": 8}, "padding": null, "gap": null, "radius": 9999, "strokeWidth": 0, "fill": "#FF424242", "stroke": null, "tokens": {"fills": ["Rest"]}}]}
+  ]
+}

@@ -1,0 +1,495 @@
+{
+  "Shape": {
+    "collection": "Shape",
+    "modes": [
+      "Rounded",
+      "Circular",
+      "Square"
+    ],
+    "count": 8,
+    "variables": {
+      "Button/Container": {
+        "type": "FLOAT",
+        "values": {
+          "Rounded": {
+            "alias": "Corner radius/Medium"
+          },
+          "Circular": {
+            "alias": "Corner radius/Circular"
+          },
+          "Square": {
+            "alias": "Corner radius/None"
+          }
+        }
+      },
+      "Button/Image": {
+        "type": "FLOAT",
+        "values": {
+          "Rounded": {
+            "alias": "Corner radius/Small"
+          },
+          "Circular": {
+            "alias": "Corner radius/Circular"
+          },
+          "Square": {
+            "alias": "Corner radius/None"
+          }
+        }
+      },
+      "Swatch/Default": {
+        "type": "FLOAT",
+        "values": {
+          "Rounded": {
+            "alias": "Corner radius/Medium"
+          },
+          "Circular": {
+            "alias": "Corner radius/Circular"
+          },
+          "Square": {
+            "alias": "Corner radius/None"
+          }
+        }
+      },
+      "Badge/Small": {
+        "type": "FLOAT",
+        "values": {
+          "Rounded": {
+            "alias": "Corner radius/Medium"
+          },
+          "Circular": {
+            "alias": "Corner radius/Circular"
+          },
+          "Square": {
+            "alias": "Corner radius/None"
+          }
+        }
+      },
+      "Badge/Medium": {
+        "type": "FLOAT",
+        "values": {
+          "Rounded": {
+            "alias": "Corner radius/Medium"
+          },
+          "Circular": {
+            "alias": "Corner radius/Circular"
+          },
+          "Square": {
+            "alias": "Corner radius/None"
+          }
+        }
+      },
+      "Badge/Large": {
+        "type": "FLOAT",
+        "values": {
+          "Rounded": {
+            "alias": "Corner radius/Medium"
+          },
+          "Circular": {
+            "alias": "Corner radius/Circular"
+          },
+          "Square": {
+            "alias": "Corner radius/None"
+          }
+        }
+      },
+      "Badge/XLarge": {
+        "type": "FLOAT",
+        "values": {
+          "Rounded": {
+            "alias": "Corner radius/Medium"
+          },
+          "Circular": {
+            "alias": "Corner radius/Circular"
+          },
+          "Square": {
+            "alias": "Corner radius/None"
+          }
+        }
+      },
+      "Message bar/Container": {
+        "type": "FLOAT",
+        "values": {
+          "Rounded": {
+            "alias": "Corner radius/Medium"
+          },
+          "Circular": {
+            "alias": "Corner radius/Circular"
+          },
+          "Square": {
+            "alias": "Corner radius/None"
+          }
+        }
+      }
+    }
+  },
+  "Layout": {
+    "collection": "Layout",
+    "modes": [
+      "Mode 1"
+    ],
+    "count": 32,
+    "variables": {
+      "Corner radius/None": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Corner radius/None"
+          }
+        }
+      },
+      "Corner radius/Small": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Corner radius/20"
+          }
+        }
+      },
+      "Corner radius/Medium": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Corner radius/40"
+          }
+        }
+      },
+      "Corner radius/Large": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Corner radius/60"
+          }
+        }
+      },
+      "Corner radius/X-Large": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Corner radius/80"
+          }
+        }
+      },
+      "Corner radius/Circular": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Corner radius/Circular"
+          }
+        }
+      },
+      "Spacing/Horizontal/None": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/None"
+          }
+        }
+      },
+      "Spacing/Horizontal/XXS": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/20"
+          }
+        }
+      },
+      "Spacing/Horizontal/XS": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/40"
+          }
+        }
+      },
+      "Spacing/Horizontal/SNudge": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/60"
+          }
+        }
+      },
+      "Spacing/Horizontal/S": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/80"
+          }
+        }
+      },
+      "Spacing/Horizontal/MNudge": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/100"
+          }
+        }
+      },
+      "Spacing/Horizontal/M": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/120"
+          }
+        }
+      },
+      "Spacing/Horizontal/L": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/160"
+          }
+        }
+      },
+      "Spacing/Horizontal/XL": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/200"
+          }
+        }
+      },
+      "Spacing/Horizontal/XXL": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/240"
+          }
+        }
+      },
+      "Spacing/Horizontal/XXXL": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/320"
+          }
+        }
+      },
+      "Spacing/Vertical/None": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/None"
+          }
+        }
+      },
+      "Spacing/Vertical/XXS": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/20"
+          }
+        }
+      },
+      "Spacing/Vertical/XS": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/40"
+          }
+        }
+      },
+      "Spacing/Vertical/SNudge": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/60"
+          }
+        }
+      },
+      "Spacing/Vertical/S": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/80"
+          }
+        }
+      },
+      "Spacing/Vertical/MNudge": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/100"
+          }
+        }
+      },
+      "Spacing/Vertical/M": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/120"
+          }
+        }
+      },
+      "Spacing/Vertical/L": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/160"
+          }
+        }
+      },
+      "Spacing/Vertical/XL": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/200"
+          }
+        }
+      },
+      "Spacing/Vertical/XXL": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/240"
+          }
+        }
+      },
+      "Spacing/Vertical/XXXL": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Size/320"
+          }
+        }
+      },
+      "Stroke width/Thin": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Stroke width/10"
+          }
+        }
+      },
+      "Stroke width/Thick": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Stroke width/20"
+          }
+        }
+      },
+      "Stroke width/Thicker": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Stroke width/30"
+          }
+        }
+      },
+      "Stroke width/Thickest": {
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": {
+            "alias": "Stroke width/40"
+          }
+        }
+      }
+    }
+  },
+  " Brand": {
+    "collection": " Brand",
+    "modes": [
+      "Brand 1"
+    ],
+    "count": 16,
+    "variables": {
+      "Brand-10": {
+        "type": "COLOR",
+        "values": {
+          "Brand 1": "#061724"
+        }
+      },
+      "Brand-20": {
+        "type": "COLOR",
+        "values": {
+          "Brand 1": "#082338"
+        }
+      },
+      "Brand-30": {
+        "type": "COLOR",
+        "values": {
+          "Brand 1": "#0a2e4a"
+        }
+      },
+      "Brand-40": {
+        "type": "COLOR",
+        "values": {
+          "Brand 1": "#0c3b5e"
+        }
+      },
+      "Brand-50": {
+        "type": "COLOR",
+        "values": {
+          "Brand 1": "#0e4775"
+        }
+      },
+      "Brand-60": {
+        "type": "COLOR",
+        "values": {
+          "Brand 1": "#0f548c"
+        }
+      },
+      "Brand-70": {
+        "type": "COLOR",
+        "values": {
+          "Brand 1": "#115ea3"
+        }
+      },
+      "Brand-80": {
+        "type": "COLOR",
+        "values": {
+          "Brand 1": "#0f6cbd"
+        }
+      },
+      "Brand-90": {
+        "type": "COLOR",
+        "values": {
+          "Brand 1": "#2886de"
+        }
+      },
+      "Brand-100": {
+        "type": "COLOR",
+        "values": {
+          "Brand 1": "#479ef5"
+        }
+      },
+      "Brand-110": {
+        "type": "COLOR",
+        "values": {
+          "Brand 1": "#62abf5"
+        }
+      },
+      "Brand-120": {
+        "type": "COLOR",
+        "values": {
+          "Brand 1": "#77b7f7"
+        }
+      },
+      "Brand-130": {
+        "type": "COLOR",
+        "values": {
+          "Brand 1": "#96c6fa"
+        }
+      },
+      "Brand-140": {
+        "type": "COLOR",
+        "values": {
+          "Brand 1": "#b4d6fa"
+        }
+      },
+      "Brand-150": {
+        "type": "COLOR",
+        "values": {
+          "Brand 1": "#cfe4fa"
+        }
+      },
+      "Brand-160": {
+        "type": "COLOR",
+        "values": {
+          "Brand 1": "#ebf3fc"
+        }
+      }
+    }
+  }
+}

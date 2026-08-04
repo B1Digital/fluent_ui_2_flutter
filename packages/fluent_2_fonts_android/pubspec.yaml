@@ -1,0 +1,8 @@
+name: fluent_2_fonts_android
+description: "Native Android font-family descriptors for Fluent 2."
+version: 0.0.1
+repository: https://github.com/ascobani/fluent_2_ui_kit
+resolution: workspace
+
+environment:
+  sdk: ^3.12.2

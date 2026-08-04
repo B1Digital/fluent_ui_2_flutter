@@ -1,0 +1,29 @@
+name: fluent_2_fonts_windows
+description: "Windows-only open-source Selawik font assets for Fluent 2."
+version: 0.0.1
+repository: https://github.com/ascobani/fluent_2_ui_kit
+resolution: workspace
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=3.41.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  assets:
+    - path: lib/fonts/selawk.ttf
+      platforms:
+        - windows
+    - path: lib/fonts/selawksb.ttf
+      platforms:
+        - windows
+    - path: lib/fonts/selawkb.ttf
+      platforms:
+        - windows

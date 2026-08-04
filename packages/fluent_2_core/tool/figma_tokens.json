@@ -1,0 +1,3886 @@
+{
+  " Brand": {
+    "Brand-10": {
+      "Brand 1": "#061724"
+    },
+    "Brand-100": {
+      "Brand 1": "#479ef5"
+    },
+    "Brand-110": {
+      "Brand 1": "#62abf5"
+    },
+    "Brand-120": {
+      "Brand 1": "#77b7f7"
+    },
+    "Brand-130": {
+      "Brand 1": "#96c6fa"
+    },
+    "Brand-140": {
+      "Brand 1": "#b4d6fa"
+    },
+    "Brand-150": {
+      "Brand 1": "#cfe4fa"
+    },
+    "Brand-160": {
+      "Brand 1": "#ebf3fc"
+    },
+    "Brand-20": {
+      "Brand 1": "#082338"
+    },
+    "Brand-30": {
+      "Brand 1": "#0a2e4a"
+    },
+    "Brand-40": {
+      "Brand 1": "#0c3b5e"
+    },
+    "Brand-50": {
+      "Brand 1": "#0e4775"
+    },
+    "Brand-60": {
+      "Brand 1": "#0f548c"
+    },
+    "Brand-70": {
+      "Brand 1": "#115ea3"
+    },
+    "Brand-80": {
+      "Brand 1": "#0f6cbd"
+    },
+    "Brand-90": {
+      "Brand 1": "#2886de"
+    }
+  },
+  " Global": {
+    "Colors/Alpha/Black/0": {
+      "Value": "#00000000"
+    },
+    "Colors/Alpha/Black/10": {
+      "Value": "#0000001a"
+    },
+    "Colors/Alpha/Black/20": {
+      "Value": "#00000033"
+    },
+    "Colors/Alpha/Black/30": {
+      "Value": "#0000004d"
+    },
+    "Colors/Alpha/Black/40": {
+      "Value": "#00000066"
+    },
+    "Colors/Alpha/Black/5": {
+      "Value": "#0000000d"
+    },
+    "Colors/Alpha/Black/50": {
+      "Value": "#00000080"
+    },
+    "Colors/Alpha/Black/60": {
+      "Value": "#00000099"
+    },
+    "Colors/Alpha/Black/70": {
+      "Value": "#000000b2"
+    },
+    "Colors/Alpha/Black/80": {
+      "Value": "#000000cc"
+    },
+    "Colors/Alpha/Black/90": {
+      "Value": "#000000e5"
+    },
+    "Colors/Alpha/Grey 10/10": {
+      "Value": "#1a1a1a1a"
+    },
+    "Colors/Alpha/Grey 10/20": {
+      "Value": "#1a1a1a33"
+    },
+    "Colors/Alpha/Grey 10/30": {
+      "Value": "#1a1a1a4d"
+    },
+    "Colors/Alpha/Grey 10/40": {
+      "Value": "#1a1a1a66"
+    },
+    "Colors/Alpha/Grey 10/5": {
+      "Value": "#1a1a1a0d"
+    },
+    "Colors/Alpha/Grey 10/50": {
+      "Value": "#1a1a1a80"
+    },
+    "Colors/Alpha/Grey 10/60": {
+      "Value": "#1a1a1a99"
+    },
+    "Colors/Alpha/Grey 10/70": {
+      "Value": "#1a1a1ab2"
+    },
+    "Colors/Alpha/Grey 10/80": {
+      "Value": "#1a1a1acc"
+    },
+    "Colors/Alpha/Grey 10/90": {
+      "Value": "#1a1a1ae5"
+    },
+    "Colors/Alpha/Grey 12/10": {
+      "Value": "#1f1f1f1a"
+    },
+    "Colors/Alpha/Grey 12/20": {
+      "Value": "#1f1f1f33"
+    },
+    "Colors/Alpha/Grey 12/30": {
+      "Value": "#1f1f1f4d"
+    },
+    "Colors/Alpha/Grey 12/40": {
+      "Value": "#1f1f1f66"
+    },
+    "Colors/Alpha/Grey 12/5": {
+      "Value": "#1f1f1f0d"
+    },
+    "Colors/Alpha/Grey 12/50": {
+      "Value": "#1f1f1f80"
+    },
+    "Colors/Alpha/Grey 12/60": {
+      "Value": "#1f1f1f99"
+    },
+    "Colors/Alpha/Grey 12/70": {
+      "Value": "#1f1f1fb2"
+    },
+    "Colors/Alpha/Grey 12/80": {
+      "Value": "#1f1f1fcc"
+    },
+    "Colors/Alpha/Grey 12/90": {
+      "Value": "#1f1f1fe5"
+    },
+    "Colors/Alpha/Grey 14/10": {
+      "Value": "#2424241a"
+    },
+    "Colors/Alpha/Grey 14/20": {
+      "Value": "#24242433"
+    },
+    "Colors/Alpha/Grey 14/30": {
+      "Value": "#2424244d"
+    },
+    "Colors/Alpha/Grey 14/40": {
+      "Value": "#24242466"
+    },
+    "Colors/Alpha/Grey 14/5": {
+      "Value": "#2424240d"
+    },
+    "Colors/Alpha/Grey 14/50": {
+      "Value": "#24242480"
+    },
+    "Colors/Alpha/Grey 14/60": {
+      "Value": "#24242499"
+    },
+    "Colors/Alpha/Grey 14/70": {
+      "Value": "#242424b2"
+    },
+    "Colors/Alpha/Grey 14/80": {
+      "Value": "#242424cc"
+    },
+    "Colors/Alpha/Grey 14/90": {
+      "Value": "#242424e5"
+    },
+    "Colors/Alpha/White/0": {
+      "Value": "#ffffff00"
+    },
+    "Colors/Alpha/White/10": {
+      "Value": "#ffffff1a"
+    },
+    "Colors/Alpha/White/20": {
+      "Value": "#ffffff33"
+    },
+    "Colors/Alpha/White/30": {
+      "Value": "#ffffff4d"
+    },
+    "Colors/Alpha/White/40": {
+      "Value": "#ffffff66"
+    },
+    "Colors/Alpha/White/5": {
+      "Value": "#ffffff0d"
+    },
+    "Colors/Alpha/White/50": {
+      "Value": "#ffffff80"
+    },
+    "Colors/Alpha/White/60": {
+      "Value": "#ffffff99"
+    },
+    "Colors/Alpha/White/70": {
+      "Value": "#ffffffb2"
+    },
+    "Colors/Alpha/White/80": {
+      "Value": "#ffffffcc"
+    },
+    "Colors/Alpha/White/90": {
+      "Value": "#ffffffe5"
+    },
+    "Colors/Neutral/Black": {
+      "Value": "#000000"
+    },
+    "Colors/Neutral/Grey-10": {
+      "Value": "#1a1a1a"
+    },
+    "Colors/Neutral/Grey-12": {
+      "Value": "#1f1f1f"
+    },
+    "Colors/Neutral/Grey-14": {
+      "Value": "#242424"
+    },
+    "Colors/Neutral/Grey-16": {
+      "Value": "#292929"
+    },
+    "Colors/Neutral/Grey-18": {
+      "Value": "#2e2e2e"
+    },
+    "Colors/Neutral/Grey-2": {
+      "Value": "#050505"
+    },
+    "Colors/Neutral/Grey-20": {
+      "Value": "#333333"
+    },
+    "Colors/Neutral/Grey-22": {
+      "Value": "#383838"
+    },
+    "Colors/Neutral/Grey-24": {
+      "Value": "#3d3d3d"
+    },
+    "Colors/Neutral/Grey-26": {
+      "Value": "#424242"
+    },
+    "Colors/Neutral/Grey-28": {
+      "Value": "#474747"
+    },
+    "Colors/Neutral/Grey-30": {
+      "Value": "#4d4d4d"
+    },
+    "Colors/Neutral/Grey-32": {
+      "Value": "#525252"
+    },
+    "Colors/Neutral/Grey-34": {
+      "Value": "#575757"
+    },
+    "Colors/Neutral/Grey-36": {
+      "Value": "#5c5c5c"
+    },
+    "Colors/Neutral/Grey-38": {
+      "Value": "#616161"
+    },
+    "Colors/Neutral/Grey-4": {
+      "Value": "#0a0a0a"
+    },
+    "Colors/Neutral/Grey-40": {
+      "Value": "#666666"
+    },
+    "Colors/Neutral/Grey-42": {
+      "Value": "#6b6b6b"
+    },
+    "Colors/Neutral/Grey-44": {
+      "Value": "#707070"
+    },
+    "Colors/Neutral/Grey-46": {
+      "Value": "#757575"
+    },
+    "Colors/Neutral/Grey-48": {
+      "Value": "#7a7a7a"
+    },
+    "Colors/Neutral/Grey-50": {
+      "Value": "#808080"
+    },
+    "Colors/Neutral/Grey-52": {
+      "Value": "#858585"
+    },
+    "Colors/Neutral/Grey-54": {
+      "Value": "#8a8a8a"
+    },
+    "Colors/Neutral/Grey-56": {
+      "Value": "#8f8f8f"
+    },
+    "Colors/Neutral/Grey-58": {
+      "Value": "#949494"
+    },
+    "Colors/Neutral/Grey-6": {
+      "Value": "#0f0f0f"
+    },
+    "Colors/Neutral/Grey-60": {
+      "Value": "#999999"
+    },
+    "Colors/Neutral/Grey-62": {
+      "Value": "#9e9e9e"
+    },
+    "Colors/Neutral/Grey-64": {
+      "Value": "#a3a3a3"
+    },
+    "Colors/Neutral/Grey-66": {
+      "Value": "#a8a8a8"
+    },
+    "Colors/Neutral/Grey-68": {
+      "Value": "#adadad"
+    },
+    "Colors/Neutral/Grey-70": {
+      "Value": "#b3b3b3"
+    },
+    "Colors/Neutral/Grey-72": {
+      "Value": "#b8b8b8"
+    },
+    "Colors/Neutral/Grey-74": {
+      "Value": "#bdbdbd"
+    },
+    "Colors/Neutral/Grey-76": {
+      "Value": "#c2c2c2"
+    },
+    "Colors/Neutral/Grey-78": {
+      "Value": "#c7c7c7"
+    },
+    "Colors/Neutral/Grey-8": {
+      "Value": "#141414"
+    },
+    "Colors/Neutral/Grey-80": {
+      "Value": "#cccccc"
+    },
+    "Colors/Neutral/Grey-82": {
+      "Value": "#d1d1d1"
+    },
+    "Colors/Neutral/Grey-84": {
+      "Value": "#d6d6d6"
+    },
+    "Colors/Neutral/Grey-86": {
+      "Value": "#dbdbdb"
+    },
+    "Colors/Neutral/Grey-88": {
+      "Value": "#e0e0e0"
+    },
+    "Colors/Neutral/Grey-90": {
+      "Value": "#e6e6e6"
+    },
+    "Colors/Neutral/Grey-92": {
+      "Value": "#ebebeb"
+    },
+    "Colors/Neutral/Grey-94": {
+      "Value": "#f0f0f0"
+    },
+    "Colors/Neutral/Grey-96": {
+      "Value": "#f5f5f5"
+    },
+    "Colors/Neutral/Grey-98": {
+      "Value": "#fafafa"
+    },
+    "Colors/Neutral/White": {
+      "Value": "#ffffff"
+    },
+    "Colors/Shared/Anchor/Primary": {
+      "Value": "#394146"
+    },
+    "Colors/Shared/Anchor/Shade 10": {
+      "Value": "#333a3f"
+    },
+    "Colors/Shared/Anchor/Shade 20": {
+      "Value": "#2b3135"
+    },
+    "Colors/Shared/Anchor/Shade 30": {
+      "Value": "#202427"
+    },
+    "Colors/Shared/Anchor/Shade 40": {
+      "Value": "#111315"
+    },
+    "Colors/Shared/Anchor/Shade 50": {
+      "Value": "#090a0b"
+    },
+    "Colors/Shared/Anchor/Tint 10": {
+      "Value": "#4d565c"
+    },
+    "Colors/Shared/Anchor/Tint 20": {
+      "Value": "#626c72"
+    },
+    "Colors/Shared/Anchor/Tint 30": {
+      "Value": "#808a90"
+    },
+    "Colors/Shared/Anchor/Tint 40": {
+      "Value": "#bcc3c7"
+    },
+    "Colors/Shared/Anchor/Tint 50": {
+      "Value": "#dbdfe1"
+    },
+    "Colors/Shared/Anchor/Tint 60": {
+      "Value": "#f6f7f8"
+    },
+    "Colors/Shared/Beige/Primary": {
+      "Value": "#7a7574"
+    },
+    "Colors/Shared/Beige/Shade 10": {
+      "Value": "#6e6968"
+    },
+    "Colors/Shared/Beige/Shade 20": {
+      "Value": "#5d5958"
+    },
+    "Colors/Shared/Beige/Shade 30": {
+      "Value": "#444241"
+    },
+    "Colors/Shared/Beige/Shade 40": {
+      "Value": "#252323"
+    },
+    "Colors/Shared/Beige/Shade 50": {
+      "Value": "#141313"
+    },
+    "Colors/Shared/Beige/Tint 10": {
+      "Value": "#8a8584"
+    },
+    "Colors/Shared/Beige/Tint 20": {
+      "Value": "#9a9594"
+    },
+    "Colors/Shared/Beige/Tint 30": {
+      "Value": "#afabaa"
+    },
+    "Colors/Shared/Beige/Tint 40": {
+      "Value": "#d7d4d4"
+    },
+    "Colors/Shared/Beige/Tint 50": {
+      "Value": "#eae8e8"
+    },
+    "Colors/Shared/Beige/Tint 60": {
+      "Value": "#faf9f9"
+    },
+    "Colors/Shared/Berry/Primary": {
+      "Value": "#c239b3"
+    },
+    "Colors/Shared/Berry/Shade 10": {
+      "Value": "#af33a1"
+    },
+    "Colors/Shared/Berry/Shade 20": {
+      "Value": "#932b88"
+    },
+    "Colors/Shared/Berry/Shade 30": {
+      "Value": "#6d2064"
+    },
+    "Colors/Shared/Berry/Shade 40": {
+      "Value": "#3a1136"
+    },
+    "Colors/Shared/Berry/Shade 50": {
+      "Value": "#1f091d"
+    },
+    "Colors/Shared/Berry/Tint 10": {
+      "Value": "#c94cbc"
+    },
+    "Colors/Shared/Berry/Tint 20": {
+      "Value": "#d161c4"
+    },
+    "Colors/Shared/Berry/Tint 30": {
+      "Value": "#da7ed0"
+    },
+    "Colors/Shared/Berry/Tint 40": {
+      "Value": "#edbbe7"
+    },
+    "Colors/Shared/Berry/Tint 50": {
+      "Value": "#f5daf2"
+    },
+    "Colors/Shared/Berry/Tint 60": {
+      "Value": "#fdf5fc"
+    },
+    "Colors/Shared/Blue/Primary": {
+      "Value": "#0078d4"
+    },
+    "Colors/Shared/Blue/Shade 10": {
+      "Value": "#006cbf"
+    },
+    "Colors/Shared/Blue/Shade 20": {
+      "Value": "#005ba1"
+    },
+    "Colors/Shared/Blue/Shade 30": {
+      "Value": "#004377"
+    },
+    "Colors/Shared/Blue/Shade 40": {
+      "Value": "#002440"
+    },
+    "Colors/Shared/Blue/Shade 50": {
+      "Value": "#001322"
+    },
+    "Colors/Shared/Blue/Tint 10": {
+      "Value": "#1a86d9"
+    },
+    "Colors/Shared/Blue/Tint 20": {
+      "Value": "#3595de"
+    },
+    "Colors/Shared/Blue/Tint 30": {
+      "Value": "#5caae5"
+    },
+    "Colors/Shared/Blue/Tint 40": {
+      "Value": "#a9d3f2"
+    },
+    "Colors/Shared/Blue/Tint 50": {
+      "Value": "#d0e7f8"
+    },
+    "Colors/Shared/Blue/Tint 60": {
+      "Value": "#f3f9fd"
+    },
+    "Colors/Shared/Brass/Primary": {
+      "Value": "#986f0b"
+    },
+    "Colors/Shared/Brass/Shade 10": {
+      "Value": "#89640a"
+    },
+    "Colors/Shared/Brass/Shade 20": {
+      "Value": "#745408"
+    },
+    "Colors/Shared/Brass/Shade 30": {
+      "Value": "#553e06"
+    },
+    "Colors/Shared/Brass/Shade 40": {
+      "Value": "#2e2103"
+    },
+    "Colors/Shared/Brass/Shade 50": {
+      "Value": "#181202"
+    },
+    "Colors/Shared/Brass/Tint 10": {
+      "Value": "#a47d1e"
+    },
+    "Colors/Shared/Brass/Tint 20": {
+      "Value": "#b18c34"
+    },
+    "Colors/Shared/Brass/Tint 30": {
+      "Value": "#c1a256"
+    },
+    "Colors/Shared/Brass/Tint 40": {
+      "Value": "#e0cea2"
+    },
+    "Colors/Shared/Brass/Tint 50": {
+      "Value": "#efe4cb"
+    },
+    "Colors/Shared/Brass/Tint 60": {
+      "Value": "#fbf8f2"
+    },
+    "Colors/Shared/Bronze/Primary": {
+      "Value": "#a74109"
+    },
+    "Colors/Shared/Bronze/Shade 10": {
+      "Value": "#963a08"
+    },
+    "Colors/Shared/Bronze/Shade 20": {
+      "Value": "#7f3107"
+    },
+    "Colors/Shared/Bronze/Shade 30": {
+      "Value": "#5e2405"
+    },
+    "Colors/Shared/Bronze/Shade 40": {
+      "Value": "#321303"
+    },
+    "Colors/Shared/Bronze/Shade 50": {
+      "Value": "#1b0a01"
+    },
+    "Colors/Shared/Bronze/Tint 10": {
+      "Value": "#b2521e"
+    },
+    "Colors/Shared/Bronze/Tint 20": {
+      "Value": "#bc6535"
+    },
+    "Colors/Shared/Bronze/Tint 30": {
+      "Value": "#ca8057"
+    },
+    "Colors/Shared/Bronze/Tint 40": {
+      "Value": "#e5bba4"
+    },
+    "Colors/Shared/Bronze/Tint 50": {
+      "Value": "#f1d9cc"
+    },
+    "Colors/Shared/Bronze/Tint 60": {
+      "Value": "#fbf5f2"
+    },
+    "Colors/Shared/Brown/Primary": {
+      "Value": "#8e562e"
+    },
+    "Colors/Shared/Brown/Shade 10": {
+      "Value": "#804d29"
+    },
+    "Colors/Shared/Brown/Shade 20": {
+      "Value": "#6c4123"
+    },
+    "Colors/Shared/Brown/Shade 30": {
+      "Value": "#50301a"
+    },
+    "Colors/Shared/Brown/Shade 40": {
+      "Value": "#2b1a0e"
+    },
+    "Colors/Shared/Brown/Shade 50": {
+      "Value": "#170e07"
+    },
+    "Colors/Shared/Brown/Tint 10": {
+      "Value": "#9c663f"
+    },
+    "Colors/Shared/Brown/Tint 20": {
+      "Value": "#a97652"
+    },
+    "Colors/Shared/Brown/Tint 30": {
+      "Value": "#bb8f6f"
+    },
+    "Colors/Shared/Brown/Tint 40": {
+      "Value": "#ddc3b0"
+    },
+    "Colors/Shared/Brown/Tint 50": {
+      "Value": "#edded3"
+    },
+    "Colors/Shared/Brown/Tint 60": {
+      "Value": "#faf7f4"
+    },
+    "Colors/Shared/Burgundy/Primary": {
+      "Value": "#a4262c"
+    },
+    "Colors/Shared/Burgundy/Shade 10": {
+      "Value": "#942228"
+    },
+    "Colors/Shared/Burgundy/Shade 20": {
+      "Value": "#7d1d21"
+    },
+    "Colors/Shared/Burgundy/Shade 30": {
+      "Value": "#5c1519"
+    },
+    "Colors/Shared/Burgundy/Shade 40": {
+      "Value": "#310b0d"
+    },
+    "Colors/Shared/Burgundy/Shade 50": {
+      "Value": "#1a0607"
+    },
+    "Colors/Shared/Burgundy/Tint 10": {
+      "Value": "#af393e"
+    },
+    "Colors/Shared/Burgundy/Tint 20": {
+      "Value": "#ba4d52"
+    },
+    "Colors/Shared/Burgundy/Tint 30": {
+      "Value": "#c86c70"
+    },
+    "Colors/Shared/Burgundy/Tint 40": {
+      "Value": "#e4afb2"
+    },
+    "Colors/Shared/Burgundy/Tint 50": {
+      "Value": "#f0d3d4"
+    },
+    "Colors/Shared/Burgundy/Tint 60": {
+      "Value": "#fbf4f4"
+    },
+    "Colors/Shared/Charcoal/Primary": {
+      "Value": "#393939"
+    },
+    "Colors/Shared/Charcoal/Shade 10": {
+      "Value": "#333333"
+    },
+    "Colors/Shared/Charcoal/Shade 20": {
+      "Value": "#2b2b2b"
+    },
+    "Colors/Shared/Charcoal/Shade 30": {
+      "Value": "#202020"
+    },
+    "Colors/Shared/Charcoal/Shade 40": {
+      "Value": "#111111"
+    },
+    "Colors/Shared/Charcoal/Shade 50": {
+      "Value": "#090909"
+    },
+    "Colors/Shared/Charcoal/Tint 10": {
+      "Value": "#515151"
+    },
+    "Colors/Shared/Charcoal/Tint 20": {
+      "Value": "#686868"
+    },
+    "Colors/Shared/Charcoal/Tint 30": {
+      "Value": "#888888"
+    },
+    "Colors/Shared/Charcoal/Tint 40": {
+      "Value": "#c4c4c4"
+    },
+    "Colors/Shared/Charcoal/Tint 50": {
+      "Value": "#dfdfdf"
+    },
+    "Colors/Shared/Charcoal/Tint 60": {
+      "Value": "#f7f7f7"
+    },
+    "Colors/Shared/Cornflower/Primary": {
+      "Value": "#4f6bed"
+    },
+    "Colors/Shared/Cornflower/Shade 10": {
+      "Value": "#4760d5"
+    },
+    "Colors/Shared/Cornflower/Shade 20": {
+      "Value": "#3c51b4"
+    },
+    "Colors/Shared/Cornflower/Shade 30": {
+      "Value": "#2c3c85"
+    },
+    "Colors/Shared/Cornflower/Shade 40": {
+      "Value": "#182047"
+    },
+    "Colors/Shared/Cornflower/Shade 50": {
+      "Value": "#0d1126"
+    },
+    "Colors/Shared/Cornflower/Tint 10": {
+      "Value": "#637cef"
+    },
+    "Colors/Shared/Cornflower/Tint 20": {
+      "Value": "#778df1"
+    },
+    "Colors/Shared/Cornflower/Tint 30": {
+      "Value": "#93a4f4"
+    },
+    "Colors/Shared/Cornflower/Tint 40": {
+      "Value": "#c8d1fa"
+    },
+    "Colors/Shared/Cornflower/Tint 50": {
+      "Value": "#e1e6fc"
+    },
+    "Colors/Shared/Cornflower/Tint 60": {
+      "Value": "#f7f9fe"
+    },
+    "Colors/Shared/Cranberry/Primary": {
+      "Value": "#c50f1f"
+    },
+    "Colors/Shared/Cranberry/Shade 10": {
+      "Value": "#b10e1c"
+    },
+    "Colors/Shared/Cranberry/Shade 20": {
+      "Value": "#960b18"
+    },
+    "Colors/Shared/Cranberry/Shade 30": {
+      "Value": "#6e0811"
+    },
+    "Colors/Shared/Cranberry/Shade 40": {
+      "Value": "#3b0509"
+    },
+    "Colors/Shared/Cranberry/Shade 50": {
+      "Value": "#200205"
+    },
+    "Colors/Shared/Cranberry/Tint 10": {
+      "Value": "#cc2635"
+    },
+    "Colors/Shared/Cranberry/Tint 20": {
+      "Value": "#d33f4c"
+    },
+    "Colors/Shared/Cranberry/Tint 30": {
+      "Value": "#dc626d"
+    },
+    "Colors/Shared/Cranberry/Tint 40": {
+      "Value": "#eeacb2"
+    },
+    "Colors/Shared/Cranberry/Tint 50": {
+      "Value": "#f6d1d5"
+    },
+    "Colors/Shared/Cranberry/Tint 60": {
+      "Value": "#fdf3f4"
+    },
+    "Colors/Shared/Cyan/Primary": {
+      "Value": "#0099bc"
+    },
+    "Colors/Shared/Cyan/Shade 10": {
+      "Value": "#008aa9"
+    },
+    "Colors/Shared/Cyan/Shade 20": {
+      "Value": "#00748f"
+    },
+    "Colors/Shared/Cyan/Shade 30": {
+      "Value": "#005669"
+    },
+    "Colors/Shared/Cyan/Shade 40": {
+      "Value": "#002e38"
+    },
+    "Colors/Shared/Cyan/Shade 50": {
+      "Value": "#00181e"
+    },
+    "Colors/Shared/Cyan/Tint 10": {
+      "Value": "#18a4c4"
+    },
+    "Colors/Shared/Cyan/Tint 20": {
+      "Value": "#31afcc"
+    },
+    "Colors/Shared/Cyan/Tint 30": {
+      "Value": "#56bfd7"
+    },
+    "Colors/Shared/Cyan/Tint 40": {
+      "Value": "#a4deeb"
+    },
+    "Colors/Shared/Cyan/Tint 50": {
+      "Value": "#cdedf4"
+    },
+    "Colors/Shared/Cyan/Tint 60": {
+      "Value": "#f2fafc"
+    },
+    "Colors/Shared/Dark blue/Primary": {
+      "Value": "#003966"
+    },
+    "Colors/Shared/Dark blue/Shade 10": {
+      "Value": "#00335c"
+    },
+    "Colors/Shared/Dark blue/Shade 20": {
+      "Value": "#002b4e"
+    },
+    "Colors/Shared/Dark blue/Shade 30": {
+      "Value": "#002039"
+    },
+    "Colors/Shared/Dark blue/Shade 40": {
+      "Value": "#00111f"
+    },
+    "Colors/Shared/Dark blue/Shade 50": {
+      "Value": "#000910"
+    },
+    "Colors/Shared/Dark blue/Tint 10": {
+      "Value": "#0e4a78"
+    },
+    "Colors/Shared/Dark blue/Tint 20": {
+      "Value": "#215c8b"
+    },
+    "Colors/Shared/Dark blue/Tint 30": {
+      "Value": "#4178a3"
+    },
+    "Colors/Shared/Dark blue/Tint 40": {
+      "Value": "#92b5d1"
+    },
+    "Colors/Shared/Dark blue/Tint 50": {
+      "Value": "#c2d6e7"
+    },
+    "Colors/Shared/Dark blue/Tint 60": {
+      "Value": "#eff4f9"
+    },
+    "Colors/Shared/Dark brown/Primary": {
+      "Value": "#4d291c"
+    },
+    "Colors/Shared/Dark brown/Shade 10": {
+      "Value": "#452519"
+    },
+    "Colors/Shared/Dark brown/Shade 20": {
+      "Value": "#3a1f15"
+    },
+    "Colors/Shared/Dark brown/Shade 30": {
+      "Value": "#2b1710"
+    },
+    "Colors/Shared/Dark brown/Shade 40": {
+      "Value": "#170c08"
+    },
+    "Colors/Shared/Dark brown/Shade 50": {
+      "Value": "#0c0704"
+    },
+    "Colors/Shared/Dark brown/Tint 10": {
+      "Value": "#623a2b"
+    },
+    "Colors/Shared/Dark brown/Tint 20": {
+      "Value": "#784d3e"
+    },
+    "Colors/Shared/Dark brown/Tint 30": {
+      "Value": "#946b5c"
+    },
+    "Colors/Shared/Dark brown/Tint 40": {
+      "Value": "#caada3"
+    },
+    "Colors/Shared/Dark brown/Tint 50": {
+      "Value": "#e3d2cb"
+    },
+    "Colors/Shared/Dark brown/Tint 60": {
+      "Value": "#f8f3f2"
+    },
+    "Colors/Shared/Dark green/Primary": {
+      "Value": "#0b6a0b"
+    },
+    "Colors/Shared/Dark green/Shade 10": {
+      "Value": "#0a5f0a"
+    },
+    "Colors/Shared/Dark green/Shade 20": {
+      "Value": "#085108"
+    },
+    "Colors/Shared/Dark green/Shade 30": {
+      "Value": "#063b06"
+    },
+    "Colors/Shared/Dark green/Shade 40": {
+      "Value": "#032003"
+    },
+    "Colors/Shared/Dark green/Shade 50": {
+      "Value": "#021102"
+    },
+    "Colors/Shared/Dark green/Tint 10": {
+      "Value": "#1a7c1a"
+    },
+    "Colors/Shared/Dark green/Tint 20": {
+      "Value": "#2d8e2d"
+    },
+    "Colors/Shared/Dark green/Tint 30": {
+      "Value": "#4da64d"
+    },
+    "Colors/Shared/Dark green/Tint 40": {
+      "Value": "#9ad29a"
+    },
+    "Colors/Shared/Dark green/Tint 50": {
+      "Value": "#c6e7c6"
+    },
+    "Colors/Shared/Dark green/Tint 60": {
+      "Value": "#f0f9f0"
+    },
+    "Colors/Shared/Dark orange/Primary": {
+      "Value": "#da3b01"
+    },
+    "Colors/Shared/Dark orange/Shade 10": {
+      "Value": "#c43501"
+    },
+    "Colors/Shared/Dark orange/Shade 20": {
+      "Value": "#a62d01"
+    },
+    "Colors/Shared/Dark orange/Shade 30": {
+      "Value": "#7a2101"
+    },
+    "Colors/Shared/Dark orange/Shade 40": {
+      "Value": "#411200"
+    },
+    "Colors/Shared/Dark orange/Shade 50": {
+      "Value": "#230900"
+    },
+    "Colors/Shared/Dark orange/Tint 10": {
+      "Value": "#de501c"
+    },
+    "Colors/Shared/Dark orange/Tint 20": {
+      "Value": "#e36537"
+    },
+    "Colors/Shared/Dark orange/Tint 30": {
+      "Value": "#e9835e"
+    },
+    "Colors/Shared/Dark orange/Tint 40": {
+      "Value": "#f4bfab"
+    },
+    "Colors/Shared/Dark orange/Tint 50": {
+      "Value": "#f9dcd1"
+    },
+    "Colors/Shared/Dark orange/Tint 60": {
+      "Value": "#fdf6f3"
+    },
+    "Colors/Shared/Dark purple/Primary": {
+      "Value": "#401b6c"
+    },
+    "Colors/Shared/Dark purple/Shade 10": {
+      "Value": "#3a1861"
+    },
+    "Colors/Shared/Dark purple/Shade 20": {
+      "Value": "#311552"
+    },
+    "Colors/Shared/Dark purple/Shade 30": {
+      "Value": "#240f3c"
+    },
+    "Colors/Shared/Dark purple/Shade 40": {
+      "Value": "#130820"
+    },
+    "Colors/Shared/Dark purple/Shade 50": {
+      "Value": "#0a0411"
+    },
+    "Colors/Shared/Dark purple/Tint 10": {
+      "Value": "#512b7e"
+    },
+    "Colors/Shared/Dark purple/Tint 20": {
+      "Value": "#633e8f"
+    },
+    "Colors/Shared/Dark purple/Tint 30": {
+      "Value": "#7e5ca7"
+    },
+    "Colors/Shared/Dark purple/Tint 40": {
+      "Value": "#b9a3d3"
+    },
+    "Colors/Shared/Dark purple/Tint 50": {
+      "Value": "#d8cce7"
+    },
+    "Colors/Shared/Dark purple/Tint 60": {
+      "Value": "#f5f2f9"
+    },
+    "Colors/Shared/Dark red/Primary": {
+      "Value": "#750b1c"
+    },
+    "Colors/Shared/Dark red/Shade 10": {
+      "Value": "#690a19"
+    },
+    "Colors/Shared/Dark red/Shade 20": {
+      "Value": "#590815"
+    },
+    "Colors/Shared/Dark red/Shade 30": {
+      "Value": "#420610"
+    },
+    "Colors/Shared/Dark red/Shade 40": {
+      "Value": "#230308"
+    },
+    "Colors/Shared/Dark red/Shade 50": {
+      "Value": "#130204"
+    },
+    "Colors/Shared/Dark red/Tint 10": {
+      "Value": "#861b2c"
+    },
+    "Colors/Shared/Dark red/Tint 20": {
+      "Value": "#962f3f"
+    },
+    "Colors/Shared/Dark red/Tint 30": {
+      "Value": "#ac4f5e"
+    },
+    "Colors/Shared/Dark red/Tint 40": {
+      "Value": "#d69ca5"
+    },
+    "Colors/Shared/Dark red/Tint 50": {
+      "Value": "#e9c7cd"
+    },
+    "Colors/Shared/Dark red/Tint 60": {
+      "Value": "#f9f0f2"
+    },
+    "Colors/Shared/Dark teal/Primary": {
+      "Value": "#006666"
+    },
+    "Colors/Shared/Dark teal/Shade 10": {
+      "Value": "#005c5c"
+    },
+    "Colors/Shared/Dark teal/Shade 20": {
+      "Value": "#004e4e"
+    },
+    "Colors/Shared/Dark teal/Shade 30": {
+      "Value": "#003939"
+    },
+    "Colors/Shared/Dark teal/Shade 40": {
+      "Value": "#001f1f"
+    },
+    "Colors/Shared/Dark teal/Shade 50": {
+      "Value": "#001010"
+    },
+    "Colors/Shared/Dark teal/Tint 10": {
+      "Value": "#0e7878"
+    },
+    "Colors/Shared/Dark teal/Tint 20": {
+      "Value": "#218b8b"
+    },
+    "Colors/Shared/Dark teal/Tint 30": {
+      "Value": "#41a3a3"
+    },
+    "Colors/Shared/Dark teal/Tint 40": {
+      "Value": "#92d1d1"
+    },
+    "Colors/Shared/Dark teal/Tint 50": {
+      "Value": "#c2e7e7"
+    },
+    "Colors/Shared/Dark teal/Tint 60": {
+      "Value": "#eff9f9"
+    },
+    "Colors/Shared/Forest/Primary": {
+      "Value": "#498205"
+    },
+    "Colors/Shared/Forest/Shade 10": {
+      "Value": "#427505"
+    },
+    "Colors/Shared/Forest/Shade 20": {
+      "Value": "#376304"
+    },
+    "Colors/Shared/Forest/Shade 30": {
+      "Value": "#294903"
+    },
+    "Colors/Shared/Forest/Shade 40": {
+      "Value": "#162702"
+    },
+    "Colors/Shared/Forest/Shade 50": {
+      "Value": "#0c1501"
+    },
+    "Colors/Shared/Forest/Tint 10": {
+      "Value": "#599116"
+    },
+    "Colors/Shared/Forest/Tint 20": {
+      "Value": "#6ba02b"
+    },
+    "Colors/Shared/Forest/Tint 30": {
+      "Value": "#85b44c"
+    },
+    "Colors/Shared/Forest/Tint 40": {
+      "Value": "#bdd99b"
+    },
+    "Colors/Shared/Forest/Tint 50": {
+      "Value": "#dbebc7"
+    },
+    "Colors/Shared/Forest/Tint 60": {
+      "Value": "#f6faf0"
+    },
+    "Colors/Shared/Gold/Primary": {
+      "Value": "#c19c00"
+    },
+    "Colors/Shared/Gold/Shade 10": {
+      "Value": "#ae8c00"
+    },
+    "Colors/Shared/Gold/Shade 20": {
+      "Value": "#937700"
+    },
+    "Colors/Shared/Gold/Shade 30": {
+      "Value": "#6c5700"
+    },
+    "Colors/Shared/Gold/Shade 40": {
+      "Value": "#3a2f00"
+    },
+    "Colors/Shared/Gold/Shade 50": {
+      "Value": "#1f1900"
+    },
+    "Colors/Shared/Gold/Tint 10": {
+      "Value": "#c8a718"
+    },
+    "Colors/Shared/Gold/Tint 20": {
+      "Value": "#d0b232"
+    },
+    "Colors/Shared/Gold/Tint 30": {
+      "Value": "#dac157"
+    },
+    "Colors/Shared/Gold/Tint 40": {
+      "Value": "#ecdfa5"
+    },
+    "Colors/Shared/Gold/Tint 50": {
+      "Value": "#f5eece"
+    },
+    "Colors/Shared/Gold/Tint 60": {
+      "Value": "#fdfbf2"
+    },
+    "Colors/Shared/Grape/Primary": {
+      "Value": "#881798"
+    },
+    "Colors/Shared/Grape/Shade 10": {
+      "Value": "#7a1589"
+    },
+    "Colors/Shared/Grape/Shade 20": {
+      "Value": "#671174"
+    },
+    "Colors/Shared/Grape/Shade 30": {
+      "Value": "#4c0d55"
+    },
+    "Colors/Shared/Grape/Shade 40": {
+      "Value": "#29072e"
+    },
+    "Colors/Shared/Grape/Shade 50": {
+      "Value": "#160418"
+    },
+    "Colors/Shared/Grape/Tint 10": {
+      "Value": "#952aa4"
+    },
+    "Colors/Shared/Grape/Tint 20": {
+      "Value": "#a33fb1"
+    },
+    "Colors/Shared/Grape/Tint 30": {
+      "Value": "#b55fc1"
+    },
+    "Colors/Shared/Grape/Tint 40": {
+      "Value": "#d9a7e0"
+    },
+    "Colors/Shared/Grape/Tint 50": {
+      "Value": "#eaceef"
+    },
+    "Colors/Shared/Grape/Tint 60": {
+      "Value": "#faf2fb"
+    },
+    "Colors/Shared/Green/Primary": {
+      "Value": "#107c10"
+    },
+    "Colors/Shared/Green/Shade 10": {
+      "Value": "#0e700e"
+    },
+    "Colors/Shared/Green/Shade 20": {
+      "Value": "#0c5e0c"
+    },
+    "Colors/Shared/Green/Shade 30": {
+      "Value": "#094509"
+    },
+    "Colors/Shared/Green/Shade 40": {
+      "Value": "#052505"
+    },
+    "Colors/Shared/Green/Shade 50": {
+      "Value": "#031403"
+    },
+    "Colors/Shared/Green/Tint 10": {
+      "Value": "#218c21"
+    },
+    "Colors/Shared/Green/Tint 20": {
+      "Value": "#359b35"
+    },
+    "Colors/Shared/Green/Tint 30": {
+      "Value": "#54b054"
+    },
+    "Colors/Shared/Green/Tint 40": {
+      "Value": "#9fd89f"
+    },
+    "Colors/Shared/Green/Tint 50": {
+      "Value": "#c9eac9"
+    },
+    "Colors/Shared/Green/Tint 60": {
+      "Value": "#f1faf1"
+    },
+    "Colors/Shared/Hot pink/Primary": {
+      "Value": "#e3008c"
+    },
+    "Colors/Shared/Hot pink/Shade 10": {
+      "Value": "#cc007e"
+    },
+    "Colors/Shared/Hot pink/Shade 20": {
+      "Value": "#ad006a"
+    },
+    "Colors/Shared/Hot pink/Shade 30": {
+      "Value": "#7f004e"
+    },
+    "Colors/Shared/Hot pink/Shade 40": {
+      "Value": "#44002a"
+    },
+    "Colors/Shared/Hot pink/Shade 50": {
+      "Value": "#240016"
+    },
+    "Colors/Shared/Hot pink/Tint 10": {
+      "Value": "#e61c99"
+    },
+    "Colors/Shared/Hot pink/Tint 20": {
+      "Value": "#ea38a6"
+    },
+    "Colors/Shared/Hot pink/Tint 30": {
+      "Value": "#ee5fb7"
+    },
+    "Colors/Shared/Hot pink/Tint 40": {
+      "Value": "#f7adda"
+    },
+    "Colors/Shared/Hot pink/Tint 50": {
+      "Value": "#fbd2eb"
+    },
+    "Colors/Shared/Hot pink/Tint 60": {
+      "Value": "#fef4fa"
+    },
+    "Colors/Shared/Lavender/Primary": {
+      "Value": "#7160e8"
+    },
+    "Colors/Shared/Lavender/Shade 10": {
+      "Value": "#6656d1"
+    },
+    "Colors/Shared/Lavender/Shade 20": {
+      "Value": "#5649b0"
+    },
+    "Colors/Shared/Lavender/Shade 30": {
+      "Value": "#3f3682"
+    },
+    "Colors/Shared/Lavender/Shade 40": {
+      "Value": "#221d46"
+    },
+    "Colors/Shared/Lavender/Shade 50": {
+      "Value": "#120f25"
+    },
+    "Colors/Shared/Lavender/Tint 10": {
+      "Value": "#8172eb"
+    },
+    "Colors/Shared/Lavender/Tint 20": {
+      "Value": "#9184ee"
+    },
+    "Colors/Shared/Lavender/Tint 30": {
+      "Value": "#a79cf1"
+    },
+    "Colors/Shared/Lavender/Tint 40": {
+      "Value": "#d2ccf8"
+    },
+    "Colors/Shared/Lavender/Tint 50": {
+      "Value": "#e7e4fb"
+    },
+    "Colors/Shared/Lavender/Tint 60": {
+      "Value": "#f9f8fe"
+    },
+    "Colors/Shared/Light blue/Primary": {
+      "Value": "#3a96dd"
+    },
+    "Colors/Shared/Light blue/Shade 10": {
+      "Value": "#3487c7"
+    },
+    "Colors/Shared/Light blue/Shade 20": {
+      "Value": "#2c72a8"
+    },
+    "Colors/Shared/Light blue/Shade 30": {
+      "Value": "#20547c"
+    },
+    "Colors/Shared/Light blue/Shade 40": {
+      "Value": "#112d42"
+    },
+    "Colors/Shared/Light blue/Shade 50": {
+      "Value": "#091823"
+    },
+    "Colors/Shared/Light blue/Tint 10": {
+      "Value": "#4fa1e1"
+    },
+    "Colors/Shared/Light blue/Tint 20": {
+      "Value": "#65ade5"
+    },
+    "Colors/Shared/Light blue/Tint 30": {
+      "Value": "#83bdeb"
+    },
+    "Colors/Shared/Light blue/Tint 40": {
+      "Value": "#bfddf5"
+    },
+    "Colors/Shared/Light blue/Tint 50": {
+      "Value": "#dcedfa"
+    },
+    "Colors/Shared/Light blue/Tint 60": {
+      "Value": "#f6fafe"
+    },
+    "Colors/Shared/Light green/Primary": {
+      "Value": "#13a10e"
+    },
+    "Colors/Shared/Light green/Shade 10": {
+      "Value": "#11910d"
+    },
+    "Colors/Shared/Light green/Shade 20": {
+      "Value": "#0e7a0b"
+    },
+    "Colors/Shared/Light green/Shade 30": {
+      "Value": "#0b5a08"
+    },
+    "Colors/Shared/Light green/Shade 40": {
+      "Value": "#063004"
+    },
+    "Colors/Shared/Light green/Shade 50": {
+      "Value": "#031a02"
+    },
+    "Colors/Shared/Light green/Tint 10": {
+      "Value": "#27ac22"
+    },
+    "Colors/Shared/Light green/Tint 20": {
+      "Value": "#3db838"
+    },
+    "Colors/Shared/Light green/Tint 30": {
+      "Value": "#5ec75a"
+    },
+    "Colors/Shared/Light green/Tint 40": {
+      "Value": "#a7e3a5"
+    },
+    "Colors/Shared/Light green/Tint 50": {
+      "Value": "#cef0cd"
+    },
+    "Colors/Shared/Light green/Tint 60": {
+      "Value": "#f2fbf2"
+    },
+    "Colors/Shared/Light teal/Primary": {
+      "Value": "#00b7c3"
+    },
+    "Colors/Shared/Light teal/Shade 10": {
+      "Value": "#00a5af"
+    },
+    "Colors/Shared/Light teal/Shade 20": {
+      "Value": "#008b94"
+    },
+    "Colors/Shared/Light teal/Shade 30": {
+      "Value": "#00666d"
+    },
+    "Colors/Shared/Light teal/Shade 40": {
+      "Value": "#00373a"
+    },
+    "Colors/Shared/Light teal/Shade 50": {
+      "Value": "#001d1f"
+    },
+    "Colors/Shared/Light teal/Tint 10": {
+      "Value": "#18bfca"
+    },
+    "Colors/Shared/Light teal/Tint 20": {
+      "Value": "#32c8d1"
+    },
+    "Colors/Shared/Light teal/Tint 30": {
+      "Value": "#58d3db"
+    },
+    "Colors/Shared/Light teal/Tint 40": {
+      "Value": "#a6e9ed"
+    },
+    "Colors/Shared/Light teal/Tint 50": {
+      "Value": "#cef3f5"
+    },
+    "Colors/Shared/Light teal/Tint 60": {
+      "Value": "#f2fcfd"
+    },
+    "Colors/Shared/Lilac/Primary": {
+      "Value": "#b146c2"
+    },
+    "Colors/Shared/Lilac/Shade 10": {
+      "Value": "#9f3faf"
+    },
+    "Colors/Shared/Lilac/Shade 20": {
+      "Value": "#863593"
+    },
+    "Colors/Shared/Lilac/Shade 30": {
+      "Value": "#63276d"
+    },
+    "Colors/Shared/Lilac/Shade 40": {
+      "Value": "#35153a"
+    },
+    "Colors/Shared/Lilac/Shade 50": {
+      "Value": "#1c0b1f"
+    },
+    "Colors/Shared/Lilac/Tint 10": {
+      "Value": "#ba58c9"
+    },
+    "Colors/Shared/Lilac/Tint 20": {
+      "Value": "#c36bd1"
+    },
+    "Colors/Shared/Lilac/Tint 30": {
+      "Value": "#cf87da"
+    },
+    "Colors/Shared/Lilac/Tint 40": {
+      "Value": "#e6bfed"
+    },
+    "Colors/Shared/Lilac/Tint 50": {
+      "Value": "#f2dcf5"
+    },
+    "Colors/Shared/Lilac/Tint 60": {
+      "Value": "#fcf6fd"
+    },
+    "Colors/Shared/Lime/Primary": {
+      "Value": "#73aa24"
+    },
+    "Colors/Shared/Lime/Shade 10": {
+      "Value": "#689920"
+    },
+    "Colors/Shared/Lime/Shade 20": {
+      "Value": "#57811b"
+    },
+    "Colors/Shared/Lime/Shade 30": {
+      "Value": "#405f14"
+    },
+    "Colors/Shared/Lime/Shade 40": {
+      "Value": "#23330b"
+    },
+    "Colors/Shared/Lime/Shade 50": {
+      "Value": "#121b06"
+    },
+    "Colors/Shared/Lime/Tint 10": {
+      "Value": "#81b437"
+    },
+    "Colors/Shared/Lime/Tint 20": {
+      "Value": "#90be4c"
+    },
+    "Colors/Shared/Lime/Tint 30": {
+      "Value": "#a4cc6c"
+    },
+    "Colors/Shared/Lime/Tint 40": {
+      "Value": "#cfe5af"
+    },
+    "Colors/Shared/Lime/Tint 50": {
+      "Value": "#e5f1d3"
+    },
+    "Colors/Shared/Lime/Tint 60": {
+      "Value": "#f8fcf4"
+    },
+    "Colors/Shared/Magenta/Primary": {
+      "Value": "#bf0077"
+    },
+    "Colors/Shared/Magenta/Shade 10": {
+      "Value": "#ac006b"
+    },
+    "Colors/Shared/Magenta/Shade 20": {
+      "Value": "#91005a"
+    },
+    "Colors/Shared/Magenta/Shade 30": {
+      "Value": "#6b0043"
+    },
+    "Colors/Shared/Magenta/Shade 40": {
+      "Value": "#390024"
+    },
+    "Colors/Shared/Magenta/Shade 50": {
+      "Value": "#1f0013"
+    },
+    "Colors/Shared/Magenta/Tint 10": {
+      "Value": "#c71885"
+    },
+    "Colors/Shared/Magenta/Tint 20": {
+      "Value": "#ce3293"
+    },
+    "Colors/Shared/Magenta/Tint 30": {
+      "Value": "#d957a8"
+    },
+    "Colors/Shared/Magenta/Tint 40": {
+      "Value": "#eca5d1"
+    },
+    "Colors/Shared/Magenta/Tint 50": {
+      "Value": "#f5cee6"
+    },
+    "Colors/Shared/Magenta/Tint 60": {
+      "Value": "#fcf2f9"
+    },
+    "Colors/Shared/Marigold/Primary": {
+      "Value": "#eaa300"
+    },
+    "Colors/Shared/Marigold/Shade 10": {
+      "Value": "#d39300"
+    },
+    "Colors/Shared/Marigold/Shade 20": {
+      "Value": "#b27c00"
+    },
+    "Colors/Shared/Marigold/Shade 30": {
+      "Value": "#835b00"
+    },
+    "Colors/Shared/Marigold/Shade 40": {
+      "Value": "#463100"
+    },
+    "Colors/Shared/Marigold/Shade 50": {
+      "Value": "#251a00"
+    },
+    "Colors/Shared/Marigold/Tint 10": {
+      "Value": "#edad1c"
+    },
+    "Colors/Shared/Marigold/Tint 20": {
+      "Value": "#efb839"
+    },
+    "Colors/Shared/Marigold/Tint 30": {
+      "Value": "#f2c661"
+    },
+    "Colors/Shared/Marigold/Tint 40": {
+      "Value": "#f9e2ae"
+    },
+    "Colors/Shared/Marigold/Tint 50": {
+      "Value": "#fcefd3"
+    },
+    "Colors/Shared/Marigold/Tint 60": {
+      "Value": "#fefbf4"
+    },
+    "Colors/Shared/Mink/Primary": {
+      "Value": "#5d5a58"
+    },
+    "Colors/Shared/Mink/Shade 10": {
+      "Value": "#54514f"
+    },
+    "Colors/Shared/Mink/Shade 20": {
+      "Value": "#474443"
+    },
+    "Colors/Shared/Mink/Shade 30": {
+      "Value": "#343231"
+    },
+    "Colors/Shared/Mink/Shade 40": {
+      "Value": "#1c1b1a"
+    },
+    "Colors/Shared/Mink/Shade 50": {
+      "Value": "#0f0e0e"
+    },
+    "Colors/Shared/Mink/Tint 10": {
+      "Value": "#706d6b"
+    },
+    "Colors/Shared/Mink/Tint 20": {
+      "Value": "#84817e"
+    },
+    "Colors/Shared/Mink/Tint 30": {
+      "Value": "#9e9b99"
+    },
+    "Colors/Shared/Mink/Tint 40": {
+      "Value": "#cecccb"
+    },
+    "Colors/Shared/Mink/Tint 50": {
+      "Value": "#e5e4e3"
+    },
+    "Colors/Shared/Mink/Tint 60": {
+      "Value": "#f8f8f8"
+    },
+    "Colors/Shared/Navy/Primary": {
+      "Value": "#0027b4"
+    },
+    "Colors/Shared/Navy/Shade 10": {
+      "Value": "#0023a2"
+    },
+    "Colors/Shared/Navy/Shade 20": {
+      "Value": "#001e89"
+    },
+    "Colors/Shared/Navy/Shade 30": {
+      "Value": "#001665"
+    },
+    "Colors/Shared/Navy/Shade 40": {
+      "Value": "#000c36"
+    },
+    "Colors/Shared/Navy/Shade 50": {
+      "Value": "#00061d"
+    },
+    "Colors/Shared/Navy/Tint 10": {
+      "Value": "#173bbd"
+    },
+    "Colors/Shared/Navy/Tint 20": {
+      "Value": "#3050c6"
+    },
+    "Colors/Shared/Navy/Tint 30": {
+      "Value": "#546fd2"
+    },
+    "Colors/Shared/Navy/Tint 40": {
+      "Value": "#a3b2e8"
+    },
+    "Colors/Shared/Navy/Tint 50": {
+      "Value": "#ccd5f3"
+    },
+    "Colors/Shared/Navy/Tint 60": {
+      "Value": "#f2f4fc"
+    },
+    "Colors/Shared/Orange/Primary": {
+      "Value": "#f7630c"
+    },
+    "Colors/Shared/Orange/Shade 10": {
+      "Value": "#de590b"
+    },
+    "Colors/Shared/Orange/Shade 20": {
+      "Value": "#bc4b09"
+    },
+    "Colors/Shared/Orange/Shade 30": {
+      "Value": "#8a3707"
+    },
+    "Colors/Shared/Orange/Shade 40": {
+      "Value": "#4a1e04"
+    },
+    "Colors/Shared/Orange/Shade 50": {
+      "Value": "#271002"
+    },
+    "Colors/Shared/Orange/Tint 10": {
+      "Value": "#f87528"
+    },
+    "Colors/Shared/Orange/Tint 20": {
+      "Value": "#f98845"
+    },
+    "Colors/Shared/Orange/Tint 30": {
+      "Value": "#faa06b"
+    },
+    "Colors/Shared/Orange/Tint 40": {
+      "Value": "#fdcfb4"
+    },
+    "Colors/Shared/Orange/Tint 50": {
+      "Value": "#fee5d7"
+    },
+    "Colors/Shared/Orange/Tint 60": {
+      "Value": "#fff9f5"
+    },
+    "Colors/Shared/Orchid/Primary": {
+      "Value": "#8764b8"
+    },
+    "Colors/Shared/Orchid/Shade 10": {
+      "Value": "#795aa6"
+    },
+    "Colors/Shared/Orchid/Shade 20": {
+      "Value": "#674c8c"
+    },
+    "Colors/Shared/Orchid/Shade 30": {
+      "Value": "#4c3867"
+    },
+    "Colors/Shared/Orchid/Shade 40": {
+      "Value": "#281e37"
+    },
+    "Colors/Shared/Orchid/Shade 50": {
+      "Value": "#16101d"
+    },
+    "Colors/Shared/Orchid/Tint 10": {
+      "Value": "#9373c0"
+    },
+    "Colors/Shared/Orchid/Tint 20": {
+      "Value": "#a083c9"
+    },
+    "Colors/Shared/Orchid/Tint 30": {
+      "Value": "#b29ad4"
+    },
+    "Colors/Shared/Orchid/Tint 40": {
+      "Value": "#d7caea"
+    },
+    "Colors/Shared/Orchid/Tint 50": {
+      "Value": "#e9e2f4"
+    },
+    "Colors/Shared/Orchid/Tint 60": {
+      "Value": "#f9f8fc"
+    },
+    "Colors/Shared/Peach/Primary": {
+      "Value": "#ff8c00"
+    },
+    "Colors/Shared/Peach/Shade 10": {
+      "Value": "#e67e00"
+    },
+    "Colors/Shared/Peach/Shade 20": {
+      "Value": "#c26a00"
+    },
+    "Colors/Shared/Peach/Shade 30": {
+      "Value": "#8f4e00"
+    },
+    "Colors/Shared/Peach/Shade 40": {
+      "Value": "#4d2a00"
+    },
+    "Colors/Shared/Peach/Shade 50": {
+      "Value": "#291600"
+    },
+    "Colors/Shared/Peach/Tint 10": {
+      "Value": "#ff9a1f"
+    },
+    "Colors/Shared/Peach/Tint 20": {
+      "Value": "#ffa83d"
+    },
+    "Colors/Shared/Peach/Tint 30": {
+      "Value": "#ffba66"
+    },
+    "Colors/Shared/Peach/Tint 40": {
+      "Value": "#ffddb3"
+    },
+    "Colors/Shared/Peach/Tint 50": {
+      "Value": "#ffedd6"
+    },
+    "Colors/Shared/Peach/Tint 60": {
+      "Value": "#fffaf5"
+    },
+    "Colors/Shared/Pink/Primary": {
+      "Value": "#e43ba6"
+    },
+    "Colors/Shared/Pink/Shade 10": {
+      "Value": "#cd3595"
+    },
+    "Colors/Shared/Pink/Shade 20": {
+      "Value": "#ad2d7e"
+    },
+    "Colors/Shared/Pink/Shade 30": {
+      "Value": "#80215d"
+    },
+    "Colors/Shared/Pink/Shade 40": {
+      "Value": "#441232"
+    },
+    "Colors/Shared/Pink/Shade 50": {
+      "Value": "#24091b"
+    },
+    "Colors/Shared/Pink/Tint 10": {
+      "Value": "#e750b0"
+    },
+    "Colors/Shared/Pink/Tint 20": {
+      "Value": "#ea66ba"
+    },
+    "Colors/Shared/Pink/Tint 30": {
+      "Value": "#ef85c8"
+    },
+    "Colors/Shared/Pink/Tint 40": {
+      "Value": "#f7c0e3"
+    },
+    "Colors/Shared/Pink/Tint 50": {
+      "Value": "#fbddf0"
+    },
+    "Colors/Shared/Pink/Tint 60": {
+      "Value": "#fef6fb"
+    },
+    "Colors/Shared/Platinum/Primary": {
+      "Value": "#69797e"
+    },
+    "Colors/Shared/Platinum/Shade 10": {
+      "Value": "#5f6d71"
+    },
+    "Colors/Shared/Platinum/Shade 20": {
+      "Value": "#505c60"
+    },
+    "Colors/Shared/Platinum/Shade 30": {
+      "Value": "#3b4447"
+    },
+    "Colors/Shared/Platinum/Shade 40": {
+      "Value": "#1f2426"
+    },
+    "Colors/Shared/Platinum/Shade 50": {
+      "Value": "#111314"
+    },
+    "Colors/Shared/Platinum/Tint 10": {
+      "Value": "#79898d"
+    },
+    "Colors/Shared/Platinum/Tint 20": {
+      "Value": "#89989d"
+    },
+    "Colors/Shared/Platinum/Tint 30": {
+      "Value": "#a0adb2"
+    },
+    "Colors/Shared/Platinum/Tint 40": {
+      "Value": "#cdd6d8"
+    },
+    "Colors/Shared/Platinum/Tint 50": {
+      "Value": "#e4e9ea"
+    },
+    "Colors/Shared/Platinum/Tint 60": {
+      "Value": "#f8f9fa"
+    },
+    "Colors/Shared/Plum/Primary": {
+      "Value": "#77004d"
+    },
+    "Colors/Shared/Plum/Shade 10": {
+      "Value": "#6b0045"
+    },
+    "Colors/Shared/Plum/Shade 20": {
+      "Value": "#5a003b"
+    },
+    "Colors/Shared/Plum/Shade 30": {
+      "Value": "#43002b"
+    },
+    "Colors/Shared/Plum/Shade 40": {
+      "Value": "#240017"
+    },
+    "Colors/Shared/Plum/Shade 50": {
+      "Value": "#13000c"
+    },
+    "Colors/Shared/Plum/Tint 10": {
+      "Value": "#87105d"
+    },
+    "Colors/Shared/Plum/Tint 20": {
+      "Value": "#98246f"
+    },
+    "Colors/Shared/Plum/Tint 30": {
+      "Value": "#ad4589"
+    },
+    "Colors/Shared/Plum/Tint 40": {
+      "Value": "#d696c0"
+    },
+    "Colors/Shared/Plum/Tint 50": {
+      "Value": "#e9c4dc"
+    },
+    "Colors/Shared/Plum/Tint 60": {
+      "Value": "#faf0f6"
+    },
+    "Colors/Shared/Pumpkin/Primary": {
+      "Value": "#ca5010"
+    },
+    "Colors/Shared/Pumpkin/Shade 10": {
+      "Value": "#b6480e"
+    },
+    "Colors/Shared/Pumpkin/Shade 20": {
+      "Value": "#9a3d0c"
+    },
+    "Colors/Shared/Pumpkin/Shade 30": {
+      "Value": "#712d09"
+    },
+    "Colors/Shared/Pumpkin/Shade 40": {
+      "Value": "#3d1805"
+    },
+    "Colors/Shared/Pumpkin/Shade 50": {
+      "Value": "#200d03"
+    },
+    "Colors/Shared/Pumpkin/Tint 10": {
+      "Value": "#d06228"
+    },
+    "Colors/Shared/Pumpkin/Tint 20": {
+      "Value": "#d77440"
+    },
+    "Colors/Shared/Pumpkin/Tint 30": {
+      "Value": "#df8e64"
+    },
+    "Colors/Shared/Pumpkin/Tint 40": {
+      "Value": "#efc4ad"
+    },
+    "Colors/Shared/Pumpkin/Tint 50": {
+      "Value": "#f7dfd2"
+    },
+    "Colors/Shared/Pumpkin/Tint 60": {
+      "Value": "#fdf7f4"
+    },
+    "Colors/Shared/Purple/Primary": {
+      "Value": "#5c2e91"
+    },
+    "Colors/Shared/Purple/Shade 10": {
+      "Value": "#532982"
+    },
+    "Colors/Shared/Purple/Shade 20": {
+      "Value": "#46236e"
+    },
+    "Colors/Shared/Purple/Shade 30": {
+      "Value": "#341a51"
+    },
+    "Colors/Shared/Purple/Shade 40": {
+      "Value": "#1c0e2b"
+    },
+    "Colors/Shared/Purple/Shade 50": {
+      "Value": "#0f0717"
+    },
+    "Colors/Shared/Purple/Tint 10": {
+      "Value": "#6b3f9e"
+    },
+    "Colors/Shared/Purple/Tint 20": {
+      "Value": "#7c52ab"
+    },
+    "Colors/Shared/Purple/Tint 30": {
+      "Value": "#9470bd"
+    },
+    "Colors/Shared/Purple/Tint 40": {
+      "Value": "#c6b1de"
+    },
+    "Colors/Shared/Purple/Tint 50": {
+      "Value": "#e0d3ed"
+    },
+    "Colors/Shared/Purple/Tint 60": {
+      "Value": "#f7f4fb"
+    },
+    "Colors/Shared/Red/Primary": {
+      "Value": "#d13438"
+    },
+    "Colors/Shared/Red/Shade 10": {
+      "Value": "#bc2f32"
+    },
+    "Colors/Shared/Red/Shade 20": {
+      "Value": "#9f282b"
+    },
+    "Colors/Shared/Red/Shade 30": {
+      "Value": "#751d1f"
+    },
+    "Colors/Shared/Red/Shade 40": {
+      "Value": "#3f1011"
+    },
+    "Colors/Shared/Red/Shade 50": {
+      "Value": "#210809"
+    },
+    "Colors/Shared/Red/Tint 10": {
+      "Value": "#d7494c"
+    },
+    "Colors/Shared/Red/Tint 20": {
+      "Value": "#dc5e62"
+    },
+    "Colors/Shared/Red/Tint 30": {
+      "Value": "#e37d80"
+    },
+    "Colors/Shared/Red/Tint 40": {
+      "Value": "#f1bbbc"
+    },
+    "Colors/Shared/Red/Tint 50": {
+      "Value": "#f8dadb"
+    },
+    "Colors/Shared/Red/Tint 60": {
+      "Value": "#fdf6f6"
+    },
+    "Colors/Shared/Royal blue/Primary": {
+      "Value": "#004e8c"
+    },
+    "Colors/Shared/Royal blue/Shade 10": {
+      "Value": "#00467e"
+    },
+    "Colors/Shared/Royal blue/Shade 20": {
+      "Value": "#003b6a"
+    },
+    "Colors/Shared/Royal blue/Shade 30": {
+      "Value": "#002c4e"
+    },
+    "Colors/Shared/Royal blue/Shade 40": {
+      "Value": "#00172a"
+    },
+    "Colors/Shared/Royal blue/Shade 50": {
+      "Value": "#000c16"
+    },
+    "Colors/Shared/Royal blue/Tint 10": {
+      "Value": "#125e9a"
+    },
+    "Colors/Shared/Royal blue/Tint 20": {
+      "Value": "#286fa8"
+    },
+    "Colors/Shared/Royal blue/Tint 30": {
+      "Value": "#4a89ba"
+    },
+    "Colors/Shared/Royal blue/Tint 40": {
+      "Value": "#9abfdc"
+    },
+    "Colors/Shared/Royal blue/Tint 50": {
+      "Value": "#c7dced"
+    },
+    "Colors/Shared/Royal blue/Tint 60": {
+      "Value": "#f0f6fa"
+    },
+    "Colors/Shared/Seafoam/Primary": {
+      "Value": "#00cc6a"
+    },
+    "Colors/Shared/Seafoam/Shade 10": {
+      "Value": "#00b85f"
+    },
+    "Colors/Shared/Seafoam/Shade 20": {
+      "Value": "#009b51"
+    },
+    "Colors/Shared/Seafoam/Shade 30": {
+      "Value": "#00723b"
+    },
+    "Colors/Shared/Seafoam/Shade 40": {
+      "Value": "#003d20"
+    },
+    "Colors/Shared/Seafoam/Shade 50": {
+      "Value": "#002111"
+    },
+    "Colors/Shared/Seafoam/Tint 10": {
+      "Value": "#19d279"
+    },
+    "Colors/Shared/Seafoam/Tint 20": {
+      "Value": "#34d889"
+    },
+    "Colors/Shared/Seafoam/Tint 30": {
+      "Value": "#5ae0a0"
+    },
+    "Colors/Shared/Seafoam/Tint 40": {
+      "Value": "#a8f0cd"
+    },
+    "Colors/Shared/Seafoam/Tint 50": {
+      "Value": "#cff7e4"
+    },
+    "Colors/Shared/Seafoam/Tint 60": {
+      "Value": "#f3fdf8"
+    },
+    "Colors/Shared/Silver/Primary": {
+      "Value": "#859599"
+    },
+    "Colors/Shared/Silver/Shade 10": {
+      "Value": "#78868a"
+    },
+    "Colors/Shared/Silver/Shade 20": {
+      "Value": "#657174"
+    },
+    "Colors/Shared/Silver/Shade 30": {
+      "Value": "#4a5356"
+    },
+    "Colors/Shared/Silver/Shade 40": {
+      "Value": "#282d2e"
+    },
+    "Colors/Shared/Silver/Shade 50": {
+      "Value": "#151818"
+    },
+    "Colors/Shared/Silver/Tint 10": {
+      "Value": "#92a1a5"
+    },
+    "Colors/Shared/Silver/Tint 20": {
+      "Value": "#a0aeb1"
+    },
+    "Colors/Shared/Silver/Tint 30": {
+      "Value": "#b3bfc2"
+    },
+    "Colors/Shared/Silver/Tint 40": {
+      "Value": "#d8dfe0"
+    },
+    "Colors/Shared/Silver/Tint 50": {
+      "Value": "#eaeeef"
+    },
+    "Colors/Shared/Silver/Tint 60": {
+      "Value": "#fafbfb"
+    },
+    "Colors/Shared/Steel/Primary": {
+      "Value": "#005b70"
+    },
+    "Colors/Shared/Steel/Shade 10": {
+      "Value": "#005265"
+    },
+    "Colors/Shared/Steel/Shade 20": {
+      "Value": "#004555"
+    },
+    "Colors/Shared/Steel/Shade 30": {
+      "Value": "#00333f"
+    },
+    "Colors/Shared/Steel/Shade 40": {
+      "Value": "#001b22"
+    },
+    "Colors/Shared/Steel/Shade 50": {
+      "Value": "#000f12"
+    },
+    "Colors/Shared/Steel/Tint 10": {
+      "Value": "#0f6c81"
+    },
+    "Colors/Shared/Steel/Tint 20": {
+      "Value": "#237d92"
+    },
+    "Colors/Shared/Steel/Tint 30": {
+      "Value": "#4496a9"
+    },
+    "Colors/Shared/Steel/Tint 40": {
+      "Value": "#94c8d4"
+    },
+    "Colors/Shared/Steel/Tint 50": {
+      "Value": "#c3e1e8"
+    },
+    "Colors/Shared/Steel/Tint 60": {
+      "Value": "#eff7f9"
+    },
+    "Colors/Shared/Teal/Primary": {
+      "Value": "#038387"
+    },
+    "Colors/Shared/Teal/Shade 10": {
+      "Value": "#037679"
+    },
+    "Colors/Shared/Teal/Shade 20": {
+      "Value": "#026467"
+    },
+    "Colors/Shared/Teal/Shade 30": {
+      "Value": "#02494c"
+    },
+    "Colors/Shared/Teal/Shade 40": {
+      "Value": "#012728"
+    },
+    "Colors/Shared/Teal/Shade 50": {
+      "Value": "#001516"
+    },
+    "Colors/Shared/Teal/Tint 10": {
+      "Value": "#159195"
+    },
+    "Colors/Shared/Teal/Tint 20": {
+      "Value": "#2aa0a4"
+    },
+    "Colors/Shared/Teal/Tint 30": {
+      "Value": "#4cb4b7"
+    },
+    "Colors/Shared/Teal/Tint 40": {
+      "Value": "#9bd9db"
+    },
+    "Colors/Shared/Teal/Tint 50": {
+      "Value": "#c7ebec"
+    },
+    "Colors/Shared/Teal/Tint 60": {
+      "Value": "#f0fafa"
+    },
+    "Colors/Shared/Yellow/Primary": {
+      "Value": "#fde300"
+    },
+    "Colors/Shared/Yellow/Shade 10": {
+      "Value": "#e4cc00"
+    },
+    "Colors/Shared/Yellow/Shade 20": {
+      "Value": "#c0ad00"
+    },
+    "Colors/Shared/Yellow/Shade 30": {
+      "Value": "#817400"
+    },
+    "Colors/Shared/Yellow/Shade 40": {
+      "Value": "#4c4400"
+    },
+    "Colors/Shared/Yellow/Shade 50": {
+      "Value": "#282400"
+    },
+    "Colors/Shared/Yellow/Tint 10": {
+      "Value": "#fde61e"
+    },
+    "Colors/Shared/Yellow/Tint 20": {
+      "Value": "#fdea3d"
+    },
+    "Colors/Shared/Yellow/Tint 30": {
+      "Value": "#feee66"
+    },
+    "Colors/Shared/Yellow/Tint 40": {
+      "Value": "#fef7b2"
+    },
+    "Colors/Shared/Yellow/Tint 50": {
+      "Value": "#fffad6"
+    },
+    "Colors/Shared/Yellow/Tint 60": {
+      "Value": "#fffef5"
+    },
+    "Corner radius/120": {
+      "Value": 12
+    },
+    "Corner radius/160": {
+      "Value": 16
+    },
+    "Corner radius/20": {
+      "Value": 2
+    },
+    "Corner radius/240": {
+      "Value": 24
+    },
+    "Corner radius/320": {
+      "Value": 32
+    },
+    "Corner radius/40": {
+      "Value": 4
+    },
+    "Corner radius/400": {
+      "Value": 40
+    },
+    "Corner radius/60": {
+      "Value": 6
+    },
+    "Corner radius/80": {
+      "Value": 8
+    },
+    "Corner radius/Circular": {
+      "Value": 9999
+    },
+    "Corner radius/None": {
+      "Value": 0
+    },
+    "Size/100": {
+      "Value": 10
+    },
+    "Size/120": {
+      "Value": 12
+    },
+    "Size/160": {
+      "Value": 16
+    },
+    "Size/20": {
+      "Value": 2
+    },
+    "Size/200": {
+      "Value": 20
+    },
+    "Size/240": {
+      "Value": 24
+    },
+    "Size/280": {
+      "Value": 28
+    },
+    "Size/320": {
+      "Value": 32
+    },
+    "Size/360": {
+      "Value": 36
+    },
+    "Size/40": {
+      "Value": 4
+    },
+    "Size/400": {
+      "Value": 40
+    },
+    "Size/480": {
+      "Value": 48
+    },
+    "Size/520": {
+      "Value": 52
+    },
+    "Size/560": {
+      "Value": 56
+    },
+    "Size/60": {
+      "Value": 6
+    },
+    "Size/80": {
+      "Value": 8
+    },
+    "Size/None": {
+      "Value": 0
+    },
+    "Stroke width/05": {
+      "Value": 0.5
+    },
+    "Stroke width/10": {
+      "Value": 1
+    },
+    "Stroke width/15": {
+      "Value": 1.5
+    },
+    "Stroke width/20": {
+      "Value": 2
+    },
+    "Stroke width/30": {
+      "Value": 3
+    },
+    "Stroke width/40": {
+      "Value": 4
+    },
+    "Stroke width/60": {
+      "Value": 6
+    },
+    "Stroke width/None": {
+      "Value": 0
+    },
+    "Typography/Font family/Base": {
+      "Value": "Segoe UI"
+    },
+    "Typography/Font size/100": {
+      "Value": 10
+    },
+    "Typography/Font size/1000": {
+      "Value": 68
+    },
+    "Typography/Font size/200": {
+      "Value": 12
+    },
+    "Typography/Font size/300": {
+      "Value": 14
+    },
+    "Typography/Font size/400": {
+      "Value": 16
+    },
+    "Typography/Font size/500": {
+      "Value": 20
+    },
+    "Typography/Font size/600": {
+      "Value": 24
+    },
+    "Typography/Font size/700": {
+      "Value": 28
+    },
+    "Typography/Font size/800": {
+      "Value": 32
+    },
+    "Typography/Font size/900": {
+      "Value": 40
+    },
+    "Typography/Line height/100": {
+      "Value": 14
+    },
+    "Typography/Line height/1000": {
+      "Value": 92
+    },
+    "Typography/Line height/200": {
+      "Value": 16
+    },
+    "Typography/Line height/300": {
+      "Value": 20
+    },
+    "Typography/Line height/400": {
+      "Value": 22
+    },
+    "Typography/Line height/500": {
+      "Value": 28
+    },
+    "Typography/Line height/600": {
+      "Value": 32
+    },
+    "Typography/Line height/700": {
+      "Value": 36
+    },
+    "Typography/Line height/800": {
+      "Value": 40
+    },
+    "Typography/Line height/900": {
+      "Value": 56
+    },
+    "Typography/Weight/Bold": {
+      "Value": "Bold"
+    },
+    "Typography/Weight/Regular": {
+      "Value": "Regular"
+    },
+    "Typography/Weight/Semibold": {
+      "Value": "Semibold"
+    }
+  },
+  "Layout": {
+    "Corner radius/Circular": {
+      "Mode 1": 9999
+    },
+    "Corner radius/Large": {
+      "Mode 1": 6
+    },
+    "Corner radius/Medium": {
+      "Mode 1": 4
+    },
+    "Corner radius/None": {
+      "Mode 1": 0
+    },
+    "Corner radius/Small": {
+      "Mode 1": 2
+    },
+    "Corner radius/X-Large": {
+      "Mode 1": 8
+    },
+    "Spacing/Horizontal/L": {
+      "Mode 1": 16
+    },
+    "Spacing/Horizontal/M": {
+      "Mode 1": 12
+    },
+    "Spacing/Horizontal/MNudge": {
+      "Mode 1": 10
+    },
+    "Spacing/Horizontal/None": {
+      "Mode 1": 0
+    },
+    "Spacing/Horizontal/S": {
+      "Mode 1": 8
+    },
+    "Spacing/Horizontal/SNudge": {
+      "Mode 1": 6
+    },
+    "Spacing/Horizontal/XL": {
+      "Mode 1": 20
+    },
+    "Spacing/Horizontal/XS": {
+      "Mode 1": 4
+    },
+    "Spacing/Horizontal/XXL": {
+      "Mode 1": 24
+    },
+    "Spacing/Horizontal/XXS": {
+      "Mode 1": 2
+    },
+    "Spacing/Horizontal/XXXL": {
+      "Mode 1": 32
+    },
+    "Spacing/Vertical/L": {
+      "Mode 1": 16
+    },
+    "Spacing/Vertical/M": {
+      "Mode 1": 12
+    },
+    "Spacing/Vertical/MNudge": {
+      "Mode 1": 10
+    },
+    "Spacing/Vertical/None": {
+      "Mode 1": 0
+    },
+    "Spacing/Vertical/S": {
+      "Mode 1": 8
+    },
+    "Spacing/Vertical/SNudge": {
+      "Mode 1": 6
+    },
+    "Spacing/Vertical/XL": {
+      "Mode 1": 20
+    },
+    "Spacing/Vertical/XS": {
+      "Mode 1": 4
+    },
+    "Spacing/Vertical/XXL": {
+      "Mode 1": 24
+    },
+    "Spacing/Vertical/XXS": {
+      "Mode 1": 2
+    },
+    "Spacing/Vertical/XXXL": {
+      "Mode 1": 32
+    },
+    "Stroke width/Thick": {
+      "Mode 1": 2
+    },
+    "Stroke width/Thicker": {
+      "Mode 1": 3
+    },
+    "Stroke width/Thickest": {
+      "Mode 1": 4
+    },
+    "Stroke width/Thin": {
+      "Mode 1": 1
+    }
+  },
+  "Mode": {
+    "Brand/Background/1/Hover": {
+      "Dark": "#0f6cbd",
+      "Light": "#115ea3"
+    },
+    "Brand/Background/1/Pressed": {
+      "Dark": "#0c3b5e",
+      "Light": "#0c3b5e"
+    },
+    "Brand/Background/1/Rest": {
+      "Dark": "#115ea3",
+      "Light": "#0f6cbd"
+    },
+    "Brand/Background/1/Selected": {
+      "Dark": "#0f548c",
+      "Light": "#0f548c"
+    },
+    "Brand/Background/2/Hover": {
+      "Dark": "#0c3b5e",
+      "Light": "#cfe4fa"
+    },
+    "Brand/Background/2/Pressed": {
+      "Dark": "#061724",
+      "Light": "#96c6fa"
+    },
+    "Brand/Background/2/Rest": {
+      "Dark": "#082338",
+      "Light": "#ebf3fc"
+    },
+    "Brand/Background/Compound/Hover": {
+      "Dark": "#62abf5",
+      "Light": "#115ea3"
+    },
+    "Brand/Background/Compound/Pressed": {
+      "Dark": "#2886de",
+      "Light": "#0f548c"
+    },
+    "Brand/Background/Compound/Rest": {
+      "Dark": "#479ef5",
+      "Light": "#0f6cbd"
+    },
+    "Brand/Background/Inverted/Hover": {
+      "Dark": "#ebf3fc",
+      "Light": "#ebf3fc"
+    },
+    "Brand/Background/Inverted/Pressed": {
+      "Dark": "#b4d6fa",
+      "Light": "#b4d6fa"
+    },
+    "Brand/Background/Inverted/Rest": {
+      "Dark": "#ffffff",
+      "Light": "#ffffff"
+    },
+    "Brand/Background/Inverted/Selected": {
+      "Dark": "#cfe4fa",
+      "Light": "#cfe4fa"
+    },
+    "Brand/Background/Static/1/Rest": {
+      "Dark": "#0f6cbd",
+      "Light": "#0f6cbd"
+    },
+    "Brand/Background/Static/3/Rest": {
+      "Dark": "#0f548c",
+      "Light": "#0f548c"
+    },
+    "Brand/Background/Static/4/Rest": {
+      "Dark": "#0c3b5e",
+      "Light": "#0c3b5e"
+    },
+    "Brand/Foreground/1/Rest": {
+      "Dark": "#479ef5",
+      "Light": "#0f6cbd"
+    },
+    "Brand/Foreground/2/Hover": {
+      "Dark": "#96c6fa",
+      "Light": "#0f548c"
+    },
+    "Brand/Foreground/2/Pressed": {
+      "Dark": "#479ef5",
+      "Light": "#0a2e4a"
+    },
+    "Brand/Foreground/2/Rest": {
+      "Dark": "#62abf5",
+      "Light": "#115ea3"
+    },
+    "Brand/Foreground/Compound/Hover": {
+      "Dark": "#62abf5",
+      "Light": "#115ea3"
+    },
+    "Brand/Foreground/Compound/Pressed": {
+      "Dark": "#2886de",
+      "Light": "#0f548c"
+    },
+    "Brand/Foreground/Compound/Rest": {
+      "Dark": "#479ef5",
+      "Light": "#0f6cbd"
+    },
+    "Brand/Foreground/Inverted/Hover": {
+      "Dark": "#115ea3",
+      "Light": "#62abf5"
+    },
+    "Brand/Foreground/Inverted/Pressed": {
+      "Dark": "#0f548c",
+      "Light": "#479ef5"
+    },
+    "Brand/Foreground/Inverted/Rest": {
+      "Dark": "#0f6cbd",
+      "Light": "#479ef5"
+    },
+    "Brand/Foreground/Link/Hover": {
+      "Dark": "#62abf5",
+      "Light": "#0f548c"
+    },
+    "Brand/Foreground/Link/Pressed": {
+      "Dark": "#2886de",
+      "Light": "#0c3b5e"
+    },
+    "Brand/Foreground/Link/Rest": {
+      "Dark": "#479ef5",
+      "Light": "#115ea3"
+    },
+    "Brand/Foreground/Link/Selected": {
+      "Dark": "#479ef5",
+      "Light": "#115ea3"
+    },
+    "Brand/Foreground/On Light/Hover": {
+      "Dark": "#115ea3",
+      "Light": "#115ea3"
+    },
+    "Brand/Foreground/On Light/Pressed": {
+      "Dark": "#0e4775",
+      "Light": "#0e4775"
+    },
+    "Brand/Foreground/On Light/Rest": {
+      "Dark": "#115ea3",
+      "Light": "#0f6cbd"
+    },
+    "Brand/Foreground/On Light/Selected": {
+      "Dark": "#0f548c",
+      "Light": "#0f548c"
+    },
+    "Brand/Stroke/1/Rest": {
+      "Dark": "#479ef5",
+      "Light": "#0f6cbd"
+    },
+    "Brand/Stroke/2/Contrast/Rest": {
+      "Dark": "#0e4775",
+      "Light": "#b4d6fa"
+    },
+    "Brand/Stroke/2/Hover": {
+      "Dark": "#2886de",
+      "Light": "#77b7f7"
+    },
+    "Brand/Stroke/2/Pressed": {
+      "Dark": "#115ea3",
+      "Light": "#0f6cbd"
+    },
+    "Brand/Stroke/2/Rest": {
+      "Dark": "#0e4775",
+      "Light": "#b4d6fa"
+    },
+    "Brand/Stroke/Compound/Hover": {
+      "Dark": "#62abf5",
+      "Light": "#115ea3"
+    },
+    "Brand/Stroke/Compound/Pressed": {
+      "Dark": "#2886de",
+      "Light": "#0f548c"
+    },
+    "Brand/Stroke/Compound/Rest": {
+      "Dark": "#479ef5",
+      "Light": "#0f6cbd"
+    },
+    "Material/Acrylic/Background/Blur": {
+      "Dark": 60,
+      "Light": 60
+    },
+    "Material/Acrylic/Background/Primary": {
+      "Dark": "#2e2e2ecc",
+      "Light": "#ffffff80"
+    },
+    "Material/Acrylic/Background/Secondary": {
+      "Dark": "#46406e99",
+      "Light": "#e7ecf3b2"
+    },
+    "Material/Acrylic/Stroke/Stop 1": {
+      "Dark": "#00000033",
+      "Light": "#ffffff33"
+    },
+    "Material/Acrylic/Stroke/Stop 2": {
+      "Dark": "#2c3136",
+      "Light": "#cfe4fa33"
+    },
+    "Material/Acrylic/Stroke/Stop 3": {
+      "Dark": "#00000033",
+      "Light": "#ffffff33"
+    },
+    "Neutral/Background/1/Hover": {
+      "Dark": "#3d3d3d",
+      "Light": "#f5f5f5"
+    },
+    "Neutral/Background/1/Pressed": {
+      "Dark": "#1f1f1f",
+      "Light": "#e0e0e0"
+    },
+    "Neutral/Background/1/Rest": {
+      "Dark": "#292929",
+      "Light": "#ffffff"
+    },
+    "Neutral/Background/1/Selected": {
+      "Dark": "#383838",
+      "Light": "#ebebeb"
+    },
+    "Neutral/Background/2/Hover": {
+      "Dark": "#333333",
+      "Light": "#f0f0f0"
+    },
+    "Neutral/Background/2/Pressed": {
+      "Dark": "#141414",
+      "Light": "#dbdbdb"
+    },
+    "Neutral/Background/2/Rest": {
+      "Dark": "#1f1f1f",
+      "Light": "#fafafa"
+    },
+    "Neutral/Background/2/Selected": {
+      "Dark": "#2e2e2e",
+      "Light": "#e6e6e6"
+    },
+    "Neutral/Background/3/Hover": {
+      "Dark": "#292929",
+      "Light": "#ebebeb"
+    },
+    "Neutral/Background/3/Pressed": {
+      "Dark": "#0a0a0a",
+      "Light": "#d6d6d6"
+    },
+    "Neutral/Background/3/Rest": {
+      "Dark": "#141414",
+      "Light": "#f5f5f5"
+    },
+    "Neutral/Background/3/Selected": {
+      "Dark": "#242424",
+      "Light": "#e0e0e0"
+    },
+    "Neutral/Background/4/Hover": {
+      "Dark": "#1f1f1f",
+      "Light": "#fafafa"
+    },
+    "Neutral/Background/4/Pressed": {
+      "Dark": "#000000",
+      "Light": "#f5f5f5"
+    },
+    "Neutral/Background/4/Rest": {
+      "Dark": "#0a0a0a",
+      "Light": "#f0f0f0"
+    },
+    "Neutral/Background/4/Selected": {
+      "Dark": "#1a1a1a",
+      "Light": "#ffffff"
+    },
+    "Neutral/Background/5/Hover": {
+      "Dark": "#141414",
+      "Light": "#f5f5f5"
+    },
+    "Neutral/Background/5/Pressed": {
+      "Dark": "#050505",
+      "Light": "#f0f0f0"
+    },
+    "Neutral/Background/5/Rest": {
+      "Dark": "#000000",
+      "Light": "#ebebeb"
+    },
+    "Neutral/Background/5/Selected": {
+      "Dark": "#0f0f0f",
+      "Light": "#fafafa"
+    },
+    "Neutral/Background/6/Rest": {
+      "Dark": "#333333",
+      "Light": "#e6e6e6"
+    },
+    "Neutral/Background/Alpha/1/Rest": {
+      "Dark": "#1a1a1a80",
+      "Light": "#ffffff80"
+    },
+    "Neutral/Background/Alpha/2/Rest": {
+      "Dark": "#1f1f1fb2",
+      "Light": "#ffffffcc"
+    },
+    "Neutral/Background/Disabled/Rest": {
+      "Dark": "#141414",
+      "Light": "#f0f0f0"
+    },
+    "Neutral/Background/Inverted/Disabled/Rest": {
+      "Dark": "#ffffff1a",
+      "Light": "#ffffff1a"
+    },
+    "Neutral/Background/Inverted/Rest": {
+      "Dark": "#ffffff",
+      "Light": "#292929"
+    },
+    "Neutral/Background/Overlay/Rest": {
+      "Dark": "#00000080",
+      "Light": "#00000066"
+    },
+    "Neutral/Background/Overlay/Scrollbar/Rest": {
+      "Dark": "#ffffff99",
+      "Light": "#00000080"
+    },
+    "Neutral/Background/Static/Rest": {
+      "Dark": "#3d3d3d",
+      "Light": "#333333"
+    },
+    "Neutral/Background/Stencil/1/Alpha/Rest": {
+      "Dark": "#ffffff1a",
+      "Light": "#0000001a"
+    },
+    "Neutral/Background/Stencil/1/Rest": {
+      "Dark": "#575757",
+      "Light": "#e6e6e6"
+    },
+    "Neutral/Background/Stencil/2/Alpha/Rest": {
+      "Dark": "#ffffff0d",
+      "Light": "#0000000d"
+    },
+    "Neutral/Background/Stencil/2/Rest": {
+      "Dark": "#333333",
+      "Light": "#fafafa"
+    },
+    "Neutral/Background/Subtle/Hover": {
+      "Dark": "#383838",
+      "Light": "#f5f5f5"
+    },
+    "Neutral/Background/Subtle/Inverted/Hover": {
+      "Dark": "#0000001a",
+      "Light": "#0000001a"
+    },
+    "Neutral/Background/Subtle/Inverted/Pressed": {
+      "Dark": "#0000004d",
+      "Light": "#0000004d"
+    },
+    "Neutral/Background/Subtle/Inverted/Rest": {
+      "Dark": "#00000000",
+      "Light": "#00000000"
+    },
+    "Neutral/Background/Subtle/Inverted/Selected": {
+      "Dark": "#00000033",
+      "Light": "#00000033"
+    },
+    "Neutral/Background/Subtle/Light alpha/Hover": {
+      "Dark": "#242424cc",
+      "Light": "#ffffffb2"
+    },
+    "Neutral/Background/Subtle/Light alpha/Pressed": {
+      "Dark": "#24242480",
+      "Light": "#ffffff80"
+    },
+    "Neutral/Background/Subtle/Light alpha/Selected": {
+      "Dark": "#00000000",
+      "Light": "#ffffff00"
+    },
+    "Neutral/Background/Subtle/Pressed": {
+      "Dark": "#2e2e2e",
+      "Light": "#e0e0e0"
+    },
+    "Neutral/Background/Subtle/Rest": {
+      "Dark": "#00000000",
+      "Light": "#ffffff00"
+    },
+    "Neutral/Background/Subtle/Selected": {
+      "Dark": "#333333",
+      "Light": "#ebebeb"
+    },
+    "Neutral/Background/Transparent/Hover": {
+      "Dark": "#00000000",
+      "Light": "#ffffff00"
+    },
+    "Neutral/Background/Transparent/Pressed": {
+      "Dark": "#00000000",
+      "Light": "#ffffff00"
+    },
+    "Neutral/Background/Transparent/Rest": {
+      "Dark": "#00000000",
+      "Light": "#ffffff00"
+    },
+    "Neutral/Background/Transparent/Selected": {
+      "Dark": "#00000000",
+      "Light": "#ffffff00"
+    },
+    "Neutral/Foreground/1/Hover": {
+      "Dark": "#ffffff",
+      "Light": "#242424"
+    },
+    "Neutral/Foreground/1/Pressed": {
+      "Dark": "#ffffff",
+      "Light": "#242424"
+    },
+    "Neutral/Foreground/1/Rest": {
+      "Dark": "#ffffff",
+      "Light": "#242424"
+    },
+    "Neutral/Foreground/1/Selected": {
+      "Dark": "#ffffff",
+      "Light": "#242424"
+    },
+    "Neutral/Foreground/2/Brand/Hover": {
+      "Dark": "#479ef5",
+      "Light": "#0f6cbd"
+    },
+    "Neutral/Foreground/2/Brand/Pressed": {
+      "Dark": "#62abf5",
+      "Light": "#115ea3"
+    },
+    "Neutral/Foreground/2/Brand/Selected": {
+      "Dark": "#479ef5",
+      "Light": "#0f6cbd"
+    },
+    "Neutral/Foreground/2/Hover": {
+      "Dark": "#ffffff",
+      "Light": "#242424"
+    },
+    "Neutral/Foreground/2/Link/Hover": {
+      "Dark": "#ffffff",
+      "Light": "#242424"
+    },
+    "Neutral/Foreground/2/Link/Pressed": {
+      "Dark": "#ffffff",
+      "Light": "#242424"
+    },
+    "Neutral/Foreground/2/Link/Rest": {
+      "Dark": "#d6d6d6",
+      "Light": "#424242"
+    },
+    "Neutral/Foreground/2/Link/Selected": {
+      "Dark": "#ffffff",
+      "Light": "#242424"
+    },
+    "Neutral/Foreground/2/Pressed": {
+      "Dark": "#ffffff",
+      "Light": "#242424"
+    },
+    "Neutral/Foreground/2/Rest": {
+      "Dark": "#d6d6d6",
+      "Light": "#424242"
+    },
+    "Neutral/Foreground/2/Selected": {
+      "Dark": "#ffffff",
+      "Light": "#242424"
+    },
+    "Neutral/Foreground/3/Brand/Hover": {
+      "Dark": "#479ef5",
+      "Light": "#0f6cbd"
+    },
+    "Neutral/Foreground/3/Brand/Pressed": {
+      "Dark": "#62abf5",
+      "Light": "#115ea3"
+    },
+    "Neutral/Foreground/3/Brand/Selected": {
+      "Dark": "#479ef5",
+      "Light": "#0f6cbd"
+    },
+    "Neutral/Foreground/3/Hover": {
+      "Dark": "#d6d6d6",
+      "Light": "#424242"
+    },
+    "Neutral/Foreground/3/Pressed": {
+      "Dark": "#d6d6d6",
+      "Light": "#424242"
+    },
+    "Neutral/Foreground/3/Rest": {
+      "Dark": "#adadad",
+      "Light": "#616161"
+    },
+    "Neutral/Foreground/3/Selected": {
+      "Dark": "#d6d6d6",
+      "Light": "#424242"
+    },
+    "Neutral/Foreground/4/Rest": {
+      "Dark": "#999999",
+      "Light": "#707070"
+    },
+    "Neutral/Foreground/Disabled/Rest": {
+      "Dark": "#5c5c5c",
+      "Light": "#bdbdbd"
+    },
+    "Neutral/Foreground/Inverted/1/Hover": {
+      "Dark": "#242424",
+      "Light": "#ffffff"
+    },
+    "Neutral/Foreground/Inverted/1/Pressed": {
+      "Dark": "#242424",
+      "Light": "#ffffff"
+    },
+    "Neutral/Foreground/Inverted/1/Rest": {
+      "Dark": "#242424",
+      "Light": "#ffffff"
+    },
+    "Neutral/Foreground/Inverted/1/Selected": {
+      "Dark": "#242424",
+      "Light": "#ffffff"
+    },
+    "Neutral/Foreground/Inverted/2/Rest": {
+      "Dark": "#242424",
+      "Light": "#ffffff"
+    },
+    "Neutral/Foreground/Inverted/Disabled/Rest": {
+      "Dark": "#ffffff66",
+      "Light": "#ffffff66"
+    },
+    "Neutral/Foreground/Inverted/Link/Hover": {
+      "Dark": "#ffffff",
+      "Light": "#ffffff"
+    },
+    "Neutral/Foreground/Inverted/Link/Pressed": {
+      "Dark": "#ffffff",
+      "Light": "#ffffff"
+    },
+    "Neutral/Foreground/Inverted/Link/Rest": {
+      "Dark": "#ffffff",
+      "Light": "#ffffff"
+    },
+    "Neutral/Foreground/Inverted/Link/Selected": {
+      "Dark": "#ffffff",
+      "Light": "#ffffff"
+    },
+    "Neutral/Foreground/On Brand/Rest": {
+      "Dark": "#ffffff",
+      "Light": "#ffffff"
+    },
+    "Neutral/Foreground/Static/Inverted/Rest": {
+      "Dark": "#ffffff",
+      "Light": "#ffffff"
+    },
+    "Neutral/Foreground/Static/Rest": {
+      "Dark": "#242424",
+      "Light": "#242424"
+    },
+    "Neutral/Stroke/1/Hover": {
+      "Dark": "#757575",
+      "Light": "#c7c7c7"
+    },
+    "Neutral/Stroke/1/Pressed": {
+      "Dark": "#6b6b6b",
+      "Light": "#b3b3b3"
+    },
+    "Neutral/Stroke/1/Rest": {
+      "Dark": "#666666",
+      "Light": "#d1d1d1"
+    },
+    "Neutral/Stroke/1/Selected": {
+      "Dark": "#707070",
+      "Light": "#bdbdbd"
+    },
+    "Neutral/Stroke/2/Rest": {
+      "Dark": "#525252",
+      "Light": "#e0e0e0"
+    },
+    "Neutral/Stroke/3/Rest": {
+      "Dark": "#3d3d3d",
+      "Light": "#f0f0f0"
+    },
+    "Neutral/Stroke/Accessible/Hover": {
+      "Dark": "#bdbdbd",
+      "Light": "#575757"
+    },
+    "Neutral/Stroke/Accessible/Pressed": {
+      "Dark": "#b3b3b3",
+      "Light": "#4d4d4d"
+    },
+    "Neutral/Stroke/Accessible/Rest": {
+      "Dark": "#adadad",
+      "Light": "#616161"
+    },
+    "Neutral/Stroke/Accessible/Selected": {
+      "Dark": "#479ef5",
+      "Light": "#0f6cbd"
+    },
+    "Neutral/Stroke/Alpha/1/Rest": {
+      "Dark": "#ffffff1a",
+      "Light": "#0000000d"
+    },
+    "Neutral/Stroke/Alpha/2/Rest": {
+      "Dark": "#ffffff33",
+      "Light": "#ffffff33"
+    },
+    "Neutral/Stroke/Disabled/Inverted/Rest": {
+      "Dark": "#ffffff66",
+      "Light": "#ffffff66"
+    },
+    "Neutral/Stroke/Disabled/Rest": {
+      "Dark": "#424242",
+      "Light": "#e0e0e0"
+    },
+    "Neutral/Stroke/Focus/1/Rest": {
+      "Dark": "#000000",
+      "Light": "#ffffff"
+    },
+    "Neutral/Stroke/Focus/2/Rest": {
+      "Dark": "#ffffff",
+      "Light": "#000000"
+    },
+    "Neutral/Stroke/Subtle/Rest": {
+      "Dark": "#0a0a0a",
+      "Light": "#e0e0e0"
+    },
+    "Neutral/Stroke/Transparent/Disabled/Rest": {
+      "Dark": "#ffffff00",
+      "Light": "#ffffff00"
+    },
+    "Neutral/Stroke/Transparent/Interactive/Rest": {
+      "Dark": "#ffffff00",
+      "Light": "#ffffff00"
+    },
+    "Neutral/Stroke/Transparent/Rest": {
+      "Dark": "#ffffff00",
+      "Light": "#ffffff00"
+    },
+    "Neutral/Stroke/on Brand/1/Rest": {
+      "Dark": "#292929",
+      "Light": "#ffffff"
+    },
+    "Neutral/Stroke/on Brand/2/Hover": {
+      "Dark": "#ffffff",
+      "Light": "#ffffff"
+    },
+    "Neutral/Stroke/on Brand/2/Pressed": {
+      "Dark": "#ffffff",
+      "Light": "#ffffff"
+    },
+    "Neutral/Stroke/on Brand/2/Rest": {
+      "Dark": "#ffffff",
+      "Light": "#ffffff"
+    },
+    "Neutral/Stroke/on Brand/2/Selected": {
+      "Dark": "#ffffff",
+      "Light": "#ffffff"
+    },
+    "Palette/Anchor/Background/2/Rest": {
+      "Dark": "#202427",
+      "Light": "#bcc3c7"
+    },
+    "Palette/Anchor/Foreground/2/Rest": {
+      "Dark": "#bcc3c7",
+      "Light": "#202427"
+    },
+    "Palette/Anchor/Stroke/Active/Rest": {
+      "Dark": "#808a90",
+      "Light": "#394146"
+    },
+    "Palette/Beige/Background/2/Rest": {
+      "Dark": "#444241",
+      "Light": "#d7d4d4"
+    },
+    "Palette/Beige/Foreground/2/Rest": {
+      "Dark": "#d7d4d4",
+      "Light": "#444241"
+    },
+    "Palette/Beige/Stroke/Active/Rest": {
+      "Dark": "#afabaa",
+      "Light": "#7a7574"
+    },
+    "Palette/Berry/Background/1/Rest": {
+      "Dark": "#3a1136",
+      "Light": "#fdf5fc"
+    },
+    "Palette/Berry/Background/2/Rest": {
+      "Dark": "#6d2064",
+      "Light": "#edbbe7"
+    },
+    "Palette/Berry/Background/3/Rest": {
+      "Dark": "#c239b3",
+      "Light": "#c239b3"
+    },
+    "Palette/Berry/Foreground/1/Rest": {
+      "Dark": "#da7ed0",
+      "Light": "#af33a1"
+    },
+    "Palette/Berry/Foreground/2/Rest": {
+      "Dark": "#edbbe7",
+      "Light": "#6d2064"
+    },
+    "Palette/Berry/Foreground/3/Rest": {
+      "Dark": "#d161c4",
+      "Light": "#c239b3"
+    },
+    "Palette/Berry/Stroke/1/Rest": {
+      "Dark": "#c239b3",
+      "Light": "#edbbe7"
+    },
+    "Palette/Berry/Stroke/2/Rest": {
+      "Dark": "#d161c4",
+      "Light": "#c239b3"
+    },
+    "Palette/Berry/Stroke/Active/Rest": {
+      "Dark": "#da7ed0",
+      "Light": "#c239b3"
+    },
+    "Palette/Blue/Background/2/Rest": {
+      "Dark": "#004377",
+      "Light": "#a9d3f2"
+    },
+    "Palette/Blue/Foreground/2/Rest": {
+      "Dark": "#a9d3f2",
+      "Light": "#004377"
+    },
+    "Palette/Blue/Stroke/Active/Rest": {
+      "Dark": "#5caae5",
+      "Light": "#0078d4"
+    },
+    "Palette/Brass/Background/2/Rest": {
+      "Dark": "#553e06",
+      "Light": "#e0cea2"
+    },
+    "Palette/Brass/Foreground/2/Rest": {
+      "Dark": "#e0cea2",
+      "Light": "#553e06"
+    },
+    "Palette/Brass/Stroke/Active/Rest": {
+      "Dark": "#c1a256",
+      "Light": "#986f0b"
+    },
+    "Palette/Brown/Background/2/Rest": {
+      "Dark": "#50301a",
+      "Light": "#ddc3b0"
+    },
+    "Palette/Brown/Foreground/2/Rest": {
+      "Dark": "#ddc3b0",
+      "Light": "#50301a"
+    },
+    "Palette/Brown/Stroke/Active/Rest": {
+      "Dark": "#bb8f6f",
+      "Light": "#8e562e"
+    },
+    "Palette/Cornflower/Background/2/Rest": {
+      "Dark": "#2c3c85",
+      "Light": "#c8d1fa"
+    },
+    "Palette/Cornflower/Foreground/2/Rest": {
+      "Dark": "#c8d1fa",
+      "Light": "#2c3c85"
+    },
+    "Palette/Cornflower/Stroke/Active/Rest": {
+      "Dark": "#93a4f4",
+      "Light": "#4f6bed"
+    },
+    "Palette/Cranberry/Background/2/Rest": {
+      "Dark": "#6e0811",
+      "Light": "#eeacb2"
+    },
+    "Palette/Cranberry/Foreground/2/Rest": {
+      "Dark": "#eeacb2",
+      "Light": "#6e0811"
+    },
+    "Palette/Cranberry/Stroke/Active/Rest": {
+      "Dark": "#dc626d",
+      "Light": "#c50f1f"
+    },
+    "Palette/Dark green/Background/2/Rest": {
+      "Dark": "#063b06",
+      "Light": "#9ad29a"
+    },
+    "Palette/Dark green/Foreground/2/Rest": {
+      "Dark": "#9ad29a",
+      "Light": "#063b06"
+    },
+    "Palette/Dark green/Stroke/Active/Rest": {
+      "Dark": "#4da64d",
+      "Light": "#0b6a0b"
+    },
+    "Palette/Dark orange/Background/1/Rest": {
+      "Dark": "#411200",
+      "Light": "#fdf6f3"
+    },
+    "Palette/Dark orange/Background/2/Rest": {
+      "Dark": "#7a2101",
+      "Light": "#f4bfab"
+    },
+    "Palette/Dark orange/Background/3/Rest": {
+      "Dark": "#da3b01",
+      "Light": "#da3b01"
+    },
+    "Palette/Dark orange/Foreground/1/Rest": {
+      "Dark": "#e9835e",
+      "Light": "#c43501"
+    },
+    "Palette/Dark orange/Foreground/2/Rest": {
+      "Dark": "#f4bfab",
+      "Light": "#7a2101"
+    },
+    "Palette/Dark orange/Foreground/3/Rest": {
+      "Dark": "#e9835e",
+      "Light": "#da3b01"
+    },
+    "Palette/Dark orange/Stroke/1/Rest": {
+      "Dark": "#da3b01",
+      "Light": "#f4bfab"
+    },
+    "Palette/Dark orange/Stroke/2/Rest": {
+      "Dark": "#e9835e",
+      "Light": "#da3b01"
+    },
+    "Palette/Dark orange/Stroke/Active/Rest": {
+      "Dark": "#e9835e",
+      "Light": "#da3b01"
+    },
+    "Palette/Dark red/Background/2/Rest": {
+      "Dark": "#590815",
+      "Light": "#d69ca5"
+    },
+    "Palette/Dark red/Foreground/2/Rest": {
+      "Dark": "#d69ca5",
+      "Light": "#420610"
+    },
+    "Palette/Dark red/Stroke/Active/Rest": {
+      "Dark": "#962f3f",
+      "Light": "#750b1c"
+    },
+    "Palette/Forest/Background/2/Rest": {
+      "Dark": "#294903",
+      "Light": "#bdd99b"
+    },
+    "Palette/Forest/Foreground/2/Rest": {
+      "Dark": "#bdd99b",
+      "Light": "#294903"
+    },
+    "Palette/Forest/Stroke/Active/Rest": {
+      "Dark": "#85b44c",
+      "Light": "#498205"
+    },
+    "Palette/Gold/Background/2/Rest": {
+      "Dark": "#6c5700",
+      "Light": "#ecdfa5"
+    },
+    "Palette/Gold/Foreground/2/Rest": {
+      "Dark": "#ecdfa5",
+      "Light": "#6c5700"
+    },
+    "Palette/Gold/Stroke/Active/Rest": {
+      "Dark": "#dac157",
+      "Light": "#c19c00"
+    },
+    "Palette/Grape/Background/2/Rest": {
+      "Dark": "#4c0d55",
+      "Light": "#d9a7e0"
+    },
+    "Palette/Grape/Foreground/2/Rest": {
+      "Dark": "#d9a7e0",
+      "Light": "#4c0d55"
+    },
+    "Palette/Grape/Stroke/Active/Rest": {
+      "Dark": "#b55fc1",
+      "Light": "#881798"
+    },
+    "Palette/Green/Background/1/Rest": {
+      "Dark": "#052505",
+      "Light": "#f1faf1"
+    },
+    "Palette/Green/Background/2/Rest": {
+      "Dark": "#094509",
+      "Light": "#9fd89f"
+    },
+    "Palette/Green/Background/3/Rest": {
+      "Dark": "#107c10",
+      "Light": "#107c10"
+    },
+    "Palette/Green/Foreground/1/Rest": {
+      "Dark": "#54b054",
+      "Light": "#0e700e"
+    },
+    "Palette/Green/Foreground/2/Rest": {
+      "Dark": "#9fd89f",
+      "Light": "#094509"
+    },
+    "Palette/Green/Foreground/3/Rest": {
+      "Dark": "#54b054",
+      "Light": "#107c10"
+    },
+    "Palette/Green/Foreground/Inverted/Rest": {
+      "Dark": "#107c10",
+      "Light": "#359b35"
+    },
+    "Palette/Green/Stroke/1/Rest": {
+      "Dark": "#107c10",
+      "Light": "#9fd89f"
+    },
+    "Palette/Green/Stroke/2/Rest": {
+      "Dark": "#54b054",
+      "Light": "#107c10"
+    },
+    "Palette/Green/Stroke/Active/Rest": {
+      "Dark": "#54b054",
+      "Light": "#107c10"
+    },
+    "Palette/Lavender/Background/2/Rest": {
+      "Dark": "#3f3682",
+      "Light": "#a3b2e8"
+    },
+    "Palette/Lavender/Foreground/2/Rest": {
+      "Dark": "#d2ccf8",
+      "Light": "#3f3682"
+    },
+    "Palette/Lavender/Stroke/Active/Rest": {
+      "Dark": "#a79cf1",
+      "Light": "#7160e8"
+    },
+    "Palette/Light Green/Background/1/Rest": {
+      "Dark": "#063004",
+      "Light": "#f2fbf2"
+    },
+    "Palette/Light Green/Background/2/Rest": {
+      "Dark": "#0b5a08",
+      "Light": "#a7e3a5"
+    },
+    "Palette/Light Green/Background/3/Rest": {
+      "Dark": "#13a10e",
+      "Light": "#13a10e"
+    },
+    "Palette/Light Green/Foreground/1/Rest": {
+      "Dark": "#5ec75a",
+      "Light": "#11910d"
+    },
+    "Palette/Light Green/Foreground/2/Rest": {
+      "Dark": "#a7e3a5",
+      "Light": "#0b5a08"
+    },
+    "Palette/Light Green/Foreground/3/Rest": {
+      "Dark": "#3db838",
+      "Light": "#13a10e"
+    },
+    "Palette/Light Green/Stroke/1/Rest": {
+      "Dark": "#13a10e",
+      "Light": "#a7e3a5"
+    },
+    "Palette/Light Green/Stroke/2/Rest": {
+      "Dark": "#3db838",
+      "Light": "#13a10e"
+    },
+    "Palette/Light Green/Stroke/Active/Rest": {
+      "Dark": "#5ec75a",
+      "Light": "#13a10e"
+    },
+    "Palette/Light teal/Background/2/Rest": {
+      "Dark": "#00666d",
+      "Light": "#a6e9ed"
+    },
+    "Palette/Light teal/Foreground/2/Rest": {
+      "Dark": "#a6e9ed",
+      "Light": "#00666d"
+    },
+    "Palette/Light teal/Stroke/Active/Rest": {
+      "Dark": "#58d3db",
+      "Light": "#00b7c3"
+    },
+    "Palette/Lilac/Background/2/Rest": {
+      "Dark": "#63276d",
+      "Light": "#e6bfed"
+    },
+    "Palette/Lilac/Foreground/2/Rest": {
+      "Dark": "#e6bfed",
+      "Light": "#63276d"
+    },
+    "Palette/Lilac/Stroke/Active/Rest": {
+      "Dark": "#cf87da",
+      "Light": "#b146c2"
+    },
+    "Palette/Magenta/Background/2/Rest": {
+      "Dark": "#6b0043",
+      "Light": "#eca5d1"
+    },
+    "Palette/Magenta/Foreground/2/Rest": {
+      "Dark": "#eca5d1",
+      "Light": "#6b0043"
+    },
+    "Palette/Magenta/Stroke/Active/Rest": {
+      "Dark": "#d957a8",
+      "Light": "#bf0077"
+    },
+    "Palette/Marigold/Background/1/Rest": {
+      "Dark": "#463100",
+      "Light": "#fefbf4"
+    },
+    "Palette/Marigold/Background/2/Rest": {
+      "Dark": "#835b00",
+      "Light": "#f9e2ae"
+    },
+    "Palette/Marigold/Background/3/Rest": {
+      "Dark": "#eaa300",
+      "Light": "#eaa300"
+    },
+    "Palette/Marigold/Foreground/1/Rest": {
+      "Dark": "#f2c661",
+      "Light": "#d39300"
+    },
+    "Palette/Marigold/Foreground/1/Rest 2": {
+      "Dark": "#efb839",
+      "Light": "#eaa300"
+    },
+    "Palette/Marigold/Foreground/2/Rest": {
+      "Dark": "#f9e2ae",
+      "Light": "#835b00"
+    },
+    "Palette/Marigold/Foreground/3/Rest": {
+      "Dark": "#efb839",
+      "Light": "#eaa300"
+    },
+    "Palette/Marigold/Stroke/1/Rest": {
+      "Dark": "#eaa300",
+      "Light": "#f9e2ae"
+    },
+    "Palette/Marigold/Stroke/2/Rest": {
+      "Dark": "#efb839",
+      "Light": "#eaa300"
+    },
+    "Palette/Marigold/Stroke/Active/Rest": {
+      "Dark": "#f2c661",
+      "Light": "#eaa300"
+    },
+    "Palette/Mink/Background/2/Rest": {
+      "Dark": "#343231",
+      "Light": "#cecccb"
+    },
+    "Palette/Mink/Foreground/2/Rest": {
+      "Dark": "#cecccb",
+      "Light": "#343231"
+    },
+    "Palette/Mink/Stroke/Active/Rest": {
+      "Dark": "#9e9b99",
+      "Light": "#5d5a58"
+    },
+    "Palette/Navy/Background/2/Rest": {
+      "Dark": "#001665",
+      "Light": "#a3b2e8"
+    },
+    "Palette/Navy/Foreground/2/Rest": {
+      "Dark": "#a3b2e8",
+      "Light": "#001665"
+    },
+    "Palette/Navy/Stroke/Active/Rest": {
+      "Dark": "#546fd2",
+      "Light": "#0027b4"
+    },
+    "Palette/Peach/Background/2/Rest": {
+      "Dark": "#8f4e00",
+      "Light": "#ffddb3"
+    },
+    "Palette/Peach/Foreground/2/Rest": {
+      "Dark": "#ffddb3",
+      "Light": "#8f4e00"
+    },
+    "Palette/Peach/Stroke/Active/Rest": {
+      "Dark": "#ffba66",
+      "Light": "#ff8c00"
+    },
+    "Palette/Pink/Background/2/Rest": {
+      "Dark": "#80215d",
+      "Light": "#f7c0e3"
+    },
+    "Palette/Pink/Foreground/2/Rest": {
+      "Dark": "#f7c0e3",
+      "Light": "#80215d"
+    },
+    "Palette/Pink/Stroke/Active/Rest": {
+      "Dark": "#ef85c8",
+      "Light": "#e43ba6"
+    },
+    "Palette/Platinum/Background/2/Rest": {
+      "Dark": "#3b4447",
+      "Light": "#cdd6d8"
+    },
+    "Palette/Platinum/Foreground/2/Rest": {
+      "Dark": "#cdd6d8",
+      "Light": "#3b4447"
+    },
+    "Palette/Platinum/Stroke/Active/Rest": {
+      "Dark": "#a0adb2",
+      "Light": "#69797e"
+    },
+    "Palette/Plum/Background/2/Rest": {
+      "Dark": "#5a003b",
+      "Light": "#d696c0"
+    },
+    "Palette/Plum/Foreground/2/Rest": {
+      "Dark": "#d696c0",
+      "Light": "#43002b"
+    },
+    "Palette/Plum/Stroke/Active/Rest": {
+      "Dark": "#d957a8",
+      "Light": "#bf0077"
+    },
+    "Palette/Pumpkin/Background/2/Rest": {
+      "Dark": "#712d09",
+      "Light": "#efc4ad"
+    },
+    "Palette/Pumpkin/Foreground/2/Rest": {
+      "Dark": "#efc4ad",
+      "Light": "#712d09"
+    },
+    "Palette/Pumpkin/Stroke/Active/Rest": {
+      "Dark": "#df8e64",
+      "Light": "#ca5010"
+    },
+    "Palette/Purple/Background/2/Rest": {
+      "Dark": "#341a51",
+      "Light": "#c6b1de"
+    },
+    "Palette/Purple/Foreground/2/Rest": {
+      "Dark": "#c6b1de",
+      "Light": "#341a51"
+    },
+    "Palette/Purple/Stroke/Active/Rest": {
+      "Dark": "#9470bd",
+      "Light": "#5c2e91"
+    },
+    "Palette/Red/Background/1/Rest": {
+      "Dark": "#3f1011",
+      "Light": "#fdf6f6"
+    },
+    "Palette/Red/Background/2/Rest": {
+      "Dark": "#751d1f",
+      "Light": "#f1bbbc"
+    },
+    "Palette/Red/Background/3/Rest": {
+      "Dark": "#750b1c",
+      "Light": "#d13438"
+    },
+    "Palette/Red/Foreground/1/Rest": {
+      "Dark": "#e37d80",
+      "Light": "#bc2f32"
+    },
+    "Palette/Red/Foreground/2/Rest": {
+      "Dark": "#eeacb2",
+      "Light": "#751d1f"
+    },
+    "Palette/Red/Foreground/3/Rest": {
+      "Dark": "#e37d80",
+      "Light": "#d13438"
+    },
+    "Palette/Red/Foreground/Inverted/Rest": {
+      "Dark": "#d13438",
+      "Light": "#dc5e62"
+    },
+    "Palette/Red/Stroke/1/Rest": {
+      "Dark": "#d13438",
+      "Light": "#f1bbbc"
+    },
+    "Palette/Red/Stroke/2/Rest": {
+      "Dark": "#e37d80",
+      "Light": "#d13438"
+    },
+    "Palette/Red/Stroke/Active/Rest": {
+      "Dark": "#e37d80",
+      "Light": "#d13438"
+    },
+    "Palette/Royal blue/Background/2/Rest": {
+      "Dark": "#002c4e",
+      "Light": "#9abfdc"
+    },
+    "Palette/Royal blue/Foreground/2/Rest": {
+      "Dark": "#9abfdc",
+      "Light": "#002c4e"
+    },
+    "Palette/Royal blue/Stroke/Active/Rest": {
+      "Dark": "#4a89ba",
+      "Light": "#004e8c"
+    },
+    "Palette/Seafoam/Background/2/Rest": {
+      "Dark": "#00723b",
+      "Light": "#a8f0cd"
+    },
+    "Palette/Seafoam/Foreground/2/Rest": {
+      "Dark": "#a8f0cd",
+      "Light": "#00723b"
+    },
+    "Palette/Seafoam/Stroke/Active/Rest": {
+      "Dark": "#5ae0a0",
+      "Light": "#00cc6a"
+    },
+    "Palette/Steel/Background/2/Rest": {
+      "Dark": "#00333f",
+      "Light": "#94c8d4"
+    },
+    "Palette/Steel/Foreground/2/Rest": {
+      "Dark": "#94c8d4",
+      "Light": "#00333f"
+    },
+    "Palette/Steel/Stroke/Active/Rest": {
+      "Dark": "#4496a9",
+      "Light": "#005b70"
+    },
+    "Palette/Teal/Background/2/Rest": {
+      "Dark": "#02494c",
+      "Light": "#9bd9db"
+    },
+    "Palette/Teal/Foreground/2/Rest": {
+      "Dark": "#9bd9db",
+      "Light": "#02494c"
+    },
+    "Palette/Teal/Stroke/Active/Rest": {
+      "Dark": "#4cb4b7",
+      "Light": "#038387"
+    },
+    "Palette/Yellow/Background/1/Rest": {
+      "Dark": "#4c4400",
+      "Light": "#fffef5"
+    },
+    "Palette/Yellow/Background/2/Rest": {
+      "Dark": "#817400",
+      "Light": "#fef7b2"
+    },
+    "Palette/Yellow/Background/3/Rest": {
+      "Dark": "#fde300",
+      "Light": "#fde300"
+    },
+    "Palette/Yellow/Foreground/1/Rest": {
+      "Dark": "#feee66",
+      "Light": "#817400"
+    },
+    "Palette/Yellow/Foreground/2/Rest": {
+      "Dark": "#fef7b2",
+      "Light": "#817400"
+    },
+    "Palette/Yellow/Foreground/3/Rest": {
+      "Dark": "#fdea3d",
+      "Light": "#fde300"
+    },
+    "Palette/Yellow/Foreground/Inverted/Rest": {
+      "Dark": "#817400",
+      "Light": "#fef7b2"
+    },
+    "Palette/Yellow/Stroke/1/Rest": {
+      "Dark": "#fde300",
+      "Light": "#fef7b2"
+    },
+    "Palette/Yellow/Stroke/2/Rest": {
+      "Dark": "#fdea3d",
+      "Light": "#fde300"
+    },
+    "Palette/Yellow/Stroke/Active/Rest": {
+      "Dark": "#feee66",
+      "Light": "#fde300"
+    },
+    "Shadow/Ambient": {
+      "Dark": "#0000003d",
+      "Light": "#0000001f"
+    },
+    "Shadow/Ambient darker": {
+      "Dark": "#00000066",
+      "Light": "#00000033"
+    },
+    "Shadow/Ambient lighter": {
+      "Dark": "#0000001f",
+      "Light": "#0000000f"
+    },
+    "Shadow/Brand ambient": {
+      "Dark": "#00000040",
+      "Light": "#00000040"
+    },
+    "Shadow/Brand key": {
+      "Dark": "#0000004d",
+      "Light": "#0000004d"
+    },
+    "Shadow/Key": {
+      "Dark": "#00000047",
+      "Light": "#00000024"
+    },
+    "Shadow/Key darker": {
+      "Dark": "#0000007a",
+      "Light": "#0000003d"
+    },
+    "Shadow/Key lighter": {
+      "Dark": "#00000024",
+      "Light": "#00000012"
+    },
+    "Status/Available/Foreground/3/Rest": {
+      "Dark": "#13a10e",
+      "Light": "#13a10e"
+    },
+    "Status/Away/Background/3/Rest": {
+      "Dark": "#eaa300",
+      "Light": "#eaa300"
+    },
+    "Status/Danger/Background/1/Rest": {
+      "Dark": "#3b0509",
+      "Light": "#fdf3f4"
+    },
+    "Status/Danger/Background/2/Rest": {
+      "Dark": "#6e0811",
+      "Light": "#eeacb2"
+    },
+    "Status/Danger/Background/3/Rest": {
+      "Dark": "#c50f1f",
+      "Light": "#c50f1f"
+    },
+    "Status/Danger/Foreground/1/Rest": {
+      "Dark": "#dc626d",
+      "Light": "#b10e1c"
+    },
+    "Status/Danger/Foreground/2/Rest": {
+      "Dark": "#eeacb2",
+      "Light": "#6e0811"
+    },
+    "Status/Danger/Foreground/3/Hover": {
+      "Dark": "#b10e1c",
+      "Light": "#b10e1c"
+    },
+    "Status/Danger/Foreground/3/Pressed": {
+      "Dark": "#960b18",
+      "Light": "#960b18"
+    },
+    "Status/Danger/Foreground/3/Rest": {
+      "Dark": "#eeacb2",
+      "Light": "#c50f1f"
+    },
+    "Status/Danger/Foreground/Inverted/Rest": {
+      "Dark": "#b10e1c",
+      "Light": "#dc626d"
+    },
+    "Status/Danger/Stroke/1/Rest": {
+      "Dark": "#c50f1f",
+      "Light": "#eeacb2"
+    },
+    "Status/Danger/Stroke/2/Rest": {
+      "Dark": "#dc626d",
+      "Light": "#c50f1f"
+    },
+    "Status/Oof/Foreground/3/Rest": {
+      "Dark": "#d161c4",
+      "Light": "#c239b3"
+    },
+    "Status/Severe/Background/1/Rest": {
+      "Dark": "#411200",
+      "Light": "#fdf6f3"
+    },
+    "Status/Severe/Background/2/Rest": {
+      "Dark": "#7a2101",
+      "Light": "#f4bfab"
+    },
+    "Status/Severe/Background/3/Rest": {
+      "Dark": "#da3b01",
+      "Light": "#da3b01"
+    },
+    "Status/Severe/Foreground/1/Rest": {
+      "Dark": "#e36537",
+      "Light": "#a62d01"
+    },
+    "Status/Severe/Foreground/2/Rest": {
+      "Dark": "#f4bfab",
+      "Light": "#a62d01"
+    },
+    "Status/Severe/Foreground/3/Rest": {
+      "Dark": "#f4bfab",
+      "Light": "#a62d01"
+    },
+    "Status/Severe/Foreground/Inverted/Rest": {
+      "Dark": "#a62d01",
+      "Light": "#e9835e"
+    },
+    "Status/Severe/Stroke/1/Rest": {
+      "Dark": "#c43501",
+      "Light": "#f4bfab"
+    },
+    "Status/Severe/Stroke/2/Rest": {
+      "Dark": "#e36537",
+      "Light": "#a62d01"
+    },
+    "Status/Success/Background/1/Rest": {
+      "Dark": "#052505",
+      "Light": "#f1faf1"
+    },
+    "Status/Success/Background/2/Rest": {
+      "Dark": "#094509",
+      "Light": "#9fd89f"
+    },
+    "Status/Success/Background/3/Rest": {
+      "Dark": "#107c10",
+      "Light": "#107c10"
+    },
+    "Status/Success/Foreground/1/Rest": {
+      "Dark": "#54b054",
+      "Light": "#0e700e"
+    },
+    "Status/Success/Foreground/2/Rest": {
+      "Dark": "#9fd89f",
+      "Light": "#094509"
+    },
+    "Status/Success/Foreground/3/Rest": {
+      "Dark": "#9fd89f",
+      "Light": "#107c10"
+    },
+    "Status/Success/Foreground/Inverted/Rest": {
+      "Dark": "#107c10",
+      "Light": "#359b35"
+    },
+    "Status/Success/Stroke/1/Rest": {
+      "Dark": "#107c10",
+      "Light": "#9fd89f"
+    },
+    "Status/Success/Stroke/2/Rest": {
+      "Dark": "#9fd89f",
+      "Light": "#107c10"
+    },
+    "Status/Warning/Background/1/Rest": {
+      "Dark": "#4a1e04",
+      "Light": "#fff9f5"
+    },
+    "Status/Warning/Background/2/Rest": {
+      "Dark": "#8a3707",
+      "Light": "#fdcfb4"
+    },
+    "Status/Warning/Background/3/Rest": {
+      "Dark": "#f7630c",
+      "Light": "#f7630c"
+    },
+    "Status/Warning/Foreground/1/Rest": {
+      "Dark": "#f98845",
+      "Light": "#bc4b09"
+    },
+    "Status/Warning/Foreground/2/Rest": {
+      "Dark": "#fdcfb4",
+      "Light": "#8a3707"
+    },
+    "Status/Warning/Foreground/3/Rest": {
+      "Dark": "#fdcfb4",
+      "Light": "#bc4b09"
+    },
+    "Status/Warning/Foreground/Inverted/Rest": {
+      "Dark": "#bc4b09",
+      "Light": "#faa06b"
+    },
+    "Status/Warning/Stroke/1/Rest": {
+      "Dark": "#de590b",
+      "Light": "#fdcfb4"
+    },
+    "Status/Warning/Stroke/2/Rest": {
+      "Dark": "#f98845",
+      "Light": "#bc4b09"
+    }
+  },
+  "Shape": {
+    "Badge/Large": {
+      "Circular": 9999,
+      "Rounded": 4,
+      "Square": 0
+    },
+    "Badge/Medium": {
+      "Circular": 9999,
+      "Rounded": 4,
+      "Square": 0
+    },
+    "Badge/Small": {
+      "Circular": 9999,
+      "Rounded": 4,
+      "Square": 0
+    },
+    "Badge/XLarge": {
+      "Circular": 9999,
+      "Rounded": 4,
+      "Square": 0
+    },
+    "Button/Container": {
+      "Circular": 9999,
+      "Rounded": 4,
+      "Square": 0
+    },
+    "Button/Image": {
+      "Circular": 9999,
+      "Rounded": 2,
+      "Square": 0
+    },
+    "Message bar/Container": {
+      "Circular": 9999,
+      "Rounded": 4,
+      "Square": 0
+    },
+    "Swatch/Default": {
+      "Circular": 9999,
+      "Rounded": 4,
+      "Square": 0
+    }
+  },
+  "_unresolved": []
+}

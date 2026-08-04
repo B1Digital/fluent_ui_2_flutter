@@ -1,0 +1,25 @@
+{
+  "component": "menu_section",
+  "source": {
+    "fileKey": "Heyk4N9SnwfIzupHlk3l7s",
+    "pageId": "8934:7",
+    "nodeId": "9121:6394",
+    "setName": "Menu section"
+  },
+  "properties": {
+    "Divider": [
+      "True",
+      "False"
+    ],
+    "State": [
+      "Rest",
+      "Disabled"
+    ]
+  },
+  "aliases": {},
+  "variants": [
+    {"name": "Divider=False, State=Disabled", "figmaName": "Divider=False, State=Disabled", "nodeId": "9121:6397", "props": {"Divider": "False", "State": "Disabled"}, "size": {"width": 240, "height": 32}, "padding": {"top": 8, "right": 6, "bottom": 8, "left": 6}, "gap": 0, "radius": 4, "strokeWidth": 0, "fill": "#FFFFFFFF", "stroke": null, "text": {"fontFamily": "Segoe UI", "fontStyle": "Bold", "fontSize": 12, "lineHeight": 16, "tokens": {"fills": ["Neutral/Foreground/Disabled/Rest"], "fontSize": ["Typography/Font size/200"], "fontStyle": ["Typography/Weight/Bold"], "fontFamily": ["Typography/Font family/Base"], "lineHeight": ["Typography/Line height/200"]}}, "tokens": {"paddingLeft": ["Spacing/Horizontal/SNudge"], "paddingTop": ["Spacing/Vertical/S"], "paddingRight": ["Spacing/Horizontal/SNudge"], "paddingBottom": ["Spacing/Vertical/S"], "fills": ["Neutral/Background/1/Rest"], "radius": ["Corner-radius/40"]}, "parts": [{"name": "Item text", "nodeId": "9121:6398", "type": "TEXT", "depth": 1, "size": {"width": 228, "height": 16}, "padding": null, "gap": null, "radius": null, "strokeWidth": 0, "fill": "#FFBDBDBD", "stroke": null, "tokens": {"fills": ["Neutral/Foreground/Disabled/Rest"], "fontSize": ["Typography/Font size/200"], "fontStyle": ["Typography/Weight/Bold"], "fontFamily": ["Typography/Font family/Base"], "lineHeight": ["Typography/Line height/200"]}, "text": {"fontFamily": "Segoe UI", "fontStyle": "Bold", "fontSize": 12, "lineHeight": 16, "tokens": {"fills": ["Neutral/Foreground/Disabled/Rest"], "fontSize": ["Typography/Font size/200"], "fontStyle": ["Typography/Weight/Bold"], "fontFamily": ["Typography/Font family/Base"], "lineHeight": ["Typography/Line height/200"]}}}]},
+    {"name": "Divider=False, State=Rest", "figmaName": "Divider=False, State=Rest", "nodeId": "9121:6395", "props": {"Divider": "False", "State": "Rest"}, "size": {"width": 240, "height": 32}, "padding": {"top": 8, "right": 6, "bottom": 8, "left": 6}, "gap": 0, "radius": 4, "strokeWidth": 0, "fill": "#FFFFFFFF", "stroke": null, "text": {"fontFamily": "Segoe UI", "fontStyle": "Bold", "fontSize": 12, "lineHeight": 16, "tokens": {"fills": ["Neutral/Foreground/2/Rest"], "fontSize": ["Typography/Font size/200"], "fontStyle": ["Typography/Weight/Bold"], "fontFamily": ["Typography/Font family/Base"], "lineHeight": ["Typography/Line height/200"]}}, "tokens": {"paddingLeft": ["Spacing/Horizontal/SNudge"], "paddingTop": ["Spacing/Vertical/S"], "paddingRight": ["Spacing/Horizontal/SNudge"], "paddingBottom": ["Spacing/Vertical/S"], "fills": ["Neutral/Background/1/Rest"], "radius": ["Corner-radius/40"]}, "parts": [{"name": "Item text", "nodeId": "9121:6396", "type": "TEXT", "depth": 1, "size": {"width": 228, "height": 16}, "padding": null, "gap": null, "radius": null, "strokeWidth": 0, "fill": "#FF424242", "stroke": null, "tokens": {"fills": ["Neutral/Foreground/2/Rest"], "fontSize": ["Typography/Font size/200"], "fontStyle": ["Typography/Weight/Bold"], "fontFamily": ["Typography/Font family/Base"], "lineHeight": ["Typography/Line height/200"]}, "text": {"fontFamily": "Segoe UI", "fontStyle": "Bold", "fontSize": 12, "lineHeight": 16, "tokens": {"fills": ["Neutral/Foreground/2/Rest"], "fontSize": ["Typography/Font size/200"], "fontStyle": ["Typography/Weight/Bold"], "fontFamily": ["Typography/Font family/Base"], "lineHeight": ["Typography/Line height/200"]}}}]},
+    {"name": "Divider=True, State=Disabled", "figmaName": "Divider=True, State=Disabled", "nodeId": "9121:6399", "props": {"Divider": "True", "State": "Disabled"}, "size": {"width": 240, "height": 5}, "padding": {"top": 8, "right": 6, "bottom": 8, "left": 6}, "gap": 0, "radius": 0, "strokeWidth": 0, "fill": null, "stroke": null, "text": null, "tokens": {"paddingLeft": ["Spacing/Horizontal/SNudge"], "paddingTop": ["Spacing/Vertical/S"], "paddingRight": ["Spacing/Horizontal/SNudge"], "paddingBottom": ["Spacing/Vertical/S"]}, "parts": [{"name": "Rectangle 1", "nodeId": "9121:6400", "type": "RECTANGLE", "depth": 1, "size": {"width": 248, "height": 1}, "padding": null, "gap": null, "radius": 0, "strokeWidth": 0, "fill": "#FFE0E0E0", "stroke": null, "tokens": {"fills": ["Neutral/Stroke/2/Rest"]}}]}
+  ]
+}

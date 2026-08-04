@@ -1,0 +1,18 @@
+name: fluent_2_web
+description: "Fluent 2 web components. Built on fluent_2_core."
+version: 0.0.1
+resolution: workspace
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=3.41.0"
+
+dependencies:
+  fluent_2_core: ^0.0.1
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  fluent_2_fonts_web: ^0.0.1
+  flutter_test:
+    sdk: flutter

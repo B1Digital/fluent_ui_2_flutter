@@ -1,0 +1,3913 @@
+{
+  "collection": "Mode",
+  "modes": [
+    "Light",
+    "Dark"
+  ],
+  "count": 359,
+  "variables": {
+    "Neutral/Background/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-16"
+        }
+      }
+    },
+    "Neutral/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-98"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-12"
+        }
+      }
+    },
+    "Neutral/Background/2/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-94"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-20"
+        }
+      }
+    },
+    "Neutral/Background/2/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-86"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-8"
+        }
+      }
+    },
+    "Neutral/Background/2/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-90"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-18"
+        }
+      }
+    },
+    "Neutral/Background/1/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-96"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-24"
+        }
+      }
+    },
+    "Neutral/Background/1/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-88"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-12"
+        }
+      }
+    },
+    "Neutral/Background/1/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-92"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-22"
+        }
+      }
+    },
+    "Neutral/Background/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-96"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-8"
+        }
+      }
+    },
+    "Neutral/Background/3/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-92"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-16"
+        }
+      }
+    },
+    "Neutral/Background/3/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-84"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-4"
+        }
+      }
+    },
+    "Neutral/Background/3/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-88"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-14"
+        }
+      }
+    },
+    "Neutral/Background/4/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-94"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-4"
+        }
+      }
+    },
+    "Neutral/Background/4/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-98"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-12"
+        }
+      }
+    },
+    "Neutral/Background/4/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-96"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Black"
+        }
+      }
+    },
+    "Neutral/Background/4/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-10"
+        }
+      }
+    },
+    "Neutral/Background/5/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-92"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Black"
+        }
+      }
+    },
+    "Neutral/Background/5/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-96"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-8"
+        }
+      }
+    },
+    "Neutral/Background/5/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-94"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-2"
+        }
+      }
+    },
+    "Neutral/Background/5/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-98"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-6"
+        }
+      }
+    },
+    "Neutral/Background/6/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-90"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-20"
+        }
+      }
+    },
+    "Neutral/Background/Inverted/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-16"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Background/Alpha/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/50"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/Grey 10/50"
+        }
+      }
+    },
+    "Neutral/Background/Alpha/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/80"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/Grey 12/70"
+        }
+      }
+    },
+    "Neutral/Background/Static/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-20"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-24"
+        }
+      }
+    },
+    "Neutral/Background/Subtle/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/0"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/Black/0"
+        }
+      }
+    },
+    "Neutral/Background/Subtle/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-96"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-22"
+        }
+      }
+    },
+    "Neutral/Background/Subtle/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-88"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-18"
+        }
+      }
+    },
+    "Neutral/Background/Subtle/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-92"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-20"
+        }
+      }
+    },
+    "Neutral/Background/Subtle/Light alpha/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/70"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/Grey 14/80"
+        }
+      }
+    },
+    "Neutral/Background/Subtle/Light alpha/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/50"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/Grey 14/50"
+        }
+      }
+    },
+    "Neutral/Background/Subtle/Light alpha/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/0"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/Black/0"
+        }
+      }
+    },
+    "Neutral/Background/Subtle/Inverted/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/Black/0"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/Black/0"
+        }
+      }
+    },
+    "Neutral/Background/Subtle/Inverted/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/Black/10"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/Black/10"
+        }
+      }
+    },
+    "Neutral/Background/Subtle/Inverted/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/Black/30"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/Black/30"
+        }
+      }
+    },
+    "Neutral/Background/Subtle/Inverted/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/Black/20"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/Black/20"
+        }
+      }
+    },
+    "Neutral/Background/Transparent/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/0"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/Black/0"
+        }
+      }
+    },
+    "Neutral/Background/Transparent/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/0"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/Black/0"
+        }
+      }
+    },
+    "Neutral/Background/Transparent/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/0"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/Black/0"
+        }
+      }
+    },
+    "Neutral/Background/Transparent/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/0"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/Black/0"
+        }
+      }
+    },
+    "Neutral/Background/Disabled/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-94"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-8"
+        }
+      }
+    },
+    "Neutral/Background/Inverted/Disabled/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/10"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/White/10"
+        }
+      }
+    },
+    "Neutral/Background/Stencil/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-90"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-34"
+        }
+      }
+    },
+    "Neutral/Background/Stencil/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-98"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-20"
+        }
+      }
+    },
+    "Neutral/Background/Overlay/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/Black/40"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/Black/50"
+        }
+      }
+    },
+    "Neutral/Background/Overlay/Scrollbar/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/Black/50"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/White/60"
+        }
+      }
+    },
+    "Brand/Background/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-80"
+        },
+        "Dark": {
+          "alias": "Brand-70"
+        }
+      }
+    },
+    "Brand/Background/1/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-70"
+        },
+        "Dark": {
+          "alias": "Brand-80"
+        }
+      }
+    },
+    "Brand/Background/1/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-40"
+        },
+        "Dark": {
+          "alias": "Brand-40"
+        }
+      }
+    },
+    "Brand/Background/1/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-60"
+        },
+        "Dark": {
+          "alias": "Brand-60"
+        }
+      }
+    },
+    "Brand/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-160"
+        },
+        "Dark": {
+          "alias": "Brand-20"
+        }
+      }
+    },
+    "Brand/Background/2/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-150"
+        },
+        "Dark": {
+          "alias": "Brand-40"
+        }
+      }
+    },
+    "Brand/Background/2/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-130"
+        },
+        "Dark": {
+          "alias": "Brand-10"
+        }
+      }
+    },
+    "Brand/Background/Inverted/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Brand/Background/Inverted/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-160"
+        },
+        "Dark": {
+          "alias": "Brand-160"
+        }
+      }
+    },
+    "Brand/Background/Inverted/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-140"
+        },
+        "Dark": {
+          "alias": "Brand-140"
+        }
+      }
+    },
+    "Brand/Background/Inverted/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-150"
+        },
+        "Dark": {
+          "alias": "Brand-150"
+        }
+      }
+    },
+    "Neutral/Foreground/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-14"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Foreground/1/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-14"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Foreground/1/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-14"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Foreground/1/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-14"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-26"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-84"
+        }
+      }
+    },
+    "Neutral/Foreground/2/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-14"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Foreground/2/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-14"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Foreground/2/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-14"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Foreground/2/Brand/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-80"
+        },
+        "Dark": {
+          "alias": "Brand-100"
+        }
+      }
+    },
+    "Neutral/Foreground/2/Brand/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-70"
+        },
+        "Dark": {
+          "alias": "Brand-110"
+        }
+      }
+    },
+    "Neutral/Foreground/2/Brand/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-80"
+        },
+        "Dark": {
+          "alias": "Brand-100"
+        }
+      }
+    },
+    "Neutral/Foreground/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-38"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-68"
+        }
+      }
+    },
+    "Neutral/Foreground/3/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-26"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-84"
+        }
+      }
+    },
+    "Neutral/Foreground/3/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-26"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-84"
+        }
+      }
+    },
+    "Neutral/Foreground/3/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-26"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-84"
+        }
+      }
+    },
+    "Neutral/Foreground/3/Brand/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-80"
+        },
+        "Dark": {
+          "alias": "Brand-100"
+        }
+      }
+    },
+    "Neutral/Foreground/3/Brand/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-70"
+        },
+        "Dark": {
+          "alias": "Brand-110"
+        }
+      }
+    },
+    "Neutral/Foreground/3/Brand/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-80"
+        },
+        "Dark": {
+          "alias": "Brand-100"
+        }
+      }
+    },
+    "Neutral/Foreground/4/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-44"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-60"
+        }
+      }
+    },
+    "Neutral/Foreground/Disabled/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-74"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-36"
+        }
+      }
+    },
+    "Neutral/Foreground/2/Link/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-26"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-84"
+        }
+      }
+    },
+    "Neutral/Foreground/2/Link/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-14"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Foreground/2/Link/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-14"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Foreground/2/Link/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-14"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Foreground/Static/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-14"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-14"
+        }
+      }
+    },
+    "Neutral/Foreground/Static/Inverted/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Foreground/Inverted/Disabled/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/40"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/White/40"
+        }
+      }
+    },
+    "Neutral/Foreground/Inverted/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-14"
+        }
+      }
+    },
+    "Neutral/Foreground/Inverted/1/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-14"
+        }
+      }
+    },
+    "Neutral/Foreground/Inverted/1/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-14"
+        }
+      }
+    },
+    "Neutral/Foreground/Inverted/1/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-14"
+        }
+      }
+    },
+    "Neutral/Foreground/Inverted/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-14"
+        }
+      }
+    },
+    "Neutral/Foreground/Inverted/Link/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Foreground/Inverted/Link/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Foreground/Inverted/Link/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Foreground/Inverted/Link/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Foreground/On Brand/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Brand/Foreground/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-80"
+        },
+        "Dark": {
+          "alias": "Brand-100"
+        }
+      }
+    },
+    "Brand/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-70"
+        },
+        "Dark": {
+          "alias": "Brand-110"
+        }
+      }
+    },
+    "Brand/Foreground/2/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-60"
+        },
+        "Dark": {
+          "alias": "Brand-130"
+        }
+      }
+    },
+    "Brand/Foreground/2/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-30"
+        },
+        "Dark": {
+          "alias": "Brand-100"
+        }
+      }
+    },
+    "Brand/Foreground/Link/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-70"
+        },
+        "Dark": {
+          "alias": "Brand-100"
+        }
+      }
+    },
+    "Brand/Foreground/Link/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-60"
+        },
+        "Dark": {
+          "alias": "Brand-110"
+        }
+      }
+    },
+    "Brand/Foreground/Link/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-40"
+        },
+        "Dark": {
+          "alias": "Brand-90"
+        }
+      }
+    },
+    "Brand/Foreground/Link/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-70"
+        },
+        "Dark": {
+          "alias": "Brand-100"
+        }
+      }
+    },
+    "Brand/Foreground/Inverted/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-100"
+        },
+        "Dark": {
+          "alias": "Brand-80"
+        }
+      }
+    },
+    "Brand/Foreground/Inverted/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-110"
+        },
+        "Dark": {
+          "alias": "Brand-70"
+        }
+      }
+    },
+    "Brand/Foreground/Inverted/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-100"
+        },
+        "Dark": {
+          "alias": "Brand-60"
+        }
+      }
+    },
+    "Brand/Foreground/On Light/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-80"
+        },
+        "Dark": {
+          "alias": "Brand-70"
+        }
+      }
+    },
+    "Brand/Foreground/On Light/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-70"
+        },
+        "Dark": {
+          "alias": "Brand-70"
+        }
+      }
+    },
+    "Brand/Foreground/On Light/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-50"
+        },
+        "Dark": {
+          "alias": "Brand-50"
+        }
+      }
+    },
+    "Brand/Foreground/On Light/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-60"
+        },
+        "Dark": {
+          "alias": "Brand-60"
+        }
+      }
+    },
+    "Neutral/Stroke/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-82"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-40"
+        }
+      }
+    },
+    "Neutral/Stroke/1/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-78"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-46"
+        }
+      }
+    },
+    "Neutral/Stroke/1/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-70"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-42"
+        }
+      }
+    },
+    "Neutral/Stroke/1/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-74"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-44"
+        }
+      }
+    },
+    "Neutral/Stroke/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-88"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-32"
+        }
+      }
+    },
+    "Neutral/Stroke/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-94"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-24"
+        }
+      }
+    },
+    "Neutral/Stroke/Accessible/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-38"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-68"
+        }
+      }
+    },
+    "Neutral/Stroke/Accessible/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-34"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-74"
+        }
+      }
+    },
+    "Neutral/Stroke/Accessible/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-30"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-70"
+        }
+      }
+    },
+    "Neutral/Stroke/Accessible/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-80"
+        },
+        "Dark": {
+          "alias": "Brand-100"
+        }
+      }
+    },
+    "Neutral/Stroke/on Brand/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-16"
+        }
+      }
+    },
+    "Neutral/Stroke/on Brand/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Stroke/on Brand/2/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Stroke/on Brand/2/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Stroke/on Brand/2/Selected": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Stroke/Subtle/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-88"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-4"
+        }
+      }
+    },
+    "Neutral/Stroke/Focus/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/White"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Black"
+        }
+      }
+    },
+    "Neutral/Stroke/Focus/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Black"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/White"
+        }
+      }
+    },
+    "Neutral/Stroke/Transparent/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/0"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/White/0"
+        }
+      }
+    },
+    "Neutral/Stroke/Transparent/Interactive/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/0"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/White/0"
+        }
+      }
+    },
+    "Neutral/Stroke/Transparent/Disabled/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/0"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/White/0"
+        }
+      }
+    },
+    "Neutral/Stroke/Disabled/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Neutral/Grey-88"
+        },
+        "Dark": {
+          "alias": "Colors/Neutral/Grey-26"
+        }
+      }
+    },
+    "Neutral/Stroke/Disabled/Inverted/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/40"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/White/40"
+        }
+      }
+    },
+    "Neutral/Stroke/Alpha/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/Black/5"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/White/10"
+        }
+      }
+    },
+    "Brand/Stroke/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-80"
+        },
+        "Dark": {
+          "alias": "Brand-100"
+        }
+      }
+    },
+    "Brand/Stroke/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-140"
+        },
+        "Dark": {
+          "alias": "Brand-50"
+        }
+      }
+    },
+    "Brand/Stroke/2/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-120"
+        },
+        "Dark": {
+          "alias": "Brand-90"
+        }
+      }
+    },
+    "Brand/Stroke/2/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-80"
+        },
+        "Dark": {
+          "alias": "Brand-70"
+        }
+      }
+    },
+    "Brand/Stroke/Compound/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-80"
+        },
+        "Dark": {
+          "alias": "Brand-100"
+        }
+      }
+    },
+    "Brand/Stroke/Compound/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-70"
+        },
+        "Dark": {
+          "alias": "Brand-110"
+        }
+      }
+    },
+    "Brand/Stroke/Compound/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-60"
+        },
+        "Dark": {
+          "alias": "Brand-90"
+        }
+      }
+    },
+    "Status/Danger/Background/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Cranberry/Tint 60"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Cranberry/Shade 40"
+        }
+      }
+    },
+    "Status/Danger/Background/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Cranberry/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Cranberry/Primary"
+        }
+      }
+    },
+    "Status/Danger/Foreground/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Cranberry/Shade 10"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Cranberry/Tint 30"
+        }
+      }
+    },
+    "Status/Danger/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Cranberry/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Cranberry/Tint 40"
+        }
+      }
+    },
+    "Status/Danger/Foreground/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Cranberry/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Cranberry/Tint 40"
+        }
+      }
+    },
+    "Status/Danger/Foreground/3/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Cranberry/Shade 10"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Cranberry/Shade 10"
+        }
+      }
+    },
+    "Status/Danger/Foreground/3/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Cranberry/Shade 20"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Cranberry/Shade 20"
+        }
+      }
+    },
+    "Status/Danger/Stroke/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Cranberry/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Cranberry/Primary"
+        }
+      }
+    },
+    "Status/Danger/Stroke/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Cranberry/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Cranberry/Tint 30"
+        }
+      }
+    },
+    "Status/Success/Background/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Tint 60"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Shade 40"
+        }
+      }
+    },
+    "Status/Success/Background/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Primary"
+        }
+      }
+    },
+    "Status/Success/Foreground/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Shade 10"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Tint 30"
+        }
+      }
+    },
+    "Status/Success/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Tint 40"
+        }
+      }
+    },
+    "Status/Success/Foreground/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Tint 40"
+        }
+      }
+    },
+    "Status/Success/Foreground/Inverted/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Tint 20"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Primary"
+        }
+      }
+    },
+    "Status/Success/Stroke/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Primary"
+        }
+      }
+    },
+    "Status/Success/Stroke/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Tint 40"
+        }
+      }
+    },
+    "Status/Severe/Background/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark orange/Tint 60"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark orange/Shade 40"
+        }
+      }
+    },
+    "Status/Severe/Background/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark orange/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark orange/Primary"
+        }
+      }
+    },
+    "Status/Severe/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark orange/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark orange/Shade 30"
+        }
+      }
+    },
+    "Status/Severe/Foreground/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark orange/Shade 20"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark orange/Tint 20"
+        }
+      }
+    },
+    "Status/Severe/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark orange/Shade 20"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark orange/Tint 40"
+        }
+      }
+    },
+    "Status/Severe/Foreground/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark orange/Shade 20"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark orange/Tint 40"
+        }
+      }
+    },
+    "Status/Severe/Foreground/Inverted/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark orange/Tint 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark orange/Shade 20"
+        }
+      }
+    },
+    "Status/Severe/Stroke/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark orange/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark orange/Shade 10"
+        }
+      }
+    },
+    "Status/Severe/Stroke/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark orange/Shade 20"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark orange/Tint 20"
+        }
+      }
+    },
+    "Status/Warning/Background/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Orange/Tint 60"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Orange/Shade 40"
+        }
+      }
+    },
+    "Status/Warning/Background/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Orange/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Orange/Primary"
+        }
+      }
+    },
+    "Status/Warning/Foreground/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Orange/Shade 20"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Orange/Tint 20"
+        }
+      }
+    },
+    "Status/Warning/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Orange/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Orange/Tint 40"
+        }
+      }
+    },
+    "Status/Warning/Foreground/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Orange/Shade 20"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Orange/Tint 40"
+        }
+      }
+    },
+    "Status/Warning/Stroke/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Orange/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Orange/Shade 10"
+        }
+      }
+    },
+    "Status/Warning/Stroke/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Orange/Shade 20"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Orange/Tint 20"
+        }
+      }
+    },
+    "Status/Warning/Foreground/Inverted/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Orange/Tint 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Orange/Shade 20"
+        }
+      }
+    },
+    "Status/Oof/Foreground/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Berry/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Berry/Tint 20"
+        }
+      }
+    },
+    "Status/Away/Background/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Marigold/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Marigold/Primary"
+        }
+      }
+    },
+    "Status/Available/Foreground/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Light green/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Light green/Primary"
+        }
+      }
+    },
+    "Palette/Dark red/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark red/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark red/Shade 20"
+        }
+      }
+    },
+    "Palette/Dark red/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark red/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark red/Tint 40"
+        }
+      }
+    },
+    "Palette/Dark red/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark red/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark red/Tint 20"
+        }
+      }
+    },
+    "Palette/Cranberry/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Cranberry/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Cranberry/Shade 30"
+        }
+      }
+    },
+    "Palette/Cranberry/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Cranberry/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Cranberry/Tint 40"
+        }
+      }
+    },
+    "Palette/Cranberry/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Cranberry/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Cranberry/Tint 30"
+        }
+      }
+    },
+    "Palette/Red/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Red/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Red/Shade 30"
+        }
+      }
+    },
+    "Palette/Red/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Red/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Cranberry/Tint 40"
+        }
+      }
+    },
+    "Palette/Red/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Red/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Red/Tint 30"
+        }
+      }
+    },
+    "Palette/Pumpkin/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Pumpkin/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Pumpkin/Shade 30"
+        }
+      }
+    },
+    "Palette/Pumpkin/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Pumpkin/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Pumpkin/Tint 40"
+        }
+      }
+    },
+    "Palette/Pumpkin/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Pumpkin/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Pumpkin/Tint 30"
+        }
+      }
+    },
+    "Palette/Peach/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Peach/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Peach/Shade 30"
+        }
+      }
+    },
+    "Palette/Peach/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Peach/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Peach/Tint 40"
+        }
+      }
+    },
+    "Palette/Peach/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Peach/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Peach/Tint 30"
+        }
+      }
+    },
+    "Palette/Marigold/Background/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Marigold/Tint 60"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Marigold/Shade 40"
+        }
+      }
+    },
+    "Palette/Marigold/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Marigold/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Marigold/Shade 30"
+        }
+      }
+    },
+    "Palette/Marigold/Foreground/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Marigold/Shade 10"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Marigold/Tint 30"
+        }
+      }
+    },
+    "Palette/Marigold/Foreground/1/Rest 2": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Marigold/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Marigold/Tint 20"
+        }
+      }
+    },
+    "Palette/Marigold/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Marigold/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Marigold/Tint 40"
+        }
+      }
+    },
+    "Palette/Gold/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Gold/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Gold/Shade 30"
+        }
+      }
+    },
+    "Palette/Gold/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Gold/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Gold/Tint 40"
+        }
+      }
+    },
+    "Palette/Gold/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Gold/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Gold/Tint 30"
+        }
+      }
+    },
+    "Palette/Brass/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Brass/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Brass/Shade 30"
+        }
+      }
+    },
+    "Palette/Brass/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Brass/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Brass/Tint 40"
+        }
+      }
+    },
+    "Palette/Brass/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Brass/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Brass/Tint 30"
+        }
+      }
+    },
+    "Palette/Brown/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Brown/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Brown/Shade 30"
+        }
+      }
+    },
+    "Palette/Brown/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Brown/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Brown/Tint 40"
+        }
+      }
+    },
+    "Palette/Brown/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Brown/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Brown/Tint 30"
+        }
+      }
+    },
+    "Palette/Forest/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Forest/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Forest/Shade 30"
+        }
+      }
+    },
+    "Palette/Forest/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Forest/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Forest/Tint 40"
+        }
+      }
+    },
+    "Palette/Forest/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Forest/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Forest/Tint 30"
+        }
+      }
+    },
+    "Palette/Seafoam/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Seafoam/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Seafoam/Shade 30"
+        }
+      }
+    },
+    "Palette/Seafoam/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Seafoam/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Seafoam/Tint 40"
+        }
+      }
+    },
+    "Palette/Seafoam/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Seafoam/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Seafoam/Tint 30"
+        }
+      }
+    },
+    "Palette/Dark green/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark green/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark green/Shade 30"
+        }
+      }
+    },
+    "Palette/Dark green/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark green/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark green/Tint 40"
+        }
+      }
+    },
+    "Palette/Dark green/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark green/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark green/Tint 30"
+        }
+      }
+    },
+    "Palette/Light teal/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Light teal/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Light teal/Shade 30"
+        }
+      }
+    },
+    "Palette/Light teal/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Light teal/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Light teal/Tint 40"
+        }
+      }
+    },
+    "Palette/Light teal/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Light teal/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Light teal/Tint 30"
+        }
+      }
+    },
+    "Palette/Teal/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Teal/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Teal/Shade 30"
+        }
+      }
+    },
+    "Palette/Teal/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Teal/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Teal/Tint 40"
+        }
+      }
+    },
+    "Palette/Teal/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Teal/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Teal/Tint 30"
+        }
+      }
+    },
+    "Palette/Steel/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Steel/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Steel/Shade 30"
+        }
+      }
+    },
+    "Palette/Steel/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Steel/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Steel/Tint 40"
+        }
+      }
+    },
+    "Palette/Steel/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Steel/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Steel/Tint 30"
+        }
+      }
+    },
+    "Palette/Blue/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Blue/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Blue/Shade 30"
+        }
+      }
+    },
+    "Palette/Blue/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Blue/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Blue/Tint 40"
+        }
+      }
+    },
+    "Palette/Blue/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Blue/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Blue/Tint 30"
+        }
+      }
+    },
+    "Palette/Royal blue/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Royal blue/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Royal blue/Shade 30"
+        }
+      }
+    },
+    "Palette/Royal blue/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Royal blue/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Royal blue/Tint 40"
+        }
+      }
+    },
+    "Palette/Royal blue/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Royal blue/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Royal blue/Tint 30"
+        }
+      }
+    },
+    "Palette/Cornflower/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Cornflower/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Cornflower/Shade 30"
+        }
+      }
+    },
+    "Palette/Cornflower/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Cornflower/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Cornflower/Tint 40"
+        }
+      }
+    },
+    "Palette/Cornflower/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Cornflower/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Cornflower/Tint 30"
+        }
+      }
+    },
+    "Palette/Navy/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Navy/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Navy/Shade 30"
+        }
+      }
+    },
+    "Palette/Navy/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Navy/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Navy/Tint 40"
+        }
+      }
+    },
+    "Palette/Navy/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Navy/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Navy/Tint 30"
+        }
+      }
+    },
+    "Palette/Lavender/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Navy/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Lavender/Shade 30"
+        }
+      }
+    },
+    "Palette/Lavender/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Lavender/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Lavender/Tint 40"
+        }
+      }
+    },
+    "Palette/Lavender/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Lavender/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Lavender/Tint 30"
+        }
+      }
+    },
+    "Palette/Purple/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Purple/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Purple/Shade 30"
+        }
+      }
+    },
+    "Palette/Purple/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Purple/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Purple/Tint 40"
+        }
+      }
+    },
+    "Palette/Purple/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Purple/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Purple/Tint 30"
+        }
+      }
+    },
+    "Palette/Grape/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Grape/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Grape/Shade 30"
+        }
+      }
+    },
+    "Palette/Grape/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Grape/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Grape/Tint 40"
+        }
+      }
+    },
+    "Palette/Grape/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Grape/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Grape/Tint 30"
+        }
+      }
+    },
+    "Palette/Lilac/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Lilac/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Lilac/Shade 30"
+        }
+      }
+    },
+    "Palette/Lilac/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Lilac/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Lilac/Tint 40"
+        }
+      }
+    },
+    "Palette/Lilac/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Lilac/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Lilac/Tint 30"
+        }
+      }
+    },
+    "Palette/Pink/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Pink/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Pink/Shade 30"
+        }
+      }
+    },
+    "Palette/Pink/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Pink/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Pink/Tint 40"
+        }
+      }
+    },
+    "Palette/Pink/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Pink/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Pink/Tint 30"
+        }
+      }
+    },
+    "Palette/Magenta/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Magenta/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Magenta/Shade 30"
+        }
+      }
+    },
+    "Palette/Magenta/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Magenta/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Magenta/Tint 40"
+        }
+      }
+    },
+    "Palette/Magenta/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Magenta/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Magenta/Tint 30"
+        }
+      }
+    },
+    "Palette/Plum/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Plum/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Plum/Shade 20"
+        }
+      }
+    },
+    "Palette/Plum/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Plum/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Plum/Tint 40"
+        }
+      }
+    },
+    "Palette/Plum/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Magenta/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Magenta/Tint 30"
+        }
+      }
+    },
+    "Palette/Beige/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Beige/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Beige/Shade 30"
+        }
+      }
+    },
+    "Palette/Beige/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Beige/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Beige/Tint 40"
+        }
+      }
+    },
+    "Palette/Beige/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Beige/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Beige/Tint 30"
+        }
+      }
+    },
+    "Palette/Mink/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Mink/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Mink/Shade 30"
+        }
+      }
+    },
+    "Palette/Mink/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Mink/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Mink/Tint 40"
+        }
+      }
+    },
+    "Palette/Mink/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Mink/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Mink/Tint 30"
+        }
+      }
+    },
+    "Palette/Platinum/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Platinum/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Platinum/Shade 30"
+        }
+      }
+    },
+    "Palette/Platinum/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Platinum/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Platinum/Tint 40"
+        }
+      }
+    },
+    "Palette/Platinum/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Platinum/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Platinum/Tint 30"
+        }
+      }
+    },
+    "Palette/Anchor/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Anchor/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Anchor/Shade 30"
+        }
+      }
+    },
+    "Palette/Anchor/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Anchor/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Anchor/Tint 40"
+        }
+      }
+    },
+    "Palette/Anchor/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Anchor/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Anchor/Tint 30"
+        }
+      }
+    },
+    "Brand/Background/Compound/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-80"
+        },
+        "Dark": {
+          "alias": "Brand-100"
+        }
+      }
+    },
+    "Brand/Background/Compound/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-70"
+        },
+        "Dark": {
+          "alias": "Brand-110"
+        }
+      }
+    },
+    "Brand/Background/Compound/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-60"
+        },
+        "Dark": {
+          "alias": "Brand-90"
+        }
+      }
+    },
+    "Brand/Foreground/Compound/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-80"
+        },
+        "Dark": {
+          "alias": "Brand-100"
+        }
+      }
+    },
+    "Brand/Foreground/Compound/Hover": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-70"
+        },
+        "Dark": {
+          "alias": "Brand-110"
+        }
+      }
+    },
+    "Brand/Foreground/Compound/Pressed": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-60"
+        },
+        "Dark": {
+          "alias": "Brand-90"
+        }
+      }
+    },
+    "Neutral/Stroke/Alpha/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/20"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/White/20"
+        }
+      }
+    },
+    "Brand/Stroke/2/Contrast/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-140"
+        },
+        "Dark": {
+          "alias": "Brand-50"
+        }
+      }
+    },
+    "Shadow/Ambient": {
+      "type": "COLOR",
+      "values": {
+        "Light": "#0000001f",
+        "Dark": "#0000003d"
+      }
+    },
+    "Shadow/Ambient lighter": {
+      "type": "COLOR",
+      "values": {
+        "Light": "#0000000f",
+        "Dark": "#0000001f"
+      }
+    },
+    "Shadow/Ambient darker": {
+      "type": "COLOR",
+      "values": {
+        "Light": "#00000033",
+        "Dark": "#00000066"
+      }
+    },
+    "Shadow/Brand ambient": {
+      "type": "COLOR",
+      "values": {
+        "Light": "#00000040",
+        "Dark": "#00000040"
+      }
+    },
+    "Shadow/Key": {
+      "type": "COLOR",
+      "values": {
+        "Light": "#00000024",
+        "Dark": "#00000047"
+      }
+    },
+    "Shadow/Key lighter": {
+      "type": "COLOR",
+      "values": {
+        "Light": "#00000012",
+        "Dark": "#00000024"
+      }
+    },
+    "Shadow/Key darker": {
+      "type": "COLOR",
+      "values": {
+        "Light": "#0000003d",
+        "Dark": "#0000007a"
+      }
+    },
+    "Shadow/Brand key": {
+      "type": "COLOR",
+      "values": {
+        "Light": "#0000004d",
+        "Dark": "#0000004d"
+      }
+    },
+    "Brand/Background/Static/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-80"
+        },
+        "Dark": {
+          "alias": "Brand-80"
+        }
+      }
+    },
+    "Brand/Background/Static/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-60"
+        },
+        "Dark": {
+          "alias": "Brand-60"
+        }
+      }
+    },
+    "Brand/Background/Static/4/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Brand-40"
+        },
+        "Dark": {
+          "alias": "Brand-40"
+        }
+      }
+    },
+    "Neutral/Background/Stencil/1/Alpha/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/Black/10"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/White/10"
+        }
+      }
+    },
+    "Neutral/Background/Stencil/2/Alpha/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/Black/5"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/White/5"
+        }
+      }
+    },
+    "Palette/Red/Background/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Red/Tint 60"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Red/Shade 40"
+        }
+      }
+    },
+    "Palette/Red/Foreground/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Red/Shade 10"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Red/Tint 30"
+        }
+      }
+    },
+    "Palette/Red/Stroke/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Red/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Red/Primary"
+        }
+      }
+    },
+    "Palette/Red/Stroke/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Red/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Red/Tint 30"
+        }
+      }
+    },
+    "Palette/Red/Background/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Red/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark red/Primary"
+        }
+      }
+    },
+    "Palette/Red/Foreground/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Red/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Red/Tint 30"
+        }
+      }
+    },
+    "Palette/Red/Foreground/Inverted/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Red/Tint 20"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Red/Primary"
+        }
+      }
+    },
+    "Palette/Green/Background/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Tint 60"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Shade 40"
+        }
+      }
+    },
+    "Palette/Green/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Shade 30"
+        }
+      }
+    },
+    "Palette/Green/Background/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Primary"
+        }
+      }
+    },
+    "Palette/Green/Foreground/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Shade 10"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Tint 30"
+        }
+      }
+    },
+    "Palette/Green/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Tint 40"
+        }
+      }
+    },
+    "Palette/Green/Foreground/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Tint 30"
+        }
+      }
+    },
+    "Palette/Green/Foreground/Inverted/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Tint 20"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Primary"
+        }
+      }
+    },
+    "Palette/Green/Stroke/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Primary"
+        }
+      }
+    },
+    "Palette/Green/Stroke/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Tint 30"
+        }
+      }
+    },
+    "Palette/Green/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Tint 30"
+        }
+      }
+    },
+    "Palette/Dark orange/Background/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark orange/Tint 60"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark orange/Shade 40"
+        }
+      }
+    },
+    "Palette/Dark orange/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark orange/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark orange/Shade 30"
+        }
+      }
+    },
+    "Palette/Dark orange/Background/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark orange/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark orange/Primary"
+        }
+      }
+    },
+    "Palette/Dark orange/Foreground/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark orange/Shade 10"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark orange/Tint 30"
+        }
+      }
+    },
+    "Palette/Dark orange/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark orange/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark orange/Tint 40"
+        }
+      }
+    },
+    "Palette/Dark orange/Foreground/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark orange/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark orange/Tint 30"
+        }
+      }
+    },
+    "Palette/Dark orange/Stroke/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark orange/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark orange/Primary"
+        }
+      }
+    },
+    "Palette/Dark orange/Stroke/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark orange/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark orange/Tint 30"
+        }
+      }
+    },
+    "Palette/Dark orange/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Dark orange/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Dark orange/Tint 30"
+        }
+      }
+    },
+    "Palette/Yellow/Background/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Yellow/Tint 60"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Yellow/Shade 40"
+        }
+      }
+    },
+    "Palette/Yellow/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Yellow/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Yellow/Shade 30"
+        }
+      }
+    },
+    "Palette/Yellow/Background/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Yellow/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Yellow/Primary"
+        }
+      }
+    },
+    "Palette/Yellow/Foreground/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Yellow/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Yellow/Tint 30"
+        }
+      }
+    },
+    "Palette/Yellow/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Yellow/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Yellow/Tint 40"
+        }
+      }
+    },
+    "Palette/Yellow/Foreground/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Yellow/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Yellow/Tint 20"
+        }
+      }
+    },
+    "Palette/Yellow/Foreground/Inverted/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Yellow/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Yellow/Shade 30"
+        }
+      }
+    },
+    "Palette/Yellow/Stroke/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Yellow/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Yellow/Primary"
+        }
+      }
+    },
+    "Palette/Yellow/Stroke/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Yellow/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Yellow/Tint 20"
+        }
+      }
+    },
+    "Palette/Yellow/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Yellow/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Yellow/Tint 30"
+        }
+      }
+    },
+    "Palette/Berry/Background/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Berry/Tint 60"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Berry/Shade 40"
+        }
+      }
+    },
+    "Palette/Berry/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Berry/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Berry/Shade 30"
+        }
+      }
+    },
+    "Palette/Berry/Background/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Berry/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Berry/Primary"
+        }
+      }
+    },
+    "Palette/Berry/Foreground/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Berry/Shade 10"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Berry/Tint 30"
+        }
+      }
+    },
+    "Palette/Berry/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Berry/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Berry/Tint 40"
+        }
+      }
+    },
+    "Palette/Berry/Foreground/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Berry/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Berry/Tint 20"
+        }
+      }
+    },
+    "Palette/Berry/Stroke/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Berry/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Berry/Primary"
+        }
+      }
+    },
+    "Palette/Berry/Stroke/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Berry/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Berry/Tint 20"
+        }
+      }
+    },
+    "Palette/Berry/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Berry/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Berry/Tint 30"
+        }
+      }
+    },
+    "Palette/Light Green/Background/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Light green/Tint 60"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Light green/Shade 40"
+        }
+      }
+    },
+    "Palette/Light Green/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Light green/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Light green/Shade 30"
+        }
+      }
+    },
+    "Palette/Light Green/Background/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Light green/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Light green/Primary"
+        }
+      }
+    },
+    "Palette/Light Green/Foreground/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Light green/Shade 10"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Light green/Tint 30"
+        }
+      }
+    },
+    "Palette/Light Green/Foreground/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Light green/Shade 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Light green/Tint 40"
+        }
+      }
+    },
+    "Palette/Light Green/Foreground/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Light green/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Light green/Tint 20"
+        }
+      }
+    },
+    "Palette/Light Green/Stroke/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Light green/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Light green/Primary"
+        }
+      }
+    },
+    "Palette/Light Green/Stroke/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Light green/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Light green/Tint 20"
+        }
+      }
+    },
+    "Palette/Light Green/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Light green/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Light green/Tint 30"
+        }
+      }
+    },
+    "Palette/Marigold/Background/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Marigold/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Marigold/Primary"
+        }
+      }
+    },
+    "Palette/Marigold/Foreground/3/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Marigold/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Marigold/Tint 20"
+        }
+      }
+    },
+    "Palette/Marigold/Stroke/1/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Marigold/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Marigold/Primary"
+        }
+      }
+    },
+    "Palette/Marigold/Stroke/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Marigold/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Marigold/Tint 20"
+        }
+      }
+    },
+    "Palette/Marigold/Stroke/Active/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Marigold/Primary"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Marigold/Tint 30"
+        }
+      }
+    },
+    "Status/Danger/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Cranberry/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Cranberry/Shade 30"
+        }
+      }
+    },
+    "Status/Danger/Foreground/Inverted/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Cranberry/Tint 30"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Cranberry/Shade 10"
+        }
+      }
+    },
+    "Status/Success/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Green/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Green/Shade 30"
+        }
+      }
+    },
+    "Status/Warning/Background/2/Rest": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Shared/Orange/Tint 40"
+        },
+        "Dark": {
+          "alias": "Colors/Shared/Orange/Shade 30"
+        }
+      }
+    },
+    "Material/Acrylic/Background/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/50"
+        },
+        "Dark": "#2e2e2ecc"
+      }
+    },
+    "Material/Acrylic/Background/Secondary": {
+      "type": "COLOR",
+      "values": {
+        "Light": "#e7ecf3b2",
+        "Dark": "#46406e99"
+      }
+    },
+    "Material/Acrylic/Background/Blur": {
+      "type": "FLOAT",
+      "values": {
+        "Light": 60,
+        "Dark": 60
+      }
+    },
+    "Material/Acrylic/Stroke/Stop 1": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/20"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/Black/20"
+        }
+      }
+    },
+    "Material/Acrylic/Stroke/Stop 2": {
+      "type": "COLOR",
+      "values": {
+        "Light": "#cfe4fa33",
+        "Dark": "#2c3136"
+      }
+    },
+    "Material/Acrylic/Stroke/Stop 3": {
+      "type": "COLOR",
+      "values": {
+        "Light": {
+          "alias": "Colors/Alpha/White/20"
+        },
+        "Dark": {
+          "alias": "Colors/Alpha/Black/20"
+        }
+      }
+    }
+  }
+}

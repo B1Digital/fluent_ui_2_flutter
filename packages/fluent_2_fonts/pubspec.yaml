@@ -1,0 +1,18 @@
+name: fluent_2_fonts
+description: "Platform font selection and dynamic loading for Fluent 2 Flutter packages."
+version: 0.0.1
+repository: https://github.com/ascobani/fluent_2_ui_kit
+resolution: workspace
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=3.41.0"
+
+dependencies:
+  fluent_2_fonts_android: ^0.0.1
+  fluent_2_fonts_ios: ^0.0.1
+  fluent_2_fonts_macos: ^0.0.1
+  fluent_2_fonts_web: ^0.0.1
+  fluent_2_fonts_windows: ^0.0.1
+  flutter:
+    sdk: flutter

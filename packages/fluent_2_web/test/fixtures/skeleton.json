@@ -1,0 +1,40 @@
+{
+  "component": "skeleton",
+  "source": {
+    "fileKey": "Heyk4N9SnwfIzupHlk3l7s",
+    "pageId": "8934:14",
+    "nodeId": "8994:43060",
+    "setName": "Skeleton"
+  },
+  "properties": {
+    "Shape": [
+      "Rectangle (default)",
+      "Circle"
+    ],
+    "Animated": [
+      "True",
+      "False"
+    ],
+    "Frame": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5"
+    ]
+  },
+  "variants": [
+    {"name": "Shape=Circle, Animated=False, Frame=1", "figmaName": "Shape=Circle, Animated=False, Frame=1", "nodeId": "8994:43073", "props": {"Shape": "Circle", "Animated": "False", "Frame": "1"}, "size": {"width": 132, "height": 132}, "padding": {"top": 0, "right": 0, "bottom": 0, "left": 0}, "gap": 0, "radius": 9999, "strokeWidth": 0, "fill": "#FFE6E6E6", "stroke": null, "text": null, "tokens": {"fills": ["Neutral/Background/Stencil/1/Rest"], "radius": ["Corner radius/Circular"]}},
+    {"name": "Shape=Circle, Animated=True, Frame=1", "figmaName": "Shape=Circle, Animated=True, Frame=1", "nodeId": "8994:43065", "props": {"Shape": "Circle", "Animated": "True", "Frame": "1"}, "size": {"width": 132, "height": 132}, "padding": {"top": 0, "right": 0, "bottom": 0, "left": 0}, "gap": 0, "radius": 9999, "strokeWidth": 0, "fill": "#FFE6E6E6", "stroke": null, "text": null, "tokens": {"fills": ["Neutral/Background/Stencil/1/Rest"], "radius": ["Corner radius/Circular"]}},
+    {"name": "Shape=Circle, Animated=True, Frame=2", "figmaName": "Shape=Circle, Animated=True, Frame=2", "nodeId": "8994:43081", "props": {"Shape": "Circle", "Animated": "True", "Frame": "2"}, "size": {"width": 132, "height": 132}, "padding": {"top": 0, "right": 0, "bottom": 0, "left": 0}, "gap": 0, "radius": 9999, "strokeWidth": 0, "fill": "#FFE6E6E6", "stroke": null, "text": null, "tokens": {"fills": ["Neutral/Background/Stencil/1/Rest"], "radius": ["Corner radius/Circular"]}},
+    {"name": "Shape=Circle, Animated=True, Frame=3", "figmaName": "Shape=Circle, Animated=True, Frame=3", "nodeId": "8994:43089", "props": {"Shape": "Circle", "Animated": "True", "Frame": "3"}, "size": {"width": 132, "height": 132}, "padding": {"top": 0, "right": 0, "bottom": 0, "left": 0}, "gap": 0, "radius": 9999, "strokeWidth": 0, "fill": "#FFE6E6E6", "stroke": null, "text": null, "tokens": {"fills": ["Neutral/Background/Stencil/1/Rest"], "radius": ["Corner radius/Circular"]}},
+    {"name": "Shape=Circle, Animated=True, Frame=4", "figmaName": "Shape=Circle, Animated=True, Frame=4", "nodeId": "8994:43097", "props": {"Shape": "Circle", "Animated": "True", "Frame": "4"}, "size": {"width": 132, "height": 132}, "padding": {"top": 0, "right": 0, "bottom": 0, "left": 0}, "gap": 0, "radius": 9999, "strokeWidth": 0, "fill": "#FFE6E6E6", "stroke": null, "text": null, "tokens": {"fills": ["Neutral/Background/Stencil/1/Rest"], "radius": ["Corner radius/Circular"]}},
+    {"name": "Shape=Circle, Animated=True, Frame=5", "figmaName": "Shape=Circle, Animated=True, Frame=5", "nodeId": "8994:43105", "props": {"Shape": "Circle", "Animated": "True", "Frame": "5"}, "size": {"width": 132, "height": 132}, "padding": {"top": 0, "right": 0, "bottom": 0, "left": 0}, "gap": 0, "radius": 9999, "strokeWidth": 0, "fill": "#FFE6E6E6", "stroke": null, "text": null, "tokens": {"fills": ["Neutral/Background/Stencil/1/Rest"], "radius": ["Corner radius/Circular"]}},
+    {"name": "Shape=Rectangle (default), Animated=False, Frame=1", "figmaName": "Shape=Rectangle (default), Animated=False, Frame=1", "nodeId": "8994:43069", "props": {"Shape": "Rectangle (default)", "Animated": "False", "Frame": "1"}, "size": {"width": 132, "height": 132}, "padding": {"top": 0, "right": 0, "bottom": 0, "left": 0}, "gap": 0, "radius": 4, "strokeWidth": 0, "fill": "#FFE6E6E6", "stroke": null, "text": null, "tokens": {"fills": ["Neutral/Background/Stencil/1/Rest"], "radius": ["Corner radius/Medium"]}},
+    {"name": "Shape=Rectangle (default), Animated=True, Frame=1", "figmaName": "Shape=Rectangle (default), Animated=True, Frame=1", "nodeId": "8994:43061", "props": {"Shape": "Rectangle (default)", "Animated": "True", "Frame": "1"}, "size": {"width": 132, "height": 132}, "padding": {"top": 0, "right": 0, "bottom": 0, "left": 0}, "gap": 0, "radius": 0, "strokeWidth": 0, "fill": "#FFE6E6E6", "stroke": null, "text": null, "tokens": {"fills": ["Neutral/Background/Stencil/1/Rest"], "radius": ["Corner-radius/Image/Default"]}},
+    {"name": "Shape=Rectangle (default), Animated=True, Frame=2", "figmaName": "Shape=Rectangle (default), Animated=True, Frame=2", "nodeId": "8994:43077", "props": {"Shape": "Rectangle (default)", "Animated": "True", "Frame": "2"}, "size": {"width": 132, "height": 132}, "padding": {"top": 0, "right": 0, "bottom": 0, "left": 0}, "gap": 0, "radius": 0, "strokeWidth": 0, "fill": "#FFE6E6E6", "stroke": null, "text": null, "tokens": {"fills": ["Neutral/Background/Stencil/1/Rest"], "radius": ["Corner-radius/Image/Default"]}},
+    {"name": "Shape=Rectangle (default), Animated=True, Frame=3", "figmaName": "Shape=Rectangle (default), Animated=True, Frame=3", "nodeId": "8994:43085", "props": {"Shape": "Rectangle (default)", "Animated": "True", "Frame": "3"}, "size": {"width": 132, "height": 132}, "padding": {"top": 0, "right": 0, "bottom": 0, "left": 0}, "gap": 0, "radius": 0, "strokeWidth": 0, "fill": "#FFE6E6E6", "stroke": null, "text": null, "tokens": {"fills": ["Neutral/Background/Stencil/1/Rest"], "radius": ["Corner-radius/Image/Default"]}},
+    {"name": "Shape=Rectangle (default), Animated=True, Frame=4", "figmaName": "Shape=Rectangle (default), Animated=True, Frame=4", "nodeId": "8994:43093", "props": {"Shape": "Rectangle (default)", "Animated": "True", "Frame": "4"}, "size": {"width": 132, "height": 132}, "padding": {"top": 0, "right": 0, "bottom": 0, "left": 0}, "gap": 0, "radius": 0, "strokeWidth": 0, "fill": "#FFE6E6E6", "stroke": null, "text": null, "tokens": {"fills": ["Neutral/Background/Stencil/1/Rest"], "radius": ["Corner-radius/Image/Default"]}},
+    {"name": "Shape=Rectangle (default), Animated=True, Frame=5", "figmaName": "Shape=Rectangle (default), Animated=True, Frame=5", "nodeId": "8994:43101", "props": {"Shape": "Rectangle (default)", "Animated": "True", "Frame": "5"}, "size": {"width": 132, "height": 132}, "padding": {"top": 0, "right": 0, "bottom": 0, "left": 0}, "gap": 0, "radius": 0, "strokeWidth": 0, "fill": "#FFE6E6E6", "stroke": null, "text": null, "tokens": {"fills": ["Neutral/Background/Stencil/1/Rest"], "radius": ["Corner-radius/Image/Default"]}}
+  ]
+}

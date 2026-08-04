@@ -1,0 +1,37 @@
+{
+  "component": "progressbar",
+  "source": {
+    "fileKey": "Heyk4N9SnwfIzupHlk3l7s",
+    "pageId": "8934:12",
+    "nodeId": "9121:5771",
+    "setName": "Static_ProgressBar"
+  },
+  "properties": {
+    "Style": [
+      "Indeterminate",
+      "Determinate"
+    ],
+    "State": [
+      "Default",
+      "Success",
+      "Error",
+      "Warning"
+    ],
+    "Size": [
+      "Medium",
+      "Large"
+    ]
+  },
+  "variants": [
+    {"name": "Style=Determinate, State=Default, Size=Large", "figmaName": "Style=Determinate, State=Default, Size=Large", "nodeId": "9121:5780", "props": {"Style": "Determinate", "State": "Default", "Size": "Large"}, "size": {"width": 492, "height": 4}, "padding": {"top": 0, "right": 100, "bottom": 0, "left": 0}, "gap": 0, "radius": 9999, "strokeWidth": 1, "fill": "#FFE6E6E6", "stroke": "#00FFFFFF", "text": null, "tokens": {"fills": ["Neutral/Background/6/Rest"], "strokes": ["Neutral/Stroke/Transparent/Rest"], "radius": ["Corner radius/Circular"], "strokeWidth": ["Stroke width/Thin"]}},
+    {"name": "Style=Determinate, State=Default, Size=Medium", "figmaName": "Style=Determinate, State=Default, Size=Medium (Default)", "nodeId": "9121:5772", "props": {"Style": "Determinate", "State": "Default", "Size": "Medium"}, "size": {"width": 492, "height": 2}, "padding": {"top": 0, "right": 100, "bottom": 0, "left": 0}, "gap": 0, "radius": 9999, "strokeWidth": 1, "fill": "#FFE6E6E6", "stroke": "#00FFFFFF", "text": null, "tokens": {"fills": ["Neutral/Background/6/Rest"], "strokes": ["Neutral/Stroke/Transparent/Rest"], "radius": ["Corner radius/Circular"], "strokeWidth": ["Stroke width/Thin"]}},
+    {"name": "Style=Determinate, State=Error, Size=Large", "figmaName": "Style=Determinate, State=Error, Size=Large", "nodeId": "9121:5784", "props": {"Style": "Determinate", "State": "Error", "Size": "Large"}, "size": {"width": 492, "height": 4}, "padding": {"top": 0, "right": 100, "bottom": 0, "left": 0}, "gap": 0, "radius": 9999, "strokeWidth": 1, "fill": "#FFE6E6E6", "stroke": "#00FFFFFF", "text": null, "tokens": {"fills": ["Neutral/Background/6/Rest"], "strokes": ["Neutral/Stroke/Transparent/Rest"], "radius": ["Corner radius/Circular"], "strokeWidth": ["Stroke width/Thin"]}},
+    {"name": "Style=Determinate, State=Error, Size=Medium", "figmaName": "Style=Determinate, State=Error, Size=Medium (Default)", "nodeId": "9121:5776", "props": {"Style": "Determinate", "State": "Error", "Size": "Medium"}, "size": {"width": 492, "height": 2}, "padding": {"top": 0, "right": 100, "bottom": 0, "left": 0}, "gap": 0, "radius": 9999, "strokeWidth": 1, "fill": "#FFE6E6E6", "stroke": "#00FFFFFF", "text": null, "tokens": {"fills": ["Neutral/Background/6/Rest"], "strokes": ["Neutral/Stroke/Transparent/Rest"], "radius": ["Corner radius/Circular"], "strokeWidth": ["Stroke width/Thin"]}},
+    {"name": "Style=Determinate, State=Success, Size=Large", "figmaName": "Style=Determinate, State=Success, Size=Large", "nodeId": "9121:5782", "props": {"Style": "Determinate", "State": "Success", "Size": "Large"}, "size": {"width": 492, "height": 4}, "padding": {"top": 0, "right": 0, "bottom": 0, "left": 0}, "gap": 0, "radius": 9999, "strokeWidth": 1, "fill": "#FFE6E6E6", "stroke": "#00FFFFFF", "text": null, "tokens": {"fills": ["Neutral/Background/6/Rest"], "strokes": ["Neutral/Stroke/Transparent/Rest"], "radius": ["Corner radius/Circular"], "strokeWidth": ["Stroke width/Thin"]}},
+    {"name": "Style=Determinate, State=Success, Size=Medium", "figmaName": "Style=Determinate, State=Success, Size=Medium (Default)", "nodeId": "9121:5774", "props": {"Style": "Determinate", "State": "Success", "Size": "Medium"}, "size": {"width": 492, "height": 2}, "padding": {"top": 0, "right": 0, "bottom": 0, "left": 0}, "gap": 0, "radius": 9999, "strokeWidth": 1, "fill": "#FFE6E6E6", "stroke": "#00FFFFFF", "text": null, "tokens": {"fills": ["Neutral/Background/6/Rest"], "strokes": ["Neutral/Stroke/Transparent/Rest"], "radius": ["Corner radius/Circular"], "strokeWidth": ["Stroke width/Thin"]}},
+    {"name": "Style=Determinate, State=Warning, Size=Large", "figmaName": "Style=Determinate, State=Warning, Size=Large", "nodeId": "9121:5786", "props": {"Style": "Determinate", "State": "Warning", "Size": "Large"}, "size": {"width": 492, "height": 4}, "padding": {"top": 0, "right": 100, "bottom": 0, "left": 0}, "gap": 0, "radius": 9999, "strokeWidth": 1, "fill": "#FFE6E6E6", "stroke": "#00FFFFFF", "text": null, "tokens": {"fills": ["Neutral/Background/6/Rest"], "strokes": ["Neutral/Stroke/Transparent/Rest"], "radius": ["Corner radius/Circular"], "strokeWidth": ["Stroke width/Thin"]}},
+    {"name": "Style=Determinate, State=Warning, Size=Medium", "figmaName": "Style=Determinate, State=Warning, Size=Medium (Default)", "nodeId": "9121:5778", "props": {"Style": "Determinate", "State": "Warning", "Size": "Medium"}, "size": {"width": 492, "height": 2}, "padding": {"top": 0, "right": 100, "bottom": 0, "left": 0}, "gap": 0, "radius": 9999, "strokeWidth": 1, "fill": "#FFE6E6E6", "stroke": "#00FFFFFF", "text": null, "tokens": {"fills": ["Neutral/Background/6/Rest"], "strokes": ["Neutral/Stroke/Transparent/Rest"], "radius": ["Corner radius/Circular"], "strokeWidth": ["Stroke width/Thin"]}},
+    {"name": "Style=Indeterminate, State=Default, Size=Large", "figmaName": "Style=Indeterminate, State=Default, Size=Large", "nodeId": "9121:5792", "props": {"Style": "Indeterminate", "State": "Default", "Size": "Large"}, "size": {"width": 492, "height": 4}, "padding": {"top": 0, "right": 328, "bottom": 0, "left": 0}, "gap": 0, "radius": 9999, "strokeWidth": 1, "fill": "#FFE6E6E6", "stroke": "#00FFFFFF", "text": null, "tokens": {"fills": ["Neutral/Background/6/Rest"], "strokes": ["Neutral/Stroke/Transparent/Rest"], "radius": ["Corner radius/Circular"], "strokeWidth": ["Stroke width/Thin"]}},
+    {"name": "Style=Indeterminate, State=Default, Size=Medium", "figmaName": "Style=Indeterminate, State=Default, Size=Medium (Default)", "nodeId": "9121:5788", "props": {"Style": "Indeterminate", "State": "Default", "Size": "Medium"}, "size": {"width": 492, "height": 2}, "padding": {"top": 0, "right": 492, "bottom": 0, "left": 0}, "gap": 0, "radius": 9999, "strokeWidth": 1, "fill": "#FFE6E6E6", "stroke": "#00FFFFFF", "text": null, "tokens": {"fills": ["Neutral/Background/6/Rest"], "strokes": ["Neutral/Stroke/Transparent/Rest"], "radius": ["Corner radius/Circular"], "strokeWidth": ["Stroke width/Thin"]}}
+  ]
+}

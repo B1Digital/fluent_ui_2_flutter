@@ -1,0 +1,3537 @@
+{
+  "collection": " Global",
+  "modes": [
+    "Value"
+  ],
+  "count": 588,
+  "variables": {
+    "Colors/Shared/Dark red/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#130204"
+      }
+    },
+    "Colors/Shared/Dark red/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#230308"
+      }
+    },
+    "Colors/Shared/Dark red/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#420610"
+      }
+    },
+    "Colors/Shared/Dark red/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#590815"
+      }
+    },
+    "Colors/Shared/Dark red/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#690a19"
+      }
+    },
+    "Colors/Shared/Dark red/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#750b1c"
+      }
+    },
+    "Colors/Shared/Dark red/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#861b2c"
+      }
+    },
+    "Colors/Shared/Dark red/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#962f3f"
+      }
+    },
+    "Colors/Shared/Dark red/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ac4f5e"
+      }
+    },
+    "Colors/Shared/Dark red/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#d69ca5"
+      }
+    },
+    "Colors/Shared/Dark red/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e9c7cd"
+      }
+    },
+    "Colors/Shared/Dark red/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f9f0f2"
+      }
+    },
+    "Colors/Shared/Burgundy/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#1a0607"
+      }
+    },
+    "Colors/Shared/Burgundy/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#310b0d"
+      }
+    },
+    "Colors/Shared/Burgundy/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#5c1519"
+      }
+    },
+    "Colors/Shared/Burgundy/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#7d1d21"
+      }
+    },
+    "Colors/Shared/Burgundy/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#942228"
+      }
+    },
+    "Colors/Shared/Burgundy/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#a4262c"
+      }
+    },
+    "Colors/Shared/Burgundy/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#af393e"
+      }
+    },
+    "Colors/Shared/Burgundy/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ba4d52"
+      }
+    },
+    "Colors/Shared/Burgundy/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c86c70"
+      }
+    },
+    "Colors/Shared/Burgundy/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e4afb2"
+      }
+    },
+    "Colors/Shared/Burgundy/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f0d3d4"
+      }
+    },
+    "Colors/Shared/Burgundy/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fbf4f4"
+      }
+    },
+    "Colors/Shared/Cranberry/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#200205"
+      }
+    },
+    "Colors/Shared/Cranberry/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#3b0509"
+      }
+    },
+    "Colors/Shared/Cranberry/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#6e0811"
+      }
+    },
+    "Colors/Shared/Cranberry/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#960b18"
+      }
+    },
+    "Colors/Shared/Cranberry/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#b10e1c"
+      }
+    },
+    "Colors/Shared/Cranberry/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c50f1f"
+      }
+    },
+    "Colors/Shared/Cranberry/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#cc2635"
+      }
+    },
+    "Colors/Shared/Cranberry/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#d33f4c"
+      }
+    },
+    "Colors/Shared/Cranberry/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#dc626d"
+      }
+    },
+    "Colors/Shared/Cranberry/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#eeacb2"
+      }
+    },
+    "Colors/Shared/Cranberry/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f6d1d5"
+      }
+    },
+    "Colors/Shared/Cranberry/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fdf3f4"
+      }
+    },
+    "Colors/Shared/Red/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#210809"
+      }
+    },
+    "Colors/Shared/Red/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#3f1011"
+      }
+    },
+    "Colors/Shared/Red/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#751d1f"
+      }
+    },
+    "Colors/Shared/Red/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#9f282b"
+      }
+    },
+    "Colors/Shared/Red/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#bc2f32"
+      }
+    },
+    "Colors/Shared/Red/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#d13438"
+      }
+    },
+    "Colors/Shared/Red/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#d7494c"
+      }
+    },
+    "Colors/Shared/Red/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#dc5e62"
+      }
+    },
+    "Colors/Shared/Red/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e37d80"
+      }
+    },
+    "Colors/Shared/Red/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f1bbbc"
+      }
+    },
+    "Colors/Shared/Red/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f8dadb"
+      }
+    },
+    "Colors/Shared/Red/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fdf6f6"
+      }
+    },
+    "Colors/Shared/Dark orange/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#230900"
+      }
+    },
+    "Colors/Shared/Dark orange/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#411200"
+      }
+    },
+    "Colors/Shared/Dark orange/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#7a2101"
+      }
+    },
+    "Colors/Shared/Dark orange/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#a62d01"
+      }
+    },
+    "Colors/Shared/Dark orange/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c43501"
+      }
+    },
+    "Colors/Shared/Dark orange/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#da3b01"
+      }
+    },
+    "Colors/Shared/Dark orange/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#de501c"
+      }
+    },
+    "Colors/Shared/Dark orange/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e36537"
+      }
+    },
+    "Colors/Shared/Dark orange/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e9835e"
+      }
+    },
+    "Colors/Shared/Dark orange/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f4bfab"
+      }
+    },
+    "Colors/Shared/Dark orange/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f9dcd1"
+      }
+    },
+    "Colors/Shared/Dark orange/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fdf6f3"
+      }
+    },
+    "Colors/Shared/Bronze/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#1b0a01"
+      }
+    },
+    "Colors/Shared/Bronze/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#321303"
+      }
+    },
+    "Colors/Shared/Bronze/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#5e2405"
+      }
+    },
+    "Colors/Shared/Bronze/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#7f3107"
+      }
+    },
+    "Colors/Shared/Bronze/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#963a08"
+      }
+    },
+    "Colors/Shared/Bronze/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#a74109"
+      }
+    },
+    "Colors/Shared/Bronze/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#b2521e"
+      }
+    },
+    "Colors/Shared/Bronze/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#bc6535"
+      }
+    },
+    "Colors/Shared/Bronze/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ca8057"
+      }
+    },
+    "Colors/Shared/Bronze/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e5bba4"
+      }
+    },
+    "Colors/Shared/Bronze/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f1d9cc"
+      }
+    },
+    "Colors/Shared/Bronze/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fbf5f2"
+      }
+    },
+    "Colors/Shared/Pumpkin/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#200d03"
+      }
+    },
+    "Colors/Shared/Pumpkin/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#3d1805"
+      }
+    },
+    "Colors/Shared/Pumpkin/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#712d09"
+      }
+    },
+    "Colors/Shared/Pumpkin/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#9a3d0c"
+      }
+    },
+    "Colors/Shared/Pumpkin/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#b6480e"
+      }
+    },
+    "Colors/Shared/Pumpkin/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ca5010"
+      }
+    },
+    "Colors/Shared/Pumpkin/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#d06228"
+      }
+    },
+    "Colors/Shared/Pumpkin/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#d77440"
+      }
+    },
+    "Colors/Shared/Pumpkin/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#df8e64"
+      }
+    },
+    "Colors/Shared/Pumpkin/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#efc4ad"
+      }
+    },
+    "Colors/Shared/Pumpkin/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f7dfd2"
+      }
+    },
+    "Colors/Shared/Pumpkin/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fdf7f4"
+      }
+    },
+    "Colors/Shared/Orange/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#271002"
+      }
+    },
+    "Colors/Shared/Orange/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#4a1e04"
+      }
+    },
+    "Colors/Shared/Orange/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#8a3707"
+      }
+    },
+    "Colors/Shared/Orange/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#bc4b09"
+      }
+    },
+    "Colors/Shared/Orange/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#de590b"
+      }
+    },
+    "Colors/Shared/Orange/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f7630c"
+      }
+    },
+    "Colors/Shared/Orange/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f87528"
+      }
+    },
+    "Colors/Shared/Orange/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f98845"
+      }
+    },
+    "Colors/Shared/Orange/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#faa06b"
+      }
+    },
+    "Colors/Shared/Orange/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fdcfb4"
+      }
+    },
+    "Colors/Shared/Orange/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fee5d7"
+      }
+    },
+    "Colors/Shared/Orange/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fff9f5"
+      }
+    },
+    "Colors/Shared/Peach/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#291600"
+      }
+    },
+    "Colors/Shared/Peach/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#4d2a00"
+      }
+    },
+    "Colors/Shared/Peach/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#8f4e00"
+      }
+    },
+    "Colors/Shared/Peach/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c26a00"
+      }
+    },
+    "Colors/Shared/Peach/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e67e00"
+      }
+    },
+    "Colors/Shared/Peach/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ff8c00"
+      }
+    },
+    "Colors/Shared/Peach/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ff9a1f"
+      }
+    },
+    "Colors/Shared/Peach/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ffa83d"
+      }
+    },
+    "Colors/Shared/Peach/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ffba66"
+      }
+    },
+    "Colors/Shared/Peach/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ffddb3"
+      }
+    },
+    "Colors/Shared/Peach/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ffedd6"
+      }
+    },
+    "Colors/Shared/Peach/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fffaf5"
+      }
+    },
+    "Colors/Shared/Marigold/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#251a00"
+      }
+    },
+    "Colors/Shared/Marigold/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#463100"
+      }
+    },
+    "Colors/Shared/Marigold/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#835b00"
+      }
+    },
+    "Colors/Shared/Marigold/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#b27c00"
+      }
+    },
+    "Colors/Shared/Marigold/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#d39300"
+      }
+    },
+    "Colors/Shared/Marigold/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#eaa300"
+      }
+    },
+    "Colors/Shared/Marigold/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#edad1c"
+      }
+    },
+    "Colors/Shared/Marigold/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#efb839"
+      }
+    },
+    "Colors/Shared/Marigold/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f2c661"
+      }
+    },
+    "Colors/Shared/Marigold/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f9e2ae"
+      }
+    },
+    "Colors/Shared/Marigold/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fcefd3"
+      }
+    },
+    "Colors/Shared/Marigold/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fefbf4"
+      }
+    },
+    "Colors/Shared/Yellow/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#282400"
+      }
+    },
+    "Colors/Shared/Yellow/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#4c4400"
+      }
+    },
+    "Colors/Shared/Yellow/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#817400"
+      }
+    },
+    "Colors/Shared/Yellow/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c0ad00"
+      }
+    },
+    "Colors/Shared/Yellow/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e4cc00"
+      }
+    },
+    "Colors/Shared/Yellow/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fde300"
+      }
+    },
+    "Colors/Shared/Yellow/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fde61e"
+      }
+    },
+    "Colors/Shared/Yellow/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fdea3d"
+      }
+    },
+    "Colors/Shared/Yellow/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#feee66"
+      }
+    },
+    "Colors/Shared/Yellow/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fef7b2"
+      }
+    },
+    "Colors/Shared/Yellow/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fffad6"
+      }
+    },
+    "Colors/Shared/Yellow/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fffef5"
+      }
+    },
+    "Colors/Shared/Gold/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#1f1900"
+      }
+    },
+    "Colors/Shared/Gold/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#3a2f00"
+      }
+    },
+    "Colors/Shared/Gold/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#6c5700"
+      }
+    },
+    "Colors/Shared/Gold/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#937700"
+      }
+    },
+    "Colors/Shared/Gold/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ae8c00"
+      }
+    },
+    "Colors/Shared/Gold/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c19c00"
+      }
+    },
+    "Colors/Shared/Gold/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c8a718"
+      }
+    },
+    "Colors/Shared/Gold/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#d0b232"
+      }
+    },
+    "Colors/Shared/Gold/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#dac157"
+      }
+    },
+    "Colors/Shared/Gold/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ecdfa5"
+      }
+    },
+    "Colors/Shared/Gold/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f5eece"
+      }
+    },
+    "Colors/Shared/Gold/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fdfbf2"
+      }
+    },
+    "Colors/Shared/Brass/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#181202"
+      }
+    },
+    "Colors/Shared/Brass/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#2e2103"
+      }
+    },
+    "Colors/Shared/Brass/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#553e06"
+      }
+    },
+    "Colors/Shared/Brass/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#745408"
+      }
+    },
+    "Colors/Shared/Brass/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#89640a"
+      }
+    },
+    "Colors/Shared/Brass/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#986f0b"
+      }
+    },
+    "Colors/Shared/Brass/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#a47d1e"
+      }
+    },
+    "Colors/Shared/Brass/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#b18c34"
+      }
+    },
+    "Colors/Shared/Brass/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c1a256"
+      }
+    },
+    "Colors/Shared/Brass/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e0cea2"
+      }
+    },
+    "Colors/Shared/Brass/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#efe4cb"
+      }
+    },
+    "Colors/Shared/Brass/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fbf8f2"
+      }
+    },
+    "Colors/Shared/Brown/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#170e07"
+      }
+    },
+    "Colors/Shared/Brown/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#2b1a0e"
+      }
+    },
+    "Colors/Shared/Brown/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#50301a"
+      }
+    },
+    "Colors/Shared/Brown/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#6c4123"
+      }
+    },
+    "Colors/Shared/Brown/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#804d29"
+      }
+    },
+    "Colors/Shared/Brown/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#8e562e"
+      }
+    },
+    "Colors/Shared/Brown/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#9c663f"
+      }
+    },
+    "Colors/Shared/Brown/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#a97652"
+      }
+    },
+    "Colors/Shared/Brown/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#bb8f6f"
+      }
+    },
+    "Colors/Shared/Brown/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ddc3b0"
+      }
+    },
+    "Colors/Shared/Brown/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#edded3"
+      }
+    },
+    "Colors/Shared/Brown/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#faf7f4"
+      }
+    },
+    "Colors/Shared/Dark brown/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0c0704"
+      }
+    },
+    "Colors/Shared/Dark brown/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#170c08"
+      }
+    },
+    "Colors/Shared/Dark brown/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#2b1710"
+      }
+    },
+    "Colors/Shared/Dark brown/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#3a1f15"
+      }
+    },
+    "Colors/Shared/Dark brown/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#452519"
+      }
+    },
+    "Colors/Shared/Dark brown/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#4d291c"
+      }
+    },
+    "Colors/Shared/Dark brown/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#623a2b"
+      }
+    },
+    "Colors/Shared/Dark brown/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#784d3e"
+      }
+    },
+    "Colors/Shared/Dark brown/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#946b5c"
+      }
+    },
+    "Colors/Shared/Dark brown/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#caada3"
+      }
+    },
+    "Colors/Shared/Dark brown/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e3d2cb"
+      }
+    },
+    "Colors/Shared/Dark brown/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f8f3f2"
+      }
+    },
+    "Colors/Shared/Lime/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#121b06"
+      }
+    },
+    "Colors/Shared/Lime/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#23330b"
+      }
+    },
+    "Colors/Shared/Lime/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#405f14"
+      }
+    },
+    "Colors/Shared/Lime/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#57811b"
+      }
+    },
+    "Colors/Shared/Lime/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#689920"
+      }
+    },
+    "Colors/Shared/Lime/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#73aa24"
+      }
+    },
+    "Colors/Shared/Lime/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#81b437"
+      }
+    },
+    "Colors/Shared/Lime/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#90be4c"
+      }
+    },
+    "Colors/Shared/Lime/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#a4cc6c"
+      }
+    },
+    "Colors/Shared/Lime/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#cfe5af"
+      }
+    },
+    "Colors/Shared/Lime/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e5f1d3"
+      }
+    },
+    "Colors/Shared/Lime/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f8fcf4"
+      }
+    },
+    "Colors/Shared/Forest/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0c1501"
+      }
+    },
+    "Colors/Shared/Forest/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#162702"
+      }
+    },
+    "Colors/Shared/Forest/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#294903"
+      }
+    },
+    "Colors/Shared/Forest/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#376304"
+      }
+    },
+    "Colors/Shared/Forest/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#427505"
+      }
+    },
+    "Colors/Shared/Forest/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#498205"
+      }
+    },
+    "Colors/Shared/Forest/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#599116"
+      }
+    },
+    "Colors/Shared/Forest/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#6ba02b"
+      }
+    },
+    "Colors/Shared/Forest/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#85b44c"
+      }
+    },
+    "Colors/Shared/Forest/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#bdd99b"
+      }
+    },
+    "Colors/Shared/Forest/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#dbebc7"
+      }
+    },
+    "Colors/Shared/Forest/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f6faf0"
+      }
+    },
+    "Colors/Shared/Seafoam/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#002111"
+      }
+    },
+    "Colors/Shared/Seafoam/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#003d20"
+      }
+    },
+    "Colors/Shared/Seafoam/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#00723b"
+      }
+    },
+    "Colors/Shared/Seafoam/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#009b51"
+      }
+    },
+    "Colors/Shared/Seafoam/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#00b85f"
+      }
+    },
+    "Colors/Shared/Seafoam/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#00cc6a"
+      }
+    },
+    "Colors/Shared/Seafoam/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#19d279"
+      }
+    },
+    "Colors/Shared/Seafoam/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#34d889"
+      }
+    },
+    "Colors/Shared/Seafoam/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#5ae0a0"
+      }
+    },
+    "Colors/Shared/Seafoam/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#a8f0cd"
+      }
+    },
+    "Colors/Shared/Seafoam/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#cff7e4"
+      }
+    },
+    "Colors/Shared/Seafoam/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f3fdf8"
+      }
+    },
+    "Colors/Shared/Light green/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#031a02"
+      }
+    },
+    "Colors/Shared/Light green/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#063004"
+      }
+    },
+    "Colors/Shared/Light green/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0b5a08"
+      }
+    },
+    "Colors/Shared/Light green/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0e7a0b"
+      }
+    },
+    "Colors/Shared/Light green/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#11910d"
+      }
+    },
+    "Colors/Shared/Light green/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#13a10e"
+      }
+    },
+    "Colors/Shared/Light green/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#27ac22"
+      }
+    },
+    "Colors/Shared/Light green/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#3db838"
+      }
+    },
+    "Colors/Shared/Light green/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#5ec75a"
+      }
+    },
+    "Colors/Shared/Light green/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#a7e3a5"
+      }
+    },
+    "Colors/Shared/Light green/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#cef0cd"
+      }
+    },
+    "Colors/Shared/Light green/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f2fbf2"
+      }
+    },
+    "Colors/Shared/Green/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#031403"
+      }
+    },
+    "Colors/Shared/Green/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#052505"
+      }
+    },
+    "Colors/Shared/Green/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#094509"
+      }
+    },
+    "Colors/Shared/Green/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0c5e0c"
+      }
+    },
+    "Colors/Shared/Green/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0e700e"
+      }
+    },
+    "Colors/Shared/Green/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#107c10"
+      }
+    },
+    "Colors/Shared/Green/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#218c21"
+      }
+    },
+    "Colors/Shared/Green/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#359b35"
+      }
+    },
+    "Colors/Shared/Green/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#54b054"
+      }
+    },
+    "Colors/Shared/Green/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#9fd89f"
+      }
+    },
+    "Colors/Shared/Green/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c9eac9"
+      }
+    },
+    "Colors/Shared/Green/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f1faf1"
+      }
+    },
+    "Colors/Shared/Dark green/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#021102"
+      }
+    },
+    "Colors/Shared/Dark green/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#032003"
+      }
+    },
+    "Colors/Shared/Dark green/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#063b06"
+      }
+    },
+    "Colors/Shared/Dark green/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#085108"
+      }
+    },
+    "Colors/Shared/Dark green/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0a5f0a"
+      }
+    },
+    "Colors/Shared/Dark green/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0b6a0b"
+      }
+    },
+    "Colors/Shared/Dark green/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#1a7c1a"
+      }
+    },
+    "Colors/Shared/Dark green/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#2d8e2d"
+      }
+    },
+    "Colors/Shared/Dark green/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#4da64d"
+      }
+    },
+    "Colors/Shared/Dark green/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#9ad29a"
+      }
+    },
+    "Colors/Shared/Dark green/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c6e7c6"
+      }
+    },
+    "Colors/Shared/Dark green/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f0f9f0"
+      }
+    },
+    "Colors/Shared/Light teal/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#001d1f"
+      }
+    },
+    "Colors/Shared/Light teal/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#00373a"
+      }
+    },
+    "Colors/Shared/Light teal/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#00666d"
+      }
+    },
+    "Colors/Shared/Light teal/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#008b94"
+      }
+    },
+    "Colors/Shared/Light teal/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#00a5af"
+      }
+    },
+    "Colors/Shared/Light teal/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#00b7c3"
+      }
+    },
+    "Colors/Shared/Light teal/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#18bfca"
+      }
+    },
+    "Colors/Shared/Light teal/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#32c8d1"
+      }
+    },
+    "Colors/Shared/Light teal/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#58d3db"
+      }
+    },
+    "Colors/Shared/Light teal/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#a6e9ed"
+      }
+    },
+    "Colors/Shared/Light teal/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#cef3f5"
+      }
+    },
+    "Colors/Shared/Light teal/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f2fcfd"
+      }
+    },
+    "Colors/Shared/Teal/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#001516"
+      }
+    },
+    "Colors/Shared/Teal/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#012728"
+      }
+    },
+    "Colors/Shared/Teal/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#02494c"
+      }
+    },
+    "Colors/Shared/Teal/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#026467"
+      }
+    },
+    "Colors/Shared/Teal/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#037679"
+      }
+    },
+    "Colors/Shared/Teal/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#038387"
+      }
+    },
+    "Colors/Shared/Teal/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#159195"
+      }
+    },
+    "Colors/Shared/Teal/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#2aa0a4"
+      }
+    },
+    "Colors/Shared/Teal/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#4cb4b7"
+      }
+    },
+    "Colors/Shared/Teal/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#9bd9db"
+      }
+    },
+    "Colors/Shared/Teal/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c7ebec"
+      }
+    },
+    "Colors/Shared/Teal/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f0fafa"
+      }
+    },
+    "Colors/Shared/Dark teal/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#001010"
+      }
+    },
+    "Colors/Shared/Dark teal/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#001f1f"
+      }
+    },
+    "Colors/Shared/Dark teal/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#003939"
+      }
+    },
+    "Colors/Shared/Dark teal/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#004e4e"
+      }
+    },
+    "Colors/Shared/Dark teal/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#005c5c"
+      }
+    },
+    "Colors/Shared/Dark teal/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#006666"
+      }
+    },
+    "Colors/Shared/Dark teal/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0e7878"
+      }
+    },
+    "Colors/Shared/Dark teal/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#218b8b"
+      }
+    },
+    "Colors/Shared/Dark teal/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#41a3a3"
+      }
+    },
+    "Colors/Shared/Dark teal/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#92d1d1"
+      }
+    },
+    "Colors/Shared/Dark teal/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c2e7e7"
+      }
+    },
+    "Colors/Shared/Dark teal/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#eff9f9"
+      }
+    },
+    "Colors/Shared/Cyan/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#00181e"
+      }
+    },
+    "Colors/Shared/Cyan/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#002e38"
+      }
+    },
+    "Colors/Shared/Cyan/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#005669"
+      }
+    },
+    "Colors/Shared/Cyan/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#00748f"
+      }
+    },
+    "Colors/Shared/Cyan/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#008aa9"
+      }
+    },
+    "Colors/Shared/Cyan/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0099bc"
+      }
+    },
+    "Colors/Shared/Cyan/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#18a4c4"
+      }
+    },
+    "Colors/Shared/Cyan/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#31afcc"
+      }
+    },
+    "Colors/Shared/Cyan/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#56bfd7"
+      }
+    },
+    "Colors/Shared/Cyan/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#a4deeb"
+      }
+    },
+    "Colors/Shared/Cyan/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#cdedf4"
+      }
+    },
+    "Colors/Shared/Cyan/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f2fafc"
+      }
+    },
+    "Colors/Shared/Steel/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#000f12"
+      }
+    },
+    "Colors/Shared/Steel/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#001b22"
+      }
+    },
+    "Colors/Shared/Steel/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#00333f"
+      }
+    },
+    "Colors/Shared/Steel/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#004555"
+      }
+    },
+    "Colors/Shared/Steel/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#005265"
+      }
+    },
+    "Colors/Shared/Steel/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#005b70"
+      }
+    },
+    "Colors/Shared/Steel/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0f6c81"
+      }
+    },
+    "Colors/Shared/Steel/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#237d92"
+      }
+    },
+    "Colors/Shared/Steel/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#4496a9"
+      }
+    },
+    "Colors/Shared/Steel/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#94c8d4"
+      }
+    },
+    "Colors/Shared/Steel/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c3e1e8"
+      }
+    },
+    "Colors/Shared/Steel/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#eff7f9"
+      }
+    },
+    "Colors/Shared/Light blue/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#091823"
+      }
+    },
+    "Colors/Shared/Light blue/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#112d42"
+      }
+    },
+    "Colors/Shared/Light blue/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#20547c"
+      }
+    },
+    "Colors/Shared/Light blue/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#2c72a8"
+      }
+    },
+    "Colors/Shared/Light blue/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#3487c7"
+      }
+    },
+    "Colors/Shared/Light blue/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#3a96dd"
+      }
+    },
+    "Colors/Shared/Light blue/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#4fa1e1"
+      }
+    },
+    "Colors/Shared/Light blue/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#65ade5"
+      }
+    },
+    "Colors/Shared/Light blue/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#83bdeb"
+      }
+    },
+    "Colors/Shared/Light blue/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#bfddf5"
+      }
+    },
+    "Colors/Shared/Light blue/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#dcedfa"
+      }
+    },
+    "Colors/Shared/Light blue/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f6fafe"
+      }
+    },
+    "Colors/Shared/Blue/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#001322"
+      }
+    },
+    "Colors/Shared/Blue/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#002440"
+      }
+    },
+    "Colors/Shared/Blue/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#004377"
+      }
+    },
+    "Colors/Shared/Blue/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#005ba1"
+      }
+    },
+    "Colors/Shared/Blue/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#006cbf"
+      }
+    },
+    "Colors/Shared/Blue/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0078d4"
+      }
+    },
+    "Colors/Shared/Blue/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#1a86d9"
+      }
+    },
+    "Colors/Shared/Blue/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#3595de"
+      }
+    },
+    "Colors/Shared/Blue/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#5caae5"
+      }
+    },
+    "Colors/Shared/Blue/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#a9d3f2"
+      }
+    },
+    "Colors/Shared/Blue/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#d0e7f8"
+      }
+    },
+    "Colors/Shared/Blue/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f3f9fd"
+      }
+    },
+    "Colors/Shared/Royal blue/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#000c16"
+      }
+    },
+    "Colors/Shared/Royal blue/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#00172a"
+      }
+    },
+    "Colors/Shared/Royal blue/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#002c4e"
+      }
+    },
+    "Colors/Shared/Royal blue/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#003b6a"
+      }
+    },
+    "Colors/Shared/Royal blue/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#00467e"
+      }
+    },
+    "Colors/Shared/Royal blue/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#004e8c"
+      }
+    },
+    "Colors/Shared/Royal blue/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#125e9a"
+      }
+    },
+    "Colors/Shared/Royal blue/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#286fa8"
+      }
+    },
+    "Colors/Shared/Royal blue/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#4a89ba"
+      }
+    },
+    "Colors/Shared/Royal blue/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#9abfdc"
+      }
+    },
+    "Colors/Shared/Royal blue/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c7dced"
+      }
+    },
+    "Colors/Shared/Royal blue/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f0f6fa"
+      }
+    },
+    "Colors/Shared/Dark blue/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#000910"
+      }
+    },
+    "Colors/Shared/Dark blue/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#00111f"
+      }
+    },
+    "Colors/Shared/Dark blue/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#002039"
+      }
+    },
+    "Colors/Shared/Dark blue/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#002b4e"
+      }
+    },
+    "Colors/Shared/Dark blue/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#00335c"
+      }
+    },
+    "Colors/Shared/Dark blue/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#003966"
+      }
+    },
+    "Colors/Shared/Dark blue/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0e4a78"
+      }
+    },
+    "Colors/Shared/Dark blue/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#215c8b"
+      }
+    },
+    "Colors/Shared/Dark blue/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#4178a3"
+      }
+    },
+    "Colors/Shared/Dark blue/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#92b5d1"
+      }
+    },
+    "Colors/Shared/Dark blue/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c2d6e7"
+      }
+    },
+    "Colors/Shared/Dark blue/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#eff4f9"
+      }
+    },
+    "Colors/Shared/Cornflower/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0d1126"
+      }
+    },
+    "Colors/Shared/Cornflower/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#182047"
+      }
+    },
+    "Colors/Shared/Cornflower/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#2c3c85"
+      }
+    },
+    "Colors/Shared/Cornflower/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#3c51b4"
+      }
+    },
+    "Colors/Shared/Cornflower/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#4760d5"
+      }
+    },
+    "Colors/Shared/Cornflower/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#4f6bed"
+      }
+    },
+    "Colors/Shared/Cornflower/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#637cef"
+      }
+    },
+    "Colors/Shared/Cornflower/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#778df1"
+      }
+    },
+    "Colors/Shared/Cornflower/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#93a4f4"
+      }
+    },
+    "Colors/Shared/Cornflower/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c8d1fa"
+      }
+    },
+    "Colors/Shared/Cornflower/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e1e6fc"
+      }
+    },
+    "Colors/Shared/Cornflower/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f7f9fe"
+      }
+    },
+    "Colors/Shared/Navy/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#00061d"
+      }
+    },
+    "Colors/Shared/Navy/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#000c36"
+      }
+    },
+    "Colors/Shared/Navy/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#001665"
+      }
+    },
+    "Colors/Shared/Navy/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#001e89"
+      }
+    },
+    "Colors/Shared/Navy/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0023a2"
+      }
+    },
+    "Colors/Shared/Navy/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0027b4"
+      }
+    },
+    "Colors/Shared/Navy/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#173bbd"
+      }
+    },
+    "Colors/Shared/Navy/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#3050c6"
+      }
+    },
+    "Colors/Shared/Navy/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#546fd2"
+      }
+    },
+    "Colors/Shared/Navy/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#a3b2e8"
+      }
+    },
+    "Colors/Shared/Navy/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ccd5f3"
+      }
+    },
+    "Colors/Shared/Navy/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f2f4fc"
+      }
+    },
+    "Colors/Shared/Lavender/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#120f25"
+      }
+    },
+    "Colors/Shared/Lavender/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#221d46"
+      }
+    },
+    "Colors/Shared/Lavender/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#3f3682"
+      }
+    },
+    "Colors/Shared/Lavender/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#5649b0"
+      }
+    },
+    "Colors/Shared/Lavender/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#6656d1"
+      }
+    },
+    "Colors/Shared/Lavender/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#7160e8"
+      }
+    },
+    "Colors/Shared/Lavender/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#8172eb"
+      }
+    },
+    "Colors/Shared/Lavender/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#9184ee"
+      }
+    },
+    "Colors/Shared/Lavender/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#a79cf1"
+      }
+    },
+    "Colors/Shared/Lavender/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#d2ccf8"
+      }
+    },
+    "Colors/Shared/Lavender/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e7e4fb"
+      }
+    },
+    "Colors/Shared/Lavender/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f9f8fe"
+      }
+    },
+    "Colors/Shared/Purple/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0f0717"
+      }
+    },
+    "Colors/Shared/Purple/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#1c0e2b"
+      }
+    },
+    "Colors/Shared/Purple/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#341a51"
+      }
+    },
+    "Colors/Shared/Purple/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#46236e"
+      }
+    },
+    "Colors/Shared/Purple/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#532982"
+      }
+    },
+    "Colors/Shared/Purple/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#5c2e91"
+      }
+    },
+    "Colors/Shared/Purple/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#6b3f9e"
+      }
+    },
+    "Colors/Shared/Purple/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#7c52ab"
+      }
+    },
+    "Colors/Shared/Purple/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#9470bd"
+      }
+    },
+    "Colors/Shared/Purple/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c6b1de"
+      }
+    },
+    "Colors/Shared/Purple/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e0d3ed"
+      }
+    },
+    "Colors/Shared/Purple/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f7f4fb"
+      }
+    },
+    "Colors/Shared/Dark purple/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0a0411"
+      }
+    },
+    "Colors/Shared/Dark purple/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#130820"
+      }
+    },
+    "Colors/Shared/Dark purple/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#240f3c"
+      }
+    },
+    "Colors/Shared/Dark purple/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#311552"
+      }
+    },
+    "Colors/Shared/Dark purple/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#3a1861"
+      }
+    },
+    "Colors/Shared/Dark purple/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#401b6c"
+      }
+    },
+    "Colors/Shared/Dark purple/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#512b7e"
+      }
+    },
+    "Colors/Shared/Dark purple/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#633e8f"
+      }
+    },
+    "Colors/Shared/Dark purple/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#7e5ca7"
+      }
+    },
+    "Colors/Shared/Dark purple/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#b9a3d3"
+      }
+    },
+    "Colors/Shared/Dark purple/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#d8cce7"
+      }
+    },
+    "Colors/Shared/Dark purple/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f5f2f9"
+      }
+    },
+    "Colors/Shared/Orchid/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#16101d"
+      }
+    },
+    "Colors/Shared/Orchid/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#281e37"
+      }
+    },
+    "Colors/Shared/Orchid/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#4c3867"
+      }
+    },
+    "Colors/Shared/Orchid/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#674c8c"
+      }
+    },
+    "Colors/Shared/Orchid/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#795aa6"
+      }
+    },
+    "Colors/Shared/Orchid/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#8764b8"
+      }
+    },
+    "Colors/Shared/Orchid/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#9373c0"
+      }
+    },
+    "Colors/Shared/Orchid/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#a083c9"
+      }
+    },
+    "Colors/Shared/Orchid/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#b29ad4"
+      }
+    },
+    "Colors/Shared/Orchid/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#d7caea"
+      }
+    },
+    "Colors/Shared/Orchid/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e9e2f4"
+      }
+    },
+    "Colors/Shared/Orchid/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f9f8fc"
+      }
+    },
+    "Colors/Shared/Grape/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#160418"
+      }
+    },
+    "Colors/Shared/Grape/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#29072e"
+      }
+    },
+    "Colors/Shared/Grape/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#4c0d55"
+      }
+    },
+    "Colors/Shared/Grape/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#671174"
+      }
+    },
+    "Colors/Shared/Grape/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#7a1589"
+      }
+    },
+    "Colors/Shared/Grape/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#881798"
+      }
+    },
+    "Colors/Shared/Grape/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#952aa4"
+      }
+    },
+    "Colors/Shared/Grape/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#a33fb1"
+      }
+    },
+    "Colors/Shared/Grape/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#b55fc1"
+      }
+    },
+    "Colors/Shared/Grape/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#d9a7e0"
+      }
+    },
+    "Colors/Shared/Grape/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#eaceef"
+      }
+    },
+    "Colors/Shared/Grape/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#faf2fb"
+      }
+    },
+    "Colors/Shared/Berry/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#1f091d"
+      }
+    },
+    "Colors/Shared/Berry/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#3a1136"
+      }
+    },
+    "Colors/Shared/Berry/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#6d2064"
+      }
+    },
+    "Colors/Shared/Berry/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#932b88"
+      }
+    },
+    "Colors/Shared/Berry/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#af33a1"
+      }
+    },
+    "Colors/Shared/Berry/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c239b3"
+      }
+    },
+    "Colors/Shared/Berry/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c94cbc"
+      }
+    },
+    "Colors/Shared/Berry/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#d161c4"
+      }
+    },
+    "Colors/Shared/Berry/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#da7ed0"
+      }
+    },
+    "Colors/Shared/Berry/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#edbbe7"
+      }
+    },
+    "Colors/Shared/Berry/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f5daf2"
+      }
+    },
+    "Colors/Shared/Berry/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fdf5fc"
+      }
+    },
+    "Colors/Shared/Lilac/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#1c0b1f"
+      }
+    },
+    "Colors/Shared/Lilac/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#35153a"
+      }
+    },
+    "Colors/Shared/Lilac/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#63276d"
+      }
+    },
+    "Colors/Shared/Lilac/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#863593"
+      }
+    },
+    "Colors/Shared/Lilac/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#9f3faf"
+      }
+    },
+    "Colors/Shared/Lilac/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#b146c2"
+      }
+    },
+    "Colors/Shared/Lilac/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ba58c9"
+      }
+    },
+    "Colors/Shared/Lilac/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c36bd1"
+      }
+    },
+    "Colors/Shared/Lilac/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#cf87da"
+      }
+    },
+    "Colors/Shared/Lilac/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e6bfed"
+      }
+    },
+    "Colors/Shared/Lilac/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f2dcf5"
+      }
+    },
+    "Colors/Shared/Lilac/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fcf6fd"
+      }
+    },
+    "Colors/Shared/Pink/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#24091b"
+      }
+    },
+    "Colors/Shared/Pink/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#441232"
+      }
+    },
+    "Colors/Shared/Pink/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#80215d"
+      }
+    },
+    "Colors/Shared/Pink/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ad2d7e"
+      }
+    },
+    "Colors/Shared/Pink/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#cd3595"
+      }
+    },
+    "Colors/Shared/Pink/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e43ba6"
+      }
+    },
+    "Colors/Shared/Pink/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e750b0"
+      }
+    },
+    "Colors/Shared/Pink/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ea66ba"
+      }
+    },
+    "Colors/Shared/Pink/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ef85c8"
+      }
+    },
+    "Colors/Shared/Pink/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f7c0e3"
+      }
+    },
+    "Colors/Shared/Pink/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fbddf0"
+      }
+    },
+    "Colors/Shared/Pink/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fef6fb"
+      }
+    },
+    "Colors/Shared/Hot pink/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#240016"
+      }
+    },
+    "Colors/Shared/Hot pink/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#44002a"
+      }
+    },
+    "Colors/Shared/Hot pink/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#7f004e"
+      }
+    },
+    "Colors/Shared/Hot pink/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ad006a"
+      }
+    },
+    "Colors/Shared/Hot pink/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#cc007e"
+      }
+    },
+    "Colors/Shared/Hot pink/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e3008c"
+      }
+    },
+    "Colors/Shared/Hot pink/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e61c99"
+      }
+    },
+    "Colors/Shared/Hot pink/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ea38a6"
+      }
+    },
+    "Colors/Shared/Hot pink/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ee5fb7"
+      }
+    },
+    "Colors/Shared/Hot pink/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f7adda"
+      }
+    },
+    "Colors/Shared/Hot pink/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fbd2eb"
+      }
+    },
+    "Colors/Shared/Hot pink/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fef4fa"
+      }
+    },
+    "Colors/Shared/Magenta/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#1f0013"
+      }
+    },
+    "Colors/Shared/Magenta/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#390024"
+      }
+    },
+    "Colors/Shared/Magenta/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#6b0043"
+      }
+    },
+    "Colors/Shared/Magenta/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#91005a"
+      }
+    },
+    "Colors/Shared/Magenta/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ac006b"
+      }
+    },
+    "Colors/Shared/Magenta/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#bf0077"
+      }
+    },
+    "Colors/Shared/Magenta/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c71885"
+      }
+    },
+    "Colors/Shared/Magenta/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ce3293"
+      }
+    },
+    "Colors/Shared/Magenta/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#d957a8"
+      }
+    },
+    "Colors/Shared/Magenta/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#eca5d1"
+      }
+    },
+    "Colors/Shared/Magenta/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f5cee6"
+      }
+    },
+    "Colors/Shared/Magenta/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fcf2f9"
+      }
+    },
+    "Colors/Shared/Plum/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#13000c"
+      }
+    },
+    "Colors/Shared/Plum/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#240017"
+      }
+    },
+    "Colors/Shared/Plum/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#43002b"
+      }
+    },
+    "Colors/Shared/Plum/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#5a003b"
+      }
+    },
+    "Colors/Shared/Plum/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#6b0045"
+      }
+    },
+    "Colors/Shared/Plum/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#77004d"
+      }
+    },
+    "Colors/Shared/Plum/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#87105d"
+      }
+    },
+    "Colors/Shared/Plum/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#98246f"
+      }
+    },
+    "Colors/Shared/Plum/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#ad4589"
+      }
+    },
+    "Colors/Shared/Plum/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#d696c0"
+      }
+    },
+    "Colors/Shared/Plum/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e9c4dc"
+      }
+    },
+    "Colors/Shared/Plum/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#faf0f6"
+      }
+    },
+    "Colors/Shared/Beige/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#141313"
+      }
+    },
+    "Colors/Shared/Beige/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#252323"
+      }
+    },
+    "Colors/Shared/Beige/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#444241"
+      }
+    },
+    "Colors/Shared/Beige/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#5d5958"
+      }
+    },
+    "Colors/Shared/Beige/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#6e6968"
+      }
+    },
+    "Colors/Shared/Beige/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#7a7574"
+      }
+    },
+    "Colors/Shared/Beige/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#8a8584"
+      }
+    },
+    "Colors/Shared/Beige/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#9a9594"
+      }
+    },
+    "Colors/Shared/Beige/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#afabaa"
+      }
+    },
+    "Colors/Shared/Beige/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#d7d4d4"
+      }
+    },
+    "Colors/Shared/Beige/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#eae8e8"
+      }
+    },
+    "Colors/Shared/Beige/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#faf9f9"
+      }
+    },
+    "Colors/Shared/Mink/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#0f0e0e"
+      }
+    },
+    "Colors/Shared/Mink/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#1c1b1a"
+      }
+    },
+    "Colors/Shared/Mink/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#343231"
+      }
+    },
+    "Colors/Shared/Mink/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#474443"
+      }
+    },
+    "Colors/Shared/Mink/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#54514f"
+      }
+    },
+    "Colors/Shared/Mink/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#5d5a58"
+      }
+    },
+    "Colors/Shared/Mink/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#706d6b"
+      }
+    },
+    "Colors/Shared/Mink/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#84817e"
+      }
+    },
+    "Colors/Shared/Mink/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#9e9b99"
+      }
+    },
+    "Colors/Shared/Mink/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#cecccb"
+      }
+    },
+    "Colors/Shared/Mink/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e5e4e3"
+      }
+    },
+    "Colors/Shared/Mink/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f8f8f8"
+      }
+    },
+    "Colors/Shared/Silver/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#151818"
+      }
+    },
+    "Colors/Shared/Silver/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#282d2e"
+      }
+    },
+    "Colors/Shared/Silver/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#4a5356"
+      }
+    },
+    "Colors/Shared/Silver/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#657174"
+      }
+    },
+    "Colors/Shared/Silver/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#78868a"
+      }
+    },
+    "Colors/Shared/Silver/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#859599"
+      }
+    },
+    "Colors/Shared/Silver/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#92a1a5"
+      }
+    },
+    "Colors/Shared/Silver/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#a0aeb1"
+      }
+    },
+    "Colors/Shared/Silver/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#b3bfc2"
+      }
+    },
+    "Colors/Shared/Silver/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#d8dfe0"
+      }
+    },
+    "Colors/Shared/Silver/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#eaeeef"
+      }
+    },
+    "Colors/Shared/Silver/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#fafbfb"
+      }
+    },
+    "Colors/Shared/Platinum/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#111314"
+      }
+    },
+    "Colors/Shared/Platinum/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#1f2426"
+      }
+    },
+    "Colors/Shared/Platinum/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#3b4447"
+      }
+    },
+    "Colors/Shared/Platinum/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#505c60"
+      }
+    },
+    "Colors/Shared/Platinum/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#5f6d71"
+      }
+    },
+    "Colors/Shared/Platinum/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#69797e"
+      }
+    },
+    "Colors/Shared/Platinum/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#79898d"
+      }
+    },
+    "Colors/Shared/Platinum/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#89989d"
+      }
+    },
+    "Colors/Shared/Platinum/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#a0adb2"
+      }
+    },
+    "Colors/Shared/Platinum/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#cdd6d8"
+      }
+    },
+    "Colors/Shared/Platinum/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#e4e9ea"
+      }
+    },
+    "Colors/Shared/Platinum/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f8f9fa"
+      }
+    },
+    "Colors/Shared/Anchor/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#090a0b"
+      }
+    },
+    "Colors/Shared/Anchor/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#111315"
+      }
+    },
+    "Colors/Shared/Anchor/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#202427"
+      }
+    },
+    "Colors/Shared/Anchor/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#2b3135"
+      }
+    },
+    "Colors/Shared/Anchor/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#333a3f"
+      }
+    },
+    "Colors/Shared/Anchor/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#394146"
+      }
+    },
+    "Colors/Shared/Anchor/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#4d565c"
+      }
+    },
+    "Colors/Shared/Anchor/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#626c72"
+      }
+    },
+    "Colors/Shared/Anchor/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#808a90"
+      }
+    },
+    "Colors/Shared/Anchor/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#bcc3c7"
+      }
+    },
+    "Colors/Shared/Anchor/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#dbdfe1"
+      }
+    },
+    "Colors/Shared/Anchor/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f6f7f8"
+      }
+    },
+    "Colors/Shared/Charcoal/Shade 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#090909"
+      }
+    },
+    "Colors/Shared/Charcoal/Shade 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#111111"
+      }
+    },
+    "Colors/Shared/Charcoal/Shade 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#202020"
+      }
+    },
+    "Colors/Shared/Charcoal/Shade 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#2b2b2b"
+      }
+    },
+    "Colors/Shared/Charcoal/Shade 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#333333"
+      }
+    },
+    "Colors/Shared/Charcoal/Primary": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#393939"
+      }
+    },
+    "Colors/Shared/Charcoal/Tint 10": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#515151"
+      }
+    },
+    "Colors/Shared/Charcoal/Tint 20": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#686868"
+      }
+    },
+    "Colors/Shared/Charcoal/Tint 30": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#888888"
+      }
+    },
+    "Colors/Shared/Charcoal/Tint 40": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#c4c4c4"
+      }
+    },
+    "Colors/Shared/Charcoal/Tint 50": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#dfdfdf"
+      }
+    },
+    "Colors/Shared/Charcoal/Tint 60": {
+      "type": "COLOR",
+      "values": {
+        "Value": "#f7f7f7"
+      }
+    }
+  }
+}

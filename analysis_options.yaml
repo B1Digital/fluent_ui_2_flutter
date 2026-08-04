@@ -1,0 +1,83 @@
+# Applies to every package in the workspace — analysis_options.yaml is
+# inherited down the directory tree, so packages/*/ need no copy of this file.
+# Rule reference: https://dart.dev/tools/linter-rules
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    # A design system cannot afford implicit downcasts or dynamic leaking
+    # through generics — every one is a runtime crash in someone else's app.
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+
+  errors:
+    # NOTE: `analyzer: errors:` only re-grades diagnostics that are ALREADY being
+    # produced. It cannot switch a lint on. Lints therefore have to be listed
+    # under `linter: rules:` below as well — listing one only here makes it
+    # silently inert. Verified empirically: an undocumented public class analyzed
+    # clean while public_member_api_docs sat here alone.
+    #
+    # Broken [references] ship as dead links on pub.dev. Enabled in `linter:`.
+    comment_references: error
+    # These three are analyzer warnings, not lints, so re-grading works directly.
+    unused_element: error
+    unused_import: error
+    unused_local_variable: error
+    # melos runs `dart analyze --fatal-infos`; TODOs are not build breaks.
+    todo: ignore
+
+  exclude:
+    - "**/build/**"
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+
+linter:
+  rules:
+    # Broken dartdoc references. Promoted to error in `analyzer:` above.
+    comment_references: true
+
+    # Every public member carries a doc comment. This was deferred while it
+    # reported 437 violations — 218 of them alias-colour getters the per-token
+    # override codemod was about to regenerate. That codemod emitted a doc
+    # comment per token, and the component work documented the rest, so the
+    # count reached zero on its own and the rule is now enforced rather than
+    # aspirational. This is a published design system: an undocumented public
+    # member is a gap on pub.dev.
+    public_member_api_docs: true
+
+    # --- API surface -------------------------------------------------------
+    always_declare_return_types: true
+    avoid_positional_boolean_parameters: true
+    avoid_unused_constructor_parameters: true
+    # Widgets are value-like; a mutable class with == breaks Set/Map lookups.
+    avoid_equals_and_hash_code_on_mutable_classes: true
+    # Tokens are compile-time data — losing const rebuilds the whole table
+    # on every frame.
+    prefer_const_constructors: true
+    prefer_const_constructors_in_immutables: true
+    prefer_const_declarations: true
+    prefer_const_literals_to_create_immutables: true
+
+    # --- Correctness -------------------------------------------------------
+    avoid_slow_async_io: true
+    cancel_subscriptions: true
+    close_sinks: true
+    only_throw_errors: true
+    test_types_in_equals: true
+    throw_in_finally: true
+    unawaited_futures: true
+    unnecessary_statements: true
+
+    # --- Consistency (keeps diffs about behaviour, not style) --------------
+    directives_ordering: true
+    flutter_style_todos: true
+    omit_local_variable_types: true
+    prefer_final_in_for_each: true
+    prefer_final_locals: true
+    prefer_relative_imports: true
+    prefer_single_quotes: true
+    sort_pub_dependencies: true
+    unnecessary_lambdas: true
+    unnecessary_parenthesis: true
+    use_string_buffers: true

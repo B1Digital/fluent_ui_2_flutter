@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fluent 2 Flutter"
+  short_description: "Build accessible Fluent 2 Flutter interfaces"
+  default_prompt: "Use $fluent-2-flutter to build or audit a Flutter interface against Microsoft Fluent 2 guidelines."
