@@ -125,6 +125,101 @@ List<Story> get navigationStories => [
     },
   ),
   Story(
+    name: 'Navigation/FluentNavSectionHeader',
+    description:
+        'A non-interactive label grouping nav items without collapsing.',
+    builder: (context) {
+      return SizedBox(
+        width: 240,
+        child: FluentNav(
+          selectedValue: 'inbox',
+          children: const [
+            FluentNavSectionHeader(child: Text('Mail')),
+            FluentNavItem(
+              value: 'inbox',
+              icon: Icon(Icons.inbox),
+              child: Text('Inbox'),
+            ),
+            FluentNavItem(
+              value: 'sent',
+              icon: Icon(Icons.send),
+              child: Text('Sent'),
+            ),
+            FluentNavSectionHeader(child: Text('Workspaces')),
+            FluentNavItem(
+              value: 'design',
+              icon: Icon(Icons.palette),
+              child: Text('Design'),
+            ),
+          ],
+        ),
+      );
+    },
+  ),
+  Story(
+    name: 'Navigation/FluentHamburger',
+    description: 'The button that opens and closes a nav.',
+    builder: (context) {
+      return DemoRail(
+        title: 'Hamburger',
+        children: [
+          FluentHamburger(
+            onPressed: () {},
+            expanded: true,
+            semanticLabel: 'Collapse navigation',
+          ),
+          FluentHamburger(
+            onPressed: () {},
+            expanded: false,
+            semanticLabel: 'Expand navigation',
+          ),
+        ],
+      );
+    },
+  ),
+  Story(
+    name: 'Navigation/FluentNavDrawer',
+    description: 'A drawer shaped for a nav — 260 wide on the nav surface.',
+    builder: (context) {
+      return SizedBox(
+        height: 420,
+        child: Row(
+          children: [
+            FluentNavDrawer(
+              open: true,
+              type: FluentDrawerType.inline,
+              separator: true,
+              header: [
+                FluentHamburger(
+                  onPressed: () {},
+                  expanded: true,
+                  semanticLabel: 'Collapse navigation',
+                ),
+              ],
+              child: FluentNav(
+                selectedValue: 'inbox',
+                children: const [
+                  FluentNavSectionHeader(child: Text('Mail')),
+                  FluentNavItem(
+                    value: 'inbox',
+                    icon: Icon(Icons.inbox),
+                    child: Text('Inbox'),
+                  ),
+                  FluentNavItem(
+                    value: 'sent',
+                    icon: Icon(Icons.send),
+                    child: Text('Sent'),
+                  ),
+                ],
+              ),
+            ),
+            const Expanded(child: SizedBox()),
+          ],
+        ),
+      );
+    },
+  ),
+  Story(
     name: 'Navigation/FluentTabList',
     description: 'A list of tabs, selectable to switch views.',
     builder: (context) {
