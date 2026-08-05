@@ -93,6 +93,7 @@ class FluentInputBaseState {
     this.onChanged,
     this.onSubmitted,
     this.autofocus = false,
+    this.autofillHints,
   });
 
   /// Whether the field accepts input at all.
@@ -158,6 +159,15 @@ class FluentInputBaseState {
   /// Whether to take focus on mount.
   final bool autofocus;
 
+  /// Autofill categories for this field, e.g. `[AutofillHints.username]`.
+  ///
+  /// On web these become the `autocomplete` attribute of the DOM input the
+  /// engine creates, which is the only thing a browser password manager keys
+  /// off. Wrap the fields in an [AutofillGroup] as well: the engine only emits
+  /// a real `<form>` — and browsers only offer to fill or save a credential
+  /// PAIR — when the fields share one.
+  final Iterable<String>? autofillHints;
+
   /// Whether the placeholder should be painted, as of this instant.
   ///
   /// A snapshot, not a subscription: [buildFluentInput] watches [controller]
@@ -191,6 +201,7 @@ class FluentInputState extends FluentInputBaseState {
     super.onChanged,
     super.onSubmitted,
     super.autofocus,
+    super.autofillHints,
   });
 
   /// Fill and outline treatment.
@@ -224,6 +235,7 @@ FluentInputState resolveFluentInputState({
   ValueChanged<String>? onChanged,
   ValueChanged<String>? onSubmitted,
   bool autofocus = false,
+  Iterable<String>? autofillHints,
 }) => FluentInputState(
   enabled: enabled,
   readOnly: readOnly,
@@ -245,6 +257,7 @@ FluentInputState resolveFluentInputState({
   onChanged: onChanged,
   onSubmitted: onSubmitted,
   autofocus: autofocus,
+  autofillHints: autofillHints,
 );
 
 /// Resolves the default style for [state] against [theme].
@@ -514,6 +527,7 @@ Widget buildFluentInput(
     // The gesture detector built by `FluentInput` owns pointer handling.
     rendererIgnoresPointer: true,
     showCursor: state.enabled && !state.readOnly,
+    autofillHints: state.autofillHints,
   );
 
   if (state.placeholder != null) {
@@ -962,6 +976,7 @@ class FluentInput extends StatefulWidget {
     this.onChanged,
     this.onSubmitted,
     this.autofocus = false,
+    this.autofillHints,
     this.style,
     this.semanticLabel,
   });
@@ -1019,6 +1034,15 @@ class FluentInput extends StatefulWidget {
 
   /// Whether to take focus on mount.
   final bool autofocus;
+
+  /// Autofill categories for this field, e.g. `[AutofillHints.username]`.
+  ///
+  /// On web these become the `autocomplete` attribute of the DOM input the
+  /// engine creates, which is the only thing a browser password manager keys
+  /// off. Wrap the fields in an [AutofillGroup] as well: the engine only emits
+  /// a real `<form>` — and browsers only offer to fill or save a credential
+  /// PAIR — when the fields share one.
+  final Iterable<String>? autofillHints;
 
   /// Overrides layered over the theme defaults. Merged last, so it wins.
   final FluentInputStyle? style;
@@ -1134,6 +1158,7 @@ class _FluentInputState extends State<FluentInput>
       onChanged: widget.onChanged,
       onSubmitted: widget.onSubmitted,
       autofocus: widget.autofocus,
+      autofillHints: widget.autofillHints,
     );
 
     // Lowest to highest: defaults, subtree theme, then the caller's own style.
