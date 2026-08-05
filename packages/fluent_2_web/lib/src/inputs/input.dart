@@ -158,7 +158,11 @@ class FluentInputBaseState {
   /// Whether to take focus on mount.
   final bool autofocus;
 
-  /// Whether the placeholder should be painted.
+  /// Whether the placeholder should be painted, as of this instant.
+  ///
+  /// A snapshot, not a subscription: [buildFluentInput] watches [controller]
+  /// instead, because the widgets that own their own controller do not rebuild
+  /// on every keystroke.
   bool get placeholderVisible => placeholder != null && controller.text.isEmpty;
 }
 
@@ -512,19 +516,29 @@ Widget buildFluentInput(
     showCursor: state.enabled && !state.readOnly,
   );
 
-  if (state.placeholderVisible) {
+  if (state.placeholder != null) {
     field = Stack(
       children: <Widget>[
         field,
         Positioned.fill(
           child: IgnorePointer(
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: DefaultTextStyle(
-                style: textStyle.copyWith(color: placeholderColor),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                child: state.placeholder!,
+            // Subscribed to the controller rather than read once at build time.
+            // Visibility is a function of live text, and only `FluentInput`
+            // rebuilds on every keystroke — `FluentDatePicker` and
+            // `FluentTimePicker` own their controller and do not, so a
+            // build-time read left the placeholder painted over typed text.
+            child: ValueListenableBuilder<TextEditingValue>(
+              valueListenable: state.controller,
+              builder: (context, value, child) =>
+                  value.text.isEmpty ? child! : const SizedBox.shrink(),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: DefaultTextStyle(
+                  style: textStyle.copyWith(color: placeholderColor),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  child: state.placeholder!,
+                ),
               ),
             ),
           ),
