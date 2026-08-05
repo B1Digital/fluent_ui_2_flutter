@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart' show TapDragUpDetails;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
+import 'package:intl/intl.dart' show DateFormat;
 
 import '../internal/interaction.dart';
 import '../overlays/popover.dart';
@@ -142,6 +143,47 @@ DateTime? fluentParseDate(String text) {
   return DateTime.tryParse(trimmed);
 }
 
+/// The [DateFormat] a picker formats and parses its field with.
+///
+/// [pattern] is an ICU pattern; null means the locale's own short numeric date
+/// — `M/d/y` in `en_US`, `d.M.y` in `de_DE`. Same locale-data requirement as
+/// [fluentCalendarStrings].
+DateFormat fluentDateFormat(Locale locale, {String? pattern}) {
+  final tag = fluentIntlLocale(locale);
+  return pattern == null ? DateFormat.yMd(tag) : DateFormat(pattern, tag);
+}
+
+/// [fluentFormatDate]'s locale-aware counterpart.
+String Function(DateTime date) fluentIntlFormatDate(
+  Locale locale, {
+  String? pattern,
+}) => fluentDateFormat(locale, pattern: pattern).format;
+
+/// [fluentParseDate]'s locale-aware counterpart. Null when the text is not a
+/// date.
+///
+/// Strict on purpose: `parseStrict` re-formats what it read and rejects the
+/// result unless it round-trips, which is what turns `2/30` into null instead
+/// of letting [DateTime] roll it into March. ISO-8601 is accepted as a fallback
+/// because that is what a machine hands over and it is unambiguous everywhere —
+/// but the locale's own pattern is tried first, so `12/06/2026` is December in
+/// `en_US` and June in `en_GB`.
+DateTime? Function(String text) fluentIntlParseDate(
+  Locale locale, {
+  String? pattern,
+}) {
+  final format = fluentDateFormat(locale, pattern: pattern);
+  return (String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return null;
+    try {
+      return format.parseStrict(trimmed);
+    } on FormatException {
+      return DateTime.tryParse(trimmed);
+    }
+  };
+}
+
 /// Everything needed to render a date picker, independent of its design axes.
 @immutable
 class FluentDatePickerBaseState {
@@ -157,6 +199,7 @@ class FluentDatePickerBaseState {
     required this.editableTextKey,
     this.placeholder,
     this.icon,
+    this.contentBefore,
     this.onChanged,
     this.onSubmitted,
     this.autofocus = false,
@@ -190,8 +233,11 @@ class FluentDatePickerBaseState {
   /// Shown while the field is empty.
   final Widget? placeholder;
 
-  /// The calendar glyph in the trailing slot.
+  /// The trailing slot — the calendar glyph unless a caller replaces it.
   final Widget? icon;
+
+  /// Slot before the field in reading order.
+  final Widget? contentBefore;
 
   /// Called on every keystroke.
   final ValueChanged<String>? onChanged;
@@ -224,6 +270,7 @@ class FluentDatePickerState extends FluentDatePickerBaseState {
     required this.borderless,
     super.placeholder,
     super.icon,
+    super.contentBefore,
     super.onChanged,
     super.onSubmitted,
     super.autofocus,
@@ -260,6 +307,7 @@ FluentDatePickerState resolveFluentDatePickerState({
   bool borderless = false,
   Widget? placeholder,
   Widget? icon,
+  Widget? contentBefore,
   ValueChanged<String>? onChanged,
   ValueChanged<String>? onSubmitted,
   bool autofocus = false,
@@ -278,6 +326,7 @@ FluentDatePickerState resolveFluentDatePickerState({
   borderless: borderless,
   placeholder: placeholder,
   icon: icon,
+  contentBefore: contentBefore,
   onChanged: onChanged,
   onSubmitted: onSubmitted,
   autofocus: autofocus,
@@ -421,6 +470,7 @@ Widget buildFluentDatePicker(
     focusNode: state.focusNode,
     editableTextKey: state.editableTextKey,
     placeholder: state.placeholder,
+    contentBefore: state.contentBefore,
     contentAfter: state.icon,
     onChanged: state.onChanged,
     onSubmitted: state.onSubmitted,
@@ -548,8 +598,17 @@ class FluentDatePicker extends StatefulWidget {
     this.restrictedDates = const <DateTime>[],
     this.firstDayOfWeek = FluentDayOfWeek.sunday,
     this.initialPickerDate,
+    this.isDayPickerVisible = true,
     this.isMonthPickerVisible = true,
+    this.showMonthPickerAsOverlay = false,
+    this.inlinePopup = false,
+    this.highlightCurrentMonth = false,
+    this.highlightSelectedMonth = false,
     this.showGoToToday = true,
+    this.showWeekNumbers = false,
+    this.firstWeekOfYear = FluentFirstWeekOfYear.firstDay,
+    this.allFocusable = false,
+    this.showCloseButton = false,
     this.allowTextInput = false,
     this.openOnClick = true,
     this.required = false,
@@ -558,15 +617,19 @@ class FluentDatePicker extends StatefulWidget {
     this.open,
     this.defaultOpen = false,
     this.onOpenChange,
+    this.locale,
     this.formatDate,
     this.parseDate,
-    this.strings = FluentCalendarStrings.english,
-    this.formatter = const FluentCalendarDateFormatter(),
+    this.strings,
+    this.formatter,
     this.errorStrings = defaultFluentDatePickerErrorStrings,
     this.appearance = FluentDatePickerAppearance.outline,
     this.size = FluentDatePickerSize.medium,
     this.borderless = false,
     this.placeholder,
+    this.contentBefore,
+    this.contentAfter,
+    this.onChanged,
     this.focusNode,
     this.autofocus = false,
     this.style,
@@ -600,14 +663,51 @@ class FluentDatePicker extends StatefulWidget {
   /// The calendar page shown when the popup first opens.
   final DateTime? initialPickerDate;
 
+  /// Whether the popup shows the day grid.
+  final bool isDayPickerVisible;
+
   /// Whether the popup shows a month picker beside the day grid.
   ///
   /// True by default, as upstream. The popup is 440 wide in that layout and
   /// 220 with a single panel, so the flip-above decision moves with it.
   final bool isMonthPickerVisible;
 
+  /// Whether the month picker is reached through the day caption rather than
+  /// shown beside the day grid. Keeps the popup 220 wide instead of 440.
+  final bool showMonthPickerAsOverlay;
+
+  /// Whether the popup is rendered in the widget tree instead of the [Overlay].
+  ///
+  /// Upstream's `inlinePopup`, and the same trade. The surface still floats —
+  /// it is out of flow, so the field's footprint is unchanged — but it now
+  /// inherits and moves with this widget's ancestors, and is clipped by
+  /// anything that clips them. There is no light-dismiss barrier and no
+  /// flip-above; focus leaving the picker still closes it.
+  final bool inlinePopup;
+
+  /// Whether the month and decade grids mark the current period.
+  final bool highlightCurrentMonth;
+
+  /// Whether the month and decade grids mark the selected period.
+  final bool highlightSelectedMonth;
+
   /// Whether the calendar offers its "go to today" link.
   final bool showGoToToday;
+
+  /// Whether the day grid draws a week-number column.
+  final bool showWeekNumbers;
+
+  /// Which week counts as week 1, when [showWeekNumbers] is set.
+  final FluentFirstWeekOfYear firstWeekOfYear;
+
+  /// Whether unselectable days still take keyboard focus.
+  final bool allFocusable;
+
+  /// Whether the calendar header offers a close button.
+  ///
+  /// It closes the popup; unlike [FluentCalendar.showCloseButton] there is no
+  /// separate callback to supply, because the picker already owns the popup.
+  final bool showCloseButton;
 
   /// Whether the field accepts a typed date.
   final bool allowTextInput;
@@ -634,17 +734,44 @@ class FluentDatePicker extends StatefulWidget {
   /// Called whenever the popup opens or closes.
   final ValueChanged<bool>? onOpenChange;
 
+  /// The locale the field and the calendar are rendered in.
+  ///
+  /// Setting it swaps the four defaults below for their `package:intl`
+  /// counterparts — [fluentIntlFormatDate], [fluentIntlParseDate],
+  /// [fluentCalendarStrings] and [fluentCalendarDateFormatter] — so a
+  /// `Locale('de', 'DE')` is all it takes to get `31.12.2026` and German month
+  /// names. Any of the four passed explicitly still wins.
+  ///
+  /// **Null does not mean English.** The ambient [Localizations] locale is used
+  /// instead, so a picker inside an app that already declares its locale is
+  /// localized without being told twice. English is only the fallback when
+  /// there is no ambient locale either.
+  ///
+  /// The two paths differ on missing locale data, deliberately. An explicit
+  /// locale is honoured whatever intl knows about it, so a forgotten
+  /// `initializeDateFormatting` fails loudly for whoever named that locale. An
+  /// ambient one is taken up only when intl already holds its data — a picker
+  /// must not start throwing because the app around it grew a [Localizations]
+  /// widget. See [fluentCalendarStrings] for the loading call.
+  final Locale? locale;
+
   /// Renders the chosen date into the field.
+  ///
+  /// Defaults to [fluentFormatDate], or to [locale]'s short date when a locale
+  /// is set.
   final String Function(DateTime date)? formatDate;
 
   /// Parses typed text. Null means the text is not a date.
+  ///
+  /// Defaults to [fluentParseDate], or to [locale]'s parser when a locale is
+  /// set.
   final DateTime? Function(String text)? parseDate;
 
   /// Every calendar label that is not a number.
-  final FluentCalendarStrings strings;
+  final FluentCalendarStrings? strings;
 
   /// How the calendar renders dates.
-  final FluentCalendarDateFormatter formatter;
+  final FluentCalendarDateFormatter? formatter;
 
   /// The messages offered for each error type.
   final FluentDatePickerErrorStrings errorStrings;
@@ -660,6 +787,22 @@ class FluentDatePicker extends StatefulWidget {
 
   /// Shown while the field is empty.
   final Widget? placeholder;
+
+  /// Slot before the field in reading order — an icon, a prefix, a button.
+  final Widget? contentBefore;
+
+  /// Slot after the field in reading order.
+  ///
+  /// Replaces the calendar glyph. Upstream models the glyph as the default
+  /// `contentAfter` too, so passing one is a substitution rather than an
+  /// addition — pass a [Row] to keep both.
+  final Widget? contentAfter;
+
+  /// Called on every keystroke with the field's raw text.
+  ///
+  /// Upstream's `onChange`. This is *not* selection: nothing is parsed or
+  /// validated here, and [onSelectDate] still fires only on a commit.
+  final ValueChanged<String>? onChanged;
 
   /// Focus node for the field.
   final FocusNode? focusNode;
@@ -706,6 +849,7 @@ class _FluentDatePickerState extends State<FluentDatePicker>
   );
   late final DateTime _fallbackToday = DateTime.now();
 
+  Locale? _ambientLocale;
   FocusNode? _internalNode;
   OverlayEntry? _entry;
   FocusNode? _restore;
@@ -725,8 +869,56 @@ class _FluentDatePickerState extends State<FluentDatePicker>
 
   DateTime get _today => widget.today ?? _fallbackToday;
 
-  String _format(DateTime? date) =>
-      date == null ? '' : (widget.formatDate ?? fluentFormatDate)(date);
+  /// The locale the four defaults below are built from — the explicit one, or
+  /// the ambient [Localizations] locale when intl already has its data.
+  ///
+  /// See [FluentDatePicker.locale] for why only the ambient path is gated on
+  /// `localeExists`.
+  Locale? get _locale {
+    final explicit = widget.locale;
+    if (explicit != null) return explicit;
+    final ambient = _ambientLocale;
+    if (ambient == null) return null;
+    return fluentIntlLocaleAvailable(ambient) ? ambient : null;
+  }
+
+  /// The four localizable defaults. An explicit override always wins.
+  String Function(DateTime) get _formatter {
+    final locale = _locale;
+    return widget.formatDate ??
+        (locale == null ? fluentFormatDate : fluentIntlFormatDate(locale));
+  }
+
+  DateTime? Function(String) get _parser {
+    final locale = _locale;
+    return widget.parseDate ??
+        (locale == null ? fluentParseDate : fluentIntlParseDate(locale));
+  }
+
+  FluentCalendarStrings get _strings {
+    final locale = _locale;
+    return widget.strings ??
+        (locale == null
+            ? FluentCalendarStrings.english
+            : fluentCalendarStrings(locale));
+  }
+
+  FluentCalendarDateFormatter get _calendarFormatter {
+    final locale = _locale;
+    return widget.formatter ??
+        (locale == null
+            ? const FluentCalendarDateFormatter()
+            : fluentCalendarDateFormatter(locale));
+  }
+
+  String _format(DateTime? date) => date == null ? '' : _formatter(date);
+
+  /// Rewrites the field from [FluentDatePicker.value] in the current locale.
+  void _reformat() {
+    final text = _format(widget.value);
+    _controller.text = text;
+    _lastFormatted = text;
+  }
 
   @override
   void initState() {
@@ -745,10 +937,11 @@ class _FluentDatePickerState extends State<FluentDatePicker>
       _internalNode?.removeListener(_handleFocusChange);
       _focusNode.addListener(_handleFocusChange);
     }
-    if (widget.value != oldWidget.value) {
-      final text = _format(widget.value);
-      _controller.text = text;
-      _lastFormatted = text;
+    // Keyed on the locale but deliberately not on `formatDate`: a closure built
+    // inline in `build` is a new object every frame, so comparing it would
+    // clobber half-typed text on every rebuild.
+    if (widget.value != oldWidget.value || widget.locale != oldWidget.locale) {
+      _reformat();
     }
     _deferOrRun(_syncEntry);
   }
@@ -759,6 +952,15 @@ class _FluentDatePickerState extends State<FluentDatePicker>
     // Read at the trigger and handed across the overlay boundary explicitly:
     // MediaQuery does not ride along with InheritedTheme.capture.
     _reducedMotion = MediaQuery.disableAnimationsOf(context);
+
+    // Not readable from initState — `Localizations.maybeLocaleOf` registers an
+    // inherited dependency — so the controller is first filled with the English
+    // default and rewritten here, before the first build.
+    final ambient = Localizations.maybeLocaleOf(context);
+    if (ambient == _ambientLocale) return;
+    _ambientLocale = ambient;
+    // Nothing to rewrite when an explicit locale is in charge; it never moved.
+    if (widget.locale == null) _reformat();
   }
 
   @override
@@ -828,6 +1030,17 @@ class _FluentDatePickerState extends State<FluentDatePicker>
 
   void _syncEntry() {
     if (!mounted) return;
+    // An inline popup lives in this widget's own tree, so there is no entry to
+    // insert — only the focus hand-off, which the overlay path gets below.
+    if (widget.inlinePopup) {
+      if (_open && _enabled) {
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _open) _scope.requestFocus();
+        });
+      }
+      setState(() {});
+      return;
+    }
     final shouldShow = _open && _enabled;
     if (shouldShow && _entry == null) {
       final overlay = Overlay.of(context, debugRequiredFor: widget);
@@ -914,7 +1127,7 @@ class _FluentDatePickerState extends State<FluentDatePicker>
       return;
     }
     _lastFormatted = text;
-    final parsed = (widget.parseDate ?? fluentParseDate)(text);
+    final parsed = _parser(text);
     if (parsed == null) {
       _report(FluentDatePickerErrorType.invalidInput);
       return;
@@ -953,6 +1166,70 @@ class _FluentDatePickerState extends State<FluentDatePicker>
         ),
         FluentTheme.of(context),
       ).merge(FluentDatePickerTheme.maybeOf(context)).merge(widget.style);
+
+  /// The focus-trapping calendar surface, shared by both popup strategies.
+  Widget _surface(FluentDatePickerStyle style, Set<WidgetState> states) =>
+      FocusScope(
+        node: _scope,
+        child: Actions(
+          // Escape belongs here, not to the calendar: FluentCalendar binds no
+          // DismissIntent precisely so this can.
+          actions: <Type, Action<Intent>>{
+            DismissIntent: _DismissDatePickerAction(this),
+          },
+          child: buildFluentDatePickerSurface(
+            style,
+            states,
+            FluentCalendar(
+              value: widget.value,
+              onSelectDate: _handleSelectDate,
+              today: _today,
+              minDate: widget.minDate,
+              maxDate: widget.maxDate,
+              restrictedDates: widget.restrictedDates,
+              firstDayOfWeek: widget.firstDayOfWeek,
+              isDayPickerVisible: widget.isDayPickerVisible,
+              isMonthPickerVisible: widget.isMonthPickerVisible,
+              showMonthPickerAsOverlay: widget.showMonthPickerAsOverlay,
+              highlightCurrentMonth: widget.highlightCurrentMonth,
+              highlightSelectedMonth: widget.highlightSelectedMonth,
+              initialPickerDate: widget.value ?? widget.initialPickerDate,
+              showGoToToday: widget.showGoToToday,
+              showWeekNumbers: widget.showWeekNumbers,
+              firstWeekOfYear: widget.firstWeekOfYear,
+              allFocusable: widget.allFocusable,
+              showCloseButton: widget.showCloseButton,
+              onDismiss: () => _setOpen(next: false),
+              strings: _strings,
+              formatter: _calendarFormatter,
+              style: widget.calendarStyle,
+              autofocus: true,
+            ),
+          ),
+        ),
+      );
+
+  /// The popup rendered in the widget tree rather than the [Overlay].
+  ///
+  /// `inlinePopup`. In the tree but out of flow, which is what upstream's own
+  /// inline popup is — a `position: absolute` surface rather than a portal — so
+  /// the field's footprint does not change when it opens. What the tree buys is
+  /// what the portal costs: the surface inherits and moves with its ancestors,
+  /// and is clipped by anything that clips them. No light-dismiss barrier and
+  /// no flip-above; focus leaving the picker still closes it.
+  Widget _buildInlinePopup() {
+    final style = _resolvedStyle(context);
+    final states = <WidgetState>{if (!_enabled) WidgetState.disabled};
+    final offset = style.surfaceOffset?.resolve(states) ?? FluentSpacing.xxs;
+    return Padding(
+      padding: EdgeInsets.only(top: offset),
+      child: FluentPopoverEntrance(
+        position: FluentPopoverPosition.below,
+        reducedMotion: _reducedMotion,
+        child: _surface(style, states),
+      ),
+    );
+  }
 
   Widget _buildPopup() {
     final style = _resolvedStyle(context);
@@ -1008,37 +1285,7 @@ class _FluentDatePickerState extends State<FluentDatePicker>
               child: FluentPopoverEntrance(
                 position: position,
                 reducedMotion: _reducedMotion,
-                child: FocusScope(
-                  node: _scope,
-                  child: Actions(
-                    // Escape belongs here, not to the calendar: FluentCalendar
-                    // binds no DismissIntent precisely so this can.
-                    actions: <Type, Action<Intent>>{
-                      DismissIntent: _DismissDatePickerAction(this),
-                    },
-                    child: buildFluentDatePickerSurface(
-                      style,
-                      states,
-                      FluentCalendar(
-                        value: widget.value,
-                        onSelectDate: _handleSelectDate,
-                        today: _today,
-                        minDate: widget.minDate,
-                        maxDate: widget.maxDate,
-                        restrictedDates: widget.restrictedDates,
-                        firstDayOfWeek: widget.firstDayOfWeek,
-                        isMonthPickerVisible: widget.isMonthPickerVisible,
-                        initialPickerDate:
-                            widget.value ?? widget.initialPickerDate,
-                        showGoToToday: widget.showGoToToday,
-                        strings: widget.strings,
-                        formatter: widget.formatter,
-                        style: widget.calendarStyle,
-                        autofocus: true,
-                      ),
-                    ),
-                  ),
-                ),
+                child: _surface(style, states),
               ),
             ),
           ),
@@ -1070,16 +1317,20 @@ class _FluentDatePickerState extends State<FluentDatePicker>
         borderless: widget.borderless,
         placeholder: widget.placeholder,
         autofocus: widget.autofocus,
-        icon: Semantics(
-          button: true,
-          label: widget.calendarSemanticLabel,
-          excludeSemantics: true,
-          child: Icon(
-            fluentDatePickerIcon,
-            size: style.iconSize?.resolve(states),
-            color: style.iconColor?.resolve(states),
-          ),
-        ),
+        contentBefore: widget.contentBefore,
+        onChanged: widget.onChanged,
+        icon:
+            widget.contentAfter ??
+            Semantics(
+              button: true,
+              label: widget.calendarSemanticLabel,
+              excludeSemantics: true,
+              child: Icon(
+                fluentDatePickerIcon,
+                size: style.iconSize?.resolve(states),
+                color: style.iconColor?.resolve(states),
+              ),
+            ),
       ),
       style,
       states,
@@ -1118,7 +1369,31 @@ class _FluentDatePickerState extends State<FluentDatePicker>
                   ),
               DismissIntent: _DismissDatePickerAction(this),
             },
-            child: _gestures.buildGestureDetector(child: field),
+            child: widget.inlinePopup
+                ? Stack(
+                    clipBehavior: Clip.none,
+                    children: <Widget>[
+                      // Unpositioned, so the field alone sizes the stack and
+                      // the picker keeps the footprint it has without a popup.
+                      _gestures.buildGestureDetector(child: field),
+                      if (_open && _enabled)
+                        // Only `start` and `bottom` are pinned, which is what
+                        // leaves the surface unbounded in both axes — a 440
+                        // calendar under a 300 field lays out at its own size
+                        // instead of overflowing the field's. The translation
+                        // then drops it by its own height, landing its top on
+                        // the field's bottom edge.
+                        PositionedDirectional(
+                          start: 0,
+                          bottom: 0,
+                          child: FractionalTranslation(
+                            translation: const Offset(0, 1),
+                            child: _buildInlinePopup(),
+                          ),
+                        ),
+                    ],
+                  )
+                : _gestures.buildGestureDetector(child: field),
           ),
         ),
       ),

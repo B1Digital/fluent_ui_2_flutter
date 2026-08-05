@@ -2,6 +2,7 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/semantics.dart' show SemanticsRole;
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
+import 'package:intl/intl.dart' show DateFormat, Intl;
 
 import '../internal/animated_style.dart';
 import '../internal/focus_ring.dart';
@@ -108,6 +109,8 @@ class FluentCalendarStrings {
     this.yearPickerHeader = '{0}, change month',
     this.selectedDateFormat = 'Selected date {0}',
     this.todayDateFormat = "Today's date {0}",
+    this.weekNumberFormat = 'Week {0}',
+    this.closeButtonLabel = 'Close',
   });
 
   /// The twelve month names, January first.
@@ -158,6 +161,15 @@ class FluentCalendarStrings {
 
   /// Announced for today's cell. `{0}` is replaced by the formatted date.
   final String todayDateFormat;
+
+  /// Announced for a week-number cell. `{0}` is the number.
+  ///
+  /// Upstream's `weekNumberFormatString`. The cell draws the bare number; a
+  /// screen reader needs to be told what it counts.
+  final String weekNumberFormat;
+
+  /// Accessible name of the close button, when one is shown.
+  final String closeButtonLabel;
 
   /// US English, the only locale this package ships.
   ///
@@ -279,6 +291,225 @@ class FluentCalendarDateFormatter {
     formatMonthYear,
     formatMonthDayYear,
   );
+}
+
+/// intl's locale identifier for [locale] — `en_US`, not `en-US`.
+String fluentIntlLocale(Locale locale) =>
+    locale.toLanguageTag().replaceAll('-', '_');
+
+/// Whether intl can format [locale], by its own rules.
+///
+/// Not `DateFormat.localeExists` on its own, which is stricter than the
+/// formatters are: intl files Germany under `de` rather than `de_DE`, so that
+/// call is false for `de_DE` while `DateFormat.yMd('de_DE')` works perfectly.
+/// `verifiedLocale` applies the same fallback chain a formatter would, so this
+/// answers the question that actually matters — *will formatting throw*.
+bool fluentIntlLocaleAvailable(Locale locale) =>
+    Intl.verifiedLocale(
+      fluentIntlLocale(locale),
+      DateFormat.localeExists,
+      // The empty string stands in for "no match"; `verifiedLocale` throws by
+      // default, and a probe must not.
+      onFailure: (_) => '',
+    )?.isNotEmpty ??
+    false;
+
+/// [FluentCalendarStrings] with [locale]'s month and day names.
+///
+/// ## Load the locale data first
+///
+/// `intl` compiles in `en_US` only; every other locale is data an application
+/// has to load before it is read:
+///
+/// ```dart
+/// import 'package:intl/date_symbol_data_local.dart';
+///
+/// await initializeDateFormatting('de_DE');
+/// ```
+///
+/// Skipping it throws intl's own `LocaleDataException`. That is deliberate and
+/// not caught here — quietly falling back to English would put a date in front
+/// of someone in a format they do not read, and `12/06` means two different
+/// days either side of that fallback.
+///
+/// ## What is not localized
+///
+/// The chrome — "Go to today", "Previous month", the announcement templates —
+/// has no counterpart in intl's data, which carries date symbols rather than UI
+/// copy. Only the month and day names come from [locale]; everything else is
+/// copied from [template], so pass a translated [FluentCalendarStrings] there
+/// to localize the whole surface.
+FluentCalendarStrings fluentCalendarStrings(
+  Locale locale, {
+  FluentCalendarStrings template = FluentCalendarStrings.english,
+}) {
+  final symbols = DateFormat('', fluentIntlLocale(locale)).dateSymbols;
+  return FluentCalendarStrings(
+    // CLDR carries 13 months for the lunisolar calendars; the Gregorian grid
+    // reads the first twelve, and taking them is what keeps `months[11]`
+    // meaning December rather than throwing on a locale with a leap month.
+    months: List<String>.unmodifiable(symbols.MONTHS.take(12)),
+    shortMonths: List<String>.unmodifiable(symbols.SHORTMONTHS.take(12)),
+    // Both weekday lists arrive in CLDR order — Sunday first — which is the
+    // order this class indexes by, so neither needs rotating here.
+    // `firstDayOfWeek` rotates the *grid*, not the table.
+    days: List<String>.unmodifiable(symbols.WEEKDAYS),
+    shortDays: List<String>.unmodifiable(symbols.NARROWWEEKDAYS),
+    goToToday: template.goToToday,
+    previousMonth: template.previousMonth,
+    nextMonth: template.nextMonth,
+    previousYear: template.previousYear,
+    nextYear: template.nextYear,
+    previousYearRange: template.previousYearRange,
+    nextYearRange: template.nextYearRange,
+    monthPickerHeader: template.monthPickerHeader,
+    yearPickerHeader: template.yearPickerHeader,
+    selectedDateFormat: template.selectedDateFormat,
+    todayDateFormat: template.todayDateFormat,
+    weekNumberFormat: template.weekNumberFormat,
+    closeButtonLabel: template.closeButtonLabel,
+  );
+}
+
+/// A [FluentCalendarDateFormatter] that renders every cell and caption through
+/// [locale]. Same locale-data requirement as [fluentCalendarStrings].
+FluentCalendarDateFormatter fluentCalendarDateFormatter(Locale locale) {
+  final tag = fluentIntlLocale(locale);
+  final day = DateFormat.d(tag);
+  final year = DateFormat.y(tag);
+  final month = DateFormat.MMMM(tag);
+  final monthYear = DateFormat.yMMMM(tag);
+  final monthDayYear = DateFormat.yMMMMd(tag);
+  return FluentCalendarDateFormatter(
+    formatDay: day.format,
+    formatYear: year.format,
+    // The strings table is ignored on purpose: intl's own symbols are the
+    // localized names here, and reading both would let the two disagree.
+    formatMonth: (date, _) => month.format(date),
+    formatMonthYear: (date, _) => monthYear.format(date),
+    formatMonthDayYear: (date, _) => monthDayYear.format(date),
+  );
+}
+
+/// Which week counts as week 1 of the year.
+///
+/// Upstream's `FirstWeekOfYear`, the same three members and the same ordinals.
+enum FluentFirstWeekOfYear {
+  /// The week containing 1 January, however few days of it fall in the year.
+  /// Upstream's default *for the date picker* — `Calendar` itself defaults to
+  /// [firstFullWeek], and `useDatePicker` overrides it back to this.
+  firstDay,
+
+  /// The first week wholly inside the year.
+  firstFullWeek,
+
+  /// The first week with at least four days in the year — the ISO-8601 rule.
+  firstFourDayWeek,
+}
+
+/// The 1-based day of the year, so 1 January is 1.
+int _dayOfYear(DateTime date) =>
+    fluentCalendarDay(date).difference(DateTime.utc(date.year)).inDays + 1;
+
+/// The day-of-week index upstream reads, Sunday 0 through Saturday 6.
+///
+/// JavaScript's `Date.getDay()`; Dart counts Monday 1 through Sunday 7, and
+/// `% 7` is the whole conversion.
+int _weekDayIndex(DateTime date) => date.weekday % 7;
+
+/// The week of the year [date] falls in.
+///
+/// Transcribed from `dateMath.ts` — `getWeekNumber` and the two helpers it
+/// dispatches to — including their variable names, because the arithmetic is
+/// .NET's `Calendar.GetWeekOfYear` reimplemented in JavaScript and is not
+/// re-derivable from the doc comment. Do not "simplify" it without a fixture.
+int fluentCalendarWeekNumber(
+  DateTime date, {
+  FluentDayOfWeek firstDayOfWeek = FluentDayOfWeek.sunday,
+  FluentFirstWeekOfYear firstWeekOfYear = FluentFirstWeekOfYear.firstDay,
+}) => switch (firstWeekOfYear) {
+  FluentFirstWeekOfYear.firstFullWeek => _weekOfYearFullDays(
+    date,
+    firstDayOfWeek.index,
+    7,
+  ),
+  FluentFirstWeekOfYear.firstFourDayWeek => _weekOfYearFullDays(
+    date,
+    firstDayOfWeek.index,
+    4,
+  ),
+  FluentFirstWeekOfYear.firstDay => _firstDayWeekOfYear(
+    date,
+    firstDayOfWeek.index,
+  ),
+};
+
+int _firstDayWeekOfYear(DateTime date, int firstDayOfWeek) {
+  final num = _dayOfYear(date) - 1;
+  final num2 = _weekDayIndex(date) - (num % 7);
+  final num3 = (num2 - firstDayOfWeek + 2 * 7) % 7;
+  return ((num + num3) / 7 + 1).floor();
+}
+
+int _weekOfYearFullDays(
+  DateTime date,
+  int firstDayOfWeek,
+  int numberOfFullDays,
+) {
+  final dayOfYear = _dayOfYear(date) - 1;
+  var num = _weekDayIndex(date) - (dayOfYear % 7);
+
+  final lastDayOfPrevYear = DateTime.utc(date.year - 1, 12, 31);
+  final daysInYear = _dayOfYear(lastDayOfPrevYear) - 1;
+
+  var num2 = (firstDayOfWeek - num + 2 * 7) % 7;
+  if (num2 != 0 && num2 >= numberOfFullDays) num2 -= 7;
+
+  var num3 = dayOfYear - num2;
+  if (num3 < 0) {
+    num -= daysInYear % 7;
+    num2 = (firstDayOfWeek - num + 2 * 7) % 7;
+    if (num2 != 0 && num2 + 1 >= numberOfFullDays) num2 -= 7;
+    num3 = daysInYear - num2;
+  }
+
+  return (num3 / 7 + 1).floor();
+}
+
+/// The week number beside each of [weeksInMonth] rows of the page holding
+/// [pickerDate].
+///
+/// Transcribed from `getWeekNumbersInMonth`. Each row is numbered by the week
+/// its **last** day falls in, which is why a row spilling into the next month
+/// still reads as that month's week.
+List<int> fluentCalendarWeekNumbers({
+  required int weeksInMonth,
+  required DateTime pickerDate,
+  FluentDayOfWeek firstDayOfWeek = FluentDayOfWeek.sunday,
+  FluentFirstWeekOfYear firstWeekOfYear = FluentFirstWeekOfYear.firstDay,
+}) {
+  final year = pickerDate.year;
+  final month = pickerDate.month;
+  final first = DateTime.utc(year, month);
+  // `adjustWeekDay`: a day earlier in the week than the first day of week
+  // belongs to the previous cycle, so it counts a week higher.
+  final weekDay = _weekDayIndex(first);
+  final adjusted =
+      firstDayOfWeek != FluentDayOfWeek.sunday && weekDay < firstDayOfWeek.index
+      ? weekDay + 7
+      : weekDay;
+  var dayOfMonth = 1 + (firstDayOfWeek.index + 7 - 1) - adjusted;
+
+  return <int>[
+    for (var i = 0; i < weeksInMonth; i++, dayOfMonth += 7)
+      fluentCalendarWeekNumber(
+        // Day 33 of March is 2 April; DateTime rolls it exactly as `new Date`
+        // does, which is what makes a single running counter correct here.
+        DateTime.utc(year, month, dayOfMonth),
+        firstDayOfWeek: firstDayOfWeek,
+        firstWeekOfYear: firstWeekOfYear,
+      ),
+  ];
 }
 
 /// One slot of a `FluentCalendar` grid — a day, a month or a year.
@@ -561,6 +792,10 @@ class FluentCalendarPanel {
     required this.captionSemanticLabel,
     this.weekdayLabels = const <String>[],
     this.weekdaySemanticLabels = const <String>[],
+    this.weekNumbers = const <String>[],
+    this.weekNumberSemanticLabels = const <String>[],
+    this.onClose,
+    this.closeLabel = '',
     this.onPrevious,
     this.onNext,
     this.onCaptionPressed,
@@ -589,6 +824,20 @@ class FluentCalendarPanel {
   /// Full weekday names, parallel to [weekdayLabels] — a one-letter column
   /// heading is not a usable accessible name.
   final List<String> weekdaySemanticLabels;
+
+  /// One drawn week number per grid row, or empty for no week column.
+  ///
+  /// Parallel to [rows]; a shorter list simply stops drawing.
+  final List<String> weekNumbers;
+
+  /// Announced names for [weekNumbers] — "Week 12", not "12".
+  final List<String> weekNumberSemanticLabels;
+
+  /// Dismisses the calendar. Null hides the close button entirely.
+  final VoidCallback? onClose;
+
+  /// Accessible name of the close button.
+  final String closeLabel;
 
   /// Steps back a page. Null disables the chevron — upstream keeps an
   /// out-of-bounds chevron focusable rather than removing it, so focus is not
@@ -1084,17 +1333,51 @@ class _CalendarPanelView extends StatelessWidget {
     final headerHeight =
         style.headerHeight?.resolve(states) ?? FluentSize.size280;
 
+    // The week-number column is an extra grid column: it widens the panel and
+    // takes a blank slot in the weekday row so the two stay aligned.
+    final weeks = panel.weekNumbers.isNotEmpty;
+    final columns = panel.columns + (weeks ? 1 : 0);
+
     // Every panel is held to its grid's width. Without this the header's Row
     // takes MainAxisSize.max and the panel stretches to whatever the parent
     // offers instead of the 196 upstream sizes it to.
-    final gridWidth =
-        panel.columns * cellSize.width + (panel.columns - 1) * cellSpacing;
+    final gridWidth = columns * cellSize.width + (columns - 1) * cellSpacing;
+
+    Widget weekNumber(int row) => SizedBox(
+      width: cellSize.width,
+      height: cellSize.height,
+      child: Semantics(
+        // A cell rather than a rowHeader: the framework accepts only row roles
+        // under a table and only cells under a row, and the announced label is
+        // what carries the meaning anyway.
+        role: SemanticsRole.cell,
+        container: true,
+        excludeSemantics: true,
+        label: row < panel.weekNumberSemanticLabels.length
+            ? panel.weekNumberSemanticLabels[row]
+            : null,
+        child: Center(
+          child: Text(
+            panel.weekNumbers[row],
+            textAlign: TextAlign.center,
+            // Deliberately the weekday ramp, not a fourth token: upstream draws
+            // both as the same muted grid chrome, and inventing a token here
+            // would be a colour this package chose rather than transcribed.
+            style:
+                (style.weekdayTextStyle?.resolve(states) ?? const TextStyle())
+                    .copyWith(
+                      color: style.weekdayForegroundColor?.resolve(states),
+                    ),
+          ),
+        ),
+      ),
+    );
 
     final grid = Column(
       mainAxisSize: MainAxisSize.min,
       spacing: rowSpacing,
       children: <Widget>[
-        for (final row in panel.rows)
+        for (var r = 0; r < panel.rows.length; r++)
           // The row role is not decoration: Flutter asserts that a node with
           // `SemanticsRole.table` has only `SemanticsRole.row` children, so
           // omitting it crashes the semantics update rather than merely reading
@@ -1105,7 +1388,10 @@ class _CalendarPanelView extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               spacing: cellSpacing,
-              children: row,
+              children: <Widget>[
+                if (weeks && r < panel.weekNumbers.length) weekNumber(r),
+                ...panel.rows[r],
+              ],
             ),
           ),
       ],
@@ -1142,6 +1428,14 @@ class _CalendarPanelView extends StatelessWidget {
                     onPressed: state.enabled ? panel.onNext : null,
                     style: style,
                   ),
+                  // Last in the header row, as upstream places it.
+                  if (panel.onClose != null)
+                    _CalendarNavButton(
+                      icon: FluentIcons.dismiss_20_regular,
+                      semanticLabel: panel.closeLabel,
+                      onPressed: state.enabled ? panel.onClose : null,
+                      style: style,
+                    ),
                 ],
               ),
             ),
@@ -1153,6 +1447,8 @@ class _CalendarPanelView extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   spacing: cellSpacing,
                   children: <Widget>[
+                    // The blank corner above the week-number column.
+                    if (weeks) SizedBox(width: cellSize.width),
                     for (var i = 0; i < panel.weekdayLabels.length; i++)
                       SizedBox(
                         width: cellSize.width,
@@ -1390,6 +1686,7 @@ class _CalendarCellWidget extends StatelessWidget {
     required this.style,
     required this.view,
     required this.onPressed,
+    this.focusableWhenUnselectable = false,
   });
 
   final FluentCalendarCell cell;
@@ -1398,30 +1695,57 @@ class _CalendarCellWidget extends StatelessWidget {
   final FluentCalendarView view;
   final VoidCallback? onPressed;
 
+  /// `allFocusable`. See [FluentCalendar.allFocusable].
+  final bool focusableWhenUnselectable;
+
   @override
-  Widget build(BuildContext context) => FluentInteractive(
-    // Null rather than a no-op when the cell cannot be chosen: an attached tap
-    // handler puts a tap ACTION in the semantics tree, so a screen reader
-    // announces an unselectable day as activatable.
-    enabled: cell.selectable && onPressed != null,
-    onPressed: onPressed,
-    focusNode: focusNode,
-    mouseCursor:
-        style.mouseCursor?.resolve(const <WidgetState>{}) ??
-        SystemMouseCursors.click,
-    builder: (context, states, child) => Semantics(
-      role: SemanticsRole.cell,
-      button: true,
-      label: cell.semanticLabel,
-      selected: cell.selected,
-      // Both halves: a day inside the bounds of a calendar whose
-      // `onSelectDate` is null is still not activatable, and reporting it as
-      // enabled would have a screen reader offer an action that does nothing.
-      enabled: cell.selectable && onPressed != null,
-      excludeSemantics: true,
-      child: buildFluentCalendarCell(cell, style, states, view),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final interactive = cell.selectable && onPressed != null;
+    if (!interactive && focusableWhenUnselectable) {
+      // `FluentInteractive` derives its focusability from `enabled &&
+      // onPressed != null`, so a disabled one detaches the node and the roving
+      // machinery loses the cell entirely. A bare `Focus` keeps the same node
+      // attached with no tap action and no hover or press states — which is
+      // exactly what an unselectable-but-reachable day is.
+      return Focus(
+        focusNode: focusNode,
+        child: Semantics(
+          role: SemanticsRole.cell,
+          button: true,
+          label: cell.semanticLabel,
+          selected: cell.selected,
+          enabled: false,
+          excludeSemantics: true,
+          child: buildFluentCalendarCell(cell, style, const <WidgetState>{
+            WidgetState.disabled,
+          }, view),
+        ),
+      );
+    }
+    return FluentInteractive(
+      // Null rather than a no-op when the cell cannot be chosen: an attached
+      // tap handler puts a tap ACTION in the semantics tree, so a screen reader
+      // announces an unselectable day as activatable.
+      enabled: interactive,
+      onPressed: onPressed,
+      focusNode: focusNode,
+      mouseCursor:
+          style.mouseCursor?.resolve(const <WidgetState>{}) ??
+          SystemMouseCursors.click,
+      builder: (context, states, child) => Semantics(
+        role: SemanticsRole.cell,
+        button: true,
+        label: cell.semanticLabel,
+        selected: cell.selected,
+        // Both halves: a day inside the bounds of a calendar whose
+        // `onSelectDate` is null is still not activatable, and reporting it as
+        // enabled would have a screen reader offer an action that does nothing.
+        enabled: interactive,
+        excludeSemantics: true,
+        child: buildFluentCalendarCell(cell, style, states, view),
+      ),
+    );
+  }
 }
 
 /// Moves the roving cell focus by cells, rows, pages or years.
@@ -1582,6 +1906,12 @@ class FluentCalendar extends StatefulWidget {
     this.highlightCurrentMonth = false,
     this.highlightSelectedMonth = false,
     this.showGoToToday = true,
+    this.showMonthPickerAsOverlay = false,
+    this.showWeekNumbers = false,
+    this.firstWeekOfYear = FluentFirstWeekOfYear.firstDay,
+    this.allFocusable = false,
+    this.onDismiss,
+    this.showCloseButton = false,
     this.strings = FluentCalendarStrings.english,
     this.formatter = const FluentCalendarDateFormatter(),
     this.style,
@@ -1650,6 +1980,45 @@ class FluentCalendar extends StatefulWidget {
   /// Whether to offer the "go to today" link.
   final bool showGoToToday;
 
+  /// Whether the month picker is reached through the day caption rather than
+  /// shown in a second column.
+  ///
+  /// One panel either way, so the popup stays 220 wide instead of 440.
+  ///
+  /// **A superset of upstream, deliberately.** There, a month picker exists
+  /// only while `isMonthPickerVisible` is true, so `isMonthPickerVisible:
+  /// false` leaves an inert caption. Here that combination keeps drilling —
+  /// it is the behaviour this package shipped and tested first, and removing a
+  /// working keyboard path to match a `false` default would be a regression
+  /// dressed as parity.
+  final bool showMonthPickerAsOverlay;
+
+  /// Whether the day grid draws a week-number column down its leading edge.
+  final bool showWeekNumbers;
+
+  /// Which week counts as week 1, when [showWeekNumbers] is set.
+  ///
+  /// [FluentFirstWeekOfYear.firstDay] here rather than upstream `Calendar`'s
+  /// `FirstFullWeek`, because `useDatePicker` overrides it to `FirstDay` and a
+  /// calendar inside a picker is by far the common case.
+  final FluentFirstWeekOfYear firstWeekOfYear;
+
+  /// Whether unselectable days still take keyboard focus.
+  ///
+  /// Upstream's `allFocusable`. Off by default: a roving grid that stops on
+  /// days nothing can be done with is slower to drive. On, an out-of-bounds day
+  /// is reachable and announced but still not activatable.
+  final bool allFocusable;
+
+  /// Called when the close button is pressed.
+  final VoidCallback? onDismiss;
+
+  /// Whether the header offers a close button.
+  ///
+  /// Draws nothing unless [onDismiss] is also given — a button that dismisses
+  /// nothing is worse than no button.
+  final bool showCloseButton;
+
   /// Every label that is not a number.
   final FluentCalendarStrings strings;
 
@@ -1710,7 +2079,16 @@ class _FluentCalendarState extends State<FluentCalendar>
   bool get _enabled => widget.onSelectDate != null;
 
   /// Whether both panels are up, which is what makes the day caption inert.
-  bool get _split => widget.isDayPickerVisible && widget.isMonthPickerVisible;
+  /// Whether the month picker sits *beside* the day grid in a second column.
+  ///
+  /// `showMonthPickerAsOverlay` is upstream's other way of having one: the same
+  /// picker reached by the day caption, in the same column. Turning it on drops
+  /// the panel count back to one and re-arms the caption, because
+  /// `onCaptionPressed` is already gated on this.
+  bool get _split =>
+      widget.isDayPickerVisible &&
+      widget.isMonthPickerVisible &&
+      !widget.showMonthPickerAsOverlay;
 
   /// The view the primary (left, or only) panel is showing.
   FluentCalendarView get _primaryView =>
@@ -2168,11 +2546,16 @@ class _FluentCalendarState extends State<FluentCalendar>
 
     // Exactly one cell leaves the tab order open. Without this a month would be
     // 42 tab stops, which is the most common way an ARIA grid is got wrong.
+    // `allFocusable` widens what may hold the roving stop to every cell, which
+    // is the whole point of the flag: an out-of-bounds day is reachable.
+    bool focusable(FluentCalendarCell cell) =>
+        cell.selectable || widget.allFocusable;
+
     var active = -1;
     var slot = 0;
     for (final row in cells) {
       for (final cell in row) {
-        if (_matches(cell, focused, view) && cell.selectable) active = slot;
+        if (_matches(cell, focused, view) && focusable(cell)) active = slot;
         slot++;
       }
     }
@@ -2180,7 +2563,7 @@ class _FluentCalendarState extends State<FluentCalendar>
       slot = 0;
       for (final row in cells) {
         for (final cell in row) {
-          if (active < 0 && cell.selectable) active = slot;
+          if (active < 0 && focusable(cell)) active = slot;
           slot++;
         }
       }
@@ -2199,6 +2582,7 @@ class _FluentCalendarState extends State<FluentCalendar>
             focusNode: node,
             style: style,
             view: view,
+            focusableWhenUnselectable: widget.allFocusable,
             onPressed: _enabled
                 ? () => side ? _activateSide(cell) : _activatePrimary(cell)
                 : null,
@@ -2228,6 +2612,16 @@ class _FluentCalendarState extends State<FluentCalendar>
     final nextPage = _shiftPage(page, 1, view);
     final month = view == FluentCalendarView.month;
     final caption = _captionFor(page, view);
+    final weekNumbers = month && widget.showWeekNumbers
+        ? fluentCalendarWeekNumbers(
+            weeksInMonth: cells.length,
+            pickerDate: page,
+            firstDayOfWeek: widget.firstDayOfWeek,
+            firstWeekOfYear: widget.firstWeekOfYear,
+          )
+        : const <int>[];
+    final showClose =
+        widget.showCloseButton && widget.onDismiss != null && !side;
 
     return FluentCalendarPanel(
       columns: month ? 7 : 4,
@@ -2254,6 +2648,18 @@ class _FluentCalendarState extends State<FluentCalendar>
                 widget.strings.days[(i + widget.firstDayOfWeek.index) % 7],
             ]
           : const <String>[],
+      weekNumbers: weekNumbers.map((week) => '$week').toList(growable: false),
+      weekNumberSemanticLabels: weekNumbers
+          .map(
+            (week) =>
+                widget.strings.weekNumberFormat.replaceFirst('{0}', '$week'),
+          )
+          .toList(growable: false),
+      // Only the panel that owns the header gets it, which with two panels is
+      // the day grid on the left — the same place upstream's `CalendarDay`
+      // renders it.
+      onClose: showClose ? widget.onDismiss : null,
+      closeLabel: widget.strings.closeButtonLabel,
       onPrevious: min == null || !_pageEnd(previousPage, view).isBefore(min)
           ? () => _page(-1, side: side)
           : null,
