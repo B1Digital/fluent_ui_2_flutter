@@ -1,0 +1,487 @@
+{
+  "schemaVersion": 2,
+  "internalWidgets": [
+    "FluentInputUnderline"
+  ],
+  "officialWebCore": [
+    {
+      "slug": "accordion",
+      "status": "implemented",
+      "widgets": [
+        "FluentAccordion",
+        "FluentAccordionItem"
+      ],
+      "reference": "components-navigation-data.md"
+    },
+    {
+      "slug": "avatar",
+      "status": "implemented",
+      "widgets": [
+        "FluentAvatar",
+        "FluentPresenceBadge"
+      ],
+      "reference": "components-identity-content.md"
+    },
+    {
+      "slug": "avatargroup",
+      "status": "implemented",
+      "widgets": [
+        "FluentAvatarGroup"
+      ],
+      "reference": "components-identity-content.md"
+    },
+    {
+      "slug": "badge",
+      "status": "implemented",
+      "widgets": [
+        "FluentBadge"
+      ],
+      "reference": "components-identity-content.md"
+    },
+    {
+      "slug": "breadcrumb",
+      "status": "implemented",
+      "widgets": [
+        "FluentBreadcrumb"
+      ],
+      "reference": "components-navigation-data.md"
+    },
+    {
+      "slug": "button",
+      "status": "implemented",
+      "widgets": [
+        "FluentButton",
+        "FluentCompoundButton",
+        "FluentSplitButton"
+      ],
+      "reference": "components-actions-inputs.md"
+    },
+    {
+      "slug": "card",
+      "status": "implemented",
+      "widgets": [
+        "FluentCard"
+      ],
+      "reference": "components-surfaces-feedback.md"
+    },
+    {
+      "slug": "carousel",
+      "status": "implemented",
+      "widgets": [
+        "FluentCarousel",
+        "FluentCarouselStep"
+      ],
+      "reference": "components-navigation-data.md"
+    },
+    {
+      "slug": "checkbox",
+      "status": "implemented",
+      "widgets": [
+        "FluentCheckbox"
+      ],
+      "reference": "components-actions-inputs.md"
+    },
+    {
+      "slug": "combobox",
+      "status": "missing",
+      "widgets": [],
+      "reference": "components-actions-inputs.md"
+    },
+    {
+      "slug": "dialog",
+      "status": "implemented",
+      "widgets": [
+        "FluentDialog"
+      ],
+      "reference": "components-surfaces-feedback.md"
+    },
+    {
+      "slug": "divider",
+      "status": "implemented",
+      "widgets": [
+        "FluentDivider"
+      ],
+      "reference": "components-surfaces-feedback.md"
+    },
+    {
+      "slug": "drawer",
+      "status": "implemented",
+      "widgets": [
+        "FluentDrawer"
+      ],
+      "reference": "components-surfaces-feedback.md"
+    },
+    {
+      "slug": "dropdown",
+      "status": "implemented",
+      "widgets": [
+        "FluentDropdown"
+      ],
+      "reference": "components-actions-inputs.md"
+    },
+    {
+      "slug": "field",
+      "status": "implemented",
+      "widgets": [
+        "FluentField"
+      ],
+      "reference": "components-actions-inputs.md"
+    },
+    {
+      "slug": "fluentprovider",
+      "status": "implemented",
+      "widgets": [
+        "FluentApp",
+        "FluentThemeOverride"
+      ],
+      "themes": [
+        "FluentTheme"
+      ],
+      "reference": "flutter-foundations.md",
+      "notes": [
+        "Route transitions ignore reduced motion. `FluentApp` installs `FluentPageRoute` as its `pageRouteBuilder`, and that route's `buildTransitions` always fades and slides \u2014 nothing in `app.dart` reads `MediaQuery.disableAnimationsOf`. Every named-route navigation therefore animates even when the platform asks for reduced motion, against this skill's own motion rule. Widget-level motion is unaffected; the gap is the route transition alone."
+      ]
+    },
+    {
+      "slug": "icon",
+      "status": "compose",
+      "widgets": [],
+      "externalWidgets": [
+        "Icon"
+      ],
+      "reference": "components-identity-content.md"
+    },
+    {
+      "slug": "image",
+      "status": "compose",
+      "widgets": [],
+      "externalWidgets": [
+        "Image"
+      ],
+      "reference": "components-identity-content.md"
+    },
+    {
+      "slug": "infolabel",
+      "status": "implemented",
+      "widgets": [
+        "FluentInfoLabel",
+        "FluentInfoButton"
+      ],
+      "reference": "components-actions-inputs.md"
+    },
+    {
+      "slug": "input",
+      "status": "implemented",
+      "widgets": [
+        "FluentInput",
+        "FluentInputFocusUnderline"
+      ],
+      "reference": "components-actions-inputs.md"
+    },
+    {
+      "slug": "label",
+      "status": "implemented",
+      "widgets": [
+        "FluentLabel"
+      ],
+      "reference": "components-actions-inputs.md"
+    },
+    {
+      "slug": "link",
+      "status": "implemented",
+      "widgets": [
+        "FluentLink"
+      ],
+      "reference": "components-actions-inputs.md"
+    },
+    {
+      "slug": "list",
+      "status": "implemented",
+      "widgets": [
+        "FluentList",
+        "FluentListItem"
+      ],
+      "reference": "components-navigation-data.md"
+    },
+    {
+      "slug": "menu",
+      "status": "implemented",
+      "widgets": [
+        "FluentMenu"
+      ],
+      "reference": "components-navigation-data.md"
+    },
+    {
+      "slug": "messagebar",
+      "status": "implemented",
+      "widgets": [
+        "FluentMessageBar"
+      ],
+      "reference": "components-surfaces-feedback.md"
+    },
+    {
+      "slug": "nav",
+      "status": "implemented",
+      "widgets": [
+        "FluentNav",
+        "FluentNavAppItem",
+        "FluentNavCategory",
+        "FluentNavDivider",
+        "FluentNavItem",
+        "FluentNavSubItem"
+      ],
+      "reference": "components-navigation-data.md"
+    },
+    {
+      "slug": "persona",
+      "status": "implemented",
+      "widgets": [
+        "FluentPersona"
+      ],
+      "reference": "components-identity-content.md"
+    },
+    {
+      "slug": "popover",
+      "status": "implemented",
+      "widgets": [
+        "FluentPopover",
+        "FluentPopoverEntrance"
+      ],
+      "reference": "components-surfaces-feedback.md"
+    },
+    {
+      "slug": "progressbar",
+      "status": "implemented",
+      "widgets": [
+        "FluentProgressBar"
+      ],
+      "reference": "components-surfaces-feedback.md"
+    },
+    {
+      "slug": "radiogroup",
+      "status": "implemented",
+      "widgets": [
+        "FluentRadioGroup",
+        "FluentRadio",
+        "FluentRadioGroupScope"
+      ],
+      "reference": "components-actions-inputs.md",
+      "notes": [
+        "No roving focus. `FluentRadioGroup` installs no `Shortcuts` or `Actions`, and each `FluentRadio` owns its own `FocusNode`, so every radio is a separate tab stop and Arrow keys do not move selection. Official usage and ARIA both expect one tab stop per group with Arrow traversal inside it. Report this rather than emulating it with a hand-rolled key handler on the caller's side."
+      ]
+    },
+    {
+      "slug": "rating",
+      "status": "implemented",
+      "widgets": [
+        "FluentRating"
+      ],
+      "reference": "components-actions-inputs.md"
+    },
+    {
+      "slug": "searchbox",
+      "status": "implemented",
+      "widgets": [
+        "FluentSearchBox"
+      ],
+      "reference": "components-actions-inputs.md"
+    },
+    {
+      "slug": "select",
+      "status": "compose",
+      "widgets": [
+        "FluentDropdown"
+      ],
+      "reference": "components-actions-inputs.md",
+      "notes": [
+        "Not native `<select>` parity. `FluentDropdown<T>` renders a Flutter overlay, so there is no OS-native picker on mobile, no platform typeahead, and no browser-level form integration. Choose it for a Fluent-styled listbox, not because a native select is required."
+      ]
+    },
+    {
+      "slug": "skeleton",
+      "status": "implemented",
+      "widgets": [
+        "FluentSkeleton"
+      ],
+      "reference": "components-surfaces-feedback.md"
+    },
+    {
+      "slug": "slider",
+      "status": "implemented",
+      "widgets": [
+        "FluentSlider"
+      ],
+      "reference": "components-actions-inputs.md"
+    },
+    {
+      "slug": "spin",
+      "status": "implemented",
+      "widgets": [
+        "FluentSpinButton",
+        "FluentSpinButtonStepper"
+      ],
+      "reference": "components-actions-inputs.md"
+    },
+    {
+      "slug": "spinner",
+      "status": "implemented",
+      "widgets": [
+        "FluentSpinner"
+      ],
+      "reference": "components-surfaces-feedback.md"
+    },
+    {
+      "slug": "switch",
+      "status": "implemented",
+      "widgets": [
+        "FluentSwitch"
+      ],
+      "reference": "components-actions-inputs.md"
+    },
+    {
+      "slug": "tablist",
+      "status": "implemented",
+      "widgets": [
+        "FluentTabList",
+        "FluentTab"
+      ],
+      "reference": "components-navigation-data.md"
+    },
+    {
+      "slug": "tag",
+      "status": "implemented",
+      "widgets": [
+        "FluentTag",
+        "FluentInteractionTag",
+        "FluentTagDismissGlyph"
+      ],
+      "reference": "components-identity-content.md",
+      "notes": [
+        "No keyboard dismissal on the tag itself. `FluentTag` handles no keys; its `dismiss` field is a caller-supplied `Widget?` that must already carry its own interaction surface. The dismiss affordance is only reachable if the caller made it independently focusable, and Delete or Backspace on a focused tag does nothing. Supply a focusable dismiss control rather than assuming the tag provides the path."
+      ]
+    },
+    {
+      "slug": "tagpicker",
+      "status": "implemented",
+      "widgets": [
+        "FluentTagPicker"
+      ],
+      "reference": "components-actions-inputs.md"
+    },
+    {
+      "slug": "text",
+      "status": "compose",
+      "widgets": [],
+      "externalWidgets": [
+        "Text"
+      ],
+      "reference": "components-identity-content.md"
+    },
+    {
+      "slug": "textarea",
+      "status": "implemented",
+      "widgets": [
+        "FluentTextarea"
+      ],
+      "reference": "components-actions-inputs.md"
+    },
+    {
+      "slug": "toast",
+      "status": "implemented",
+      "widgets": [
+        "FluentToast",
+        "FluentToaster"
+      ],
+      "reference": "components-surfaces-feedback.md"
+    },
+    {
+      "slug": "toolbar",
+      "status": "implemented",
+      "widgets": [
+        "FluentToolbar",
+        "FluentToolbarDivider"
+      ],
+      "reference": "components-navigation-data.md"
+    },
+    {
+      "slug": "tooltip",
+      "status": "implemented",
+      "widgets": [
+        "FluentTooltip"
+      ],
+      "reference": "components-surfaces-feedback.md",
+      "notes": [
+        "No Escape dismissal. `FluentTooltip` handles no keys at all: it opens on hover or keyboard-visible focus and closes only on blur or pointer exit. A keyboard user who focuses a trigger cannot dismiss the surface without moving focus, which WCAG 1.4.13 (Content on Hover or Focus) expects to be possible. If the tip can obscure content, provide the dismissal path at the trigger."
+      ]
+    },
+    {
+      "slug": "tree",
+      "status": "implemented",
+      "widgets": [
+        "FluentTree"
+      ],
+      "reference": "components-navigation-data.md"
+    }
+  ],
+  "repositoryExtensions": [
+    {
+      "name": "acrylic",
+      "widgets": [
+        "FluentAcrylicSurface"
+      ],
+      "reference": "components-surfaces-feedback.md"
+    },
+    {
+      "name": "animation",
+      "widgets": [
+        "FluentAnimatedStyle"
+      ],
+      "reference": "coverage-matrix.md"
+    },
+    {
+      "name": "data-grid",
+      "widgets": [
+        "FluentDataGrid",
+        "FluentDataGridCell"
+      ],
+      "reference": "components-navigation-data.md"
+    },
+    {
+      "name": "interaction",
+      "widgets": [
+        "FluentFocusRing",
+        "FluentInteractive"
+      ],
+      "reference": "coverage-matrix.md"
+    },
+    {
+      "name": "status",
+      "widgets": [
+        "FluentStatusIndicator"
+      ],
+      "reference": "components-identity-content.md"
+    },
+    {
+      "name": "swatches",
+      "widgets": [
+        "FluentSwatch",
+        "FluentSwatchPicker"
+      ],
+      "reference": "components-actions-inputs.md"
+    },
+    {
+      "name": "teaching-popover",
+      "widgets": [
+        "FluentTeachingPopover"
+      ],
+      "reference": "components-surfaces-feedback.md"
+    },
+    {
+      "name": "text-context-menu",
+      "widgets": [
+        "FluentTextContextMenu"
+      ],
+      "reference": "coverage-matrix.md"
+    }
+  ]
+}
