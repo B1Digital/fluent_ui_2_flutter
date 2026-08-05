@@ -145,6 +145,163 @@ void main() {
     });
   });
 
+  // Upstream's Input slots and `onChange`, which the picker forwards.
+  group('FluentDatePicker — slots and onChanged', () {
+    testWidgets('contentBefore is rendered', (tester) async {
+      await _pump(
+        tester,
+        wrap: (_) => FluentDatePicker(
+          today: _today,
+          onSelectDate: _noop,
+          contentBefore: const Text('BEFORE'),
+        ),
+      );
+      expect(find.text('BEFORE'), findsOneWidget);
+    });
+
+    testWidgets('contentAfter replaces the calendar glyph', (tester) async {
+      await _pump(tester);
+      expect(find.byIcon(fluentDatePickerIcon), findsOneWidget);
+
+      await _pump(
+        tester,
+        wrap: (_) => FluentDatePicker(
+          today: _today,
+          onSelectDate: _noop,
+          contentAfter: const Text('AFTER'),
+        ),
+      );
+      expect(find.text('AFTER'), findsOneWidget);
+      expect(find.byIcon(fluentDatePickerIcon), findsNothing);
+    });
+
+    testWidgets('onChanged fires per keystroke, onSelectDate does not', (
+      tester,
+    ) async {
+      final typed = <String>[];
+      var selections = 0;
+      await _pump(
+        tester,
+        wrap: (_) => FluentDatePicker(
+          today: _today,
+          allowTextInput: true,
+          openOnClick: false,
+          onChanged: typed.add,
+          onSelectDate: (_) => selections++,
+        ),
+      );
+
+      await tester.enterText(find.byType(EditableText), '3/5/2026');
+      await tester.pump();
+
+      expect(typed, <String>['3/5/2026']);
+      expect(selections, 0, reason: 'typing is not a commit');
+    });
+  });
+
+  group('FluentDatePicker — popup placement', () {
+    testWidgets('inlinePopup renders in the tree, not the Overlay', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        wrap: (_) => FluentDatePicker(
+          today: _today,
+          onSelectDate: _noop,
+          inlinePopup: true,
+        ),
+      );
+
+      await tester.tap(find.byType(FluentDatePicker));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FluentCalendar), findsOneWidget);
+      // The distinguishing property: a portalled popup is a sibling of the app,
+      // an inline one is a descendant of the picker.
+      expect(
+        find.descendant(
+          of: find.byType(FluentDatePicker),
+          matching: find.byType(FluentCalendar),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the overlay popup is not a descendant of the picker', (
+      tester,
+    ) async {
+      await _pump(tester);
+      await tester.tap(find.byType(FluentDatePicker));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FluentCalendar), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(FluentDatePicker),
+          matching: find.byType(FluentCalendar),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('showMonthPickerAsOverlay keeps one panel and drills', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        wrap: (_) => FluentDatePicker(
+          today: _today,
+          onSelectDate: _noop,
+          showMonthPickerAsOverlay: true,
+        ),
+      );
+      await tester.tap(find.byType(FluentDatePicker));
+      await tester.pumpAndSettle();
+
+      // Side by side, "2026" is already on screen as the second panel's
+      // caption; with the overlay it only appears after drilling.
+      expect(find.text('2026'), findsNothing);
+      await tester.tap(find.text('March 2026'));
+      await tester.pumpAndSettle();
+      expect(find.text('2026'), findsOneWidget);
+    });
+  });
+
+  group('FluentDatePicker — forwarded calendar props', () {
+    testWidgets('showWeekNumbers reaches the calendar', (tester) async {
+      await _pump(
+        tester,
+        wrap: (_) => FluentDatePicker(
+          today: _today,
+          onSelectDate: _noop,
+          showWeekNumbers: true,
+        ),
+      );
+      await tester.tap(find.byType(FluentDatePicker));
+      await tester.pumpAndSettle();
+
+      expect(find.bySemanticsLabel('Week 10'), findsOneWidget);
+    });
+
+    testWidgets('showCloseButton closes the popup', (tester) async {
+      await _pump(
+        tester,
+        wrap: (_) => FluentDatePicker(
+          today: _today,
+          onSelectDate: _noop,
+          showCloseButton: true,
+        ),
+      );
+      await tester.tap(find.byType(FluentDatePicker));
+      await tester.pumpAndSettle();
+      expect(find.byType(FluentCalendar), findsOneWidget);
+
+      await tester.tap(find.bySemanticsLabel('Close'));
+      await tester.pumpAndSettle();
+      expect(find.byType(FluentCalendar), findsNothing);
+    });
+  });
+
   group('FluentDatePicker — open and close', () {
     testWidgets('clicking opens, clicking again closes', (tester) async {
       await _pump(tester);

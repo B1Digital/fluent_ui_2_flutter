@@ -766,6 +766,176 @@ void main() {
     });
   });
 
+  // The arithmetic is .NET's `GetWeekOfYear` by way of upstream's `dateMath`,
+  // so it is pinned to worked examples rather than re-derived.
+  group('fluentCalendarWeekNumber', () {
+    test('FirstDay counts the week holding 1 January as week 1', () {
+      // 1 January 2026 is a Thursday, so week 1 is three days long.
+      expect(fluentCalendarWeekNumber(DateTime(2026)), 1);
+      expect(fluentCalendarWeekNumber(DateTime(2026, 1, 3)), 1);
+      expect(fluentCalendarWeekNumber(DateTime(2026, 1, 4)), 2);
+    });
+
+    test('FirstFourDayWeek with a Monday start is ISO-8601', () {
+      // The ISO rule: the week holding the first Thursday is week 1, and
+      // 1 January 2026 *is* that Thursday.
+      expect(
+        fluentCalendarWeekNumber(
+          DateTime(2026),
+          firstDayOfWeek: FluentDayOfWeek.monday,
+          firstWeekOfYear: FluentFirstWeekOfYear.firstFourDayWeek,
+        ),
+        1,
+      );
+    });
+
+    test(
+      'FirstFullWeek pushes a partial opening week into the year before',
+      () {
+        // 1 January 2026 is mid-week, so under this rule it is not week 1 —
+        // it belongs to the last week of 2025.
+        expect(
+          fluentCalendarWeekNumber(
+            DateTime(2026),
+            firstWeekOfYear: FluentFirstWeekOfYear.firstFullWeek,
+          ),
+          greaterThan(50),
+        );
+      },
+    );
+
+    test('a month numbers its rows consecutively', () {
+      // March 2026 opens on a Sunday and runs five rows.
+      expect(
+        fluentCalendarWeekNumbers(
+          weeksInMonth: 5,
+          pickerDate: DateTime(2026, 3),
+        ),
+        <int>[10, 11, 12, 13, 14],
+      );
+    });
+  });
+
+  group('FluentCalendar — week numbers', () {
+    testWidgets('off by default, and a column when asked for', (tester) async {
+      await _pump(tester);
+      expect(find.bySemanticsLabel('Week 10'), findsNothing);
+
+      await _pump(
+        tester,
+        wrap: (_) => FluentCalendar(
+          today: _today,
+          onSelectDate: _noop,
+          isMonthPickerVisible: false,
+          showWeekNumbers: true,
+        ),
+      );
+
+      // March 2026 is weeks 10 to 14; the row holding the 10th is week 11.
+      expect(find.bySemanticsLabel('Week 10'), findsOneWidget);
+      expect(find.bySemanticsLabel('Week 14'), findsOneWidget);
+    });
+  });
+
+  group('FluentCalendar — allFocusable', () {
+    // March 2026 opens on a Sunday, so slot 0 is the 1st, the 10th is slot 9
+    // and the 20th is slot 19. `today` is the 10th, and minDate puts it out of
+    // bounds — which is the only case where the flag decides anything.
+    Future<String?> focusedSlot(
+      WidgetTester tester, {
+      required bool allFocusable,
+    }) async {
+      await _pump(
+        tester,
+        wrap: (_) => FluentCalendar(
+          today: _today,
+          isMonthPickerVisible: false,
+          minDate: DateTime(2026, 3, 20),
+          allFocusable: allFocusable,
+          autofocus: true,
+          onSelectDate: _noop,
+        ),
+      );
+      return FocusManager.instance.primaryFocus?.debugLabel;
+    }
+
+    testWidgets(
+      'off, the roving stop falls through to the first selectable day',
+      (tester) async {
+        expect(
+          await focusedSlot(tester, allFocusable: false),
+          'FluentCalendar cell 19',
+        );
+      },
+    );
+
+    testWidgets('on, an out-of-bounds day can hold the roving stop', (
+      tester,
+    ) async {
+      expect(
+        await focusedSlot(tester, allFocusable: true),
+        'FluentCalendar cell 9',
+      );
+    });
+
+    testWidgets('a focusable out-of-bounds day is still not activatable', (
+      tester,
+    ) async {
+      var selections = 0;
+      await _pump(
+        tester,
+        wrap: (_) => FluentCalendar(
+          today: _today,
+          isMonthPickerVisible: false,
+          minDate: DateTime(2026, 3, 10),
+          allFocusable: true,
+          onSelectDate: (_) => selections++,
+        ),
+      );
+
+      await tester.tap(_cell('5'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(selections, 0);
+    });
+  });
+
+  group('FluentCalendar — the close button', () {
+    testWidgets('needs both the flag and a callback', (tester) async {
+      var dismissed = 0;
+
+      await _pump(
+        tester,
+        wrap: (_) => FluentCalendar(
+          today: _today,
+          onSelectDate: _noop,
+          isMonthPickerVisible: false,
+          showCloseButton: true,
+        ),
+      );
+      expect(
+        find.bySemanticsLabel('Close'),
+        findsNothing,
+        reason: 'no onDismiss, so nothing to close',
+      );
+
+      await _pump(
+        tester,
+        wrap: (_) => FluentCalendar(
+          today: _today,
+          onSelectDate: _noop,
+          isMonthPickerVisible: false,
+          showCloseButton: true,
+          onDismiss: () => dismissed++,
+        ),
+      );
+      expect(find.bySemanticsLabel('Close'), findsOneWidget);
+
+      await tester.tap(find.bySemanticsLabel('Close'));
+      await tester.pumpAndSettle();
+      expect(dismissed, 1);
+    });
+  });
+
   group('FluentCalendar — the month picker beside the day grid', () {
     // Upstream's `isMonthPickerVisible` defaults to true: a calendar is 440
     // wide and shows both grids, separated by a rule.
