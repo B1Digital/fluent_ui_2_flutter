@@ -79,4 +79,90 @@ void main() {
     suffix: '.reduced_motion',
     reducedMotion: true,
   );
+
+  goldenGridTest(
+    'nav_section_header',
+    () => goldenGrid(<Widget>[
+      const SizedBox(
+        width: 260,
+        child: FluentNav(
+          selectedValue: 'home',
+          children: <Widget>[
+            FluentNavSectionHeader(child: Text('Workspaces')),
+            FluentNavItem(
+              value: 'home',
+              icon: Icon(FluentIcons.home_20_regular),
+              child: Text('Home'),
+            ),
+            FluentNavSectionHeader(child: Text('Recent')),
+            FluentNavItem(
+              value: 'files',
+              icon: Icon(FluentIcons.document_20_regular),
+              child: Text('Files'),
+            ),
+          ],
+        ),
+      ),
+    ], columns: 1),
+    surfaceSize: const Size(600, 400),
+  );
+
+  goldenGridTest(
+    'hamburger',
+    () => goldenGrid(<Widget>[
+      FluentHamburger(onPressed: () {}, semanticLabel: 'Collapse navigation'),
+      FluentHamburger(
+        onPressed: () {},
+        semanticLabel: 'Collapse navigation',
+        expanded: true,
+      ),
+      const FluentHamburger(
+        onPressed: null,
+        semanticLabel: 'Collapse navigation',
+      ),
+    ], columns: 3),
+    surfaceSize: const Size(400, 200),
+  );
+
+  goldenGridTest(
+    'nav_drawer',
+    () => goldenGrid(<Widget>[
+      SizedBox(
+        height: 420,
+        child: Row(
+          children: <Widget>[
+            FluentNavDrawer(
+              open: true,
+              type: FluentDrawerType.inline,
+              separator: true,
+              header: <Widget>[
+                FluentHamburger(
+                  onPressed: () {},
+                  expanded: true,
+                  semanticLabel: 'Collapse navigation',
+                ),
+              ],
+              child: const FluentNav(
+                selectedValue: 'home',
+                children: <Widget>[
+                  FluentNavSectionHeader(child: Text('Workspaces')),
+                  FluentNavItem(
+                    value: 'home',
+                    icon: Icon(FluentIcons.home_20_regular),
+                    child: Text('Home'),
+                  ),
+                  FluentNavItem(
+                    value: 'files',
+                    icon: Icon(FluentIcons.document_20_regular),
+                    child: Text('Files'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ], columns: 1),
+    surfaceSize: const Size(600, 600),
+  );
 }

@@ -1010,6 +1010,13 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await tester.pumpAndSettle();
       expect(first.hasFocus, isFalse);
+      expect(
+        FocusManager.instance.primaryFocus?.context
+            ?.findAncestorWidgetOfExactType<FluentNavItem>()
+            ?.value,
+        'b',
+        reason: 'Down moves to the next row, not merely away from this one',
+      );
     });
 
     testWidgets('Enter selects the focused row', (tester) async {
@@ -1133,6 +1140,362 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
       await tester.pumpAndSettle();
       expect(open, <Object>{'cat'});
+    });
+  });
+
+  group('keyboard — roving', () {
+    // A node per row, because tapping a nav row does NOT focus it —
+    // FluentInteractive drives selection off a bare GestureDetector — so every
+    // arrow test seeds focus the way a caller would, through the row's own
+    // node. That path is also the one the gate has to leave working.
+    late Map<String, FocusNode> nodes;
+
+    setUp(() {
+      nodes = <String, FocusNode>{
+        for (final value in <String>['a', 'b', 'c'])
+          value: FocusNode(debugLabel: value),
+      };
+    });
+
+    tearDown(() {
+      for (final node in nodes.values) {
+        node.dispose();
+      }
+    });
+
+    Widget nav({bool tabbable = false}) => FluentNav(
+      tabbable: tabbable,
+      children: <Widget>[
+        for (final value in <String>['a', 'b', 'c'])
+          FluentNavItem(
+            value: value,
+            focusNode: nodes[value],
+            child: Text(value.toUpperCase()),
+          ),
+      ],
+    );
+
+    Future<void> focusRow(WidgetTester tester, String value) async {
+      nodes[value]!.requestFocus();
+      await tester.pumpAndSettle();
+    }
+
+    /// What Tab can actually reach inside the nav.
+    ///
+    /// Read off the focus tree rather than counted off the gates: a gate is
+    /// only a proxy for a tab stop, and `traversalDescendants` is the same set
+    /// the traversal policy itself walks.
+    int tabStops(WidgetTester tester) => Focus.of(
+      tester.element(find.byType(FluentNavItem).first),
+    ).traversalDescendants.length;
+
+    String? focusedValue() =>
+        FocusManager.instance.primaryFocus?.context
+                ?.findAncestorWidgetOfExactType<FluentNavItem>()
+                ?.value
+            as String?;
+
+    testWidgets('the whole nav is one tab stop', (tester) async {
+      await pump(tester, nav());
+
+      expect(
+        tabStops(tester),
+        1,
+        reason:
+            'useNav.ts hardcodes tabbable: false, and tabster then leaves '
+            'exactly one element of the Mover in the tab order',
+      );
+    });
+
+    testWidgets('tabbable: true restores a stop per row', (tester) async {
+      await pump(tester, nav(tabbable: true));
+
+      expect(
+        tabStops(tester),
+        3,
+        reason:
+            'NavDrawer.types.ts: "Setting this to true enables tab AND arrow '
+            'navigation"',
+      );
+    });
+
+    testWidgets('the stop follows the arrows, and stays a single stop', (
+      tester,
+    ) async {
+      await pump(tester, nav());
+      await focusRow(tester, 'a');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+
+      expect(focusedValue(), 'b');
+      expect(
+        tabStops(tester),
+        1,
+        reason:
+            'the stop moved with the arrow rather than being added to: a '
+            'roving tabindex is one stop at every moment, not one more each '
+            'time focus lands',
+      );
+    });
+
+    testWidgets('Down wraps from the last row to the first', (tester) async {
+      await pump(tester, nav());
+      await focusRow(tester, 'c');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+
+      expect(
+        focusedValue(),
+        'a',
+        reason:
+            'useNavDrawerBody.ts passes circular: true, so the Mover cycles '
+            'rather than stopping at the boundary',
+      );
+    });
+
+    testWidgets('Up wraps from the first row to the last', (tester) async {
+      await pump(tester, nav());
+      await focusRow(tester, 'a');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+
+      expect(focusedValue(), 'c', reason: 'circular: true is symmetric');
+    });
+
+    testWidgets('Home and End reach the ends without wrapping', (tester) async {
+      await pump(tester, nav());
+      await focusRow(tester, 'b');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.end);
+      await tester.pumpAndSettle();
+
+      expect(
+        focusedValue(),
+        'c',
+        reason: 'End is absolute — tabster does not consult isCyclic for it',
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.home);
+      await tester.pumpAndSettle();
+
+      expect(focusedValue(), 'a', reason: 'Home is absolute too');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.home);
+      await tester.pumpAndSettle();
+
+      expect(
+        focusedValue(),
+        'a',
+        reason: 'and absolute means idempotent, never a wrap to the far end',
+      );
+    });
+
+    testWidgets('a disabled row is skipped by the arrows', (tester) async {
+      await pump(
+        tester,
+        FluentNav(
+          children: <Widget>[
+            FluentNavItem(
+              value: 'a',
+              focusNode: nodes['a'],
+              child: const Text('A'),
+            ),
+            const FluentNavItem(value: 'b', enabled: false, child: Text('B')),
+            const FluentNavItem(value: 'c', child: Text('C')),
+          ],
+        ),
+      );
+      await focusRow(tester, 'a');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+
+      expect(
+        focusedValue(),
+        'c',
+        reason:
+            'a disabled row has no focusable descendant, so it is skipped '
+            'structurally rather than by being told to skip',
+      );
+    });
+
+    testWidgets('a section header and a divider are not arrow targets', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentNav(
+          children: <Widget>[
+            const FluentNavSectionHeader(child: Text('Group')),
+            FluentNavItem(
+              value: 'a',
+              focusNode: nodes['a'],
+              child: const Text('A'),
+            ),
+            const FluentNavDivider(),
+            const FluentNavItem(value: 'b', child: Text('B')),
+          ],
+        ),
+      );
+      await focusRow(tester, 'a');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+
+      expect(
+        focusedValue(),
+        'b',
+        reason: 'neither goes through _FluentNavRow, so neither has a gate',
+      );
+    });
+
+    testWidgets('End with a closed trailing category lands on the header', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentNav(
+          children: <Widget>[
+            FluentNavItem(
+              value: 'a',
+              focusNode: nodes['a'],
+              child: const Text('A'),
+            ),
+            const FluentNavCategory(
+              value: 'cat',
+              child: Text('Reports'),
+              children: <Widget>[
+                FluentNavSubItem(value: 'weekly', child: Text('Weekly')),
+              ],
+            ),
+          ],
+        ),
+      );
+      await focusRow(tester, 'a');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.end);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Weekly'),
+        findsNothing,
+        reason: 'a closed category does not build its sub-items at all',
+      );
+      expect(
+        FocusManager.instance.primaryFocus?.context
+            ?.findAncestorWidgetOfExactType<FluentNavCategory>(),
+        isNotNull,
+        reason:
+            'the row list is derived live from the focus tree, so an unbuilt '
+            'sub-item is not a candidate',
+      );
+    });
+
+    testWidgets('a nav whose only row is disabled has no tab stop', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const FluentNav(
+          children: <Widget>[
+            FluentNavItem(value: 'a', enabled: false, child: Text('A')),
+          ],
+        ),
+      );
+
+      expect(
+        tabStops(tester),
+        0,
+        reason:
+            'zero focusable rows means zero tab stops, not one forced onto an '
+            'unfocusable row',
+      );
+    });
+
+    testWidgets('an explicit requestFocus still works on a gated row', (
+      tester,
+    ) async {
+      await pump(tester, nav());
+      await focusRow(tester, 'c');
+
+      expect(
+        focusedValue(),
+        'c',
+        reason:
+            'the gate hides a row from TRAVERSAL only; the framework promises '
+            'a skipped node may still be focused explicitly, which is what '
+            "keeps autofocus: and a caller's own node working",
+      );
+      expect(
+        tabStops(tester),
+        1,
+        reason: 'and the stop follows it, so Tab re-enters where focus left',
+      );
+    });
+
+    testWidgets('focus survives the category holding it closing', (
+      tester,
+    ) async {
+      final weekly = FocusNode(debugLabel: 'weekly');
+      addTearDown(weekly.dispose);
+      var open = <Object>{'cat'};
+      await tester.pumpWidget(
+        FluentApp(
+          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+          home: Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: navWidth,
+              child: StatefulBuilder(
+                builder: (context, setState) => FluentNav(
+                  openCategories: open,
+                  onOpenChange: (next) => setState(() => open = next),
+                  children: <Widget>[
+                    const FluentNavItem(value: 'a', child: Text('A')),
+                    FluentNavCategory(
+                      value: 'cat',
+                      child: const Text('Reports'),
+                      children: <Widget>[
+                        FluentNavSubItem(
+                          value: 'weekly',
+                          focusNode: weekly,
+                          child: const Text('Weekly'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      weekly.requestFocus();
+      await tester.pumpAndSettle();
+
+      // Close the category from its header, with focus still on the sub-item.
+      await tester.tap(find.text('Reports'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Weekly'),
+        findsNothing,
+        reason: 'a closed category unmounts its sub-items',
+      );
+      expect(
+        FocusManager.instance.primaryFocus?.context
+            ?.findAncestorWidgetOfExactType<FluentNav>(),
+        isNotNull,
+        reason:
+            'there is no FocusScope inside the nav, so without a rescue the '
+            'disposed node hands focus to the route and it leaves the nav '
+            'entirely',
+      );
     });
   });
 
@@ -1315,6 +1678,188 @@ void main() {
         indicatorColor.toARGB32(),
         isNot(surface(tester, find.byType(FluentNavItem)).color!.toARGB32()),
         reason: 'the selection indicator must read against the row it marks',
+      );
+    });
+  });
+
+  group('theming — per kind', () {
+    testWidgets('a category slot reaches headers and leaves items alone', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentNavItemTheme(
+          categoryStyle: FluentNavItemStyle.from(
+            backgroundColor: const Color(0xFF00FF00),
+          ),
+          child: const FluentNav(
+            defaultOpenCategories: <Object>{'cat'},
+            children: <Widget>[
+              FluentNavItem(value: 'home', child: Text('Home')),
+              FluentNavCategory(
+                value: 'cat',
+                child: Text('Reports'),
+                children: <Widget>[
+                  FluentNavSubItem(value: 'weekly', child: Text('Weekly')),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(
+        surface(tester, find.byType(FluentNavCategory)).color?.toARGB32(),
+        const Color(0xFF00FF00).toARGB32(),
+        reason: 'categoryStyle applies to FluentNavItemKind.category',
+      );
+      expect(
+        surface(tester, find.byType(FluentNavItem)).color?.toARGB32(),
+        isNot(const Color(0xFF00FF00).toARGB32()),
+        reason:
+            'React styles the two kinds through separate hooks, which is the '
+            'whole point of the slots',
+      );
+    });
+
+    testWidgets('the catch-all style still reaches every kind', (tester) async {
+      await pump(
+        tester,
+        FluentNavItemTheme(
+          style: FluentNavItemStyle.from(
+            backgroundColor: const Color(0xFF00FF00),
+          ),
+          child: const FluentNav(
+            defaultOpenCategories: <Object>{'cat'},
+            children: <Widget>[
+              FluentNavItem(value: 'home', child: Text('Home')),
+              FluentNavCategory(
+                value: 'cat',
+                child: Text('Reports'),
+                children: <Widget>[
+                  FluentNavSubItem(value: 'weekly', child: Text('Weekly')),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+
+      for (final finder in <Finder>[
+        find.byType(FluentNavItem),
+        find.byType(FluentNavCategory),
+        find.byType(FluentNavSubItem),
+      ]) {
+        expect(
+          surface(tester, finder).color?.toARGB32(),
+          const Color(0xFF00FF00).toARGB32(),
+          reason:
+              'dropping `required` from style must not change what style '
+              'means — it is still the catch-all for every kind',
+        );
+      }
+    });
+
+    testWidgets('the kind slot wins over the catch-all, per property', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentNavItemTheme(
+          style: FluentNavItemStyle.from(
+            backgroundColor: const Color(0xFF00FF00),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          categoryStyle: FluentNavItemStyle.from(
+            backgroundColor: const Color(0xFF0000FF),
+          ),
+          child: const FluentNav(
+            children: <Widget>[
+              FluentNavCategory(
+                value: 'cat',
+                child: Text('Reports'),
+                children: <Widget>[
+                  FluentNavSubItem(value: 'weekly', child: Text('Weekly')),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+
+      final decoration = surface(tester, find.byType(FluentNavCategory));
+      expect(
+        decoration.color?.toARGB32(),
+        const Color(0xFF0000FF).toARGB32(),
+        reason: 'the kind slot is merged above the catch-all',
+      );
+      expect(
+        decoration.borderRadius,
+        BorderRadius.circular(12),
+        reason:
+            'merging is per-property: overriding only the fill must keep the '
+            "catch-all's radius",
+      );
+    });
+
+    testWidgets("the widget's own style still wins over both", (tester) async {
+      await pump(
+        tester,
+        FluentNavItemTheme(
+          style: FluentNavItemStyle.from(
+            backgroundColor: const Color(0xFF00FF00),
+          ),
+          categoryStyle: FluentNavItemStyle.from(
+            backgroundColor: const Color(0xFF0000FF),
+          ),
+          child: FluentNav(
+            children: <Widget>[
+              FluentNavCategory(
+                value: 'cat',
+                style: FluentNavItemStyle.from(
+                  backgroundColor: const Color(0xFFFF0000),
+                ),
+                children: const <Widget>[
+                  FluentNavSubItem(value: 'weekly', child: Text('Weekly')),
+                ],
+                child: const Text('Reports'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(
+        surface(tester, find.byType(FluentNavCategory)).color?.toARGB32(),
+        const Color(0xFFFF0000).toARGB32(),
+        reason:
+            'resolution order is defaults, catch-all, kind slot, then the '
+            "caller's own style",
+      );
+    });
+
+    testWidgets('wrap carries the kind slots across a route boundary', (
+      tester,
+    ) async {
+      await pump(tester, const SizedBox.shrink());
+
+      const theme = FluentNavItemTheme(
+        categoryStyle: FluentNavItemStyle(),
+        child: SizedBox.shrink(),
+      );
+      final wrapped =
+          theme.wrap(
+                tester.element(find.byType(FluentApp)),
+                const SizedBox.shrink(),
+              )
+              as FluentNavItemTheme;
+
+      expect(
+        wrapped.categoryStyle,
+        theme.categoryStyle,
+        reason:
+            'InheritedTheme.wrap exists so a theme survives re-parenting; a '
+            'wrap that forgets a field drops it silently',
       );
     });
   });
