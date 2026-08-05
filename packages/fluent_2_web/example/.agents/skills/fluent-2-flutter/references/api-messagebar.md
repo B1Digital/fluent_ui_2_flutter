@@ -276,15 +276,21 @@ Widget buildFluentMessageBar(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/dialog_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
 FluentMessageBar(
-          intent: _confirmed!
-              ? FluentMessageBarIntent.warning
-              : FluentMessageBarIntent.success,
-          child: Text(_confirmed! ? 'Draft discarded.' : 'Still editing.'),
-        )
+                  intent: intent,
+                  actions: [
+                    FluentButton(
+                      appearance: FluentButtonAppearance.primary,
+                      onPressed: () {},
+                      child: const Text('Action'),
+                    ),
+                  ],
+                  title: const Text('Message title'),
+                  child: const Text('This is the message body.'),
+                )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -295,7 +301,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/surfaces/message_bar.dart`
 - Tests: `packages/fluent_2_web/test/goldens/message_bar_golden_test.dart`, `packages/fluent_2_web/test/overlays/toast_test.dart`, `packages/fluent_2_web/test/surfaces/message_bar_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/dialog_stories.dart`, `packages/fluent_2_web/example/lib/stories/drawer_stories.dart`, `packages/fluent_2_web/example/lib/stories/message_bar_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/messagebar/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

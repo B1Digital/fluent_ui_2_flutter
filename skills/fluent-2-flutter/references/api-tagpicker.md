@@ -435,7 +435,7 @@ signatures above and verify any new example with Dart analysis and a widget test
 
 - Implementation: `packages/fluent_2_web/lib/src/inputs/tag_picker.dart`
 - Tests: `packages/fluent_2_web/test/goldens/tag_picker_golden_test.dart`, `packages/fluent_2_web/test/inputs/tag_picker_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/tag_picker_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/tagpicker/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

@@ -310,18 +310,10 @@ Widget buildFluentSearchBox(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/search_box_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
-FluentSearchBox(
-            appearance: knobs.get(
-              'appearance',
-              FluentSearchBoxAppearance.outline,
-            ),
-            size: knobs.get('size', FluentSearchBoxSize.medium),
-            enabled: !knobs.get('disabled', false),
-            placeholder: knobs.get('placeholder', 'Search'),
-          )
+FluentSearchBox(placeholder: 'Search')
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -332,7 +324,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/inputs/search_box.dart`
 - Tests: `packages/fluent_2_web/test/goldens/search_box_golden_test.dart`, `packages/fluent_2_web/test/inputs/search_box_test.dart`, `packages/fluent_2_web/test/internal/text_context_menu_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/search_box_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/searchbox/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

@@ -381,13 +381,16 @@ Widget buildFluentInput(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/gallery/gallery_app.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
 FluentInput(
-            controller: TextEditingController(text: value as String? ?? ''),
-            onChanged: (v) => onChanged(knob.id, v),
-          )
+                    appearance: appearance,
+                    placeholder: const Text('Placeholder'),
+                    contentBefore: appearance == FluentInputAppearance.underline
+                        ? null
+                        : const Icon(Icons.person),
+                  )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -397,8 +400,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2_web/lib/src/inputs/input.dart`
-- Tests: `packages/fluent_2_web/test/goldens/input_golden_test.dart`, `packages/fluent_2_web/test/inputs/dropdown_test.dart`, `packages/fluent_2_web/test/inputs/input_test.dart`, `packages/fluent_2_web/test/inputs/radio_test.dart`, `packages/fluent_2_web/test/inputs/search_box_test.dart`, `packages/fluent_2_web/test/inputs/spin_button_test.dart`, `packages/fluent_2_web/test/inputs/swatch_test.dart`, `packages/fluent_2_web/test/inputs/tag_picker_test.dart`, `packages/fluent_2_web/test/inputs/textarea_test.dart`, `packages/fluent_2_web/test/internal/input_modality_test.dart`, `packages/fluent_2_web/test/internal/interaction_test.dart`, `packages/fluent_2_web/test/internal/text_context_menu_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/gallery/gallery_app.dart`, `packages/fluent_2_web/example/lib/stories/dialog_stories.dart`, `packages/fluent_2_web/example/lib/stories/field_stories.dart`, `packages/fluent_2_web/example/lib/stories/info_label_stories.dart`, `packages/fluent_2_web/example/lib/stories/input_stories.dart`, `packages/fluent_2_web/example/lib/stories/label_stories.dart`, `packages/fluent_2_web/example/lib/stories/popover_stories.dart`, `packages/fluent_2_web/example/lib/stories/tag_picker_stories.dart`
+- Tests: `packages/fluent_2_web/test/goldens/input_golden_test.dart`, `packages/fluent_2_web/test/inputs/calendar_test.dart`, `packages/fluent_2_web/test/inputs/date_picker_test.dart`, `packages/fluent_2_web/test/inputs/dropdown_test.dart`, `packages/fluent_2_web/test/inputs/input_test.dart`, `packages/fluent_2_web/test/inputs/radio_test.dart`, `packages/fluent_2_web/test/inputs/search_box_test.dart`, `packages/fluent_2_web/test/inputs/spin_button_test.dart`, `packages/fluent_2_web/test/inputs/swatch_test.dart`, `packages/fluent_2_web/test/inputs/tag_picker_test.dart`, `packages/fluent_2_web/test/inputs/textarea_test.dart`, `packages/fluent_2_web/test/inputs/time_picker_test.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/input/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

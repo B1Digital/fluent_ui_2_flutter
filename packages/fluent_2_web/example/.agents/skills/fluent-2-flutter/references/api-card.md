@@ -276,26 +276,14 @@ Widget buildFluentCard(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/card_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
 FluentCard(
-            appearance: knobs.get<FluentCardAppearance>(
-              'appearance',
-              FluentCardAppearance.filled,
-            ),
-            size: knobs.get<FluentCardSize>('size', FluentCardSize.medium),
-            orientation: orientation,
-            selected: knobs.get<bool>('selected', false),
-            disabled: knobs.get<bool>('disabled', false),
-            onPressed: knobs.get<bool>('interactive', true) ? () {} : null,
-            semanticLabel: 'Quarterly revenue',
-            preview: knobs.get<bool>('preview', true)
-                ? _Preview(square: horizontal)
-                : null,
-            header: const _Title('Quarterly revenue'),
-            footer: const _Caption('Updated 2 minutes ago'),
-            child: const Text('Revenue is up 4% against the same week in Q3.'),
+            header: Text('Card title'),
+            preview: SizedBox(height: 120, width: 240),
+            footer: Text('Footer'),
+            child: Text('Body content goes here.'),
           )
 ```
 
@@ -307,7 +295,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/surfaces/card.dart`
 - Tests: `packages/fluent_2_web/test/goldens/card_golden_test.dart`, `packages/fluent_2_web/test/surfaces/card_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/card_stories.dart`, `packages/fluent_2_web/example/lib/stories/carousel_stories.dart`, `packages/fluent_2_web/example/lib/stories/dialog_stories.dart`, `packages/fluent_2_web/example/lib/stories/popover_stories.dart`, `packages/fluent_2_web/example/lib/stories/tab_list_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/card/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

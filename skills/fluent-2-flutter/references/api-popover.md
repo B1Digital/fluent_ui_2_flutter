@@ -310,30 +310,18 @@ Widget buildFluentPopover(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/popover_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`:
 
 ```dart
 FluentPopover(
-      open: open,
-      onOpenChanged: enabled ? setOpen : null,
-      appearance: knobs.get<FluentPopoverAppearance>(
-        'appearance',
-        FluentPopoverAppearance.normal,
-      ),
-      size: knobs.get<FluentPopoverSize>('size', FluentPopoverSize.medium),
-      position: knobs.get<FluentPopoverPosition>(
-        'position',
-        FluentPopoverPosition.above,
-      ),
-      align: knobs.get<FluentPopoverAlign>('align', FluentPopoverAlign.center),
-      withArrow: knobs.get<bool>('arrow', false),
-      semanticLabel: 'About sharing',
-      content: _body('Sharing', 'Anyone with the link can open this file.'),
-      child: FluentButton(
-        onPressed: () => setOpen(!open),
-        child: Text(enabled ? 'Show popover' : 'Disabled'),
-      ),
-    )
+        open: open,
+        onOpenChanged: (value) {},
+        content: const Padding(
+          padding: EdgeInsets.all(8),
+          child: Text('Popover content goes here.'),
+        ),
+        child: const FluentButton(child: Text('Toggle popover with the knob')),
+      )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -344,7 +332,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/overlays/popover.dart`
 - Tests: `packages/fluent_2_web/test/goldens/popover_golden_test.dart`, `packages/fluent_2_web/test/goldens/teaching_popover_golden_test.dart`, `packages/fluent_2_web/test/inputs/info_button_test.dart`, `packages/fluent_2_web/test/overlays/popover_test.dart`, `packages/fluent_2_web/test/overlays/teaching_popover_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/popover_stories.dart`, `packages/fluent_2_web/example/lib/stories/swatch_picker_stories.dart`, `packages/fluent_2_web/example/lib/stories/teaching_popover_stories.dart`, `packages/fluent_2_web/example/lib/stories/toolbar_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/popover/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

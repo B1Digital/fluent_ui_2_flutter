@@ -266,42 +266,21 @@ Widget buildFluentDrawer(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/drawer_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`:
 
 ```dart
 FluentDrawer(
         open: open,
-        onDismiss: () => setOpen(false),
-        type: type,
-        size: size,
-        position: position,
-        separator: knobs.get<bool>('separator', true),
-        semanticLabel: 'Filters',
-        header: <Widget>[
-          Row(
-            children: <Widget>[
-              const Expanded(child: Text('Filters')),
-              FluentButton.icon(
-                icon: const Icon(FluentIcons.dismiss_20_regular),
-                semanticLabel: 'Close',
-                appearance: FluentButtonAppearance.subtle,
-                onPressed: () => setOpen(false),
-              ),
-            ],
-          ),
-        ],
-        footer: <Widget>[
+        onDismiss: () {},
+        header: const [Text('Drawer title')],
+        footer: const [
           FluentButton(
             appearance: FluentButtonAppearance.primary,
-            onPressed: () => setOpen(false),
-            child: const Text('Apply'),
-          ),
-          FluentButton(
-            onPressed: () => setOpen(false),
-            child: const Text('Reset'),
+            onPressed: null,
+            child: Text('Done'),
           ),
         ],
-        child: const Text(_blurb),
+        child: const Center(child: Text('Toggle the drawer with the knob')),
       )
 ```
 
@@ -312,8 +291,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2_web/lib/src/overlays/drawer.dart`
-- Tests: `packages/fluent_2_web/test/goldens/drawer_golden_test.dart`, `packages/fluent_2_web/test/overlays/drawer_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/drawer_stories.dart`
+- Tests: `packages/fluent_2_web/test/goldens/drawer_golden_test.dart`, `packages/fluent_2_web/test/goldens/nav_golden_test.dart`, `packages/fluent_2_web/test/navigation/nav_drawer_test.dart`, `packages/fluent_2_web/test/overlays/drawer_test.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`, `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/drawer/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

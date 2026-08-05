@@ -13,6 +13,7 @@ the checked-out Dart source defines the API that can actually be called.
 - Dropdown, select, and combobox
 - Slider and spin button
 - Tag picker and swatch picker
+- Calendar, date picker, and time picker
 
 ## Button and link
 
@@ -254,6 +255,120 @@ last tag. Use the secondary slot sparingly, such as for Clear all.
 This is a repository extension rather than one of the 47 indexed Fluent web
 core pages. Use it for a compact set of visual choices such as colors. Give
 every swatch a textual name and provide a non-color selection cue.
+
+## Calendar, date picker, and time picker
+
+Source: https://storybooks.fluentui.dev/react/?path=/docs/compat-components-datepicker--docs
+
+These three are **compat** components upstream — `@fluentui/react-calendar-compat`,
+`@fluentui/react-datepicker-compat` and `@fluentui/react-timepicker-compat` —
+not part of the 47 indexed Fluent 2 web core pages. They follow Fluent 2 design
+and use design tokens, but their internals are not built from atomic hooks, and
+neither the Figma kit nor the core usage index documents them. Transcribe
+behavior from the compat source and storybook, not from the core component
+pages.
+
+### Calendar — `FluentCalendar`
+
+One or two grid panels over a shared navigated date. The day caption drills to
+the month grid and then the decade grid; with `isMonthPickerVisible` the month
+grid sits beside the day grid instead and the day caption goes inert.
+`showMonthPickerAsOverlay` keeps the month picker but puts it back behind the
+caption, so the surface stays one panel wide.
+
+Arrow keys, Home/End, Ctrl+Home/End, PageUp/PageDown and Shift+PageUp/PageDown
+move a single roving stop; the grid is exactly one tab stop. **PageUp moves
+forward** — upstream maps it to `addMonths(navigatedDay, 1)`, and that is
+transcribed rather than corrected.
+
+`allFocusable` lets an unselectable day hold the roving stop so it is reachable
+and announced, while staying unactivatable. `showWeekNumbers` adds a leading
+column numbered by `firstWeekOfYear`; the arithmetic is .NET's
+`Calendar.GetWeekOfYear` by way of upstream's `dateMath`, exposed as
+`fluentCalendarWeekNumber` and `fluentCalendarWeekNumbers`, and it is pinned to
+worked examples rather than re-derived. `showCloseButton` draws nothing unless
+`onDismiss` is also supplied.
+
+The calendar binds **no** `DismissIntent`, deliberately: Escape belongs to
+whatever hosts it.
+
+### Date picker — `FluentDatePicker`
+
+An input that opens a calendar popup for one date. Selection is controlled —
+`value` is the truth and the widget never mutates it — and a null `onSelectDate`
+disables the control.
+
+Upstream's open/close contract, verbatim: clicking the field opens the picker,
+clicking again dismisses it and allows text input; Tab in does not open; Enter
+commits typed text when there is any and otherwise opens; Escape closes,
+reverts the text and returns focus to the field; focus leaving both field and
+popup closes and validates.
+
+Unlike `FluentDropdown` and `FluentTagPicker`, **the popup takes focus**. A
+calendar grid has two-dimensional arrows, its own paging and a view toggle;
+forwarding all of it from the field would re-implement the calendar's keyboard
+model and would steal Left and Right from the field when `allowTextInput` is
+set.
+
+`allowTextInput` is false by default, which makes the field read-only by
+default. Do not hand that flag to the input style resolver: it folds `readOnly`
+into the disabled ramp, so every default picker would render as greyed out. The
+real value reaches only the renderer, where it stops the caret and the edits.
+
+`inlinePopup` renders the surface in the widget tree rather than the `Overlay` —
+still out of flow, so the field's footprint is unchanged, but now inheriting,
+moving with, and clipped by this widget's ancestors. There is no light-dismiss
+barrier and no flip-above in that mode.
+
+`disableAutoFocus` is deliberately **not** offered. Its only non-default value
+is documented upstream as creating an accessibility violation.
+
+### Localization — `locale`, and the `fluentIntl*` builders
+
+`locale` swaps four defaults for their `package:intl` counterparts:
+`fluentIntlFormatDate`, `fluentIntlParseDate`, `fluentCalendarStrings` and
+`fluentCalendarDateFormatter`. Any of the four passed explicitly still wins.
+
+Null does **not** mean English — the ambient `Localizations` locale is used
+instead. The two paths differ on missing locale data on purpose: an explicit
+locale is honoured whatever intl knows about it, so a forgotten
+`initializeDateFormatting` fails loudly for whoever named it, while an ambient
+one is taken up only when intl already holds its data, so a picker never starts
+throwing because the app around it grew a `Localizations` widget.
+
+Load locale data before use — `intl` compiles in `en_US` only:
+
+```dart
+import 'package:intl/date_symbol_data_local.dart';
+
+await initializeDateFormatting('de_DE');
+```
+
+Only month and day names come from intl, which carries date symbols rather than
+UI copy. Pass a translated `FluentCalendarStrings` as the `template` to
+localize the chrome — "Go to today", the chevron labels, the announcement
+templates.
+
+Parsing is strict: `parseStrict` re-formats what it read and rejects anything
+that does not round-trip, so `2/30` is null rather than silently 2 March. The
+locale's own pattern is tried before the ISO-8601 fallback, so `12/06/2026` is
+December in `en_US` and June in `en_GB`.
+
+### Time picker — `FluentTimePicker`
+
+A dropdown of generated time options, optionally `freeform` for typed entry.
+Options come from `startHour`, `endHour` and `increment` against a date anchor.
+Unlike the date picker, focus stays on the field and the active option is
+marked as an active descendant.
+
+### Placeholder visibility
+
+Both pickers own their `TextEditingController` and do not rebuild on a
+keystroke. `buildFluentInput` therefore watches the controller rather than
+reading `controller.text` once at build time; `FluentInputBaseState.placeholderVisible`
+is a snapshot and is not what the renderer uses. Anything recomposing the input
+by hand must subscribe the same way, or the placeholder stays painted over
+typed text.
 
 ## Review checklist
 

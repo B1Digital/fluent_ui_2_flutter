@@ -23,6 +23,7 @@ Dart source files.
 | `FluentBadge` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/surfaces/badge.dart` |
 | `FluentBreadcrumb` | `StatefulWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/navigation/breadcrumb.dart` |
 | `FluentButton` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/buttons/button.dart` |
+| `FluentCalendar` | `StatefulWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/inputs/calendar.dart` |
 | `FluentCard` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/surfaces/card.dart` |
 | `FluentCarousel` | `StatefulWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/surfaces/carousel.dart` |
 | `FluentCarouselStep` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/surfaces/carousel.dart` |
@@ -30,12 +31,14 @@ Dart source files.
 | `FluentCompoundButton` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/buttons/compound_button.dart` |
 | `FluentDataGrid` | `StatefulWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/navigation/data_grid.dart` |
 | `FluentDataGridCell` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/navigation/data_grid.dart` |
+| `FluentDatePicker` | `StatefulWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/inputs/date_picker.dart` |
 | `FluentDialog` | `StatefulWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/overlays/dialog.dart` |
 | `FluentDivider` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/surfaces/divider.dart` |
 | `FluentDrawer` | `StatefulWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/overlays/drawer.dart` |
 | `FluentDropdown` | `StatefulWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/inputs/dropdown.dart` |
 | `FluentField` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/inputs/field.dart` |
 | `FluentFocusRing` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/internal/focus_ring.dart` |
+| `FluentHamburger` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/navigation/hamburger.dart` |
 | `FluentInfoButton` | `StatefulWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/inputs/info_button.dart` |
 | `FluentInfoLabel` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/inputs/info_label.dart` |
 | `FluentInput` | `StatefulWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/inputs/input.dart` |
@@ -52,7 +55,9 @@ Dart source files.
 | `FluentNavAppItem` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/navigation/nav.dart` |
 | `FluentNavCategory` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/navigation/nav.dart` |
 | `FluentNavDivider` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/navigation/nav.dart` |
+| `FluentNavDrawer` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/navigation/nav_drawer.dart` |
 | `FluentNavItem` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/navigation/nav.dart` |
+| `FluentNavSectionHeader` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/navigation/nav.dart` |
 | `FluentNavSubItem` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/navigation/nav.dart` |
 | `FluentPersona` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/surfaces/persona.dart` |
 | `FluentPopover` | `StatefulWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/overlays/popover.dart` |
@@ -83,6 +88,7 @@ Dart source files.
 | `FluentTextarea` | `StatefulWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/inputs/textarea.dart` |
 | `FluentTextContextMenu` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/internal/text_context_menu.dart` |
 | `FluentThemeOverride` | `StatelessWidget` | fluent_2_core | `packages/fluent_2_core/lib/src/theme.dart` |
+| `FluentTimePicker` | `StatefulWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/inputs/time_picker.dart` |
 | `FluentToast` | `StatelessWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/overlays/toast.dart` |
 | `FluentToaster` | `StatefulWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/overlays/toaster.dart` |
 | `FluentToolbar` | `StatefulWidget` | fluent_2_web | `packages/fluent_2_web/lib/src/navigation/toolbar.dart` |
@@ -104,11 +110,13 @@ complete component theme over low-level renderer changes.
 | `FluentBadgeTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/surfaces/badge.dart` |
 | `FluentBreadcrumbTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/navigation/breadcrumb.dart` |
 | `FluentButtonTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/buttons/button.dart` |
+| `FluentCalendarTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/inputs/calendar.dart` |
 | `FluentCardTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/surfaces/card.dart` |
 | `FluentCarouselTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/surfaces/carousel.dart` |
 | `FluentCheckboxTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/inputs/checkbox.dart` |
 | `FluentCompoundButtonTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/buttons/compound_button.dart` |
 | `FluentDataGridTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/navigation/data_grid.dart` |
+| `FluentDatePickerTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/inputs/date_picker.dart` |
 | `FluentDialogTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/overlays/dialog.dart` |
 | `FluentDividerTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/surfaces/divider.dart` |
 | `FluentDrawerTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/overlays/drawer.dart` |
@@ -148,6 +156,7 @@ complete component theme over low-level renderer changes.
 | `FluentTeachingPopoverTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/overlays/teaching_popover.dart` |
 | `FluentTextareaTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/inputs/textarea.dart` |
 | `FluentTheme` | `InheritedTheme` | fluent_2_core | `packages/fluent_2_core/lib/src/theme.dart` |
+| `FluentTimePickerTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/inputs/time_picker.dart` |
 | `FluentToastTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/overlays/toast.dart` |
 | `FluentToolbarTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/navigation/toolbar.dart` |
 | `FluentTooltipTheme` | `InheritedTheme` | fluent_2_web | `packages/fluent_2_web/lib/src/surfaces/tooltip.dart` |

@@ -277,23 +277,31 @@ Widget buildFluentAccordionItem(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/accordion_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
 FluentAccordion(
-    children: [
-      for (final (title, body) in _sections)
-        FluentAccordionItem(
-          value: title,
-          size: size,
-          expandIconPosition: position,
-          enabled: enabled,
-          icon: icon ? const Icon(FluentIcons.box_20_regular) : null,
-          header: Text(title),
-          child: _Panel(body),
-        ),
-    ],
-  )
+          multiple: true,
+          defaultOpenItems: const {'1'},
+          children: const [
+            FluentAccordionItem(
+              value: '1',
+              header: Text('General'),
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: Text('Your general account settings.'),
+              ),
+            ),
+            FluentAccordionItem(
+              value: '2',
+              header: Text('Privacy'),
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: Text('Control what others can see.'),
+              ),
+            ),
+          ],
+        )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -304,7 +312,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/surfaces/accordion.dart`
 - Tests: `packages/fluent_2_web/test/goldens/accordion_golden_test.dart`, `packages/fluent_2_web/test/surfaces/accordion_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/accordion_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/accordion/usage/
 - Design decisions: `references/components-navigation-data.md`
 

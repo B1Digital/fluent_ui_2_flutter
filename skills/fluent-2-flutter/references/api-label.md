@@ -205,10 +205,13 @@ Widget buildFluentLabel(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/checkbox_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
-FluentLabel(required: true, child: Text('I accept the terms'))
+FluentLabel(
+              size: FluentLabelSize.large,
+              child: const Text('Slider'),
+            )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -219,7 +222,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/inputs/label.dart`
 - Tests: `packages/fluent_2_web/test/goldens/info_label_golden_test.dart`, `packages/fluent_2_web/test/goldens/label_golden_test.dart`, `packages/fluent_2_web/test/inputs/field_test.dart`, `packages/fluent_2_web/test/inputs/info_label_test.dart`, `packages/fluent_2_web/test/inputs/label_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/checkbox_stories.dart`, `packages/fluent_2_web/example/lib/stories/drawer_stories.dart`, `packages/fluent_2_web/example/lib/stories/field_stories.dart`, `packages/fluent_2_web/example/lib/stories/info_label_stories.dart`, `packages/fluent_2_web/example/lib/stories/input_stories.dart`, `packages/fluent_2_web/example/lib/stories/label_stories.dart`, `packages/fluent_2_web/example/lib/stories/link_stories.dart`, `packages/fluent_2_web/example/lib/stories/popover_stories.dart`, `packages/fluent_2_web/example/lib/stories/progress_bar_stories.dart`, `packages/fluent_2_web/example/lib/stories/rating_stories.dart`, `packages/fluent_2_web/example/lib/stories/search_box_stories.dart`, `packages/fluent_2_web/example/lib/stories/slider_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`, `packages/fluent_2_web/example/lib/storybook/components/story_kit.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/label/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

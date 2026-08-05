@@ -371,22 +371,24 @@ Widget buildFluentTreeItem(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/tree_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`:
 
 ```dart
 FluentTree(
-    semanticLabel: 'Project files',
-    size: knobs.get<FluentTreeSize>('size', FluentTreeSize.medium),
-    appearance: knobs.get<FluentTreeAppearance>(
-      'appearance',
-      FluentTreeAppearance.subtle,
-    ),
-    defaultOpenItems: const <Object>{'lib'},
-    items: _projectTree(
-      icons: knobs.get<bool>('icons', true),
-      disabledBranch: knobs.get<bool>('disabled', false),
-    ),
-  )
+          defaultOpenItems: const {'dir'},
+          items: [
+            FluentTreeItem(
+              value: 'dir',
+              label: const Text('Documents'),
+              children: [
+                FluentTreeItem(value: 'f1', label: const Text('Report.pdf')),
+                FluentTreeItem(value: 'f2', label: const Text('Notes.md')),
+              ],
+            ),
+            FluentTreeItem(value: 'f3', label: const Text('Images')),
+            FluentTreeItem(value: 'f4', label: const Text('readme.txt')),
+          ],
+        )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -397,7 +399,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/navigation/tree.dart`
 - Tests: `packages/fluent_2_web/test/goldens/tree_golden_test.dart`, `packages/fluent_2_web/test/navigation/tree_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/tree_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/tree/usage/
 - Design decisions: `references/components-navigation-data.md`
 

@@ -603,16 +603,10 @@ Widget buildFluentPresenceBadge(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/avatar_group_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
-FluentAvatar(
-      name: name,
-      initials: initials,
-      color: colour,
-      size: size,
-      shape: shape,
-    )
+FluentAvatar(name: 'Kat Larsson', initials: 'KL')
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -623,7 +617,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/surfaces/avatar.dart`, `packages/fluent_2_web/lib/src/surfaces/presence_badge.dart`
 - Tests: `packages/fluent_2_web/test/goldens/avatar_golden_test.dart`, `packages/fluent_2_web/test/goldens/list_item_golden_test.dart`, `packages/fluent_2_web/test/goldens/persona_golden_test.dart`, `packages/fluent_2_web/test/goldens/presence_badge_golden_test.dart`, `packages/fluent_2_web/test/inputs/radio_test.dart`, `packages/fluent_2_web/test/surfaces/avatar_group_test.dart`, `packages/fluent_2_web/test/surfaces/avatar_test.dart`, `packages/fluent_2_web/test/surfaces/badge_test.dart`, `packages/fluent_2_web/test/surfaces/persona_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/avatar_group_stories.dart`, `packages/fluent_2_web/example/lib/stories/avatar_stories.dart`, `packages/fluent_2_web/example/lib/stories/badge_stories.dart`, `packages/fluent_2_web/example/lib/stories/card_stories.dart`, `packages/fluent_2_web/example/lib/stories/interaction_tag_stories.dart`, `packages/fluent_2_web/example/lib/stories/list_item_stories.dart`, `packages/fluent_2_web/example/lib/stories/persona_stories.dart`, `packages/fluent_2_web/example/lib/stories/presence_badge_stories.dart`, `packages/fluent_2_web/example/lib/stories/skeleton_stories.dart`, `packages/fluent_2_web/example/lib/stories/tag_picker_stories.dart`, `packages/fluent_2_web/example/lib/stories/tag_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/avatar/usage/
 - Design decisions: `references/components-identity-content.md`
 

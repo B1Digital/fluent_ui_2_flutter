@@ -222,25 +222,10 @@ Widget buildFluentDivider(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/divider_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
-FluentDivider(
-          appearance: knobs.get<FluentDividerAppearance>(
-            'appearance',
-            FluentDividerAppearance.standard,
-          ),
-          alignment: knobs.get<FluentDividerAlignment>(
-            'alignment',
-            FluentDividerAlignment.center,
-          ),
-          vertical: vertical,
-          inset: knobs.get<bool>('inset', false),
-          icon: knobs.get<bool>('icon', false)
-              ? const Icon(FluentIcons.calendar_20_regular)
-              : null,
-          child: label.isEmpty ? null : Text(label),
-        )
+FluentDivider(child: Text('OR'))
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -251,7 +236,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/surfaces/divider.dart`
 - Tests: `packages/fluent_2_web/test/goldens/divider_golden_test.dart`, `packages/fluent_2_web/test/navigation/nav_test.dart`, `packages/fluent_2_web/test/navigation/toolbar_test.dart`, `packages/fluent_2_web/test/surfaces/divider_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/divider_stories.dart`, `packages/fluent_2_web/example/lib/stories/drawer_stories.dart`, `packages/fluent_2_web/example/lib/stories/toast_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/divider/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

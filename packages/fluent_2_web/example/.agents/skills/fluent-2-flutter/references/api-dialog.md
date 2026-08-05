@@ -259,41 +259,35 @@ Widget buildFluentDialog(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/dialog_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`:
 
 ```dart
 FluentDialog(
-      open: open,
-      // Null is what makes the dialog non-dismissible, so the knob drives the
-      // callback itself rather than a flag beside it.
-      onOpenChange: dismissible ? setOpen : null,
-      size: knobs.get<FluentDialogSize>('size', FluentDialogSize.medium),
-      modalType: knobs.get<FluentDialogModalType>(
-        'modalType',
-        FluentDialogModalType.modal,
-      ),
-      showCloseButton: knobs.get<bool>('closeButton', true),
-      semanticLabel: 'Delete workspace',
-      title: const Text('Delete workspace?'),
-      content: const Text(_body),
-      secondaryActions: <Widget>[
-        FluentButton(
-          onPressed: () => setOpen(false),
-          child: const Text('Cancel'),
+        open: open,
+        onOpenChange: (value) {},
+        title: const Text('Order lunch'),
+        content: const Text(
+          'You should eat more vegetables. '
+          'Have you had a salad today?',
         ),
-      ],
-      actions: <Widget>[
-        FluentButton(
-          appearance: FluentButtonAppearance.primary,
-          onPressed: () => setOpen(false),
-          child: const Text('Delete'),
+        actions: [
+          FluentButton(
+            appearance: FluentButtonAppearance.primary,
+            onPressed: () {},
+            child: const Text('Order'),
+          ),
+          FluentButton(onPressed: () {}, child: const Text('Cancel')),
+        ],
+        child: const Center(
+          child: SizedBox(
+            width: 120,
+            child: FluentButton(
+              onPressed: null,
+              child: Text('Open the dialog via the knob'),
+            ),
+          ),
         ),
-      ],
-      child: FluentButton(
-        onPressed: () => setOpen(true),
-        child: const Text('Delete workspace'),
-      ),
-    )
+      )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -304,7 +298,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/overlays/dialog.dart`
 - Tests: `packages/fluent_2_web/test/goldens/dialog_golden_test.dart`, `packages/fluent_2_web/test/overlays/dialog_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/dialog_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/dialog/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

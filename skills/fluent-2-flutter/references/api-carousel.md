@@ -378,24 +378,24 @@ Widget buildFluentCarousel(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/carousel_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
 FluentCarousel(
-            slides: _slides(5),
-            layout: knobs.get<FluentCarouselLayout>(
-              'layout',
-              FluentCarouselLayout.outsideContent,
+        header: const Text('Featured'),
+        slides: [
+          for (var i = 1; i <= 3; i++)
+            Container(
+              height: 160,
+              alignment: Alignment.center,
+              color: FluentTheme.of(context).colors.brandBackground2,
+              child: Text(
+                'Slide $i',
+                style: FluentTheme.of(context).typography.title1,
+              ),
             ),
-            chevronPlacement: knobs.get<FluentCarouselChevronPlacement>(
-              'placement',
-              FluentCarouselChevronPlacement.flexibleToEdges,
-            ),
-            loop: knobs.get<bool>('loop', false),
-            autoplay: knobs.get<bool>('autoplay', false),
-            enabled: knobs.get<bool>('enabled', true),
-            semanticLabel: 'Product highlights',
-          )
+        ],
+      )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -406,7 +406,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/surfaces/carousel.dart`
 - Tests: `packages/fluent_2_web/test/goldens/carousel_golden_test.dart`, `packages/fluent_2_web/test/surfaces/carousel_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/carousel_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/carousel/usage/
 - Design decisions: `references/components-navigation-data.md`
 

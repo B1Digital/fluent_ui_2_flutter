@@ -341,7 +341,7 @@ signatures above and verify any new example with Dart analysis and a widget test
 
 - Implementation: `packages/fluent_2_web/lib/src/navigation/list_item.dart`
 - Tests: `packages/fluent_2_web/test/goldens/list_item_golden_test.dart`, `packages/fluent_2_web/test/navigation/list_item_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/list_item_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/list/usage/
 - Design decisions: `references/components-navigation-data.md`
 

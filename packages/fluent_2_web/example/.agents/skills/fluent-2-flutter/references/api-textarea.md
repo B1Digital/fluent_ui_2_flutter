@@ -278,10 +278,10 @@ Widget buildFluentTextarea(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/field_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
-FluentTextarea(placeholder: 'What is this for?')
+FluentTextarea(minLines: 3, placeholder: 'Write a message…')
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -292,7 +292,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/inputs/textarea.dart`
 - Tests: `packages/fluent_2_web/test/goldens/textarea_golden_test.dart`, `packages/fluent_2_web/test/inputs/textarea_test.dart`, `packages/fluent_2_web/test/internal/text_context_menu_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/field_stories.dart`, `packages/fluent_2_web/example/lib/stories/textarea_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/textarea/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

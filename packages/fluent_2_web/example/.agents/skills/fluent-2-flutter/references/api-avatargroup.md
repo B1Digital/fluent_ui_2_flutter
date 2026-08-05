@@ -206,17 +206,16 @@ Widget buildFluentAvatarGroup(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/avatar_group_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
 FluentAvatarGroup(
-          layout: knobs.get<FluentAvatarGroupLayout>(
-            'layout',
-            FluentAvatarGroupLayout.spread,
-          ),
-          size: size,
-          children: _team(knobs.get<double>('count', 4).round(), size: size),
-        )
+            children: const [
+              FluentAvatar(name: 'A', initials: 'AL'),
+              FluentAvatar(name: 'B', initials: 'BT'),
+              FluentAvatar(name: 'C', initials: 'GH'),
+            ],
+          )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -227,7 +226,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/surfaces/avatar_group.dart`
 - Tests: `packages/fluent_2_web/test/goldens/avatar_golden_test.dart`, `packages/fluent_2_web/test/surfaces/avatar_group_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/avatar_group_stories.dart`, `packages/fluent_2_web/example/lib/stories/avatar_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/avatargroup/usage/
 - Design decisions: `references/components-identity-content.md`
 

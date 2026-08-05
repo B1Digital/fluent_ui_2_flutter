@@ -248,13 +248,10 @@ Widget buildFluentSpinner(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/button_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
-FluentSpinner(
-            size: FluentSpinnerSize.tiny,
-            semanticLabel: 'Uploading',
-          )
+FluentSpinner(label: Text('Loading…'))
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -265,7 +262,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/surfaces/spinner.dart`
 - Tests: `packages/fluent_2_web/test/goldens/spinner_golden_test.dart`, `packages/fluent_2_web/test/surfaces/spinner_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/button_stories.dart`, `packages/fluent_2_web/example/lib/stories/compound_button_stories.dart`, `packages/fluent_2_web/example/lib/stories/spinner_stories.dart`, `packages/fluent_2_web/example/lib/stories/toast_stories.dart`, `packages/fluent_2_web/example/lib/stories/tree_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/spinner/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

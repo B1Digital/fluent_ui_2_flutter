@@ -665,39 +665,29 @@ factory FluentTypography.android({Color? color});
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/gallery/gallery_app.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/fluent_wrapper.dart`:
 
 ```dart
 FluentApp(
-      title: 'Fluent 2 for Flutter',
-      theme: theme,
-      debugShowCheckedModeBanner: false,
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(
-          context,
-        ).copyWith(disableAnimations: _reducedMotion),
-        child: Directionality(
-          textDirection: _rtl ? TextDirection.rtl : TextDirection.ltr,
-          child: child!,
-        ),
-      ),
-      home: _GalleryShell(
-        sections: widget.sections,
-        section: _section,
-        story: _story,
-        onSelect: _select,
-        theme: _theme,
-        onThemeChanged: (t) => setState(() => _theme = t),
-        rtl: _rtl,
-        onRtlChanged: (v) => setState(() => _rtl = v),
-        reducedMotion: _reducedMotion,
-        onReducedMotionChanged: (v) => setState(() => _reducedMotion = v),
-        brandKey: _brandKey,
-        onBrandKeyChanged: (c) => setState(() => _brandKey = c),
-        knobs: _knobs,
-        onKnobChanged: (id, v) => setState(() => _knobs[id] = v),
-      ),
-    )
+    title: 'Fluent 2 Storybook',
+    themeMode: FluentThemeMode.system,
+    debugShowCheckedModeBanner: false,
+    home: Builder(
+      builder: (context) {
+        final theme = FluentTheme.of(context);
+        return ColoredBox(
+          color: theme.colors.neutralBackground1,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: child ?? const SizedBox.shrink(),
+            ),
+          ),
+        );
+      },
+    ),
+  )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -707,8 +697,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2_core/lib/src/app.dart`, `packages/fluent_2_core/lib/src/theme.dart`
-- Tests: `packages/fluent_2_web/test/buttons/button_test.dart`, `packages/fluent_2_web/test/buttons/split_compound_button_test.dart`, `packages/fluent_2_web/test/goldens/breadcrumb_golden_test.dart`, `packages/fluent_2_web/test/goldens/card_golden_test.dart`, `packages/fluent_2_web/test/goldens/carousel_golden_test.dart`, `packages/fluent_2_web/test/goldens/dialog_golden_test.dart`, `packages/fluent_2_web/test/goldens/drawer_golden_test.dart`, `packages/fluent_2_web/test/goldens/dropdown_golden_test.dart`, `packages/fluent_2_web/test/goldens/info_label_golden_test.dart`, `packages/fluent_2_web/test/goldens/link_golden_test.dart`, `packages/fluent_2_web/test/goldens/menu_golden_test.dart`, `packages/fluent_2_web/test/goldens/popover_golden_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/gallery/gallery_app.dart`, `packages/fluent_2_web/example/lib/stories/accordion_stories.dart`, `packages/fluent_2_web/example/lib/stories/acrylic_surface_stories.dart`, `packages/fluent_2_web/example/lib/stories/avatar_group_stories.dart`, `packages/fluent_2_web/example/lib/stories/avatar_stories.dart`, `packages/fluent_2_web/example/lib/stories/badge_stories.dart`, `packages/fluent_2_web/example/lib/stories/breadcrumb_stories.dart`, `packages/fluent_2_web/example/lib/stories/button_stories.dart`, `packages/fluent_2_web/example/lib/stories/card_stories.dart`, `packages/fluent_2_web/example/lib/stories/carousel_stories.dart`, `packages/fluent_2_web/example/lib/stories/checkbox_stories.dart`, `packages/fluent_2_web/example/lib/stories/data_grid_stories.dart`
+- Tests: `packages/fluent_2_web/test/buttons/button_test.dart`, `packages/fluent_2_web/test/buttons/split_compound_button_test.dart`, `packages/fluent_2_web/test/goldens/breadcrumb_golden_test.dart`, `packages/fluent_2_web/test/goldens/card_golden_test.dart`, `packages/fluent_2_web/test/goldens/carousel_golden_test.dart`, `packages/fluent_2_web/test/goldens/date_picker_golden_test.dart`, `packages/fluent_2_web/test/goldens/dialog_golden_test.dart`, `packages/fluent_2_web/test/goldens/drawer_golden_test.dart`, `packages/fluent_2_web/test/goldens/dropdown_golden_test.dart`, `packages/fluent_2_web/test/goldens/info_label_golden_test.dart`, `packages/fluent_2_web/test/goldens/link_golden_test.dart`, `packages/fluent_2_web/test/goldens/menu_golden_test.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`, `packages/fluent_2_web/example/lib/storybook/fluent_wrapper.dart`, `packages/fluent_2_web/example/lib/storybook/theme_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/fluentprovider/usage/
 - Design decisions: `references/flutter-foundations.md`
 

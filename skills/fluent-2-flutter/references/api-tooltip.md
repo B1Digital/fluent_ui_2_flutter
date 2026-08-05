@@ -252,19 +252,17 @@ Widget buildFluentTooltip(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/avatar_group_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`:
 
 ```dart
 FluentTooltip(
-        content: Text(name),
-        semanticLabel: name,
-        child: FluentAvatar(
-          name: name,
-          initials: initials,
-          color: colour,
-          size: FluentAvatarSize.size48,
-        ),
-      )
+                  position: position,
+                  content: Text(position.name),
+                  child: FluentButton(
+                    onPressed: () {},
+                    child: Text(position.name),
+                  ),
+                )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -275,7 +273,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/surfaces/tooltip.dart`
 - Tests: `packages/fluent_2_web/test/goldens/tooltip_golden_test.dart`, `packages/fluent_2_web/test/overlays/popover_test.dart`, `packages/fluent_2_web/test/surfaces/tooltip_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/avatar_group_stories.dart`, `packages/fluent_2_web/example/lib/stories/avatar_stories.dart`, `packages/fluent_2_web/example/lib/stories/breadcrumb_stories.dart`, `packages/fluent_2_web/example/lib/stories/menu_stories.dart`, `packages/fluent_2_web/example/lib/stories/swatch_picker_stories.dart`, `packages/fluent_2_web/example/lib/stories/toolbar_stories.dart`, `packages/fluent_2_web/example/lib/stories/tooltip_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/tooltip/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

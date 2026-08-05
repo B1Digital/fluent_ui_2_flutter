@@ -245,23 +245,14 @@ Widget buildFluentField(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/dialog_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
 FluentField(
-          label: const Text('Name'),
-          hint: const Text('Visible to everyone you invite.'),
-          required: true,
-          child: FluentInput(
-            controller: _name,
-            // Focus lands here instead of on the surface, because the dialog's
-            // scope has nothing focused when it opens.
-            autofocus: true,
-            placeholder: const Text('Marketing site'),
-            semanticLabel: 'Workspace name',
-            onSubmitted: (_) => _submit(),
-          ),
-        )
+              label: FluentLabel(child: Text('First name')),
+              hint: Text('Enter your name'),
+              child: FluentInput(),
+            )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -272,7 +263,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/inputs/field.dart`
 - Tests: `packages/fluent_2_web/test/goldens/field_golden_test.dart`, `packages/fluent_2_web/test/inputs/field_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/dialog_stories.dart`, `packages/fluent_2_web/example/lib/stories/dropdown_stories.dart`, `packages/fluent_2_web/example/lib/stories/field_stories.dart`, `packages/fluent_2_web/example/lib/stories/info_label_stories.dart`, `packages/fluent_2_web/example/lib/stories/radio_stories.dart`, `packages/fluent_2_web/example/lib/stories/spin_button_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/field/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

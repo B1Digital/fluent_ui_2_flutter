@@ -351,21 +351,35 @@ Widget buildFluentMenu(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/button_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/button_stories.dart`:
 
 ```dart
 FluentMenu(
-      semanticLabel: 'Sharing options',
-      items: _shareItems((label) => setState(() => _chosen = label)),
-      builder: (context, toggle) => FluentButton(
-        appearance: widget.appearance,
-        size: widget.size,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
-        onPressed: toggle,
-        child: const Text('Share'),
-      ),
-    )
+        semanticLabel: 'Edit',
+        items: [
+          FluentMenuItem(
+            label: const Text('Cut'),
+            icon: const Icon(Icons.content_cut),
+            onPressed: () {},
+          ),
+          FluentMenuItem(
+            label: const Text('Copy'),
+            icon: const Icon(Icons.copy),
+            onPressed: () {},
+          ),
+          FluentMenuItem(
+            label: const Text('Paste'),
+            icon: const Icon(Icons.content_paste),
+            checked: true,
+            onPressed: () {},
+          ),
+        ],
+        builder: (context, toggle) => FluentButton(
+          onPressed: toggle,
+          icon: const Icon(Icons.more_horiz),
+          child: const Text('Edit'),
+        ),
+      )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -376,7 +390,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/overlays/menu.dart`
 - Tests: `packages/fluent_2_web/test/goldens/menu_golden_test.dart`, `packages/fluent_2_web/test/overlays/menu_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/button_stories.dart`, `packages/fluent_2_web/example/lib/stories/menu_stories.dart`, `packages/fluent_2_web/example/lib/stories/split_button_stories.dart`, `packages/fluent_2_web/example/lib/stories/toolbar_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/button_stories.dart`, `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/menu/usage/
 - Design decisions: `references/components-navigation-data.md`
 

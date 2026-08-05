@@ -57,7 +57,8 @@ compile correctness as one requirement.
 
 - Button, link, checkbox, radio group, switch, rating, field, label, info
   label, input, textarea, search box, dropdown, select, combobox, slider, spin
-  button, and tag picker: read
+  button, tag picker, and the calendar/date-picker/time-picker compat
+  extensions: read
   [actions and inputs](references/components-actions-inputs.md).
 - Accordion, breadcrumb, carousel, list, menu, nav, tab list, toolbar, tree, and
   the repository data-grid extension: read

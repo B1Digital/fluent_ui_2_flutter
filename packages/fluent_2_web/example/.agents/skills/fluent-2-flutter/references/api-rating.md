@@ -321,15 +321,18 @@ Widget buildFluentRating(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/rating_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
 FluentRating(
-                value: 3.5,
-                size: size,
-                color: FluentRatingColor.marigold,
-                type: FluentRatingType.display,
-              )
+                  value: context.knobs.slider(
+                    label: 'Rating',
+                    initial: 3,
+                    min: 0,
+                    max: 5,
+                  ),
+                  onChanged: (value) {},
+                )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -340,7 +343,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/inputs/rating.dart`
 - Tests: `packages/fluent_2_web/test/goldens/rating_golden_test.dart`, `packages/fluent_2_web/test/inputs/rating_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/rating_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/rating/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

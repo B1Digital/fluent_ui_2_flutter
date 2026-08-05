@@ -10,6 +10,7 @@ Design decisions and best practices: [components-navigation-data.md](./component
 ## Contents
 
 - Mapping and API rule
+- Behavior and parity notes
 - Widget constructors and fields
 - Related public types
 - Verified usage
@@ -19,12 +20,68 @@ Design decisions and best practices: [components-navigation-data.md](./component
 
 Status: **implemented**. A purpose-built public Flutter widget exists. Use only the constructors documented below.
 
-Mapped Flutter API: `FluentNav`, `FluentNavAppItem`, `FluentNavCategory`, `FluentNavDivider`, `FluentNavItem`, `FluentNavSubItem`.
+Mapped Flutter API: `FluentHamburger`, `FluentNav`, `FluentNavAppItem`, `FluentNavCategory`, `FluentNavDivider`, `FluentNavDrawer`, `FluentNavItem`, `FluentNavSectionHeader`, `FluentNavSubItem`.
 
 The signatures below are extracted from the checked-out Dart source. React
 properties from the Microsoft site are design evidence, not Flutter fields.
 
+## Behavior and parity notes
+
+Hand-audited behavior that no constructor signature can express. Treat a
+documented gap as a real gap: do not describe it as working, and do not
+work around it by inventing an API.
+
+- Roving arrow navigation. `FluentNav` installs `Shortcuts` and `Actions` for `Up`/`Down` (wrapping) and `Home`/`End` (absolute), reproducing upstream's `useArrowNavigationGroup({ axis: 'vertical', circular: true, tabbable })`. Unless `tabbable: true` is passed, the whole nav is a single tab stop. Rows that cannot take focus - disabled ones, a static `FluentNavAppItem`, `FluentNavDivider`, `FluentNavSectionHeader` - are skipped structurally rather than by declaration.
+- The arrow group lives on `FluentNav` itself. Upstream installs it on `NavDrawerBody`, so upstream's bare `Nav` has no arrow navigation at all. This is a deliberate widening of scope, not parity.
+- `PageUp` and `PageDown` are not bound. Tabster implements them as a viewport-visibility walk; `FluentNav` hugs its height and has no viewport of its own.
+- `secondaryActions` are reached by Tab within the focused row rather than by `Down`. Upstream has no analogue, since an HTML nav item cannot nest a button.
+- Clicking a row does not move the roving index. `FluentInteractive` drives taps off a bare `GestureDetector`, so a tap selects without focusing. Seed focus with a row's own `FocusNode` when scripting or testing keyboard behaviour.
+- `FluentNavItemTheme` carries a catch-all `style` plus per-kind slots `appItemStyle`, `categoryStyle`, `itemStyle` and `subItemStyle`. Resolution is per-property: defaults, then `style`, then the kind slot, then the widget's own `style`. `maybeOf` returns the catch-all unchanged; `maybeOfKind` resolves the full chain.
+- `FluentNavSectionHeader` is the only nav part usable outside a `FluentNav` - it reads no scope and does not throw. It reports `Semantics(headingLevel: 3)` in place of upstream's `<h3>`, because Flutter has no heading `SemanticsRole`.
+- `FluentNavDrawer` defaults to 260 wide (`fluentNavDrawerWidth`) on `neutralBackground4` with 10/4 inline body gutters. Passing `size` hands width and duration back to `FluentDrawer`'s own table, matching upstream's `!size && styles.defaultWidth`. No `Body` or `Footer` sub-widgets ship: `FluentNav` already emits the 2px row gap, and upstream's footer padding is invalid CSS with no observable effect. `role="navigation"` has no Flutter equivalent.
+- `FluentHamburger` reproduces upstream's overridden fill - `neutralBackground4`/`Hover`/`Pressed` - rather than `FluentButtonAppearance.transparent`, which in this package means no fill at all plus a brand-tinted hover. It therefore reads as a filled chip on any non-nav surface. `expanded` is nullable and opt-in: upstream's Hamburger sets no ARIA, and `NavAccessibility.md` scopes `aria-expanded` to inline navs only.
+
 ## Widget constructors and fields
+
+### `FluentHamburger`
+
+The button that opens and closes a nav.
+
+Source: `packages/fluent_2_web/lib/src/navigation/hamburger.dart`
+
+#### Constructor: `FluentHamburger`
+
+```dart
+const FluentHamburger({
+    super.key,
+    required this.onPressed,
+    required this.semanticLabel,
+    this.expanded,
+    this.size,
+    this.style,
+    this.focusNode,
+    this.autofocus = false,
+  });
+```
+
+| Field | Type | Required | Default | Purpose |
+| --- | --- | --- | --- | --- |
+| `key` | `Key?` | No | `null` | Flutter widget identity. |
+| `onPressed` | `VoidCallback?` | Yes | — | Invoked on tap and on Space or Enter. |
+| `semanticLabel` | `String` | Yes | — | Announced by assistive technology. |
+| `expanded` | `bool?` | No | `null` | Reported as `Semantics(expanded:)`, and only when non-null. |
+| `size` | `FluentButtonSize?` | No | `null` | Height and glyph ramp. Null takes [FluentButton]'s own default. |
+| `style` | `FluentButtonStyle?` | No | `null` | Overrides layered over the nav fill. Merged last, so it wins. |
+| `focusNode` | `FocusNode?` | No | `null` | Focus node to use. One is created internally when omitted. |
+| `autofocus` | `bool` | No | `false` | Whether to take focus on mount. |
+
+#### State, callback, and accessibility fields
+
+- `onPressed` (`VoidCallback?`): Invoked on tap and on Space or Enter.
+- `semanticLabel` (`String`): Announced by assistive technology.
+- `expanded` (`bool?`): Reported as `Semantics(expanded:)`, and only when non-null.
+- `focusNode` (`FocusNode?`): Focus node to use. One is created internally when omitted.
+- `autofocus` (`bool`): Whether to take focus on mount.
 
 ### `FluentNav`
 
@@ -39,6 +96,7 @@ const FluentNav({
     super.key,
     required this.children,
     this.size = FluentNavSize.medium,
+    this.tabbable = false,
     this.selectedValue,
     this.defaultSelectedValue,
     this.onSelect,
@@ -54,6 +112,7 @@ const FluentNav({
 | `key` | `Key?` | No | `null` | Flutter widget identity. |
 | `children` | `List<Widget>` | Yes | — | The rows, in order. |
 | `size` | `FluentNavSize` | No | `FluentNavSize.medium` | Row height and density. |
+| `tabbable` | `bool` | No | `false` | Whether every row is a tab stop, rather than the nav being one. |
 | `selectedValue` | `Object?` | No | `null` | The selected row's value, when the caller owns it. |
 | `defaultSelectedValue` | `Object?` | No | `null` | The initially selected value while uncontrolled. |
 | `onSelect` | `ValueChanged<Object>?` | No | `null` | Called with the value the nav is moving to, before it is applied. |
@@ -167,6 +226,52 @@ const FluentNavDivider({super.key, this.appearance});
 | `key` | `Key?` | No | `null` | Flutter widget identity. |
 | `appearance` | `FluentDividerAppearance?` | No | `null` | How strongly the rule reads. Defaults to [FluentDivider]'s own default. |
 
+### `FluentNavDrawer`
+
+A [FluentDrawer] shaped for a `FluentNav`.
+
+Source: `packages/fluent_2_web/lib/src/navigation/nav_drawer.dart`
+
+#### Constructor: `FluentNavDrawer`
+
+```dart
+const FluentNavDrawer({
+    super.key,
+    required this.child,
+    this.open = false,
+    this.onDismiss,
+    this.type = FluentDrawerType.overlay,
+    this.size,
+    this.position = FluentDrawerPosition.start,
+    this.header = const <Widget>[],
+    this.footer = const <Widget>[],
+    this.separator = false,
+    this.style,
+    this.semanticLabel,
+  });
+```
+
+| Field | Type | Required | Default | Purpose |
+| --- | --- | --- | --- | --- |
+| `key` | `Key?` | No | `null` | Flutter widget identity. |
+| `child` | `Widget` | Yes | — | The nav. |
+| `open` | `bool` | No | `false` | Whether the drawer is showing. Changing it runs the transition. |
+| `onDismiss` | `VoidCallback?` | No | `null` | Invoked when the user asks to close: Escape, or a tap on the scrim. |
+| `type` | `FluentDrawerType` | No | `FluentDrawerType.overlay` | Overlay or inline. Overlay matches upstream's default. |
+| `size` | `FluentDrawerSize?` | No | `null` | Width, and the transition length that goes with it. |
+| `position` | `FluentDrawerPosition` | No | `FluentDrawerPosition.start` | Which edge the drawer is anchored to, in reading order. |
+| `header` | `List<Widget>` | No | `const <Widget>[]` | Header children, stacked in a column. Empty means no header. |
+| `footer` | `List<Widget>` | No | `const <Widget>[]` | Footer children, laid out in a row. Empty means no footer. |
+| `separator` | `bool` | No | `false` | Whether an inline drawer draws the rule between itself and the page. |
+| `style` | `FluentDrawerStyle?` | No | `null` | Overrides layered over the nav preset and the ambient [FluentDrawerTheme]. Merged last, so it wins. |
+| `semanticLabel` | `String?` | No | `null` | Announced by assistive technology as the name of the drawer. |
+
+#### State, callback, and accessibility fields
+
+- `open` (`bool`): Whether the drawer is showing. Changing it runs the transition.
+- `onDismiss` (`VoidCallback?`): Invoked when the user asks to close: Escape, or a tap on the scrim.
+- `semanticLabel` (`String?`): Announced by assistive technology as the name of the drawer.
+
 ### `FluentNavItem`
 
 A leaf destination in a [FluentNav].
@@ -210,6 +315,23 @@ const FluentNavItem({
 - `onPressed` (`VoidCallback?`): Called in addition to selecting the row.
 - `focusNode` (`FocusNode?`): Focus node to use. One is created internally when omitted.
 - `autofocus` (`bool`): Whether to take focus on mount.
+
+### `FluentNavSectionHeader`
+
+A non-interactive grouping label in a [FluentNav].
+
+Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
+
+#### Constructor: `FluentNavSectionHeader`
+
+```dart
+const FluentNavSectionHeader({super.key, required this.child});
+```
+
+| Field | Type | Required | Default | Purpose |
+| --- | --- | --- | --- | --- |
+| `key` | `Key?` | No | `null` | Flutter widget identity. |
+| `child` | `Widget` | Yes | — | The label. |
 
 ### `FluentNavSubItem`
 
@@ -255,6 +377,56 @@ const FluentNavSubItem({
 
 ## Related public types
 
+### `FluentButtonSize`
+
+Button height and type ramp. Figma's `Size` axis.
+
+Source: `packages/fluent_2_web/lib/src/buttons/button.dart`
+
+```dart
+enum FluentButtonSize {
+  small,
+  medium,
+  large,
+}
+```
+
+### `FluentButtonStyle`
+
+Source: `packages/fluent_2_web/lib/src/buttons/button_style.dart`
+
+#### Constructor: `FluentButtonStyle`
+
+```dart
+const FluentButtonStyle({
+    this.backgroundColor,
+    this.foregroundColor,
+    this.borderColor,
+    this.borderWidth,
+    this.borderRadius,
+    this.textStyle,
+    this.padding,
+    this.gap,
+    this.iconSize,
+    this.minimumSize,
+    this.mouseCursor,
+  });
+```
+
+| Field | Type | Required | Default | Purpose |
+| --- | --- | --- | --- | --- |
+| `backgroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Surface fill. |
+| `foregroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Label and icon colour. |
+| `borderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Border colour. Null and transparent are different: Fluent's `transparentStroke` becomes opaque in high contrast. |
+| `borderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Border width. Zero means no border, which is not the same as a transparent one — a zero-width border cannot become visible in high contrast. |
+| `borderRadius` | `WidgetStateProperty<BorderRadius?>?` | No | `null` | Corner radius. |
+| `textStyle` | `WidgetStateProperty<TextStyle?>?` | No | `null` | Label text style. Its colour is overridden by [foregroundColor]. |
+| `padding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Padding inside the border. |
+| `gap` | `WidgetStateProperty<double?>?` | No | `null` | Space between icon and label. |
+| `iconSize` | `WidgetStateProperty<double?>?` | No | `null` | Icon edge length. |
+| `minimumSize` | `WidgetStateProperty<Size?>?` | No | `null` | Minimum tap target. |
+| `mouseCursor` | `WidgetStateProperty<MouseCursor?>?` | No | `null` | Cursor while hovering. |
+
 ### `FluentDividerAppearance`
 
 How strongly a divider reads against its surface.
@@ -270,6 +442,87 @@ enum FluentDividerAppearance {
 }
 ```
 
+### `FluentDrawerPosition`
+
+Which edge the drawer is anchored to, in reading order.
+
+Source: `packages/fluent_2_web/lib/src/overlays/drawer.dart`
+
+```dart
+enum FluentDrawerPosition {
+  start,
+  end,
+}
+```
+
+### `FluentDrawerSize`
+
+Drawer width, and — because upstream keys the transition off it — how long the drawer takes to arrive. Figma's `Size` axis plus React's `full`.
+
+Source: `packages/fluent_2_web/lib/src/overlays/drawer.dart`
+
+```dart
+enum FluentDrawerSize {
+  small,
+  medium,
+  large,
+  full,
+}
+```
+
+### `FluentDrawerStyle`
+
+Source: `packages/fluent_2_web/lib/src/overlays/drawer_style.dart`
+
+#### Constructor: `FluentDrawerStyle`
+
+```dart
+const FluentDrawerStyle({
+    this.backgroundColor,
+    this.foregroundColor,
+    this.borderColor,
+    this.borderWidth,
+    this.scrimColor,
+    this.shadow,
+    this.width,
+    this.headerPadding,
+    this.headerGap,
+    this.headerTextStyle,
+    this.bodyPadding,
+    this.footerPadding,
+    this.footerGap,
+  });
+```
+
+| Field | Type | Required | Default | Purpose |
+| --- | --- | --- | --- | --- |
+| `backgroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Surface fill of the whole panel. |
+| `foregroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Default text and icon colour inside the panel. |
+| `borderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Colour of the single rule along the drawer's inboard edge — the trailing edge for a `start` drawer, the leading edge for an `end` one. |
+| `borderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Width of that rule. Zero means none, which is not the same as a transparent one — a zero-width rule cannot become visible in high contrast. |
+| `scrimColor` | `WidgetStateProperty<Color?>?` | No | `null` | The modal scrim behind an overlay drawer. |
+| `shadow` | `WidgetStateProperty<List<BoxShadow>?>?` | No | `null` | Elevation shadow. Null for an inline drawer, which sits flat in the layout. |
+| `width` | `WidgetStateProperty<double?>?` | No | `null` | Panel width. [double.infinity] means "as wide as the parent allows", which is how `FluentDrawerSize.full` is expressed. |
+| `headerPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around the header slot. |
+| `headerGap` | `WidgetStateProperty<double?>?` | No | `null` | Vertical space between header children. |
+| `headerTextStyle` | `WidgetStateProperty<TextStyle?>?` | No | `null` | Type ramp applied to the header slot. Its colour is overridden by [foregroundColor]. |
+| `bodyPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around the body. |
+| `footerPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around the footer slot. |
+| `footerGap` | `WidgetStateProperty<double?>?` | No | `null` | Horizontal space between footer children. |
+
+### `FluentDrawerType`
+
+Whether a drawer floats over the page or sits inside the layout.
+
+Source: `packages/fluent_2_web/lib/src/overlays/drawer.dart`
+
+```dart
+enum FluentDrawerType {
+  overlay,
+  inline,
+}
+```
+
 ### `FluentNavCollapseIntent`
 
 Requests that the focused category close.
@@ -281,6 +534,22 @@ Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
 ```dart
 const FluentNavCollapseIntent();
 ```
+
+### `FluentNavEdgeIntent`
+
+Requests that focus move to the first or last row of the nav.
+
+Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
+
+#### Constructor: `FluentNavEdgeIntent`
+
+```dart
+const FluentNavEdgeIntent({required this.last});
+```
+
+| Field | Type | Required | Default | Purpose |
+| --- | --- | --- | --- | --- |
+| `last` | `bool` | Yes | — | Whether to move to the last row rather than the first. |
 
 ### `FluentNavExpandIntent`
 
@@ -419,7 +688,11 @@ Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
 ```dart
 const FluentNavItemTheme({
     super.key,
-    required this.style,
+    this.style,
+    this.appItemStyle,
+    this.categoryStyle,
+    this.itemStyle,
+    this.subItemStyle,
     required super.child,
   });
 ```
@@ -427,8 +700,28 @@ const FluentNavItemTheme({
 | Field | Type | Required | Default | Purpose |
 | --- | --- | --- | --- | --- |
 | `key` | `Key?` | No | `null` | Flutter widget identity. |
-| `style` | `FluentNavItemStyle` | Yes | — | The style layered over the kind and size defaults. |
+| `style` | `FluentNavItemStyle?` | No | `null` | The style layered over every kind's defaults. |
+| `appItemStyle` | `FluentNavItemStyle?` | No | `null` | Layered over [style] for [FluentNavItemKind.appItem] rows. |
+| `categoryStyle` | `FluentNavItemStyle?` | No | `null` | Layered over [style] for [FluentNavItemKind.category] rows. |
+| `itemStyle` | `FluentNavItemStyle?` | No | `null` | Layered over [style] for [FluentNavItemKind.item] rows. |
+| `subItemStyle` | `FluentNavItemStyle?` | No | `null` | Layered over [style] for [FluentNavItemKind.subItem] rows. |
 | `child` | `Widget` | Yes | — | The widget subtree rendered or affected by this API. |
+
+### `FluentNavMoveIntent`
+
+Requests that focus move [delta] rows through the nav.
+
+Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
+
+#### Constructor: `FluentNavMoveIntent`
+
+```dart
+const FluentNavMoveIntent(this.delta);
+```
+
+| Field | Type | Required | Default | Purpose |
+| --- | --- | --- | --- | --- |
+| `delta` | `int` | Yes | — | How many rows to move, and in which direction. Negative is upward. |
 
 ### `FluentNavSize`
 
@@ -475,21 +768,13 @@ Widget buildFluentNavItem(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/drawer_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`:
 
 ```dart
-FluentNav(
-            selectedValue: _selected,
-            onSelect: (value) => setState(() => _selected = value),
-            semanticLabel: 'Main navigation',
-            children: <Widget>[
-              for (final (value, icon, label) in _destinations)
-                FluentNavItem(
-                  value: value,
-                  icon: Icon(icon),
-                  child: Text(label),
-                ),
-            ],
+FluentHamburger(
+            onPressed: () {},
+            expanded: true,
+            semanticLabel: 'Collapse navigation',
           )
 ```
 
@@ -499,9 +784,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/navigation/nav.dart`
-- Tests: `packages/fluent_2_web/test/goldens/nav_golden_test.dart`, `packages/fluent_2_web/test/navigation/nav_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/drawer_stories.dart`, `packages/fluent_2_web/example/lib/stories/nav_stories.dart`
+- Implementation: `packages/fluent_2_web/lib/src/navigation/hamburger.dart`, `packages/fluent_2_web/lib/src/navigation/nav.dart`, `packages/fluent_2_web/lib/src/navigation/nav_drawer.dart`
+- Tests: `packages/fluent_2_web/test/goldens/nav_golden_test.dart`, `packages/fluent_2_web/test/navigation/hamburger_test.dart`, `packages/fluent_2_web/test/navigation/nav_drawer_test.dart`, `packages/fluent_2_web/test/navigation/nav_section_header_test.dart`, `packages/fluent_2_web/test/navigation/nav_test.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/nav/usage/
 - Design decisions: `references/components-navigation-data.md`
 

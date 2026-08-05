@@ -258,25 +258,10 @@ Widget buildFluentBadge(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/badge_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
-FluentBadge(
-            color: knobs.get<FluentBadgeColor>('color', FluentBadgeColor.brand),
-            size: knobs.get<FluentBadgeSize>('size', FluentBadgeSize.medium),
-            appearance: knobs.get<FluentBadgeAppearance>(
-              'appearance',
-              FluentBadgeAppearance.filled,
-            ),
-            iconPosition: knobs.get<FluentBadgeIconPosition>(
-              'iconPosition',
-              FluentBadgeIconPosition.before,
-            ),
-            icon: knobs.get<bool>('icon', false)
-                ? const Icon(FluentIcons.checkmark_12_filled)
-                : null,
-            child: Text(knobs.get<String>('label', 'New')),
-          )
+FluentBadge(color: color, child: const Text('Badge'))
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -287,7 +272,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/surfaces/badge.dart`
 - Tests: `packages/fluent_2_web/test/goldens/badge_golden_test.dart`, `packages/fluent_2_web/test/surfaces/badge_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/badge_stories.dart`, `packages/fluent_2_web/example/lib/stories/data_grid_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/badge/usage/
 - Design decisions: `references/components-identity-content.md`
 

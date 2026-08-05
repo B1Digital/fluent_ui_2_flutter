@@ -369,26 +369,22 @@ Widget buildFluentSpinButton(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/spin_button_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
 FluentSpinButton(
-        value: _value,
-        min: widget.min,
-        max: widget.max,
-        step: widget.step,
-        pageStep: widget.pageStep,
-        placeholder: widget.placeholder,
-        displayValue: widget.format?.call(_value),
-        appearance: widget.appearance,
-        size: widget.size,
-        readOnly: widget.readOnly,
-        invalid: widget.invalid,
-        semanticLabel: widget.label,
-        onChanged: widget.enabled
-            ? (next) => setState(() => _value = next)
-            : null,
-      )
+          value: context.knobs.slider(
+            label: 'Value',
+            initial: 5,
+            min: 0,
+            max: 10,
+          ),
+          min: 0,
+          max: 10,
+          step: 1,
+          onChanged: (value) {},
+          semanticLabel: 'Quantity',
+        )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -398,8 +394,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2_web/lib/src/inputs/spin_button.dart`
-- Tests: `packages/fluent_2_web/test/goldens/spin_button_golden_test.dart`, `packages/fluent_2_web/test/inputs/spin_button_test.dart`, `packages/fluent_2_web/test/internal/text_context_menu_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/spin_button_stories.dart`
+- Tests: `packages/fluent_2_web/test/goldens/spin_button_golden_test.dart`, `packages/fluent_2_web/test/inputs/spin_button_test.dart`, `packages/fluent_2_web/test/inputs/time_picker_test.dart`, `packages/fluent_2_web/test/internal/text_context_menu_test.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/spin/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

@@ -213,13 +213,10 @@ Widget buildFluentLink(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/data_grid_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
-FluentLink(
-              onPressed: _noop,
-              child: const Text('Open in the browser'),
-            )
+FluentLink(onPressed: () {}, child: const Text('This is a link'))
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -230,7 +227,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/inputs/link.dart`
 - Tests: `packages/fluent_2_web/test/goldens/link_golden_test.dart`, `packages/fluent_2_web/test/goldens/toast_golden_test.dart`, `packages/fluent_2_web/test/inputs/link_test.dart`, `packages/fluent_2_web/test/navigation/data_grid_test.dart`, `packages/fluent_2_web/test/overlays/toast_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/data_grid_stories.dart`, `packages/fluent_2_web/example/lib/stories/dialog_stories.dart`, `packages/fluent_2_web/example/lib/stories/link_stories.dart`, `packages/fluent_2_web/example/lib/stories/popover_stories.dart`, `packages/fluent_2_web/example/lib/stories/tag_picker_stories.dart`, `packages/fluent_2_web/example/lib/stories/toast_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/link/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

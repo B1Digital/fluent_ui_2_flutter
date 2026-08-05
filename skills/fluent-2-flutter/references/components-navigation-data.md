@@ -138,6 +138,32 @@ it can obscure content at 400% zoom. The standard web layout is about 260 pixels
 wide and becomes an overlay around 640 pixels; Flutter should reproduce the
 responsive intent with project breakpoints, not copy a web constant blindly.
 
+`FluentNavSectionHeader` groups items without collapsing them. Reach for it when a
+label should organise a list rather than hide it, and for `FluentNavCategory`
+only when the group genuinely needs to open and close. It is the one nav part
+that works outside a `FluentNav`, so it is safe in any nav-shaped list.
+
+`FluentNavDrawer` is the panel a nav sits in: 260 wide by default, on the nav
+surface, with the body gutters already applied. Leave `size` unset unless a
+project genuinely needs another width, since passing one hands both width and
+transition length back to `FluentDrawer`. Pair it with `FluentHamburger`, which
+owns no state: the app decides whether the drawer is open, and the same button
+appears in the drawer header to close and in page content to open. Set
+`expanded` on the page-side button of an inline nav only; an overlay nav does
+not need it.
+
+Keyboard: up and down walk the rows and wrap at both ends, home and end jump to
+the ends, and the whole nav is a single tab stop unless `tabbable: true` is
+passed. Rows that cannot take focus are skipped, so a divider, a section header,
+a static app item and a disabled row never interrupt the sequence. Selection and
+focus stay separate: moving focus does not select, and clicking a row selects
+without moving the roving index.
+
+Styling: `FluentNavItemTheme` takes a catch-all `style` plus per-kind slots, so a
+project can make category headers read differently from their subitems without
+passing `style` to every widget. Resolution is per-property and innermost wins:
+defaults, `style`, the kind slot, then the widget's own `style`.
+
 ## Tab list — `FluentTabList<T>`, `FluentTab<T>`
 
 Source: https://fluent2.microsoft.design/components/web/react/core/tablist/usage/

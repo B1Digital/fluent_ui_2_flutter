@@ -148,12 +148,22 @@ melos run test
 Install the repository's Fluent 2 Flutter guidance with the open Agent Skills CLI. The skill uses the portable `SKILL.md` format, so the same source works with Claude Code, Cursor, Codex, and every other harness recognized by the CLI:
 
 ```bash
-npx skills add ascobani/fluent_2_ui_kit \
+npx skills add B1Digital/fluent_ui_2_flutter \
   --skill fluent-2-flutter \
   --agent '*'
 ```
 
-To install only selected integrations, use `--agent claude-code cursor codex`. For local development, replace the repository name with `.`. A harness that implements the Agent Skills standard can also load `skills/fluent-2-flutter/SKILL.md` directly. The optional `agents/openai.yaml` adds Codex UI metadata; it does not replace or restrict the portable skill.
+To install only selected integrations, use `--agent claude-code cursor codex`. For local development, replace the repository name with `.`.
+
+Without the CLI, download the skill folder straight from GitHub:
+
+```bash
+# Claude Code: ~/.claude/skills — Cursor: ~/.cursor/skills — Codex: ~/.codex/skills
+mkdir -p ~/.claude/skills && curl -L https://github.com/B1Digital/fluent_ui_2_flutter/archive/refs/heads/main.tar.gz \
+  | tar -xz -C ~/.claude/skills --strip-components=2 'fluent_ui_2_flutter-main/skills/fluent-2-flutter'
+```
+
+A harness that implements the Agent Skills standard can also load `skills/fluent-2-flutter/SKILL.md` directly. The optional `agents/openai.yaml` adds Codex UI metadata; it does not replace or restrict the portable skill.
 
 ---
 

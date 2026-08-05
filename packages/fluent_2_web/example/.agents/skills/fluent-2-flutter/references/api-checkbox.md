@@ -278,14 +278,14 @@ Widget buildFluentCheckbox(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/card_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
 FluentCheckbox(
-            checked: _selected,
-            semanticLabel: 'Notify me on mention',
-            onChanged: (_) => _toggle(),
-          )
+                  checked: true,
+                  onChanged: (_) {},
+                  label: const Text('Checked'),
+                )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -296,7 +296,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/inputs/checkbox.dart`
 - Tests: `packages/fluent_2_web/test/goldens/checkbox_golden_test.dart`, `packages/fluent_2_web/test/goldens/tree_golden_test.dart`, `packages/fluent_2_web/test/inputs/checkbox_test.dart`, `packages/fluent_2_web/test/navigation/data_grid_test.dart`, `packages/fluent_2_web/test/navigation/list_item_test.dart`, `packages/fluent_2_web/test/navigation/tree_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/card_stories.dart`, `packages/fluent_2_web/example/lib/stories/checkbox_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/checkbox/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

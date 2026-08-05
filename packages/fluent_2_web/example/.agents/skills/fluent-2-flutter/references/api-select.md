@@ -479,8 +479,8 @@ signatures above and verify any new example with Dart analysis and a widget test
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2_web/lib/src/inputs/dropdown.dart`
-- Tests: `packages/fluent_2_web/test/goldens/dropdown_golden_test.dart`, `packages/fluent_2_web/test/inputs/dropdown_test.dart`, `packages/fluent_2_web/test/inputs/tag_picker_test.dart`, `packages/fluent_2_web/test/navigation/toolbar_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/gallery/gallery_app.dart`, `packages/fluent_2_web/example/lib/stories/dropdown_stories.dart`, `packages/fluent_2_web/example/lib/stories/field_stories.dart`
+- Tests: `packages/fluent_2_web/test/goldens/dropdown_golden_test.dart`, `packages/fluent_2_web/test/goldens/time_picker_golden_test.dart`, `packages/fluent_2_web/test/inputs/dropdown_test.dart`, `packages/fluent_2_web/test/inputs/tag_picker_test.dart`, `packages/fluent_2_web/test/inputs/time_picker_test.dart`, `packages/fluent_2_web/test/navigation/toolbar_test.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/select/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

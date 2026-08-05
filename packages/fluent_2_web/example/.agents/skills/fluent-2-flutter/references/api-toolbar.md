@@ -234,23 +234,29 @@ Widget buildFluentToolbar(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/toolbar_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`:
 
 ```dart
 FluentToolbar(
-    semanticLabel: 'Formatting',
-    size: knobs.get<FluentToolbarSize>('size', FluentToolbarSize.medium),
-    type: knobs.get<FluentToolbarType>('type', FluentToolbarType.standard),
-    items: <Widget>[
-      ..._formatting,
-      if (dividers) const FluentToolbarDivider(),
-      _item(FluentIcons.text_bullet_list_20_regular, 'Bulleted list'),
-      _item(FluentIcons.text_number_list_ltr_20_regular, 'Numbered list'),
-      if (dividers) const FluentToolbarDivider(),
-      _item(FluentIcons.link_20_regular, 'Insert link'),
-      _item(FluentIcons.image_20_regular, 'Insert image'),
-    ],
-  )
+        items: const [
+          FluentButton.icon(
+            icon: Icon(Icons.format_bold),
+            semanticLabel: 'Bold',
+            appearance: FluentButtonAppearance.subtle,
+          ),
+          FluentButton.icon(
+            icon: Icon(Icons.format_italic),
+            semanticLabel: 'Italic',
+            appearance: FluentButtonAppearance.subtle,
+          ),
+          FluentToolbarDivider(),
+          FluentButton.icon(
+            icon: Icon(Icons.format_underline),
+            semanticLabel: 'Underline',
+            appearance: FluentButtonAppearance.subtle,
+          ),
+        ],
+      )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -261,7 +267,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/navigation/toolbar.dart`
 - Tests: `packages/fluent_2_web/test/goldens/toolbar_golden_test.dart`, `packages/fluent_2_web/test/navigation/toolbar_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/toolbar_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/toolbar/usage/
 - Design decisions: `references/components-navigation-data.md`
 

@@ -575,10 +575,15 @@ Widget buildFluentTag(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/interaction_tag_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
-FluentTag(onDismiss: _noop, child: Text('Design'))
+FluentTag(
+              appearance: appearance,
+              onDismiss: () {},
+              icon: const Icon(Icons.tag),
+              child: const Text('Tag'),
+            )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -589,7 +594,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/surfaces/tag.dart`, `packages/fluent_2_web/lib/src/surfaces/interaction_tag.dart`
 - Tests: `packages/fluent_2_web/test/goldens/tag_golden_test.dart`, `packages/fluent_2_web/test/goldens/tag_picker_golden_test.dart`, `packages/fluent_2_web/test/inputs/tag_picker_test.dart`, `packages/fluent_2_web/test/surfaces/tag_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/interaction_tag_stories.dart`, `packages/fluent_2_web/example/lib/stories/tag_picker_stories.dart`, `packages/fluent_2_web/example/lib/stories/tag_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`, `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/tag/usage/
 - Design decisions: `references/components-identity-content.md`
 

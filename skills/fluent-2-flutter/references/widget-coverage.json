@@ -223,14 +223,28 @@
       "slug": "nav",
       "status": "implemented",
       "widgets": [
+        "FluentHamburger",
         "FluentNav",
         "FluentNavAppItem",
         "FluentNavCategory",
         "FluentNavDivider",
+        "FluentNavDrawer",
         "FluentNavItem",
+        "FluentNavSectionHeader",
         "FluentNavSubItem"
       ],
-      "reference": "components-navigation-data.md"
+      "reference": "components-navigation-data.md",
+      "notes": [
+        "Roving arrow navigation. `FluentNav` installs `Shortcuts` and `Actions` for `Up`/`Down` (wrapping) and `Home`/`End` (absolute), reproducing upstream's `useArrowNavigationGroup({ axis: 'vertical', circular: true, tabbable })`. Unless `tabbable: true` is passed, the whole nav is a single tab stop. Rows that cannot take focus - disabled ones, a static `FluentNavAppItem`, `FluentNavDivider`, `FluentNavSectionHeader` - are skipped structurally rather than by declaration.",
+        "The arrow group lives on `FluentNav` itself. Upstream installs it on `NavDrawerBody`, so upstream's bare `Nav` has no arrow navigation at all. This is a deliberate widening of scope, not parity.",
+        "`PageUp` and `PageDown` are not bound. Tabster implements them as a viewport-visibility walk; `FluentNav` hugs its height and has no viewport of its own.",
+        "`secondaryActions` are reached by Tab within the focused row rather than by `Down`. Upstream has no analogue, since an HTML nav item cannot nest a button.",
+        "Clicking a row does not move the roving index. `FluentInteractive` drives taps off a bare `GestureDetector`, so a tap selects without focusing. Seed focus with a row's own `FocusNode` when scripting or testing keyboard behaviour.",
+        "`FluentNavItemTheme` carries a catch-all `style` plus per-kind slots `appItemStyle`, `categoryStyle`, `itemStyle` and `subItemStyle`. Resolution is per-property: defaults, then `style`, then the kind slot, then the widget's own `style`. `maybeOf` returns the catch-all unchanged; `maybeOfKind` resolves the full chain.",
+        "`FluentNavSectionHeader` is the only nav part usable outside a `FluentNav` - it reads no scope and does not throw. It reports `Semantics(headingLevel: 3)` in place of upstream's `<h3>`, because Flutter has no heading `SemanticsRole`.",
+        "`FluentNavDrawer` defaults to 260 wide (`fluentNavDrawerWidth`) on `neutralBackground4` with 10/4 inline body gutters. Passing `size` hands width and duration back to `FluentDrawer`'s own table, matching upstream's `!size && styles.defaultWidth`. No `Body` or `Footer` sub-widgets ship: `FluentNav` already emits the 2px row gap, and upstream's footer padding is invalid CSS with no observable effect. `role=\"navigation\"` has no Flutter equivalent.",
+        "`FluentHamburger` reproduces upstream's overridden fill - `neutralBackground4`/`Hover`/`Pressed` - rather than `FluentButtonAppearance.transparent`, which in this package means no fill at all plus a brand-tinted hover. It therefore reads as a filled chip on any non-nav surface. `expanded` is nullable and opt-in: upstream's Hamburger sets no ARIA, and `NavAccessibility.md` scopes `aria-expanded` to inline navs only."
+      ]
     },
     {
       "slug": "persona",
@@ -439,12 +453,26 @@
       "reference": "coverage-matrix.md"
     },
     {
+      "name": "calendar",
+      "widgets": [
+        "FluentCalendar"
+      ],
+      "reference": "components-actions-inputs.md"
+    },
+    {
       "name": "data-grid",
       "widgets": [
         "FluentDataGrid",
         "FluentDataGridCell"
       ],
       "reference": "components-navigation-data.md"
+    },
+    {
+      "name": "date-picker",
+      "widgets": [
+        "FluentDatePicker"
+      ],
+      "reference": "components-actions-inputs.md"
     },
     {
       "name": "interaction",
@@ -482,6 +510,13 @@
         "FluentTextContextMenu"
       ],
       "reference": "coverage-matrix.md"
+    },
+    {
+      "name": "time-picker",
+      "widgets": [
+        "FluentTimePicker"
+      ],
+      "reference": "components-actions-inputs.md"
     }
   ]
 }

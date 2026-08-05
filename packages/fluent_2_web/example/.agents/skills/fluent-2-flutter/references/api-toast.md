@@ -328,15 +328,14 @@ Widget buildFluentToast(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/toast_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`:
 
 ```dart
 FluentToast(
-  intent: intent,
-  title: Text(title),
-  body: body == null ? null : Text(body),
-  onDismiss: () => controller.dismiss(id),
-)
+        intent: FluentToastIntent.success,
+        title: Text(message),
+        onDismiss: () => _controller.dismiss(id),
+      )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -347,7 +346,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/overlays/toast.dart`, `packages/fluent_2_web/lib/src/overlays/toaster.dart`
 - Tests: `packages/fluent_2_web/test/goldens/toast_golden_test.dart`, `packages/fluent_2_web/test/overlays/toast_test.dart`, `packages/fluent_2_web/test/overlays/toaster_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/toast_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/toast/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

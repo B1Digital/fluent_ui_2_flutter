@@ -322,30 +322,16 @@ Widget buildFluentBreadcrumbSurface(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/stories/breadcrumb_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`:
 
 ```dart
 FluentBreadcrumb(
-    size: knobs.get<FluentBreadcrumbSize>('size', FluentBreadcrumbSize.medium),
-    semanticLabel: 'Example breadcrumb',
-    items: <FluentBreadcrumbItem>[
-      FluentBreadcrumbItem(
-        label: const Text('Home'),
-        icon: icons ? const Icon(FluentIcons.home_20_regular) : null,
-        onPressed: () {},
-      ),
-      FluentBreadcrumbItem(
-        label: const Text('Marketing'),
-        icon: icons ? const Icon(FluentIcons.folder_20_regular) : null,
-        enabled: !disabled,
-        onPressed: () {},
-      ),
-      FluentBreadcrumbItem(
-        label: const Text('Campaigns'),
-        icon: icons ? const Icon(FluentIcons.document_20_regular) : null,
-      ),
-    ],
-  )
+            items: const [
+              FluentBreadcrumbItem(label: Text('Home'), onPressed: null),
+              FluentBreadcrumbItem(label: Text('Library'), onPressed: null),
+              FluentBreadcrumbItem(label: Text('Fluent 2'), onPressed: null),
+            ],
+          )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -356,7 +342,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/navigation/breadcrumb.dart`
 - Tests: `packages/fluent_2_web/test/goldens/breadcrumb_golden_test.dart`, `packages/fluent_2_web/test/navigation/breadcrumb_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/stories/breadcrumb_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/breadcrumb/usage/
 - Design decisions: `references/components-navigation-data.md`
 

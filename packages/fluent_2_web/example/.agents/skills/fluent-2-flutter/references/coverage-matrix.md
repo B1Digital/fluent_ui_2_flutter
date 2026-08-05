@@ -37,7 +37,7 @@ Status meanings:
 | List | Implemented | `FluentList<T>`, `FluentListItem<T>` |
 | Menu | Implemented | `FluentMenu` with `FluentMenuItem` data |
 | Message bar | Implemented | `FluentMessageBar` |
-| Nav | Implemented | `FluentNav` and nav item widgets |
+| Nav | Implemented | `FluentNav`, `FluentNavDrawer`, `FluentHamburger`, `FluentNavSectionHeader` and nav item widgets |
 | Persona | Implemented | `FluentPersona` |
 | Popover | Implemented | `FluentPopover` |
 | Progress bar | Implemented | `FluentProgressBar` |
@@ -65,6 +65,9 @@ Status meanings:
 | Area | Public Flutter API |
 | --- | --- |
 | Acrylic | `FluentAcrylicSurface` |
+| Calendar | `FluentCalendar` |
+| Date picker | `FluentDatePicker` |
+| Time picker | `FluentTimePicker` |
 | Data grid | `FluentDataGrid`, `FluentDataGridCell` |
 | Status | `FluentStatusIndicator`, `FluentPresenceBadge` |
 | Swatches | `FluentSwatchPicker`, `FluentSwatch` |

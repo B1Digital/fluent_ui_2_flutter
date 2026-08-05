@@ -693,15 +693,14 @@ Widget buildFluentSplitButton(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/gallery/gallery_app.dart`:
+Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/button_stories.dart`:
 
 ```dart
 FluentButton(
-          appearance: FluentButtonAppearance.subtle,
-          size: FluentButtonSize.small,
-          onPressed: () => setState(() => _open = !open),
-          child: Text(widget.section.component),
-        )
+                  appearance: appearance,
+                  onPressed: disabled ? null : () {},
+                  child: Text(label),
+                )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -712,7 +711,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2_web/lib/src/buttons/button.dart`, `packages/fluent_2_web/lib/src/buttons/compound_button.dart`, `packages/fluent_2_web/lib/src/buttons/split_button.dart`
 - Tests: `packages/fluent_2_web/test/buttons/button_test.dart`, `packages/fluent_2_web/test/buttons/split_compound_button_test.dart`, `packages/fluent_2_web/test/goldens/button_golden_test.dart`, `packages/fluent_2_web/test/goldens/dialog_golden_test.dart`, `packages/fluent_2_web/test/goldens/field_golden_test.dart`, `packages/fluent_2_web/test/goldens/message_bar_golden_test.dart`, `packages/fluent_2_web/test/goldens/nav_golden_test.dart`, `packages/fluent_2_web/test/goldens/split_compound_button_golden_test.dart`, `packages/fluent_2_web/test/goldens/teaching_popover_golden_test.dart`, `packages/fluent_2_web/test/goldens/toolbar_golden_test.dart`, `packages/fluent_2_web/test/goldens/tree_golden_test.dart`, `packages/fluent_2_web/test/inputs/field_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/gallery/gallery_app.dart`, `packages/fluent_2_web/example/lib/stories/accordion_stories.dart`, `packages/fluent_2_web/example/lib/stories/acrylic_surface_stories.dart`, `packages/fluent_2_web/example/lib/stories/avatar_group_stories.dart`, `packages/fluent_2_web/example/lib/stories/avatar_stories.dart`, `packages/fluent_2_web/example/lib/stories/breadcrumb_stories.dart`, `packages/fluent_2_web/example/lib/stories/button_stories.dart`, `packages/fluent_2_web/example/lib/stories/card_stories.dart`, `packages/fluent_2_web/example/lib/stories/carousel_stories.dart`, `packages/fluent_2_web/example/lib/stories/compound_button_stories.dart`, `packages/fluent_2_web/example/lib/stories/data_grid_stories.dart`, `packages/fluent_2_web/example/lib/stories/dialog_stories.dart`
+- Stories: `packages/fluent_2_web/example/lib/storybook/components/button_stories.dart`, `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`, `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`, `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/button/usage/
 - Design decisions: `references/components-actions-inputs.md`
 
