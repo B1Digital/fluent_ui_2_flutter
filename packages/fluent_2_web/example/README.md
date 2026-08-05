@@ -1,4 +1,4 @@
-# fluent_2_gallery
+# fluent_2_web_example
 
 A new Flutter project.
 

@@ -1,6 +1,6 @@
 {
-    "name": "fluent_2_gallery",
-    "short_name": "fluent_2_gallery",
+    "name": "fluent_2_web_example",
+    "short_name": "fluent_2_web_example",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

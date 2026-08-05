@@ -1,20 +1,22 @@
-name: fluent_2_gallery
-description: "Live catalogue of every Fluent 2 component, its variants and its states."
-publish_to: none
-version: 0.0.1
+name: fluent_2_web_example
+description: "Storybook for the Fluent 2 web components."
+publish_to: 'none'
+version: 1.0.0+1
 resolution: workspace
 
 environment:
   sdk: ^3.12.2
-  flutter: ">=3.41.0"
 
 dependencies:
   fluent_2_web:
     path: ..
   flutter:
     sdk: flutter
+  storybook_flutter: ^0.14.1
 
 dev_dependencies:
-  flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter
+
+flutter:
+  uses-material-design: true
