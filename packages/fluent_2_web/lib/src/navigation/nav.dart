@@ -84,6 +84,31 @@ class FluentNavCollapseIntent extends Intent {
   const FluentNavCollapseIntent();
 }
 
+/// Requests that focus move [delta] rows through the nav.
+///
+/// Bound to `Up` and `Down`. Wrapping at both ends, because
+/// `useNavDrawerBody.ts` configures its arrow navigation group with
+/// `circular: true`.
+class FluentNavMoveIntent extends Intent {
+  /// Creates a move intent.
+  const FluentNavMoveIntent(this.delta);
+
+  /// How many rows to move, and in which direction. Negative is upward.
+  final int delta;
+}
+
+/// Requests that focus move to the first or last row of the nav.
+///
+/// Bound to `Home` and `End`. Absolute, never wrapping — tabster does not
+/// consult its cyclic flag on these two.
+class FluentNavEdgeIntent extends Intent {
+  /// Creates an edge intent.
+  const FluentNavEdgeIntent({required this.last});
+
+  /// Whether to move to the last row rather than the first.
+  final bool last;
+}
+
 /// Everything needed to render one nav row, independent of kind and size.
 ///
 /// The counterpart of `FluentButtonBaseState`. [buildFluentNavItem] takes this
@@ -594,49 +619,130 @@ class _FluentNavGroup extends StatelessWidget {
 
 /// Overrides the nav row style for a subtree.
 ///
-/// The middle rung of the resolution order: theme defaults, then this, then the
-/// widget's own `style`. Placing it above a [FluentNav] restyles every row in
-/// it.
+/// The middle rungs of the resolution order: theme defaults, then [style], then
+/// the slot matching the row's own [FluentNavItemKind], then the widget's own
+/// `style`. Placing this above a [FluentNav] restyles every row in it.
+///
+/// The kind slots exist because React styles the four sets through separate
+/// hooks — `useNavItemStyles`, `useNavCategoryItemStyles`,
+/// `useNavSubItemStyles` — so a consumer can restyle one without touching the
+/// others. Without them, "make categories read differently from their children"
+/// means passing `style:` to every widget by hand.
+///
+/// ```dart
+/// FluentNavItemTheme(
+///   style: everyRow,
+///   categoryStyle: headersOnly,
+///   child: FluentNav(children: <Widget>[…]),
+/// )
+/// ```
 class FluentNavItemTheme extends InheritedTheme {
-  /// Applies [style] to every nav row in [child].
+  /// Applies [style] and the kind slots to every nav row in [child].
   const FluentNavItemTheme({
     super.key,
-    required this.style,
+    this.style,
+    this.appItemStyle,
+    this.categoryStyle,
+    this.itemStyle,
+    this.subItemStyle,
     required super.child,
   });
 
-  /// The style layered over the kind and size defaults.
-  final FluentNavItemStyle style;
+  /// The style layered over every kind's defaults.
+  final FluentNavItemStyle? style;
 
-  /// The nearest nav row style, or null.
+  /// Layered over [style] for [FluentNavItemKind.appItem] rows.
+  final FluentNavItemStyle? appItemStyle;
+
+  /// Layered over [style] for [FluentNavItemKind.category] rows.
+  final FluentNavItemStyle? categoryStyle;
+
+  /// Layered over [style] for [FluentNavItemKind.item] rows.
+  final FluentNavItemStyle? itemStyle;
+
+  /// Layered over [style] for [FluentNavItemKind.subItem] rows.
+  final FluentNavItemStyle? subItemStyle;
+
+  FluentNavItemStyle? _forKind(FluentNavItemKind kind) {
+    final slot = switch (kind) {
+      FluentNavItemKind.appItem => appItemStyle,
+      FluentNavItemKind.category => categoryStyle,
+      FluentNavItemKind.item => itemStyle,
+      FluentNavItemKind.subItem => subItemStyle,
+    };
+    if (slot == null) return style;
+    // Per-property, so a slot that overrides only the fill keeps everything
+    // else the catch-all resolved.
+    return style?.merge(slot) ?? slot;
+  }
+
+  /// The nearest catch-all nav row style, or null.
+  ///
+  /// Deliberately unchanged in both signature and meaning: it returns [style]
+  /// and ignores the kind slots, so no existing caller breaks. Use
+  /// [maybeOfKind] for the full resolution.
   static FluentNavItemStyle? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<FluentNavItemTheme>()?.style;
 
+  /// The nearest nav row style for [kind] — [style] with the matching slot
+  /// layered over it — or null.
+  static FluentNavItemStyle? maybeOfKind(
+    BuildContext context,
+    FluentNavItemKind kind,
+  ) => context
+      .dependOnInheritedWidgetOfExactType<FluentNavItemTheme>()
+      ?._forKind(kind);
+
   @override
   bool updateShouldNotify(FluentNavItemTheme oldWidget) =>
-      style != oldWidget.style;
+      style != oldWidget.style ||
+      appItemStyle != oldWidget.appItemStyle ||
+      categoryStyle != oldWidget.categoryStyle ||
+      itemStyle != oldWidget.itemStyle ||
+      subItemStyle != oldWidget.subItemStyle;
 
   @override
-  Widget wrap(BuildContext context, Widget child) =>
-      FluentNavItemTheme(style: style, child: child);
+  Widget wrap(BuildContext context, Widget child) => FluentNavItemTheme(
+    style: style,
+    appItemStyle: appItemStyle,
+    categoryStyle: categoryStyle,
+    itemStyle: itemStyle,
+    subItemStyle: subItemStyle,
+    child: child,
+  );
 }
 
-/// Carries density, selection and the open set down to every row.
+/// Carries density, selection, the open set and the roving focus model down to
+/// every row.
 class _FluentNavScope extends InheritedWidget {
   const _FluentNavScope({
     required this.size,
+    required this.tabbable,
+    required this.tabStop,
     required this.selectedValue,
     required this.openCategories,
     required this.requestSelect,
     required this.requestToggle,
+    required this.register,
+    required this.unregister,
+    required this.rowFocused,
     required super.child,
   });
 
   final FluentNavSize size;
+  final bool tabbable;
+
+  /// The gate that currently owns the nav's single tab stop, or null before
+  /// the focus tree has been walked for the first time.
+  final FocusNode? tabStop;
+
   final Object? selectedValue;
   final Set<Object> openCategories;
   final void Function(Object value) requestSelect;
   final void Function(Object value, {bool? open}) requestToggle;
+  final void Function(FocusNode gate) register;
+  final void Function(FocusNode gate, {required bool hadFocus}) unregister;
+  final void Function(FocusNode gate) rowFocused;
 
   static _FluentNavScope of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<_FluentNavScope>();
@@ -648,9 +754,13 @@ class _FluentNavScope extends InheritedWidget {
     return scope!;
   }
 
+  // The three callbacks are omitted on purpose: they are bound to
+  // `_FluentNavState` and never change identity for a given nav.
   @override
   bool updateShouldNotify(_FluentNavScope oldWidget) =>
       size != oldWidget.size ||
+      tabbable != oldWidget.tabbable ||
+      tabStop != oldWidget.tabStop ||
       selectedValue != oldWidget.selectedValue ||
       !setEquals(openCategories, oldWidget.openCategories) ||
       requestSelect != oldWidget.requestSelect ||
@@ -686,22 +796,44 @@ class _FluentNavScope extends InheritedWidget {
 ///
 /// ## Keyboard
 ///
-/// Up and Down move focus between rows, which is the framework's own
-/// directional traversal rather than a bespoke roving index — a nav is a plain
-/// vertical list of focusables and needs nothing more. `Enter` and `Space`
+/// `Up` and `Down` move focus between rows, wrapping at both ends; `Home` and
+/// `End` jump to the first and last row without wrapping; `Enter` and `Space`
 /// activate the focused row. On a category header, `Right` opens and `Left`
-/// closes, mirrored in a right-to-left nav. Those two are the only bindings
-/// this widget installs, and they sit on the header rather than on the nav, so
-/// they never shadow directional traversal anywhere else.
+/// closes, mirrored in a right-to-left nav — those two live on the header
+/// rather than on the nav, so they never shadow anything elsewhere.
+///
+/// Unless [tabbable] is set, the whole nav is a single tab stop: Tab enters at
+/// the row that last held focus and Tab again leaves. Rows that cannot take
+/// focus — disabled ones, a static [FluentNavAppItem], a [FluentNavDivider],
+/// a [FluentNavSectionHeader] — are skipped structurally rather than by
+/// declaration.
+///
+/// This reproduces upstream's `useArrowNavigationGroup({ axis: 'vertical',
+/// circular: true, tabbable })`, with three recorded divergences:
+///
+/// * Upstream installs that group on `NavDrawerBody`, not on `Nav`, so its bare
+///   `Nav` has no arrow navigation at all. This widget carries it, because it
+///   is the only nav container this package ships.
+/// * `PageUp` and `PageDown` are not bound. Tabster implements them as a
+///   viewport-visibility walk; a nav hugs its height and has no viewport.
+/// * `secondaryActions` are reached by Tab within the focused row rather than
+///   by `Down`. Upstream has no analogue — an HTML nav item cannot nest a
+///   button — and making them arrow stops would tie the press count to how many
+///   icon buttons a row happens to carry.
+///
+/// Tabster can enter a group at a row flagged as its default; whether Fluent
+/// flags the selected item is unverified, so this widget enters at the first
+/// reachable row.
 ///
 /// The nav fills the width it is given and hugs its height. Fluent's own drawer
-/// is 260 wide.
+/// is 260 wide — see `FluentNavDrawer`.
 class FluentNav extends StatefulWidget {
   /// Creates a nav over [children].
   const FluentNav({
     super.key,
     required this.children,
     this.size = FluentNavSize.medium,
+    this.tabbable = false,
     this.selectedValue,
     this.defaultSelectedValue,
     this.onSelect,
@@ -716,6 +848,18 @@ class FluentNav extends StatefulWidget {
 
   /// Row height and density.
   final FluentNavSize size;
+
+  /// Whether every row is a tab stop, rather than the nav being one.
+  ///
+  /// False — the default, and what `useNav.ts` hardcodes — makes the whole nav
+  /// a single tab stop: Tab enters at the row that last had focus and Tab again
+  /// leaves the nav. True restores a stop per row, matching upstream's
+  /// `tabbable` prop: *"The component uses arrow navigation by default. Setting
+  /// this to true enables tab AND arrow navigation."*
+  ///
+  /// The arrow keys and `Home`/`End` behave identically either way. Tabster
+  /// reads this flag in exactly one place, and so does this widget.
+  final bool tabbable;
 
   /// The selected row's value, when the caller owns it.
   final Object? selectedValue;
@@ -746,6 +890,166 @@ class _FluentNavState extends State<FluentNav> {
   late Object? _uncontrolledSelected = widget.defaultSelectedValue;
   late Set<Object> _uncontrolledOpen = <Object>{
     ...widget.defaultOpenCategories,
+  };
+
+  /// The nav's own node, whose descendants are the gates. Never focusable
+  /// itself — it is a handle for walking the focus tree in order.
+  final FocusNode _nav = FocusNode(debugLabel: 'FluentNav');
+
+  final Set<FocusNode> _gates = <FocusNode>{};
+
+  /// The gate holding the nav's single tab stop. Null until the first
+  /// post-frame settle, which is also the one frame in which every row stays
+  /// traversable — see the gate expression in `_FluentNavRowState.build`.
+  FocusNode? _tabStop;
+
+  bool _settleScheduled = false;
+
+  @override
+  void dispose() {
+    _nav.dispose();
+    super.dispose();
+  }
+
+  /// The gates in focus-tree order. Derived live on every read rather than
+  /// cached, so a collapsed category's sub-items drop out by themselves.
+  Iterable<FocusNode> get _rows => _nav.descendants.where(_gates.contains);
+
+  /// The row's own focusable node.
+  ///
+  /// Null for a static app item, which builds no `FluentInteractive` at all,
+  /// and null for a disabled row, whose detector refuses focus — which is what
+  /// makes both skippable without the nav having to be told which is which.
+  FocusNode? _focusable(FocusNode gate) {
+    for (final node in gate.descendants) {
+      if (node.canRequestFocus) return node;
+    }
+    return null;
+  }
+
+  List<FocusNode> get _reachable => <FocusNode>[
+    for (final gate in _rows)
+      if (_focusable(gate) != null) gate,
+  ];
+
+  void _register(FocusNode gate) {
+    _gates.add(gate);
+    _scheduleSettle();
+  }
+
+  void _unregister(FocusNode gate, {required bool hadFocus}) {
+    _gates.remove(gate);
+    if (identical(gate, _tabStop)) _tabStop = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _settle();
+      if (!hadFocus) return;
+      // The row that held focus is gone, and there is no FocusScope inside the
+      // nav to catch it — so without this, focus lands on the route's scope and
+      // leaves the nav entirely. Wrapping the nav in a FocusScope is not the
+      // alternative: `FocusTraversalPolicy.next` works within `nearestScope`,
+      // so Tab from the last row would cycle back in rather than leaving.
+      final stop = _tabStop;
+      if (stop == null) return;
+      final node = _focusable(stop);
+      if (node != null) {
+        FocusTraversalPolicy.defaultTraversalRequestFocusCallback(node);
+      }
+    });
+  }
+
+  /// Registration happens inside this widget's own build, so the tab stop can
+  /// never be settled synchronously — `setState` on that path asserts.
+  void _scheduleSettle() {
+    if (_settleScheduled) return;
+    _settleScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _settleScheduled = false;
+      _settle();
+    });
+  }
+
+  /// Parks the tab stop on a row that can actually receive it.
+  ///
+  /// Without this a nav opening with a divider, a section header or a disabled
+  /// row would have zero tab stops instead of one.
+  void _settle() {
+    if (!mounted) return;
+    final stop = _tabStop;
+    if (stop == null || !_gates.contains(stop) || _focusable(stop) == null) {
+      final rows = _reachable;
+      final next = rows.isEmpty ? null : rows.first;
+      if (next != stop) setState(() => _tabStop = next);
+    }
+    _unlatch();
+  }
+
+  /// Clears the `skipTraversal` the tab stop's own row latched onto its node
+  /// while its gate was shut.
+  ///
+  /// `Focus.skipTraversal` falls back to `focusNode.skipTraversal` when the
+  /// widget passes none — and *that* getter is derived: it reports true while
+  /// any ancestor has `descendantsAreTraversable: false`. A row built on
+  /// `FocusableActionDetector` passes none, so the first shut gate makes the
+  /// row write the derived true back onto its own node as a hard flag, and the
+  /// row then stays out of the Tab order for good, gate or no gate. One
+  /// assignment per settle undoes it, and the row's next build writes the
+  /// cleared value straight back, so it sticks.
+  void _unlatch() {
+    final stop = _tabStop;
+    if (stop != null) _focusable(stop)?.skipTraversal = false;
+  }
+
+  /// Keeps the roving index on whichever row the user actually reached, so a
+  /// click and an arrow press leave the nav in the same state.
+  void _rowFocused(FocusNode gate) {
+    if (!mounted || identical(gate, _tabStop)) return;
+    setState(() => _tabStop = gate);
+    _scheduleSettle();
+  }
+
+  void _move(int delta) {
+    final rows = _reachable;
+    if (rows.isEmpty) return;
+    final current = _tabStop == null ? -1 : rows.indexOf(_tabStop!);
+    // Dart's `%` is non-negative for a positive divisor, so one expression
+    // covers both directions — this is `circular: true` from
+    // `useNavDrawerBody.ts`, and the same modulo walk as FluentToolbar._seek.
+    final next = current < 0
+        ? (delta > 0 ? 0 : rows.length - 1)
+        : (current + delta) % rows.length;
+    _focusRow(rows[next]);
+  }
+
+  void _edge({required bool last}) {
+    final rows = _reachable;
+    if (rows.isEmpty) return;
+    _focusRow(last ? rows.last : rows.first);
+  }
+
+  void _focusRow(FocusNode gate) {
+    final node = _focusable(gate);
+    if (node == null) return;
+    // Through the traversal callback rather than `node.requestFocus()`, so
+    // `Scrollable.ensureVisible` still runs — a nav is routinely placed in a
+    // scroller, and a bare requestFocus silently loses scroll-into-view there.
+    FocusTraversalPolicy.defaultTraversalRequestFocusCallback(node);
+    if (identical(gate, _tabStop)) return;
+    setState(() => _tabStop = gate);
+    // The row that just gained the stop has to be un-latched once the frame
+    // that reopens its gate has been built — see [_unlatch].
+    _scheduleSettle();
+  }
+
+  /// `Home` and `End` mean top and bottom rather than start and end, and
+  /// vertical arrows are not mirrored in any locale, so unlike the category's
+  /// own bindings this map needs no `Directionality` branch.
+  static const Map<ShortcutActivator, Intent>
+  _shortcuts = <ShortcutActivator, Intent>{
+    SingleActivator(LogicalKeyboardKey.arrowUp): FluentNavMoveIntent(-1),
+    SingleActivator(LogicalKeyboardKey.arrowDown): FluentNavMoveIntent(1),
+    SingleActivator(LogicalKeyboardKey.home): FluentNavEdgeIntent(last: false),
+    SingleActivator(LogicalKeyboardKey.end): FluentNavEdgeIntent(last: true),
   };
 
   Object? get _selected => widget.selectedValue ?? _uncontrolledSelected;
@@ -781,17 +1085,56 @@ class _FluentNavState extends State<FluentNav> {
     label: widget.semanticLabel,
     child: _FluentNavScope(
       size: widget.size,
+      tabbable: widget.tabbable,
+      tabStop: _tabStop,
       selectedValue: _selected,
       openCategories: _open,
       requestSelect: _requestSelect,
       requestToggle: _requestToggle,
-      child: FocusTraversalGroup(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          // `Spacing/Vertical/XXS`, the gap Figma puts between every nav row.
-          spacing: FluentSpacing.xxs,
-          children: widget.children,
+      register: _register,
+      unregister: _unregister,
+      rowFocused: _rowFocused,
+      // Shortcuts and Actions must be siblings on the same path, and outside
+      // any FocusScope: ShortcutManager resolves the action from
+      // `primaryFocus`, not from the Shortcuts context, so an Actions that is
+      // not an ancestor of the rows yields null and the whole model silently
+      // degrades to directional traversal with no error.
+      child: Shortcuts(
+        shortcuts: _shortcuts,
+        child: Actions(
+          actions: <Type, Action<Intent>>{
+            FluentNavMoveIntent: CallbackAction<FluentNavMoveIntent>(
+              onInvoke: (intent) {
+                _move(intent.delta);
+                return null;
+              },
+            ),
+            FluentNavEdgeIntent: CallbackAction<FluentNavEdgeIntent>(
+              onInvoke: (intent) {
+                _edge(last: intent.last);
+                return null;
+              },
+            ),
+          },
+          // No FocusTraversalGroup: the only thing one bought here was
+          // `ReadingOrderTraversalPolicy`'s directional mixin, and `Up`/`Down`
+          // are bound above. A non-const wrapper would also rebuild its policy
+          // on every selection change and category toggle, throwing away the
+          // mixin's hysteresis history each time.
+          child: Focus(
+            focusNode: _nav,
+            canRequestFocus: false,
+            skipTraversal: true,
+            includeSemantics: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              // `Spacing/Vertical/XXS`, the gap Figma puts between every nav
+              // row.
+              spacing: FluentSpacing.xxs,
+              children: widget.children,
+            ),
+          ),
         ),
       ),
     ),
@@ -800,7 +1143,7 @@ class _FluentNavState extends State<FluentNav> {
 
 /// The shared plumbing of every interactive nav row: interaction, semantics and
 /// the three-function pipeline.
-class _FluentNavRow extends StatelessWidget {
+class _FluentNavRow extends StatefulWidget {
   const _FluentNavRow({
     required this.kind,
     required this.onPressed,
@@ -830,56 +1173,120 @@ class _FluentNavRow extends StatelessWidget {
   final bool autofocus;
 
   @override
+  State<_FluentNavRow> createState() => _FluentNavRowState();
+}
+
+class _FluentNavRowState extends State<_FluentNavRow> {
+  /// This row's handle in the nav's roving model. It never takes focus itself;
+  /// it exists so the nav can find the row's own focusable descendant and can
+  /// gate the row's subtree out of the Tab order.
+  final FocusNode _gate = FocusNode(debugLabel: 'FluentNav row');
+
+  _FluentNavScope? _scope;
+
+  /// Whether this row, or anything inside it, currently holds focus.
+  ///
+  /// Tracked rather than read from the node at dispose time: by then the
+  /// descendant that actually held focus may already have detached, and
+  /// `FocusNode.hasFocus` would answer false.
+  bool _hasFocus = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Idempotent: the scope widget is rebuilt on every selection change, and
+    // registering into a Set costs nothing when the gate is already there.
+    _scope = _FluentNavScope.of(context)..register(_gate);
+  }
+
+  @override
+  void dispose() {
+    _scope?.unregister(_gate, hadFocus: _hasFocus || _gate.hasFocus);
+    _gate.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final scope = _FluentNavScope.of(context);
+
     final state = resolveFluentNavItemState(
-      kind: kind,
-      size: _FluentNavScope.of(context).size,
-      enabled: enabled,
-      selected: selected,
-      expanded: expanded,
-      expandable: expandable,
-      icon: icon,
-      label: label,
-      secondaryActions: secondaryActions,
+      kind: widget.kind,
+      size: scope.size,
+      enabled: widget.enabled,
+      selected: widget.selected,
+      expanded: widget.expanded,
+      expandable: widget.expandable,
+      icon: widget.icon,
+      label: widget.label,
+      secondaryActions: widget.secondaryActions,
     );
 
-    // Lowest to highest: defaults, subtree theme, then the caller's own style.
-    final resolved = resolveFluentNavItemStyle(
-      state,
-      FluentTheme.of(context),
-    ).merge(FluentNavItemTheme.maybeOf(context)).merge(style);
+    // Lowest to highest: defaults, subtree theme, kind slot, then the caller's
+    // own style.
+    final resolved = resolveFluentNavItemStyle(state, FluentTheme.of(context))
+        .merge(FluentNavItemTheme.maybeOfKind(context, widget.kind))
+        .merge(widget.style);
 
-    // Upstream ships `AppItemStatic` for a header that is only a label: no
-    // hover, no press, no focus, and — the part that matters — *not* disabled.
-    // A row with nothing to invoke takes that path rather than being painted in
-    // the disabled tokens, which is what a null `onPressed` means everywhere
-    // else in this package.
-    if (onPressed == null && enabled) {
-      return buildFluentNavItem(state, resolved, const <WidgetState>{});
+    final Widget row;
+    if (widget.onPressed == null && widget.enabled) {
+      // Upstream ships `AppItemStatic` for a header that is only a label: no
+      // hover, no press, no focus, and — the part that matters — *not*
+      // disabled. A row with nothing to invoke takes that path rather than
+      // being painted in the disabled tokens.
+      row = buildFluentNavItem(state, resolved, const <WidgetState>{});
+    } else {
+      row = Semantics(
+        button: true,
+        enabled: widget.enabled,
+        selected: state.showIndicator ? widget.selected : null,
+        expanded: widget.expandable ? widget.expanded : null,
+        child: FluentInteractive(
+          enabled: widget.enabled,
+          onPressed: widget.enabled ? widget.onPressed : null,
+          focusNode: widget.focusNode,
+          autofocus: widget.autofocus,
+          mouseCursor:
+              resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
+              SystemMouseCursors.click,
+          builder: (context, states, _) => buildFluentNavItem(
+            state,
+            resolved,
+            // Selection is not an interaction state, so FluentInteractive does
+            // not report it; it is folded in here so a themed `selected:` token
+            // resolves the way a caller would expect.
+            widget.selected
+                ? <WidgetState>{...states, WidgetState.selected}
+                : states,
+          ),
+        ),
+      );
     }
 
-    return Semantics(
-      button: true,
-      enabled: enabled,
-      selected: state.showIndicator ? selected : null,
-      expanded: expandable ? expanded : null,
-      child: FluentInteractive(
-        enabled: enabled,
-        onPressed: enabled ? onPressed : null,
-        focusNode: focusNode,
-        autofocus: autofocus,
-        mouseCursor:
-            resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
-            SystemMouseCursors.click,
-        builder: (context, states, _) => buildFluentNavItem(
-          state,
-          resolved,
-          // Selection is not an interaction state, so FluentInteractive does
-          // not report it; it is folded in here so a themed `selected:` token
-          // resolves the way a caller would expect.
-          selected ? <WidgetState>{...states, WidgetState.selected} : states,
-        ),
-      ),
+    return Focus(
+      focusNode: _gate,
+      // A handle, not a stop. `skipTraversal` is derived from ancestors'
+      // `descendantsAreTraversable`, and the framework guarantees a skipped
+      // node "may still be focused explicitly" — which is what keeps
+      // `autofocus:` and a caller's own `focusNode.requestFocus()` working on a
+      // row that does not hold the roving index.
+      canRequestFocus: false,
+      skipTraversal: true,
+      // Load-bearing. `Focus` otherwise injects a
+      // `Semantics(focusable:, focused:)` node, and this package asserts exact
+      // semantics trees for nav rows.
+      includeSemantics: false,
+      descendantsAreTraversable:
+          scope.tabbable ||
+          // One frame only: before the focus tree exists nothing can be
+          // settled, so the nav degrades to a stop per row rather than to none.
+          scope.tabStop == null ||
+          identical(scope.tabStop, _gate),
+      onFocusChange: (hasFocus) {
+        _hasFocus = hasFocus;
+        if (hasFocus) scope.rowFocused(_gate);
+      },
+      child: row,
     );
   }
 }
@@ -1220,6 +1627,52 @@ class FluentNavDivider extends StatelessWidget {
     padding: const EdgeInsets.symmetric(vertical: FluentSpacing.xs),
     child: FluentDivider(
       appearance: appearance ?? FluentDividerAppearance.standard,
+    ),
+  );
+}
+
+/// A non-interactive grouping label in a [FluentNav].
+///
+/// Upstream's `NavSectionHeader` renders an `h3` carrying `caption1Strong`,
+/// `marginInlineStart: 10px` and `marginBlock: 8px` — and nothing else.
+/// `useNavSectionHeaderStyles.styles.ts` is three declarations long, and
+/// `NavSectionHeader.types.ts` declares no props at all. Unlike
+/// [FluentNavCategory] it does not collapse, take an icon, or accept selection.
+///
+/// Unlike [FluentNavItem] and its siblings, this does **not** require a
+/// [FluentNav] ancestor. It never reads the nav's scope, so it is usable in any
+/// nav-shaped list.
+///
+/// The colour is inherited rather than set, because upstream declares none.
+/// Inside a `FluentNavDrawer` that resolves to `neutralForeground1`, which the
+/// drawer pushes down through its own `DefaultTextStyle`.
+class FluentNavSectionHeader extends StatelessWidget {
+  /// Creates a section header labelled [child].
+  const FluentNavSectionHeader({super.key, required this.child});
+
+  /// The label.
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    // Upstream hardcodes `h3` in `useNavSectionHeader.ts`. Flutter has no
+    // heading `SemanticsRole`, so the level travels on `headingLevel` instead.
+    // This is the first use of that API in this package; the choice is
+    // deliberate, and sets the precedent for any other header-ish widget here.
+    headingLevel: 3,
+    child: Padding(
+      // `marginInlineStart: 10px` and `marginBlock: 8px`, with no inline-end
+      // margin — the label runs to the panel's own gutter.
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        FluentSpacing.mNudge,
+        FluentSpacing.s,
+        FluentSpacing.none,
+        FluentSpacing.s,
+      ),
+      child: DefaultTextStyle.merge(
+        style: FluentTheme.of(context).typography.caption1Strong,
+        child: child,
+      ),
     ),
   );
 }
