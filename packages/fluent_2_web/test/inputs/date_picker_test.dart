@@ -17,6 +17,7 @@ Future<void> _pump(
   DateTime? maxDate,
   ValueChanged<FluentDatePickerValidationResult>? onValidationResult,
   bool reducedMotion = false,
+  Widget? placeholder,
   Widget Function(Widget child)? wrap,
 }) async {
   final picker = FluentDatePicker(
@@ -29,6 +30,7 @@ Future<void> _pump(
     minDate: minDate,
     maxDate: maxDate,
     onValidationResult: onValidationResult,
+    placeholder: placeholder,
   );
   await tester.pumpWidget(
     FluentApp(
@@ -95,6 +97,51 @@ void main() {
 
       expect(live.color, isNot(disabled.color));
       expect(live.border, isNot(disabled.border));
+    });
+  });
+
+  // The picker owns its controller and does not rebuild on a keystroke, so a
+  // placeholder whose visibility was read at build time stayed painted over
+  // whatever was typed underneath it.
+  group('FluentDatePicker — the placeholder', () {
+    testWidgets('is hidden by a typed date', (tester) async {
+      await _pump(
+        tester,
+        allowTextInput: true,
+        openOnClick: false,
+        placeholder: const Text('M/D/YYYY'),
+      );
+      expect(find.text('M/D/YYYY'), findsOneWidget);
+
+      await tester.enterText(find.byType(EditableText), '12/12/2026');
+      await tester.pump();
+      expect(find.text('M/D/YYYY'), findsNothing);
+
+      await tester.enterText(find.byType(EditableText), '');
+      await tester.pump();
+      expect(find.text('M/D/YYYY'), findsOneWidget);
+    });
+
+    testWidgets('is hidden by an initial value', (tester) async {
+      await _pump(
+        tester,
+        value: DateTime(2026, 12, 12),
+        placeholder: const Text('M/D/YYYY'),
+      );
+      expect(find.text('M/D/YYYY'), findsNothing);
+      expect(_controller(tester).text, '12/12/2026');
+    });
+
+    testWidgets('is hidden by a date picked from the calendar', (tester) async {
+      await _pump(tester, placeholder: const Text('M/D/YYYY'));
+      expect(find.text('M/D/YYYY'), findsOneWidget);
+
+      await tester.tap(find.byType(FluentDatePicker));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('12').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('M/D/YYYY'), findsNothing);
     });
   });
 

@@ -16,6 +16,7 @@ Future<void> _pump(
   int endHour = 11,
   int increment = 60,
   FluentTimePickerAppearance appearance = FluentTimePickerAppearance.outline,
+  Widget? placeholder,
 }) async {
   await tester.pumpWidget(
     FluentApp(
@@ -33,6 +34,7 @@ Future<void> _pump(
             endHour: endHour,
             increment: increment,
             appearance: appearance,
+            placeholder: placeholder,
             hourCycle: FluentHourCycle.h23,
           ),
         ),
@@ -367,6 +369,28 @@ void main() {
       await _pump(tester);
       final editable = tester.widget<EditableText>(find.byType(EditableText));
       expect(editable.readOnly, isTrue);
+    });
+  });
+
+  // The sibling of the date picker's bug: this picker owns its controller too,
+  // so a build-time placeholder read left the hint painted over typed text.
+  group('FluentTimePicker — the placeholder', () {
+    testWidgets('is hidden by typed text', (tester) async {
+      await _pump(tester, freeform: true, placeholder: const Text('hh:mm'));
+      expect(find.text('hh:mm'), findsOneWidget);
+
+      await tester.enterText(find.byType(EditableText), '09:30');
+      await tester.pump();
+      expect(find.text('hh:mm'), findsNothing);
+    });
+
+    testWidgets('is hidden by an initial value', (tester) async {
+      await _pump(
+        tester,
+        selectedTime: DateTime(2026, 3, 10, 9, 30),
+        placeholder: const Text('hh:mm'),
+      );
+      expect(find.text('hh:mm'), findsNothing);
     });
   });
 
