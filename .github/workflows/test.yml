@@ -1,0 +1,35 @@
+name: Test & Validate
+
+on:
+  push:
+    branches: [ main, 'feat/*', 'feature/*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test All Features
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Verify Flutter Installation
+        run: flutter --version
+
+      - name: Install Melos
+        run: dart pub global activate melos
+
+      - name: Bootstrap Melos Workspace
+        run: dart run melos bootstrap
+
+      - name: Run Full CI Suite (Analyze, Format, No-Material, Test)
+        run: dart run melos run ci

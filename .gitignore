@@ -37,3 +37,10 @@ doc/
 docs/
 tool/
 
+# Crawlers
+#
+# Local tooling, not shipped: the Playwright install, the crawl output, and the
+# scrape scripts themselves. Keep a copy outside the repo if you need to
+# regenerate `test/fixtures/*.json` — nothing in git will bring these back.
+crawlers/
+
