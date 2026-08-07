@@ -233,9 +233,18 @@ FluentNavItemState resolveFluentNavItemState({
 ///   (14/20); the app item is `subtitle2` (16/22 semibold) in every state
 /// * selection indicator `Brand/Foreground/Compound/Rest`, 4x20, radius 2
 ///
-/// Where `microsoft/fluentui@master` disagrees, Figma wins and both readings
-/// are called out in the comment at the disagreement — see the surface motion
-/// curve, the small-density padding and the leaf's trailing inset.
+/// Where `microsoft/fluentui@master` disagrees, Figma used to win. That is now
+/// reversed **for row height, and for row height only**: `@fluentui/react-nav`
+/// 9.4.3 is the authority on the four `height` values in the geometry table
+/// below. The reversal is deliberate and was made by the consuming app's owner,
+/// who chose React as the single source of truth so the design system has one
+/// authority to point at instead of two that quietly disagree.
+///
+/// The scope stops there. Padding, gaps, the sub-item indent, icon sizes, the
+/// selection indicator, the type ramp and every colour token on this page are
+/// still Figma's, and where React disagrees with them both readings stay called
+/// out at the disagreement — see the surface motion curve, the small-density
+/// padding and the leaf's trailing inset.
 FluentNavItemStyle resolveFluentNavItemStyle(
   FluentNavItemState state,
   FluentThemeData theme,
@@ -289,11 +298,21 @@ FluentNavItemStyle resolveFluentNavItemStyle(
   final appItem = state.kind == FluentNavItemKind.appItem;
   final small = state.size == FluentNavSize.small;
 
-  // The geometry table, verbatim from the five fixtures. `padding` is the inner
-  // `Button` frame's; the vertical half only matters for a row whose content is
-  // taller than the fixed height, because the row is centred inside
-  // `minimumSize`.
+  // The geometry table. `padding`, `gap` and `iconSize` are verbatim from the
+  // five Figma fixtures; `height` is React's, per the reversal documented
+  // above. `padding` is the inner `Button` frame's; the vertical half only
+  // matters for a row whose content is taller than the height, because the row
+  // is centred inside `minimumSize`.
+  //
+  // React ships no `height` declaration anywhere in `@fluentui/react-nav`
+  // 9.4.3 — every number below is what its padding plus `lineHeightBase300`
+  // (20) resolves to, which is why they are literals here and not tokens:
+  // 20 + 2x4 = 28 at small, 20 + 2x6 = 32 at medium. Figma's own 32/40 were 8
+  // taller at every step.
   final (padding, gap, height, iconSize) = switch (state.kind) {
+    // `useAppItemStyles.styles.ts` gives the app item one padding rule with no
+    // density branch, so React renders it 38 high at BOTH sizes — the only row
+    // whose height does not move with `state.size`. Figma drew 40/48.
     FluentNavItemKind.appItem when small => (
       const EdgeInsets.fromLTRB(
         FluentSpacing.mNudge + FluentSpacing.xs,
@@ -302,7 +321,7 @@ FluentNavItemStyle resolveFluentNavItemStyle(
         FluentSpacing.s,
       ),
       FluentSpacing.mNudge,
-      40.0,
+      38.0,
       FluentSize.size240,
     ),
     FluentNavItemKind.appItem => (
@@ -311,9 +330,11 @@ FluentNavItemStyle resolveFluentNavItemStyle(
         vertical: FluentSpacing.s,
       ),
       FluentSpacing.s,
-      48.0,
+      38.0,
       FluentSize.size320,
     ),
+    // `useNavCategoryItemStyles.styles.ts` — same padding rule as the leaf, so
+    // the same 28/32. Figma drew 32/40.
     FluentNavItemKind.category => (
       EdgeInsets.fromLTRB(
         FluentSpacing.mNudge,
@@ -322,9 +343,10 @@ FluentNavItemStyle resolveFluentNavItemStyle(
         small ? FluentSpacing.sNudge : FluentSpacing.mNudge,
       ),
       FluentSpacing.l,
-      small ? 32.0 : 40.0,
+      small ? 28.0 : 32.0,
       FluentSize.size200,
     ),
+    // `useNavItemStyles.styles.ts`. Figma drew 32/40.
     FluentNavItemKind.item => (
       const EdgeInsets.fromLTRB(
         FluentSpacing.mNudge,
@@ -333,12 +355,22 @@ FluentNavItemStyle resolveFluentNavItemStyle(
         FluentSpacing.none,
       ),
       FluentSpacing.l,
-      small ? 32.0 : 40.0,
+      small ? 28.0 : 32.0,
       FluentSize.size200,
     ),
     // The 46 is not a token: Figma writes it as a literal, and it is exactly
     // `paddingLeft` (10) + icon (20) + gap (16) of the row above, so a sub-item
     // label lines up with its category label rather than with its icon.
+    //
+    // Do NOT "fix" the 46 to React's `smallBase` (40) to match the height
+    // reversal — that token is overridden downstream and
+    // `useNavSubItemStyles.styles.ts` renders 46 at both densities too, so
+    // changing it would INTRODUCE a 6px misalignment against both authorities
+    // at once. Height is the only thing React won here.
+    //
+    // `useNavSubItemStyles.styles.ts` also branches on density, which this arm
+    // did not: it was a flat 32 with no `small` case, so the small nav drew its
+    // sub-items 4 taller than its leaves. Both authorities say it should track.
     FluentNavItemKind.subItem => (
       const EdgeInsets.fromLTRB(
         46,
@@ -347,7 +379,7 @@ FluentNavItemStyle resolveFluentNavItemStyle(
         FluentSpacing.none,
       ),
       FluentSpacing.l,
-      32.0,
+      small ? 28.0 : 32.0,
       FluentSize.size200,
     ),
   };

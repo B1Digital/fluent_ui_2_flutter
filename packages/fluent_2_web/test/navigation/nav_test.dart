@@ -101,15 +101,27 @@ void main() {
   /// Asserts one row against its Figma variant: the outer frame's height and
   /// padding, then the inner `Button` part's size, padding, radius and fill,
   /// then the label ramp.
+  ///
+  /// [height] is passed in rather than read off the variant, and it is the one
+  /// number here the fixture no longer owns. `resolveFluentNavItemStyle` now
+  /// takes its row heights from `@fluentui/react-nav` 9.4.3, not from Figma —
+  /// see the policy note on that function for why the port reversed. Everything
+  /// else this helper checks is still the fixture's.
+  ///
+  /// Every call site states its own number so the two authorities stay legible
+  /// side by side: a call passing `variant.size.height` is a row where React and
+  /// Figma happen to agree *as rendered*, and a call passing a literal is one
+  /// where they do not.
   void expectRow(
     WidgetTester tester,
     Finder of,
     SpecVariant variant, {
     required String label,
+    required double height,
     bool radius = true,
   }) {
     final size = tester.getSize(of);
-    expect(size.height, variant.size.height, reason: '${variant.name}: height');
+    expect(size.height, height, reason: '${variant.name}: height');
     expect(
       outerPadding(tester, of),
       variant.padding,
@@ -118,9 +130,12 @@ void main() {
 
     final button = variant.part('Button');
     final surfaceSize = tester.getSize(surfaceFinder(of));
+    // The outer padding is horizontal on every kind, so the Button box is
+    // exactly as tall as the row — asserted against the same number rather than
+    // the fixture's, for the same reason.
     expect(
       surfaceSize.height,
-      button.size.height,
+      height,
       reason: '${variant.name}: Button height',
     );
     expect(
@@ -215,7 +230,13 @@ void main() {
           );
           final finder = find.byType(FluentNavCategory);
           await enter(tester, finder, state);
-          expectRow(tester, finder, variant, label: 'Group');
+          // React says 32 (`useNavCategoryItemStyles.styles.ts`) and the style
+          // now asks for 32 — but a category's own Figma padding is
+          // `Vertical/MNudge` (10) top and bottom around a 20 line, so the row
+          // measures 40 on its content alone and the 32 floor never binds.
+          // Height went React; padding did not, and padding wins here. Pinned
+          // at what actually renders, not at what was asked for.
+          expectRow(tester, finder, variant, label: 'Group', height: 40);
         });
       }
     }
@@ -261,7 +282,10 @@ void main() {
           );
           final finder = find.byType(FluentNavItem);
           await enter(tester, finder, state);
-          expectRow(tester, finder, variant, label: 'Home');
+          // 40 in Figma, 32 in React (`useNavItemStyles.styles.ts`). A leaf
+          // carries no vertical padding, so the floor is the whole height and
+          // the reversal lands: this row really did shrink by 8.
+          expectRow(tester, finder, variant, label: 'Home', height: 32);
         });
       }
     }
@@ -304,7 +328,11 @@ void main() {
 
   group('nav_node_small — the size axis', () {
     for (final group in <String>['True', 'False']) {
-      testWidgets('Group=$group rows are 32 high', (tester) async {
+      // Was "rows are 32 high" for both. React's small row is 28, and only the
+      // leaf reaches it: the category still measures 32 off its own
+      // `Vertical/SNudge` (6) padding around a 20 line, so the 28 floor is
+      // inert there. Two numbers where there used to be one.
+      testWidgets('Group=$group', (tester) async {
         final variant = nodeSmall.variant(<String, String>{
           'Group': group,
           'Selected': 'False',
@@ -341,22 +369,19 @@ void main() {
           finder,
           variant,
           label: group == 'True' ? 'Group' : 'Home',
+          height: group == 'True' ? 32 : 28,
         );
       });
     }
 
-    // Asserted against Hover rather than Rest: the small `Open=True, Rest`
-    // variant frame is 338 — exactly the ten sub-items with no header above
-    // them — while Hover and Pressed are 372, which is those same 338 plus a
-    // 32-high header and the 2 gap. The Rest frame lost its header in Figma.
+    // No longer read off the fixture. Figma's small `Open=True, Hover` frame is
+    // 372 — a 32 header, the 2 gap, and ten 32-high sub-items with 2 between
+    // them. (Its `Rest` sibling is 338, the same stack with the header missing;
+    // that frame lost its header in Figma, which is why Hover was the one
+    // asserted.) React's small sub-item is 28, so the same stack is now
+    // 32 + 2 + 10*28 + 9*2 = 332. The header is still 32 because a category's
+    // padding, not the height floor, decides it.
     testWidgets('the open group stacks under a 32-high header', (tester) async {
-      final variant = nodeSmall.variant(<String, String>{
-        'Group': 'True',
-        'Open': 'True',
-        'State': 'Hover',
-        'Selected': 'False',
-        'Secondary actions': 'False',
-      });
       await pump(
         tester,
         nav(
@@ -376,8 +401,8 @@ void main() {
       );
       expect(
         tester.getSize(find.byType(FluentNavCategory)).height,
-        variant.size.height,
-        reason: '32 header + 2 gap + ten 32-high rows with 2 between them',
+        332,
+        reason: '32 header + 2 gap + ten 28-high rows with 2 between them',
       );
     });
   });
@@ -431,6 +456,11 @@ void main() {
             finder,
             variant,
             label: 'Sub',
+            // Figma and React agree at medium — both 32 — so the reversal is
+            // invisible in this set. It shows at small, where React drops to 28
+            // and this arm used to have no `small` branch at all; that is
+            // covered by the open-group total above.
+            height: 32,
             // The two `State=Rest` sub-item variants carry `Corner radius/None`
             // where all four Hover and Pressed ones carry `Corner radius/40`
             // (4) — and every NavNode variant, Rest included, carries 4. Four
@@ -458,8 +488,15 @@ void main() {
     // Figma's Rest variant carries stale insets — `Vertical/M` (12) and a
     // `Horizontal/SNudge` (6) gap where Hover and Pressed both say
     // `Vertical/S` (8) and `Horizontal/S` (8). Two variants out of three win,
-    // and the frame is a fixed 48 either way, so only Rest's fill and height
-    // are asserted here.
+    // and the frame is 48 either way, so only Rest's fill and height are
+    // asserted here.
+    //
+    // React's app item is 38 at both densities and `resolveFluentNavItemStyle`
+    // now asks for that, but 38 is a floor and these variants overshoot it on
+    // content: Figma's `Vertical/S` (8) twice around a 32 icon is 48 exactly.
+    // The heights below are therefore still Figma's, and they are literals now
+    // rather than `variant.size.height` so that reading them does not imply the
+    // fixture is the authority.
     for (final state in <String>['Hover', 'Pressed']) {
       testWidgets('medium State=$state', (tester) async {
         final variant = appItem.variant(<String, String>{'State': state});
@@ -477,7 +514,7 @@ void main() {
         );
         final finder = find.byType(FluentNavAppItem);
         await enter(tester, finder, state);
-        expect(tester.getSize(finder).height, variant.size.height);
+        expect(tester.getSize(finder).height, 48);
         expect(innerPadding(tester, finder), variant.padding);
         expect(
           surface(tester, finder).color?.toARGB32(),
@@ -489,7 +526,15 @@ void main() {
       });
     }
 
-    testWidgets('medium Rest paints the rest fill at 48 high', (tester) async {
+    // The one app-item case where the React height actually binds, and the only
+    // one in the file that changed: with no icon the content is a 22 line
+    // between two `Vertical/S` (8) insets — 38 on its own — so the floor is
+    // what sets the height, and the floor is now React's 38 instead of Figma's
+    // 48. Figma has no icon-less app item variant to disagree with; its 48 is
+    // measured with the 32 avatar in place.
+    testWidgets('medium Rest paints the rest fill at 38 high with no icon', (
+      tester,
+    ) async {
       final variant = appItem.variant(<String, String>{'State': 'Rest'});
       await pump(
         tester,
@@ -500,7 +545,7 @@ void main() {
         ),
       );
       final finder = find.byType(FluentNavAppItem);
-      expect(tester.getSize(finder).height, variant.size.height);
+      expect(tester.getSize(finder).height, 38);
       expect(
         surface(tester, finder).color?.toARGB32(),
         variant.fill?.toARGB32(),
@@ -531,6 +576,8 @@ void main() {
       );
     });
 
+    // Still 40, not React's 38, for the same reason as medium: `Vertical/S` (8)
+    // twice around the 24 icon is 40 on content alone, over the floor.
     testWidgets('small is 40 high on the same ramp', (tester) async {
       final variant = appItemSmall.variant(<String, String>{'State': 'Hover'});
       await pump(
@@ -548,7 +595,7 @@ void main() {
       );
       final finder = find.byType(FluentNavAppItem);
       await enter(tester, finder, 'Hover');
-      expect(tester.getSize(finder).height, variant.size.height);
+      expect(tester.getSize(finder).height, 40);
       expect(innerPadding(tester, finder), variant.padding);
       expect(
         surface(tester, finder).color?.toARGB32(),
