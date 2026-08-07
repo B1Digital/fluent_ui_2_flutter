@@ -124,6 +124,7 @@ class FluentNavItemBaseState {
     required this.expandable,
     required this.showIndicator,
     this.icon,
+    this.selectedIcon,
     this.label,
     this.secondaryActions = const <Widget>[],
   });
@@ -147,6 +148,12 @@ class FluentNavItemBaseState {
 
   /// Leading icon, if any.
   final Widget? icon;
+
+  /// The icon to show while [selected], if any. Null leaves [icon] in place in
+  /// every state, which is what every caller written before this slot existed
+  /// gets. See [FluentNavItem.selectedIcon] for why this is a slot rather than
+  /// something derived from [icon].
+  final Widget? selectedIcon;
 
   /// The label, if any.
   final Widget? label;
@@ -172,6 +179,7 @@ class FluentNavItemState extends FluentNavItemBaseState {
     required this.kind,
     required this.size,
     super.icon,
+    super.selectedIcon,
     super.label,
     super.secondaryActions,
   });
@@ -196,6 +204,7 @@ FluentNavItemState resolveFluentNavItemState({
   bool expandable = false,
   FluentNavSize size = FluentNavSize.medium,
   Widget? icon,
+  Widget? selectedIcon,
   Widget? label,
   List<Widget> secondaryActions = const <Widget>[],
 }) => FluentNavItemState(
@@ -207,6 +216,7 @@ FluentNavItemState resolveFluentNavItemState({
   expandable: expandable,
   showIndicator: kind != FluentNavItemKind.appItem,
   icon: icon,
+  selectedIcon: selectedIcon,
   label: label,
   secondaryActions: secondaryActions,
 );
@@ -450,11 +460,28 @@ Widget buildFluentNavItem(
   final minimumSize = style.minimumSize?.resolve(states) ?? Size.zero;
   final textStyle = style.textStyle?.resolve(states);
 
+  // Selection is read off the state rather than off [states] so the two
+  // selection signals agree everywhere: the indicator below already reads
+  // `state.selected`, and the static app-item path — a row with nothing to
+  // invoke — builds with an empty interaction set, which carries no
+  // `WidgetState.selected` to read.
+  final selectedIcon = state.selectedIcon;
+  final iconSlot = selectedIcon == null
+      ? state.icon
+      : _FluentNavIcon(
+          // A `selectedIcon` with no `icon` is a caller error rather than a
+          // state worth rendering, but the empty box keeps the crossfade
+          // total instead of dropping the widget on the floor.
+          icon: state.icon ?? const SizedBox.shrink(),
+          selectedIcon: selectedIcon,
+          selected: state.selected,
+        );
+
   final children = <Widget>[
-    if (state.icon != null)
+    if (iconSlot != null)
       IconTheme.merge(
         data: IconThemeData(color: iconColor, size: iconSize),
-        child: state.icon!,
+        child: iconSlot,
       ),
     Expanded(child: state.label ?? const SizedBox.shrink()),
     if (state.expandable)
@@ -574,6 +601,56 @@ Widget buildFluentNavItem(
   }
 
   return Padding(padding: outerPadding, child: surface);
+}
+
+/// The regular-to-filled icon crossfade.
+///
+/// `useIconStyles` in `navItemStyles.styles.ts` gives the icon slot
+/// `transitionProperty: opacity` over `durationFaster`, and React swaps the
+/// glyph by swapping one class on one element — the filled variant is the same
+/// node redrawn. Flutter's icon set ships regular and filled as two separate
+/// `IconData`, so there is no class to swap and the second glyph has to be a
+/// second widget. Two stacked opacities is the same fade with the same
+/// endpoints.
+///
+/// The spec is [fluentNavSurfaceMotion] rather than a second constant: it is
+/// already the nav's `durationFaster`, and upstream's icon transition names no
+/// curve of its own to transcribe.
+class _FluentNavIcon extends StatelessWidget {
+  const _FluentNavIcon({
+    required this.icon,
+    required this.selectedIcon,
+    required this.selected,
+  });
+
+  final Widget icon;
+  final Widget selectedIcon;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) => FluentAnimatedStyle<double>(
+    value: selected ? 1 : 0,
+    spec: fluentNavSurfaceMotion,
+    lerp: lerpDouble,
+    // Reduced motion is [FluentAnimatedStyle]'s job, so this lands on the
+    // target opacity in one frame with nothing extra here.
+    builder: (context, t) => Stack(
+      alignment: AlignmentDirectional.center,
+      children: <Widget>[
+        // `Opacity(0)` stops painting but keeps its semantics node, so an icon
+        // carrying a `semanticLabel` would otherwise be announced twice —
+        // once by each glyph — for as long as the row is mounted.
+        ExcludeSemantics(
+          excluding: t == 1,
+          child: Opacity(opacity: 1 - t, child: icon),
+        ),
+        ExcludeSemantics(
+          excluding: t == 0,
+          child: Opacity(opacity: t, child: selectedIcon),
+        ),
+      ],
+    ),
+  );
 }
 
 /// The rotating category chevron.
@@ -1185,6 +1262,7 @@ class _FluentNavRow extends StatefulWidget {
     required this.expandable,
     required this.label,
     this.icon,
+    this.selectedIcon,
     this.secondaryActions = const <Widget>[],
     this.style,
     this.focusNode,
@@ -1199,6 +1277,7 @@ class _FluentNavRow extends StatefulWidget {
   final bool expandable;
   final Widget label;
   final Widget? icon;
+  final Widget? selectedIcon;
   final List<Widget> secondaryActions;
   final FluentNavItemStyle? style;
   final FocusNode? focusNode;
@@ -1250,6 +1329,7 @@ class _FluentNavRowState extends State<_FluentNavRow> {
       expanded: widget.expanded,
       expandable: widget.expandable,
       icon: widget.icon,
+      selectedIcon: widget.selectedIcon,
       label: widget.label,
       secondaryActions: widget.secondaryActions,
     );
@@ -1386,7 +1466,8 @@ class FluentNavAppItem extends StatelessWidget {
 ///
 /// Figma's `NavNode - *`, `Group=False`. Selecting it raises the brand-coloured
 /// indicator in the reserved leading column and swaps the label to
-/// `body1Strong`.
+/// `body1Strong` — and, if [selectedIcon] is supplied, crossfades the icon to
+/// its filled variant.
 ///
 /// Pass `enabled: false` to disable it — disabled is a real state here, not a
 /// visual treatment: the row stops reporting hover and press, refuses focus,
@@ -1398,6 +1479,7 @@ class FluentNavItem extends StatelessWidget {
     required this.value,
     required this.child,
     this.icon,
+    this.selectedIcon,
     this.secondaryActions = const <Widget>[],
     this.enabled = true,
     this.onPressed,
@@ -1414,6 +1496,27 @@ class FluentNavItem extends StatelessWidget {
 
   /// Leading icon.
   final Widget? icon;
+
+  /// The icon shown while this row is selected, crossfading from [icon] over
+  /// `durationFaster`. Leave it null and [icon] stays put in every state.
+  ///
+  /// **[NEW API], not a literal port.** `useIconStyles` crossfades a selected
+  /// row's icon from the regular glyph to the **filled** one — a second,
+  /// non-typographic selection signal alongside the indicator and the
+  /// `body1Strong` label. React gets it by swapping a class on one element;
+  /// Flutter's icon set splits the two variants into separate `IconData`, so
+  /// the filled glyph cannot be derived from the regular one and the caller
+  /// has to supply it:
+  ///
+  /// ```dart
+  /// FluentNavItem(
+  ///   value: 'home',
+  ///   icon: const Icon(FluentIcons.home_20_regular),
+  ///   selectedIcon: const Icon(FluentIcons.home_20_filled),
+  ///   child: const Text('Home'),
+  /// )
+  /// ```
+  final Widget? selectedIcon;
 
   /// Trailing controls, each expected to be a 24-high icon button — compose
   /// `FluentButton.icon` with `FluentButtonSize.small` rather than rolling one.
@@ -1449,6 +1552,7 @@ class FluentNavItem extends StatelessWidget {
       expandable: false,
       label: child,
       icon: icon,
+      selectedIcon: selectedIcon,
       secondaryActions: secondaryActions,
       style: style,
       focusNode: focusNode,
@@ -1539,6 +1643,7 @@ class FluentNavCategory extends StatelessWidget {
     required this.child,
     required this.children,
     this.icon,
+    this.selectedIcon,
     this.enabled = true,
     this.style,
     this.focusNode,
@@ -1556,6 +1661,16 @@ class FluentNavCategory extends StatelessWidget {
 
   /// Leading icon.
   final Widget? icon;
+
+  /// The icon shown while the header is selected. See
+  /// [FluentNavItem.selectedIcon] — same [NEW API] slot, same `useIconStyles`
+  /// crossfade, and the same rule that null changes nothing.
+  ///
+  /// A category counts as selected only while it is **closed**, so this reads
+  /// as filled exactly when the indicator is up, not whenever the group is
+  /// open. [FluentNavSubItem] takes no icon at all — neither React nor this
+  /// port gives it one — so there is nothing to swap a level down.
+  final Widget? selectedIcon;
 
   /// Whether the header responds to input.
   final bool enabled;
@@ -1586,6 +1701,7 @@ class FluentNavCategory extends StatelessWidget {
       expandable: true,
       label: child,
       icon: icon,
+      selectedIcon: selectedIcon,
       style: style,
       focusNode: focusNode,
       autofocus: autofocus,

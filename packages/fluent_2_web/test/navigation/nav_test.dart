@@ -710,6 +710,122 @@ void main() {
     });
   });
 
+  /// [NEW API], not a Figma variant: React's `useIconStyles` crossfades a
+  /// selected row's icon to the filled glyph over `durationFaster`. Flutter
+  /// cannot derive the filled variant from the regular one, so the slot is
+  /// opt-in and null has to mean "exactly as before".
+  group('selected icon', () {
+    const regular = FluentIcons.home_20_regular;
+    const filled = FluentIcons.home_20_filled;
+
+    /// The opacity the crossfade is holding [icon] at.
+    double opacityOf(WidgetTester tester, IconData icon) => tester
+        .widget<Opacity>(
+          find
+              .ancestor(
+                of: find.byIcon(icon),
+                matching: find.byType(Opacity),
+              )
+              .first,
+        )
+        .opacity;
+
+    Widget tree({required Object? selected, Widget? selectedIcon}) => nav(
+      selected: selected,
+      children: <Widget>[
+        FluentNavItem(
+          value: 'home',
+          icon: const Icon(regular),
+          selectedIcon: selectedIcon,
+          child: const Text('Home'),
+        ),
+      ],
+    );
+
+    testWidgets('null leaves the row exactly as it was', (tester) async {
+      await pump(tester, tree(selected: 'home'));
+
+      expect(find.byIcon(regular), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(FluentNavItem),
+          matching: find.byType(Opacity),
+        ),
+        findsNothing,
+        reason: 'no crossfade is built at all when there is nothing to fade to',
+      );
+    });
+
+    testWidgets('a selected row shows the filled glyph, and swaps back', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        tree(selected: null, selectedIcon: const Icon(filled)),
+      );
+      expect(opacityOf(tester, regular), 1);
+      expect(opacityOf(tester, filled), 0);
+
+      await pump(
+        tester,
+        tree(selected: 'home', selectedIcon: const Icon(filled)),
+      );
+      expect(opacityOf(tester, regular), 0);
+      expect(opacityOf(tester, filled), 1);
+
+      await pump(
+        tester,
+        tree(selected: null, selectedIcon: const Icon(filled)),
+      );
+      expect(
+        opacityOf(tester, regular),
+        1,
+        reason: 'deselecting fades back to the regular glyph',
+      );
+      expect(opacityOf(tester, filled), 0);
+    });
+
+    testWidgets('the glyphs crossfade rather than swap', (tester) async {
+      Widget app(Object? selected) => FluentApp(
+        theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+        home: Align(
+          alignment: Alignment.topCenter,
+          child: SizedBox(
+            width: navWidth,
+            child: tree(selected: selected, selectedIcon: const Icon(filled)),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(app(null));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(app('home'));
+
+      // Half way into the 100ms ramp both glyphs are on screen at once.
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(opacityOf(tester, regular), greaterThan(0));
+      expect(opacityOf(tester, regular), lessThan(1));
+      expect(opacityOf(tester, filled), greaterThan(0));
+      expect(opacityOf(tester, filled), lessThan(1));
+
+      await tester.pumpAndSettle();
+      expect(opacityOf(tester, filled), 1);
+    });
+
+    testWidgets('reduced motion lands the swap on the first frame', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        tree(selected: 'home', selectedIcon: const Icon(filled)),
+        reducedMotion: true,
+      );
+      expect(tester.binding.hasScheduledFrame, isFalse);
+      expect(opacityOf(tester, filled), 1);
+      expect(opacityOf(tester, regular), 0);
+    });
+  });
+
   group('composition', () {
     testWidgets('the divider is a real FluentDivider', (tester) async {
       await pump(
