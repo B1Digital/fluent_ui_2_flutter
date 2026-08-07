@@ -2124,4 +2124,48 @@ void main() {
       handle.dispose();
     });
   });
+
+  // Every other height assertion in this file measures the RENDERED box, which
+  // only sees `minimumSize` when the floor is the tallest thing in the row.
+  // Where padding or an icon overshoots — the category before its padding
+  // moved, and the app item's icon-bearing variants still — the declared number
+  // is invisible: it can be lowered to 0, or deleted, and nothing here fails.
+  //
+  // That is exactly how the React heights first shipped inert. These read the
+  // resolved style directly, so each declared value is pinned whether or not it
+  // currently wins the layout. Mirrors `tree_test.dart:1050`.
+  group('row height floors', () {
+    double floorOf(FluentNavItemKind kind, FluentNavSize size) =>
+        resolveFluentNavItemStyle(
+          FluentNavItemState(
+            enabled: true,
+            selected: false,
+            expanded: false,
+            expandable: kind == FluentNavItemKind.category,
+            showIndicator: kind != FluentNavItemKind.appItem,
+            kind: kind,
+            size: size,
+          ),
+          FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+        ).minimumSize!.resolve(const <WidgetState>{})!.height;
+
+    // `@fluentui/react-nav` 9.4.3. The app item is the only kind React does not
+    // move with density — `useAppItemStyles.styles.ts` has no density branch.
+    const expected = <(FluentNavItemKind, FluentNavSize, double)>[
+      (FluentNavItemKind.appItem, FluentNavSize.medium, 38),
+      (FluentNavItemKind.appItem, FluentNavSize.small, 38),
+      (FluentNavItemKind.category, FluentNavSize.medium, 32),
+      (FluentNavItemKind.category, FluentNavSize.small, 28),
+      (FluentNavItemKind.item, FluentNavSize.medium, 32),
+      (FluentNavItemKind.item, FluentNavSize.small, 28),
+      (FluentNavItemKind.subItem, FluentNavSize.medium, 32),
+      (FluentNavItemKind.subItem, FluentNavSize.small, 28),
+    ];
+
+    for (final (kind, size, height) in expected) {
+      test('${kind.name} ${size.name} declares $height', () {
+        expect(floorOf(kind, size), height);
+      });
+    }
+  });
 }

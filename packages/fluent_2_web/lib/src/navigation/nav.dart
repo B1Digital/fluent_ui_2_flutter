@@ -14,10 +14,11 @@ import 'nav_style.dart';
 /// Row height and density. Figma ships this as two component sets rather than a
 /// variant axis — `NavNode - medium` and `NavNode - small`.
 enum FluentNavSize {
-  /// 40 high rows, 48 high app item. The default.
+  /// 32 high rows, 38 high app item. The default.
   medium,
 
-  /// 32 high rows, 40 high app item.
+  /// 28 high rows, 38 high app item — React's app item is the one kind that
+  /// does not move with density.
   small,
 }
 
