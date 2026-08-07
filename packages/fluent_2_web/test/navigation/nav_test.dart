@@ -112,12 +112,20 @@ void main() {
   /// side by side: a call passing `variant.size.height` is a row where React and
   /// Figma happen to agree *as rendered*, and a call passing a literal is one
   /// where they do not.
+  ///
+  /// [buttonPadding] is the same escape hatch for the inner `Button` frame's
+  /// insets, and only the category kind needs it. That row is the one whose
+  /// height is *made* of its vertical padding rather than floored by the
+  /// `height` literal, so taking React's height there means taking React's
+  /// padding — the two are the same number twice. Leave it null and the
+  /// fixture's own insets are asserted, which is still every other kind.
   void expectRow(
     WidgetTester tester,
     Finder of,
     SpecVariant variant, {
     required String label,
     required double height,
+    EdgeInsets? buttonPadding,
     bool radius = true,
   }) {
     final size = tester.getSize(of);
@@ -145,7 +153,7 @@ void main() {
     );
     expect(
       innerPadding(tester, of),
-      button.padding,
+      buttonPadding ?? button.padding,
       reason: '${variant.name}: Button padding',
     );
     final decoration = surface(tester, of);
@@ -230,13 +238,30 @@ void main() {
           );
           final finder = find.byType(FluentNavCategory);
           await enter(tester, finder, state);
-          // React says 32 (`useNavCategoryItemStyles.styles.ts`) and the style
-          // now asks for 32 — but a category's own Figma padding is
-          // `Vertical/MNudge` (10) top and bottom around a 20 line, so the row
-          // measures 40 on its content alone and the 32 floor never binds.
-          // Height went React; padding did not, and padding wins here. Pinned
-          // at what actually renders, not at what was asked for.
-          expectRow(tester, finder, variant, label: 'Group', height: 40);
+          // 32, from `useNavCategoryItemStyles.styles.ts`.
+          //
+          // This was pinned at 40 until 2026-08-07, with a comment explaining
+          // why: the height literal is only a `minimumSize` FLOOR, and Figma's
+          // `Vertical/MNudge` (10) padding around a 20 line already measured
+          // 40, so the floor never bound and the React number sat inert. The
+          // padding now moves with it — `Vertical/SNudge` (6), so
+          // 20 + 2x6 = 32 — and the row finally measures what the style asks.
+          //
+          // Evidence the two must move together: changing the height alone
+          // failed ZERO tests; adding the padding change failed 17 goldens and
+          // 11 assertions here.
+          expectRow(
+            tester,
+            finder,
+            variant,
+            label: 'Group',
+            height: 32,
+            // The same 32, stated the other way round — this IS the height.
+            // Only the vertical arms move (Figma drew 10/10, React's
+            // `Vertical/SNudge` is 6); left 10 and right 8 are horizontal, so
+            // both authorities still agree and both stay the fixture's.
+            buttonPadding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
+          );
         });
       }
     }
@@ -293,13 +318,6 @@ void main() {
     testWidgets('Open=True stacks ten sub-items under the header', (
       tester,
     ) async {
-      final variant = node.variant(<String, String>{
-        'Group': 'True',
-        'Open': 'True',
-        'State': 'Rest',
-        'Selected': 'False',
-        'Secondary actions': 'False',
-      });
       await pump(
         tester,
         nav(
@@ -317,10 +335,18 @@ void main() {
           ],
         ),
       );
+      // No longer read off the fixture — it was `variant.size.height` from
+      // `Group=True, Open=True, State=Rest`, whose frame is 380 because Figma
+      // drew the header 40 high. The header is 32 now and nothing else in the
+      // stack moved: a medium sub-item was already 32 at both authorities.
+      //
+      //   32 header + 2 gap + 10 x 32 sub-item + 9 x 2 between = 372
+      //
+      // The gap is `FluentSpacing.xxs`, which is Figma's own 2.
       expect(
         tester.getSize(find.byType(FluentNavCategory)).height,
-        variant.size.height,
-        reason: 'header 40 + 2 gap + ten 32-high rows with 2 between them',
+        372,
+        reason: 'header 32 + 2 gap + ten 32-high rows with 2 between them',
       );
       expect(find.byType(FluentNavSubItem), findsNWidgets(10));
     });
@@ -328,10 +354,10 @@ void main() {
 
   group('nav_node_small — the size axis', () {
     for (final group in <String>['True', 'False']) {
-      // Was "rows are 32 high" for both. React's small row is 28, and only the
-      // leaf reaches it: the category still measures 32 off its own
-      // `Vertical/SNudge` (6) padding around a 20 line, so the 28 floor is
-      // inert there. Two numbers where there used to be one.
+      // Was "rows are 32 high" for both, and briefly 32/28 while the category
+      // still carried Figma's `Vertical/SNudge` (6) around a 20 line. Both
+      // arms are 28 now: the leaf off React's floor, the category off React's
+      // `Vertical/XS` (4), 20 + 2x4 = 28. One number again, the other one.
       testWidgets('Group=$group', (tester) async {
         final variant = nodeSmall.variant(<String, String>{
           'Group': group,
@@ -369,7 +395,13 @@ void main() {
           finder,
           variant,
           label: group == 'True' ? 'Group' : 'Home',
-          height: group == 'True' ? 32 : 28,
+          height: 28,
+          // Only the category's insets left the fixture, and only vertically:
+          // Figma drew 6/6, React's small arm is 4, and 20 + 2x4 is the 28
+          // above. The leaf has no vertical padding to disagree about.
+          buttonPadding: group == 'True'
+              ? const EdgeInsets.fromLTRB(10, 4, 8, 4)
+              : null,
         );
       });
     }
@@ -378,10 +410,16 @@ void main() {
     // 372 — a 32 header, the 2 gap, and ten 32-high sub-items with 2 between
     // them. (Its `Rest` sibling is 338, the same stack with the header missing;
     // that frame lost its header in Figma, which is why Hover was the one
-    // asserted.) React's small sub-item is 28, so the same stack is now
-    // 32 + 2 + 10*28 + 9*2 = 332. The header is still 32 because a category's
-    // padding, not the height floor, decides it.
-    testWidgets('the open group stacks under a 32-high header', (tester) async {
+    // asserted.) React's small sub-item is 28 and its small category is 28 too,
+    // so every row in the stack is now the same height:
+    //
+    //   28 header + 2 gap + 10 x 28 sub-item + 9 x 2 between = 328
+    //
+    // The header moved with the rest this time. It sat at 32 for one commit,
+    // while the height literal said 28 and Figma's `Vertical/SNudge` (6) padding
+    // still decided the row — a floor cannot shrink content that already clears
+    // it. `Vertical/XS` (4) is what makes the 28 real.
+    testWidgets('the open group stacks under a 28-high header', (tester) async {
       await pump(
         tester,
         nav(
@@ -401,8 +439,8 @@ void main() {
       );
       expect(
         tester.getSize(find.byType(FluentNavCategory)).height,
-        332,
-        reason: '32 header + 2 gap + ten 28-high rows with 2 between them',
+        328,
+        reason: '28 header + 2 gap + ten 28-high rows with 2 between them',
       );
     });
   });
@@ -1059,7 +1097,10 @@ void main() {
       );
       expect(
         tester.getSize(find.byType(FluentNavCategory)).height,
-        40 + 2 + 32,
+        // Medium: a 32 header (React's category padding, 20 + 2x6), the 2 gap,
+        // and one 32-high sub-item. Was 40 + 2 + 32 while the header still
+        // carried Figma's 10s.
+        32 + 2 + 32,
         reason: 'and the group is already at full height',
       );
     });
@@ -1124,7 +1165,9 @@ void main() {
       await tester.pumpAndSettle();
       final settled = tester.getSize(find.byType(FluentNavCategory)).height;
       expect(mid, lessThan(settled));
-      expect(settled, 40 + 2 + 32);
+      // Same stack, same 32 header + 2 gap + 32 sub-item. The collapse extent
+      // is derived from this, so it moved with the header.
+      expect(settled, 32 + 2 + 32);
     });
 
     testWidgets('reduced motion lands on the target frame', (tester) async {

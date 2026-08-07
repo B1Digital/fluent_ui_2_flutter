@@ -343,14 +343,22 @@ FluentNavItemStyle resolveFluentNavItemStyle(
       38.0,
       FluentSize.size320,
     ),
-    // `useNavCategoryItemStyles.styles.ts` — same padding rule as the leaf, so
-    // the same 28/32. Figma drew 32/40.
+    // `useNavCategoryItemStyles.styles.ts` — 28/32, same as the leaf. Figma
+    // drew 32/40.
+    //
+    // Unlike the leaf, this row has real vertical padding, and THAT is what
+    // sets its height: `height` below is only a `minimumSize` floor, and a
+    // floor never binds when the content already clears it. Figma's 6/10
+    // rendered 32/40 and left the React literal completely inert — mutating it
+    // to 0 changed nothing and failed no test. 20 + 2x4 = 28, 20 + 2x6 = 32.
+    //
+    // So: change the padding and the height together, or neither moves.
     FluentNavItemKind.category => (
       EdgeInsets.fromLTRB(
         FluentSpacing.mNudge,
-        small ? FluentSpacing.sNudge : FluentSpacing.mNudge,
+        small ? FluentSpacing.xs : FluentSpacing.sNudge,
         FluentSpacing.s,
-        small ? FluentSpacing.sNudge : FluentSpacing.mNudge,
+        small ? FluentSpacing.xs : FluentSpacing.sNudge,
       ),
       FluentSpacing.l,
       small ? 28.0 : 32.0,
