@@ -11,10 +11,39 @@ Future<Map<String, dynamic>> loadD3Golden() async {
   if (_cache != null) {
     return _cache!;
   }
-  // `flutter test` runs with the package root as the working directory.
-  final file = File('test/charts/d3/d3_golden.json');
-  final decoded = jsonDecode(await file.readAsString());
+  final decoded = jsonDecode(await _findCorpus().readAsString());
   return _cache = decoded as Map<String, dynamic>;
+}
+
+/// Locates the corpus by walking up from [Directory.current].
+///
+/// `melos run test` uses `melos exec`, so the working directory is the package
+/// root and a bare relative path resolves. Running `flutter test` from the
+/// repository root, or from a subdirectory of the package, does not — and the
+/// bare path failed with a `PathNotFoundException` naming only the relative
+/// path, which reads as a missing corpus rather than a wrong directory. The
+/// ancestor walk is what `test/support/spec_fixture.dart` already does, so this
+/// matches the house pattern and 28 test files inherit it.
+File _findCorpus() {
+  const relative = 'test/charts/d3/d3_golden.json';
+  var directory = Directory.current;
+  while (true) {
+    final file = File('${directory.path}/$relative');
+    if (file.existsSync()) {
+      return file;
+    }
+    final parent = directory.parent;
+    // Reaching the filesystem root leaves parent == directory.
+    if (parent.path == directory.path) {
+      break;
+    }
+    directory = parent;
+  }
+  throw StateError(
+    'No $relative found in ${Directory.current.path} or any ancestor. '
+    'Regenerate it with `cd crawlers/d3-golden && node generate.mjs` — see '
+    'test/charts/d3/README.md.',
+  );
 }
 
 /// Every case object in [section] of [corpus].
