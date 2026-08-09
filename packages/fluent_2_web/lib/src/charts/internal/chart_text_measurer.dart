@@ -73,3 +73,130 @@ class FluentChartTextMetrics {
   /// the alphabetic baseline.
   double get hangingOffset => ascent - hangingBaselineRatio * ascent;
 }
+
+/// The one text measurer in the charts subsystem.
+///
+/// Upstream has three — `measureTextWithDOM` (`utilities.ts:2146-2168`),
+/// `getTextSize` (`:2173-2202`) and the canvas-based
+/// `calculateLongestLabelWidth` (`:1253-1276`) — and the recon proposed three
+/// Dart ports of them. There is one here, because margins, tick-count
+/// reduction, wrap/rotate/stagger, truncation and image export all feed from it
+/// and three implementations means three pixel results (spec §10, risk 3).
+///
+/// One instance lives per chart subtree, created by the chart and invalidated
+/// on a theme change.
+///
+/// **Capitalisation.** Upstream is inconsistent and the port matches it:
+/// `measureTextWithDOM` copies `text-transform` (`utilities.ts:2137-2144`) and
+/// is what the exported legend strip measures with
+/// (`image-export-utils.ts:314`), while `calculateLongestLabelWidth` does not.
+/// So a legend label is measured **after** `capitalizeLegendLabel` and an axis
+/// label is measured **before**. This class does not capitalise anything; the
+/// caller decides.
+class FluentChartTextMeasurer {
+  /// Creates an empty measurer.
+  FluentChartTextMeasurer();
+
+  /// The number of entries kept before the oldest is evicted.
+  ///
+  /// `CACHE_SIZE` (`utilities.ts:2170`).
+  static const int cacheSize = 2000;
+
+  /// Insertion-ordered, which is what makes the eviction below first-in
+  /// first-out — matching `utilities.ts:2188-2192`, which deletes
+  /// `textSizeCache.keys().next().value`. A Dart `Map` literal is a
+  /// `LinkedHashMap`, so the order is guaranteed.
+  ///
+  /// The key is a record of the text and the resolved style. Records have
+  /// structural equality and [TextStyle] has value equality, so this is a real
+  /// composite key — deliberately unlike upstream's `${text}|${cssSelector}`
+  /// (`utilities.ts:2178`), which is blind to the font. A Flutter theme swap is
+  /// far more common than a CSS font swap, so that bug is fixed rather than
+  /// reproduced.
+  final Map<(String, TextStyle), FluentChartTextMetrics> _cache =
+      <(String, TextStyle), FluentChartTextMetrics>{};
+
+  /// How many measurements are currently cached. For tests and diagnostics.
+  int get cachedCount => _cache.length;
+
+  /// Measures [text] in [style].
+  ///
+  /// The line box is the font's own ascent and descent rather than the type
+  /// token's leading, because SVG `<text>` has no line box and every upstream
+  /// vertical offset is measured from the glyphs. [TextStyle.copyWith] cannot
+  /// express that — it resolves `height` as `height ?? this.height`, so passing
+  /// null keeps the token's multiplier — so the leading is dropped with
+  /// [TextHeightBehavior] instead: with `maxLines: 1` the only line is both the
+  /// first and the last, so refusing the multiplier on the first ascent and the
+  /// last descent leaves the raw font metrics.
+  ///
+  /// [TextScaler.noScaling] and [TextDirection.ltr], because chart geometry is
+  /// computed in an unscaled left-to-right space and mirrored afterwards.
+  FluentChartTextMetrics measure(String text, TextStyle style) {
+    final key = (text, style);
+    final cached = _cache[key];
+    if (cached != null) {
+      return cached;
+    }
+
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 1,
+      textScaler: TextScaler.noScaling,
+      textDirection: TextDirection.ltr,
+      textHeightBehavior: const TextHeightBehavior(
+        applyHeightToFirstAscent: false,
+        applyHeightToLastDescent: false,
+      ),
+    )..layout();
+    final ascent = painter.computeDistanceToActualBaseline(
+      TextBaseline.alphabetic,
+    );
+    final metrics = FluentChartTextMetrics(
+      width: painter.width,
+      height: painter.height,
+      ascent: ascent,
+      descent: painter.height - ascent,
+      // fontSize is null only when the caller passes a style with no size at
+      // all; 10 is the axis-tick size (`utilities.ts:1267`, the canvas fallback
+      // font '600 10px "Segoe UI"'), which is the only slot that could
+      // plausibly reach here unset.
+      xHeight: (style.fontSize ?? 10) * FluentChartTextMetrics.xHeightRatio,
+    );
+    painter.dispose();
+
+    if (_cache.length >= cacheSize) {
+      // utilities.ts:2188-2192. Upstream guards the evicted key with
+      // `isInvalidValue`, which can never be true for a string key; the guard
+      // is not ported.
+      _cache.remove(_cache.keys.first);
+    }
+    _cache[key] = metrics;
+    return metrics;
+  }
+
+  /// The advance width of [text] in [style].
+  double width(String text, TextStyle style) => measure(text, style).width;
+
+  /// The widest of [labels] in [style], or 0 when there are none.
+  ///
+  /// Ports `calculateLongestLabelWidth` (`utilities.ts:1253-1276`). Callers
+  /// ceil the result themselves, exactly as `CartesianChart.tsx:158` and `:579`
+  /// do.
+  double longestWidth(Iterable<String> labels, TextStyle style) {
+    var longest = 0.0;
+    for (final label in labels) {
+      final measured = width(label, style);
+      if (measured > longest) {
+        longest = measured;
+      }
+    }
+    return longest;
+  }
+
+  /// Drops every cached measurement.
+  ///
+  /// Called when the theme changes, because every metric was taken against the
+  /// old type ramp.
+  void invalidate() => _cache.clear();
+}
