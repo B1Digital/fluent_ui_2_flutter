@@ -8,7 +8,7 @@
  },
  "indexEntries": 111,
  "storyCount": 90,
- "capturedCount": 87,
+ "capturedCount": 90,
  "storiesPerComponent": {
   "AreaChart": 8,
   "ChartTable": 1,
@@ -43,7 +43,7 @@
   "HeatMapChart": 2,
   "HorizontalBarChart": 7,
   "HorizontalBarChartWithAxis": 5,
-  "Legends": 2,
+  "Legends": 5,
   "LineChart": 13,
   "PolarChart": 1,
   "SankeyChart": 4,
@@ -63,18 +63,5 @@
   "Sparkline",
   "VegaDeclarativeChart"
  ],
- "skipped": [
-  {
-   "id": "charts-legends--legends-overflow",
-   "reason": "no chart svg on the page"
-  },
-  {
-   "id": "charts-legends--legends-styled",
-   "reason": "no chart svg on the page"
-  },
-  {
-   "id": "charts-legends--legends-wrap-lines",
-   "reason": "no chart svg on the page"
-  }
- ]
+ "skipped": []
 }

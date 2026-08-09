@@ -181,6 +181,31 @@ void main() {
     }
   });
 
+  test('every Legends story is captured, HTML-only or not', () {
+    // Upstream draws the legend in HTML apart from its shape svg
+    // (`Legends.tsx`), and three of the five stories —
+    // charts-legends--legends-overflow, --legends-styled and
+    // --legends-wrap-lines — render their swatches as `fui-legend__rect` divs
+    // and no svg at all. Their overflow and wrapping geometry has no other
+    // oracle: plan 04's legend tasks would fall back to hand-derivation
+    // without them, so a capture that drops them for lacking an svg is a
+    // regression in the script, not thin upstream coverage.
+    final perComponent =
+        manifest['storiesPerComponent']! as Map<String, dynamic>;
+    final capturedPerComponent =
+        manifest['capturedPerComponent']! as Map<String, dynamic>;
+    expect(
+      capturedPerComponent['Legends'],
+      perComponent['Legends'],
+      reason:
+          'only ${capturedPerComponent['Legends']} of '
+          '${perComponent['Legends']} Legends stories are in the corpus. An '
+          'HTML-only story — empty `svgs`, non-empty `htmlBoxes` — is a valid '
+          'fixture, so re-capture with a script that writes one instead of '
+          'registering the story as a skip.',
+    );
+  });
+
   test('the thin components are the ones the coverage report named', () {
     // Sanity anchor, measured live 2026-08-08: these eight have fewer than
     // three stories upstream, so their geometry leans on Oracle A and
@@ -230,18 +255,32 @@ void main() {
       );
       final svgs = (story['svgs']! as List<Object?>)
           .cast<Map<String, dynamic>>();
+      final htmlBoxes = (story['htmlBoxes']! as List<Object?>)
+          .cast<Map<String, dynamic>>();
+      // An HTML-only fixture is legitimate: Legends renders its swatches as
+      // `fui-legend__rect` divs, so three of the five Legends stories have no
+      // svg whatsoever, and their overflow and wrapping geometry is exactly
+      // what plan 04 needs. What is never legitimate is a fixture with
+      // neither, which records nothing and reads as a passing test — that
+      // story belongs in the skip register with a reason.
       expect(
-        svgs,
-        isNotEmpty,
-        reason: '$name records no svg at all, which is a partial capture',
-      );
-      expect(
-        svgs.first['elements']! as List<Object?>,
-        isNotEmpty,
+        svgs.isNotEmpty || htmlBoxes.isNotEmpty,
+        isTrue,
         reason:
-            '$name records an svg with no elements — a fixture with nothing '
-            'in it reads as a passing test',
+            '$name records neither an svg nor an html box, which is a partial '
+            'capture. A story that renders nothing measurable belongs in the '
+            "manifest's skip register with a reason, not on disk as an empty "
+            'fixture.',
       );
+      if (svgs.isNotEmpty) {
+        expect(
+          svgs.first['elements']! as List<Object?>,
+          isNotEmpty,
+          reason:
+              '$name records an svg with no elements — a fixture with nothing '
+              'in it reads as a passing test',
+        );
+      }
       expect(
         (story['width']! as num).toDouble(),
         greaterThan(0),
