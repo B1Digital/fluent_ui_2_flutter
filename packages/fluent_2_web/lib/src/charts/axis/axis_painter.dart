@@ -132,21 +132,12 @@ class FluentAxisPainter extends CustomPainter {
     for (final line in lines) {
       // Every width and every baseline in the subsystem comes from the one
       // measurer, so the label lands where the margin solver reserved room for
-      // it. The TextPainter below is a paint vehicle only, configured exactly as
-      // FluentChartTextMeasurer.measure configures its own: maxLines 1, no
-      // scaling, left-to-right, and the leading dropped off the first ascent and
-      // the last descent, because SVG <text> has no line box.
+      // it. The painter is a paint vehicle only, and it comes from the measurer
+      // so that its configuration cannot drift from the one the metrics were
+      // read off — previously the two constructions were identical only by
+      // convention.
       final metrics = measurer.measure(line.text, style);
-      final painter = TextPainter(
-        text: TextSpan(text: line.text, style: style),
-        maxLines: 1,
-        textScaler: TextScaler.noScaling,
-        textDirection: TextDirection.ltr,
-        textHeightBehavior: const TextHeightBehavior(
-          applyHeightToFirstAscent: false,
-          applyHeightToLastDescent: false,
-        ),
-      )..layout();
+      final painter = measurer.layoutPainter(line.text, style);
       // axis.js:72 expresses the baseline offset in ems relative to the anchor.
       final baselineY = anchor.dy + line.dyEm * fontSize;
       final top = baselineY - metrics.ascent;

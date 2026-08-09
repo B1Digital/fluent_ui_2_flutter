@@ -119,6 +119,32 @@ class FluentChartTextMeasurer {
   /// How many measurements are currently cached. For tests and diagnostics.
   int get cachedCount => _cache.length;
 
+  /// A laid-out [TextPainter] for [text] in [style], configured the one way
+  /// this subsystem configures them.
+  ///
+  /// [measure] reads its metrics from exactly this painter, so a chart painter
+  /// that needs to *draw* the string must build it the same way or it will
+  /// paint at a width the margin solver never reserved. Before this existed the
+  /// axis painter carried a second, identical construction kept in step by a
+  /// comment — and `chrome/` is about to add four more painters, each of which
+  /// would have copied it. One factory, one configuration.
+  ///
+  /// The caller owns the result and must call [TextPainter.dispose].
+  ///
+  /// The rationale for each argument is on [measure]; in short, the line box is
+  /// the font's own ascent and descent because SVG `<text>` has none, and
+  /// geometry is computed unscaled and left-to-right, then mirrored.
+  TextPainter layoutPainter(String text, TextStyle style) => TextPainter(
+    text: TextSpan(text: text, style: style),
+    maxLines: 1,
+    textScaler: TextScaler.noScaling,
+    textDirection: TextDirection.ltr,
+    textHeightBehavior: const TextHeightBehavior(
+      applyHeightToFirstAscent: false,
+      applyHeightToLastDescent: false,
+    ),
+  )..layout();
+
   /// Measures [text] in [style].
   ///
   /// The line box is the font's own ascent and descent rather than the type
@@ -139,16 +165,7 @@ class FluentChartTextMeasurer {
       return cached;
     }
 
-    final painter = TextPainter(
-      text: TextSpan(text: text, style: style),
-      maxLines: 1,
-      textScaler: TextScaler.noScaling,
-      textDirection: TextDirection.ltr,
-      textHeightBehavior: const TextHeightBehavior(
-        applyHeightToFirstAscent: false,
-        applyHeightToLastDescent: false,
-      ),
-    )..layout();
+    final painter = layoutPainter(text, style);
     final ascent = painter.computeDistanceToActualBaseline(
       TextBaseline.alphabetic,
     );
