@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
+import 'package:fluent_2_web/src/charts/internal/d3/js_math.dart';
+import 'package:fluent_2_web/src/charts/internal/d3/path_sink.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Map<String, dynamic>? _cache;
@@ -84,31 +87,18 @@ Matcher closeToJs(Object? expected) {
 }
 
 // ---------------------------------------------------------------------------
-// SvgPathSink is written but commented out on purpose.
-//
-// It implements `PathSink` from `lib/src/charts/internal/d3/path_sink.dart` and
-// depends on `tau` (js_math.dart, plan 01 Task 3), `tauEpsilon` and
-// `pathEpsilon` (path_sink.dart, plan 01 Task 14). Neither file exists yet: the
-// corpus is committed BEFORE the first line of the Dart port, per design spec
-// §4.2, so this file has to analyse cleanly against an empty `internal/d3/`.
-//
-// Plan 01 Task 14 restores it by deleting the two comment delimiters below and
-// re-enabling the `SvgPathSink emits d3-path syntax` test in
-// `golden_support_test.dart`. Nothing before Task 22 needs it — the shape
-// vectors are the first consumer.
-//
-// It reproduces `d3-path/src/path.js:26-145` exactly, including the
-// arc-to-`A` conversion and the full-circle split at `tauEpsilon`, and it uses
-// JS number formatting (`6`, not Dart's `6.0`). `UiPathSink` builds a `dart:ui`
-// `Path`, which cannot be read back, so the shape vectors are compared through
-// this instead.
+// SvgPathSink was parked behind a block comment until `path_sink.dart` existed
+// (the corpus lands before the first line of the Dart port, design spec §4.2).
+// Plan 01 Task 14 landed that file and restored this.
 // ---------------------------------------------------------------------------
-/*
-import 'dart:math' as math;
-
-import 'package:fluent_2_web/src/charts/internal/d3/path_sink.dart';
 
 /// The d3-path string emitter, in test code only.
+///
+/// It reproduces `d3-path/src/path.js:26-145` exactly, including the arc-to-`A`
+/// conversion and the full-circle split at [tauEpsilon], and it writes numbers
+/// the way JavaScript does (`6`, not Dart's `6.0`). [UiPathSink] builds a
+/// `dart:ui` `Path`, which cannot be read back, so the shape vectors are
+/// compared through this instead.
 final class SvgPathSink implements PathSink {
   final StringBuffer _buffer = StringBuffer();
   double? _x0;
@@ -119,19 +109,9 @@ final class SvgPathSink implements PathSink {
   /// The accumulated SVG path data.
   String get d => _buffer.toString();
 
-  static String _n(double v) {
-    if (v.isNaN) {
-      return 'NaN';
-    }
-    if (v.isInfinite) {
-      return v.isNegative ? '-Infinity' : 'Infinity';
-    }
-    if (v == 0) {
-      return '0';
-    }
-    final s = v.toString();
-    return s.endsWith('.0') ? s.substring(0, s.length - 2) : s;
-  }
+  /// JS number formatting. This was a verbatim copy of [jsNumberToString];
+  /// two copies of the same `6` versus `6.0` rule can only drift apart.
+  static String _n(double v) => jsNumberToString(v);
 
   @override
   void moveTo(double x, double y) {
@@ -212,7 +192,8 @@ final class SvgPathSink implements PathSink {
     final l20Sq = x20 * x20 + y20 * y20;
     final l21 = math.sqrt(l21Sq);
     final l01 = math.sqrt(l01Sq);
-    final l = r *
+    final l =
+        r *
         math.tan(
           (math.pi - math.acos((l21Sq + l01Sq - l20Sq) / (2 * l21 * l01))) / 2,
         );
@@ -255,7 +236,8 @@ final class SvgPathSink implements PathSink {
       return;
     }
     if (da < 0) {
-      da = da % tau + tau;
+      // `remainder`, not `%`: see the note in `UiPathSink.arc`.
+      da = da.remainder(tau) + tau;
     }
     if (da > tauEpsilon) {
       _x1 = x0;
@@ -267,10 +249,7 @@ final class SvgPathSink implements PathSink {
       _x1 = cx + r * math.cos(a1);
       _y1 = cy + r * math.sin(a1);
       final large = da >= math.pi ? 1 : 0;
-      _buffer.write(
-        'A${_n(r)},${_n(r)},0,$large,$cw,${_n(_x1!)},${_n(_y1!)}',
-      );
+      _buffer.write('A${_n(r)},${_n(r)},0,$large,$cw,${_n(_x1!)},${_n(_y1!)}');
     }
   }
 }
-*/

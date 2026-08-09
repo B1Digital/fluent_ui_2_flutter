@@ -68,11 +68,6 @@ void main() {
     },
   );
 
-  // Re-enabled by plan 01 Task 14, together with the `SvgPathSink` block in
-  // `golden_support.dart`. `PathSink`, `tauEpsilon` and `pathEpsilon` do not
-  // exist yet: the corpus lands before the first line of the Dart port
-  // (design spec §4.2).
-  /*
   test('SvgPathSink emits d3-path syntax', () {
     final sink = SvgPathSink()
       ..moveTo(64.5, 6)
@@ -81,11 +76,11 @@ void main() {
     expect(
       sink.d,
       'M64.5,6L680.5,6Z',
-      reason: 'd3-path/src/path.js:34,43,39 emit M/L/Z with no spaces and no '
+      reason:
+          'd3-path/src/path.js:34,43,39 emit M/L/Z with no spaces and no '
           'trailing ".0" — Dart prints 6.0 where JS prints 6',
     );
   });
-  */
 
   test('closeToJs treats the JSON NaN sentinel as NaN', () {
     expect(
