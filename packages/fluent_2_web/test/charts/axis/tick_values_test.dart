@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:fluent_2_web/src/charts/axis/tick_format.dart';
 import 'package:fluent_2_web/src/charts/axis/tick_values.dart';
+import 'package:fluent_2_web/src/charts/model/chart_common.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Reads one Oracle B story fixture.
@@ -376,6 +377,151 @@ void main() {
         0,
         -50000,
         5,
+      );
+    });
+  });
+
+  group('generateLinearTicks', () {
+    test('emits every step inside the domain', () {
+      expect(
+        generateLinearTicks(0, 0.25, <double>[0, 1]),
+        <double>[0, 0.25, 0.5, 0.75, 1],
+        reason:
+            'utilities.ts:2406-2420 — precision 2, start ceil(0), end floor(4), '
+            'then tick0 + i * tickStep rounded at that precision.',
+      );
+    });
+
+    test('respects an offset anchor', () {
+      expect(
+        generateLinearTicks(1, 3, <double>[0, 10]),
+        <double>[1, 4, 7, 10],
+        reason: 'start = ceil((0-1)/3) = 0, end = floor((10-1)/3) = 3.',
+      );
+    });
+
+    test('is empty when no step lands inside the domain', () {
+      expect(
+        generateLinearTicks(0, 0.25, <double>[0.3, 0.4]),
+        isEmpty,
+        reason:
+            'precision is 2, so start = ceil(1.2) = 2 exceeds '
+            'end = floor(1.6) = 1 and the loop at utilities.ts:2416 never runs.',
+      );
+    });
+
+    test('rounds the domain bounds before ceiling and flooring them', () {
+      expect(
+        generateLinearTicks(0, 100, <double>[10, 20]),
+        <double>[0],
+        reason:
+            'utilities.ts:2409 takes max(precision(0), precision(100)) = '
+            'max(0, -2) = 0, so :2411-2412 round 0.1 and 0.2 to 0 before '
+            'ceiling and flooring. Upstream therefore emits the single tick 0, '
+            'which lies outside the domain — a quirk this port reproduces '
+            'rather than corrects.',
+      );
+    });
+
+    test('reads the domain unordered, taking min and max', () {
+      expect(
+        generateLinearTicks(0, 5, <double>[10, 0]),
+        <double>[0, 5, 10],
+        reason:
+            'utilities.ts:2407-2408 uses d3Min/d3Max, not domain[0]/domain[1].',
+      );
+    });
+  });
+
+  group('generateNumericTicks', () {
+    test('generates linear ticks on a default scale', () {
+      expect(
+        generateNumericTicks(null, 25, 0, <double>[0, 100]),
+        <double>[0, 25, 50, 75, 100],
+        reason: 'utilities.ts:2493-2494 — the non-log branch.',
+      );
+    });
+
+    test('returns null for a non-positive step', () {
+      expect(
+        generateNumericTicks(null, 0, 0, <double>[0, 100]),
+        isNull,
+        reason: 'utilities.ts:2493 requires tickStep > 0.',
+      );
+    });
+
+    test('treats tick0 as 0 when it is not a number', () {
+      expect(
+        generateNumericTicks(null, 25, DateTime.utc(2020), <double>[0, 50]),
+        <double>[0, 25, 50],
+        reason: 'utilities.ts:2471 — refTick is 0 unless tick0 is a number.',
+      );
+    });
+
+    test('maps a numeric step through log space on a log scale', () {
+      expect(
+        generateNumericTicks(FluentAxisScaleType.log, 1, 0, <double>[1, 1000]),
+        <double>[1, 10, 100, 1000],
+        reason:
+            'utilities.ts:2474-2479 — the domain is mapped through log10, ticks '
+            'are generated linearly, then raised back through 10 ** t.',
+      );
+    });
+
+    test("honours the 'L<f>' step form on a log scale", () {
+      expect(
+        generateNumericTicks(FluentAxisScaleType.log, 'L2', 0, <double>[0, 10]),
+        <double>[0, 2, 4, 6, 8, 10],
+        reason:
+            "utilities.ts:2482-2487 — an 'L' prefix means linear-in-value ticks "
+            'even on a log scale.',
+      );
+    });
+
+    test('returns null for an unrecognised string step on a log scale', () {
+      expect(
+        generateNumericTicks(FluentAxisScaleType.log, 'M3', 0, <double>[
+          1,
+          100,
+        ]),
+        isNull,
+        reason: "utilities.ts:2490 — only the 'L' prefix is accepted here.",
+      );
+    });
+
+    test('returns null for an empty string step on a log scale', () {
+      expect(
+        generateNumericTicks(FluentAxisScaleType.log, '', 0, <double>[1, 100]),
+        isNull,
+        reason:
+            "utilities.ts:2483 reads tickStep[0], which is undefined for '' in "
+            'JavaScript and would throw a RangeError in Dart, so the port must '
+            'guard the index.',
+      );
+    });
+
+    test("treats 'L' with no number as no step", () {
+      expect(
+        generateNumericTicks(FluentAxisScaleType.log, 'L', 0, <double>[1, 100]),
+        isNull,
+        reason:
+            "utilities.ts:2484 — isNumber('') is false "
+            '(PlotlySchemaConverter.ts:41 requires a finite parseFloat), so num '
+            'is 0 and the num > 0 test at :2485 fails.',
+      );
+    });
+
+    test('rejects a non-finite step, as isNumber does', () {
+      expect(
+        generateNumericTicks(FluentAxisScaleType.log, 'LInfinity', 0, <double>[
+          1,
+          100,
+        ]),
+        isNull,
+        reason:
+            'PlotlySchemaConverter.ts:41 fails isFinite, so utilities.ts:2484 '
+            "yields 0. Dart's double.tryParse would happily return infinity, "
+            'which would make the tick set a single degenerate value.',
       );
     });
   });

@@ -1,7 +1,9 @@
 import 'dart:math' as math;
 
+import '../internal/d3/array_stats.dart' as d3;
 import '../internal/d3/js_math.dart' as d3;
 import '../internal/d3/ticks.dart' as d3;
+import '../model/chart_common.dart';
 
 /// Matches either the trailing zeros of an integer (group 1) or the digits
 /// after a decimal point (group 2). Transcribed from `utilities.ts:2537`.
@@ -153,4 +155,103 @@ List<double> prepareDatapoints(
     points.add(points.last + val);
   }
   return points;
+}
+
+/// Every multiple of [tickStep] anchored at [tick0] that lies inside
+/// [scaleDomain].
+///
+/// Ports `generateLinearTicks` (`utilities.ts:2406-2420`). The domain is read
+/// through [d3.min]/[d3.max], so a descending (right-to-left) domain works
+/// unchanged. Both ends are rounded at
+/// `max(calculatePrecision(tick0), calculatePrecision(tickStep))` to keep the
+/// emitted values free of binary-floating-point dust.
+///
+/// That rounding is applied to the *index* bounds as well as to the values
+/// (`:2411-2412`), which occasionally emits a tick outside the domain: with
+/// `tick0` 0, `tickStep` 100 and a domain of `[10, 20]` the precision is 0, so
+/// both `0.1` and `0.2` round to `0` and the single tick `0` comes back. That is
+/// upstream behaviour and is reproduced rather than corrected.
+List<double> generateLinearTicks(
+  double tick0,
+  double tickStep,
+  List<double> scaleDomain,
+) {
+  final domainMin = d3.min<double>(scaleDomain)!;
+  final domainMax = d3.max<double>(scaleDomain)!;
+  final precision = math.max(
+    calculatePrecision(tick0),
+    calculatePrecision(tickStep),
+  );
+
+  final start = precisionRoundValue(
+    (domainMin - tick0) / tickStep,
+    precision,
+  ).ceil();
+  final end = precisionRoundValue(
+    (domainMax - tick0) / tickStep,
+    precision,
+  ).floor();
+
+  final ticks = <double>[];
+  for (var i = start; i <= end; i++) {
+    ticks.add(precisionRoundValue(tick0 + i * tickStep, precision));
+  }
+  return ticks;
+}
+
+/// Raises [t] to a power of ten the way JavaScript's `10 ** t` does.
+///
+/// Integral exponents go through [d3.pow10], which builds the value from its
+/// decimal string and is therefore exact at every decade; anything else falls
+/// back to [math.pow] (spec section 4.2, risk 1).
+double _pow10Of(double t) =>
+    t == t.roundToDouble() ? d3.pow10(t.toInt()) : math.pow(10, t).toDouble();
+
+/// The custom tick values for a numeric axis, or `null` when [tickStep] does
+/// not describe one.
+///
+/// Ports `generateNumericTicks` (`utilities.ts:2465-2496`). On a log scale a
+/// numeric step is a step *in log space* — `tickStep` 2 puts ticks at 1, 100,
+/// 10000 (`types/DataPoint.ts:1099-1101`) — while a `'L<f>'` string step is a
+/// step in value space (`:1103`).
+///
+/// [tickStep] is the `string | number | undefined` union at `:2468` and [tick0]
+/// the `number | Date | undefined` union at `:2469`, so both arrive as [Object].
+List<double>? generateNumericTicks(
+  FluentAxisScaleType? scaleType,
+  Object tickStep,
+  Object? tick0,
+  List<double> scaleDomain,
+) {
+  final refTick = tick0 is num ? tick0.toDouble() : 0.0;
+
+  if (scaleType == FluentAxisScaleType.log) {
+    if (tickStep is num && tickStep > 0) {
+      return generateLinearTicks(
+        refTick,
+        tickStep.toDouble(),
+        scaleDomain.map(d3.log10).toList(),
+      ).map(_pow10Of).toList();
+    }
+    // The emptiness test is not in the upstream condition at :2482: JavaScript
+    // reads `''[0]` as `undefined`, where Dart's [String.operator []] throws.
+    if (tickStep is String && tickStep.isNotEmpty) {
+      final prefix = tickStep[0];
+      // 0 is the fallback at :2484 for a tail that is not a number, and it
+      // fails the `> 0` test below. `isFinite` stands in for the `isFinite`
+      // half of upstream's `isNumber`
+      // (`chart-utilities/packages/charts/chart-utilities/src/PlotlySchemaConverter.ts:41`),
+      // which Dart's [double.tryParse] does not apply of its own accord.
+      final stepValue = double.tryParse(tickStep.substring(1)) ?? 0.0;
+      if (prefix == 'L' && stepValue > 0 && stepValue.isFinite) {
+        return generateLinearTicks(refTick, stepValue, scaleDomain);
+      }
+    }
+    return null;
+  }
+
+  if (tickStep is num && tickStep > 0) {
+    return generateLinearTicks(refTick, tickStep.toDouble(), scaleDomain);
+  }
+  return null;
 }
