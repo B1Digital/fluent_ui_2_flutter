@@ -556,4 +556,111 @@ void main() {
       );
     });
   });
+
+  group('multiLevelDateTimeFormatOptions', () {
+    test('returns the default bag when the start level is missing', () {
+      expect(
+        multiLevelDateTimeFormatOptions(null, 3).pattern,
+        kDefaultDateTimeFormatOptions.pattern,
+        reason:
+            'chart-utilities/formatter.ts:280-282 guards an absent start '
+            'level.',
+      );
+    });
+
+    test('returns the default bag when the start level is out of range', () {
+      expect(
+        multiLevelDateTimeFormatOptions(8, 8).pattern,
+        kDefaultDateTimeFormatOptions.pattern,
+        reason: 'formatter.ts:280-282 also guards startLevel >= 8.',
+      );
+    });
+
+    test('collapses to the diagonal when the end level is lower', () {
+      expect(
+        multiLevelDateTimeFormatOptions(2, 1).pattern,
+        multiLevelDateTimeFormatOptions(2, 2).pattern,
+        reason: 'formatter.ts:284-286 falls back to [startLevel][startLevel].',
+      );
+    });
+
+    test('clamps an end level past the table to the last column', () {
+      expect(
+        multiLevelDateTimeFormatOptions(2, 99).pattern,
+        multiLevelDateTimeFormatOptions(2, 7).pattern,
+        reason: 'formatter.ts:288-290 clamps to the final column.',
+      );
+    });
+
+    test('gives the day cell month-short plus two-digit day', () {
+      final bag = multiLevelDateTimeFormatOptions(4, 5);
+      expect(
+        bag.month,
+        FluentDateTimeField.short,
+        reason: 'formatter.ts:237 — D_W is month short.',
+      );
+      expect(
+        bag.day,
+        FluentDateTimeField.twoDigit,
+        reason: "formatter.ts:238 — D_W is day '2-digit'.",
+      );
+      expect(bag.year, isNull, reason: 'D_W carries no year.');
+    });
+
+    test('gives the month cell a long month name', () {
+      expect(
+        multiLevelDateTimeFormatOptions(6, 6).month,
+        FluentDateTimeField.long,
+        reason: "formatter.ts:252-255 — M is month 'long'.",
+      );
+    });
+  });
+
+  group('multiLevelDateTimeFormatOptions against the Oracle B corpus', () {
+    // The day-to-week cell is the one this table hands createDateXAxis for the
+    // date-scaled stories (utilities.ts:515 formats each tick with the bag),
+    // so the labels the live React charts actually rendered pin it. A wrong
+    // cell — the weekday-bearing D at [4][4], say, or the slash-joined
+    // D_W_M_Y at [4][7] — would still satisfy a hand-written expectation.
+    final labels = _oracleShortMonthDayLabels();
+
+    test('offers enough labels to be worth asserting against', () {
+      // 10 leaves room for a recapture to shift one tick without silently
+      // emptying this group; see the count guard on the formatDateToLocaleString
+      // corpus group above for the figure at the time of writing.
+      expect(
+        labels.length,
+        greaterThanOrEqualTo(10),
+        reason:
+            'the corpus should carry the date-axis tick labels of the two '
+            'date-scaled stories; a near-empty map means the text capture or '
+            'the filter regressed.',
+      );
+    });
+
+    for (final entry in labels.entries) {
+      test('the [4][5] cell reproduces ${entry.key} from ${entry.value}', () {
+        // As above, the year does not reach the output, so the leap year 2020
+        // stands in and keeps a captured 'Feb 29' constructible.
+        expect(
+          formatDateToLocaleString(
+            DateTime.utc(
+              2020,
+              _monthOf(entry.key),
+              int.parse(entry.key.substring(4)),
+            ),
+            culture: 'en_US',
+            useUtc: true,
+            showTZname: false,
+            options: multiLevelDateTimeFormatOptions(4, 5),
+          ),
+          entry.key,
+          reason:
+              'the live implementation rendered ${entry.key} in '
+              '${entry.value}; the bag this table returns for a day-to-week '
+              'tick span must render it identically.',
+        );
+      });
+    }
+  });
 }

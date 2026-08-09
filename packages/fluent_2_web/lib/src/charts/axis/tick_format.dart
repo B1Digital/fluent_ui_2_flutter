@@ -432,3 +432,229 @@ const List<List<String>> _multiLevelD3Formats = <List<String>>[
     _fmtY,
   ],
 ];
+
+/// The Intl option bag that spans levels [startLevel] to [endLevel].
+///
+/// Ports `getMultiLevelDateTimeFormatOptions`
+/// (`chart-utilities/formatter.ts:110-293`), including all three out-of-range
+/// guards at `:280-292`. Unlike [multiLevelD3DateFormat] this one is total,
+/// because `createDateXAxis` calls it with the sentinel levels `100` and `-1`
+/// when the scale produced no ticks (`utilities.ts:472-486`).
+FluentDateTimeFormatOptions multiLevelDateTimeFormatOptions(
+  int? startLevel,
+  int? endLevel,
+) {
+  // 0 is the first row, ms; the row count stands in for upstream's
+  // MULTI_LEVEL_DATE_TIME_FORMATS.length at formatter.ts:280.
+  if (startLevel == null ||
+      startLevel < 0 ||
+      startLevel >= _multiLevelIntlFormats.length) {
+    return kDefaultDateTimeFormatOptions;
+  }
+  if (endLevel == null || endLevel < startLevel) {
+    return _multiLevelIntlFormats[startLevel][startLevel];
+  }
+  if (endLevel >= _multiLevelIntlFormats[startLevel].length) {
+    return _multiLevelIntlFormats[startLevel].last;
+  }
+  return _multiLevelIntlFormats[startLevel][endLevel];
+}
+
+// The Intl option bags, named as at chart-utilities/formatter.ts:111-266. The
+// aliased upstream constants (MS_S = MS, W = D_W, MS_S_MIN_H_D_W_M_Y = DEFAULT,
+// and so on) are not restated; the table below reuses the one they alias.
+const FluentDateTimeFormatOptions _optMs = FluentDateTimeFormatOptions(
+  second: FluentDateTimeField.twoDigit,
+);
+const FluentDateTimeFormatOptions _optMsSMin = FluentDateTimeFormatOptions(
+  minute: FluentDateTimeField.twoDigit,
+  second: FluentDateTimeField.twoDigit,
+);
+const FluentDateTimeFormatOptions _optMsSMinH = FluentDateTimeFormatOptions(
+  hour: FluentDateTimeField.twoDigit,
+  minute: FluentDateTimeField.twoDigit,
+  second: FluentDateTimeField.twoDigit,
+  hour12: true,
+);
+const FluentDateTimeFormatOptions _optMsSMinHD = FluentDateTimeFormatOptions(
+  weekday: FluentDateTimeField.short,
+  day: FluentDateTimeField.twoDigit,
+  hour: FluentDateTimeField.twoDigit,
+  minute: FluentDateTimeField.twoDigit,
+  second: FluentDateTimeField.twoDigit,
+);
+const FluentDateTimeFormatOptions _optMsSMinHDW = FluentDateTimeFormatOptions(
+  month: FluentDateTimeField.short,
+  day: FluentDateTimeField.twoDigit,
+  hour: FluentDateTimeField.twoDigit,
+  minute: FluentDateTimeField.twoDigit,
+  second: FluentDateTimeField.twoDigit,
+);
+const FluentDateTimeFormatOptions _optMin = FluentDateTimeFormatOptions(
+  hour: FluentDateTimeField.twoDigit,
+  minute: FluentDateTimeField.twoDigit,
+  hour12: true,
+);
+const FluentDateTimeFormatOptions _optMinHD = FluentDateTimeFormatOptions(
+  weekday: FluentDateTimeField.short,
+  day: FluentDateTimeField.twoDigit,
+  hour: FluentDateTimeField.twoDigit,
+  minute: FluentDateTimeField.twoDigit,
+  hour12: true,
+);
+const FluentDateTimeFormatOptions _optMinHDW = FluentDateTimeFormatOptions(
+  month: FluentDateTimeField.short,
+  day: FluentDateTimeField.twoDigit,
+  hour: FluentDateTimeField.twoDigit,
+  minute: FluentDateTimeField.twoDigit,
+  hour12: true,
+);
+const FluentDateTimeFormatOptions _optMinHDWMY = FluentDateTimeFormatOptions(
+  year: FluentDateTimeField.numeric,
+  month: FluentDateTimeField.twoDigit,
+  day: FluentDateTimeField.twoDigit,
+  hour: FluentDateTimeField.twoDigit,
+  minute: FluentDateTimeField.twoDigit,
+  hour12: true,
+);
+const FluentDateTimeFormatOptions _optH = FluentDateTimeFormatOptions(
+  hour: FluentDateTimeField.twoDigit,
+  hour12: true,
+);
+const FluentDateTimeFormatOptions _optHD = FluentDateTimeFormatOptions(
+  weekday: FluentDateTimeField.short,
+  day: FluentDateTimeField.twoDigit,
+  hour: FluentDateTimeField.twoDigit,
+  hour12: true,
+);
+const FluentDateTimeFormatOptions _optHDW = FluentDateTimeFormatOptions(
+  month: FluentDateTimeField.short,
+  day: FluentDateTimeField.twoDigit,
+  hour: FluentDateTimeField.twoDigit,
+  hour12: true,
+);
+const FluentDateTimeFormatOptions _optHDWMY = FluentDateTimeFormatOptions(
+  year: FluentDateTimeField.numeric,
+  month: FluentDateTimeField.twoDigit,
+  day: FluentDateTimeField.twoDigit,
+  hour: FluentDateTimeField.twoDigit,
+  hour12: true,
+);
+const FluentDateTimeFormatOptions _optD = FluentDateTimeFormatOptions(
+  weekday: FluentDateTimeField.short,
+  day: FluentDateTimeField.twoDigit,
+);
+const FluentDateTimeFormatOptions _optDW = FluentDateTimeFormatOptions(
+  month: FluentDateTimeField.short,
+  day: FluentDateTimeField.twoDigit,
+);
+const FluentDateTimeFormatOptions _optDWMY = FluentDateTimeFormatOptions(
+  year: FluentDateTimeField.numeric,
+  month: FluentDateTimeField.twoDigit,
+  day: FluentDateTimeField.twoDigit,
+);
+const FluentDateTimeFormatOptions _optM = FluentDateTimeFormatOptions(
+  month: FluentDateTimeField.long,
+);
+const FluentDateTimeFormatOptions _optMY = FluentDateTimeFormatOptions(
+  month: FluentDateTimeField.short,
+  year: FluentDateTimeField.numeric,
+);
+const FluentDateTimeFormatOptions _optY = FluentDateTimeFormatOptions(
+  year: FluentDateTimeField.numeric,
+);
+
+/// The Intl mirror of [multiLevelD3DateFormat]'s table
+/// (`chart-utilities/formatter.ts:268-278`). Rows are the start level, columns
+/// the end level, both ordered ms, s, min, h, d, w, m, y.
+const List<List<FluentDateTimeFormatOptions>> _multiLevelIntlFormats =
+    <List<FluentDateTimeFormatOptions>>[
+      // ms
+      <FluentDateTimeFormatOptions>[
+        _optMs,
+        _optMs,
+        _optMsSMin,
+        _optMsSMinH,
+        _optMsSMinHD,
+        _optMsSMinHDW,
+        _optMsSMinHDW,
+        kDefaultDateTimeFormatOptions,
+      ],
+      // s
+      <FluentDateTimeFormatOptions>[
+        kDefaultDateTimeFormatOptions,
+        _optMs,
+        _optMsSMin,
+        _optMsSMinH,
+        _optMsSMinHD,
+        _optMsSMinHDW,
+        _optMsSMinHDW,
+        kDefaultDateTimeFormatOptions,
+      ],
+      // min
+      <FluentDateTimeFormatOptions>[
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        _optMin,
+        _optMin,
+        _optMinHD,
+        _optMinHDW,
+        _optMinHDW,
+        _optMinHDWMY,
+      ],
+      // h
+      <FluentDateTimeFormatOptions>[
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        _optH,
+        _optHD,
+        _optHDW,
+        _optHDW,
+        _optHDWMY,
+      ],
+      // d
+      <FluentDateTimeFormatOptions>[
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        _optD,
+        _optDW,
+        _optDW,
+        _optDWMY,
+      ],
+      // w
+      <FluentDateTimeFormatOptions>[
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        _optDW,
+        _optDW,
+        _optDWMY,
+      ],
+      // m
+      <FluentDateTimeFormatOptions>[
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        _optM,
+        _optMY,
+      ],
+      // y
+      <FluentDateTimeFormatOptions>[
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        kDefaultDateTimeFormatOptions,
+        _optY,
+      ],
+    ];
