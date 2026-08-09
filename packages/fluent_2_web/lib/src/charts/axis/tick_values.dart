@@ -255,3 +255,181 @@ List<double>? generateNumericTicks(
   }
   return null;
 }
+
+/// Rebuilds [source] with [month] as its one-based month, matching JavaScript's
+/// `Date.prototype.setMonth` overflow semantics: month 13 becomes January of the
+/// next year, month 0 December of the previous one, and day 31 in a 30-day month
+/// rolls into the next month.
+DateTime _withMonth(DateTime source, int month, {required bool useUtc}) {
+  return useUtc
+      ? DateTime.utc(
+          source.year,
+          month,
+          source.day,
+          source.hour,
+          source.minute,
+          source.second,
+          source.millisecond,
+          source.microsecond,
+        )
+      : DateTime(
+          source.year,
+          month,
+          source.day,
+          source.hour,
+          source.minute,
+          source.second,
+          source.millisecond,
+          source.microsecond,
+        );
+}
+
+/// The last day of the month before [source]'s, keeping its time of day —
+/// JavaScript's `setDate(0)`, which Dart spells as day zero.
+DateTime _toPreviousMonthEnd(DateTime source, {required bool useUtc}) {
+  return useUtc
+      ? DateTime.utc(
+          source.year,
+          source.month,
+          0,
+          source.hour,
+          source.minute,
+          source.second,
+          source.millisecond,
+          source.microsecond,
+        )
+      : DateTime(
+          source.year,
+          source.month,
+          0,
+          source.hour,
+          source.minute,
+          source.second,
+          source.millisecond,
+          source.microsecond,
+        );
+}
+
+/// Ticks every [months] months from [tick0], clipped to [domain].
+///
+/// Ports `generateMonthlyTicks` (`utilities.ts:2423-2463`), including the
+/// rollover guard at `:2450-2452`: when adding whole months to a month-end
+/// anchor lands in the following month, the tick is snapped back to the previous
+/// month's last day, so a January 31 anchor gives February 29 in a leap year.
+///
+/// The anchor is normalised to the clock [useUtc] selects before anything is
+/// read from it, because upstream pairs `getUTCMonth` with `setUTCMonth`
+/// (`:2432-2433`) and so reads every field of the date on one clock.
+///
+/// [months] must be positive; upstream neither checks nor survives a
+/// non-positive step, because the walk at `:2437-2440` would never advance.
+List<DateTime> generateMonthlyTicks(
+  DateTime tick0,
+  int months,
+  List<DateTime> domain, {
+  bool useUtc = false,
+}) {
+  assert(months > 0, 'A monthly tick step of $months would never terminate.');
+  final domainMin = d3.min<DateTime>(domain)!.millisecondsSinceEpoch;
+  final domainMax = d3.max<DateTime>(domain)!.millisecondsSinceEpoch;
+  final anchor = useUtc ? tick0.toUtc() : tick0.toLocal();
+
+  // The earliest tick index at or before domainMin (`:2436-2440`). Stepping the
+  // running date rather than the anchor is upstream's own formulation, and it
+  // matters: [_withMonth] normalises an overflowing day as it goes.
+  var start = 0;
+  var firstTick = anchor;
+  while (firstTick.millisecondsSinceEpoch > domainMin) {
+    firstTick = _withMonth(firstTick, firstTick.month - months, useUtc: useUtc);
+    start -= months;
+  }
+
+  // Zero-based, as `getMonth` is, so that the modular comparison below reads the
+  // same as `:2450`.
+  final baseMonth = anchor.month - 1;
+  final ticks = <DateTime>[];
+  for (var i = start; ; i += months) {
+    var tickDate = _withMonth(anchor, baseMonth + i + 1, useUtc: useUtc);
+    // 12 is the month count at `:2450`; the doubled modulus is upstream's way of
+    // making a negative index land in `0..11`, which Dart's own `%` would do
+    // unaided but is kept for transcription fidelity.
+    final expectedMonth = ((baseMonth + i) % 12 + 12) % 12;
+    if (tickDate.month - 1 != expectedMonth) {
+      tickDate = _toPreviousMonthEnd(tickDate, useUtc: useUtc);
+    }
+    if (tickDate.millisecondsSinceEpoch > domainMax) {
+      break;
+    }
+    if (tickDate.millisecondsSinceEpoch >= domainMin) {
+      ticks.add(tickDate);
+    }
+  }
+  return ticks;
+}
+
+/// The custom tick values for a date axis, or `null` when [tickStep] does not
+/// describe one.
+///
+/// Ports `generateDateTicks` (`utilities.ts:2498-2521`). A numeric step is a
+/// millisecond interval (`:2506-2511`); a `'M<n>'` string step is a whole-month
+/// interval (`:2514-2519`). The fallback anchor is `DEFAULT_DATE_STRING`
+/// (`:2504`, the constant at `:91`) read as **UTC** midnight, which is how
+/// JavaScript parses a bare `YYYY-MM-DD` and why this is built with
+/// [DateTime.utc] rather than [DateTime.parse].
+///
+/// The millisecond branch inherits [generateLinearTicks]' precision quirk, and
+/// at epoch magnitudes that quirk is severe: a step of 86 400 000 has precision
+/// -5, which rounds every index bound of a few-day domain to zero and yields one
+/// tick, a millisecond below the anchor. That is upstream behaviour, verified by
+/// running a transcription of `:2406-2421` under node, and is reproduced rather
+/// than corrected. Each tick is truncated towards zero rather than rounded,
+/// because that is what `new Date(t)` does to a fractional millisecond
+/// (`TimeClip`, ECMA-262 21.4.1.31).
+///
+/// [tickStep] is the `string | number | undefined` union at `:2499` and [tick0]
+/// the `number | Date | undefined` union at `:2500`, so both arrive as [Object].
+List<DateTime>? generateDateTicks(
+  Object tickStep,
+  Object? tick0,
+  List<DateTime> domain, {
+  bool useUtc = false,
+}) {
+  final refTick = tick0 is DateTime ? tick0 : DateTime.utc(2000);
+
+  if (tickStep is num && tickStep > 0) {
+    return generateLinearTicks(
+          refTick.millisecondsSinceEpoch.toDouble(),
+          tickStep.toDouble(),
+          domain.map((d) => d.millisecondsSinceEpoch.toDouble()).toList(),
+        )
+        .map(
+          (ms) =>
+              DateTime.fromMillisecondsSinceEpoch(ms.truncate(), isUtc: useUtc),
+        )
+        .toList();
+  }
+
+  // The emptiness test is not in the upstream condition at `:2514`: JavaScript
+  // reads `''[0]` as `undefined`, where Dart's [String.operator []] throws.
+  if (tickStep is String && tickStep.isNotEmpty) {
+    final prefix = tickStep[0];
+    // 0 is the fallback at `:2516` for a tail that is not a number. `isFinite`
+    // stands in for the `isFinite` half of upstream's `isNumber`
+    // (`chart-utilities/packages/charts/chart-utilities/src/PlotlySchemaConverter.ts:41`),
+    // which Dart's [double.tryParse] does not apply of its own accord and
+    // without which `'MInfinity'` would reach [double.toInt] and throw.
+    final count = double.tryParse(tickStep.substring(1)) ?? 0;
+    if (prefix == 'M' &&
+        count > 0 &&
+        count.isFinite &&
+        count == count.roundToDouble()) {
+      return generateMonthlyTicks(
+        refTick,
+        count.toInt(),
+        domain,
+        useUtc: useUtc,
+      );
+    }
+  }
+  return null;
+}

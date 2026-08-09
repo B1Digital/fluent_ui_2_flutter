@@ -525,4 +525,178 @@ void main() {
       );
     });
   });
+
+  group('generateMonthlyTicks', () {
+    test('snaps a month-end anchor back to the previous month end', () {
+      expect(
+        generateMonthlyTicks(DateTime.utc(2020, 1, 31), 1, <DateTime>[
+          DateTime.utc(2020, 1, 1),
+          DateTime.utc(2020, 4, 30),
+        ], useUtc: true),
+        <DateTime>[
+          DateTime.utc(2020, 1, 31),
+          DateTime.utc(2020, 2, 29),
+          DateTime.utc(2020, 3, 31),
+          DateTime.utc(2020, 4, 30),
+        ],
+        reason:
+            'utilities.ts:2450-2452 — Jan 31 plus one month rolls to Mar 2, so '
+            'setDate(0) snaps it back to Feb 29 in the 2020 leap year. Apr 31 '
+            'rolls to May 1 and snaps to Apr 30.',
+      );
+    });
+
+    test('walks backwards from the anchor to cover the domain start', () {
+      expect(
+        generateMonthlyTicks(DateTime.utc(2020, 6, 1), 3, <DateTime>[
+          DateTime.utc(2020, 1, 1),
+          DateTime.utc(2020, 12, 31),
+        ], useUtc: true),
+        <DateTime>[
+          DateTime.utc(2020, 3, 1),
+          DateTime.utc(2020, 6, 1),
+          DateTime.utc(2020, 9, 1),
+          DateTime.utc(2020, 12, 1),
+        ],
+        reason:
+            'utilities.ts:2436-2440 steps back by tickStepInMonths until the '
+            'first tick is at or before the domain minimum.',
+      );
+    });
+
+    test('excludes a tick before the domain minimum', () {
+      expect(
+        generateMonthlyTicks(DateTime.utc(2020, 6, 15), 6, <DateTime>[
+          DateTime.utc(2020, 6, 1),
+          DateTime.utc(2020, 12, 31),
+        ], useUtc: true),
+        <DateTime>[DateTime.utc(2020, 6, 15), DateTime.utc(2020, 12, 15)],
+        reason:
+            'utilities.ts:2454-2459 breaks above domainMax and pushes only '
+            'ticks at or after domainMin, so the Dec 2019 tick the backwards '
+            'walk lands on is generated and then dropped.',
+      );
+    });
+  });
+
+  group('generateDateTicks', () {
+    test('maps every step through epoch milliseconds and back', () {
+      expect(
+        generateDateTicks(
+          // 86400001 rather than a round 86400000: see the next test. One day
+          // plus one millisecond has no trailing zeros, so calculatePrecision
+          // answers 0 and the index arithmetic at utilities.ts:2412-2413
+          // survives the epoch's magnitude.
+          const Duration(days: 1).inMilliseconds + 1,
+          DateTime.utc(2020),
+          <DateTime>[DateTime.utc(2020), DateTime.utc(2020, 1, 3)],
+          useUtc: true,
+        ),
+        <DateTime>[
+          DateTime.utc(2020),
+          DateTime.utc(2020, 1, 2, 0, 0, 0, 1),
+          DateTime.utc(2020, 1, 3, 0, 0, 0, 2),
+        ],
+        reason:
+            'utilities.ts:2506-2511 maps the domain to epoch ms, generates '
+            'linear ticks and reads each back as a date, so the step drifts one '
+            'millisecond further per tick.',
+      );
+    });
+
+    test('inherits the precision collapse for a round millisecond step', () {
+      expect(
+        generateDateTicks(
+          const Duration(days: 1).inMilliseconds,
+          DateTime.utc(2020),
+          <DateTime>[DateTime.utc(2020), DateTime.utc(2020, 1, 3)],
+          useUtc: true,
+        ),
+        <DateTime>[DateTime.utc(2019, 12, 31, 23, 59, 59, 999)],
+        reason:
+            'Verified against a transcription of utilities.ts:2406-2421 run '
+            'under node: calculatePrecision(86400000) and '
+            'calculatePrecision(1577836800000) are both -5, so :2412-2413 round '
+            'the index bounds 0 and 2 to a single index 0, and :2417 divides by '
+            'the inexact double 1e-5 to give 1577836799999.9998, which '
+            "JavaScript's Date constructor truncates to 23:59:59.999. A round "
+            'millisecond step therefore yields one tick a millisecond before '
+            'the anchor, not three ticks a day apart. This is upstream '
+            'behaviour and is reproduced rather than corrected.',
+      );
+    });
+
+    test("honours the 'M<n>' step form", () {
+      expect(
+        generateDateTicks('M2', DateTime.utc(2020), <DateTime>[
+          DateTime.utc(2020),
+          DateTime.utc(2020, 5, 1),
+        ], useUtc: true),
+        <DateTime>[
+          DateTime.utc(2020),
+          DateTime.utc(2020, 3, 1),
+          DateTime.utc(2020, 5, 1),
+        ],
+        reason:
+            'utilities.ts:2514-2519 routes an M-prefixed step to monthly ticks.',
+      );
+    });
+
+    test('falls back to the UTC epoch of 2000-01-01 when tick0 is absent', () {
+      final ticks = generateDateTicks(
+        const Duration(days: 1).inMilliseconds,
+        null,
+        <DateTime>[DateTime.utc(2000), DateTime.utc(2000, 1, 2)],
+        useUtc: true,
+      );
+      expect(
+        ticks!.first,
+        DateTime.utc(1999, 12, 31, 23, 59, 59, 999),
+        reason:
+            "utilities.ts:2504 — new Date('2000-01-01') parses as UTC midnight "
+            'in JavaScript, so the port must not use DateTime.parse, which is '
+            'local: in any zone but UTC that would move this value by whole '
+            'hours. The millisecond below midnight is the same precision '
+            'collapse as the test above, measured under node.',
+      );
+    });
+
+    test('returns null for a step it cannot interpret', () {
+      expect(
+        generateDateTicks('L3', null, <DateTime>[
+          DateTime.utc(2000),
+        ], useUtc: true),
+        isNull,
+        reason: "utilities.ts:2517 accepts only the 'M' prefix here.",
+      );
+    });
+
+    test('returns null for a fractional month step', () {
+      expect(
+        generateDateTicks('M1.5', DateTime.utc(2020), <DateTime>[
+          DateTime.utc(2020),
+          DateTime.utc(2020, 5, 1),
+        ], useUtc: true),
+        isNull,
+        reason:
+            'utilities.ts:2517 also requires num === Math.round(num), so a '
+            'fractional number of months is no step at all.',
+      );
+    });
+
+    test('rejects a non-finite month step, as isNumber does', () {
+      expect(
+        generateDateTicks('MInfinity', DateTime.utc(2020), <DateTime>[
+          DateTime.utc(2020),
+          DateTime.utc(2020, 5, 1),
+        ], useUtc: true),
+        isNull,
+        reason:
+            'PlotlySchemaConverter.ts:41 fails isFinite, so utilities.ts:2516 '
+            "yields 0. Dart's double.tryParse returns infinity instead, which "
+            'passes both tests at :2517 and then throws an UnsupportedError on '
+            'infinity.toInt(), so the port must guard finiteness itself.',
+      );
+    });
+  });
 }
