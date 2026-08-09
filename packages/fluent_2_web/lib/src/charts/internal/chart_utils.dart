@@ -163,3 +163,136 @@ List<FluentCustomizedCalloutDataPoint>? findCalloutPoints(
   // utilities.ts:2569-2571.
   return null;
 }
+
+/// Whether [title] is highlighted under the multi-select model.
+///
+/// Model A, used by nine charts — GroupedVerticalBarChart, GanttChart,
+/// VerticalBarChart, GaugeChart, HorizontalBarChartWithAxis, AreaChart,
+/// VerticalStackedBarChart, ScatterChart and DonutChart. Ports
+/// `_legendHighlighted` plus `_getHighlightedLegend`
+/// (`VerticalBarChart.tsx:908-921`):
+/// `selectedLegends.length > 0 ? selectedLegends : activeLegend ? [activeLegend] : []`,
+/// then `.includes(title)`.
+///
+/// `activeLegend` is tested for **truthiness** upstream, so an empty string
+/// counts as no hover.
+///
+/// The three models are kept apart deliberately. The 9 / 3 / 1 split is real
+/// behaviour: it gates every opacity constant and every popover suppression in
+/// the package, and unifying it would change what a chart highlights.
+bool isLegendHighlightedMulti(
+  String title, {
+  required List<String> selectedLegends,
+  String? activeLegend,
+}) {
+  // VerticalBarChart.tsx:920, the first arm of the conditional.
+  if (selectedLegends.isNotEmpty) {
+    return selectedLegends.contains(title);
+  }
+  if (activeLegend == null || activeLegend.isEmpty) {
+    return false;
+  }
+  return activeLegend == title;
+}
+
+/// Whether [title] is highlighted under the single-select model.
+///
+/// Model B, used by HeatMapChart (`HeatMapChart.tsx:608-610`) and LineChart
+/// (`LineChart.tsx:1817-1819`):
+/// `selectedLegend === legend || (selectedLegend === '' && activeLegend === legend)`.
+///
+/// The hover arm is reachable only while nothing is selected, which is what
+/// makes this model different from [isLegendHighlightedMulti] rather than a
+/// special case of it.
+bool isLegendHighlightedSingle(
+  String title, {
+  required String selectedLegend,
+  String? activeLegend,
+}) =>
+    selectedLegend == title ||
+    (selectedLegend.isEmpty && activeLegend == title);
+
+/// Model B with HorizontalBarChart's absent-title guard.
+///
+/// Ports `_legendHighlighted` (`HorizontalBarChart.tsx:371-376`), whose first
+/// statement returns false for an undefined bar legend before the comparison
+/// runs. A null [selectedLegend] then matches nothing and does not open the
+/// hover arm either, because it is not the empty string.
+bool isLegendHighlightedSingleGuarded(
+  String? title, {
+  required String? selectedLegend,
+  String? activeLegend,
+}) {
+  // HorizontalBarChart.tsx:372-374.
+  if (title == null) {
+    return false;
+  }
+  // HorizontalBarChart.tsx:375.
+  return selectedLegend == title ||
+      (selectedLegend == '' && activeLegend == title);
+}
+
+/// Whether [a] and [b] hold the same strings in the same order.
+///
+/// Ports `areArraysEqual` (`utilities.ts:1982-1996`), used by eight charts to
+/// decide whether a legend selection actually changed. Note that a null is equal
+/// only to another null, never to an empty list (`:1983`, `:1986`).
+bool areArraysEqual(List<String>? a, List<String>? b) {
+  // utilities.ts:1983.
+  if (identical(a, b) || (a == null && b == null)) {
+    return true;
+  }
+  // utilities.ts:1986.
+  if (a == null || b == null || a.length != b.length) {
+    return false;
+  }
+  // utilities.ts:1989-1993 — index by index, so order matters. The loop starts
+  // at index 0 because upstream's `let i = 0` walks the whole array.
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/// [label] with the first letter of each word in upper case.
+///
+/// Ports `text-transform: capitalize` (`useLegendsStyles.styles.ts:56`), which
+/// is the only `textTransform` in the upstream package and which Flutter has no
+/// equivalent for (spec §8). It must be applied before painting **and** before
+/// measuring, because CSS applies it before layout.
+///
+/// Upstream is inconsistent about which measurement sees it, and the port
+/// matches that: `measureTextWithDOM` copies `text-transform`
+/// (`utilities.ts:2137-2144`) and is what the exported legend strip measures
+/// with (`image-export-utils.ts:314`), while the canvas-based
+/// `calculateLongestLabelWidth` (`utilities.ts:1253-1276`) does not. So the
+/// exported legend is measured post-capitalisation and axis labels are measured
+/// pre-capitalisation.
+///
+/// Note that CSS `capitalize` upper-cases the first letter and leaves the rest
+/// of the word alone — `'GDP growth'` becomes `'GDP Growth'`, not
+/// `'Gdp Growth'`.
+///
+/// `ponytail:` word boundaries are whitespace only, which matches Chrome for a
+/// hyphen (`'north-east'` renders as `'North-east'`). Widen it if a real label
+/// ever needs a different boundary.
+String capitalizeLegendLabel(String label) {
+  if (label.isEmpty) {
+    return label;
+  }
+  final buffer = StringBuffer();
+  var atWordStart = true;
+  for (final rune in label.runes) {
+    final character = String.fromCharCode(rune);
+    if (character.trim().isEmpty) {
+      atWordStart = true;
+      buffer.write(character);
+      continue;
+    }
+    buffer.write(atWordStart ? character.toUpperCase() : character);
+    atWordStart = false;
+  }
+  return buffer.toString();
+}

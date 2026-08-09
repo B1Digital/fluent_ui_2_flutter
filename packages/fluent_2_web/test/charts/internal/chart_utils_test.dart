@@ -243,4 +243,210 @@ void main() {
       );
     });
   });
+
+  group('isLegendHighlightedMulti — model A, nine charts', () {
+    test('uses the selection when there is one', () {
+      expect(
+        isLegendHighlightedMulti(
+          'A',
+          selectedLegends: const <String>['A', 'B'],
+          activeLegend: 'C',
+        ),
+        isTrue,
+        reason:
+            'VerticalBarChart.tsx:920 — a non-empty selectedLegends wins over '
+            'activeLegend outright.',
+      );
+      expect(
+        isLegendHighlightedMulti(
+          'C',
+          selectedLegends: const <String>['A', 'B'],
+          activeLegend: 'C',
+        ),
+        isFalse,
+        reason: 'activeLegend is ignored once a selection exists (:920).',
+      );
+    });
+
+    test('falls back to the hovered legend when nothing is selected', () {
+      expect(
+        isLegendHighlightedMulti(
+          'C',
+          selectedLegends: const <String>[],
+          activeLegend: 'C',
+        ),
+        isTrue,
+        reason:
+            'VerticalBarChart.tsx:920 `activeLegend ? [activeLegend] : []`.',
+      );
+    });
+
+    test(
+      'treats an empty activeLegend as no hover, matching the falsy test',
+      () {
+        expect(
+          isLegendHighlightedMulti(
+            '',
+            selectedLegends: const <String>[],
+            activeLegend: '',
+          ),
+          isFalse,
+          reason:
+              "VerticalBarChart.tsx:920 uses a truthiness test, so '' produces "
+              'the empty array and nothing is highlighted.',
+        );
+      },
+    );
+
+    test('is false when nothing is selected and nothing is hovered', () {
+      expect(
+        isLegendHighlightedMulti('A', selectedLegends: const <String>[]),
+        isFalse,
+        reason: 'The empty array contains nothing (VerticalBarChart.tsx:909).',
+      );
+    });
+  });
+
+  group('isLegendHighlightedSingle — model B, HeatMap and LineChart', () {
+    test('matches the selected legend', () {
+      expect(
+        isLegendHighlightedSingle('A', selectedLegend: 'A'),
+        isTrue,
+        reason: 'LineChart.tsx:1818, HeatMapChart.tsx:609.',
+      );
+    });
+    test('matches the hovered legend only when nothing is selected', () {
+      expect(
+        isLegendHighlightedSingle('B', selectedLegend: '', activeLegend: 'B'),
+        isTrue,
+        reason: "LineChart.tsx:1818 `selectedLegend === '' && …`.",
+      );
+      expect(
+        isLegendHighlightedSingle('B', selectedLegend: 'A', activeLegend: 'B'),
+        isFalse,
+        reason: 'A selection suppresses the hover arm entirely (:1818).',
+      );
+    });
+  });
+
+  group('isLegendHighlightedSingleGuarded — HorizontalBarChart', () {
+    test('is false for a null title, before anything else is tested', () {
+      expect(
+        isLegendHighlightedSingleGuarded(null, selectedLegend: ''),
+        isFalse,
+        reason: 'HorizontalBarChart.tsx:372-374 returns early.',
+      );
+    });
+    test('otherwise behaves exactly as model B', () {
+      expect(
+        isLegendHighlightedSingleGuarded('A', selectedLegend: 'A'),
+        isTrue,
+        reason: 'HorizontalBarChart.tsx:375.',
+      );
+      expect(
+        isLegendHighlightedSingleGuarded(
+          'A',
+          selectedLegend: '',
+          activeLegend: 'A',
+        ),
+        isTrue,
+        reason: 'HorizontalBarChart.tsx:375, the hover arm.',
+      );
+    });
+    test('a null selectedLegend never equals a real title', () {
+      expect(
+        isLegendHighlightedSingleGuarded('A', selectedLegend: null),
+        isFalse,
+        reason:
+            'HorizontalBarChart.tsx:375 compares with ===, so an undefined '
+            'selectedLegend matches nothing and does not open the hover arm '
+            "either, because it is not ''.",
+      );
+    });
+  });
+
+  group('areArraysEqual', () {
+    test('two nulls are equal', () {
+      expect(
+        areArraysEqual(null, null),
+        isTrue,
+        reason: 'utilities.ts:1983 `!arr1 && !arr2`.',
+      );
+    });
+    test('identical contents are equal', () {
+      expect(
+        areArraysEqual(const <String>['a', 'b'], const <String>['a', 'b']),
+        isTrue,
+        reason: 'utilities.ts:1989-1993 element by element.',
+      );
+    });
+    test('a different order is not equal', () {
+      expect(
+        areArraysEqual(const <String>['a', 'b'], const <String>['b', 'a']),
+        isFalse,
+        reason: 'utilities.ts:1990 compares by index.',
+      );
+    });
+    test('null against a list is not equal, even against an empty one', () {
+      expect(
+        areArraysEqual(null, const <String>[]),
+        isFalse,
+        reason:
+            'utilities.ts:1986 — `!arr1 || !arr2` returns false once one side '
+            'is defined.',
+      );
+    });
+    test('different lengths are not equal', () {
+      expect(
+        areArraysEqual(const <String>['a'], const <String>['a', 'b']),
+        isFalse,
+        reason: 'utilities.ts:1986 length check.',
+      );
+    });
+  });
+
+  group('capitalizeLegendLabel', () {
+    test('uppercases the first letter of each whitespace-separated word', () {
+      expect(
+        capitalizeLegendLabel('first half'),
+        'First Half',
+        reason:
+            "useLegendsStyles.styles.ts:56 `textTransform: 'capitalize'`, "
+            'which Flutter has no equivalent for.',
+      );
+    });
+    test('leaves the rest of each word untouched', () {
+      expect(
+        capitalizeLegendLabel('GDP growth'),
+        'GDP Growth',
+        reason:
+            'CSS capitalize titlecases the first letter of each word and does '
+            'not lowercase the remainder.',
+      );
+    });
+    test('is a no-op on an already-capitalised label', () {
+      expect(
+        capitalizeLegendLabel('Sales'),
+        'Sales',
+        reason: 'Idempotent, which matters because it runs on every paint.',
+      );
+    });
+    test('handles an empty string and leading whitespace', () {
+      expect(capitalizeLegendLabel(''), '', reason: 'Nothing to capitalise.');
+      expect(
+        capitalizeLegendLabel('  q1  '),
+        '  Q1  ',
+        reason: 'Runs of whitespace are preserved so widths do not shift.',
+      );
+    });
+    test('does not treat a hyphen as a word boundary', () {
+      expect(
+        capitalizeLegendLabel('north-east'),
+        'North-east',
+        reason:
+            'ponytail: whitespace-only word splitting, matching Chrome for a '
+            'hyphen. Refine if a label ever needs a different boundary.',
+      );
+    });
+  });
 }
