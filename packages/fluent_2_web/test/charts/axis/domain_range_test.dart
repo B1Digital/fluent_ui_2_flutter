@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:fluent_2_web/src/charts/axis/axis_types.dart';
 import 'package:fluent_2_web/src/charts/axis/domain_range.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/ticks.dart' as d3;
@@ -10,6 +7,8 @@ import 'package:fluent_2_web/src/charts/model/chart_common.dart';
 import 'package:fluent_2_web/src/charts/model/chart_value.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/oracle_fixture.dart';
+
 FluentLineChartSeries _series(String legend, List<(Object, double)> points) {
   return FluentLineChartSeries(
     legend: legend,
@@ -17,38 +16,6 @@ FluentLineChartSeries _series(String legend, List<(Object, double)> points) {
       for (final (x, y) in points) FluentLineChartDataPoint(x: x, y: y),
     ],
   );
-}
-
-/// Reads one Oracle B story fixture.
-///
-/// `test/support/oracle_fixture.dart` does not exist on disk yet, so this walks
-/// up from [Directory.current] to the corpus the same way
-/// `test/charts/oracle_b/oracle_b_corpus_test.dart` does, and should be replaced
-/// by the shared loader once that lands.
-Map<String, dynamic> _loadOracleStory(String id) {
-  const relative = 'test/fixtures/charts/oracle_b';
-  var directory = Directory.current;
-  while (true) {
-    final candidate = File('${directory.path}/$relative/$id.json');
-    if (candidate.existsSync()) {
-      return jsonDecode(candidate.readAsStringSync()) as Map<String, dynamic>;
-    }
-    final parent = directory.parent;
-    // Reaching the filesystem root leaves parent == directory.
-    if (parent.path == directory.path) {
-      throw StateError(
-        'No $relative/$id.json found in ${Directory.current.path} or any '
-        'ancestor.',
-      );
-    }
-    directory = parent;
-  }
-}
-
-/// The `<svg>` children of the first captured chart in [story].
-List<Map<String, dynamic>> _svgElements(Map<String, dynamic> story) {
-  final svg = (story['svgs'] as List<dynamic>).first as Map<String, dynamic>;
-  return (svg['elements'] as List<dynamic>).cast<Map<String, dynamic>>();
 }
 
 /// Maps [value] from `[dStart, dEnd]` onto `[rStart, rEnd]`.
@@ -64,12 +31,6 @@ double _project(
   double rStart,
   double rEnd,
 ) => rStart + (value - dStart) / (dEnd - dStart) * (rEnd - rStart);
-
-/// The tolerance every Oracle B comparison uses, matching the corpus-wide
-/// `kOracleGeometryTolerance`. The captures were taken at a device scale factor
-/// of one, so a hundredth of a logical pixel is far tighter than any rounding
-/// either implementation performs.
-const double _oracleTolerance = 0.01;
 
 /// Reads a captured y-axis tick label back to the number it formats.
 ///
@@ -559,12 +520,10 @@ void main() {
     test('reproduces the captured horizontal-bar x axis', () {
       const storyId =
           'charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-basic';
-      final story = _loadOracleStory(storyId);
-      final width = (story['width'] as num).toDouble();
-      final crispOffset = (story['crispOffset'] as num).toDouble();
-      final rects = _svgElements(
-        story,
-      ).where((element) => element['tag'] == 'rect').toList(growable: false);
+      final story = loadOracleStory(storyId);
+      final width = story.width;
+      final crispOffset = story.crispOffset;
+      final rects = story.byTag('rect');
 
       // Count guard: this capture holds exactly four <rect> elements and all
       // four are bars, so a re-capture that changed the story would otherwise
@@ -606,14 +565,14 @@ void main() {
       // a one-pixel line crisp.
       expect(
         range.rStartValue + crispOffset,
-        closeTo(40.5, _oracleTolerance),
+        closeTo(40.5, kOracleGeometryTolerance),
         reason:
             'the live axis drew its domain path from x=40.5, so utilities.ts:1453 '
             'resolved margins.left to 40.',
       );
       expect(
         range.rEndValue + crispOffset,
-        closeTo(630.5, _oracleTolerance),
+        closeTo(630.5, kOracleGeometryTolerance),
         reason:
             'and to x=630.5, so utilities.ts:1454 resolved containerWidth - '
             'margins.right to 630.',
@@ -647,14 +606,14 @@ void main() {
       for (var index = 0; index < rects.length; index++) {
         final rect = rects[index];
         expect(
-          (rect['x'] as num).toDouble(),
-          closeTo(range.rStartValue, _oracleTolerance),
+          rect.x!,
+          closeTo(range.rStartValue, kOracleGeometryTolerance),
           reason:
               'bar $index starts at the domain origin, which the range maps to '
               'rStartValue.',
         );
         expect(
-          (rect['width'] as num).toDouble(),
+          rect.width!,
           closeTo(
             _project(
                   values[index],
@@ -664,10 +623,10 @@ void main() {
                   range.rEndValue,
                 ) -
                 range.rStartValue,
-            _oracleTolerance,
+            kOracleGeometryTolerance,
           ),
           reason:
-              'bar $index rendered ${rect['width']}px wide for ${values[index]}, '
+              'bar $index rendered ${rect.width}px wide for ${values[index]}, '
               'which only holds if the domain really is [0, 40000] over the '
               'range this function returned.',
         );
@@ -676,12 +635,10 @@ void main() {
 
     test('reproduces the captured scatter x axis, padding included', () {
       const storyId = 'charts-scatterchart--scatter-chart-default';
-      final story = _loadOracleStory(storyId);
-      final width = (story['width'] as num).toDouble();
-      final crispOffset = (story['crispOffset'] as num).toDouble();
-      final circles = _svgElements(
-        story,
-      ).where((element) => element['tag'] == 'circle').toList(growable: false);
+      final story = loadOracleStory(storyId);
+      final width = story.width;
+      final crispOffset = story.crispOffset;
+      final circles = story.byTag('circle');
 
       // Count guard: eleven markers, one per data point across the three series.
       expect(
@@ -727,24 +684,24 @@ void main() {
       // The captured domain path is 'M64.5,6V0.5H630.5V6'.
       expect(
         range.rStartValue + crispOffset,
-        closeTo(64.5, _oracleTolerance),
+        closeTo(64.5, kOracleGeometryTolerance),
         reason: 'utilities.ts:1372 — margins.left, and the live axis agrees.',
       );
       expect(
         range.rEndValue + crispOffset,
-        closeTo(630.5, _oracleTolerance),
+        closeTo(630.5, kOracleGeometryTolerance),
         reason: 'utilities.ts:1373 — width - margins.right.',
       );
       expect(
         range.dStartValue,
-        closeTo(1, _oracleTolerance),
+        closeTo(1, kOracleGeometryTolerance),
         reason:
             'utilities.ts:1368 pads a [10, 100] extent by a tenth of its span, so '
             'the raw domain starts at 1.',
       );
       expect(
         range.dEndValue,
-        closeTo(109, _oracleTolerance),
+        closeTo(109, kOracleGeometryTolerance),
         reason: 'and ends at 109.',
       );
 
@@ -768,7 +725,7 @@ void main() {
 
       for (var index = 0; index < circles.length; index++) {
         expect(
-          (circles[index]['cx'] as num).toDouble(),
+          circles[index].cx!,
           closeTo(
             _project(
               xs[index],
@@ -777,10 +734,10 @@ void main() {
               range.rStartValue,
               range.rEndValue,
             ),
-            _oracleTolerance,
+            kOracleGeometryTolerance,
           ),
           reason:
-              'marker $index rendered at cx=${circles[index]['cx']} for x='
+              'marker $index rendered at cx=${circles[index].cx} for x='
               '${xs[index]}, which the padded and niced domain over this range '
               'reproduces.',
         );
@@ -906,30 +863,18 @@ void main() {
   group('the y extents against Oracle B', () {
     test('the two scales of VerticalBarChartSecondaryYAxis separate exactly as '
         'utilities.ts:1643 says they do', () {
-      final story = _loadOracleStory(
+      final story = loadOracleStory(
         'charts-verticalbarchart--vertical-bar-secondary-y-axis',
       );
-      final crispOffset = (story['crispOffset'] as num).toDouble();
-      final elements = _svgElements(story);
+      final crispOffset = story.crispOffset;
 
       // Each tick label carries its tick's translate in its CTM, so the
       // fifth and sixth CTM entries are the axis position. The primary axis
       // is translated to x=64 and the secondary to x=660 in this capture.
-      List<Map<String, dynamic>> axisLabels(double tx) =>
-          elements
-              .where(
-                (e) =>
-                    e['tag'] == 'text' &&
-                    e['ctm'] != null &&
-                    ((e['ctm'] as List<dynamic>)[4] as num).toDouble() == tx,
-              )
-              .toList()
-            ..sort(
-              (a, b) =>
-                  ((b['ctm'] as List<dynamic>)[5] as num).toDouble().compareTo(
-                    ((a['ctm'] as List<dynamic>)[5] as num).toDouble(),
-                  ),
-            );
+      List<OracleElement> axisLabels(double tx) => <OracleElement>[
+        for (final element in story.byTag('text'))
+          if (element.ctm != null && element.ctm![4] == tx) element,
+      ]..sort((a, b) => b.ctm![5].compareTo(a.ctm![5]));
 
       final primaryLabels = axisLabels(64);
       final secondaryLabels = axisLabels(660);
@@ -949,16 +894,10 @@ void main() {
       // The tick CTMs include the crispness offset the axis path is drawn
       // with; the bars and the line are positioned by the raw scale, so the
       // offset comes back off before either is inverted.
-      final rangeBottom =
-          ((primaryLabels.first['ctm'] as List<dynamic>)[5] as num).toDouble() -
-          crispOffset;
-      final rangeTop =
-          ((primaryLabels.last['ctm'] as List<dynamic>)[5] as num).toDouble() -
-          crispOffset;
-      final primaryTop = _parseAxisLabel(primaryLabels.last['text'] as String);
-      final secondaryTop = _parseAxisLabel(
-        secondaryLabels.last['text'] as String,
-      );
+      final rangeBottom = primaryLabels.first.ctm![5] - crispOffset;
+      final rangeTop = primaryLabels.last.ctm![5] - crispOffset;
+      final primaryTop = _parseAxisLabel(primaryLabels.last.text!);
+      final secondaryTop = _parseAxisLabel(secondaryLabels.last.text!);
       expect(
         primaryTop,
         50000,
@@ -976,14 +915,10 @@ void main() {
       // The bars are the only rects sixteen pixels wide; the axis-title
       // backplates are far wider.
       final barTops = <double>[
-        for (final e in elements)
-          if (e['tag'] == 'rect' && (e['width'] as num).toDouble() == 16)
-            (e['y'] as num).toDouble(),
+        for (final e in story.byTag('rect'))
+          if (e.width == 16) e.y!,
       ];
-      final lineTops = <double>[
-        for (final e in elements)
-          if (e['tag'] == 'circle') (e['cy'] as num).toDouble(),
-      ];
+      final lineTops = <double>[for (final e in story.byTag('circle')) e.cy!];
       expect(
         barTops.length,
         8,

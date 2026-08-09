@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:fluent_2_web/src/charts/axis/axis_label_layout.dart';
@@ -10,34 +8,10 @@ import 'package:fluent_2_web/src/charts/model/chart_value.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/oracle_fixture.dart';
+
 /// A deterministic stand-in for a real font: every code unit is six pixels wide.
 double _sixPerChar(String text) => text.length * 6.0;
-
-/// Reads one Oracle B story fixture.
-///
-/// `test/support/oracle_fixture.dart` does not exist on disk yet, so this walks
-/// up from [Directory.current] to the corpus the same way
-/// `test/charts/oracle_b/oracle_b_corpus_test.dart` does, and should be replaced
-/// by the shared loader once that lands.
-Map<String, dynamic> _loadOracleStory(String id) {
-  const relative = 'test/fixtures/charts/oracle_b';
-  var directory = Directory.current;
-  while (true) {
-    final candidate = File('${directory.path}/$relative/$id.json');
-    if (candidate.existsSync()) {
-      return jsonDecode(candidate.readAsStringSync()) as Map<String, dynamic>;
-    }
-    final parent = directory.parent;
-    // Reaching the filesystem root leaves parent == directory.
-    if (parent.path == directory.path) {
-      throw StateError(
-        'No $relative/$id.json found in ${Directory.current.path} or any '
-        'ancestor.',
-      );
-    }
-    directory = parent;
-  }
-}
 
 /// Replays the glyph metrics Chrome recorded for one Oracle B story.
 ///
@@ -208,13 +182,8 @@ void main() {
     const noOfCharsToTruncate = 4;
 
     test('reproduces every rendered y-axis tspan', () {
-      final story = _loadOracleStory(storyId);
-      final elements =
-          (story['svgs'] as List<dynamic>).first as Map<String, dynamic>;
-      final tspans = (elements['elements'] as List<dynamic>)
-          .cast<Map<String, dynamic>>()
-          .where((element) => element['tag'] == 'tspan')
-          .toList(growable: false);
+      final story = loadOracleStory(storyId);
+      final tspans = story.byTag('tspan');
 
       // Count guard: the capture holds exactly four y-axis ticks, and the x axis
       // of this story renders bare <text> with no tspan child, so a rename or a
@@ -255,9 +224,9 @@ void main() {
         );
         expect(
           labels[index].lines.single.text,
-          tspans[index]['text'],
+          tspans[index].text,
           reason:
-              'the live axis rendered ${tspans[index]['text']} for '
+              'the live axis rendered ${tspans[index].text} for '
               '${fullLabels[index]}: four code units of the label followed by '
               'three ASCII full stops, not a leading ellipsis and not a U+2026.',
         );
@@ -392,15 +361,8 @@ void main() {
     const noOfCharsToTruncate = 4;
 
     testWidgets('reproduces every rendered x-axis tspan', (tester) async {
-      final story = _loadOracleStory(storyId);
-      final elements =
-          ((story['svgs'] as List<dynamic>).first
-                  as Map<String, dynamic>)['elements']
-              as List<dynamic>;
-      final tspans = elements
-          .cast<Map<String, dynamic>>()
-          .where((element) => element['tag'] == 'tspan')
-          .toList(growable: false);
+      final story = loadOracleStory(storyId);
+      final tspans = story.byTag('tspan');
 
       // Count guard: the capture holds exactly four x-axis ticks, and this
       // story's y axis renders bare <text> with no tspan child, so a re-capture
@@ -452,9 +414,9 @@ void main() {
         );
         expect(
           layout.labels[index].lines.single.text,
-          tspans[index]['text'],
+          tspans[index].text,
           reason:
-              'the live axis rendered ${tspans[index]['text']} for '
+              'the live axis rendered ${tspans[index].text} for '
               '${fullLabels[index]}: four code units followed by three ASCII '
               'full stops, and no ellipsis at all once the label is exactly '
               'four code units long.',
@@ -550,26 +512,15 @@ void main() {
     testWidgets('reproduces the rotation and the reserved height', (
       tester,
     ) async {
-      final story = _loadOracleStory(storyId);
-      final elements =
-          (((story['svgs'] as List<dynamic>).first
-                      as Map<String, dynamic>)['elements']
-                  as List<dynamic>)
-              .cast<Map<String, dynamic>>();
-      final byIndex = <int, Map<String, dynamic>>{
-        for (final element in elements) element['index'] as int: element,
-      };
+      final story = loadOracleStory(storyId);
 
-      bool isRotated(Map<String, dynamic>? element) =>
-          (element?['transform'] as String? ?? '').contains('rotate(-45)');
+      bool isRotated(OracleElement? element) =>
+          (element?.transform ?? '').contains('rotate(-45)');
 
-      final tickTexts = elements
-          .where(
-            (element) =>
-                element['tag'] == 'text' &&
-                isRotated(byIndex[element['parent'] as int]),
-          )
-          .toList(growable: false);
+      final tickTexts = <OracleElement>[
+        for (final element in story.byTag('text'))
+          if (isRotated(story.parentOf(element))) element,
+      ];
 
       // Count guard: the story has four categories, so a re-capture that lost
       // the rotated x axis would otherwise leave the metric replay below empty
@@ -592,17 +543,15 @@ void main() {
       final captured = <String, FluentChartTextMetrics>{};
       final labels = <String>[];
       for (final text in tickTexts) {
-        final label = text['text'] as String;
-        final bbox = (text['bbox'] as List<dynamic>).cast<num>();
-        final baseline = (text['y'] as num).toDouble() + baseDyEm * fontSize;
-        final top = bbox[1].toDouble();
-        final height = bbox[3].toDouble();
+        final label = text.text!;
+        final bbox = text.bbox!;
+        final baseline = text.y! + baseDyEm * fontSize;
         labels.add(label);
         captured[label] = FluentChartTextMetrics(
-          width: bbox[2].toDouble(),
-          height: height,
-          ascent: baseline - top,
-          descent: top + height - baseline,
+          width: bbox.width,
+          height: bbox.height,
+          ascent: baseline - bbox.top,
+          descent: bbox.bottom - baseline,
           xHeight: fontSize * FluentChartTextMetrics.xHeightRatio,
         );
       }
@@ -615,11 +564,11 @@ void main() {
 
       // Every tick group's CTM is the live rotation matrix; a = cos(theta) and
       // b = sin(theta).
-      final tickGroup = byIndex[tickTexts.first['parent'] as int]!;
-      final ctm = (tickGroup['ctm'] as List<dynamic>).cast<num>();
+      final tickGroup = story.parentOf(tickTexts.first)!;
+      final ctm = tickGroup.ctm!;
       expect(
         layout.rotationRadians,
-        closeTo(math.atan2(ctm[1].toDouble(), ctm[0].toDouble()), 1e-5),
+        closeTo(math.atan2(ctm[1], ctm[0]), 1e-5),
         reason:
             'the live tick group rotated by ${ctm[0]}, ${ctm[1]}, which is -45 '
             'degrees (utilities.ts:1839).',
@@ -627,12 +576,13 @@ void main() {
 
       // utilities.ts:1839 translates y by maxHeight / 2, so the captured
       // translation recovers the maxHeight upstream measured.
+      // The group's transform is the compound `translate(x, y)rotate(-45)` of
+      // utilities.ts:1839, so OracleElement.translate is deliberately null and
+      // the y comes off the attribute string itself.
+      final transform = tickGroup.transform!;
       final translateY = double.parse(
-        (tickGroup['transform'] as String)
-            .substring(
-              (tickGroup['transform'] as String).indexOf('(') + 1,
-              (tickGroup['transform'] as String).indexOf(')'),
-            )
+        transform
+            .substring(transform.indexOf('(') + 1, transform.indexOf(')'))
             .split(',')[1],
       );
       final capturedMaxHeight = 2 * translateY;
@@ -952,38 +902,25 @@ void main() {
       return double.parse(match.group(1)!);
     }
 
-    /// Every element of [story]'s first SVG.
-    List<Map<String, dynamic>> elementsOf(Map<String, dynamic> story) =>
-        (((story['svgs'] as List<dynamic>).first
-                    as Map<String, dynamic>)['elements']
-                as List<dynamic>)
-            .cast<Map<String, dynamic>>();
-
     /// The captured x of every x-axis tick group.
     ///
     /// The x axis is the first top-level group and each of its children is one
     /// tick, so `d3-axis`'s own `translate` is read straight off the capture.
-    List<double> capturedTickCentres(List<Map<String, dynamic>> elements) {
+    List<double> capturedTickCentres(OracleStory story) {
       return <double>[
-        for (final element in elements)
-          if (element['parent'] == 0 && element['tag'] == 'g')
-            translateX(element['transform'] as String),
+        for (final element in story.byTag('g'))
+          if (element.parent == 0) translateX(element.transform!),
       ];
     }
 
     /// The captured x of every bar-group `g`, which upstream translates to
     /// `xScale0(category) + (bandwidth - groupWidth) / 2`
     /// (`GroupedVerticalBarChart.tsx:649`).
-    List<double> capturedGroupStarts(List<Map<String, dynamic>> elements) {
+    List<double> capturedGroupStarts(OracleStory story) {
       return <double>[
-        for (final element in elements)
-          if (element['tag'] == 'g' &&
-              elements.any(
-                (child) =>
-                    child['parent'] == element['index'] &&
-                    child['tag'] == 'rect',
-              ))
-            translateX(element['transform'] as String),
+        for (final element in story.byTag('g'))
+          if (story.childrenOf(element).any((child) => child.tag == 'rect'))
+            translateX(element.transform!),
       ];
     }
 
@@ -1030,8 +967,7 @@ void main() {
     }
 
     test('the fitted scale reproduces the captured band starts', () {
-      final elements = elementsOf(_loadOracleStory(storyId));
-      final starts = capturedGroupStarts(elements);
+      final starts = capturedGroupStarts(loadOracleStory(storyId));
       // Count guard: the story draws four bar groups. A re-capture that renamed
       // or dropped them would otherwise leave the loop below empty.
       expect(
@@ -1046,7 +982,7 @@ void main() {
       for (final (index, category) in scale.domain.indexed) {
         expect(
           scale(category),
-          closeTo(starts[index], 0.01),
+          closeTo(starts[index], kOracleGeometryTolerance),
           reason:
               'the fitted band scale must land on the band start the browser '
               'used for $category, or the centring assertions below prove '
@@ -1058,8 +994,7 @@ void main() {
     testWidgets('slots every tick from the captured tick centres', (
       tester,
     ) async {
-      final elements = elementsOf(_loadOracleStory(storyId));
-      final centres = capturedTickCentres(elements);
+      final centres = capturedTickCentres(loadOracleStory(storyId));
       // Count guard: four x-axis ticks, one per category.
       expect(
         centres,
@@ -1094,8 +1029,7 @@ void main() {
     testWidgets('the band centring is what binds the trailing slot', (
       tester,
     ) async {
-      final elements = elementsOf(_loadOracleStory(storyId));
-      final centres = capturedTickCentres(elements);
+      final centres = capturedTickCentres(loadOracleStory(storyId));
       expect(
         centres,
         hasLength(4),

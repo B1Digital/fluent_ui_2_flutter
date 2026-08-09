@@ -1,36 +1,9 @@
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:fluent_2_web/src/charts/axis/tick_format.dart';
 import 'package:fluent_2_web/src/charts/axis/tick_values.dart';
 import 'package:fluent_2_web/src/charts/model/chart_common.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Reads one Oracle B story fixture.
-///
-/// `test/support/oracle_fixture.dart` does not exist on disk yet, so this walks
-/// up from [Directory.current] to the corpus the same way
-/// `test/charts/axis/axis_label_layout_test.dart` does, and should be replaced by
-/// the shared loader once that lands.
-Map<String, dynamic> _loadOracleStory(String id) {
-  const relative = 'test/fixtures/charts/oracle_b';
-  var directory = Directory.current;
-  while (true) {
-    final candidate = File('${directory.path}/$relative/$id.json');
-    if (candidate.existsSync()) {
-      return jsonDecode(candidate.readAsStringSync()) as Map<String, dynamic>;
-    }
-    final parent = directory.parent;
-    // Reaching the filesystem root leaves parent == directory.
-    if (parent.path == directory.path) {
-      throw StateError(
-        'No $relative/$id.json found in ${Directory.current.path} or any '
-        'ancestor.',
-      );
-    }
-    directory = parent;
-  }
-}
+import '../../support/oracle_fixture.dart';
 
 /// The rendered y-axis tick labels of a captured story, bottom to top.
 ///
@@ -40,17 +13,10 @@ Map<String, dynamic> _loadOracleStory(String id) {
 /// the only end-anchored text in each story read here: `d3AxisLeft` sets
 /// `text-anchor: end` on its labels, while the x axis is middle-anchored and the
 /// bar value labels carry no anchor of their own.
-List<String> _yAxisTickLabels(Map<String, dynamic> story) =>
-    (((story['svgs'] as List<dynamic>).first
-                as Map<String, dynamic>)['elements']
-            as List<dynamic>)
-        .cast<Map<String, dynamic>>()
-        .where(
-          (element) =>
-              element['tag'] == 'text' && element['textAnchor'] == 'end',
-        )
-        .map((element) => element['text'] as String)
-        .toList(growable: false);
+List<String> _yAxisTickLabels(OracleStory story) => <String>[
+  for (final element in story.byTag('text'))
+    if (element.textAnchor == 'end') element.text!,
+];
 
 void main() {
   group('handleFloatingPointPrecisionError', () {
@@ -319,7 +285,7 @@ void main() {
       double minVal,
       int expectedTickCount,
     ) {
-      final labels = _yAxisTickLabels(_loadOracleStory(id));
+      final labels = _yAxisTickLabels(loadOracleStory(id));
       // Count guard: without it, a re-capture that stopped recording the y axis
       // would leave both sides empty and the comparison vacuous.
       expect(

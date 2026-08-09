@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:fluent_2_web/src/charts/axis/axis_builders.dart';
@@ -9,13 +7,9 @@ import 'package:fluent_2_web/src/charts/internal/d3/time_format.dart' as d3;
 import 'package:fluent_2_web/src/charts/model/chart_common.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-const _margins = FluentChartMargins(left: 40, right: 20, top: 20, bottom: 35);
+import '../../support/oracle_fixture.dart';
 
-/// The agreed geometry tolerance for Oracle B, in logical pixels.
-///
-/// `kOracleGeometryTolerance` from `test/support/oracle_fixture.dart`, restated
-/// here because that shared loader is not on disk yet.
-const double _oracleTolerance = 0.01;
+const _margins = FluentChartMargins(left: 40, right: 20, top: 20, bottom: 35);
 
 FluentXAxisParams _numericParams({
   double dStart = 0,
@@ -42,95 +36,64 @@ FluentXAxisParams _numericParams({
   );
 }
 
-/// Reads one Oracle B story fixture.
-///
-/// `test/support/oracle_fixture.dart` does not exist on disk yet, so this walks
-/// up from [Directory.current] to the corpus exactly as
-/// `test/charts/axis/tick_values_test.dart` does, and should be replaced by the
-/// shared loader once that lands.
-Map<String, dynamic> _loadOracleStory(String id) {
-  const relative = 'test/fixtures/charts/oracle_b';
-  var directory = Directory.current;
-  while (true) {
-    final candidate = File('${directory.path}/$relative/$id.json');
-    if (candidate.existsSync()) {
-      return jsonDecode(candidate.readAsStringSync()) as Map<String, dynamic>;
-    }
-    final parent = directory.parent;
-    // Reaching the filesystem root leaves parent == directory.
-    if (parent.path == directory.path) {
-      throw StateError(
-        'No $relative/$id.json found in ${Directory.current.path} or any '
-        'ancestor.',
-      );
-    }
-    directory = parent;
-  }
-}
-
-List<Map<String, dynamic>> _elements(Map<String, dynamic> story) =>
-    (((story['svgs'] as List<dynamic>).first
-                as Map<String, dynamic>)['elements']
-            as List<dynamic>)
-        .cast<Map<String, dynamic>>();
-
 /// Every number in an SVG `transform` or path attribute, in source order.
 List<double> _numbers(String source) => RegExp(r'-?\d+(?:\.\d+)?')
     .allMatches(source)
     .map((match) => double.parse(match.group(0)!))
     .toList(growable: false);
 
-/// The first number in an SVG `transform` or path-like attribute.
-double _firstNumber(String source) {
-  final all = _numbers(source);
-  if (all.isEmpty) {
-    throw StateError('No number in "$source".');
-  }
-  return all.first;
-}
-
-/// One captured axis: the group's own `transform`, its domain path and its
-/// per-tick groups.
-///
-/// The bottom axis is the one root group `d3AxisBottom` emits — middle-anchored
-/// text (`d3-axis/src/axis.js:111`) inside a group the shell translates down the
-/// plot height (`CartesianChart.tsx` renders it at `translate(0, y)`).
+/// One captured axis: its domain path and its per-tick groups.
 class _CapturedAxis {
-  _CapturedAxis(Map<String, dynamic> story) {
-    final elements = _elements(story);
-    final root = elements.firstWhere(
-      (element) =>
-          element['parent'] == -1 &&
-          element['tag'] == 'g' &&
-          element['textAnchor'] == 'middle' &&
-          (element['transform'] as String?)?.startsWith('translate(0,') == true,
-    );
-    domainPath =
-        elements.firstWhere(
-              (element) =>
-                  element['parent'] == root['index'] &&
-                  element['tag'] == 'path',
-            )['d']
-            as String;
-    for (final group in elements.where(
-      (element) => element['parent'] == root['index'] && element['tag'] == 'g',
-    )) {
-      final children = elements.where(
-        (element) => element['parent'] == group['index'],
+  /// The one root group `d3AxisBottom` emits — middle-anchored text
+  /// (`d3-axis/src/axis.js:111`) inside a group the shell translates down the
+  /// plot height (`CartesianChart.tsx` renders it at `translate(0, y)`).
+  _CapturedAxis.bottom(OracleStory story)
+    : this._(
+        story,
+        story.soleElement(
+          'g',
+          where: (element) =>
+              element.parent == -1 &&
+              element.textAnchor == 'middle' &&
+              (element.transform?.startsWith('translate(0,') ?? false),
+        ),
+        horizontal: true,
       );
-      tickOffsets.add(_firstNumber(group['transform'] as String));
-      tickLabels.add(
-        children.firstWhere((child) => child['tag'] == 'text')['text']
-            as String,
+
+  /// The one root group `d3AxisLeft` emits. It anchors its labels at the end
+  /// (`d3-axis/src/axis.js:111`) and `utilities.ts:886` leaves that anchor alone
+  /// for a primary LTR axis, so on a chart with no secondary scale the
+  /// end-anchored root group is the y axis: a bottom x axis is middle-anchored,
+  /// and bar value labels and heat cells carry no anchor of their own.
+  _CapturedAxis.left(OracleStory story)
+    : this._(
+        story,
+        story.soleElement(
+          'g',
+          where: (element) =>
+              element.parent == -1 && element.textAnchor == 'end',
+        ),
+        horizontal: false,
       );
-      tickLabelOffsets.add(
-        (children.firstWhere((child) => child['tag'] == 'text')['y'] as num)
-            .toDouble(),
-      );
-      tickLineLengths.add(
-        (children.firstWhere((child) => child['tag'] == 'line')['y2'] as num)
-            .toDouble(),
-      );
+
+  _CapturedAxis._(
+    OracleStory story,
+    OracleElement root, {
+    required bool horizontal,
+  }) {
+    final children = story.childrenOf(root);
+    domainPath = children.firstWhere((child) => child.tag == 'path').d!;
+    for (final group in children.where((child) => child.tag == 'g')) {
+      final parts = story.childrenOf(group);
+      final text = parts.firstWhere((part) => part.tag == 'text');
+      final line = parts.firstWhere((part) => part.tag == 'line');
+      // 'translate(64.5,0)' on a bottom axis and 'translate(0,275.5)' on a left
+      // one: each carries its tick offset on its own axis, and the tick line and
+      // the label offset run in the perpendicular one.
+      tickOffsets.add(horizontal ? group.translate!.dx : group.translate!.dy);
+      tickLabels.add(text.text!);
+      tickLabelOffsets.add((horizontal ? text.y : text.x)!);
+      tickLineLengths.add((horizontal ? line.y2 : line.x2)!);
     }
   }
 
@@ -358,13 +321,13 @@ void main() {
     // utilities.ts:308-310, the domain path and the label offset in one go.
     const storyId =
         'charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-basic';
-    final story = _loadOracleStory(storyId);
-    final captured = _CapturedAxis(story);
+    final story = loadOracleStory(storyId);
+    final captured = _CapturedAxis.bottom(story);
 
     // The captured domain path is 'M40.5,6V0.5H630.5V6': the two verticals are
     // the tickSizeOuter 6 end caps and the horizontal runs the range, offset by
     // the crispness half-pixel the capture records as crispOffset.
-    final crispOffset = (story['crispOffset'] as num).toDouble();
+    final crispOffset = story.crispOffset;
     // 40 and 630 are the range read back off that path.
     const rStart = 40.0;
     const rEnd = 630.0;
@@ -403,7 +366,7 @@ void main() {
             'fixture changed and the expectations here are stale.',
       );
       expect(
-        story['deviceScaleFactor'],
+        story.deviceScaleFactor,
         1,
         reason:
             'the geometry below only agrees with flutter test at scale 1, where '
@@ -434,7 +397,7 @@ void main() {
       for (var i = 0; i < spec.tickValues.length; i++) {
         expect(
           spec.scale(spec.tickValues[i])! + crispOffset,
-          closeTo(captured.tickOffsets[i], _oracleTolerance),
+          closeTo(captured.tickOffsets[i], kOracleGeometryTolerance),
           reason:
               'axis_geometry adds the crispness offset once to '
               'position(d) (`d3-axis/src/axis.js:76`), so tick $i must land on '
@@ -453,12 +416,12 @@ void main() {
       );
       expect(
         captured.tickLineLengths,
-        everyElement(closeTo(spec.tickSizeInner, _oracleTolerance)),
+        everyElement(closeTo(spec.tickSizeInner, kOracleGeometryTolerance)),
         reason: 'every captured gridline is that same length.',
       );
       expect(
         math.max(spec.tickSizeInner, 0.0) + spec.tickPadding,
-        closeTo(captured.tickLabelOffsets.first, _oracleTolerance),
+        closeTo(captured.tickLabelOffsets.first, kOracleGeometryTolerance),
         reason:
             'd3-axis/src/axis.js:46 — a negative inner size contributes nothing '
             'to the label spacing, so the captured text y is the tickPadding '
@@ -532,27 +495,45 @@ void main() {
       // Neither branch's *input* is visible in a capture, but its output is: the
       // x tick label's `y` is `max(tickSizeInner, 0) + tickPadding`
       // (`d3-axis/src/axis.js:46`).
-      final plain = _CapturedAxis(
-        _loadOracleStory('charts-linechart--line-chart-basic'),
+      final plain = _CapturedAxis.bottom(
+        loadOracleStory('charts-linechart--line-chart-basic'),
+      );
+      // Count guards, one per fixture: `everyElement` passes vacuously over an
+      // empty list, and the sum below would still hold with one of the two
+      // fixtures contributing nothing.
+      expect(
+        plain.tickLabelOffsets,
+        hasLength(7),
+        reason:
+            'charts-linechart--line-chart-basic captured seven x ticks, as the '
+            'createDateXAxis group below also asserts.',
       );
       expect(
         plain.tickLabelOffsets,
         everyElement(
-          closeTo(6 + resolveShellXAxisTickPadding(), _oracleTolerance),
+          closeTo(6 + resolveShellXAxisTickPadding(), kOracleGeometryTolerance),
         ),
         reason:
             'LineChart sets neither tickPadding nor showXAxisLablesTooltip, so '
             'its labels sit 6 + 10 below the axis.',
       );
-      final tooltip = _CapturedAxis(
-        _loadOracleStory('charts-verticalbarchart--vertical-bar-axis-tooltip'),
+      final tooltip = _CapturedAxis.bottom(
+        loadOracleStory('charts-verticalbarchart--vertical-bar-axis-tooltip'),
+      );
+      expect(
+        tooltip.tickLabelOffsets,
+        hasLength(4),
+        reason:
+            'charts-verticalbarchart--vertical-bar-axis-tooltip captured four '
+            'x ticks, one per category, as the wrapXLabels group of '
+            'test/charts/axis/axis_label_layout_test.dart also asserts.',
       );
       expect(
         tooltip.tickLabelOffsets,
         everyElement(
           closeTo(
             6 + resolveShellXAxisTickPadding(showXAxisLablesTooltip: true),
-            _oracleTolerance,
+            kOracleGeometryTolerance,
           ),
         ),
         reason:
@@ -710,9 +691,10 @@ void main() {
 
   group('createDateXAxis against Oracle B', () {
     const storyId = 'charts-linechart--line-chart-basic';
-    final story = _loadOracleStory(storyId);
-    final captured = _CapturedAxis(story);
-    const crispOffset = 0.5;
+    final story = loadOracleStory(storyId);
+    final captured = _CapturedAxis.bottom(story);
+    // The capture is the authority on the crispness offset, not this file.
+    final crispOffset = story.crispOffset;
     // The domain path reads 'M64.5,6V0.5H680.5V6', so the range is 64 to 680.
     const rStart = 64.0;
     const rEnd = 680.0;
@@ -764,7 +746,7 @@ void main() {
             'fixture changed and the expectations here are stale.',
       );
       expect(
-        story['deviceScaleFactor'],
+        story.deviceScaleFactor,
         1,
         reason:
             'the geometry below only agrees with flutter test at scale 1, where '
@@ -798,7 +780,7 @@ void main() {
       for (var i = 0; i < spec.tickValues.length; i++) {
         expect(
           spec.scale(spec.tickValues[i])! + crispOffset,
-          closeTo(captured.tickOffsets[i], _oracleTolerance),
+          closeTo(captured.tickOffsets[i], kOracleGeometryTolerance),
           reason:
               'axis_geometry adds the crispness offset once to position(d) '
               '(`d3-axis/src/axis.js:76`), so tick $i must land on the captured '
@@ -811,7 +793,7 @@ void main() {
       final spec = buildSpec();
       expect(
         captured.tickLineLengths,
-        everyElement(closeTo(spec.tickSizeInner, _oracleTolerance)),
+        everyElement(closeTo(spec.tickSizeInner, kOracleGeometryTolerance)),
         reason:
             'a LineChart date axis takes no gridline override, so every '
             'captured tick line is the destructured xAxistickSize of 6 '
@@ -819,7 +801,7 @@ void main() {
       );
       expect(
         math.max(spec.tickSizeInner, 0.0) + spec.tickPadding,
-        closeTo(captured.tickLabelOffsets.first, _oracleTolerance),
+        closeTo(captured.tickLabelOffsets.first, kOracleGeometryTolerance),
         reason:
             'd3-axis/src/axis.js:46 places the label at '
             'max(tickSizeInner, 0) + tickPadding, which is the captured 16.',
@@ -991,12 +973,12 @@ void main() {
     // positions below are a real check rather than a fit.
     const storyId =
         'charts-verticalbarchart--vertical-bar-custom-accessibility';
-    final story = _loadOracleStory(storyId);
-    final captured = _CapturedAxis(story);
+    final story = loadOracleStory(storyId);
+    final captured = _CapturedAxis.bottom(story);
 
     // The captured domain path is 'M310.5,6V0.5H510.5V6', so the range is
     // [310, 510] once the recorded crispness half-pixel is taken back off.
-    final crispOffset = (story['crispOffset'] as num).toDouble();
+    final crispOffset = story.crispOffset;
     const rStart = 310.0;
     const rEnd = 510.0;
 
@@ -1036,7 +1018,7 @@ void main() {
             'means the fixture changed and the expectations here are stale.',
       );
       expect(
-        story['deviceScaleFactor'],
+        story.deviceScaleFactor,
         1,
         reason:
             'the geometry below only agrees with flutter test at scale 1, where '
@@ -1055,7 +1037,7 @@ void main() {
       );
       expect(
         spec.scale.bandwidth,
-        closeTo(20, _oracleTolerance),
+        closeTo(20, kOracleGeometryTolerance),
         reason:
             'the captured bars are 20px wide because a 200px range over four '
             'categories at paddingInner 2/3 gives a step of 60 and a band of 20.',
@@ -1077,7 +1059,7 @@ void main() {
       for (var i = 0; i < dataset.length; i++) {
         expect(
           geometry.ticks[i].position,
-          closeTo(captured.tickOffsets[i], _oracleTolerance),
+          closeTo(captured.tickOffsets[i], kOracleGeometryTolerance),
           reason:
               'd3-axis/src/axis.js:21-25 centres a band tick at '
               'scale(d) + max(0, bandwidth - 2 * offset) / 2, so tick $i must '
@@ -1090,7 +1072,7 @@ void main() {
       final spec = buildSpec();
       expect(
         captured.tickLineLengths,
-        everyElement(closeTo(spec.tickSizeInner, _oracleTolerance)),
+        everyElement(closeTo(spec.tickSizeInner, kOracleGeometryTolerance)),
         reason:
             'a VerticalBarChart band axis takes no gridline override, so every '
             'captured tick line is the destructured xAxistickSize of 6 '
@@ -1098,7 +1080,7 @@ void main() {
       );
       expect(
         math.max(spec.tickSizeInner, 0.0) + spec.tickPadding,
-        closeTo(captured.tickLabelOffsets.first, _oracleTolerance),
+        closeTo(captured.tickLabelOffsets.first, kOracleGeometryTolerance),
         reason:
             'd3-axis/src/axis.js:46 places the label at '
             'max(tickSizeInner, 0) + tickPadding, which is the captured 16.',
@@ -1326,45 +1308,14 @@ void main() {
     // axis: a left primary scale with the full-width gridline, no secondary
     // scale and no event annotations.
     const storyId = 'charts-verticalbarchart--vertical-bar-default';
-    final story = _loadOracleStory(storyId);
-    final elements = _elements(story);
-    // d3AxisLeft anchors its labels at the end (`d3-axis/src/axis.js:111`) and
-    // utilities.ts:886 leaves that anchor alone for a primary LTR axis, so this
-    // is the one captured root group that is a y axis.
-    final root = elements.firstWhere(
-      (element) =>
-          element['parent'] == -1 &&
-          element['tag'] == 'g' &&
-          element['textAnchor'] == 'end',
-    );
-    final capturedDomainPath =
-        elements.firstWhere(
-              (element) =>
-                  element['parent'] == root['index'] &&
-                  element['tag'] == 'path',
-            )['d']
-            as String;
-    final tickOffsets = <double>[];
-    final capturedLabels = <String>[];
-    final tickLabelOffsets = <double>[];
-    final tickLineLengths = <double>[];
-    for (final tickGroup in elements.where(
-      (element) => element['parent'] == root['index'] && element['tag'] == 'g',
-    )) {
-      final children = elements.where(
-        (element) => element['parent'] == tickGroup['index'],
-      );
-      final text = children.firstWhere((child) => child['tag'] == 'text');
-      // 'translate(0,275.5)' — a y axis carries its tick offset second.
-      tickOffsets.add(_numbers(tickGroup['transform'] as String).last);
-      capturedLabels.add(text['text'] as String);
-      tickLabelOffsets.add((text['x'] as num).toDouble());
-      tickLineLengths.add(
-        (children.firstWhere((child) => child['tag'] == 'line')['x2'] as num)
-            .toDouble(),
-      );
-    }
-    final crispOffset = (story['crispOffset'] as num).toDouble();
+    final story = loadOracleStory(storyId);
+    final captured = _CapturedAxis.left(story);
+    final capturedDomainPath = captured.domainPath;
+    final tickOffsets = captured.tickOffsets;
+    final capturedLabels = captured.tickLabels;
+    final tickLabelOffsets = captured.tickLabelOffsets;
+    final tickLineLengths = captured.tickLineLengths;
+    final crispOffset = story.crispOffset;
 
     // 650 by 310 is the captured SVG box. The margins are the ones the capture
     // implies: the range runs 310 - 35 = 275 down to margins.top 20, and the
@@ -1411,7 +1362,7 @@ void main() {
             'fixture changed and the expectations here are stale.',
       );
       expect(
-        story['deviceScaleFactor'],
+        story.deviceScaleFactor,
         1,
         reason:
             'the geometry below only agrees with flutter test at scale 1, '
@@ -1452,7 +1403,7 @@ void main() {
       for (var i = 0; i < ticks.length; i++) {
         expect(
           ticks[i].position,
-          closeTo(tickOffsets[i], _oracleTolerance),
+          closeTo(tickOffsets[i], kOracleGeometryTolerance),
           reason:
               'axis_geometry adds the crispness offset once to position(d) '
               '(`d3-axis/src/axis.js:98`), so tick $i must land on the '
@@ -1473,19 +1424,19 @@ void main() {
       );
       expect(
         ticks.map((tick) => tick.lineEnd.dx),
-        everyElement(closeTo(-spec.tickSizeInner, _oracleTolerance)),
+        everyElement(closeTo(-spec.tickSizeInner, kOracleGeometryTolerance)),
         reason:
             'k * tickSizeInner (`d3-axis/src/axis.js:67`) turns the negative '
             'inner size into the captured rightward gridline.',
       );
       expect(
         tickLineLengths,
-        everyElement(closeTo(-spec.tickSizeInner, _oracleTolerance)),
+        everyElement(closeTo(-spec.tickSizeInner, kOracleGeometryTolerance)),
         reason: 'every captured gridline is that same length.',
       );
       expect(
         ticks.map((tick) => tick.labelAnchor.dx),
-        everyElement(closeTo(tickLabelOffsets.first, _oracleTolerance)),
+        everyElement(closeTo(tickLabelOffsets.first, kOracleGeometryTolerance)),
         reason:
             'd3-axis/src/axis.js:46 places the label at '
             'k * (max(tickSizeInner, 0) + tickPadding), which for a left axis '
@@ -1638,45 +1589,14 @@ void main() {
     // builder never runs.
     const storyId =
         'charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-basic';
-    final story = _loadOracleStory(storyId);
-    final elements = _elements(story);
-    // d3AxisLeft anchors its labels at the end (`d3-axis/src/axis.js:111`), and
-    // this chart has no secondary scale, so the one end-anchored root group is
-    // the y axis.
-    final root = elements.firstWhere(
-      (element) =>
-          element['parent'] == -1 &&
-          element['tag'] == 'g' &&
-          element['textAnchor'] == 'end',
-    );
-    final capturedDomainPath =
-        elements.firstWhere(
-              (element) =>
-                  element['parent'] == root['index'] &&
-                  element['tag'] == 'path',
-            )['d']
-            as String;
-    final tickOffsets = <double>[];
-    final capturedLabels = <String>[];
-    final tickLabelOffsets = <double>[];
-    final tickLineLengths = <double>[];
-    for (final tickGroup in elements.where(
-      (element) => element['parent'] == root['index'] && element['tag'] == 'g',
-    )) {
-      final children = elements.where(
-        (element) => element['parent'] == tickGroup['index'],
-      );
-      final text = children.firstWhere((child) => child['tag'] == 'text');
-      // 'translate(0,259)' — a y axis carries its tick offset second.
-      tickOffsets.add(_numbers(tickGroup['transform'] as String).last);
-      capturedLabels.add(text['text'] as String);
-      tickLabelOffsets.add((text['x'] as num).toDouble());
-      tickLineLengths.add(
-        (children.firstWhere((child) => child['tag'] == 'line')['x2'] as num)
-            .toDouble(),
-      );
-    }
-    final crispOffset = (story['crispOffset'] as num).toDouble();
+    final story = loadOracleStory(storyId);
+    final captured = _CapturedAxis.left(story);
+    final capturedDomainPath = captured.domainPath;
+    final tickOffsets = captured.tickOffsets;
+    final capturedLabels = captured.tickLabels;
+    final tickLabelOffsets = captured.tickLabelOffsets;
+    final tickLineLengths = captured.tickLineLengths;
+    final crispOffset = story.crispOffset;
 
     // 650 by 310 is the captured SVG box, and the widest bar is 590 wide, which
     // is 650 - 40 - 20. The top and bottom margins are the *domain* margins
@@ -1726,7 +1646,7 @@ void main() {
             'fixture changed and the expectations here are stale.',
       );
       expect(
-        story['deviceScaleFactor'],
+        story.deviceScaleFactor,
         1,
         reason:
             'the geometry below only agrees with flutter test at scale 1, '
@@ -1770,7 +1690,7 @@ void main() {
       for (var i = 0; i < ticks.length; i++) {
         expect(
           ticks[i].position,
-          closeTo(tickOffsets[i], _oracleTolerance),
+          closeTo(tickOffsets[i], kOracleGeometryTolerance),
           reason:
               'axis_geometry adds the crispness offset once to position(d) '
               '(`d3-axis/src/axis.js:98`), so tick $i must land on the '
@@ -1784,7 +1704,7 @@ void main() {
       final ticks = geometryTicks(spec);
       expect(
         tickLineLengths,
-        everyElement(closeTo(-6, _oracleTolerance)),
+        everyElement(closeTo(-6, kOracleGeometryTolerance)),
         reason:
             'the captured x2 is -6, not the plot width: utilities.ts:754-755 '
             'never touches the inner tick size, so unlike createNumericYAxis '
@@ -1792,14 +1712,14 @@ void main() {
       );
       expect(
         ticks.map((tick) => tick.lineEnd.dx),
-        everyElement(closeTo(-spec.tickSizeInner, _oracleTolerance)),
+        everyElement(closeTo(-spec.tickSizeInner, kOracleGeometryTolerance)),
         reason:
             'k * tickSizeInner (`d3-axis/src/axis.js:67`) turns the positive '
             'inner size into the captured leftward six pixels.',
       );
       expect(
         ticks.map((tick) => tick.labelAnchor.dx),
-        everyElement(closeTo(tickLabelOffsets.first, _oracleTolerance)),
+        everyElement(closeTo(tickLabelOffsets.first, kOracleGeometryTolerance)),
         reason:
             'd3-axis/src/axis.js:46 places the label at '
             'k * (max(tickSizeInner, 0) + tickPadding), which for a left axis '
@@ -1949,46 +1869,14 @@ void main() {
     // `yAxisPadding={0.02}`, which is the only reason the captured tick spacing
     // is 50.797 rather than an even 51.
     const storyId = 'charts-heatmapchart--heat-map-chart-basic';
-    final story = _loadOracleStory(storyId);
-    final elements = _elements(story);
-    // d3AxisLeft anchors its labels at the end (`d3-axis/src/axis.js:111`) while
-    // the bottom x axis is middle-anchored and the heat cells are start-
-    // anchored, so the one end-anchored root group is this y axis.
-    final root = elements.firstWhere(
-      (element) =>
-          element['parent'] == -1 &&
-          element['tag'] == 'g' &&
-          element['textAnchor'] == 'end',
-    );
-    final capturedDomainPath =
-        elements.firstWhere(
-              (element) =>
-                  element['parent'] == root['index'] &&
-                  element['tag'] == 'path',
-            )['d']
-            as String;
-    final tickOffsets = <double>[];
-    final capturedLabels = <String>[];
-    final tickLabelOffsets = <double>[];
-    final tickLineLengths = <double>[];
-    for (final tickGroup in elements.where(
-      (element) => element['parent'] == root['index'] && element['tag'] == 'g',
-    )) {
-      final children = elements.where(
-        (element) => element['parent'] == tickGroup['index'],
-      );
-      final text = children.firstWhere((child) => child['tag'] == 'text');
-      // 'translate(0,249.09362549800795)' — a y axis carries its tick offset
-      // second.
-      tickOffsets.add(_numbers(tickGroup['transform'] as String).last);
-      capturedLabels.add(text['text'] as String);
-      tickLabelOffsets.add((text['x'] as num).toDouble());
-      tickLineLengths.add(
-        (children.firstWhere((child) => child['tag'] == 'line')['x2'] as num)
-            .toDouble(),
-      );
-    }
-    final crispOffset = (story['crispOffset'] as num).toDouble();
+    final story = loadOracleStory(storyId);
+    final captured = _CapturedAxis.left(story);
+    final capturedDomainPath = captured.domainPath;
+    final tickOffsets = captured.tickOffsets;
+    final capturedLabels = captured.tickLabels;
+    final tickLabelOffsets = captured.tickLabelOffsets;
+    final tickLineLengths = captured.tickLineLengths;
+    final crispOffset = story.crispOffset;
 
     // 450 by 310 is the captured SVG box. The y axis group sits at
     // translate(40, 0) and the x axis domain path runs to 430.5, so the left and
@@ -2036,7 +1924,7 @@ void main() {
             'set means the fixture changed and the expectations here are stale.',
       );
       expect(
-        story['deviceScaleFactor'],
+        story.deviceScaleFactor,
         1,
         reason:
             'the geometry below only agrees with flutter test at scale 1, '
@@ -2079,7 +1967,7 @@ void main() {
       for (var i = 0; i < ticks.length; i++) {
         expect(
           ticks[i].position,
-          closeTo(tickOffsets[i], _oracleTolerance),
+          closeTo(tickOffsets[i], kOracleGeometryTolerance),
           reason:
               'axis_geometry centres a band tick at position(d) + the crispness '
               'offset (`d3-axis/src/axis.js:98`), so tick $i must land on the '
@@ -2094,7 +1982,7 @@ void main() {
       final ticks = geometryTicks(spec);
       expect(
         tickLineLengths,
-        everyElement(closeTo(0, _oracleTolerance)),
+        everyElement(closeTo(0, kOracleGeometryTolerance)),
         reason:
             'every captured x2 is 0, which is utilities.ts:987 tickSize(0) — a '
             'chart type other than VerticalStackedBarChart never reaches the '
@@ -2102,12 +1990,12 @@ void main() {
       );
       expect(
         ticks.map((tick) => tick.lineEnd.dx),
-        everyElement(closeTo(0, _oracleTolerance)),
+        everyElement(closeTo(0, kOracleGeometryTolerance)),
         reason: 'k * tickSizeInner (`d3-axis/src/axis.js:67`) of zero is zero.',
       );
       expect(
         ticks.map((tick) => tick.labelAnchor.dx),
-        everyElement(closeTo(tickLabelOffsets.first, _oracleTolerance)),
+        everyElement(closeTo(tickLabelOffsets.first, kOracleGeometryTolerance)),
         reason:
             'd3-axis/src/axis.js:46 places the label at '
             'k * (max(tickSizeInner, 0) + tickPadding), which for a left axis '
@@ -2231,46 +2119,14 @@ void main() {
     // into one.
     const storyId =
         'charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-negative';
-    final story = _loadOracleStory(storyId);
-    final elements = _elements(story);
-    // d3AxisLeft is the one root group whose text is end-anchored
-    // (`d3-axis/src/axis.js:111`); the bottom x axis is middle-anchored and the
-    // bar labels are start-anchored.
-    final root = elements.firstWhere(
-      (element) =>
-          element['parent'] == -1 &&
-          element['tag'] == 'g' &&
-          element['textAnchor'] == 'end',
-    );
-    final capturedDomainPath =
-        elements.firstWhere(
-              (element) =>
-                  element['parent'] == root['index'] &&
-                  element['tag'] == 'path',
-            )['d']
-            as String;
-    final tickOffsets = <double>[];
-    final capturedLabels = <String>[];
-    final tickLabelOffsets = <double>[];
-    final tickLineLengths = <double>[];
-    for (final tickGroup in elements.where(
-      (element) => element['parent'] == root['index'] && element['tag'] == 'g',
-    )) {
-      final children = elements.where(
-        (element) => element['parent'] == tickGroup['index'],
-      );
-      final text = children.firstWhere((child) => child['tag'] == 'text');
-      // 'translate(0,268.95454545454544)' — a y axis carries its tick offset
-      // second.
-      tickOffsets.add(_numbers(tickGroup['transform'] as String).last);
-      capturedLabels.add(text['text'] as String);
-      tickLabelOffsets.add((text['x'] as num).toDouble());
-      tickLineLengths.add(
-        (children.firstWhere((child) => child['tag'] == 'line')['x2'] as num)
-            .toDouble(),
-      );
-    }
-    final crispOffset = (story['crispOffset'] as num).toDouble();
+    final story = loadOracleStory(storyId);
+    final captured = _CapturedAxis.left(story);
+    final capturedDomainPath = captured.domainPath;
+    final tickOffsets = captured.tickOffsets;
+    final capturedLabels = captured.tickLabels;
+    final tickLabelOffsets = captured.tickLabelOffsets;
+    final tickLineLengths = captured.tickLineLengths;
+    final crispOffset = story.crispOffset;
 
     // The captured y domain path 'M-6,307.5H0.5V28.5H-6' pins the range to
     // 307..28. Those are the *domain* margins
@@ -2322,7 +2178,7 @@ void main() {
             'set means the fixture changed and the expectations here are stale.',
       );
       expect(
-        story['deviceScaleFactor'],
+        story.deviceScaleFactor,
         1,
         reason:
             'the geometry below only agrees with flutter test at scale 1, where '
@@ -2341,7 +2197,7 @@ void main() {
       for (var i = 0; i < ticks.length; i++) {
         expect(
           ticks[i].position,
-          closeTo(tickOffsets[i], _oracleTolerance),
+          closeTo(tickOffsets[i], kOracleGeometryTolerance),
           reason:
               'axis_geometry centres a band tick at position(d) + the crispness '
               'offset (`d3-axis/src/axis.js:98`), so tick $i must land on the '
@@ -2356,7 +2212,7 @@ void main() {
       final ticks = geometryTicks(spec);
       expect(
         tickLineLengths,
-        everyElement(closeTo(-6, _oracleTolerance)),
+        everyElement(closeTo(-6, kOracleGeometryTolerance)),
         reason:
             'every captured x2 is -6, which is d3-axis\'s untouched default '
             'inner size of 6 times the left-axis k of -1 '
@@ -2364,12 +2220,12 @@ void main() {
       );
       expect(
         ticks.map((tick) => tick.lineEnd.dx),
-        everyElement(closeTo(-6, _oracleTolerance)),
+        everyElement(closeTo(-6, kOracleGeometryTolerance)),
         reason: 'the port must reproduce that same k * tickSizeInner.',
       );
       expect(
         ticks.map((tick) => tick.labelAnchor.dx),
-        everyElement(closeTo(tickLabelOffsets.first, _oracleTolerance)),
+        everyElement(closeTo(tickLabelOffsets.first, kOracleGeometryTolerance)),
         reason:
             'd3-axis/src/axis.js:46 places the label at '
             'k * (max(tickSizeInner, 0) + tickPadding), which for a left axis is '

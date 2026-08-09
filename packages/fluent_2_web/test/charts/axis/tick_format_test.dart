@@ -1,10 +1,7 @@
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:fluent_2_web/src/charts/axis/tick_format.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../oracle_b/oracle_b_corpus_test.dart' show corpusDirectory;
+import '../../support/oracle_fixture.dart';
 
 /// The SI decades `formatPrefix` can attach, keyed by the suffix character
 /// (`d3-format/src/locale.js:134-141` picks one of them). `B` is not a d3
@@ -40,22 +37,16 @@ double _parseSiLabel(String label) {
 /// `formatScientificLimitWidth`.
 Map<String, String> _oracleSiLabels() {
   final labels = <String, String>{};
-  for (final file in corpusDirectory().listSync().whereType<File>()) {
-    if (!file.path.endsWith('.json') || file.path.endsWith('_manifest.json')) {
+  for (final id in oracleStoryIds()) {
+    final story = loadOracleStory(id);
+    if (story.component == 'HeatMapChart') {
       continue;
     }
-    final story = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-    if (story['component'] == 'HeatMapChart') {
-      continue;
-    }
-    for (final svg in (story['svgs'] as List<dynamic>)) {
-      final elements =
-          (svg as Map<String, dynamic>)['elements'] as List<dynamic>;
-      for (final element in elements) {
-        final text = ((element as Map<String, dynamic>)['text'] as String?)
-            ?.trim();
+    for (final svg in story.svgs) {
+      for (final element in svg.elements) {
+        final text = element.text?.trim();
         if (text != null && _siLabel.hasMatch(text)) {
-          labels[text] = story['id'] as String;
+          labels[text] = story.id;
         }
       }
     }
@@ -77,20 +68,13 @@ final RegExp _shortMonthDayLabel = RegExp(r'^[A-Z][a-z]{2} [0-9]{2}$');
 /// `04 Mar` or `Mar 4` would satisfy a hand-written expectation but not these.
 Map<String, String> _oracleShortMonthDayLabels() {
   final labels = <String, String>{};
-  for (final file in corpusDirectory().listSync().whereType<File>()) {
-    if (!file.path.endsWith('.json') ||
-        file.uri.pathSegments.last.startsWith('_')) {
-      continue;
-    }
-    final story = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-    for (final svg in (story['svgs'] as List<dynamic>)) {
-      final elements =
-          (svg as Map<String, dynamic>)['elements'] as List<dynamic>;
-      for (final element in elements) {
-        final text = ((element as Map<String, dynamic>)['text'] as String?)
-            ?.trim();
+  for (final id in oracleStoryIds()) {
+    final story = loadOracleStory(id);
+    for (final svg in story.svgs) {
+      for (final element in svg.elements) {
+        final text = element.text?.trim();
         if (text != null && _shortMonthDayLabel.hasMatch(text)) {
-          labels[text] = story['id'] as String;
+          labels[text] = story.id;
         }
       }
     }

@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
@@ -12,6 +10,8 @@ import 'package:fluent_2_web/src/charts/internal/d3/axis_geometry.dart' as d3;
 import 'package:fluent_2_web/src/charts/internal/d3/scale_linear.dart' as d3;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../support/oracle_fixture.dart';
 
 /// Records every line and paragraph the painter draws, so the test can assert
 /// geometry rather than pixels.
@@ -31,39 +31,6 @@ class _RecordingCanvas implements Canvas {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
-}
-
-/// The comparison tolerance plan 10 fixes at `kOracleGeometryTolerance`: one
-/// hundredth of a logical pixel, which is finer than the four decimal places the
-/// capture writes and coarser than the double rounding that turns 196.5 into
-/// 196.49999999999997 in the fixture below.
-const double _oracleTolerance = 0.01;
-
-/// Reads one Oracle B story fixture.
-///
-/// `test/support/oracle_fixture.dart` (plan 10 Task 2) is not on disk yet, so
-/// this walks up from [Directory.current] to the corpus exactly as
-/// `test/charts/axis/axis_label_layout_test.dart` and
-/// `test/charts/oracle_b/oracle_b_corpus_test.dart` already do, and should be
-/// replaced by the shared loader once that lands.
-Map<String, dynamic> _loadOracleStory(String id) {
-  const relative = 'test/fixtures/charts/oracle_b';
-  var directory = Directory.current;
-  while (true) {
-    final candidate = File('${directory.path}/$relative/$id.json');
-    if (candidate.existsSync()) {
-      return jsonDecode(candidate.readAsStringSync()) as Map<String, dynamic>;
-    }
-    final parent = directory.parent;
-    // Reaching the filesystem root leaves parent == directory.
-    if (parent.path == directory.path) {
-      throw StateError(
-        'No $relative/$id.json found in ${Directory.current.path} or any '
-        'ancestor.',
-      );
-    }
-    directory = parent;
-  }
 }
 
 /// Replays the glyph metrics Chrome recorded for one Oracle B label.
@@ -258,29 +225,20 @@ void main() {
     // `translate(0, 205)`; every number below is read out of the fixture rather
     // than typed in, so a re-capture that moves the axis fails this test instead
     // of silently disagreeing with it.
-    final story = _loadOracleStory('charts-areachart--area-chart-basic');
-    final elements =
-        (story['svgs'] as List<dynamic>).first as Map<String, dynamic>;
-    final captured = (elements['elements'] as List<dynamic>)
-        .cast<Map<String, dynamic>>();
+    final story = loadOracleStory('charts-areachart--area-chart-basic');
     // Element 0 is the x-axis group and element 1 its domain path; every tick is
     // a `g` child of element 0 holding one `line` and one `text`.
-    final tickGroups = captured
-        .where((e) => e['parent'] == 0 && e['tag'] == 'g')
-        .toList(growable: false);
-    Map<String, dynamic> childOf(Map<String, dynamic> group, String tag) =>
-        captured.firstWhere(
-          (e) => e['parent'] == group['index'] && e['tag'] == tag,
-        );
+    final tickGroups = <OracleElement>[
+      for (final element in story.byTag('g'))
+        if (element.parent == 0) element,
+    ];
+    OracleElement childOf(OracleElement group, String tag) =>
+        story.childrenOf(group).firstWhere((child) => child.tag == tag);
     // `translate(64.5,0)` -> 64.5.
-    double translateX(Map<String, dynamic> group) => double.parse(
-      (group['transform'] as String)
-          .replaceFirst('translate(', '')
-          .split(',')
-          .first,
-    );
-    final domainPathElement = captured.firstWhere(
-      (e) => e['parent'] == 0 && e['tag'] == 'path',
+    double translateX(OracleElement group) => group.translate!.dx;
+    final domainPathElement = story.soleElement(
+      'path',
+      where: (element) => element.parent == 0,
     );
 
     /// The captured axis, rebuilt from the fixture's own numbers.
@@ -292,7 +250,7 @@ void main() {
     d3.FluentAxisGeometry capturedGeometry() {
       final line = childOf(tickGroups.first, 'line');
       final text = childOf(tickGroups.first, 'text');
-      final tickSizeInner = (line['y2'] as num).toDouble();
+      final tickSizeInner = line.y2!;
       final scale = d3.scaleLinear()
         ..domainOf(<double>[20, 90])
         ..rangeOf(<double>[64, 680]);
@@ -301,20 +259,19 @@ void main() {
         scale: scale,
         tickValues: <Object>[for (var v = 20.0; v <= 90.0; v += 5.0) v],
         tickLabels: <String>[
-          for (final group in tickGroups)
-            childOf(group, 'text')['text'] as String,
+          for (final group in tickGroups) childOf(group, 'text').text!,
         ],
         // The fixture records deviceScaleFactor 1 and crispOffset 0.5.
-        offset: (story['crispOffset'] as num).toDouble(),
+        offset: story.crispOffset,
         tickSizeInner: tickSizeInner,
         tickSizeOuter: 6,
-        tickPadding: (text['y'] as num).toDouble() - tickSizeInner,
+        tickPadding: text.y! - tickSizeInner,
       );
     }
 
     test('the fixture is the axis this test believes it is', () {
       expect(
-        story['deviceScaleFactor'],
+        story.deviceScaleFactor,
         1,
         reason:
             'a capture at any other device scale factor would carry a crispness '
@@ -329,7 +286,7 @@ void main() {
             'leave the loops below asserting on zero ticks.',
       );
       expect(
-        domainPathElement['d'],
+        domainPathElement.d,
         'M64.5,6V0.5H680.5V6',
         reason:
             'the domain path pins the range ends and the crispness offset, which '
@@ -346,9 +303,7 @@ void main() {
         colors: FluentChartColors.of(theme),
         measurer: _ReplayedMeasurer(<String, FluentChartTextMetrics>{
           for (final group in tickGroups)
-            childOf(group, 'text')['text'] as String: _metricsOf(
-              childOf(group, 'text'),
-            ),
+            childOf(group, 'text').text!: _metricsOf(childOf(group, 'text')),
         }),
         isRtl: false,
       ).paint(canvas, const Size(700, 55));
@@ -359,11 +314,10 @@ void main() {
       );
       for (var i = 0; i < tickGroups.length; i++) {
         final expected = translateX(tickGroups[i]);
-        final tickHeight = (childOf(tickGroups[i], 'line')['y2'] as num)
-            .toDouble();
+        final tickHeight = childOf(tickGroups[i], 'line').y2!;
         expect(
           canvas.lines[i].$1.dx,
-          closeTo(expected, _oracleTolerance),
+          closeTo(expected, kOracleGeometryTolerance),
           reason:
               'tick $i sits at translate($expected,0) in the live SVG, so the '
               'painted line must start there — d3-axis/src/axis.js:98 adds the '
@@ -371,18 +325,18 @@ void main() {
         );
         expect(
           canvas.lines[i].$1.dy,
-          closeTo(0, _oracleTolerance),
+          closeTo(0, kOracleGeometryTolerance),
           reason:
               'the captured line has no y1, so it starts on the axis itself.',
         );
         expect(
           canvas.lines[i].$2.dx,
-          closeTo(expected, _oracleTolerance),
+          closeTo(expected, kOracleGeometryTolerance),
           reason: 'the captured line has no x2, so it is vertical.',
         );
         expect(
           canvas.lines[i].$2.dy,
-          closeTo(tickHeight, _oracleTolerance),
+          closeTo(tickHeight, kOracleGeometryTolerance),
           reason:
               'the captured line ends at y2 $tickHeight, which is the axis’s '
               'tickSizeInner below it.',
@@ -400,33 +354,31 @@ void main() {
         colors: FluentChartColors.of(theme),
         measurer: _ReplayedMeasurer(<String, FluentChartTextMetrics>{
           for (final group in tickGroups)
-            childOf(group, 'text')['text'] as String: _metricsOf(
-              childOf(group, 'text'),
-            ),
+            childOf(group, 'text').text!: _metricsOf(childOf(group, 'text')),
         }),
         isRtl: false,
       ).paint(canvas, const Size(700, 55));
       for (var i = 0; i < tickGroups.length; i++) {
         final text = childOf(tickGroups[i], 'text');
-        final bbox = (text['bbox'] as List<dynamic>).cast<num>();
-        // The bbox is [x, y, width, height] in the tick group's own space, so
-        // the absolute origin adds the group's translate.
+        final bbox = text.bbox!;
+        // The bbox is in the tick group's own space, so the absolute origin adds
+        // the group's translate.
         final expected = Offset(
-          translateX(tickGroups[i]) + bbox[0].toDouble(),
-          bbox[1].toDouble(),
+          translateX(tickGroups[i]) + bbox.left,
+          bbox.top,
         );
         expect(
           canvas.paragraphOffsets[i].dx,
-          closeTo(expected.dx, _oracleTolerance),
+          closeTo(expected.dx, kOracleGeometryTolerance),
           reason:
               'text-anchor is middle (d3-axis/src/axis.js:111), so a label of '
-              'width ${bbox[2]} centred on the tick starts at ${expected.dx}.',
+              'width ${bbox.width} centred on the tick starts at ${expected.dx}.',
         );
         expect(
           canvas.paragraphOffsets[i].dy,
-          closeTo(expected.dy, _oracleTolerance),
+          closeTo(expected.dy, kOracleGeometryTolerance),
           reason:
-              'the captured text sits at y ${text['y']} with dy 0.71em '
+              'the captured text sits at y ${text.y} with dy 0.71em '
               '(d3-axis/src/axis.js:72) at font size 10, putting its baseline '
               '7.1 below the anchor and its box top at ${expected.dy}.',
         );
@@ -437,24 +389,22 @@ void main() {
 
 /// The metrics Chrome recorded for one captured `text` element.
 ///
-/// `bbox` is `[x, y, width, height]` in the tick group's space and `y` is the
-/// SVG anchor, so the distance from the box top to the alphabetic baseline is
-/// `y + 0.71 * fontSize - bbox.y` — 11.0 logical pixels for this story's 10px
-/// stack. Reading it back out of the capture is what lets the painter be checked
-/// against the browser's own line box without Segoe UI installed.
-FluentChartTextMetrics _metricsOf(Map<String, dynamic> text) {
-  final bbox = (text['bbox'] as List<dynamic>).cast<num>();
-  final fontSize = double.parse(
-    (text['fontSize'] as String).replaceAll('px', ''),
-  );
+/// [OracleElement.bbox] is the box `getBBox()` returned in the tick group's
+/// space and [OracleElement.y] is the SVG anchor, so the distance from the box
+/// top to the alphabetic baseline is `y + 0.71 * fontSize - bbox.top` — 11.0
+/// logical pixels for this story's 10px stack. Reading it back out of the
+/// capture is what lets the painter be checked against the browser's own line
+/// box without Segoe UI installed.
+FluentChartTextMetrics _metricsOf(OracleElement text) {
+  final bbox = text.bbox!;
+  final fontSize = text.fontSize;
   // 0.71 is the bottom-axis `dy` of d3-axis/src/axis.js:72.
-  final ascent = (text['y'] as num).toDouble() + 0.71 * fontSize - bbox[1];
-  final height = bbox[3].toDouble();
+  final ascent = text.y! + 0.71 * fontSize - bbox.top;
   return FluentChartTextMetrics(
-    width: bbox[2].toDouble(),
-    height: height,
+    width: bbox.width,
+    height: bbox.height,
     ascent: ascent,
-    descent: height - ascent,
+    descent: bbox.height - ascent,
     xHeight: fontSize * FluentChartTextMetrics.xHeightRatio,
   );
 }
