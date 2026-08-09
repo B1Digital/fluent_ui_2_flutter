@@ -449,8 +449,12 @@ class OracleSvg {
   /// The `viewBox` attribute, or null — upstream sets one only on Sparkline.
   final String? viewBox;
 
-  /// The `fui-` class token on the svg, e.g. `fui-cart__chart`, or null for the
-  /// unclassed svgs LineChart and AreaChart render.
+  /// The `fui-` class token on the svg, e.g. `fui-cart__chart` — upstream's own
+  /// typo, which 59 of the corpus's svgs carry.
+  ///
+  /// Null for 25 of the 135 captured svgs, all of them ChartTable's and
+  /// Sparkline's, which upstream leaves unclassed. Do not select on the slot
+  /// for those two.
   final String? slot;
 
   /// The distinct resolved font stacks of this svg's `<text>` nodes.

@@ -47,7 +47,8 @@ Map<String, dynamic> _json(File file) =>
 const kPinnedUpstreamVersion = '9.3.23';
 
 /// The agreed ceiling on the whole corpus, in bytes: 8 MiB. Measured 2026-08-08,
-/// the 90 fixtures total 3-5 MB (largest single fixture 55 KB), so the ceiling
+/// the 90 fixtures total 3.17 MiB (largest single fixture 551 KB, which is
+/// charts-linechart--line-chart-large-data.json), so the ceiling
 /// is about twice the measurement — headroom for a legitimately richer story,
 /// none for a capture that starts recording something enormous.
 /// `test/goldens/README.md` holds its images to ~256 KB the same way.
@@ -319,5 +320,51 @@ void main() {
           'as test/goldens/README.md says to coarsen a grid rather than add a '
           'megabyte of PNG. Raising this ceiling is a decision, not a fix.',
     );
+  });
+
+  test('the README documents the corpus and the exact re-capture command', () {
+    final readme = File('${corpusDirectory().path}/README.md');
+    expect(
+      readme.existsSync(),
+      isTrue,
+      reason:
+          'crawlers/ is gitignored, so this README is the only tracked '
+          'record of how to regenerate the corpus',
+    );
+    final text = readme.readAsStringSync();
+    for (final required in <String>[
+      // The command oracle_fixture.dart's StateError tells a reader to run.
+      'node capture_oracle.mjs',
+      'crawlers/storybooks-fluentui',
+      // The two facts a consumer must not get wrong. `contains` is
+      // case-sensitive, and the README writes this one capitalised.
+      'deviceScaleFactor',
+      'Never construct',
+      // The ceiling, stated as plainly as test/goldens/README.md states its.
+      'advisory',
+      // The three Legends stories have no svg at all. A reader who does not
+      // know that reaches for OracleStory.primary and gets a StateError, or
+      // worse, counts all 17 fui-legend__rect boxes when only 6 are visible.
+      'HTML-only',
+      // The size budget, so the prose and kCorpusCeilingBytes cannot drift
+      // apart: whoever raises one has to raise the other.
+      '8 MiB',
+      // The upstream pin, for the same reason. Bumping
+      // kPinnedUpstreamVersion without re-capturing now fails two tests, and
+      // one of them says so in words a maintainer can act on.
+      kPinnedUpstreamVersion,
+      // CI verifies the committed corpus and cannot regenerate it, because
+      // re-capture needs storybooks.fluentui.dev. A reader who does not know
+      // that will wait for a green CI run to catch upstream drift.
+      'cannot regenerate',
+    ]) {
+      expect(
+        text,
+        contains(required),
+        reason:
+            'the README must state "$required" — a regeneration hint that '
+            'drifts from the loader\'s error message is worse than none',
+      );
+    }
   });
 }
