@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 
 import '../internal/d3/format.dart' as d3;
+import '../internal/d3/time_interval.dart' as d3;
 import 'tick_values.dart';
 
 /// Formats a y-axis value with an SI prefix.
@@ -248,3 +249,186 @@ String formatToLocaleString(
   }
   return data.toString();
 }
+
+/// How coarse a date is — `0` for milliseconds up to `7` for years.
+///
+/// Ports `getDateFormatLevel` (`utilities.ts:410-433`). Each level asks whether
+/// flooring to the next coarser interval loses information; the first that says
+/// yes wins, and years are the default (`:427`). d3 exports one `second`
+/// interval that serves both the local and the UTC side, because a second
+/// boundary is the same instant either way, so the `d3UtcSecond`/`d3TimeSecond`
+/// choice at `:411` has no counterpart here.
+int getDateFormatLevel(DateTime date, {bool useUtc = false}) {
+  final minute = useUtc ? d3.utcMinute : d3.timeMinute;
+  final hour = useUtc ? d3.utcHour : d3.timeHour;
+  final day = useUtc ? d3.utcDay : d3.timeDay;
+  final month = useUtc ? d3.utcMonth : d3.timeMonth;
+  final week = useUtc ? d3.utcWeek : d3.timeWeek;
+  final year = useUtc ? d3.utcYear : d3.timeYear;
+
+  if (d3.second.floor(date).isBefore(date)) {
+    return 0;
+  }
+  if (minute.floor(date).isBefore(date)) {
+    return 1;
+  }
+  if (hour.floor(date).isBefore(date)) {
+    return 2;
+  }
+  if (day.floor(date).isBefore(date)) {
+    return 3;
+  }
+  if (month.floor(date).isBefore(date) && week.floor(date).isBefore(date)) {
+    return 4;
+  }
+  if (month.floor(date).isBefore(date)) {
+    return 5;
+  }
+  if (year.floor(date).isBefore(date)) {
+    return 6;
+  }
+  return 7;
+}
+
+/// The strftime specifier that spans levels [startLevel] to [endLevel].
+///
+/// Ports the 8x8 table inside `getMultiLevelD3DateFormatter`
+/// (`utilities.ts:347-408`). The table is Fluent's, not d3's, which is why it
+/// lives here rather than in `internal/d3/time_format.dart`; that file owns only
+/// the strftime engine.
+///
+/// Both arguments must be in `0..7`. Upstream indexes the table unguarded
+/// (`:406`), so an out-of-range level there yields `undefined` and d3 formats the
+/// literal string `'undefined'`; the only caller derives both levels from
+/// [getDateFormatLevel] over a non-empty tick list, so the range always holds.
+// ponytail: an assert rather than a clamp — a clamp would silently paper over a
+// caller bug that upstream would have made loudly visible.
+String multiLevelD3DateFormat(int startLevel, int endLevel) {
+  // 8 is the number of granularity levels, ms through y (utilities.ts:395).
+  assert(
+    startLevel >= 0 && startLevel < 8 && endLevel >= 0 && endLevel < 8,
+    'Format levels must be 0..7; got $startLevel..$endLevel.',
+  );
+  return _multiLevelD3Formats[startLevel][endLevel];
+}
+
+// Literal specifiers, named as at utilities.ts:356-392. The aliased upstream
+// constants (MS_S_MIN_H_D_W_M = MS_S_MIN_H_D_W, W = D_W, and so on) are not
+// restated; the table below reuses the one they alias.
+const String _fmtDefault = '%c';
+const String _fmtMs = '.%L';
+const String _fmtMsS = ':%S.%L';
+const String _fmtMsSMin = '%M:%S.%L';
+const String _fmtMsSMinH = '%-I:%M:%S.%L %p';
+const String _fmtMsSMinHD = '%a %d, %X';
+const String _fmtMsSMinHDW = '%b %d, %X';
+const String _fmtS = ':%S';
+const String _fmtSMin = '%-I:%M:%S';
+const String _fmtSMinH = '%X';
+const String _fmtMin = '%-I:%M %p';
+const String _fmtMinHD = '%a %d, %-I:%M %p';
+const String _fmtMinHDW = '%b %d, %-I:%M %p';
+const String _fmtMinHDWMY = '%x, %-I:%M %p';
+const String _fmtH = '%-I %p';
+const String _fmtHD = '%a %d, %-I %p';
+const String _fmtHDW = '%b %d, %-I %p';
+const String _fmtHDWMY = '%x, %-I %p';
+const String _fmtD = '%a %d';
+const String _fmtDW = '%b %d';
+const String _fmtDWMY = '%x';
+const String _fmtM = '%B';
+const String _fmtMY = '%b %Y';
+const String _fmtY = '%Y';
+
+/// Rows are the start level, columns the end level, both ordered
+/// ms, s, min, h, d, w, m, y (`utilities.ts:394-404`).
+const List<List<String>> _multiLevelD3Formats = <List<String>>[
+  // ms
+  <String>[
+    _fmtMs,
+    _fmtMsS,
+    _fmtMsSMin,
+    _fmtMsSMinH,
+    _fmtMsSMinHD,
+    _fmtMsSMinHDW,
+    _fmtMsSMinHDW,
+    _fmtDefault,
+  ],
+  // s
+  <String>[
+    _fmtDefault,
+    _fmtS,
+    _fmtSMin,
+    _fmtSMinH,
+    _fmtMsSMinHD,
+    _fmtMsSMinHDW,
+    _fmtMsSMinHDW,
+    _fmtDefault,
+  ],
+  // min
+  <String>[
+    _fmtDefault,
+    _fmtDefault,
+    _fmtMin,
+    _fmtMin,
+    _fmtMinHD,
+    _fmtMinHDW,
+    _fmtMinHDW,
+    _fmtMinHDWMY,
+  ],
+  // h
+  <String>[
+    _fmtDefault,
+    _fmtDefault,
+    _fmtDefault,
+    _fmtH,
+    _fmtHD,
+    _fmtHDW,
+    _fmtHDW,
+    _fmtHDWMY,
+  ],
+  // d
+  <String>[
+    _fmtDefault,
+    _fmtDefault,
+    _fmtDefault,
+    _fmtDefault,
+    _fmtD,
+    _fmtDW,
+    _fmtDW,
+    _fmtDWMY,
+  ],
+  // w
+  <String>[
+    _fmtDefault,
+    _fmtDefault,
+    _fmtDefault,
+    _fmtDefault,
+    _fmtDefault,
+    _fmtDW,
+    _fmtDW,
+    _fmtDWMY,
+  ],
+  // m
+  <String>[
+    _fmtDefault,
+    _fmtDefault,
+    _fmtDefault,
+    _fmtDefault,
+    _fmtDefault,
+    _fmtDefault,
+    _fmtM,
+    _fmtMY,
+  ],
+  // y
+  <String>[
+    _fmtDefault,
+    _fmtDefault,
+    _fmtDefault,
+    _fmtDefault,
+    _fmtDefault,
+    _fmtDefault,
+    _fmtDefault,
+    _fmtY,
+  ],
+];

@@ -395,4 +395,165 @@ void main() {
       });
     }
   });
+
+  group('getDateFormatLevel', () {
+    test('is 7 for a year boundary', () {
+      expect(
+        getDateFormatLevel(DateTime.utc(2020), useUtc: true),
+        7,
+        reason:
+            'utilities.ts:427 — nothing floors below it, so the default '
+            'wins.',
+      );
+    });
+
+    test('is 6 for a month boundary inside a year', () {
+      expect(
+        getDateFormatLevel(DateTime.utc(2020, 3), useUtc: true),
+        6,
+        reason: 'utilities.ts:426 — timeYear(d) < d but timeMonth(d) == d.',
+      );
+    });
+
+    test('is 5 for a week boundary that is not a month boundary', () {
+      expect(
+        getDateFormatLevel(DateTime.utc(2020, 1, 12), useUtc: true),
+        5,
+        reason:
+            '2020-01-12 is a Sunday, so timeWeek(d) == d and the day rule at '
+            'utilities.ts:424 fails while the week rule at :425 passes.',
+      );
+    });
+
+    test('is 4 for a mid-week day', () {
+      expect(
+        getDateFormatLevel(DateTime.utc(2020, 1, 15), useUtc: true),
+        4,
+        reason: 'utilities.ts:424 — both timeMonth(d) < d and timeWeek(d) < d.',
+      );
+    });
+
+    test('is 3 for a whole hour inside a day', () {
+      expect(
+        getDateFormatLevel(DateTime.utc(2020, 1, 15, 10), useUtc: true),
+        3,
+        reason: 'utilities.ts:423 — timeDay(d) < d, and the finer rules fail.',
+      );
+    });
+
+    test('is 2 for a whole minute inside an hour', () {
+      expect(
+        getDateFormatLevel(DateTime.utc(2020, 1, 1, 10, 30), useUtc: true),
+        2,
+        reason: 'utilities.ts:422 — timeHour(d) < d, and the finer rules fail.',
+      );
+    });
+
+    test('is 1 for a whole second inside a minute', () {
+      expect(
+        getDateFormatLevel(DateTime.utc(2020, 1, 1, 10, 30, 15), useUtc: true),
+        1,
+        reason: 'utilities.ts:421 — timeMinute(d) < d, and :420 fails.',
+      );
+    });
+
+    test('is 0 for a sub-second instant', () {
+      expect(
+        getDateFormatLevel(
+          DateTime.utc(2020, 1, 1, 0, 0, 0, 250),
+          useUtc: true,
+        ),
+        0,
+        reason: 'utilities.ts:420 — timeSecond(d) < d.',
+      );
+    });
+
+    test('reads the local intervals when useUtc is false', () {
+      // A local midnight is a day boundary in local time whatever the zone, so
+      // this holds without pinning the test host's zone. Only the day rule and
+      // coarser can fire, so anything above 3 proves the local branch of
+      // utilities.ts:411-417 was taken rather than the UTC one, which would see
+      // a non-zero UTC hour in every zone but UTC itself.
+      final local = DateTime(2020, 1, 15);
+      expect(
+        getDateFormatLevel(local),
+        greaterThan(3),
+        reason:
+            'utilities.ts:411-417 selects the local intervals when useUTC is '
+            'falsy, and local midnight floors to itself under timeDay.',
+      );
+    });
+  });
+
+  group('multiLevelD3DateFormat', () {
+    test('returns the millisecond format on the diagonal', () {
+      expect(
+        multiLevelD3DateFormat(0, 0),
+        '.%L',
+        reason: 'utilities.ts:357 — MS.',
+      );
+    });
+
+    test('returns the day format on the diagonal', () {
+      expect(
+        multiLevelD3DateFormat(4, 4),
+        '%a %d',
+        reason: 'utilities.ts:383 — D.',
+      );
+    });
+
+    test('spans days to years with the locale date', () {
+      expect(
+        multiLevelD3DateFormat(4, 7),
+        '%x',
+        reason: 'utilities.ts:386 — D_W_M_Y.',
+      );
+    });
+
+    test('spans minutes to years with date plus 12-hour time', () {
+      expect(
+        multiLevelD3DateFormat(2, 7),
+        '%x, %-I:%M %p',
+        reason: 'utilities.ts:377 — MIN_H_D_W_M_Y.',
+      );
+    });
+
+    test('returns the year format at the far corner', () {
+      expect(
+        multiLevelD3DateFormat(7, 7),
+        '%Y',
+        reason: 'utilities.ts:392 — Y.',
+      );
+    });
+
+    test('falls back to %c below the diagonal', () {
+      expect(
+        multiLevelD3DateFormat(5, 4),
+        '%c',
+        reason:
+            'utilities.ts:395-403 — every cell left of the diagonal is DEFAULT.',
+      );
+    });
+
+    test('is total over every level pair', () {
+      var cells = 0;
+      for (var start = 0; start < 8; start++) {
+        for (var end = 0; end < 8; end++) {
+          expect(
+            multiLevelD3DateFormat(start, end),
+            isNotEmpty,
+            reason:
+                'utilities.ts:394-404 fills all 64 cells, so no lookup may '
+                'return an empty specifier.',
+          );
+          cells++;
+        }
+      }
+      expect(
+        cells,
+        64,
+        reason: 'the 8x8 table at utilities.ts:394-404 has 64 cells.',
+      );
+    });
+  });
 }
