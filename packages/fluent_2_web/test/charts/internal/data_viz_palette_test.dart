@@ -1,4 +1,6 @@
+import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:fluent_2_web/src/charts/internal/data_viz_palette.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -92,5 +94,133 @@ void main() {
         );
       },
     );
+  });
+
+  group('FluentDataVizPalette.resolve', () {
+    test('hard-codes semantic.info, which has no fluent_2_core token', () {
+      expect(
+        FluentDataVizPalette.resolve(FluentDataVizToken.info).toARGB32(),
+        0xFF015CDA,
+        reason:
+            "colors.ts:106 is '#015cda' and no fluent_2_core alias or shared "
+            'ramp carries it (spec 5.8).',
+      );
+    });
+    test(
+      'semantic.info has no dark variant, so dark returns the same value',
+      () {
+        expect(
+          FluentDataVizPalette.resolve(
+            FluentDataVizToken.info,
+            isDark: true,
+          ).toARGB32(),
+          0xFF015CDA,
+          reason: 'colors.ts:106 declares a one-entry ramp.',
+        );
+      },
+    );
+    test('resolves the six two-entry semantic ramps both ways', () {
+      expect(
+        FluentDataVizPalette.resolve(FluentDataVizToken.error).toARGB32(),
+        0xFFC50F1F,
+        reason: 'colors.ts:109 light — cranberry.primary.',
+      );
+      expect(
+        FluentDataVizPalette.resolve(
+          FluentDataVizToken.error,
+          isDark: true,
+        ).toARGB32(),
+        0xFFDC626D,
+        reason: 'colors.ts:109 dark — cranberry.tint30.',
+      );
+      expect(
+        FluentDataVizPalette.resolve(FluentDataVizToken.disabled).toARGB32(),
+        0xFFDBDBDB,
+        reason: 'colors.ts:107 light — grey 86.',
+      );
+      expect(
+        FluentDataVizPalette.resolve(
+          FluentDataVizToken.highSuccess,
+          isDark: true,
+        ).toARGB32(),
+        0xFF218C21,
+        reason: 'colors.ts:112 dark — green.tint10.',
+      );
+    });
+    test('resolves a qualitative token to the same value as next', () {
+      expect(
+        FluentDataVizPalette.resolve(FluentDataVizToken.color7).toARGB32(),
+        FluentDataVizPalette.next(6).toARGB32(),
+        reason: "'qualitative.7' is the seventh ramp, index 6.",
+      );
+    });
+  });
+
+  group('FluentDataVizPalette.tokenFromUpstreamName', () {
+    test('maps a qualitative name to its token', () {
+      expect(
+        FluentDataVizPalette.tokenFromUpstreamName('qualitative.7'),
+        FluentDataVizToken.color7,
+        reason: 'colors.ts:11.',
+      );
+      expect(
+        FluentDataVizPalette.tokenFromUpstreamName('qualitative.40'),
+        FluentDataVizToken.color40,
+        reason: 'colors.ts:44 — the last qualitative entry.',
+      );
+    });
+    test('maps every semantic name to its token', () {
+      expect(
+        FluentDataVizPalette.tokenFromUpstreamName('semantic.highSuccess'),
+        FluentDataVizToken.highSuccess,
+        reason: 'colors.ts:51.',
+      );
+    });
+    test('returns null for a raw colour, which is the pass-through door', () {
+      expect(
+        FluentDataVizPalette.tokenFromUpstreamName('#ff0000'),
+        isNull,
+        reason:
+            'colors.ts:145 returns the token string unchanged when it is not a '
+            'known token, so a raw CSS colour passes through. A null here is '
+            "the caller's signal to parse it as a colour instead.",
+      );
+      expect(
+        FluentDataVizPalette.tokenFromUpstreamName('qualitative.41'),
+        isNull,
+        reason: 'There are only forty qualitative ramps (colors.ts:62-103).',
+      );
+      expect(
+        FluentDataVizPalette.tokenFromUpstreamName('qualitative.0'),
+        isNull,
+        reason: 'The ramps are numbered from 1 (colors.ts:63).',
+      );
+    });
+  });
+
+  group('fluentChartIsDarkTheme', () {
+    test('compares HSL lightness, not Brightness', () {
+      expect(
+        fluentChartIsDarkTheme(const FluentColors()),
+        isFalse,
+        reason:
+            'DeclarativeChart.tsx:348 — background lightness is above '
+            'foreground lightness in the light theme.',
+      );
+      expect(
+        fluentChartIsDarkTheme(const FluentColors(brightness: Brightness.dark)),
+        isTrue,
+        reason: 'DeclarativeChart.tsx:348, the other way round.',
+      );
+    });
+    test('reports the high-contrast palette as dark', () {
+      expect(
+        fluentChartIsDarkTheme(const FluentHighContrastColors()),
+        isTrue,
+        reason:
+            'Canvas is black and CanvasText is white in the package high '
+            'contrast palette, so the lightness comparison holds.',
+      );
+    });
   });
 }

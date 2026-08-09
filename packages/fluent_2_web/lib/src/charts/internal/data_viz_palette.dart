@@ -1,3 +1,4 @@
+import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
 /// The 47 data-visualisation tokens a chart can name.
@@ -214,6 +215,33 @@ abstract final class FluentDataVizPalette {
     <Color>[Color(0xFF3A2F00), Color(0xFFDAC157)], // :102 gold 40/30
   ];
 
+  /// The seven semantic ramps (`colors.ts:105-113`).
+  ///
+  /// Index 0 is the light value, index 1 the dark value where one exists, the
+  /// same shape as [_qualitative].
+  static const Map<FluentDataVizToken, List<Color>>
+  _semantic = <FluentDataVizToken, List<Color>>{
+    // :106 — '#015cda'. There is no fluent_2_core alias or shared-ramp stop
+    // with this value; the token generators are not checked into this
+    // repository, so it is written out here. Spec §5.8.
+    FluentDataVizToken.info: <Color>[Color(0xFF015CDA)],
+    // :107 — grey 86 / grey 30.
+    FluentDataVizToken.disabled: <Color>[Color(0xFFDBDBDB), Color(0xFF4D4D4D)],
+    // :108 — cranberry.shade30 / cranberry.tint10.
+    FluentDataVizToken.highError: <Color>[Color(0xFF6E0811), Color(0xFFCC2635)],
+    // :109 — cranberry.primary / cranberry.tint30.
+    FluentDataVizToken.error: <Color>[Color(0xFFC50F1F), Color(0xFFDC626D)],
+    // :110 — orange.primary / orange.tint10.
+    FluentDataVizToken.warning: <Color>[Color(0xFFF7630C), Color(0xFFF87528)],
+    // :111 — green.primary / green.tint30.
+    FluentDataVizToken.success: <Color>[Color(0xFF107C10), Color(0xFF54B054)],
+    // :112 — green.shade30 / green.tint10.
+    FluentDataVizToken.highSuccess: <Color>[
+      Color(0xFF094509),
+      Color(0xFF218C21),
+    ],
+  };
+
   /// Picks the theme-appropriate entry from one ramp.
   ///
   /// Ports `getThemeSpecificColor` (`colors.ts:123-132`): index 1 for a dark
@@ -248,4 +276,61 @@ abstract final class FluentDataVizPalette {
       isDark: isDark,
     );
   }
+
+  /// The colour [token] names.
+  ///
+  /// Ports `getColorFromToken` (`colors.ts:139-146`) for the token arm. The
+  /// upstream function also returns its argument unchanged when it names no
+  /// token; that pass-through lives in [tokenFromUpstreamName], which returns
+  /// null so the caller can parse the string as a colour instead.
+  static Color resolve(FluentDataVizToken token, {bool isDark = false}) {
+    final ramp = _semantic[token];
+    if (ramp != null) return _themeSpecific(ramp, isDark: isDark);
+    // The forty qualitative tokens occupy ordinals 0..39, so the ordinal is the
+    // ramp index (colors.ts:5-44).
+    return _themeSpecific(_qualitative[token.index], isDark: isDark);
+  }
+
+  /// The token [name] identifies, or null when it identifies none.
+  ///
+  /// [name] is one of the 47 strings at `colors.ts:5-51`. A null result is what
+  /// `colors.ts:145` expresses by returning the string unchanged: the value is
+  /// a raw CSS colour and the caller should parse it.
+  static FluentDataVizToken? tokenFromUpstreamName(String name) {
+    const qualitativePrefix = 'qualitative.';
+    if (name.startsWith(qualitativePrefix)) {
+      final number = int.tryParse(name.substring(qualitativePrefix.length));
+      // The ramps are numbered from 1 to 40 inclusive (colors.ts:63-102).
+      if (number == null || number < 1 || number > qualitativeCount) {
+        return null;
+      }
+      // The forty qualitative tokens occupy ordinals 0..39 (colors.ts:5-44).
+      return FluentDataVizToken.values[number - 1];
+    }
+    return switch (name) {
+      'semantic.info' => FluentDataVizToken.info,
+      'semantic.disabled' => FluentDataVizToken.disabled,
+      'semantic.highError' => FluentDataVizToken.highError,
+      'semantic.error' => FluentDataVizToken.error,
+      'semantic.warning' => FluentDataVizToken.warning,
+      'semantic.success' => FluentDataVizToken.success,
+      'semantic.highSuccess' => FluentDataVizToken.highSuccess,
+      _ => null,
+    };
+  }
 }
+
+/// Whether [colors] reads as a dark theme for palette purposes.
+///
+/// Ports `useIsDarkTheme` (`DeclarativeChart.tsx:340-351`), which compares the
+/// **HSL lightness** of `colorNeutralBackground1` against that of
+/// `colorNeutralForeground1` rather than reading a brightness flag. Flutter's
+/// [HSLColor.fromColor] computes lightness as `(max + min) / 2` on the
+/// normalised channels, which is exactly d3-color's `rgb → hsl` conversion, so
+/// the comparison is the same one.
+///
+/// Only the two declarative adapters call this; every imperatively mounted
+/// chart leaves `isDark` at its default of false, matching upstream (spec §5.8).
+bool fluentChartIsDarkTheme(FluentColors colors) =>
+    HSLColor.fromColor(colors.neutralBackground1).lightness <
+    HSLColor.fromColor(colors.neutralForeground1).lightness;
