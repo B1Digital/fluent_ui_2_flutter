@@ -885,4 +885,132 @@ void main() {
       );
     });
   });
+
+  group('the vbc band maths', () {
+    test('calcTotalWidth subtracts both margins and twice the extra', () {
+      expect(
+        calcTotalWidth(700, const FluentChartMargins(left: 40, right: 20), 8),
+        624,
+        reason: 'vbc-utils.ts:45 — 700 - 40 - 20 - 8 * 2.',
+      );
+    });
+
+    test('calcTotalWidth reads an absent margin as 0', () {
+      expect(
+        calcTotalWidth(700, const FluentChartMargins()),
+        700,
+        reason: 'vbc-utils.ts:45 `margins.left || 0`.',
+      );
+    });
+
+    test('calcTotalBandUnits counts the gaps in bandwidth units', () {
+      expect(
+        calcTotalBandUnits(5, 0.5),
+        9,
+        reason:
+            'vbc-utils.ts:54-55 — gapToBandRatio 0.5/0.5 = 1, so 5 + 4 * 1.',
+      );
+      expect(
+        calcTotalBandUnits(1, 0.5),
+        1,
+        reason: 'One band has no gap either side of it.',
+      );
+      expect(
+        calcTotalBandUnits(3, 0),
+        3,
+        reason: 'No padding means no gaps (vbc-utils.ts:54).',
+      );
+    });
+
+    test('calcRequiredWidth and calcBandwidth are inverses', () {
+      expect(
+        calcRequiredWidth(calcBandwidth(600, 5, 0.5), 5, 0.5),
+        closeTo(600, 1e-9),
+        reason:
+            'vbc-utils.ts:62 and :71 are the two directions of one formula.',
+      );
+    });
+
+    test(
+      'getClosestPairDiffAndRange returns null for fewer than two points',
+      () {
+        expect(
+          getClosestPairDiffAndRange(const <Object>[1]),
+          isNull,
+          reason: 'vbc-utils.ts:4-6.',
+        );
+      },
+    );
+
+    test('getClosestPairDiffAndRange sorts before measuring', () {
+      final result = getClosestPairDiffAndRange(const <Object>[10, 1, 4]);
+      expect(
+        result!.$1,
+        3,
+        reason: 'Sorted 1, 4, 10 — the closest pair is 3 apart.',
+      );
+      expect(result.$2, 9, reason: 'vbc-utils.ts:19-22 — last minus first.');
+    });
+
+    test('getClosestPairDiffAndRange works in milliseconds for dates', () {
+      final result = getClosestPairDiffAndRange(<Object>[
+        DateTime.utc(2024, 1, 3),
+        DateTime.utc(2024, 1, 1),
+        DateTime.utc(2024, 1, 2),
+      ]);
+      expect(
+        result!.$1,
+        Duration.millisecondsPerDay,
+        reason: 'vbc-utils.ts:13-15 uses getTime().',
+      );
+      expect(
+        result.$2,
+        2 * Duration.millisecondsPerDay,
+        reason: 'vbc-utils.ts:19-21.',
+      );
+    });
+
+    test('getClosestPairDiffAndRange does not mutate the caller list', () {
+      final data = <Object>[10, 1, 4];
+      getClosestPairDiffAndRange(data);
+      expect(
+        data,
+        <Object>[10, 1, 4],
+        reason:
+            'ponytail: vbc-utils.ts:8 sorts in place and hands the caller list '
+            'back rearranged. It changes no rendered output, so the port copies.',
+      );
+    });
+
+    test(
+      'calculateAppropriateBarWidth falls back to 16 with too few points',
+      () {
+        expect(
+          calculateAppropriateBarWidth(const <Object>[5], 600, 0.5),
+          16,
+          reason: 'vbc-utils.ts:31-33.',
+        );
+      },
+    );
+
+    test('calculateAppropriateBarWidth falls back to 16 for a zero range', () {
+      expect(
+        calculateAppropriateBarWidth(const <Object>[5, 5], 600, 0.5),
+        16,
+        reason: 'vbc-utils.ts:31 `result[1] === 0`.',
+      );
+    });
+
+    test('calculateAppropriateBarWidth floors the derived width', () {
+      // diff 1, range 4, padding 0.5 →
+      // floor(600 * 1 * 0.5 / (4 + 1 * 0.5)) = floor(300 / 4.5) = 66.
+      expect(
+        calculateAppropriateBarWidth(const <Object>[0, 1, 2, 3, 4], 600, 0.5),
+        66,
+        reason:
+            'vbc-utils.ts:36-38 — Math.floor of the RFC formula at '
+            'microsoft.github.io/fluentui-charting-contrib fix-overlapping-bars.',
+      );
+    });
+  });
 }

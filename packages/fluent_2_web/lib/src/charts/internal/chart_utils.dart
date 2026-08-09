@@ -534,3 +534,98 @@ d3.D3CurveFactory getCurveFactory(
   FluentLineCurve.stepBefore => d3.curveStepBefore,
   _ => defaultFactory,
 };
+
+/// The width left for bars once the margins are taken out.
+///
+/// Ports `calcTotalWidth` (`vbc-utils.ts:43-45`). [extraMargin] is subtracted
+/// from **both** sides.
+double calcTotalWidth(
+  double containerWidth,
+  FluentChartMargins margins, [
+  double extraMargin = 0,
+]) =>
+    containerWidth -
+    (margins.left ?? 0) -
+    (margins.right ?? 0) -
+    // vbc-utils.ts:45 — one extra margin per side, hence the 2.
+    extraMargin * 2;
+
+/// The combined size of every band and every gap, measured in bandwidths.
+///
+/// Ports `calcTotalBandUnits` (`vbc-utils.ts:50-56`). d3's inner padding is
+/// `gap / (gap + bandwidth)`, so `gap = (p / (1 - p)) * bandwidth` and
+/// `n` bands carry `n - 1` gaps.
+double calcTotalBandUnits(int numBands, double innerPadding) {
+  // vbc-utils.ts:56. The 1 is the whole of the unit interval the padding is a
+  // fraction of.
+  final gapToBandRatio = innerPadding / (1 - innerPadding);
+  // vbc-utils.ts:57 — n bands, and the 1 fewer gaps between them.
+  return numBands + (numBands - 1) * gapToBandRatio;
+}
+
+/// The width needed to draw [numBands] bands of [bandwidth] with their gaps.
+///
+/// Ports `calcRequiredWidth` (`vbc-utils.ts:61-63`).
+double calcRequiredWidth(double bandwidth, int numBands, double innerPadding) =>
+    bandwidth * calcTotalBandUnits(numBands, innerPadding);
+
+/// The bandwidth at which [numBands] bands and their gaps exactly fill
+/// [totalWidth].
+///
+/// Ports `calcBandwidth` (`vbc-utils.ts:69-71`). The inverse of
+/// [calcRequiredWidth].
+double calcBandwidth(double totalWidth, int numBands, double innerPadding) =>
+    totalWidth / calcTotalBandUnits(numBands, innerPadding);
+
+/// The smallest gap between adjacent values in [data], and the whole span, or
+/// null when there are fewer than two values.
+///
+/// Ports `getClosestPairDiffAndRange` (`vbc-utils.ts:3-23`). A [DateTime] is
+/// measured in milliseconds since epoch, matching `getTime()`.
+///
+/// `// ponytail:` `vbc-utils.ts:8` sorts the caller's array in place and hands
+/// it back rearranged. That side effect changes no rendered output, so this
+/// copies rather than reproducing it.
+(double, double)? getClosestPairDiffAndRange(List<Object> data) {
+  // vbc-utils.ts:4-6. The 2 is upstream's own bound: one point has no pair.
+  if (data.length < 2) return null;
+  double asNumber(Object value) => value is DateTime
+      ? value.millisecondsSinceEpoch.toDouble()
+      : (value as num).toDouble();
+  final sorted = data.map(asNumber).toList()..sort();
+  // vbc-utils.ts:10 `Number.MAX_VALUE`, the seed a `Math.min` fold needs.
+  var minDiff = double.maxFinite;
+  // vbc-utils.ts:11 starts at the second element, so the 1 is the first gap.
+  for (var i = 1; i < sorted.length; i++) {
+    final diff = sorted[i] - sorted[i - 1];
+    if (diff < minDiff) minDiff = diff;
+  }
+  // vbc-utils.ts:18-21.
+  return (minDiff, sorted.last - sorted.first);
+}
+
+/// The bar width that stops bars overlapping on a continuous axis.
+///
+/// Ports `calculateAppropriateBarWidth` (`vbc-utils.ts:25-40`). The derivation
+/// of the formula is at
+/// <https://microsoft.github.io/fluentui-charting-contrib/docs/rfcs/fix-overlapping-bars-on-continuous-axes>.
+///
+/// 16 is the fallback when there are too few points or the whole span is zero,
+/// and it is the same `DEFAULT_BAR_WIDTH` as [kDefaultBarWidth]
+/// (`vbc-utils.ts:32`).
+double calculateAppropriateBarWidth(
+  List<Object> data,
+  double totalWidth,
+  double innerPadding,
+) {
+  final result = getClosestPairDiffAndRange(data);
+  // vbc-utils.ts:31-33. The 0 is upstream's own `result[1] === 0`.
+  if (result == null || result.$2 == 0) return kDefaultBarWidth;
+  final (closestPairDiff, range) = result;
+  // vbc-utils.ts:36-38. The 1 is the whole of the unit interval the inner
+  // padding is a fraction of, so `1 - innerPadding` is the share of a band
+  // step the band itself occupies.
+  return ((totalWidth * closestPairDiff * (1 - innerPadding)) /
+          (range + closestPairDiff * (1 - innerPadding)))
+      .floorToDouble();
+}
