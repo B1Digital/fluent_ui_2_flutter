@@ -221,4 +221,85 @@ void main() {
       );
     });
   });
+
+  group('FluentAxisCategoryOrder', () {
+    test('exposes the sixteen preset strings from the upstream union', () {
+      // types/DataPoint.ts:953-973 — 'default', 'data', and seven aggregators
+      // times two directions.
+      const presets = <FluentAxisCategoryOrder>[
+        FluentAxisCategoryOrder.defaultOrder,
+        FluentAxisCategoryOrder.data,
+        FluentAxisCategoryOrder.categoryAscending,
+        FluentAxisCategoryOrder.categoryDescending,
+        FluentAxisCategoryOrder.totalAscending,
+        FluentAxisCategoryOrder.totalDescending,
+        FluentAxisCategoryOrder.minAscending,
+        FluentAxisCategoryOrder.minDescending,
+        FluentAxisCategoryOrder.maxAscending,
+        FluentAxisCategoryOrder.maxDescending,
+        FluentAxisCategoryOrder.sumAscending,
+        FluentAxisCategoryOrder.sumDescending,
+        FluentAxisCategoryOrder.meanAscending,
+        FluentAxisCategoryOrder.meanDescending,
+        FluentAxisCategoryOrder.medianAscending,
+        FluentAxisCategoryOrder.medianDescending,
+      ];
+      expect(
+        presets.map((p) => (p as FluentAxisCategoryOrderPreset).upstreamName),
+        <String>[
+          'default',
+          'data',
+          'category ascending',
+          'category descending',
+          'total ascending',
+          'total descending',
+          'min ascending',
+          'min descending',
+          'max ascending',
+          'max descending',
+          'sum ascending',
+          'sum descending',
+          'mean ascending',
+          'mean descending',
+          'median ascending',
+          'median descending',
+        ],
+        reason: 'The exact literals at types/DataPoint.ts:953-973.',
+      );
+    });
+
+    test('parse round-trips every preset', () {
+      expect(
+        FluentAxisCategoryOrder.parse('total descending'),
+        same(FluentAxisCategoryOrder.totalDescending),
+        reason:
+            "VegaLiteSchemaAdapter.ts:1119 builds '\${op} \${order}' at runtime, "
+            'so the string form has to resolve back to the preset.',
+      );
+      expect(
+        FluentAxisCategoryOrder.parse('default'),
+        same(FluentAxisCategoryOrder.defaultOrder),
+        reason: 'The literal is "default"; the Dart name cannot be.',
+      );
+    });
+
+    test('parse returns null for an unknown string', () {
+      expect(
+        FluentAxisCategoryOrder.parse('total sideways'),
+        isNull,
+        reason:
+            'utilities.ts:2044 only matches '
+            '(category|total|sum|min|max|mean|median) (ascending|descending).',
+      );
+    });
+
+    test('explicit carries the caller order verbatim', () {
+      const order = FluentAxisCategoryOrder.explicit(<String>['b', 'a', 'c']);
+      expect(
+        (order as FluentAxisCategoryOrderExplicit).categories,
+        <String>['b', 'a', 'c'],
+        reason: 'The `string[]` arm at types/DataPoint.ts:956.',
+      );
+    });
+  });
 }

@@ -218,3 +218,135 @@ class FluentAxisConfig {
   /// `:2721`); no upstream call site sets it on a y axis.
   final FluentTickLayout tickLayout;
 }
+
+/// How the categories on a band axis are ordered.
+///
+/// Ports `AxisCategoryOrder` (`types/DataPoint.ts:953-973`), which is a union of
+/// sixteen string literals and a `string[]`. A sealed hierarchy rather than an
+/// enum, because the `string[]` arm carries data.
+sealed class FluentAxisCategoryOrder {
+  /// Allows subclasses to be const.
+  const FluentAxisCategoryOrder();
+
+  /// The `string[]` arm: the caller names the order outright.
+  const factory FluentAxisCategoryOrder.explicit(List<String> categories) =
+      FluentAxisCategoryOrderExplicit;
+
+  /// `'default'` — the ordering that predates custom ordering. Some charts treat
+  /// it exactly as [data] (`types/DataPoint.ts:936-937`).
+  static const FluentAxisCategoryOrder defaultOrder =
+      FluentAxisCategoryOrderPreset('default');
+
+  /// `'data'` — the order the categories arrive in.
+  static const FluentAxisCategoryOrder data = FluentAxisCategoryOrderPreset(
+    'data',
+  );
+
+  /// `'category ascending'` — alphanumeric.
+  static const FluentAxisCategoryOrder categoryAscending =
+      FluentAxisCategoryOrderPreset('category ascending');
+
+  /// `'category descending'` — reverse alphanumeric.
+  static const FluentAxisCategoryOrder categoryDescending =
+      FluentAxisCategoryOrderPreset('category descending');
+
+  /// `'total ascending'` — by the sum of each category's values.
+  static const FluentAxisCategoryOrder totalAscending =
+      FluentAxisCategoryOrderPreset('total ascending');
+
+  /// `'total descending'` — by the sum of each category's values, reversed.
+  static const FluentAxisCategoryOrder totalDescending =
+      FluentAxisCategoryOrderPreset('total descending');
+
+  /// `'min ascending'` — by each category's smallest value.
+  static const FluentAxisCategoryOrder minAscending =
+      FluentAxisCategoryOrderPreset('min ascending');
+
+  /// `'min descending'` — by each category's smallest value, reversed.
+  static const FluentAxisCategoryOrder minDescending =
+      FluentAxisCategoryOrderPreset('min descending');
+
+  /// `'max ascending'` — by each category's largest value.
+  static const FluentAxisCategoryOrder maxAscending =
+      FluentAxisCategoryOrderPreset('max ascending');
+
+  /// `'max descending'` — by each category's largest value, reversed.
+  static const FluentAxisCategoryOrder maxDescending =
+      FluentAxisCategoryOrderPreset('max descending');
+
+  /// `'sum ascending'` — identical to [totalAscending] upstream
+  /// (`utilities.ts:2087-2088` maps both to `d3Sum`).
+  static const FluentAxisCategoryOrder sumAscending =
+      FluentAxisCategoryOrderPreset('sum ascending');
+
+  /// `'sum descending'` — identical to [totalDescending].
+  static const FluentAxisCategoryOrder sumDescending =
+      FluentAxisCategoryOrderPreset('sum descending');
+
+  /// `'mean ascending'` — by each category's arithmetic mean.
+  static const FluentAxisCategoryOrder meanAscending =
+      FluentAxisCategoryOrderPreset('mean ascending');
+
+  /// `'mean descending'` — by each category's arithmetic mean, reversed.
+  static const FluentAxisCategoryOrder meanDescending =
+      FluentAxisCategoryOrderPreset('mean descending');
+
+  /// `'median ascending'` — by each category's median.
+  static const FluentAxisCategoryOrder medianAscending =
+      FluentAxisCategoryOrderPreset('median ascending');
+
+  /// `'median descending'` — by each category's median, reversed.
+  static const FluentAxisCategoryOrder medianDescending =
+      FluentAxisCategoryOrderPreset('median descending');
+
+  /// The preset [value] names, or null when it names none.
+  ///
+  /// `VegaLiteSchemaAdapter.ts:1119` assembles `'${op} ${order}'` at runtime, so
+  /// the string form has to resolve back to a preset.
+  static FluentAxisCategoryOrder? parse(String value) => switch (value) {
+    'default' => defaultOrder,
+    'data' => data,
+    'category ascending' => categoryAscending,
+    'category descending' => categoryDescending,
+    'total ascending' => totalAscending,
+    'total descending' => totalDescending,
+    'min ascending' => minAscending,
+    'min descending' => minDescending,
+    'max ascending' => maxAscending,
+    'max descending' => maxDescending,
+    'sum ascending' => sumAscending,
+    'sum descending' => sumDescending,
+    'mean ascending' => meanAscending,
+    'mean descending' => meanDescending,
+    'median ascending' => medianAscending,
+    'median descending' => medianDescending,
+    _ => null,
+  };
+}
+
+/// One of the sixteen string-literal orderings.
+final class FluentAxisCategoryOrderPreset extends FluentAxisCategoryOrder {
+  /// Creates a preset carrying its exact upstream literal.
+  const FluentAxisCategoryOrderPreset(this.upstreamName);
+
+  /// The literal as it appears in `types/DataPoint.ts:953-973`.
+  ///
+  /// `sortAxisCategories` matches it against
+  /// `(category|total|sum|min|max|mean|median) (ascending|descending)`
+  /// (`utilities.ts:2044`), so the string, not the Dart identifier, is what
+  /// drives the sort.
+  final String upstreamName;
+}
+
+/// The `string[]` arm: an explicit category order.
+final class FluentAxisCategoryOrderExplicit extends FluentAxisCategoryOrder {
+  /// Creates an explicit ordering.
+  const FluentAxisCategoryOrderExplicit(this.categories);
+
+  /// The categories, in the order they should appear.
+  ///
+  /// `sortAxisCategories` (`utilities.ts:2053-2072`) emits the entries of this
+  /// list that the data actually contains, deduplicated, then appends every
+  /// remaining data category in enumeration order.
+  final List<String> categories;
+}
