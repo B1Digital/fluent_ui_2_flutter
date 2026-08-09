@@ -36,6 +36,13 @@ export 'src/buttons/split_button.dart';
 // port is 28 files of unprefixed globals kept internal on purpose, and the
 // responsive helper has no public symbol. Tests reach both by deep import,
 // which is existing precedent in this repository.
+export 'src/charts/axis/axis_builders.dart';
+export 'src/charts/axis/axis_label_layout.dart';
+export 'src/charts/axis/axis_painter.dart';
+export 'src/charts/axis/axis_types.dart';
+export 'src/charts/axis/domain_range.dart';
+export 'src/charts/axis/tick_format.dart';
+export 'src/charts/axis/tick_values.dart';
 export 'src/charts/chrome/legend_shape.dart';
 export 'src/charts/internal/chart_colors.dart';
 export 'src/charts/internal/chart_semantics.dart';
