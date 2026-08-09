@@ -77,15 +77,12 @@ class FluentAxisPainter extends CustomPainter {
 
     final ticks = geometry.ticks;
     final rotation = labelLayout?.rotationRadians ?? 0;
-    // rotateXAxisLabels translates the tick group down by maxHeight / 2 before
-    // rotating (utilities.ts:1839), and reserveHeight is
-    // floor(maxHeight / 1.414), so this recovers maxHeight to within 0.71
-    // logical pixels.
-    // ponytail: derived rather than added to FluentXAxisLabelLayout, which the
-    // cross-plan contract freezes at three fields.
-    final rotationShiftY = rotation == 0
-        ? 0.0
-        : (labelLayout!.reserveHeight * 1.414) / 2;
+    // utilities.ts:1839 translates the tick group down by maxHeight / 2 before
+    // rotating, and FluentXAxisLabelLayout.rotationTranslateY carries exactly
+    // that. It is *not* re-derived from reserveHeight: that field is
+    // floor(maxHeight / 1.414) (:1845), and inverting the floor lands up to 0.71
+    // logical pixels out — seventy times kOracleGeometryTolerance.
+    final rotationShiftY = labelLayout?.rotationTranslateY ?? 0.0;
 
     for (final (index, tick) in ticks.indexed) {
       if (rotation != 0) {

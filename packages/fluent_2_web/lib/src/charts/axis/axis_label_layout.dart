@@ -58,6 +58,7 @@ class FluentXAxisLabelLayout {
     required this.labels,
     required this.reserveHeight,
     required this.rotationRadians,
+    this.rotationTranslateY = 0,
   });
 
   /// One entry per tick, in tick order.
@@ -73,6 +74,18 @@ class FluentXAxisLabelLayout {
   /// The rotation applied to every tick group, in radians. `-pi / 4` when the
   /// labels are rotated (`utilities.ts:1820`), otherwise zero.
   final double rotationRadians;
+
+  /// The distance every tick group is pushed down before it is rotated, in
+  /// logical pixels; zero when [rotationRadians] is zero.
+  ///
+  /// `utilities.ts:1839` writes `translate(x, maxHeight / 2)rotate(-45)`, where
+  /// `maxHeight` is the tallest rotated tick box **before** [reserveHeight]
+  /// floors it. The two are therefore not interchangeable: `reserveHeight` is
+  /// `floor(maxHeight / 1.414)` (`:1845`), and inverting that floor back through
+  /// 1.414 costs up to 0.71 logical pixels — seventy times the geometry
+  /// tolerance the Oracle B corpus is asserted at. So the un-rounded figure
+  /// travels here rather than being re-derived downstream.
+  final double rotationTranslateY;
 }
 
 /// The longest prefix of [text] that fits [maxWidth] once an ellipsis is added.
@@ -388,11 +401,16 @@ FluentXAxisLabelLayout rotateXAxisLabels(
   }
 
   // 1.414 is the divisor at utilities.ts:1845 — the tangent-inverse of 45
-  // degrees, giving the vertical height of the rotated labels.
+  // degrees, giving the vertical height of the rotated labels. Upstream writes
+  // that literal rather than sqrt(2), so the port keeps it; it is confined to
+  // reserveHeight, and the translate below carries the un-floored maxHeight so
+  // no rounded intermediate reaches a geometry calculation.
   return FluentXAxisLabelLayout(
     labels: laidOut,
     reserveHeight: (maxHeight / 1.414).floorToDouble(),
     rotationRadians: rotation,
+    // 2 is the halving at utilities.ts:1839.
+    rotationTranslateY: maxHeight / 2,
   );
 }
 

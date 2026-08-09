@@ -487,6 +487,41 @@ void main() {
       );
     });
 
+    testWidgets('carries the un-floored translate beside the floored height', (
+      tester,
+    ) async {
+      final layout = rotateXAxisLabels(
+        <String>['New South Wales and Victoria'],
+        measurer: FluentChartTextMeasurer(),
+        style: const TextStyle(fontSize: 10),
+      );
+      // 2 is the halving at utilities.ts:1839 and 1.414 the divisor at :1845, so
+      // this recovers what reserveHeight would have been without the floor.
+      final unflooredReserve = layout.rotationTranslateY * 2 / 1.414;
+      expect(
+        layout.rotationTranslateY,
+        greaterThan(0),
+        reason:
+            'utilities.ts:1839 translates every rotated tick group down by '
+            'maxHeight / 2 before rotating it.',
+      );
+      expect(
+        unflooredReserve,
+        greaterThan(layout.reserveHeight),
+        reason:
+            'the translate is taken before :1845 floors, so the two disagree by '
+            'the discarded fraction — which is exactly why the painter reads '
+            'rotationTranslateY rather than inverting reserveHeight.',
+      );
+      expect(
+        unflooredReserve,
+        lessThan(layout.reserveHeight + 1),
+        reason:
+            'a floor discards strictly less than one, so anything further out '
+            'means the two fields no longer describe the same box.',
+      );
+    });
+
     testWidgets('keeps every label on one line', (tester) async {
       final layout = rotateXAxisLabels(
         <String>['New South Wales'],
