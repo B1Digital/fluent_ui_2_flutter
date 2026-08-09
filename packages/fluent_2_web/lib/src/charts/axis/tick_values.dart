@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../internal/d3/js_math.dart' as d3;
+import '../internal/d3/ticks.dart' as d3;
 
 /// Matches either the trailing zeros of an integer (group 1) or the digits
 /// after a decimal point (group 2). Transcribed from `utilities.ts:2537`.
@@ -75,4 +76,81 @@ double precisionRoundValue(double value, int precision, [int base = 10]) {
       ? d3.pow10(precision)
       : math.pow(base, precision).toDouble();
   return d3.jsRound(value * exp) / exp;
+}
+
+/// The rounded tick set used when `roundOffTickValues` is on.
+///
+/// Ports `calculateRoundedTicks` (`utilities.ts:663-672`). A degenerate extent
+/// is floored or ceiled at zero depending on its sign, then d3's [d3.nice] and
+/// [d3.ticks] do the work; the final tick is dropped when it overshoots a
+/// maximum that is itself a power of ten.
+List<double> calculateRoundedTicks(
+  double minVal,
+  double maxVal,
+  int splitInto,
+) {
+  final finalYmin = minVal >= 0 && minVal == maxVal ? 0.0 : minVal;
+  final finalYmax = minVal < 0 && minVal == maxVal ? 0.0 : maxVal;
+  final ticksInterval = d3.nice(finalYmin, finalYmax, splitInto.toDouble());
+  // `.toList()` is not cosmetic: [d3.ticks] builds its result with
+  // `List.filled`, which is fixed-length, so [List.removeLast] below would throw
+  // an UnsupportedError on it.
+  final values = d3
+      .ticks(ticksInterval.first, ticksInterval.last, splitInto.toDouble())
+      .toList();
+  if (values.isNotEmpty && values.last > finalYmax && isPowerOf10(finalYmax)) {
+    values.removeLast();
+  }
+  return values;
+}
+
+/// The y-axis tick set, and the domain the scale is built from.
+///
+/// Ports `prepareDatapoints` (`utilities.ts:683-723`). Three consequences worth
+/// stating, all load-bearing for the charts:
+///
+/// * when the data straddles zero, `0` is always a tick, because the walk starts
+///   there and runs outwards in both directions;
+/// * the last entry is greater than or equal to [maxVal], so the domain top is
+///   stretched to the next whole interval;
+/// * [splitInto] is a *target* interval count, so the returned length is at
+///   least `splitInto + 1` and often more.
+List<double> prepareDatapoints(
+  double maxVal,
+  double minVal,
+  int splitInto, {
+  required bool isIntegralDataset,
+  bool roundedTicks = false,
+}) {
+  if (roundedTicks) {
+    return calculateRoundedTicks(minVal, maxVal, splitInto);
+  }
+  final rawInterval = (maxVal - minVal) / splitInto;
+  // A non-integral dataset keeps a sub-unit interval fractional and rounds
+  // anything else up; 1 is the threshold at utilities.ts:695.
+  final val = isIntegralDataset
+      ? rawInterval.ceilToDouble()
+      : (rawInterval >= 1 ? rawInterval.ceilToDouble() : rawInterval);
+
+  final straddlesZero = minVal < 0 && maxVal >= 0;
+  final points = <double>[straddlesZero ? 0 : minVal];
+  // For an all-positive or all-negative dataset the seed is minVal itself, so a
+  // second entry is pushed to guarantee at least one interval
+  // (utilities.ts:710-711).
+  if (points.first == minVal) {
+    points.add(minVal + val);
+  }
+  if (straddlesZero) {
+    while (points.last > minVal) {
+      points.add(points.last - val);
+    }
+    final reversed = points.reversed.toList();
+    points
+      ..clear()
+      ..addAll(reversed);
+  }
+  while (points.last < maxVal) {
+    points.add(points.last + val);
+  }
+  return points;
 }
