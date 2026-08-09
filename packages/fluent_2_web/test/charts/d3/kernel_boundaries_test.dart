@@ -77,13 +77,29 @@ void main() {
   });
 
   test('nothing in the kernel is exported from the barrel', () {
+    // Anchored to real `export`/`import` directives, not a raw substring scan.
+    // The barrel *documents* this boundary in a comment, and a substring scan
+    // fails on that prose — the guard tripping over the sentence explaining
+    // the guard. `melos run no-material` anchors the same way, for the same
+    // reason.
+    final directives = File('lib/fluent_2_web.dart')
+        .readAsLinesSync()
+        .where((line) => RegExp(r'^\s*(export|import)\s').hasMatch(line))
+        .toList(growable: false);
     expect(
-      File('lib/fluent_2_web.dart').readAsStringSync(),
-      isNot(contains('charts/internal/d3')),
+      directives.where((line) => line.contains('charts/internal/d3')),
+      isEmpty,
       reason:
           'contract §0.3 — d3\'s unprefixed names (ticks, format, line, '
           'arc, min, max) must not reach a consumer namespace. Tests deep '
           'import instead',
+    );
+    expect(
+      directives,
+      isNotEmpty,
+      reason:
+          'a directive filter that matched nothing would let the assertion '
+          'above pass vacuously',
     );
   });
 
