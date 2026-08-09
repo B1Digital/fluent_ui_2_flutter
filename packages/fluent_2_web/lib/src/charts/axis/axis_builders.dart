@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import '../internal/d3/axis_geometry.dart' as d3;
 import '../internal/d3/format.dart' as d3;
+import '../internal/d3/scale_band.dart' as d3;
 import '../internal/d3/scale_continuous.dart' as d3;
 import '../internal/d3/scale_linear.dart' as d3;
 import '../internal/d3/scale_log.dart' as d3;
@@ -368,6 +369,111 @@ FluentAxisSpec createDateXAxis(
     tickSizeInner: tickSizeInner,
     // d3-axis leaves tickSizeOuter at 6 unless a caller changes it, and no
     // caller here does (utilities.ts:524-528).
+    tickSizeOuter: 6,
+    tickPadding: xAxisParams.tickPadding,
+  );
+}
+
+/// Builds a band x axis.
+///
+/// Ports `createStringXAxis` (`utilities.ts:559-638`). Both the `culture` and
+/// `_useRtl` parameters are unread upstream; [culture] is kept on the Dart
+/// signature because the cross-plan contract declares it, and RTL arrives as a
+/// descending range rather than a flag.
+///
+/// The anti-collision sweep at `:595-621` runs right to left, keeping a label
+/// only when its half-width clears both the running boundary and the container
+/// edge, then backing the boundary off by that half-width plus
+/// [kBandSweepGap].
+FluentAxisSpec createStringXAxis(
+  FluentXAxisParams xAxisParams,
+  FluentTickParams tickParams,
+  List<String> dataset, {
+  String? culture,
+}) {
+  final domainNRange = xAxisParams.domainNRangeValues;
+  // 0.1 is the shorthand padding default at utilities.ts:574.
+  final shorthandPadding = xAxisParams.xAxisPadding ?? 0.1;
+  final scale = d3.scaleBand()
+    ..domainOf(dataset.cast<Object>())
+    ..rangeOf(<double>[domainNRange.rStartValue, domainNRange.rEndValue])
+    ..paddingInner(xAxisParams.xAxisInnerPadding ?? shorthandPadding)
+    ..paddingOuter(xAxisParams.xAxisOuterPadding ?? shorthandPadding);
+
+  var tickValues = <String>[
+    ...(tickParams.tickValues?.cast<String>() ?? dataset),
+  ];
+
+  if (xAxisParams.hideTickOverlap) {
+    final measure = xAxisParams.calcMaxLabelWidth;
+    // Upstream calls `calcMaxLabelWidth` unguarded (`:597`) and throws when the
+    // caller left it out; 0 stands in here, which keeps every label zero-width
+    // and so keeps every tick.
+    final tickSizes = <double>[
+      for (final value in tickValues) measure?.call(<String>[value]) ?? 0,
+    ];
+    // 0 and containerWidth are the LTR boundaries at utilities.ts:599-600.
+    var start = 0.0;
+    var end = xAxisParams.containerWidth;
+    var sign = 1.0;
+    final range = scale.range;
+    if (range[1] - range[0] < 0) {
+      // utilities.ts:603-607 — a descending range is RTL, so the sweep starts
+      // at the right-hand container edge and walks the other way.
+      start = xAxisParams.containerWidth;
+      end = 0;
+      sign = -1;
+    }
+    final kept = <String>[];
+    for (var i = tickValues.length - 1; i >= 0; i--) {
+      // parity: utilities.ts:610 reads the band's LEADING edge here, while
+      // d3-axis draws the tick at leadingEdge + bandwidth / 2, so every
+      // collision test is systematically half a band out. `autoLayoutXAxisLabels`
+      // at `:2597` adds `scale.bandwidth() / 2` for the same decision, so the
+      // two label-fitting passes disagree about where a band label sits.
+      final position = scale(tickValues[i]);
+      if (position == null) {
+        // Unreachable while the tick values come from the domain; upstream's
+        // non-null assertion at `:610` would give NaN and fail both tests.
+        continue;
+      }
+      // utilities.ts:612-613 writes `(sign * tickSizes[i]) / 2`, so the signed
+      // half-width is subtracted on the leading side and added on the trailing
+      // one — which under RTL swaps which side is which.
+      final halfWidth = sign * tickSizes[i] / 2;
+      if (sign * (position - halfWidth - start) >= 0 &&
+          sign * (position + halfWidth - end) <= 0) {
+        kept.add(tickValues[i]);
+        end = position - sign * (tickSizes[i] / 2 + kBandSweepGap);
+      }
+    }
+    // utilities.ts:619 reverses the right-to-left accumulation back into
+    // domain order.
+    tickValues = kept.reversed.toList();
+  }
+
+  final tickText = xAxisParams.tickText;
+  final tickLabels = <String>[
+    for (final (i, value) in tickValues.indexed)
+      // parity: utilities.ts:590 with :637 — after the sweep the index is a
+      // position in the FILTERED list, so tickText no longer lines up with the
+      // categories the caller supplied it for.
+      if (tickParams.tickValues != null &&
+          tickText != null &&
+          i < tickText.length)
+        tickText[i]
+      else
+        value,
+  ];
+
+  return FluentAxisSpec(
+    scale: scale,
+    tickValues: tickValues.cast<Object>(),
+    tickLabels: tickLabels,
+    orientation: d3.FluentAxisOrientation.bottom,
+    tickSizeInner: xAxisParams.xAxistickSize,
+    // d3-axis leaves tickSizeOuter at 6 unless a caller changes it, and
+    // utilities.ts:623-627 changes only the inner size and the padding.
     tickSizeOuter: 6,
     tickPadding: xAxisParams.tickPadding,
   );

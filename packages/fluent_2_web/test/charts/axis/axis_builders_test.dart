@@ -843,4 +843,283 @@ void main() {
       );
     });
   });
+
+  group('createStringXAxis', () {
+    FluentXAxisParams bandParams({
+      bool hideTickOverlap = false,
+      double Function(List<String>)? calcMaxLabelWidth,
+      bool isRtl = false,
+      double? innerPadding,
+      double? outerPadding,
+    }) {
+      return FluentXAxisParams(
+        domainNRangeValues: FluentChartDomainRange(
+          dStartValue: 0,
+          dEndValue: 0,
+          rStartValue: isRtl ? 300 : 0,
+          rEndValue: isRtl ? 0 : 300,
+        ),
+        containerHeight: 300,
+        containerWidth: 300,
+        margins: _margins,
+        hideTickOverlap: hideTickOverlap,
+        calcMaxLabelWidth: calcMaxLabelWidth,
+        xAxisInnerPadding: innerPadding,
+        xAxisOuterPadding: outerPadding,
+      );
+    }
+
+    test('uses every category as a tick when overlap hiding is off', () {
+      final spec = createStringXAxis(
+        bandParams(innerPadding: 0, outerPadding: 0),
+        const FluentTickParams(),
+        <String>['A', 'B', 'C'],
+      );
+      expect(
+        spec.tickValues,
+        <String>['A', 'B', 'C'],
+        reason:
+            'utilities.ts:588 defaults the tick values to the whole dataset.',
+      );
+      expect(
+        spec.tickSizeInner,
+        6,
+        reason: 'utilities.ts:572 — xAxistickSize 6.',
+      );
+      expect(
+        spec.tickPadding,
+        10,
+        reason: 'utilities.ts:573 — tickPadding 10.',
+      );
+    });
+
+    test('falls back to the shorthand padding of 0.1 for both sides', () {
+      final spec = createStringXAxis(
+        bandParams(),
+        const FluentTickParams(),
+        <String>['A', 'B'],
+      );
+      expect(
+        spec.scale.bandwidth,
+        closeTo(300 * (1 - 0.1) / (2 - 0.1 + 0.2), 1e-9),
+        reason:
+            'utilities.ts:574 destructures xAxisPadding = 0.1 and :585-586 apply '
+            'it to both inner and outer.',
+      );
+    });
+
+    test('drops the leading label because the sweep uses the band edge', () {
+      final spec = createStringXAxis(
+        bandParams(
+          hideTickOverlap: true,
+          innerPadding: 0,
+          outerPadding: 0,
+          // Each label measures 20px, so a half-width of 10.
+          calcMaxLabelWidth: (labels) => 20,
+        ),
+        const FluentTickParams(),
+        <String>['A', 'B', 'C'],
+      );
+      expect(
+        spec.tickValues,
+        <String>['B', 'C'],
+        reason:
+            'parity with utilities.ts:610 — the sweep positions each label at the '
+            "band's LEADING edge while d3-axis draws it at the centre, so A at "
+            'edge 0 is judged to overflow the left boundary even though its '
+            'label would actually sit at 50.',
+      );
+    });
+
+    test('sweeps from the right under an RTL descending range', () {
+      final spec = createStringXAxis(
+        bandParams(
+          hideTickOverlap: true,
+          isRtl: true,
+          innerPadding: 0,
+          outerPadding: 0,
+          calcMaxLabelWidth: (labels) => 20,
+        ),
+        const FluentTickParams(),
+        <String>['A', 'B', 'C'],
+      );
+      expect(
+        spec.tickValues.length,
+        greaterThan(0),
+        reason:
+            'utilities.ts:602-608 detects RTL from range[1] - range[0] < 0 and '
+            'flips start, end and the sign.',
+      );
+    });
+
+    test('indexes tickText against the filtered array, not the original', () {
+      final spec = createStringXAxis(
+        FluentXAxisParams(
+          domainNRangeValues: const FluentChartDomainRange(
+            dStartValue: 0,
+            dEndValue: 0,
+            rStartValue: 0,
+            rEndValue: 300,
+          ),
+          containerHeight: 300,
+          containerWidth: 300,
+          margins: _margins,
+          hideTickOverlap: true,
+          xAxisInnerPadding: 0,
+          xAxisOuterPadding: 0,
+          calcMaxLabelWidth: (labels) => 20,
+          tickText: const <String>['first', 'second', 'third'],
+        ),
+        const FluentTickParams(tickValues: <Object>['A', 'B', 'C']),
+        <String>['A', 'B', 'C'],
+      );
+      expect(
+        spec.tickLabels,
+        <String>['first', 'second'],
+        reason:
+            "parity with utilities.ts:590 and :637 — after the sweep keeps ['B','C'] "
+            'the labels are read at indices 0 and 1 of the FILTERED list, so B '
+            "shows 'first' rather than 'second'.",
+      );
+    });
+  });
+
+  group('createStringXAxis against Oracle B', () {
+    // A four-category VerticalBarChart is the smallest captured band x axis:
+    // its padding is fully determined (`VerticalBarChart.tsx:315-323` resolves
+    // the string-axis inner padding to 2/3 and the outer to 0), so the tick
+    // positions below are a real check rather than a fit.
+    const storyId =
+        'charts-verticalbarchart--vertical-bar-custom-accessibility';
+    final story = _loadOracleStory(storyId);
+    final captured = _CapturedAxis(story);
+
+    // The captured domain path is 'M310.5,6V0.5H510.5V6', so the range is
+    // [310, 510] once the recorded crispness half-pixel is taken back off.
+    final crispOffset = (story['crispOffset'] as num).toDouble();
+    const rStart = 310.0;
+    const rEnd = 510.0;
+
+    const dataset = <String>['One', 'Two', 'Three', 'Four'];
+
+    FluentAxisSpec buildSpec() => createStringXAxis(
+      const FluentXAxisParams(
+        // A band axis never reads the domain endpoints, which is why upstream
+        // leaves them at 0 (`utilities.ts:2160`); only the range matters.
+        domainNRangeValues: FluentChartDomainRange(
+          dStartValue: 0,
+          dEndValue: 0,
+          rStartValue: rStart,
+          rEndValue: rEnd,
+        ),
+        // 400 is the captured SVG height and 800 its width.
+        containerHeight: 400,
+        containerWidth: 800,
+        margins: FluentChartMargins(left: 40, right: 20, top: 20, bottom: 35),
+        // VerticalBarChart.tsx:321 — 2/3 for a string axis.
+        xAxisInnerPadding: 2 / 3,
+        // VerticalBarChart.tsx:323 — the outer padding defaults to 0.
+        xAxisOuterPadding: 0,
+      ),
+      const FluentTickParams(),
+      dataset,
+    );
+
+    test('the corpus fixture still carries a four-tick band x axis', () {
+      // Guard against a renamed or re-captured story quietly emptying every
+      // assertion below.
+      expect(
+        captured.tickOffsets.length,
+        dataset.length,
+        reason:
+            '$storyId captured ${dataset.length} x ticks; a different count '
+            'means the fixture changed and the expectations here are stale.',
+      );
+      expect(
+        story['deviceScaleFactor'],
+        1,
+        reason:
+            'the geometry below only agrees with flutter test at scale 1, where '
+            'the crispness offset is 0.5.',
+      );
+    });
+
+    test('reproduces the captured labels and bandwidth', () {
+      final spec = buildSpec();
+      expect(
+        spec.tickLabels,
+        captured.tickLabels,
+        reason:
+            'utilities.ts:593 returns the category itself when no tickText was '
+            'supplied.',
+      );
+      expect(
+        spec.scale.bandwidth,
+        closeTo(20, _oracleTolerance),
+        reason:
+            'the captured bars are 20px wide because a 200px range over four '
+            'categories at paddingInner 2/3 gives a step of 60 and a band of 20.',
+      );
+    });
+
+    test('reproduces the captured tick positions through the band centring', () {
+      final spec = buildSpec();
+      final geometry = d3.FluentAxisGeometry(
+        orientation: spec.orientation,
+        scale: spec.scale,
+        tickValues: spec.tickValues,
+        tickLabels: spec.tickLabels,
+        offset: crispOffset,
+        tickSizeInner: spec.tickSizeInner,
+        tickSizeOuter: spec.tickSizeOuter,
+        tickPadding: spec.tickPadding,
+      );
+      for (var i = 0; i < dataset.length; i++) {
+        expect(
+          geometry.ticks[i].position,
+          closeTo(captured.tickOffsets[i], _oracleTolerance),
+          reason:
+              'd3-axis/src/axis.js:21-25 centres a band tick at '
+              'scale(d) + max(0, bandwidth - 2 * offset) / 2, so tick $i must '
+              'land on the captured translate.',
+        );
+      }
+    });
+
+    test('reproduces the captured tick length and label offset', () {
+      final spec = buildSpec();
+      expect(
+        captured.tickLineLengths,
+        everyElement(closeTo(spec.tickSizeInner, _oracleTolerance)),
+        reason:
+            'a VerticalBarChart band axis takes no gridline override, so every '
+            'captured tick line is the destructured xAxistickSize of 6 '
+            '(utilities.ts:572).',
+      );
+      expect(
+        math.max(spec.tickSizeInner, 0.0) + spec.tickPadding,
+        closeTo(captured.tickLabelOffsets.first, _oracleTolerance),
+        reason:
+            'd3-axis/src/axis.js:46 places the label at '
+            'max(tickSizeInner, 0) + tickPadding, which is the captured 16.',
+      );
+    });
+
+    test('reproduces the captured domain path end caps', () {
+      final spec = buildSpec();
+      expect(
+        _numbers(captured.domainPath),
+        <double>[
+          rStart + crispOffset,
+          spec.tickSizeOuter,
+          crispOffset,
+          rEnd + crispOffset,
+          spec.tickSizeOuter,
+        ],
+        reason:
+            'd3-axis/src/axis.js:88 draws the outer caps at tickSizeOuter, so '
+            'the captured path pins tickSizeOuter to 6.',
+      );
+    });
+  });
 }
