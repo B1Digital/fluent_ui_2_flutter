@@ -101,4 +101,130 @@ void main() {
       );
     });
   });
+
+  group('FluentHorizontalBarChartWithAxisDataPoint', () {
+    test('inverts the usual roles: x is dependent, y is independent', () {
+      const point = FluentHorizontalBarChartWithAxisDataPoint(x: 42, y: 'Jan');
+      expect(
+        point.x,
+        42,
+        reason:
+            'types/DataPoint.ts:228 — "Dependent value of the data point, '
+            'rendered along the x-axis".',
+      );
+      expect(
+        point.y,
+        'Jan',
+        reason: 'types/DataPoint.ts:235 — the independent value.',
+      );
+    });
+    test('rejects a DateTime y', () {
+      expect(
+        () =>
+            FluentHorizontalBarChartWithAxisDataPoint(x: 1, y: DateTime(2024)),
+        throwsA(isA<AssertionError>()),
+        reason:
+            'types/DataPoint.ts:235 is `number | string`, with no Date arm.',
+      );
+    });
+  });
+
+  group('FluentStackedBarDatum', () {
+    test('keeps data as an Object because a String changes the y scale', () {
+      const numeric = FluentStackedBarDatum(data: 12, legend: 'A');
+      const categorical = FluentStackedBarDatum(data: 'High', legend: 'A');
+      expect(
+        numeric.data,
+        12,
+        reason:
+            'VerticalStackedBarChart.tsx:1068 uses a number as a linear height.',
+      );
+      expect(
+        categorical.data,
+        'High',
+        reason:
+            'VerticalStackedBarChart.tsx:1012 and :1060 turn a string into a '
+            'band scale on the y axis.',
+      );
+    });
+    test('admits the empty string, which means "no bar"', () {
+      const blank = FluentStackedBarDatum(data: '', legend: 'A');
+      expect(
+        blank.data,
+        '',
+        reason: "VerticalStackedBarChart.tsx:1008-1009 treats '' as no bar.",
+      );
+    });
+    test('rejects anything that is neither a num nor a String', () {
+      expect(
+        () => FluentStackedBarDatum(data: DateTime(2024), legend: 'A'),
+        throwsA(isA<AssertionError>()),
+        reason: 'types/DataPoint.ts:612 — `number | string`.',
+      );
+    });
+  });
+
+  group('FluentStackedBarLineDatum', () {
+    test('resolvedData prefers data and falls back to y', () {
+      const withData = FluentStackedBarLineDatum(
+        y: 5,
+        color: Color(0xFF13A10E),
+        legend: 'Target',
+        data: 9,
+      );
+      const withoutData = FluentStackedBarLineDatum(
+        y: 5,
+        color: Color(0xFF13A10E),
+        legend: 'Target',
+      );
+      expect(
+        withData.resolvedData,
+        9,
+        reason:
+            'VerticalStackedBarChart.tsx:276 `item.data = item.data || item.y`.',
+      );
+      expect(
+        withoutData.resolvedData,
+        5,
+        reason: 'The `|| item.y` arm of VerticalStackedBarChart.tsx:276.',
+      );
+    });
+    test('a data of 0 falls through to y, reproducing the falsy check', () {
+      const zero = FluentStackedBarLineDatum(
+        y: 5,
+        color: Color(0xFF13A10E),
+        legend: 'Target',
+        data: 0,
+      );
+      expect(
+        zero.resolvedData,
+        5,
+        reason:
+            '// parity: VerticalStackedBarChart.tsx:276 uses `||`, so a '
+            'legitimate 0 is swallowed by the fallback.',
+      );
+    });
+  });
+
+  group('FluentVerticalStackedBarGroup', () {
+    test('bundles a stack with its x and its optional lines', () {
+      const group = FluentVerticalStackedBarGroup(
+        chartData: <FluentStackedBarDatum>[
+          FluentStackedBarDatum(data: 3, legend: 'A'),
+          FluentStackedBarDatum(data: 4, legend: 'B'),
+        ],
+        xAxisPoint: 'Jan',
+        lineData: <FluentStackedBarLineDatum>[
+          FluentStackedBarLineDatum(
+            y: 9,
+            color: Color(0xFFCA5010),
+            legend: 'T',
+          ),
+        ],
+      );
+      expect(group.chartData.length, 2, reason: 'types/DataPoint.ts:660.');
+      expect(group.xAxisPoint, 'Jan', reason: 'types/DataPoint.ts:665.');
+      expect(group.lineData!.length, 1, reason: 'types/DataPoint.ts:676.');
+    });
+  });
 }

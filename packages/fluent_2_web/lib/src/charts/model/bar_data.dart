@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 
+import '../chrome/legend_shape.dart';
 import 'chart_common.dart';
+import 'line_options.dart';
 
 /// The plain independent/dependent pair.
 ///
@@ -195,4 +197,204 @@ class FluentVerticalBarChartDataPoint {
   /// Text drawn on the bar, replacing the formatted value
   /// (`types/DataPoint.ts:218`).
   final String? barLabel;
+}
+
+/// One bar of a horizontal bar chart with an axis.
+///
+/// Ports `HorizontalBarChartWithAxisDataPoint` (`types/DataPoint.ts:224-273`).
+/// The axis roles are inverted relative to every other bar chart: `x` is the
+/// **dependent** value (`:228`) and `y` is the independent one (`:235`).
+@immutable
+class FluentHorizontalBarChartWithAxisDataPoint {
+  /// Creates a bar.
+  const FluentHorizontalBarChartWithAxisDataPoint({
+    required this.x,
+    required this.y,
+    this.legend,
+    this.color,
+    this.xAxisCalloutData,
+    this.yAxisCalloutData,
+    this.barLabel,
+    this.onClick,
+    this.callOutSemantics,
+  }) : assert(
+         y is num || y is String,
+         'types/DataPoint.ts:235 — `number | string`. There is no Date arm.',
+       );
+
+  /// The bar length — the dependent value, drawn along x.
+  final double x;
+
+  /// The category or coordinate the bar sits at — the independent value.
+  final Object y;
+
+  /// The legend text this bar belongs to.
+  final String? legend;
+
+  /// The bar's colour.
+  final Color? color;
+
+  /// Replacement text for the x value in the callout.
+  final String? xAxisCalloutData;
+
+  /// Replacement text for the y value in the callout.
+  final String? yAxisCalloutData;
+
+  /// Text drawn on the bar.
+  final String? barLabel;
+
+  /// Invoked when this bar is activated.
+  final VoidCallback? onClick;
+
+  /// Accessible naming for the callout.
+  final FluentChartSemantics? callOutSemantics;
+}
+
+/// One segment of a stacked bar.
+///
+/// Ports `VSChartDataPoint` (`types/DataPoint.ts:608-651`).
+@immutable
+class FluentStackedBarDatum {
+  /// Creates a segment.
+  const FluentStackedBarDatum({
+    required this.data,
+    required this.legend,
+    this.color,
+    this.xAxisCalloutData,
+    this.yAxisCalloutData,
+    this.callOutSemantics,
+    this.culture,
+    this.barLabel,
+  }) : assert(
+         data is num || data is String,
+         'types/DataPoint.ts:612 — `number | string`.',
+       );
+
+  /// The segment's value.
+  ///
+  /// Stays an [Object] because the runtime type changes the chart's geometry: a
+  /// number is a linear height (`VerticalStackedBarChart.tsx:1068`), a string
+  /// makes the y axis a band scale (`:1012`, `:1060`), and `''` means "no bar"
+  /// (`:1008-1009`).
+  final Object data;
+
+  /// The legend text this segment belongs to.
+  final String legend;
+
+  /// The segment's colour.
+  final Color? color;
+
+  /// Replacement text for the x value in the callout.
+  final String? xAxisCalloutData;
+
+  /// Replacement text for the y value in the callout.
+  final String? yAxisCalloutData;
+
+  /// Accessible naming for the callout.
+  final FluentChartSemantics? callOutSemantics;
+
+  /// The locale numbers in this segment's callout are formatted with
+  /// (`types/DataPoint.ts:643`).
+  final String? culture;
+
+  /// Text drawn on the segment.
+  final String? barLabel;
+}
+
+/// One point of a line overlaid on a stacked bar chart.
+///
+/// Ports `LineDataInVerticalStackedBarChart` (`types/DataPoint.ts:685-708`).
+@immutable
+class FluentStackedBarLineDatum {
+  /// Creates a line point.
+  const FluentStackedBarLineDatum({
+    required this.y,
+    required this.color,
+    required this.legend,
+    this.legendShape,
+    this.data,
+    this.yAxisCalloutData,
+    this.useSecondaryYScale = false,
+    this.lineOptions,
+  }) : assert(
+         y is num || y is String,
+         'types/DataPoint.ts:686 — `number | string`.',
+       ),
+       assert(
+         data == null || data is num || data is String,
+         'types/DataPoint.ts:697 — `number | string`.',
+       );
+
+  /// The line's value at this stack.
+  final Object y;
+
+  /// The line's colour.
+  final Color color;
+
+  /// The legend text.
+  final String legend;
+
+  /// The legend swatch shape.
+  final FluentChartLegendShape? legendShape;
+
+  /// The value shown in the callout, when it differs from [y].
+  final Object? data;
+
+  /// Replacement text for the value in the callout.
+  final String? yAxisCalloutData;
+
+  /// Whether the line is plotted against the secondary y scale.
+  final bool useSecondaryYScale;
+
+  /// How the line is stroked.
+  final FluentLineOptions? lineOptions;
+
+  /// [data] when it is truthy, and [y] otherwise.
+  ///
+  /// `VerticalStackedBarChart.tsx:276` is `item.data = item.data || item.y`,
+  /// which mutates the caller's object upstream. It is a getter here instead.
+  ///
+  /// `// parity:` the `||` swallows a legitimate `0` and a legitimate `''`, and
+  /// that is reproduced rather than fixed.
+  Object get resolvedData {
+    final value = data;
+    if (value == null) return y;
+    // Zero is falsy in JavaScript, so upstream's `||` discards it.
+    if (value is num && value == 0) return y;
+    if (value is String && value.isEmpty) return y;
+    return value;
+  }
+}
+
+/// One stack of a vertical stacked bar chart.
+///
+/// Ports `VerticalStackedChartProps` (`types/DataPoint.ts:656-680`).
+@immutable
+class FluentVerticalStackedBarGroup {
+  /// Creates a stack.
+  const FluentVerticalStackedBarGroup({
+    required this.chartData,
+    required this.xAxisPoint,
+    this.xAxisCalloutData,
+    this.lineData,
+    this.stackCallOutSemantics,
+  }) : assert(
+         xAxisPoint is num || xAxisPoint is String || xAxisPoint is DateTime,
+         'types/DataPoint.ts:665 — `number | string | Date`.',
+       );
+
+  /// The segments, bottom to top.
+  final List<FluentStackedBarDatum> chartData;
+
+  /// The x this stack sits at.
+  final Object xAxisPoint;
+
+  /// Replacement text for the x value in the callout.
+  final String? xAxisCalloutData;
+
+  /// Line points drawn over this stack.
+  final List<FluentStackedBarLineDatum>? lineData;
+
+  /// Accessible naming for the whole-stack callout.
+  final FluentChartSemantics? stackCallOutSemantics;
 }
