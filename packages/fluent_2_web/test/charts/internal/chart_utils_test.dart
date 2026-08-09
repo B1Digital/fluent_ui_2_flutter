@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:fluent_2_web/src/charts/internal/chart_utils.dart';
 import 'package:fluent_2_web/src/charts/model/cartesian_series.dart';
+import 'package:fluent_2_web/src/charts/model/chart_common.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -601,6 +602,148 @@ void main() {
         truncateString('January', 4, ellipsis: '…'),
         'Janu…',
         reason: 'utilities.ts:2036 default parameter.',
+      );
+    });
+  });
+  group('sortAxisCategories', () {
+    const values = <String, List<double>>{
+      'b': <double>[3, 1],
+      'a': <double>[2, 2],
+      'c': <double>[5],
+    };
+
+    test('an unrecognised order keeps insertion order', () {
+      expect(
+        sortAxisCategories(values, FluentAxisCategoryOrder.data),
+        <String>['b', 'a', 'c'],
+        reason:
+            "utilities.ts:2109 — 'data' matches no aggregator regex, so the "
+            'function falls through to Object.keys.',
+      );
+      expect(
+        sortAxisCategories(values, FluentAxisCategoryOrder.defaultOrder),
+        <String>['b', 'a', 'c'],
+        reason: "'default' also falls through (utilities.ts:2109).",
+      );
+    });
+
+    test('category ascending sorts the keys as strings', () {
+      expect(
+        sortAxisCategories(values, FluentAxisCategoryOrder.categoryAscending),
+        <String>['a', 'b', 'c'],
+        reason: 'utilities.ts:2080-2081 `Object.keys(...).sort()`.',
+      );
+      expect(
+        sortAxisCategories(values, FluentAxisCategoryOrder.categoryDescending),
+        <String>['c', 'b', 'a'],
+        reason: 'utilities.ts:2082 `.reverse()`.',
+      );
+    });
+
+    test('total and sum are the same aggregator', () {
+      expect(
+        sortAxisCategories(values, FluentAxisCategoryOrder.totalAscending),
+        sortAxisCategories(values, FluentAxisCategoryOrder.sumAscending),
+        reason: 'utilities.ts:2087-2088 maps both to d3Sum.',
+      );
+      expect(
+        sortAxisCategories(values, FluentAxisCategoryOrder.totalAscending),
+        <String>['b', 'a', 'c'],
+        reason:
+            'Sums are b 4, a 4, c 5; b precedes a because the sort is stable.',
+      );
+    });
+
+    test('min, max, mean and median each pick their own aggregator', () {
+      expect(
+        sortAxisCategories(values, FluentAxisCategoryOrder.minAscending),
+        <String>['b', 'a', 'c'],
+        reason: 'Minima are b 1, a 2, c 5 (utilities.ts:2085).',
+      );
+      expect(
+        sortAxisCategories(values, FluentAxisCategoryOrder.maxDescending),
+        <String>['c', 'b', 'a'],
+        reason: 'Maxima are c 5, b 3, a 2 (utilities.ts:2086, :2098).',
+      );
+      expect(
+        sortAxisCategories(values, FluentAxisCategoryOrder.medianDescending),
+        <String>['c', 'b', 'a'],
+        reason:
+            'Medians are c 5, b 2, a 2 (utilities.ts:2090, :2098); the two '
+            'twos keep insertion order.',
+      );
+    });
+
+    test('a stable sort keeps ties in insertion order', () {
+      expect(
+        sortAxisCategories(values, FluentAxisCategoryOrder.meanAscending),
+        <String>['b', 'a', 'c'],
+        reason:
+            'Means are b 2, a 2, c 5. V8 sorts stably, Dart does not, so this '
+            'goes through stableSort (spec 8).',
+      );
+    });
+
+    test('an empty value list aggregates to 0, not to null', () {
+      expect(
+        sortAxisCategories(const <String, List<double>>{
+          'x': <double>[],
+          'y': <double>[-1],
+        }, FluentAxisCategoryOrder.sumAscending),
+        <String>['y', 'x'],
+        reason:
+            'utilities.ts:2103 `aggFn[aggregator](...) || 0` — an undefined '
+            'aggregate becomes 0, which sorts above -1.',
+      );
+    });
+
+    test('an aggregate of 0 is also coerced to 0, harmlessly', () {
+      expect(
+        sortAxisCategories(const <String, List<double>>{
+          'x': <double>[0],
+          'y': <double>[-1],
+        }, FluentAxisCategoryOrder.maxAscending),
+        <String>['y', 'x'],
+        reason:
+            '// parity: the `|| 0` at utilities.ts:2103 also swallows a real 0, '
+            'which happens to be the same value.',
+      );
+    });
+
+    test('an explicit order emits the named categories first', () {
+      expect(
+        sortAxisCategories(
+          values,
+          const FluentAxisCategoryOrder.explicit(<String>['c', 'a']),
+        ),
+        <String>['c', 'a', 'b'],
+        reason:
+            'utilities.ts:2053-2072 — named categories that exist, in the '
+            "caller's order, then everything else in insertion order.",
+      );
+    });
+
+    test('an explicit order ignores names the data does not carry', () {
+      expect(
+        sortAxisCategories(
+          values,
+          const FluentAxisCategoryOrder.explicit(<String>['z', 'c']),
+        ),
+        <String>['c', 'b', 'a'],
+        reason:
+            "utilities.ts:2058 skips 'z' because categoryToValues has no such "
+            'key, then :2065-2069 appends b and a in insertion order.',
+      );
+    });
+
+    test('an explicit order deduplicates its own entries', () {
+      expect(
+        sortAxisCategories(
+          values,
+          const FluentAxisCategoryOrder.explicit(<String>['c', 'c', 'a']),
+        ),
+        <String>['c', 'a', 'b'],
+        reason: 'utilities.ts:2058 `!seen.has(category)`.',
       );
     });
   });

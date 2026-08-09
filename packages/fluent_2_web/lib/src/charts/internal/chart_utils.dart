@@ -4,6 +4,9 @@ import 'package:flutter/widgets.dart';
 
 import '../model/callout_data.dart';
 import '../model/cartesian_series.dart';
+import '../model/chart_common.dart';
+import 'd3/array_stats.dart' as d3;
+import 'd3/stable_sort.dart';
 
 /// The colour a callout row falls back to when its series names none.
 ///
@@ -388,4 +391,87 @@ String truncateString(String str, int maxLength, {String ellipsis = '...'}) {
   }
   // utilities.ts:2041.
   return str.substring(0, maxLength) + ellipsis;
+}
+
+/// Orders the categories on a band axis.
+///
+/// Ports `sortAxisCategories` (`utilities.ts:2049-2110`), which is itself a port
+/// of Plotly's `sortAxisCategoriesByValue`.
+///
+/// Three behaviours worth naming:
+///
+/// * an explicit order emits the named categories that the data carries, in the
+///   caller's order and deduplicated, then appends everything else in insertion
+///   order (`:2053-2072`);
+/// * `'total'` and `'sum'` are the same aggregator (`:2087-2088`);
+/// * `aggFn[...] || 0` at `:2103` turns an aggregate of `undefined` — which
+///   happens for an empty value list — into 0. `// parity:` it also swallows a
+///   real 0, which is harmless only because the replacement is the same number.
+///
+/// The comparator returns 0 for equal aggregates, and V8 has sorted stably since
+/// ES2019 while Dart's `List.sort` is unstable, so this goes through
+/// [stableSort] (spec §8).
+List<String> sortAxisCategories(
+  Map<String, List<double>> categoryToValues,
+  FluentAxisCategoryOrder order,
+) {
+  if (order is FluentAxisCategoryOrderExplicit) {
+    final result = <String>[];
+    final seen = <String>{};
+    // utilities.ts:2057-2063.
+    for (final category in order.categories) {
+      if (categoryToValues.containsKey(category) && seen.add(category)) {
+        result.add(category);
+      }
+    }
+    // utilities.ts:2065-2069.
+    for (final category in categoryToValues.keys) {
+      if (!seen.contains(category)) {
+        result.add(category);
+      }
+    }
+    return result;
+  }
+
+  final name = (order as FluentAxisCategoryOrderPreset).upstreamName;
+  // utilities.ts:2044 —
+  // /(category|total|sum|min|max|mean|median) (ascending|descending)/.
+  final match = RegExp(
+    r'(category|total|sum|min|max|mean|median) (ascending|descending)',
+  ).firstMatch(name);
+  // utilities.ts:2109 — 'default' and 'data' match nothing and fall through.
+  if (match == null) {
+    return categoryToValues.keys.toList();
+  }
+
+  final aggregator = match.group(1)!;
+  final descending = match.group(2) == 'descending';
+
+  if (aggregator == 'category') {
+    // utilities.ts:2080-2083.
+    final result = categoryToValues.keys.toList()..sort();
+    return descending ? result.reversed.toList() : result;
+  }
+
+  // utilities.ts:2085-2091. The `?? 0` on every arm but `sum` is upstream's
+  // `|| 0` at :2103; `d3.sum` already returns 0 for an empty input.
+  double aggregate(List<double> values) => switch (aggregator) {
+    'min' => d3.min<double>(values) ?? 0,
+    'max' => d3.max<double>(values) ?? 0,
+    'sum' || 'total' => d3.sum(values),
+    'mean' => d3.mean(values) ?? 0,
+    // The regex admits no eighth aggregator, so this arm is 'median'.
+    _ => d3.median(values) ?? 0,
+  };
+
+  final decorated = <(String, double)>[
+    for (final entry in categoryToValues.entries)
+      (entry.key, aggregate(entry.value)),
+  ];
+  final sorted = stableSort<(String, double)>(
+    decorated,
+    // utilities.ts:2093-2098 — a[1] - b[1], or b[1] - a[1] when descending.
+    (a, b) => descending ? b.$2.compareTo(a.$2) : a.$2.compareTo(b.$2),
+  );
+  return <String>[for (final entry in sorted) entry.$1];
 }
