@@ -87,4 +87,139 @@ void main() {
       );
     });
   });
+
+  group('FluentChartColors.of', () {
+    test('resolves the axis slots from the cartesian style sheet', () {
+      final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+      final chartColors = FluentChartColors.of(theme);
+      expect(
+        chartColors.axisText.toARGB32(),
+        theme.colors.neutralForeground1.toARGB32(),
+        reason:
+            'useCartesianChartStyles.styles.ts:63 and :80 fill axis text with '
+            'colorNeutralForeground1.',
+      );
+      expect(
+        chartColors.axisTick.a,
+        closeTo(0.2, 1e-6),
+        reason:
+            'useCartesianChartStyles.styles.ts:68 and :84 set opacity 0.2 on '
+            'the axis line elements.',
+      );
+      expect(
+        chartColors.gridLine.toARGB32(),
+        chartColors.axisTick.toARGB32(),
+        reason:
+            'Upstream has one `& line` rule for both, at '
+            'useCartesianChartStyles.styles.ts:67-72.',
+      );
+      expect(
+        chartColors.axisTitle.toARGB32(),
+        theme.colors.neutralForeground1.toARGB32(),
+        reason:
+            'Common.styles.ts:57 — the SVG `fill` wins over the `color` at :56 '
+            'for a text element.',
+      );
+    });
+
+    test('resolves the three surface slots to neutralBackground1', () {
+      final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+      final chartColors = FluentChartColors.of(theme);
+      expect(
+        chartColors.surface.toARGB32(),
+        theme.colors.neutralBackground1.toARGB32(),
+        reason: 'useCartesianChartStyles.styles.ts:107 svgTooltip fill.',
+      );
+      expect(
+        chartColors.popoverSurface.toARGB32(),
+        theme.colors.neutralBackground1.toARGB32(),
+        reason: 'useChartPopoverStyles.styles.ts:36.',
+      );
+      expect(
+        chartColors.tooltipSurface.toARGB32(),
+        theme.colors.neutralBackground1.toARGB32(),
+        reason: 'Common.styles.ts:44.',
+      );
+      expect(
+        chartColors.legendDimmed.toARGB32(),
+        theme.colors.neutralBackground1.toARGB32(),
+        reason:
+            'Legends.tsx:306 detects a dimmed legend by comparing its colour '
+            'against colorNeutralBackground1.',
+      );
+    });
+
+    test('reports high contrast from the palette type, not from brightness', () {
+      final light = FluentChartColors.of(
+        FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+      );
+      final dark = FluentChartColors.of(
+        FluentThemeData.dark(fontPlatform: FluentFontPlatform.web),
+      );
+      final hc = FluentChartColors.of(
+        FluentThemeData.highContrast(fontPlatform: FluentFontPlatform.web),
+      );
+      expect(light.isHighContrast, isFalse, reason: 'A normal light theme.');
+      expect(
+        dark.isHighContrast,
+        isFalse,
+        reason:
+            'FluentHighContrastColors is itself Brightness.dark, so brightness '
+            'cannot be the test — the package uses the palette type '
+            '(acrylic.dart:56, rating.dart:230).',
+      );
+      expect(hc.isHighContrast, isTrue, reason: 'The high contrast palette.');
+    });
+  });
+
+  group('FluentChartColors.flattenMark', () {
+    test('is the identity outside high contrast', () {
+      const seriesColour = Color(0xFF4F6BED);
+      final chartColors = FluentChartColors.of(
+        FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+      );
+      expect(
+        chartColors.flattenMark(seriesColour).toARGB32(),
+        0xFF4F6BED,
+        reason:
+            'Outside forced colours the browser leaves the fill alone, so the '
+            'forty-colour palette is visible.',
+      );
+      expect(
+        chartColors.flattenMarkStroke(seriesColour).toARGB32(),
+        0xFF4F6BED,
+        reason: 'Same rule for the stroke.',
+      );
+    });
+
+    test('collapses every series colour under high contrast', () {
+      final theme = FluentThemeData.highContrast(
+        fontPlatform: FluentFontPlatform.web,
+      );
+      final chartColors = FluentChartColors.of(theme);
+      expect(
+        chartColors.flattenMark(const Color(0xFF4F6BED)).toARGB32(),
+        chartColors.flattenMark(const Color(0xFFE3008C)).toARGB32(),
+        reason:
+            'Spec 5.3 — upstream marks carry no forced-color-adjust, so the '
+            'browser flattens every one of them to the same system colour.',
+      );
+      expect(
+        chartColors.flattenMark(const Color(0xFF4F6BED)).toARGB32(),
+        theme.colors.neutralForeground1.toARGB32(),
+        reason:
+            'Forced colours map an SVG `fill` to CanvasText, which is '
+            'neutralForeground1 in the package high contrast palette.',
+      );
+      expect(
+        chartColors.flattenMarkStroke(const Color(0xFF4F6BED)).toARGB32(),
+        theme.colors.neutralBackground1.toARGB32(),
+        reason:
+            'Canvas-coloured hairlines keep adjacent flattened marks '
+            'distinguishable. Forced colours would map the stroke to CanvasText '
+            'too, merging every bar into one blob; that is an accessibility '
+            'defect and spec 5.2 exempts those from bug fidelity.',
+      );
+    });
+  });
 }

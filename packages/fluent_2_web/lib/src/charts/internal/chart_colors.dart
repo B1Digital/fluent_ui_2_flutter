@@ -50,3 +50,107 @@ Color fluentContrastTextColor(Color background, FluentColors colors) {
   }
   return textColor;
 }
+
+/// Every colour a chart's chrome needs, resolved once from a theme.
+///
+/// Each slot names the upstream rule it comes from. Building this once per chart
+/// and passing it down keeps painters free of theme lookups.
+@immutable
+class FluentChartColors {
+  /// Creates a resolved slot set.
+  const FluentChartColors({
+    required this.axisText,
+    required this.axisTick,
+    required this.axisTitle,
+    required this.gridLine,
+    required this.markStroke,
+    required this.surface,
+    required this.popoverSurface,
+    required this.tooltipSurface,
+    required this.legendDimmed,
+    required this.isHighContrast,
+  });
+
+  /// Resolves every slot from [theme].
+  factory FluentChartColors.of(FluentThemeData theme) {
+    final colors = theme.colors;
+    // useCartesianChartStyles.styles.ts:67-72 and :83-87 — one `& line` rule
+    // serves both the tick marks and the grid lines, at opacity 0.2 over
+    // colorNeutralForeground1.
+    final line = colors.neutralForeground1.withValues(alpha: 0.2);
+    return FluentChartColors(
+      // :63 and :80 — `fill: tokens.colorNeutralForeground1` on axis text.
+      axisText: colors.neutralForeground1,
+      axisTick: line,
+      // Common.styles.ts:57 — the SVG `fill`, which wins over the `color` at
+      // :56 for a text element.
+      axisTitle: colors.neutralForeground1,
+      gridLine: line,
+      // The halo stroked behind a line or a marker. types/DataPoint.ts:439
+      // documents white; every runtime call site passes colorNeutralBackground1.
+      markStroke: colors.neutralBackground1,
+      // useCartesianChartStyles.styles.ts:107 — the svgTooltip fill.
+      surface: colors.neutralBackground1,
+      // useChartPopoverStyles.styles.ts:36.
+      popoverSurface: colors.neutralBackground1,
+      // Common.styles.ts:44.
+      tooltipSurface: colors.neutralBackground1,
+      // Legends.tsx:306 detects a dimmed legend by comparing its swatch colour
+      // against colorNeutralBackground1.
+      legendDimmed: colors.neutralBackground1,
+      // The package's own high-contrast test, as used at acrylic.dart:56 and
+      // rating.dart:230. Brightness cannot serve: FluentHighContrastColors is
+      // itself Brightness.dark.
+      isHighContrast: colors is FluentHighContrastColors,
+    );
+  }
+
+  /// Axis tick label colour.
+  final Color axisText;
+
+  /// Axis tick mark colour, already at its 0.2 opacity.
+  final Color axisTick;
+
+  /// Axis title colour.
+  final Color axisTitle;
+
+  /// Grid line colour, already at its 0.2 opacity.
+  final Color gridLine;
+
+  /// The halo stroked behind a series mark.
+  final Color markStroke;
+
+  /// The chart's own background.
+  final Color surface;
+
+  /// The popover's background.
+  final Color popoverSurface;
+
+  /// The axis-label tooltip's background.
+  final Color tooltipSurface;
+
+  /// The swatch colour that marks a legend as dimmed.
+  final Color legendDimmed;
+
+  /// Whether the theme is the high-contrast palette.
+  final bool isHighContrast;
+
+  /// [seriesColour], or the flattened system colour under high contrast.
+  ///
+  /// Spec section 5.3: upstream's series marks carry no `forced-color-adjust`,
+  /// so in forced-colours mode the browser rewrites every `fill` to
+  /// `CanvasText` and the forty-colour palette disappears. Flutter does nothing
+  /// here unless told to, so this is explicit code, and it is what every
+  /// `*.high_contrast.png` golden encodes.
+  Color flattenMark(Color seriesColour) =>
+      isHighContrast ? axisText : seriesColour;
+
+  /// [seriesColour], or the flattened system colour under high contrast.
+  ///
+  /// The stroke flattens to the **canvas** colour, not to `CanvasText`. A
+  /// literal transliteration would send both fill and stroke to `CanvasText`,
+  /// merging adjacent bars into one indistinguishable block; spec section 5.2
+  /// exempts accessibility defects from bug fidelity, so the hairline is kept.
+  Color flattenMarkStroke(Color seriesColour) =>
+      isHighContrast ? surface : seriesColour;
+}
