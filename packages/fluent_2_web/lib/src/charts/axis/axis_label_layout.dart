@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 
 import '../internal/chart_text_measurer.dart';
+import '../model/chart_value.dart';
 import 'axis_types.dart';
 
 /// One rendered line of a tick label.
@@ -313,4 +314,136 @@ List<FluentAxisTickLabel> createYAxisLabels(
         );
       }(),
   ];
+}
+
+/// Rotates x-axis tick labels by forty-five degrees and reports the height they
+/// cost.
+///
+/// Ports `rotateXAxisLabels` (`utilities.ts:1801-1846`). Upstream measures the
+/// *rendered* bounding box of each rotated tick group — which contains both the
+/// tick line and the text — and returns `floor(maxHeight / 1.414)`, the vertical
+/// extent of a label at forty-five degrees. The port re-derives that box: the
+/// tick line runs from the origin to [tickSizeInner] and the text box sits at
+/// `spacing = max(tickSizeInner, 0) + tickPadding` with the axis's base `dy`
+/// (`d3-axis/src/axis.js:46` and `:72`, the same rule the kernel's
+/// `FluentAxisGeometry.spacing` applies), centred on x because a bottom axis
+/// anchors its text in the middle.
+///
+/// `getBoundingClientRect` maps an element's *object bounding box* through the
+/// screen matrix, so the rotated extent is that of the whole enclosing
+/// rectangle, corners included where no glyph sits. Oracle B story
+/// `charts-verticalbarchart--vertical-bar-rotate-labels` settles it: its widest
+/// tick group captured a `getBBox` of `[-89.59375, 0, 179.1875, 26.1]` and a
+/// `translate(…, 72.58009338378906)`, and since upstream translates by
+/// `maxHeight / 2` (`:1839`) the browser's `maxHeight` was `145.16018…`. The
+/// rectangle gives `cos(45) * (179.1875 + 26.1) = 145.1597…`; taking the union
+/// of the tick-line box and the text box instead gives `136.6`, which is wrong
+/// by nine pixels. The plan's Step 3 listed the six union corners, so this is a
+/// deliberate divergence from the plan in favour of the captured geometry.
+///
+/// There is no RTL branch upstream — the rotation is always `-45` degrees
+/// (`:1820`, `:1839`).
+FluentXAxisLabelLayout rotateXAxisLabels(
+  List<String> labels, {
+  required FluentChartTextMeasurer measurer,
+  required TextStyle style,
+  double tickSizeInner = 6,
+  double tickPadding = 10,
+  double baseDyEm = 0.71,
+}) {
+  const rotation = -math.pi / 4;
+  final cosine = math.cos(rotation);
+  // fontSize is null only for a style with no size at all; 10 is the axis-tick
+  // size (`utilities.ts:1267`).
+  final fontSize = style.fontSize ?? 10;
+  final spacing = math.max(tickSizeInner, 0.0) + tickPadding;
+  final baseline = spacing + baseDyEm * fontSize;
+
+  var maxHeight = 0.0;
+  final laidOut = <FluentAxisTickLabel>[];
+
+  for (final label in labels) {
+    final metrics = measurer.measure(label, style);
+    // The tick group's local bounding rectangle: x spans the centred text box
+    // and y spans the tick line together with the text's ascent and descent.
+    final localWidth = metrics.width;
+    final localHeight =
+        math.max(tickSizeInner, baseline + metrics.descent) -
+        math.min(0.0, baseline - metrics.ascent);
+    // Rotating that rectangle by -45 degrees maps a corner to
+    // `-x * cos(45) + y * cos(45)`, so the vertical spread between the extreme
+    // corners is `cos(45) * (localWidth + localHeight)`.
+    maxHeight = math.max(maxHeight, cosine * (localWidth + localHeight));
+
+    laidOut.add(
+      FluentAxisTickLabel(
+        lines: <FluentAxisLabelLine>[
+          FluentAxisLabelLine(text: label, dyEm: baseDyEm),
+        ],
+        fullText: label,
+        truncated: false,
+      ),
+    );
+  }
+
+  // 1.414 is the divisor at utilities.ts:1845 — the tangent-inverse of 45
+  // degrees, giving the vertical height of the rotated labels.
+  return FluentXAxisLabelLayout(
+    labels: laidOut,
+    reserveHeight: (maxHeight / 1.414).floorToDouble(),
+    rotationRadians: rotation,
+  );
+}
+
+/// The widest tick label, measured after whatever transform the axis will apply.
+///
+/// Ports `_calcMaxLabelWidthWithTransform` (`CartesianChart.tsx:576-612`). The
+/// four branches run in this order and the first match wins: rotated band labels
+/// shrink by `cos(pi/4)`; tooltip mode measures the truncated form; wrapping mode
+/// measures individual **words** and floors the answer at [kDefaultWrapWidth];
+/// otherwise the labels are measured as they are. Every branch ceils.
+double calcMaxLabelWidthWithTransform(
+  List<String> labels, {
+  required FluentChartTextMeasurer measurer,
+  required TextStyle style,
+  required FluentChartAxisType xAxisType,
+  bool wrapXAxisLabels = false,
+  bool rotateXAxisLabels = false,
+  bool showXAxisLabelsTooltip = false,
+  int noOfCharsToTruncate = 4,
+}) {
+  if (!wrapXAxisLabels &&
+      rotateXAxisLabels &&
+      xAxisType == FluentChartAxisType.category) {
+    final longest = measurer.longestWidth(labels, style);
+    return (longest * math.cos(math.pi / 4)).ceilToDouble();
+  }
+
+  if (showXAxisLabelsTooltip) {
+    final truncated = <String>[
+      // CartesianChart.tsx:587 compares the whole length against the budget, so
+      // a label of exactly noOfCharsToTruncate code units is left alone.
+      for (final label in labels)
+        if (label.length > noOfCharsToTruncate)
+          '${label.substring(0, noOfCharsToTruncate)}...'
+        else
+          label,
+    ];
+    return measurer.longestWidth(truncated, style).ceilToDouble();
+  }
+
+  if (wrapXAxisLabels) {
+    // FIXME upstream: CartesianChart.tsx:596-597 notes this measures words
+    // rather than wrapped lines, which is close enough because overflow only
+    // happens when a single word exceeds the width.
+    final words = <String>[
+      for (final label in labels) ...label.split(RegExp(r'\s+')),
+    ];
+    return math.max(
+      measurer.longestWidth(words, style).ceilToDouble(),
+      kDefaultWrapWidth,
+    );
+  }
+
+  return measurer.longestWidth(labels, style).ceilToDouble();
 }

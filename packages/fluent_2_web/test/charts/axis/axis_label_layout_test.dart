@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:fluent_2_web/src/charts/axis/axis_label_layout.dart';
+import 'package:fluent_2_web/src/charts/axis/axis_types.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_text_measurer.dart';
+import 'package:fluent_2_web/src/charts/model/chart_value.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -32,6 +35,29 @@ Map<String, dynamic> _loadOracleStory(String id) {
       );
     }
     directory = parent;
+  }
+}
+
+/// Replays the glyph metrics Chrome recorded for one Oracle B story.
+///
+/// This is a fixture replay, not a second measurer: the production measurer is
+/// the only thing that ever measures text, and it cannot reproduce Segoe UI
+/// under `flutter test` because the font is not installed. Feeding it the
+/// captured widths and ascents is what lets the rotation geometry be checked
+/// against the live browser rather than against itself.
+class _ReplayedMeasurer extends FluentChartTextMeasurer {
+  _ReplayedMeasurer(this.captured);
+
+  /// Metrics by label text.
+  final Map<String, FluentChartTextMetrics> captured;
+
+  @override
+  FluentChartTextMetrics measure(String text, TextStyle style) {
+    final metrics = captured[text];
+    if (metrics == null) {
+      throw StateError('No captured metrics for "$text".');
+    }
+    return metrics;
   }
 }
 
@@ -422,6 +448,278 @@ void main() {
         result.text.length,
         lessThan('Fluent charts'.length),
         reason: 'the loop shortens the string until it fits or empties.',
+      );
+    });
+  });
+
+  group('rotateXAxisLabels', () {
+    testWidgets('rotates by minus forty-five degrees', (tester) async {
+      final layout = rotateXAxisLabels(
+        <String>['Queensland'],
+        measurer: FluentChartTextMeasurer(),
+        style: const TextStyle(fontSize: 10),
+      );
+      expect(
+        layout.rotationRadians,
+        closeTo(-math.pi / 4, 1e-12),
+        reason:
+            'utilities.ts:1820 and :1839 always rotate by -45, with no RTL case.',
+      );
+    });
+
+    testWidgets('reserves the vertical extent of the rotated box', (
+      tester,
+    ) async {
+      final short = rotateXAxisLabels(
+        <String>['NSW'],
+        measurer: FluentChartTextMeasurer(),
+        style: const TextStyle(fontSize: 10),
+      );
+      final long = rotateXAxisLabels(
+        <String>['New South Wales and Victoria'],
+        measurer: FluentChartTextMeasurer(),
+        style: const TextStyle(fontSize: 10),
+      );
+      expect(
+        long.reserveHeight,
+        greaterThan(short.reserveHeight),
+        reason:
+            'utilities.ts:1845 returns floor(maxHeight / 1.414) where maxHeight '
+            'is the rotated bounding box, so a longer label costs more height.',
+      );
+      expect(
+        short.reserveHeight,
+        short.reserveHeight.floorToDouble(),
+        reason: 'utilities.ts:1845 floors the result.',
+      );
+    });
+
+    testWidgets('keeps every label on one line', (tester) async {
+      final layout = rotateXAxisLabels(
+        <String>['New South Wales'],
+        measurer: FluentChartTextMeasurer(),
+        style: const TextStyle(fontSize: 10),
+      );
+      expect(
+        layout.labels.single.lines.length,
+        1,
+        reason:
+            'rotation never wraps — utilities.ts:1801-1846 only sets transforms.',
+      );
+    });
+  });
+
+  group('rotateXAxisLabels against Oracle B', () {
+    // The one captured story that sets rotateXAxisLables. Its four x-axis tick
+    // groups carry `translate(x, maxHeight / 2)rotate(-45)`
+    // (utilities.ts:1836-1841), so the capture pins both the rotation and the
+    // maxHeight that utilities.ts:1845 divides by 1.414.
+    const storyId = 'charts-verticalbarchart--vertical-bar-rotate-labels';
+
+    testWidgets('reproduces the rotation and the reserved height', (
+      tester,
+    ) async {
+      final story = _loadOracleStory(storyId);
+      final elements =
+          (((story['svgs'] as List<dynamic>).first
+                      as Map<String, dynamic>)['elements']
+                  as List<dynamic>)
+              .cast<Map<String, dynamic>>();
+      final byIndex = <int, Map<String, dynamic>>{
+        for (final element in elements) element['index'] as int: element,
+      };
+
+      bool isRotated(Map<String, dynamic>? element) =>
+          (element?['transform'] as String? ?? '').contains('rotate(-45)');
+
+      final tickTexts = elements
+          .where(
+            (element) =>
+                element['tag'] == 'text' &&
+                isRotated(byIndex[element['parent'] as int]),
+          )
+          .toList(growable: false);
+
+      // Count guard: the story has four categories, so a re-capture that lost
+      // the rotated x axis would otherwise leave the metric replay below empty
+      // and every assertion vacuous.
+      expect(
+        tickTexts,
+        hasLength(4),
+        reason:
+            '$storyId captured four rotated x-axis tick labels; a different '
+            'count means the fixture no longer describes the axis this test '
+            'reads.',
+      );
+
+      // The tick text's `y` is d3-axis's `spacing` and its `dy` is 0.71em
+      // (d3-axis/src/axis.js:46, :72), so the alphabetic baseline sits at
+      // `y + 0.71 * fontSize` and the captured getBBox top and bottom give the
+      // ascent and descent Chrome resolved for 10px Segoe UI.
+      const fontSize = 10.0;
+      const baseDyEm = 0.71;
+      final captured = <String, FluentChartTextMetrics>{};
+      final labels = <String>[];
+      for (final text in tickTexts) {
+        final label = text['text'] as String;
+        final bbox = (text['bbox'] as List<dynamic>).cast<num>();
+        final baseline = (text['y'] as num).toDouble() + baseDyEm * fontSize;
+        final top = bbox[1].toDouble();
+        final height = bbox[3].toDouble();
+        labels.add(label);
+        captured[label] = FluentChartTextMetrics(
+          width: bbox[2].toDouble(),
+          height: height,
+          ascent: baseline - top,
+          descent: top + height - baseline,
+          xHeight: fontSize * FluentChartTextMetrics.xHeightRatio,
+        );
+      }
+
+      final layout = rotateXAxisLabels(
+        labels,
+        measurer: _ReplayedMeasurer(captured),
+        style: const TextStyle(fontSize: fontSize),
+      );
+
+      // Every tick group's CTM is the live rotation matrix; a = cos(theta) and
+      // b = sin(theta).
+      final tickGroup = byIndex[tickTexts.first['parent'] as int]!;
+      final ctm = (tickGroup['ctm'] as List<dynamic>).cast<num>();
+      expect(
+        layout.rotationRadians,
+        closeTo(math.atan2(ctm[1].toDouble(), ctm[0].toDouble()), 1e-5),
+        reason:
+            'the live tick group rotated by ${ctm[0]}, ${ctm[1]}, which is -45 '
+            'degrees (utilities.ts:1839).',
+      );
+
+      // utilities.ts:1839 translates y by maxHeight / 2, so the captured
+      // translation recovers the maxHeight upstream measured.
+      final translateY = double.parse(
+        (tickGroup['transform'] as String)
+            .substring(
+              (tickGroup['transform'] as String).indexOf('(') + 1,
+              (tickGroup['transform'] as String).indexOf(')'),
+            )
+            .split(',')[1],
+      );
+      final capturedMaxHeight = 2 * translateY;
+      expect(
+        capturedMaxHeight,
+        closeTo(145.16018676757812, 1e-9),
+        reason:
+            'guards the fixture itself: the rotated bounding box of the widest '
+            'tick was 145.16 logical pixels, and the assertion below is only '
+            'meaningful while that is the number the browser produced.',
+      );
+      expect(
+        layout.reserveHeight,
+        (capturedMaxHeight / 1.414).floorToDouble(),
+        reason:
+            'utilities.ts:1845 returns floor(maxHeight / 1.414), which for the '
+            'captured $capturedMaxHeight is 102. Reaching it requires the local '
+            'box to be the tick group getBBox *rectangle* — the captured group '
+            'bbox is [-89.59375, 0, 179.1875, 26.1] — mapped through the CTM, '
+            'because getBoundingClientRect transforms the object bounding box '
+            'rather than each child box.',
+      );
+    });
+  });
+
+  group('calcMaxLabelWidthWithTransform', () {
+    testWidgets('shrinks by cos(pi/4) for rotated band labels', (tester) async {
+      final measurer = FluentChartTextMeasurer();
+      const style = TextStyle(fontSize: 10);
+      final plain = calcMaxLabelWidthWithTransform(
+        <String>['Queensland'],
+        measurer: measurer,
+        style: style,
+        xAxisType: FluentChartAxisType.category,
+      );
+      final rotated = calcMaxLabelWidthWithTransform(
+        <String>['Queensland'],
+        measurer: measurer,
+        style: style,
+        xAxisType: FluentChartAxisType.category,
+        rotateXAxisLabels: true,
+      );
+      expect(
+        rotated,
+        (plain * math.cos(math.pi / 4)).ceilToDouble(),
+        reason:
+            'CartesianChart.tsx:578-581 multiplies the longest width by '
+            'cos(pi/4) and ceils it.',
+      );
+    });
+
+    testWidgets('measures the truncated form in tooltip mode', (tester) async {
+      final measurer = FluentChartTextMeasurer();
+      const style = TextStyle(fontSize: 10);
+      final full = calcMaxLabelWidthWithTransform(
+        <String>['Queensland'],
+        measurer: measurer,
+        style: style,
+        xAxisType: FluentChartAxisType.category,
+      );
+      final truncated = calcMaxLabelWidthWithTransform(
+        <String>['Queensland'],
+        measurer: measurer,
+        style: style,
+        xAxisType: FluentChartAxisType.category,
+        showXAxisLabelsTooltip: true,
+      );
+      expect(
+        truncated,
+        lessThan(full),
+        reason:
+            "CartesianChart.tsx:584-592 measures 'Quee...' rather than the whole "
+            'word.',
+      );
+    });
+
+    testWidgets('measures words and floors at ten when wrapping', (
+      tester,
+    ) async {
+      final width = calcMaxLabelWidthWithTransform(
+        <String>['a b'],
+        measurer: FluentChartTextMeasurer(),
+        style: const TextStyle(fontSize: 10),
+        xAxisType: FluentChartAxisType.category,
+        wrapXAxisLabels: true,
+      );
+      expect(
+        width,
+        kDefaultWrapWidth,
+        reason:
+            'CartesianChart.tsx:595-607 measures the longest WORD and takes '
+            'max(ceil(longest), DEFAULT_WRAP_WIDTH), so a single narrow letter '
+            'still yields 10.',
+      );
+    });
+
+    testWidgets('ignores rotation on a numeric axis', (tester) async {
+      final measurer = FluentChartTextMeasurer();
+      const style = TextStyle(fontSize: 10);
+      final numeric = calcMaxLabelWidthWithTransform(
+        <String>['1234'],
+        measurer: measurer,
+        style: style,
+        xAxisType: FluentChartAxisType.numeric,
+        rotateXAxisLabels: true,
+      );
+      final plain = calcMaxLabelWidthWithTransform(
+        <String>['1234'],
+        measurer: measurer,
+        style: style,
+        xAxisType: FluentChartAxisType.numeric,
+      );
+      expect(
+        numeric,
+        plain,
+        reason:
+            'CartesianChart.tsx:578 gates the rotation branch on '
+            'xAxisType === StringAxis.',
       );
     });
   });
