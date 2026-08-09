@@ -1517,4 +1517,316 @@ void main() {
       );
     });
   });
+
+  group('createYAxisForHorizontalBarChartWithAxis', () {
+    test('uses the raw extent with no prepareDatapoints and no nice', () {
+      final axisData = FluentAxisData();
+      final spec = createYAxisForHorizontalBarChartWithAxis(
+        const FluentYAxisParams(
+          margins: _margins,
+          containerWidth: 700,
+          containerHeight: 300,
+          yMinMaxValues: FluentChartMinMax(startValue: 3, endValue: 87),
+          tickPadding: 10,
+        ),
+        axisData,
+        isRtl: false,
+      );
+      expect(
+        spec.scale.domain,
+        <double>[0, 87],
+        reason:
+            'utilities.ts:750 — startValue 3 is not below yMinValue 0, so the '
+            'floor is yMinValue itself, and :751-753 sets the domain directly '
+            'with no rounding pass.',
+      );
+      expect(
+        axisData.yAxisDomainValues,
+        <double>[0, 87],
+        reason: 'utilities.ts:783 writes the scale domain.',
+      );
+    });
+
+    test('leaves the tick sizes at the d3 defaults, so no gridlines', () {
+      final spec = createYAxisForHorizontalBarChartWithAxis(
+        const FluentYAxisParams(
+          margins: _margins,
+          containerWidth: 700,
+          containerHeight: 300,
+          yMinMaxValues: FluentChartMinMax(startValue: 0, endValue: 100),
+          tickPadding: 10,
+        ),
+        FluentAxisData(),
+        isRtl: false,
+      );
+      expect(
+        spec.tickSizeInner,
+        6,
+        reason:
+            'utilities.ts:754-755 sets only tickPadding and ticks, so both tick '
+            'sizes stay at d3-axis 6 and this axis draws no gridlines.',
+      );
+      expect(spec.tickSizeOuter, 6, reason: 'the same d3 default.');
+    });
+
+    test('asks the scale for four ticks rather than preparing a domain', () {
+      final spec = createYAxisForHorizontalBarChartWithAxis(
+        const FluentYAxisParams(
+          margins: _margins,
+          containerWidth: 700,
+          containerHeight: 300,
+          yMinMaxValues: FluentChartMinMax(startValue: 0, endValue: 100),
+          tickPadding: 10,
+        ),
+        FluentAxisData(),
+        isRtl: false,
+      );
+      expect(
+        spec.tickValues,
+        <double>[0, 20, 40, 60, 80, 100],
+        reason:
+            'utilities.ts:755 — .ticks(4) on a [0,100] linear scale steps by 20.',
+      );
+    });
+
+    test('flips to the right under RTL', () {
+      final spec = createYAxisForHorizontalBarChartWithAxis(
+        const FluentYAxisParams(
+          margins: _margins,
+          containerWidth: 700,
+          containerHeight: 300,
+          tickPadding: 10,
+        ),
+        FluentAxisData(),
+        isRtl: true,
+      );
+      expect(
+        spec.orientation,
+        d3.FluentAxisOrientation.right,
+        reason: 'utilities.ts:754 — isRtl ? d3AxisRight : d3AxisLeft.',
+      );
+    });
+
+    test('cannot reach a log tick step', () {
+      final spec = createYAxisForHorizontalBarChartWithAxis(
+        const FluentYAxisParams(
+          margins: _margins,
+          containerWidth: 700,
+          containerHeight: 300,
+          yMinMaxValues: FluentChartMinMax(startValue: 0, endValue: 100),
+          tickPadding: 10,
+          tickStep: 'L2',
+        ),
+        FluentAxisData(),
+        isRtl: false,
+      );
+      expect(
+        spec.tickValues,
+        <double>[0, 20, 40, 60, 80, 100],
+        reason:
+            'parity with utilities.ts:775 — scaleType is hard-wired to '
+            "undefined, so the 'L<f>' form is unreachable here and the scale's "
+            'own ticks win.',
+      );
+    });
+  });
+
+  group('createYAxisForHorizontalBarChartWithAxis against Oracle B', () {
+    // The HorizontalBarChartWithAxis basic story is the captured numeric y axis
+    // this builder produces: `HorizontalBarChartWithAxis.tsx:919` wires it in as
+    // `createYAxis`, and this story's y values are numbers, so the string
+    // builder never runs.
+    const storyId =
+        'charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-basic';
+    final story = _loadOracleStory(storyId);
+    final elements = _elements(story);
+    // d3AxisLeft anchors its labels at the end (`d3-axis/src/axis.js:111`), and
+    // this chart has no secondary scale, so the one end-anchored root group is
+    // the y axis.
+    final root = elements.firstWhere(
+      (element) =>
+          element['parent'] == -1 &&
+          element['tag'] == 'g' &&
+          element['textAnchor'] == 'end',
+    );
+    final capturedDomainPath =
+        elements.firstWhere(
+              (element) =>
+                  element['parent'] == root['index'] &&
+                  element['tag'] == 'path',
+            )['d']
+            as String;
+    final tickOffsets = <double>[];
+    final capturedLabels = <String>[];
+    final tickLabelOffsets = <double>[];
+    final tickLineLengths = <double>[];
+    for (final tickGroup in elements.where(
+      (element) => element['parent'] == root['index'] && element['tag'] == 'g',
+    )) {
+      final children = elements.where(
+        (element) => element['parent'] == tickGroup['index'],
+      );
+      final text = children.firstWhere((child) => child['tag'] == 'text');
+      // 'translate(0,259)' — a y axis carries its tick offset second.
+      tickOffsets.add(_numbers(tickGroup['transform'] as String).last);
+      capturedLabels.add(text['text'] as String);
+      tickLabelOffsets.add((text['x'] as num).toDouble());
+      tickLineLengths.add(
+        (children.firstWhere((child) => child['tag'] == 'line')['x2'] as num)
+            .toDouble(),
+      );
+    }
+    final crispOffset = (story['crispOffset'] as num).toDouble();
+
+    // 650 by 310 is the captured SVG box, and the widest bar is 590 wide, which
+    // is 650 - 40 - 20. The top and bottom margins are the *domain* margins
+    // `_getDomainMarginsForHorizontalBarChart` returns
+    // (`HorizontalBarChartWithAxis.tsx:527-557`): the base 20 and 35 each plus
+    // `MIN_DOMAIN_MARGIN` 8 plus half the captured 17-pixel bar height, giving
+    // 36.5 and 51.5. Those are exactly the two range endpoints the captured
+    // domain path records.
+    const params = FluentYAxisParams(
+      margins: FluentChartMargins(left: 40, right: 20, top: 36.5, bottom: 51.5),
+      containerWidth: 650,
+      containerHeight: 310,
+      // The tallest bar's centre sits at y = 36.5, the top of the range, so
+      // reading that bar back through the scale puts the data maximum at 50000.
+      yMinMaxValues: FluentChartMinMax(startValue: 0, endValue: 50000),
+      // CartesianChart.tsx:304 always passes 10, never the destructured 12.
+      tickPadding: 10,
+    );
+
+    FluentAxisSpec buildSpec([FluentAxisData? axisData]) =>
+        createYAxisForHorizontalBarChartWithAxis(
+          params,
+          axisData ?? FluentAxisData(),
+          isRtl: false,
+        );
+
+    List<d3.FluentAxisTickGeometry> geometryTicks(FluentAxisSpec spec) =>
+        d3.FluentAxisGeometry(
+          orientation: spec.orientation,
+          scale: spec.scale,
+          tickValues: spec.tickValues,
+          tickLabels: spec.tickLabels,
+          offset: crispOffset,
+          tickSizeInner: spec.tickSizeInner,
+          tickSizeOuter: spec.tickSizeOuter,
+          tickPadding: spec.tickPadding,
+        ).ticks;
+
+    test('the corpus fixture still carries a six-tick numeric y axis', () {
+      // Guard against a renamed or re-captured story quietly emptying every
+      // assertion below.
+      expect(
+        tickOffsets.length,
+        6,
+        reason:
+            '$storyId captured six y ticks; a different count means the '
+            'fixture changed and the expectations here are stale.',
+      );
+      expect(
+        story['deviceScaleFactor'],
+        1,
+        reason:
+            'the geometry below only agrees with flutter test at scale 1, '
+            'where the crispness offset is 0.5.',
+      );
+    });
+
+    test('reproduces the captured tick values and labels', () {
+      final axisData = FluentAxisData();
+      final spec = buildSpec(axisData);
+      expect(
+        spec.tickValues,
+        <double>[0, 10000, 20000, 30000, 40000, 50000],
+        reason:
+            'utilities.ts:755 asks the scale itself for four ticks, and d3 '
+            'answers [0,50000] with a step of 10000 — six values. Had this '
+            'builder run prepareDatapoints like createNumericYAxis does, it '
+            'would have produced five values stepping by 12500 instead, which '
+            'is not what the capture shows.',
+      );
+      expect(
+        spec.tickLabels,
+        capturedLabels,
+        reason:
+            'utilities.ts:767 falls through to defaultYAxisTickFormatter, which '
+            "is formatPrefix('.2~') (utilities.ts:216-235), so the capture "
+            'reads 10k rather than 10000.',
+      );
+      expect(
+        axisData.yAxisDomainValues,
+        <double>[0, 50000],
+        reason:
+            'utilities.ts:783 writes the resolved scale domain, and the '
+            'captured domain path pins the range to that same pair.',
+      );
+    });
+
+    test('reproduces the captured tick positions', () {
+      final spec = buildSpec();
+      final ticks = geometryTicks(spec);
+      for (var i = 0; i < ticks.length; i++) {
+        expect(
+          ticks[i].position,
+          closeTo(tickOffsets[i], _oracleTolerance),
+          reason:
+              'axis_geometry adds the crispness offset once to position(d) '
+              '(`d3-axis/src/axis.js:98`), so tick $i must land on the '
+              'captured translate.',
+        );
+      }
+    });
+
+    test('reproduces the captured six-pixel tick lines and label offset', () {
+      final spec = buildSpec();
+      final ticks = geometryTicks(spec);
+      expect(
+        tickLineLengths,
+        everyElement(closeTo(-6, _oracleTolerance)),
+        reason:
+            'the captured x2 is -6, not the plot width: utilities.ts:754-755 '
+            'never touches the inner tick size, so unlike createNumericYAxis '
+            'this axis draws short ticks rather than gridlines.',
+      );
+      expect(
+        ticks.map((tick) => tick.lineEnd.dx),
+        everyElement(closeTo(-spec.tickSizeInner, _oracleTolerance)),
+        reason:
+            'k * tickSizeInner (`d3-axis/src/axis.js:67`) turns the positive '
+            'inner size into the captured leftward six pixels.',
+      );
+      expect(
+        ticks.map((tick) => tick.labelAnchor.dx),
+        everyElement(closeTo(tickLabelOffsets.first, _oracleTolerance)),
+        reason:
+            'd3-axis/src/axis.js:46 places the label at '
+            'k * (max(tickSizeInner, 0) + tickPadding), which for a left axis '
+            'with the default inner size is the captured -16.',
+      );
+    });
+
+    test('reproduces the captured domain path end caps', () {
+      final spec = buildSpec();
+      final range = spec.scale.range;
+      // 'M-6,259H0.5V37H-6' in the order the numbers appear: the bottom cap's x
+      // and y, the crisp x of the spine, the top cap's y and its x again.
+      expect(
+        _numbers(capturedDomainPath),
+        <double>[
+          -spec.tickSizeOuter,
+          range.first + crispOffset,
+          crispOffset,
+          range.last + crispOffset,
+          -spec.tickSizeOuter,
+        ],
+        reason:
+            'd3-axis/src/axis.js:93 draws a left axis as '
+            'M k*tickSizeOuter,range0 H offset V range1 H k*tickSizeOuter, so '
+            'the captured path pins the range to 258.5..36.5 and tickSizeOuter '
+            'to 6.',
+      );
+    });
+  });
 }

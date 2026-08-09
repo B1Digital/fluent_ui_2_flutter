@@ -669,6 +669,108 @@ FluentAxisSpec createNumericYAxis(
   );
 }
 
+/// Builds the numeric y axis of HorizontalBarChartWithAxis and GanttChart.
+///
+/// Ports `createYAxisForHorizontalBarChartWithAxis` (`utilities.ts:725-787`).
+/// It differs from [createNumericYAxis] in three ways worth stating: there is no
+/// `prepareDatapoints` pass and no `nice()`, so the domain is the raw extent
+/// (`:751-753`); the tick sizes stay at d3's default six, so this axis draws no
+/// gridlines (`:754-755`); and the floor rule is
+/// `startValue < yMinValue ? min(0, startValue) : yMinValue` (`:750`), a
+/// different shape from the other builder's `min(startValue || 0, yMinValue || 0)`.
+///
+/// The `tickStep` path hard-wires `scaleType` to `undefined` upstream (`:775`),
+/// which makes the `'L<f>'` log step form unreachable here.
+///
+/// Upstream takes `isRtl` as its second positional parameter and [axisData] as
+/// its third (`:726-728`); the port keeps [axisData] positional, to match
+/// [createNumericYAxis], and makes [isRtl] a named requirement.
+FluentAxisSpec createYAxisForHorizontalBarChartWithAxis(
+  FluentYAxisParams yAxisParams,
+  FluentAxisData axisData, {
+  required bool isRtl,
+}) {
+  final minMax = yAxisParams.yMinMaxValues;
+  // parity: utilities.ts:748 uses || with no trailing `|| 0`, unlike :821, so a
+  // chart-computed ceiling of exactly 0 falls through to the data extent.
+  final tempVal = yAxisParams.maxOfYVal != 0
+      ? yAxisParams.maxOfYVal
+      : minMax.endValue;
+  final finalYmax = tempVal > yAxisParams.yMaxValue
+      ? tempVal
+      : yAxisParams.yMaxValue;
+  // utilities.ts:750 — 0 is the literal floor that line clamps against, so a
+  // data floor above the user's still anchors no higher than zero.
+  final finalYmin = minMax.startValue < yAxisParams.yMinValue
+      ? math.min<double>(0, minMax.startValue)
+      : yAxisParams.yMinValue;
+
+  // The range is inverted — the domain floor sits at the bottom of the plot. 0
+  // stands in for the margins upstream asserts are always resolved by then
+  // (`:753`).
+  final scale = d3.scaleLinear()
+    ..domainOf(<double>[finalYmin, finalYmax])
+    ..rangeOf(<double>[
+      yAxisParams.containerHeight - (yAxisParams.margins.bottom ?? 0),
+      yAxisParams.margins.top ?? 0,
+    ]);
+
+  List<Object>? customTickValues;
+  if (yAxisParams.tickValues != null) {
+    customTickValues = yAxisParams.tickValues;
+  } else if (yAxisParams.tickStep != null) {
+    // Upstream's guard is `else if (tickStep)` (`:774`), so a 0 or empty-string
+    // step is skipped there and admitted here; `generateNumericTicks` returns
+    // null for both, which lands on the same generated ticks either way.
+    //
+    // parity: utilities.ts:775 passes `undefined` for scaleType.
+    customTickValues = generateNumericTicks(
+      null,
+      yAxisParams.tickStep!,
+      yAxisParams.tick0,
+      scale.domain.map((d) => (d as num).toDouble()).toList(),
+    );
+  }
+
+  // utilities.ts:784 falls back to `yAxisScale.ticks(yAxisTickCount)` when no
+  // custom set was installed, which is the same list `.ticks(yAxisTickCount)` at
+  // `:755` already put on the axis.
+  final tickValues =
+      customTickValues ?? scale.ticks(yAxisParams.yAxisTickCount);
+  // There is no log-blanking short-circuit in this builder's `tickFormat`
+  // (`:756-768`), so no default formatter is handed to [_formatYTick].
+  final tickLabels = <String>[
+    for (final (i, value) in tickValues.indexed)
+      _formatYTick(
+        value,
+        i,
+        tickValues: yAxisParams.tickValues,
+        tickText: yAxisParams.tickText,
+        yAxisTickFormat: yAxisParams.yAxisTickFormat,
+      ),
+  ];
+
+  axisData
+    ..yAxisDomainValues = scale.domain
+        .map((d) => (d as num).toDouble())
+        .toList()
+    ..yAxisTickText = tickLabels;
+
+  return FluentAxisSpec(
+    scale: scale,
+    tickValues: tickValues,
+    tickLabels: tickLabels,
+    orientation: isRtl
+        ? d3.FluentAxisOrientation.right
+        : d3.FluentAxisOrientation.left,
+    // Both sizes stay at d3-axis's own default of 6, because utilities.ts:755
+    // sets only the padding and the tick count.
+    tickSizeInner: 6,
+    tickSizeOuter: 6,
+    tickPadding: yAxisParams.tickPadding,
+  );
+}
+
 /// Whether [useUtc] would be truthy in JavaScript.
 ///
 /// `utilities.ts:509` and `:515` test `useUTC` itself rather than the narrowed
