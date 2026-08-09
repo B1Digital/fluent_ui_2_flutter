@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:fluent_2_web/src/charts/axis/axis_label_layout.dart';
 import 'package:fluent_2_web/src/charts/axis/axis_types.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_text_measurer.dart';
+import 'package:fluent_2_web/src/charts/internal/d3/scale_band.dart' as d3;
 import 'package:fluent_2_web/src/charts/model/chart_value.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -60,6 +61,36 @@ class _ReplayedMeasurer extends FluentChartTextMeasurer {
     return metrics;
   }
 }
+
+/// A measurer used as a ruler: every code unit is exactly one logical pixel.
+///
+/// `truncateTextToFitWidth` returns the longest prefix for which
+/// `prefix.length + 3 <= maxWidth`, so with a one-pixel code unit the returned
+/// length reads back `maxAvailableWidth.floor() - 3` and the slot a layout
+/// computed internally becomes observable from outside. The reported height is
+/// the 12-pixel `maxHeight` seed of `utilities.ts:2656`, which keeps
+/// `reserveHeight` off the ruler's own metrics.
+class _RulerMeasurer extends FluentChartTextMeasurer {
+  @override
+  FluentChartTextMetrics measure(String text, TextStyle style) {
+    return FluentChartTextMetrics(
+      width: text.length * 1.0,
+      height: 12,
+      ascent: 9,
+      descent: 3,
+      xHeight: 5,
+    );
+  }
+}
+
+/// The floor of the slot [label] was truncated into, on a [_RulerMeasurer] run.
+///
+/// The truncated form is a prefix plus a three-code-unit ellipsis and the prefix
+/// is the longest one for which `length + 3` fits, so the whole string measures
+/// `slot.floor()` pixels on the ruler — provided the label was long enough to be
+/// truncated at all.
+double _rulerSlot(FluentAxisTickLabel label) =>
+    label.lines.single.text.length.toDouble();
 
 void main() {
   group('truncateTextToFitWidth', () {
@@ -720,6 +751,381 @@ void main() {
         reason:
             'CartesianChart.tsx:578 gates the rotation branch on '
             'xAxisType === StringAxis.',
+      );
+    });
+  });
+
+  group('truncateAndStaggerXAxisLabels', () {
+    testWidgets('drops odd-indexed labels by one line', (tester) async {
+      final scale = d3.scaleBand()
+        ..domainOf(<Object>['A', 'B', 'C'])
+        ..rangeOf(<double>[0, 300])
+        ..paddingInner(0)
+        ..paddingOuter(0);
+      final layout = truncateAndStaggerXAxisLabels(
+        <Object>['A', 'B', 'C'],
+        <String>['A', 'B', 'C'],
+        scale,
+        300,
+        measurer: FluentChartTextMeasurer(),
+        style: const TextStyle(fontSize: 10),
+      );
+      expect(
+        layout.labels[0].lines.single.dyEm,
+        0.71,
+        reason: 'utilities.ts:2688 leaves even indices on the base dy.',
+      );
+      expect(
+        layout.labels[1].lines.single.dyEm,
+        closeTo(0.71 + 1.1, 1e-9),
+        reason: 'utilities.ts:2688 adds 1.1 ems to odd indices — the stagger.',
+      );
+    });
+
+    testWidgets('reserves nothing for a single tick', (tester) async {
+      final scale = d3.scaleBand()
+        ..domainOf(<Object>['A'])
+        ..rangeOf(<double>[0, 300]);
+      final layout = truncateAndStaggerXAxisLabels(
+        <Object>['A'],
+        <String>['A'],
+        scale,
+        300,
+        measurer: FluentChartTextMeasurer(),
+        style: const TextStyle(fontSize: 10),
+      );
+      expect(
+        layout.reserveHeight,
+        0,
+        reason:
+            'utilities.ts:2693 returns 0 unless there is more than one tick.',
+      );
+    });
+  });
+
+  group('autoLayoutXAxisLabels', () {
+    testWidgets('reserves nothing when every label already fits', (
+      tester,
+    ) async {
+      final scale = d3.scaleBand()
+        ..domainOf(<Object>['A', 'B'])
+        ..rangeOf(<double>[0, 600])
+        ..paddingInner(0)
+        ..paddingOuter(0);
+      final layout = autoLayoutXAxisLabels(
+        <Object>['A', 'B'],
+        <String>['A', 'B'],
+        scale,
+        600,
+        measurer: FluentChartTextMeasurer(),
+        style: const TextStyle(fontSize: 10),
+      );
+      expect(
+        layout.reserveHeight,
+        0,
+        reason:
+            'utilities.ts:2641 returns 0 when neither wrap nor truncate is '
+            'needed.',
+      );
+    });
+
+    testWidgets('wraps when the longest word still fits the slot', (
+      tester,
+    ) async {
+      final scale = d3.scaleBand()
+        ..domainOf(<Object>['A B', 'C D'])
+        ..rangeOf(<double>[0, 60])
+        ..paddingInner(0)
+        ..paddingOuter(0);
+      final layout = autoLayoutXAxisLabels(
+        <Object>['A B', 'C D'],
+        <String>['A B', 'C D'],
+        scale,
+        60,
+        measurer: FluentChartTextMeasurer(),
+        style: const TextStyle(fontSize: 10),
+      );
+      expect(
+        layout.labels.first.lines.length,
+        greaterThanOrEqualTo(1),
+        reason:
+            'utilities.ts:2623-2625 chooses wrapping when the longest word fits '
+            'the available slot, and :2627-2639 delegates to createWrapOfXLabels.',
+      );
+    });
+
+    testWidgets('centres the band before measuring, unlike the sweep', (
+      tester,
+    ) async {
+      final scale = d3.scaleBand()
+        ..domainOf(<Object>['A', 'B'])
+        ..rangeOf(<double>[0, 200])
+        ..paddingInner(0)
+        ..paddingOuter(0);
+      final layout = autoLayoutXAxisLabels(
+        <Object>['A', 'B'],
+        <String>['A', 'B'],
+        scale,
+        200,
+        measurer: FluentChartTextMeasurer(),
+        style: const TextStyle(fontSize: 10),
+      );
+      expect(
+        layout.labels.length,
+        2,
+        reason:
+            'utilities.ts:2597 adds bandwidth / 2 to every tick position, which '
+            'is what createStringXAxis:610 fails to do. Both are faithful ports '
+            'of an inconsistency upstream never reconciled.',
+      );
+    });
+
+    testWidgets('halves the interior gaps that the stagger leaves whole', (
+      tester,
+    ) async {
+      // Three 100px bands from 100 to 400 on a 500px container, so the tick
+      // centres are 150, 250 and 350 and every interior gap is the full band
+      // step of 100. The stagger therefore sees min(150, 100) * 2 - 8 = 192
+      // (utilities.ts:2675-2677) while the auto sweep halves the interior gaps
+      // and sees min(150, 50) * 2 - 8 = 92 (:2605-2607).
+      final domain = <Object>['a', 'b', 'c'];
+      d3.ScaleBand scale() => d3.scaleBand()
+        ..domainOf(domain)
+        ..rangeOf(<double>[100, 400])
+        ..paddingInner(0)
+        ..paddingOuter(0);
+      final ruler = _RulerMeasurer();
+      const style = TextStyle(fontSize: 10);
+
+      final staggered = truncateAndStaggerXAxisLabels(
+        domain,
+        <String>[for (var i = 0; i < 3; i++) 'y' * 300],
+        scale(),
+        500,
+        measurer: ruler,
+        style: style,
+      );
+      expect(
+        _rulerSlot(staggered.labels.first),
+        192,
+        reason:
+            'utilities.ts:2675-2676 uses the whole inter-tick gaps, so the slot '
+            'is min(150, 100) * 2 - 8.',
+      );
+
+      // Sixty one-character words. A line of k of them measures 2k - 1 pixels
+      // on the ruler, so a 92-pixel slot holds 46 and needs two lines while the
+      // unhalved 192-pixel slot would hold all sixty on one.
+      final wrappable = List<String>.filled(60, 'y').join(' ');
+      final auto = autoLayoutXAxisLabels(
+        domain,
+        <String>[wrappable, wrappable, wrappable],
+        scale(),
+        500,
+        measurer: ruler,
+        style: style,
+      );
+      expect(
+        auto.labels.first.lines,
+        hasLength(2),
+        reason:
+            'utilities.ts:2605-2606 halves the interior gaps before :2635 hands '
+            'them to createWrapOfXLabels as the per-tick widths. A port that '
+            'reused the stagger gaps would fit all sixty words on one line.',
+      );
+    });
+  });
+
+  group('truncateAndStaggerXAxisLabels against Oracle B', () {
+    // The captured story whose x axis is a band scale over four categories and
+    // whose bar groups pin that scale independently of its own tick transforms.
+    const storyId =
+        'charts-groupedverticalbarchart--grouped-vertical-bar-default';
+    const style = TextStyle(fontSize: 10);
+
+    /// The x of a `translate(x, y)` transform.
+    double translateX(String transform) {
+      final match = RegExp(r'translate\((-?[\d.eE+-]+)').firstMatch(transform);
+      if (match == null) {
+        throw StateError('Not a translate: "$transform".');
+      }
+      return double.parse(match.group(1)!);
+    }
+
+    /// Every element of [story]'s first SVG.
+    List<Map<String, dynamic>> elementsOf(Map<String, dynamic> story) =>
+        (((story['svgs'] as List<dynamic>).first
+                    as Map<String, dynamic>)['elements']
+                as List<dynamic>)
+            .cast<Map<String, dynamic>>();
+
+    /// The captured x of every x-axis tick group.
+    ///
+    /// The x axis is the first top-level group and each of its children is one
+    /// tick, so `d3-axis`'s own `translate` is read straight off the capture.
+    List<double> capturedTickCentres(List<Map<String, dynamic>> elements) {
+      return <double>[
+        for (final element in elements)
+          if (element['parent'] == 0 && element['tag'] == 'g')
+            translateX(element['transform'] as String),
+      ];
+    }
+
+    /// The captured x of every bar-group `g`, which upstream translates to
+    /// `xScale0(category) + (bandwidth - groupWidth) / 2`
+    /// (`GroupedVerticalBarChart.tsx:649`).
+    List<double> capturedGroupStarts(List<Map<String, dynamic>> elements) {
+      return <double>[
+        for (final element in elements)
+          if (element['tag'] == 'g' &&
+              elements.any(
+                (child) =>
+                    child['parent'] == element['index'] &&
+                    child['tag'] == 'rect',
+              ))
+            translateX(element['transform'] as String),
+      ];
+    }
+
+    /// The band scale fitted to the capture.
+    ///
+    /// The four bars of a group sit at x 0, 17.777778, 35.555556 and 53.333333
+    /// with a width of 16, so `groupWidth` is 69.333333 — and the captured group
+    /// translates differ from the captured tick transforms by exactly half of
+    /// that. Since the tick transform is `xScale0(d) + bandwidth / 2` and the
+    /// group translate is `xScale0(d) + (bandwidth - groupWidth) / 2`, the
+    /// bandwidth cancels out of their difference: the capture pins
+    /// `xScale0(d) + bandwidth / 2` without pinning either term. The fit below
+    /// takes the simplest split, `bandwidth == groupWidth == 208 / 3`, which
+    /// makes `xScale0(d)` the captured group translate itself.
+    ///
+    /// Given `n == 4`, that fixes `step == 304 / 3` (the captured tick spacing),
+    /// `paddingInner == 1 - bandwidth / step == 6 / 19` and, with
+    /// `paddingOuter == 0`, a range of `[445 / 3, 29735 / 57]`.
+    d3.ScaleBand fittedScale() => d3.scaleBand()
+      ..domainOf(<Object>['Jan - Mar', 'Apr - Jun', 'Jul - Sep', 'Oct - Dec'])
+      ..rangeOf(<double>[445 / 3, 29735 / 57])
+      ..paddingInner(6 / 19)
+      ..paddingOuter(0);
+
+    /// The slot `truncateAndStaggerXAxisLabels` would compute for tick [index]
+    /// from [centres] alone, at a container width of [containerWidth].
+    ///
+    /// Mirrors `utilities.ts:2675-2677` over the *captured* tick positions, so
+    /// the expectation never passes through the fitted scale.
+    double expectedSlot(
+      List<double> centres,
+      int index,
+      double containerWidth,
+    ) {
+      final position = centres[index];
+      final left = (index > 0 ? position - centres[index - 1] : position).abs();
+      final right =
+          (index + 1 < centres.length
+                  ? centres[index + 1] - position
+                  : containerWidth - position)
+              .abs();
+      // 8 is the four-pixel padding on both sides (utilities.ts:2677).
+      return math.min(left, right) * 2 - 8;
+    }
+
+    test('the fitted scale reproduces the captured band starts', () {
+      final elements = elementsOf(_loadOracleStory(storyId));
+      final starts = capturedGroupStarts(elements);
+      // Count guard: the story draws four bar groups. A re-capture that renamed
+      // or dropped them would otherwise leave the loop below empty.
+      expect(
+        starts,
+        hasLength(4),
+        reason:
+            '$storyId captured four bar groups; a different count means the '
+            'fixture no longer describes the scale this group fits.',
+      );
+
+      final scale = fittedScale();
+      for (final (index, category) in scale.domain.indexed) {
+        expect(
+          scale(category),
+          closeTo(starts[index], 0.01),
+          reason:
+              'the fitted band scale must land on the band start the browser '
+              'used for $category, or the centring assertions below prove '
+              'nothing about the captured geometry.',
+        );
+      }
+    });
+
+    testWidgets('slots every tick from the captured tick centres', (
+      tester,
+    ) async {
+      final elements = elementsOf(_loadOracleStory(storyId));
+      final centres = capturedTickCentres(elements);
+      // Count guard: four x-axis ticks, one per category.
+      expect(
+        centres,
+        hasLength(4),
+        reason:
+            '$storyId captured four x-axis tick groups; a different count means '
+            'the fixture no longer describes this axis.',
+      );
+
+      // 650 is the story's own chart width.
+      const containerWidth = 650.0;
+      final layout = truncateAndStaggerXAxisLabels(
+        <Object>['Jan - Mar', 'Apr - Jun', 'Jul - Sep', 'Oct - Dec'],
+        <String>[for (var i = 0; i < 4; i++) 'y' * 300],
+        fittedScale(),
+        containerWidth,
+        measurer: _RulerMeasurer(),
+        style: style,
+      );
+
+      for (var index = 0; index < centres.length; index++) {
+        expect(
+          _rulerSlot(layout.labels[index]),
+          expectedSlot(centres, index, containerWidth).floorToDouble(),
+          reason:
+              'tick $index sat at ${centres[index]} in the browser, so its slot '
+              'is min(left, right) * 2 - 8 over the captured spacing.',
+        );
+      }
+    });
+
+    testWidgets('the band centring is what binds the trailing slot', (
+      tester,
+    ) async {
+      final elements = elementsOf(_loadOracleStory(storyId));
+      final centres = capturedTickCentres(elements);
+      expect(
+        centres,
+        hasLength(4),
+        reason: '$storyId captured four x-axis tick groups.',
+      );
+
+      // 560 is chosen so the gap from the last tick to the container edge —
+      // 73 pixels — is narrower than the 101.33 pixel band step, which is the
+      // only configuration in which the `+ bandwidth / 2` of utilities.ts:2665
+      // is observable from outside: dropping it would move the last tick to
+      // 452.33 and widen the trailing gap back past the step. 560 still exceeds
+      // the fitted range end of 521.67, so it describes a real right margin.
+      const containerWidth = 560.0;
+      final layout = truncateAndStaggerXAxisLabels(
+        <Object>['Jan - Mar', 'Apr - Jun', 'Jul - Sep', 'Oct - Dec'],
+        <String>[for (var i = 0; i < 4; i++) 'y' * 300],
+        fittedScale(),
+        containerWidth,
+        measurer: _RulerMeasurer(),
+        style: style,
+      );
+
+      expect(
+        _rulerSlot(layout.labels.last),
+        expectedSlot(centres, 3, containerWidth).floorToDouble(),
+        reason:
+            'the browser put the last tick at ${centres.last}, so the trailing '
+            'slot is 2 * (560 - ${centres.last}) - 8. A port that omitted the '
+            'band centring would report '
+            '${expectedSlot(<double>[for (final c in centres) c - 208 / 6], 3, containerWidth).floorToDouble()}.',
       );
     });
   });

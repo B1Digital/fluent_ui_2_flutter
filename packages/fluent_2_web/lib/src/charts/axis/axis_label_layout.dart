@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 
 import '../internal/chart_text_measurer.dart';
+import '../internal/d3/scale.dart' as d3;
 import '../model/chart_value.dart';
 import 'axis_types.dart';
 
@@ -446,4 +447,199 @@ double calcMaxLabelWidthWithTransform(
   }
 
   return measurer.longestWidth(labels, style).ceilToDouble();
+}
+
+/// The centre of the mark for [index], which is the band centre on a band scale
+/// and the plain scale position otherwise.
+///
+/// Ports the `getTickPosition` closures at `utilities.ts:2595-2597` and
+/// `:2663-2665`. Note that these two *do* centre the band, while the
+/// anti-collision sweep in `createStringXAxis` (`:610`) does not — an
+/// inconsistency reproduced on both sides.
+///
+/// A continuous scale reports a bandwidth of zero, which is what upstream's
+/// `'bandwidth' in scale` guard amounts to. A band-domain miss returns null,
+/// and the `?? 0` mirrors upstream's own nullish coalescing.
+double _tickCentre(d3.Scale scale, List<Object> tickValues, int index) {
+  final position = scale(tickValues[index]) ?? 0.0;
+  return position + scale.bandwidth / 2;
+}
+
+/// Truncates every label to its slot and staggers alternate labels onto a second
+/// line.
+///
+/// Ports `truncateAndStaggerXAxisLabels` (`utilities.ts:2644-2694`). The slot is
+/// `min(leftGap, rightGap) * 2 - 8` using the **full** inter-tick gaps — the
+/// halving that [autoLayoutXAxisLabels] applies is deliberately absent here
+/// (`:2675-2676`), because staggering means neighbouring labels no longer share
+/// a line. Odd-indexed labels drop by `1.1` ems (`:2680` and `:2688`).
+///
+/// Upstream returns 0 outright when the axis node is missing (`:2652-2654`);
+/// the port has no node, so that guard has no analogue.
+FluentXAxisLabelLayout truncateAndStaggerXAxisLabels(
+  List<Object> tickValues,
+  List<String> tickLabels,
+  d3.Scale scale,
+  double containerWidth, {
+  required FluentChartTextMeasurer measurer,
+  required TextStyle style,
+  double baseDyEm = 0.71,
+}) {
+  // 12 is the seed at utilities.ts:2656; 1.1 ems is the stagger at :2680;
+  // 8 is the four-pixel padding on both sides at :2677.
+  var maxHeight = 12.0;
+  const lineHeightEm = 1.1;
+  const slotPadding = 8.0;
+
+  final range = scale.range;
+  final isRtl = range.last - range.first < 0;
+  final start = isRtl ? containerWidth : 0.0;
+  final end = isRtl ? 0.0 : containerWidth;
+
+  final laidOut = <FluentAxisTickLabel>[];
+  for (var i = 0; i < tickValues.length; i++) {
+    final position = _tickCentre(scale, tickValues, i);
+    final leftSpace =
+        (i > 0
+                ? position - _tickCentre(scale, tickValues, i - 1)
+                : position - start)
+            .abs();
+    final rightSpace =
+        (i + 1 < tickValues.length
+                ? _tickCentre(scale, tickValues, i + 1) - position
+                : end - position)
+            .abs();
+    final maxAvailableWidth = math.min(leftSpace, rightSpace) * 2 - slotPadding;
+    final label = tickLabels[i];
+    final text = truncateTextToFitWidth(
+      label,
+      maxAvailableWidth,
+      (candidate) => measurer.width(candidate, style),
+    );
+    maxHeight = math.max(maxHeight, measurer.measure(label, style).height);
+    laidOut.add(
+      FluentAxisTickLabel(
+        lines: <FluentAxisLabelLine>[
+          FluentAxisLabelLine(
+            text: text,
+            dyEm: (i.isOdd ? lineHeightEm : 0.0) + baseDyEm,
+          ),
+        ],
+        fullText: label,
+        truncated: text != label,
+      ),
+    );
+  }
+
+  return FluentXAxisLabelLayout(
+    labels: laidOut,
+    reserveHeight: tickValues.length > 1 ? maxHeight : 0,
+    rotationRadians: 0,
+  );
+}
+
+/// Decides between wrapping, truncating with a stagger, or leaving the labels
+/// alone.
+///
+/// Ports `autoLayoutXAxisLabels` (`utilities.ts:2578-2642`), which runs when
+/// `xAxis.tickLayout` is `'auto'` (`CartesianChart.tsx:282-290`). Each label gets
+/// a slot of `min(halfLeftGap, halfRightGap) * 2 - 8`; a label wider than its
+/// slot triggers wrapping if its longest word still fits, and truncation
+/// otherwise. Truncation wins when both are needed (`:2623-2625`).
+///
+/// The halving at `:2605-2606` applies to the *interior* gaps only: the leading
+/// tick's left gap and the trailing tick's right gap reach the container edge
+/// and are taken whole, because `Math.abs` wraps the ternary rather than each
+/// branch.
+FluentXAxisLabelLayout autoLayoutXAxisLabels(
+  List<Object> tickValues,
+  List<String> tickLabels,
+  d3.Scale scale,
+  double containerWidth, {
+  required FluentChartTextMeasurer measurer,
+  required TextStyle style,
+  double baseDyEm = 0.71,
+}) {
+  // 8 is the four-pixel padding on both sides at utilities.ts:2607.
+  const slotPadding = 8.0;
+  final range = scale.range;
+  final isRtl = range.last - range.first < 0;
+  final start = isRtl ? containerWidth : 0.0;
+  final end = isRtl ? 0.0 : containerWidth;
+
+  var requiresWrap = false;
+  var requiresTruncate = false;
+  final maxWidths = <double>[];
+
+  for (var i = 0; i < tickValues.length; i++) {
+    final position = _tickCentre(scale, tickValues, i);
+    // 2 halves the interior gap so that two neighbouring labels sharing one
+    // line cannot overlap (utilities.ts:2605).
+    final leftSpace =
+        (i > 0
+                ? (position - _tickCentre(scale, tickValues, i - 1)) / 2
+                : position - start)
+            .abs();
+    final rightSpace =
+        (i + 1 < tickValues.length
+                ? (_tickCentre(scale, tickValues, i + 1) - position) / 2
+                : end - position)
+            .abs();
+    final maxAvailableWidth = math.min(leftSpace, rightSpace) * 2 - slotPadding;
+    maxWidths.add(maxAvailableWidth);
+
+    final label = tickLabels[i];
+    if (measurer.width(label, style) > maxAvailableWidth) {
+      final longestWordWidth = measurer.longestWidth(
+        label.split(RegExp(r'\s+')),
+        style,
+      );
+      if (longestWordWidth <= maxAvailableWidth) {
+        requiresWrap = true;
+      } else {
+        requiresTruncate = true;
+      }
+    }
+  }
+
+  if (requiresTruncate) {
+    return truncateAndStaggerXAxisLabels(
+      tickValues,
+      tickLabels,
+      scale,
+      containerWidth,
+      measurer: measurer,
+      style: style,
+      baseDyEm: baseDyEm,
+    );
+  }
+
+  if (requiresWrap) {
+    // 100 is the noOfCharsToTruncate upstream passes here (utilities.ts:2633) —
+    // effectively "never truncate", since the tooltip branch is off.
+    return wrapXLabels(
+      tickLabels,
+      measurer: measurer,
+      style: style,
+      noOfCharsToTruncate: 100,
+      showXAxisLabelsTooltip: false,
+      width: maxWidths,
+      baseDyEm: baseDyEm,
+    );
+  }
+
+  return FluentXAxisLabelLayout(
+    labels: <FluentAxisTickLabel>[
+      for (final label in tickLabels)
+        FluentAxisTickLabel(
+          lines: <FluentAxisLabelLine>[
+            FluentAxisLabelLine(text: label, dyEm: baseDyEm),
+          ],
+          fullText: label,
+          truncated: false,
+        ),
+    ],
+    reserveHeight: 0,
+    rotationRadians: 0,
+  );
 }
