@@ -4,6 +4,7 @@ import '../internal/d3/array_stats.dart' as d3;
 import '../model/bar_data.dart';
 import '../model/cartesian_series.dart';
 import '../model/chart_common.dart';
+import '../model/chart_value.dart';
 import 'axis_types.dart';
 
 /// The data points of a line or scatter series.
@@ -21,6 +22,13 @@ List<Object> _seriesData(Object series) => switch (series) {
 Object? _pointX(Object point) => switch (point) {
   FluentLineChartDataPoint() => point.x,
   FluentScatterChartDataPoint() => point.x,
+  _ => null,
+};
+
+/// The y of a line or scatter data point.
+double? _pointY(Object point) => switch (point) {
+  FluentLineChartDataPoint() => point.y,
+  FluentScatterChartDataPoint() => point.y,
   _ => null,
 };
 
@@ -490,4 +498,124 @@ FluentChartDomainRange domainRangeOfDateForAreaLineScatterVerticalBarCharts(
           rStartValue: rStartValue,
           rEndValue: rEndValue,
         );
+}
+
+/// The y extent of a line or scatter chart on one of the two scales.
+///
+/// Ports `findNumericMinMaxOfY` (`utilities.ts:1591-1612`). A series joins the
+/// extent only when its `useSecondaryYScale` matches the requested one, compared
+/// through negation exactly as upstream does at `utilities.ts:1599` so that
+/// `undefined` and `false` agree. When every value is filtered out the result is
+/// [double.nan] on both ends, reproducing the upstream non-null assertion on an
+/// empty array (`utilities.ts:1609-1610`).
+///
+/// [yAxisType] is unread, as it is upstream: the parameter exists at
+/// `utilities.ts:1593` and is never touched in the body. It is kept so the call
+/// sites read the same in both languages.
+FluentChartMinMax findNumericMinMaxOfY(
+  List<Object> points, {
+  FluentChartAxisType? yAxisType,
+  bool useSecondaryYScale = false,
+  FluentAxisScaleType? scaleType,
+}) {
+  final values = <double>[];
+  for (final series in points) {
+    final onSecondary = switch (series) {
+      FluentLineChartSeries() => series.useSecondaryYScale,
+      FluentScatterChartSeries() => series.useSecondaryYScale,
+      _ => false,
+    };
+    if (useSecondaryYScale != onSecondary) {
+      continue;
+    }
+    for (final point in _seriesData(series)) {
+      final y = _pointY(point);
+      if (y != null && isValidDomainValue(y, scaleType)) {
+        values.add(y);
+      }
+    }
+  }
+  return FluentChartMinMax(
+    startValue: d3.min<double>(values) ?? double.nan,
+    endValue: d3.max<double>(values) ?? double.nan,
+  );
+}
+
+/// The y extent of a vertical stacked bar dataset.
+///
+/// Ports `findVSBCNumericMinMaxOfY` (`utilities.ts:1620-1625`): the maximum at
+/// `:1621` and the minimum at `:1622`, returned low end first.
+FluentChartMinMax findVSBCNumericMinMaxOfY(List<Object> dataset) {
+  final values = <double>[
+    for (final point in dataset)
+      if (point is FluentChartXYPoint) point.y,
+  ];
+  return FluentChartMinMax(
+    startValue: d3.min<double>(values) ?? double.nan,
+    endValue: d3.max<double>(values) ?? double.nan,
+  );
+}
+
+/// The y extent of a vertical bar chart on one of the two scales.
+///
+/// Ports `findVerticalNumericMinMaxOfY` (`utilities.ts:1633-1654`). The bar
+/// values are gated on `!useSecondaryYScale` alone (`:1643`), so the secondary
+/// pass never sees them, while the line overlay is gated on the two flags
+/// matching (`:1646-1650`).
+///
+/// [yAxisType] is unread here too, exactly as at `utilities.ts:1635`.
+// parity: the asymmetry at utilities.ts:1643 is upstream's, not a transcription
+// slip. VerticalBarChartSecondaryYAxis renders a secondary axis topping out at
+// 40k beside a 50k bar, which is only possible because no bar value reaches the
+// secondary pass; the Oracle B capture of that story pins it.
+FluentChartMinMax findVerticalNumericMinMaxOfY(
+  List<Object> points, {
+  FluentChartAxisType? yAxisType,
+  bool useSecondaryYScale = false,
+}) {
+  final values = <double>[];
+  for (final point in points) {
+    if (point is! FluentVerticalBarChartDataPoint) {
+      continue;
+    }
+    if (!useSecondaryYScale) {
+      values.add(point.y);
+    }
+    final lineData = point.lineData;
+    if (lineData != null && useSecondaryYScale == lineData.useSecondaryYScale) {
+      values.add(lineData.y);
+    }
+  }
+  return FluentChartMinMax(
+    startValue: d3.min<double>(values) ?? double.nan,
+    endValue: d3.max<double>(values) ?? double.nan,
+  );
+}
+
+/// The y extent of HorizontalBarChartWithAxis or GanttChart.
+///
+/// Ports `findHBCWANumericMinMaxOfY` (`utilities.ts:1661-1678`). Anything other
+/// than a numeric y axis returns a zero extent (`:1677`), because a band y axis
+/// takes its domain from the category list instead.
+FluentChartMinMax findHBCWANumericMinMaxOfY(
+  List<Object> points,
+  FluentChartAxisType? yAxisType,
+) {
+  if (yAxisType != FluentChartAxisType.numeric) {
+    // 0 for both ends, as `utilities.ts:1677` sends.
+    return const FluentChartMinMax(startValue: 0, endValue: 0);
+  }
+  // `utilities.ts:1668` and `:1672` cast `point.y` to a number, so a category y
+  // on a numeric axis is dropped here rather than coerced.
+  final values = <double>[
+    for (final point in points)
+      if (point is FluentHorizontalBarChartWithAxisDataPoint && point.y is num)
+        (point.y as num).toDouble()
+      else if (point is FluentGanttChartDataPoint && point.y is num)
+        (point.y as num).toDouble(),
+  ];
+  return FluentChartMinMax(
+    startValue: d3.min<double>(values) ?? double.nan,
+    endValue: d3.max<double>(values) ?? double.nan,
+  );
 }

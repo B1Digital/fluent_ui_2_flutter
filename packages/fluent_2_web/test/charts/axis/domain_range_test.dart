@@ -7,6 +7,7 @@ import 'package:fluent_2_web/src/charts/internal/d3/ticks.dart' as d3;
 import 'package:fluent_2_web/src/charts/model/bar_data.dart';
 import 'package:fluent_2_web/src/charts/model/cartesian_series.dart';
 import 'package:fluent_2_web/src/charts/model/chart_common.dart';
+import 'package:fluent_2_web/src/charts/model/chart_value.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 FluentLineChartSeries _series(String legend, List<(Object, double)> points) {
@@ -69,6 +70,18 @@ double _project(
 /// of one, so a hundredth of a logical pixel is far tighter than any rounding
 /// either implementation performs.
 const double _oracleTolerance = 0.01;
+
+/// Reads a captured y-axis tick label back to the number it formats.
+///
+/// The inverse of the thousands abbreviation `formatToLocaleString` emits, which
+/// is all these two axes use: a group separator and a `k` suffix.
+double _parseAxisLabel(String text) {
+  final cleaned = text.replaceAll(',', '');
+  if (cleaned.endsWith('k')) {
+    return double.parse(cleaned.substring(0, cleaned.length - 1)) * 1000;
+  }
+  return double.parse(cleaned);
+}
 
 void main() {
   group('isValidDomainValue', () {
@@ -772,6 +785,306 @@ void main() {
               'reproduces.',
         );
       }
+    });
+  });
+
+  group('findNumericMinMaxOfY', () {
+    test('reads only the series on the requested scale', () {
+      final result = findNumericMinMaxOfY(<Object>[
+        _series('primary', <(Object, double)>[(1, 5), (2, 15)]),
+        const FluentLineChartSeries(
+          legend: 'secondary',
+          useSecondaryYScale: true,
+          data: <Object>[FluentLineChartDataPoint(x: 1, y: 900)],
+        ),
+      ]);
+      expect(
+        result.startValue,
+        5,
+        reason: 'utilities.ts:1599 compares the two flags.',
+      );
+      expect(
+        result.endValue,
+        15,
+        reason:
+            'the secondary series contributes nothing to the primary extent.',
+      );
+    });
+
+    test('gives NaN when everything is filtered out', () {
+      final result = findNumericMinMaxOfY(<Object>[
+        _series('a', <(Object, double)>[(1, -5)]),
+      ], scaleType: FluentAxisScaleType.log);
+      expect(
+        result.startValue.isNaN,
+        isTrue,
+        reason:
+            'utilities.ts:1608-1611 asserts non-null on an empty array, which is '
+            'undefined in TypeScript and NaN once it reaches arithmetic.',
+      );
+    });
+  });
+
+  test('findVSBCNumericMinMaxOfY takes a plain extent over y', () {
+    final result = findVSBCNumericMinMaxOfY(<Object>[
+      const FluentChartXYPoint(x: 'a', y: -2),
+      const FluentChartXYPoint(x: 'b', y: 7),
+    ]);
+    expect(result.startValue, -2, reason: 'utilities.ts:1622.');
+    expect(result.endValue, 7, reason: 'utilities.ts:1621.');
+  });
+
+  group('findVerticalNumericMinMaxOfY', () {
+    test('includes bar values only on the primary pass', () {
+      final points = <Object>[
+        const FluentVerticalBarChartDataPoint(x: 'a', y: 3),
+        const FluentVerticalBarChartDataPoint(x: 'b', y: 7),
+      ];
+      final primary = findVerticalNumericMinMaxOfY(points);
+      final secondary = findVerticalNumericMinMaxOfY(
+        points,
+        useSecondaryYScale: true,
+      );
+      expect(
+        primary.endValue,
+        7,
+        reason: 'utilities.ts:1643-1644 pushes point.y.',
+      );
+      expect(
+        secondary.endValue.isNaN,
+        isTrue,
+        reason:
+            'utilities.ts:1643 gates the bar push on !useSecondaryYScale alone, '
+            'so the secondary pass never sees a bar value. Asymmetric, and ported '
+            'as written.',
+      );
+    });
+
+    test('includes line data on whichever scale it declares', () {
+      final result = findVerticalNumericMinMaxOfY(<Object>[
+        const FluentVerticalBarChartDataPoint(
+          x: 'a',
+          y: 3,
+          lineData: FluentBarLineDatum(y: 40, useSecondaryYScale: true),
+        ),
+      ], useSecondaryYScale: true);
+      expect(
+        result.endValue,
+        40,
+        reason: 'utilities.ts:1646-1650 compares the two flags for lineData.',
+      );
+    });
+  });
+
+  group('findHBCWANumericMinMaxOfY', () {
+    test('reads y only on a numeric axis', () {
+      final points = <Object>[
+        const FluentHorizontalBarChartWithAxisDataPoint(x: 10, y: 2),
+        const FluentHorizontalBarChartWithAxisDataPoint(x: 20, y: 8),
+      ];
+      final numeric = findHBCWANumericMinMaxOfY(
+        points,
+        FluentChartAxisType.numeric,
+      );
+      expect(numeric.startValue, 2, reason: 'utilities.ts:1665-1675.');
+      expect(numeric.endValue, 8, reason: 'the other end of the same extent.');
+    });
+
+    test('returns a zero extent on any other axis type', () {
+      final result = findHBCWANumericMinMaxOfY(<Object>[
+        const FluentHorizontalBarChartWithAxisDataPoint(x: 10, y: 2),
+      ], FluentChartAxisType.category);
+      expect(
+        result.startValue,
+        0,
+        reason: 'utilities.ts:1677 returns { 0, 0 }.',
+      );
+      expect(result.endValue, 0, reason: 'the same zero extent.');
+    });
+  });
+
+  group('the y extents against Oracle B', () {
+    test('the two scales of VerticalBarChartSecondaryYAxis separate exactly as '
+        'utilities.ts:1643 says they do', () {
+      final story = _loadOracleStory(
+        'charts-verticalbarchart--vertical-bar-secondary-y-axis',
+      );
+      final crispOffset = (story['crispOffset'] as num).toDouble();
+      final elements = _svgElements(story);
+
+      // Each tick label carries its tick's translate in its CTM, so the
+      // fifth and sixth CTM entries are the axis position. The primary axis
+      // is translated to x=64 and the secondary to x=660 in this capture.
+      List<Map<String, dynamic>> axisLabels(double tx) =>
+          elements
+              .where(
+                (e) =>
+                    e['tag'] == 'text' &&
+                    e['ctm'] != null &&
+                    ((e['ctm'] as List<dynamic>)[4] as num).toDouble() == tx,
+              )
+              .toList()
+            ..sort(
+              (a, b) =>
+                  ((b['ctm'] as List<dynamic>)[5] as num).toDouble().compareTo(
+                    ((a['ctm'] as List<dynamic>)[5] as num).toDouble(),
+                  ),
+            );
+
+      final primaryLabels = axisLabels(64);
+      final secondaryLabels = axisLabels(660);
+      expect(
+        primaryLabels.length,
+        5,
+        reason:
+            'the default y-axis tick count is four intervals, so five labels; '
+            'a different count would mean this filter found the wrong texts.',
+      );
+      expect(
+        secondaryLabels.length,
+        5,
+        reason: 'the secondary axis is built with the same tick count.',
+      );
+
+      // The tick CTMs include the crispness offset the axis path is drawn
+      // with; the bars and the line are positioned by the raw scale, so the
+      // offset comes back off before either is inverted.
+      final rangeBottom =
+          ((primaryLabels.first['ctm'] as List<dynamic>)[5] as num).toDouble() -
+          crispOffset;
+      final rangeTop =
+          ((primaryLabels.last['ctm'] as List<dynamic>)[5] as num).toDouble() -
+          crispOffset;
+      final primaryTop = _parseAxisLabel(primaryLabels.last['text'] as String);
+      final secondaryTop = _parseAxisLabel(
+        secondaryLabels.last['text'] as String,
+      );
+      expect(
+        primaryTop,
+        50000,
+        reason: "the topmost primary label reads '50k' in the capture.",
+      );
+      expect(
+        secondaryTop,
+        40000,
+        reason: "the topmost secondary label reads '40k' in the capture.",
+      );
+
+      double valueAt(double py, double domainTop) =>
+          (rangeBottom - py) / (rangeBottom - rangeTop) * domainTop;
+
+      // The bars are the only rects sixteen pixels wide; the axis-title
+      // backplates are far wider.
+      final barTops = <double>[
+        for (final e in elements)
+          if (e['tag'] == 'rect' && (e['width'] as num).toDouble() == 16)
+            (e['y'] as num).toDouble(),
+      ];
+      final lineTops = <double>[
+        for (final e in elements)
+          if (e['tag'] == 'circle') (e['cy'] as num).toDouble(),
+      ];
+      expect(
+        barTops.length,
+        8,
+        reason: 'the story plots eight bars, one per category.',
+      );
+      expect(
+        lineTops.length,
+        7,
+        reason: 'the overlaid line has a point on seven of the eight bars.',
+      );
+
+      final barValues = <double>[
+        for (final py in barTops) valueAt(py, primaryTop),
+      ];
+      final lineValues = <double>[
+        for (final py in lineTops) valueAt(py, secondaryTop),
+      ];
+      // Inverting the two captured scales must give back round data values;
+      // anything else would mean the inversion, not the extent, is wrong.
+      // A hundredth of a pixel inverts to under three data units here, so
+      // this tolerance is far tighter than the corpus one.
+      const inversionTolerance = 1e-6;
+      for (final (index, expected) in <double>[
+        10000,
+        50000,
+        30000,
+        13000,
+        43000,
+        30000,
+        20000,
+        45000,
+      ].indexed) {
+        expect(
+          barValues[index],
+          closeTo(expected, inversionTolerance),
+          reason:
+              'bar $index is labelled ${expected ~/ 1000}k in the capture and '
+              'inverts to that through the primary scale.',
+        );
+      }
+      for (final (index, expected) in <double>[
+        7000,
+        30000,
+        3000,
+        30000,
+        5000,
+        16000,
+        40000,
+      ].indexed) {
+        expect(
+          lineValues[index],
+          closeTo(expected, inversionTolerance),
+          reason:
+              'line point $index inverts to $expected through the secondary '
+              'scale.',
+        );
+      }
+
+      final points = <Object>[
+        for (var index = 0; index < barValues.length; index++)
+          FluentVerticalBarChartDataPoint(
+            x: 'category $index',
+            y: barValues[index],
+            lineData: index < lineValues.length
+                ? FluentBarLineDatum(
+                    y: lineValues[index],
+                    useSecondaryYScale: true,
+                  )
+                : null,
+          ),
+      ];
+
+      final primary = findVerticalNumericMinMaxOfY(points);
+      expect(
+        primary.endValue,
+        closeTo(primaryTop, inversionTolerance),
+        reason:
+            'the tallest bar fills the whole plot height, so the primary '
+            'domain ends exactly at the bar extent this function returns.',
+      );
+
+      final secondary = findVerticalNumericMinMaxOfY(
+        points,
+        useSecondaryYScale: true,
+      );
+      expect(
+        secondary.endValue,
+        closeTo(secondaryTop, inversionTolerance),
+        reason:
+            'the secondary domain ends at the line extent, so the secondary '
+            'pass must return the line values and nothing else.',
+      );
+      expect(
+        secondary.endValue,
+        lessThan(primary.endValue),
+        reason:
+            'the live implementation puts 40k at the top of the secondary '
+            'axis while a 50k bar exists, which is only possible because '
+            'utilities.ts:1643 keeps every bar value out of the secondary '
+            'pass. The parity defect is upstream behaviour, captured here.',
+      );
     });
   });
 }
