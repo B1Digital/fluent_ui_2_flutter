@@ -43,6 +43,7 @@ void main() {
 
   test('against the d3 golden corpus', () async {
     final corpus = await loadD3Golden();
+    var checked = 0;
     final rows = <Map<String, double>>[
       <String, double>{'x': 0, 'a': 1, 'b': 2, 'c': 3},
       <String, double>{'x': 1, 'a': 4, 'b': 0, 'c': 1},
@@ -77,6 +78,14 @@ void main() {
           );
         }
       }
+      checked++;
     }
+    expect(
+      checked,
+      1,
+      reason:
+          "the corpus holds 1 case with kind == 'stack'; a filter that "
+          'silently matched nothing would otherwise pass this test',
+    );
   });
 }

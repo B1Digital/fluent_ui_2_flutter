@@ -54,6 +54,7 @@ void main() {
 
   test('against the d3 golden corpus', () async {
     final corpus = await loadD3Golden();
+    var checked = 0;
     for (final c in goldenCases(corpus, 'shape')) {
       if (c['kind'] != 'pie') {
         continue;
@@ -83,6 +84,14 @@ void main() {
           reason: 'arc $i padAngle for $values',
         );
       }
+      checked++;
     }
+    expect(
+      checked,
+      5,
+      reason:
+          "the corpus holds 5 cases with kind == 'pie'; a filter that "
+          'silently matched nothing would otherwise pass this test',
+    );
   });
 }
