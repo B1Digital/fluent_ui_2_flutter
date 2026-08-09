@@ -286,6 +286,14 @@ TimeInterval _timeWeekday(int i) => TimeInterval(
 /// Local weeks beginning on Sunday (`d3-time/src/week.js:15`).
 final TimeInterval timeSunday = _timeWeekday(0);
 
+/// Local weeks beginning on Monday (`d3-time/src/week.js:16`). Used only by
+/// `%W` and `%u` in `time_format.dart`.
+final TimeInterval timeMonday = _timeWeekday(1);
+
+/// Local weeks beginning on Thursday (`d3-time/src/week.js:19`). Used only by
+/// the ISO week directives `%V`, `%G` and `%g`.
+final TimeInterval timeThursday = _timeWeekday(4);
+
 /// `timeWeek` is `timeSunday` (`d3-time/src/index.js`).
 final TimeInterval timeWeek = timeSunday;
 
@@ -381,6 +389,12 @@ TimeInterval _utcWeekday(int i) => TimeInterval(
 
 /// UTC weeks beginning on Sunday (`d3-time/src/week.js:42`).
 final TimeInterval utcSunday = _utcWeekday(0);
+
+/// UTC weeks beginning on Monday (`d3-time/src/week.js:43`).
+final TimeInterval utcMonday = _utcWeekday(1);
+
+/// UTC weeks beginning on Thursday (`d3-time/src/week.js:46`).
+final TimeInterval utcThursday = _utcWeekday(4);
 
 /// `utcWeek` is `utcSunday` (`d3-time/src/index.js`).
 final TimeInterval utcWeek = utcSunday;
