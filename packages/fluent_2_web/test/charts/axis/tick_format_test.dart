@@ -63,6 +63,60 @@ Map<String, String> _oracleSiLabels() {
   return labels;
 }
 
+/// A tick label rendered from the abbreviated-month plus two-digit-day bag,
+/// which is `D_W` at `chart-utilities/formatter.ts:235-239`.
+final RegExp _shortMonthDayLabel = RegExp(r'^[A-Z][a-z]{2} [0-9]{2}$');
+
+/// Every distinct `MMM dd` tick label in the Oracle B corpus, paired with the
+/// story it came from so a failure names its fixture.
+///
+/// These are what the live React charts put on a date x-axis once
+/// `createDateXAxis` (`utilities.ts:515`) has picked the `D_W` bag, so they
+/// pin the field order and the zero padding that
+/// [FluentDateTimeFormatOptions.pattern] has to reproduce — a self-consistent
+/// `04 Mar` or `Mar 4` would satisfy a hand-written expectation but not these.
+Map<String, String> _oracleShortMonthDayLabels() {
+  final labels = <String, String>{};
+  for (final file in corpusDirectory().listSync().whereType<File>()) {
+    if (!file.path.endsWith('.json') ||
+        file.uri.pathSegments.last.startsWith('_')) {
+      continue;
+    }
+    final story = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+    for (final svg in (story['svgs'] as List<dynamic>)) {
+      final elements =
+          (svg as Map<String, dynamic>)['elements'] as List<dynamic>;
+      for (final element in elements) {
+        final text = ((element as Map<String, dynamic>)['text'] as String?)
+            ?.trim();
+        if (text != null && _shortMonthDayLabel.hasMatch(text)) {
+          labels[text] = story['id'] as String;
+        }
+      }
+    }
+  }
+  return labels;
+}
+
+/// The month number [label]'s abbreviation stands for, using the same
+/// abbreviations `package:intl`'s en-US symbols do.
+int _monthOf(String label) =>
+    const <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ].indexOf(label.substring(0, 3)) +
+    1;
+
 void main() {
   group('yAxisTickFormatterInternal', () {
     test('uses an SI prefix with two significant decimals', () {
@@ -174,6 +228,165 @@ void main() {
       test('reproduces ${entry.key} from ${entry.value}', () {
         expect(
           defaultYAxisTickFormatter(_parseSiLabel(entry.key)),
+          entry.key,
+          reason:
+              'the live implementation rendered ${entry.key} in '
+              '${entry.value}; this port must render it identically.',
+        );
+      });
+    }
+  });
+
+  group('formatToLocaleString', () {
+    test('does not group below ten thousand', () {
+      expect(
+        formatToLocaleString(1234, culture: 'en_US'),
+        '1234',
+        reason:
+            'chart-utilities/formatter.ts:39 — useGrouping is |data| >= 10000, '
+            'not >= 1000.',
+      );
+    });
+
+    test('groups from ten thousand up', () {
+      expect(
+        formatToLocaleString(12345, culture: 'en_US'),
+        '12,345',
+        reason: 'formatter.ts:39-40.',
+      );
+    });
+
+    test('snaps a floating-point artefact before formatting', () {
+      expect(
+        formatToLocaleString(2.9999999, culture: 'en_US'),
+        '3',
+        reason:
+            'formatter.ts:40 routes through handleFloatingPointPrecisionError.',
+      );
+    });
+
+    test('formats a numeric string like a number', () {
+      expect(
+        formatToLocaleString('12345', culture: 'en_US'),
+        '12,345',
+        reason: 'formatter.ts:41-45 parses a numeric string first.',
+      );
+    });
+
+    test('passes an empty string, null and NaN straight through', () {
+      expect(formatToLocaleString(''), '', reason: 'formatter.ts:35.');
+      expect(
+        formatToLocaleString(null),
+        '',
+        reason: 'null renders as nothing.',
+      );
+      expect(
+        formatToLocaleString(double.nan),
+        'NaN',
+        reason: 'formatter.ts:35 returns NaN unchanged.',
+      );
+    });
+
+    test('leaves a non-numeric string alone', () {
+      expect(
+        formatToLocaleString('Monday'),
+        'Monday',
+        reason: 'formatter.ts:49 returns the data unchanged.',
+      );
+    });
+  });
+
+  group('formatDateToLocaleString', () {
+    test('uses the default option bag when none is supplied', () {
+      expect(
+        formatDateToLocaleString(
+          DateTime.utc(2020, 3, 4, 5, 6, 7),
+          culture: 'en_US',
+          useUtc: true,
+          showTZname: false,
+        ),
+        '03/04/2020, 05:06:07 AM',
+        reason:
+            'formatter.ts:53-62 — DEFAULT_DATE_TIME_FORMAT_OPTION is numeric '
+            'year, 2-digit month/day/hour/minute/second, hour12 true.',
+      );
+    });
+
+    test('honours a supplied option bag', () {
+      expect(
+        formatDateToLocaleString(
+          DateTime.utc(2020, 3, 4),
+          culture: 'en_US',
+          useUtc: true,
+          showTZname: false,
+          options: const FluentDateTimeFormatOptions(
+            month: FluentDateTimeField.short,
+            day: FluentDateTimeField.twoDigit,
+          ),
+        ),
+        'Mar 04',
+        reason:
+            'formatter.ts:235-239 — the D_W bag is month short plus 2-digit '
+            'day.',
+      );
+    });
+
+    test('appends a short zone name when asked', () {
+      expect(
+        formatDateToLocaleString(
+          DateTime.utc(2020, 3, 4),
+          culture: 'en_US',
+          useUtc: true,
+          options: const FluentDateTimeFormatOptions(
+            year: FluentDateTimeField.numeric,
+          ),
+        ),
+        '2020 UTC',
+        reason:
+            'formatter.ts:89-91 adds timeZoneName short; createDateXAxis:515 is '
+            'the one caller that passes false.',
+      );
+    });
+  });
+
+  group('formatDateToLocaleString against the Oracle B corpus', () {
+    final labels = _oracleShortMonthDayLabels();
+
+    test('offers enough labels to be worth asserting against', () {
+      // 11 distinct labels over charts-linechart--line-chart-gaps and
+      // charts-scatterchart--scatter-chart-date at the time of writing; 10
+      // leaves room for a recapture to shift one tick without silently
+      // emptying this group.
+      expect(
+        labels.length,
+        greaterThanOrEqualTo(10),
+        reason:
+            'the corpus should carry the date-axis tick labels of the two '
+            'date-scaled stories; a near-empty map means the text capture or '
+            'the filter regressed.',
+      );
+    });
+
+    for (final entry in labels.entries) {
+      test('reproduces ${entry.key} from ${entry.value}', () {
+        // The year is not recoverable from a 'MMM dd' label and does not reach
+        // the output, so 2020 stands in; it is a leap year, which keeps a
+        // captured 'Feb 29' constructible.
+        expect(
+          formatDateToLocaleString(
+            DateTime.utc(
+              2020,
+              _monthOf(entry.key),
+              int.parse(entry.key.substring(4)),
+            ),
+            culture: 'en_US',
+            useUtc: true,
+            showTZname: false,
+            options: const FluentDateTimeFormatOptions(
+              month: FluentDateTimeField.short,
+              day: FluentDateTimeField.twoDigit,
+            ),
+          ),
           entry.key,
           reason:
               'the live implementation rendered ${entry.key} in '
