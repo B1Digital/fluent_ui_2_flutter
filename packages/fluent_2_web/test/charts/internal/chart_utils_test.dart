@@ -1,8 +1,11 @@
 import 'dart:ui';
 
 import 'package:fluent_2_web/src/charts/internal/chart_utils.dart';
+import 'package:fluent_2_web/src/charts/internal/d3/curves.dart' as d3;
 import 'package:fluent_2_web/src/charts/model/cartesian_series.dart';
 import 'package:fluent_2_web/src/charts/model/chart_common.dart';
+import 'package:fluent_2_web/src/charts/model/chart_value.dart';
+import 'package:fluent_2_web/src/charts/model/line_options.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -744,6 +747,141 @@ void main() {
         ),
         <String>['c', 'a', 'b'],
         reason: 'utilities.ts:2058 `!seen.has(category)`.',
+      );
+    });
+  });
+
+  group('getTypeOfAxis', () {
+    test(
+      'gives the same answer on both axes, which is why the enums collapse',
+      () {
+        expect(
+          getTypeOfAxis('Jan', isXAxis: true),
+          getTypeOfAxis('Jan', isXAxis: false),
+          reason:
+              'utilities.ts:1687-1705 — the two branches return members of two '
+              'byte-identical enums at the same ordinals (:110-120).',
+        );
+        expect(
+          getTypeOfAxis(1, isXAxis: true),
+          FluentChartAxisType.numeric,
+          reason: 'utilities.ts:1691.',
+        );
+        expect(
+          getTypeOfAxis(DateTime(2024), isXAxis: false),
+          FluentChartAxisType.date,
+          reason: 'utilities.ts:1701 default arm.',
+        );
+      },
+    );
+  });
+
+  group('getXAxisType', () {
+    test('is false for no series and for empty series', () {
+      expect(
+        getXAxisType(const <FluentLineChartSeries>[]),
+        isFalse,
+        reason: 'utilities.ts:1331 guards on length.',
+      );
+      expect(
+        getXAxisType(const <FluentLineChartSeries>[
+          FluentLineChartSeries(legend: 'A', data: <Object>[]),
+        ]),
+        isFalse,
+        reason: 'utilities.ts:1333 skips a series with no data.',
+      );
+    });
+
+    test('reads the first point of the LAST non-empty series', () {
+      final result = getXAxisType(<FluentLineChartSeries>[
+        FluentLineChartSeries(
+          legend: 'A',
+          data: <Object>[FluentLineChartDataPoint(x: DateTime.utc(2024), y: 1)],
+        ),
+        const FluentLineChartSeries(
+          legend: 'B',
+          data: <Object>[FluentLineChartDataPoint(x: 1, y: 1)],
+        ),
+      ]);
+      expect(
+        result,
+        isFalse,
+        reason:
+            '// parity: the `return` inside the forEach at utilities.ts:1336 '
+            'does NOT break the loop, so the last non-empty series wins and a '
+            'date first series is overwritten by a numeric second one.',
+      );
+    });
+
+    test('an empty trailing series does not clear an earlier date verdict', () {
+      final result = getXAxisType(<FluentLineChartSeries>[
+        FluentLineChartSeries(
+          legend: 'A',
+          data: <Object>[FluentLineChartDataPoint(x: DateTime.utc(2024), y: 1)],
+        ),
+        const FluentLineChartSeries(legend: 'B', data: <Object>[]),
+      ]);
+      expect(
+        result,
+        isTrue,
+        reason: 'utilities.ts:1333 only assigns for a non-empty series.',
+      );
+    });
+  });
+
+  group('getCurveFactory', () {
+    test('maps each named curve', () {
+      expect(
+        identical(getCurveFactory(FluentLineCurve.natural), d3.curveNatural),
+        isTrue,
+        reason: 'utilities.ts:2021-2022.',
+      );
+      expect(
+        identical(getCurveFactory(FluentLineCurve.step), d3.curveStep),
+        isTrue,
+        reason: 'utilities.ts:2023-2024.',
+      );
+      expect(
+        identical(
+          getCurveFactory(FluentLineCurve.stepAfter),
+          d3.curveStepAfter,
+        ),
+        isTrue,
+        reason: 'utilities.ts:2025-2026.',
+      );
+      expect(
+        identical(
+          getCurveFactory(FluentLineCurve.stepBefore),
+          d3.curveStepBefore,
+        ),
+        isTrue,
+        reason: 'utilities.ts:2027-2028.',
+      );
+      expect(
+        identical(getCurveFactory(FluentLineCurve.linear), d3.curveLinear),
+        isTrue,
+        reason: 'utilities.ts:2019-2020.',
+      );
+    });
+
+    test('passes a caller-supplied factory straight through', () {
+      expect(
+        identical(getCurveFactory(d3.curveNatural), d3.curveNatural),
+        isTrue,
+        reason: "utilities.ts:2016-2018 `typeof curve === 'function'`.",
+      );
+    });
+
+    test('falls back to linear, and to a named default when given one', () {
+      expect(
+        identical(getCurveFactory(null), d3.curveLinear),
+        isTrue,
+        reason: 'utilities.ts:2014 default parameter.',
+      );
+      expect(
+        identical(getCurveFactory(null, d3.curveStep), d3.curveStep),
+        isTrue,
+        reason: 'utilities.ts:2029-2030 default arm.',
       );
     });
   });

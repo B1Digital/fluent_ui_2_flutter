@@ -5,7 +5,10 @@ import 'package:flutter/widgets.dart';
 import '../model/callout_data.dart';
 import '../model/cartesian_series.dart';
 import '../model/chart_common.dart';
+import '../model/chart_value.dart';
+import '../model/line_options.dart';
 import 'd3/array_stats.dart' as d3;
+import 'd3/curves.dart' as d3;
 import 'd3/stable_sort.dart';
 
 /// The colour a callout row falls back to when its series names none.
@@ -475,3 +478,59 @@ List<String> sortAxisCategories(
   );
   return <String>[for (final entry in sorted) entry.$1];
 }
+
+/// The axis kind [value] drives.
+///
+/// Ports `getTypeOfAxis` (`utilities.ts:1686-1706`). [isXAxis] selects which of
+/// upstream's two enums the answer is drawn from; because `XAxisTypes`
+/// (`:110-114`) and `YAxisType` (`:116-120`) are byte-identical at the same
+/// ordinals, both branches produce the same [FluentChartAxisType] and the
+/// parameter is kept only so that call sites read like the original.
+///
+/// Named rather than positional, per `avoid_positional_boolean_parameters`.
+FluentChartAxisType getTypeOfAxis(Object value, {required bool isXAxis}) =>
+    chartAxisTypeOf(value);
+
+/// Whether a line or area chart's x axis is a date axis.
+///
+/// Ports `getXAxisType` (`utilities.ts:1330-1341`).
+///
+/// `// parity:` the `return` at `:1336` sits inside a `forEach` callback, which
+/// returns from the callback and not from the loop. The verdict therefore
+/// reflects the **last** non-empty series rather than the first, so a numeric
+/// series after a date series flips the answer. Reproduced verbatim.
+bool getXAxisType(List<FluentLineChartSeries> points) {
+  var isDate = false;
+  if (points.isEmpty) return isDate;
+  for (final series in points) {
+    if (series.data.isEmpty) continue;
+    final first = series.data.first;
+    final x = switch (first) {
+      final FluentLineChartDataPoint point => point.x,
+      final FluentScatterChartDataPoint point => point.x,
+      _ => null,
+    };
+    isDate = x is DateTime;
+  }
+  return isDate;
+}
+
+/// The d3 curve factory [curve] names.
+///
+/// Ports `getCurveFactory` (`utilities.ts:2012-2034`), including the
+/// caller-supplied-factory arm at `:2016-2018`: upstream's `curve` prop is
+/// `'linear' | 'natural' | 'step' | 'stepAfter' | 'stepBefore' | CurveFactory`
+/// (`types/DataPoint.ts:448`), so this accepts either a [FluentLineCurve] or a
+/// [d3.D3CurveFactory] and falls back to [defaultFactory] for anything else.
+d3.D3CurveFactory getCurveFactory(
+  Object? curve, [
+  d3.D3CurveFactory defaultFactory = d3.curveLinear,
+]) => switch (curve) {
+  final d3.D3CurveFactory factory => factory,
+  FluentLineCurve.linear => d3.curveLinear,
+  FluentLineCurve.natural => d3.curveNatural,
+  FluentLineCurve.step => d3.curveStep,
+  FluentLineCurve.stepAfter => d3.curveStepAfter,
+  FluentLineCurve.stepBefore => d3.curveStepBefore,
+  _ => defaultFactory,
+};
