@@ -1,4 +1,5 @@
 import 'package:fluent_2_web/src/charts/axis/domain_range.dart';
+import 'package:fluent_2_web/src/charts/model/bar_data.dart';
 import 'package:fluent_2_web/src/charts/model/cartesian_series.dart';
 import 'package:fluent_2_web/src/charts/model/chart_common.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -128,6 +129,110 @@ void main() {
         reason:
             'utilities.ts:2242 returns the raw maximum as the end padding, not a '
             'delta. Odd, and ported as written.',
+      );
+    });
+  });
+
+  group('groupChartDataByYValue', () {
+    test('keeps string keys in insertion order', () {
+      final grouped = groupChartDataByYValue(<Object>[
+        const FluentHorizontalBarChartWithAxisDataPoint(x: 1, y: 'beta'),
+        const FluentHorizontalBarChartWithAxisDataPoint(x: 2, y: 'alpha'),
+        const FluentHorizontalBarChartWithAxisDataPoint(x: 3, y: 'beta'),
+      ]);
+      expect(
+        grouped.keys.toList(),
+        <String>['beta', 'alpha'],
+        reason:
+            'utilities.ts:1398 returns Object.values, and JS enumerates string '
+            'keys in insertion order.',
+      );
+      expect(
+        grouped['beta']!.length,
+        2,
+        reason: 'two points share the y value beta.',
+      );
+    });
+
+    test('sorts integer-like keys ascending, ahead of string keys', () {
+      final grouped = groupChartDataByYValue(<Object>[
+        const FluentHorizontalBarChartWithAxisDataPoint(x: 1, y: 'zeta'),
+        const FluentHorizontalBarChartWithAxisDataPoint(x: 2, y: 10),
+        const FluentHorizontalBarChartWithAxisDataPoint(x: 3, y: 2),
+      ]);
+      expect(
+        grouped.keys.toList(),
+        <String>['2', '10', 'zeta'],
+        reason:
+            'JS object enumeration puts integer-like keys first, in ascending '
+            'numeric order, then the rest in insertion order. That ordering '
+            'leaks into Object.values and therefore into the bar order.',
+      );
+    });
+
+    test('keys a whole double the way JavaScript does', () {
+      final grouped = groupChartDataByYValue(<Object>[
+        const FluentHorizontalBarChartWithAxisDataPoint(x: 1, y: 'zeta'),
+        const FluentHorizontalBarChartWithAxisDataPoint(x: 2, y: 2.0),
+      ]);
+      expect(
+        grouped.keys.toList(),
+        <String>['2', 'zeta'],
+        reason:
+            'utilities.ts:1389 uses the y value as an object key, so JS stringifies '
+            '2.0 as "2" — which then counts as an array index and enumerates '
+            "first. Dart's own 2.0.toString() would give \"2.0\" and lose both.",
+      );
+    });
+  });
+
+  group('computeLongestBars', () {
+    test('totals positives and negatives separately per group', () {
+      final grouped = groupChartDataByYValue(<Object>[
+        const FluentHorizontalBarChartWithAxisDataPoint(x: 3, y: 'a'),
+        const FluentHorizontalBarChartWithAxisDataPoint(x: -1, y: 'a'),
+        const FluentHorizontalBarChartWithAxisDataPoint(x: 5, y: 'b'),
+      ]);
+      final bars = computeLongestBars(grouped, 0);
+      expect(
+        bars.$1,
+        5,
+        reason:
+            'utilities.ts:1418-1421 totals the positives per group and '
+            'utilities.ts:1427 keeps the largest across groups.',
+      );
+      expect(
+        bars.$2,
+        -1,
+        reason:
+            'utilities.ts:1422-1425 totals the negatives per group and '
+            'utilities.ts:1428 keeps the smallest across groups.',
+      );
+    });
+
+    test('seeds every total at the x origin', () {
+      final grouped = groupChartDataByYValue(<Object>[
+        const FluentHorizontalBarChartWithAxisDataPoint(x: 2, y: 'a'),
+      ]);
+      final bars = computeLongestBars(grouped, 10);
+      expect(
+        bars.$1,
+        12,
+        reason: 'utilities.ts:1420 passes X_ORIGIN as the reduce seed.',
+      );
+    });
+
+    test('never returns a positive below zero or a negative above zero', () {
+      final bars = computeLongestBars(<String, List<Object>>{}, 0);
+      expect(
+        bars.$1,
+        0,
+        reason: 'utilities.ts:1414 seeds longestPositiveBar at 0.',
+      );
+      expect(
+        bars.$2,
+        0,
+        reason: 'utilities.ts:1415 seeds longestNegativeBar at 0.',
       );
     });
   });
