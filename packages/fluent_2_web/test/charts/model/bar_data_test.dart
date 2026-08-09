@@ -227,4 +227,82 @@ void main() {
       expect(group.lineData!.length, 1, reason: 'types/DataPoint.ts:676.');
     });
   });
+
+  group('FluentGroupedBarSeriesPoint', () {
+    test('requires a key, a value and a legend', () {
+      const point = FluentGroupedBarSeriesPoint(
+        key: 'q1-sales',
+        data: 12,
+        legend: 'Sales',
+      );
+      expect(point.key, 'q1-sales', reason: 'types/DataPoint.ts:717.');
+      expect(point.data, 12, reason: 'types/DataPoint.ts:722 bar height.');
+      expect(point.legend, 'Sales', reason: 'types/DataPoint.ts:732.');
+      expect(
+        point.useSecondaryYScale,
+        isFalse,
+        reason: 'types/DataPoint.ts:760 documents "False by default".',
+      );
+    });
+  });
+
+  group('FluentGroupedVerticalBarChartData', () {
+    test('names a group and holds its series points', () {
+      const group = FluentGroupedVerticalBarChartData(
+        name: 'Q1',
+        series: <FluentGroupedBarSeriesPoint>[
+          FluentGroupedBarSeriesPoint(key: 'a', data: 1, legend: 'A'),
+          FluentGroupedBarSeriesPoint(key: 'b', data: 2, legend: 'B'),
+        ],
+      );
+      expect(group.name, 'Q1', reason: 'types/DataPoint.ts:775 x-axis label.');
+      expect(group.series.length, 2, reason: 'types/DataPoint.ts:780.');
+    });
+  });
+
+  group('FluentGanttSpan', () {
+    test('accepts a DateTime pair and a numeric pair', () {
+      final dated = FluentGanttSpan(
+        start: DateTime.utc(2024),
+        end: DateTime.utc(2024, 2),
+      );
+      const numeric = FluentGanttSpan(start: 0, end: 10);
+      expect(
+        dated.start,
+        DateTime.utc(2024),
+        reason: 'types/DataPoint.ts:980 `Date | number`.',
+      );
+      expect(numeric.end, 10, reason: 'types/DataPoint.ts:981 number arm.');
+    });
+    test('rejects a String endpoint', () {
+      expect(
+        // Deliberately not `const`: the failing assert would then be a
+        // compile-time constant-evaluation error rather than a throw.
+        () => FluentGanttSpan(start: 'a', end: 'b'),
+        throwsA(isA<AssertionError>()),
+        reason: 'types/DataPoint.ts:980-981 admits no string.',
+      );
+    });
+  });
+
+  group('FluentGanttChartDataPoint', () {
+    test('holds a span, a category and an optional gradient pair', () {
+      const point = FluentGanttChartDataPoint(
+        x: FluentGanttSpan(start: 0, end: 10),
+        y: 'Design',
+        gradient: (Color(0xFF4F6BED), Color(0xFF93A4F4)),
+      );
+      expect(point.y, 'Design', reason: 'types/DataPoint.ts:989.');
+      expect(
+        point.gradient!.$1.toARGB32(),
+        0xFF4F6BED,
+        reason: 'types/DataPoint.ts:1005 `[string, string]`.',
+      );
+      expect(
+        point.gradient!.$2.toARGB32(),
+        0xFF93A4F4,
+        reason: 'The second stop of the pair.',
+      );
+    });
+  });
 }

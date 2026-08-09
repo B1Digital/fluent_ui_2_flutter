@@ -398,3 +398,156 @@ class FluentVerticalStackedBarGroup {
   /// Accessible naming for the whole-stack callout.
   final FluentChartSemantics? stackCallOutSemantics;
 }
+
+/// One bar inside a group of a grouped vertical bar chart.
+///
+/// Ports `GVBarChartSeriesPoint` (`types/DataPoint.ts:713-766`).
+@immutable
+class FluentGroupedBarSeriesPoint {
+  /// Creates a bar.
+  const FluentGroupedBarSeriesPoint({
+    required this.key,
+    required this.data,
+    required this.legend,
+    this.color,
+    this.xAxisCalloutData,
+    this.yAxisCalloutData,
+    this.onClick,
+    this.callOutSemantics,
+    this.useSecondaryYScale = false,
+    this.barLabel,
+  });
+
+  /// The bar's identity within its group (`types/DataPoint.ts:717`).
+  final String key;
+
+  /// The bar height (`types/DataPoint.ts:722`).
+  final double data;
+
+  /// The legend text this bar belongs to (`types/DataPoint.ts:732`).
+  final String legend;
+
+  /// The bar's colour (`types/DataPoint.ts:727`).
+  final Color? color;
+
+  /// Replacement text for the x value in the callout.
+  final String? xAxisCalloutData;
+
+  /// Replacement text for the y value in the callout.
+  final String? yAxisCalloutData;
+
+  /// Invoked when this bar is activated.
+  final VoidCallback? onClick;
+
+  /// Accessible naming for the callout.
+  final FluentChartSemantics? callOutSemantics;
+
+  /// Whether this bar is plotted against the secondary y scale.
+  ///
+  /// `types/DataPoint.ts:760` documents "False by default".
+  final bool useSecondaryYScale;
+
+  /// Text drawn on the bar (`types/DataPoint.ts:765`).
+  final String? barLabel;
+}
+
+/// One group of a grouped vertical bar chart.
+///
+/// Ports `GroupedVerticalBarChartData` (`types/DataPoint.ts:771-786`).
+@immutable
+class FluentGroupedVerticalBarChartData {
+  /// Creates a group.
+  const FluentGroupedVerticalBarChartData({
+    required this.name,
+    required this.series,
+    this.stackCallOutSemantics,
+  });
+
+  /// The label this group sits under on the x axis
+  /// (`types/DataPoint.ts:775`).
+  final String name;
+
+  /// The bars in the group, left to right (`types/DataPoint.ts:780`).
+  final List<FluentGroupedBarSeriesPoint> series;
+
+  /// Accessible naming for the whole-group callout
+  /// (`types/DataPoint.ts:785`).
+  final FluentChartSemantics? stackCallOutSemantics;
+}
+
+/// The interval a Gantt bar spans.
+///
+/// Ports the inline `x: { start; end }` shape at `types/DataPoint.ts:979-982`.
+@immutable
+class FluentGanttSpan {
+  /// Creates a span.
+  const FluentGanttSpan({required this.start, required this.end})
+    : assert(
+        start is num || start is DateTime,
+        'types/DataPoint.ts:980 — `Date | number`.',
+      ),
+      assert(
+        end is num || end is DateTime,
+        'types/DataPoint.ts:981 — `Date | number`.',
+      );
+
+  /// Where the bar begins: a number or a [DateTime]
+  /// (`types/DataPoint.ts:980`).
+  final Object start;
+
+  /// Where the bar ends: a number or a [DateTime] (`types/DataPoint.ts:981`).
+  final Object end;
+}
+
+/// One bar of a Gantt chart.
+///
+/// Ports `GanttChartDataPoint` (`types/DataPoint.ts:975-1028`).
+@immutable
+class FluentGanttChartDataPoint {
+  /// Creates a Gantt bar.
+  const FluentGanttChartDataPoint({
+    required this.x,
+    required this.y,
+    this.legend,
+    this.color,
+    this.gradient,
+    this.xAxisCalloutData,
+    this.yAxisCalloutData,
+    this.onClick,
+    this.callOutSemantics,
+  }) : assert(
+         y is num || y is String,
+         'types/DataPoint.ts:989 — `number | string`.',
+       );
+
+  /// The interval the bar spans along x (`types/DataPoint.ts:979-982`).
+  final FluentGanttSpan x;
+
+  /// The row the bar sits on: a category or a coordinate.
+  ///
+  /// `types/DataPoint.ts:986-988`: a number plots at its own y coordinate, a
+  /// string spaces evenly along the y axis.
+  final Object y;
+
+  /// The legend text this bar belongs to (`types/DataPoint.ts:994`).
+  final String? legend;
+
+  /// The bar's colour (`types/DataPoint.ts:999`).
+  final Color? color;
+
+  /// A two-stop gradient that overrides [color] when the chart has gradients
+  /// enabled (`types/DataPoint.ts:1001-1005`).
+  final (Color, Color)? gradient;
+
+  /// Replacement text for the x value in the callout.
+  final String? xAxisCalloutData;
+
+  /// Replacement text for the y value in the callout.
+  final String? yAxisCalloutData;
+
+  /// Invoked when this bar is activated.
+  final VoidCallback? onClick;
+
+  /// Accessible naming for the callout.
+  final FluentChartSemantics? callOutSemantics;
+}
