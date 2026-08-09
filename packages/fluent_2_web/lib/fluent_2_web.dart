@@ -31,6 +31,29 @@ export 'src/buttons/button.dart';
 export 'src/buttons/button_style.dart';
 export 'src/buttons/compound_button.dart';
 export 'src/buttons/split_button.dart';
+// The chart foundation. `src/charts/internal/d3/**` and
+// `src/charts/internal/responsive.dart` are deliberately NOT exported: the d3
+// port is 28 files of unprefixed globals kept internal on purpose, and the
+// responsive helper has no public symbol. Tests reach both by deep import,
+// which is existing precedent in this repository.
+export 'src/charts/chrome/legend_shape.dart';
+export 'src/charts/internal/chart_colors.dart';
+export 'src/charts/internal/chart_semantics.dart';
+export 'src/charts/internal/chart_text_measurer.dart';
+export 'src/charts/internal/chart_text_styles.dart';
+export 'src/charts/internal/chart_utils.dart';
+export 'src/charts/internal/data_viz_palette.dart';
+export 'src/charts/model/bar_data.dart';
+export 'src/charts/model/callout_data.dart';
+export 'src/charts/model/cartesian_series.dart';
+export 'src/charts/model/chart_annotation.dart';
+export 'src/charts/model/chart_common.dart';
+export 'src/charts/model/chart_value.dart';
+export 'src/charts/model/heatmap_data.dart';
+export 'src/charts/model/line_options.dart';
+export 'src/charts/model/polar_data.dart';
+export 'src/charts/model/sankey_data.dart';
+export 'src/charts/model/series_v2.dart';
 export 'src/inputs/calendar.dart';
 export 'src/inputs/calendar_style.dart';
 export 'src/inputs/checkbox.dart';
