@@ -208,6 +208,204 @@ void main() {
     });
   });
 
+  group('wrapXLabels', () {
+    testWidgets('truncates rather than wrapping when the tooltip is on', (
+      tester,
+    ) async {
+      final layout = wrapXLabels(
+        <String>['Western Australia'],
+        measurer: FluentChartTextMeasurer(),
+        style: const TextStyle(fontSize: 10),
+        noOfCharsToTruncate: 4,
+        showXAxisLabelsTooltip: true,
+      );
+      expect(
+        layout.labels.single.lines.single.text,
+        'West...',
+        reason:
+            'utilities.ts:1156-1157 — one tspan holding the truncated word.',
+      );
+      expect(
+        layout.reserveHeight,
+        0,
+        reason:
+            'utilities.ts:1180 skips the height computation entirely in tooltip '
+            'mode, so nothing is removed from the plot.',
+      );
+    });
+
+    testWidgets('breaks on whitespace once a line exceeds the width', (
+      tester,
+    ) async {
+      final layout = wrapXLabels(
+        <String>['New South Wales'],
+        measurer: FluentChartTextMeasurer(),
+        style: const TextStyle(fontSize: 10),
+        noOfCharsToTruncate: 100,
+        showXAxisLabelsTooltip: false,
+        // 20 logical pixels admits roughly four characters at 10px Segoe.
+        width: 20.0,
+      );
+      expect(
+        layout.labels.single.lines.length,
+        greaterThan(1),
+        reason: 'utilities.ts:1159-1177 greedily wraps on the /\\s+/ split.',
+      );
+      expect(
+        layout.labels.single.lines.first.dyEm,
+        0.71,
+        reason: 'the first tspan keeps the axis base dy (utilities.ts:1147).',
+      );
+      expect(
+        layout.labels.single.lines[1].dyEm,
+        closeTo(0.71 + 1.1, 1e-9),
+        reason: 'utilities.ts:1145 and :1173 — each new line adds 1.1 ems.',
+      );
+    });
+
+    testWidgets('never breaks a single word', (tester) async {
+      final layout = wrapXLabels(
+        <String>['Australia'],
+        measurer: FluentChartTextMeasurer(),
+        style: const TextStyle(fontSize: 10),
+        noOfCharsToTruncate: 100,
+        showXAxisLabelsTooltip: false,
+        width: 1.0,
+      );
+      expect(
+        layout.labels.single.lines.length,
+        1,
+        reason:
+            'utilities.ts:1165 requires line.length > 1 before breaking, so one '
+            'long word overflows rather than splitting.',
+      );
+    });
+
+    testWidgets('reserves twelve pixels per extra line at minimum', (
+      tester,
+    ) async {
+      final layout = wrapXLabels(
+        <String>['New South Wales'],
+        measurer: FluentChartTextMeasurer(),
+        style: const TextStyle(fontSize: 10),
+        noOfCharsToTruncate: 100,
+        showXAxisLabelsTooltip: false,
+        width: 20.0,
+      );
+      expect(
+        layout.reserveHeight,
+        greaterThanOrEqualTo(12),
+        reason:
+            'utilities.ts:1181 seeds maxHeight at 12 and :1187 multiplies by '
+            '(maxLines - 1), so two lines reserve at least 12.',
+      );
+    });
+
+    testWidgets('accepts a per-tick width list', (tester) async {
+      final layout = wrapXLabels(
+        <String>['New South Wales', 'Victoria'],
+        measurer: FluentChartTextMeasurer(),
+        style: const TextStyle(fontSize: 10),
+        noOfCharsToTruncate: 100,
+        showXAxisLabelsTooltip: false,
+        width: <double>[20, 400],
+      );
+      expect(
+        layout.labels[1].lines.length,
+        1,
+        reason:
+            'utilities.ts:1159 indexes the width array by tick, so the second '
+            'label gets 400px and never wraps.',
+      );
+    });
+  });
+
+  group('wrapXLabels against Oracle B', () {
+    // The captured story whose *x* axis routes through createWrapOfXLabels with
+    // showXAxisLablesTooltip on (CartesianChart.tsx:390-397), which is the
+    // truncating branch at utilities.ts:1156-1157, with the default
+    // noOfCharsToTruncate of four.
+    //
+    // No captured story sets wrapXAxisLabels, so the wrapping branch
+    // (utilities.ts:1159-1177) has no oracle: none of the 90 fixtures holds a
+    // <text> with more than one <tspan> child. The count guard below therefore
+    // pins the tooltip branch only, and the wrapping geometry rests on the
+    // hand-written cases above.
+    const storyId = 'charts-verticalbarchart--vertical-bar-axis-tooltip';
+    const noOfCharsToTruncate = 4;
+
+    testWidgets('reproduces every rendered x-axis tspan', (tester) async {
+      final story = _loadOracleStory(storyId);
+      final elements =
+          ((story['svgs'] as List<dynamic>).first
+                  as Map<String, dynamic>)['elements']
+              as List<dynamic>;
+      final tspans = elements
+          .cast<Map<String, dynamic>>()
+          .where((element) => element['tag'] == 'tspan')
+          .toList(growable: false);
+
+      // Count guard: the capture holds exactly four x-axis ticks, and this
+      // story's y axis renders bare <text> with no tspan child, so a re-capture
+      // that lost the x axis would otherwise leave the loop below asserting
+      // nothing.
+      expect(
+        tspans,
+        hasLength(4),
+        reason:
+            '$storyId captured four x-axis tick tspans; a different count means '
+            'the fixture no longer describes the axis this test reads.',
+      );
+
+      // The capture records the rendered tspan text but not the data-full
+      // attribute, so the originals are reconstructed from the story's own
+      // category names. Only each label's first four code units and whether its
+      // length exceeds four are load-bearing, and both are pinned by the
+      // rendered text asserted below — in particular 'Data' is exactly four code
+      // units and came back whole.
+      const fullLabels = <String>[
+        'Simple Text',
+        'Showing Truncation',
+        'Large Text Value',
+        'Data',
+      ];
+      final layout = wrapXLabels(
+        fullLabels,
+        measurer: FluentChartTextMeasurer(),
+        style: const TextStyle(fontSize: 10),
+        noOfCharsToTruncate: noOfCharsToTruncate,
+        showXAxisLabelsTooltip: true,
+      );
+
+      expect(
+        layout.reserveHeight,
+        0,
+        reason:
+            'the live axis reserved nothing: every captured tick is a single '
+            'tspan, so utilities.ts:1180 never ran the height computation.',
+      );
+
+      for (var index = 0; index < tspans.length; index++) {
+        expect(
+          layout.labels[index].lines,
+          hasLength(1),
+          reason:
+              'utilities.ts:1148-1157 appends exactly one tspan per tick in '
+              'tooltip mode, and the fixture has one tspan per <text>.',
+        );
+        expect(
+          layout.labels[index].lines.single.text,
+          tspans[index]['text'],
+          reason:
+              'the live axis rendered ${tspans[index]['text']} for '
+              '${fullLabels[index]}: four code units followed by three ASCII '
+              'full stops, and no ellipsis at all once the label is exactly '
+              'four code units long.',
+        );
+      }
+    });
+  });
+
   group('shrinkToFit', () {
     testWidgets('drops one code unit at a time and reports overflow', (
       tester,
