@@ -479,6 +479,196 @@ FluentAxisSpec createStringXAxis(
   );
 }
 
+/// Resolves the tick label for a y axis, shared by the y builders.
+///
+/// Ports the `tickFormat` closure at `utilities.ts:865-877`: an explicit
+/// [tickText] entry wins, then a caller function, then a d3 format specifier,
+/// then the default SI formatter with the log-scale blanking short-circuit.
+///
+/// [yAxisTickFormat] is upstream's `string | function` union
+/// (`CartesianChart.types.ts` via `utilities.ts:810`), so it arrives as an
+/// [Object]; a callable is recognised only at the exact shape
+/// `String Function(Object value, int index)`.
+String _formatYTick(
+  Object value,
+  int index, {
+  required List<Object>? tickValues,
+  required List<String>? tickText,
+  required Object? yAxisTickFormat,
+  String Function(Object)? defaultFormat,
+}) {
+  if (tickValues != null && tickText != null && index < tickText.length) {
+    return tickText[index];
+  }
+  if (yAxisTickFormat is String Function(Object, int)) {
+    return yAxisTickFormat(value, index);
+  }
+  if (yAxisTickFormat is String) {
+    return d3.format(yAxisTickFormat)(value as num);
+  }
+  // The empty-string short-circuit exists for log scales, where d3 blanks the
+  // ticks between decades (utilities.ts:876).
+  if (defaultFormat != null && defaultFormat(value) == '') {
+    return '';
+  }
+  return defaultYAxisTickFormatter((value as num).toDouble());
+}
+
+/// Builds a numeric y axis.
+///
+/// Ports `createNumericYAxis` (`utilities.ts:789-893`). Four behaviours that are
+/// easy to get wrong:
+///
+/// * the ceiling is `maxOfYVal || endValue || 0` (`:821`), which uses JavaScript
+///   truthiness, so a caller-supplied `0` falls through to the data extent;
+/// * the floor is `min(startValue || 0, yMinValue || 0)` (`:823`), so a series
+///   of entirely positive values still anchors at zero;
+/// * `prepareDatapoints`'s output becomes the literal tick set unless the scale
+///   is logarithmic (`:862`), in which case d3's own log ticks apply;
+/// * the inner tick size is negative, spanning the plot as a gridline (`:851`),
+///   while the outer size stays at d3's default 6.
+///
+/// Lines `825-831` compute a ScatterChart y padding and then never read it —
+/// `:832` rebuilds the domain from `domainValues`. That block is dead and is not
+/// ported; the real scatter padding lives in the chart, at
+/// `ScatterChart.tsx:188-191`. [chartType] is therefore read nowhere in this
+/// body, and is kept only because the cross-plan contract declares it and the
+/// sibling builders take it.
+///
+/// The secondary axis's `text-anchor` is set to the boolean `false` upstream
+/// (`:886`), which the browser rejects, so the secondary axis keeps d3-axis's
+/// own `start` anchor. The port reproduces that by simply not overriding the
+/// anchor derived from the orientation.
+///
+/// The upstream `_useRtl` parameter (`:798`) only ever picks between the two
+/// `text-anchor` values at `:886`, both of which d3-axis already derives from
+/// the orientation, so it is not part of the Dart signature.
+FluentAxisSpec createNumericYAxis(
+  FluentYAxisParams yAxisParams,
+  FluentAxisData axisData, {
+  required bool isRtl,
+  required bool isIntegralDataset,
+  required FluentChartType chartType,
+  bool useSecondaryYScale = false,
+  bool roundedTicks = false,
+  FluentAxisScaleType? scaleType,
+}) {
+  final minMax = yAxisParams.yMinMaxValues;
+  // parity: utilities.ts:821 uses || rather than ??, so a legitimate zero in
+  // maxOfYVal or endValue is discarded in favour of the next term. 0 is the
+  // final fallback that line spells out.
+  final tempVal = yAxisParams.maxOfYVal != 0
+      ? yAxisParams.maxOfYVal
+      : (minMax.endValue != 0 ? minMax.endValue : 0.0);
+  final finalYmax = tempVal > yAxisParams.yMaxValue
+      ? tempVal
+      : yAxisParams.yMaxValue;
+  // utilities.ts:823 — the same `|| 0` truthiness on both arms, so a floor of
+  // exactly 0 and an absent floor are indistinguishable.
+  final finalYmin = math.min(
+    minMax.startValue != 0 ? minMax.startValue : 0.0,
+    yAxisParams.yMinValue != 0 ? yAxisParams.yMinValue : 0.0,
+  );
+
+  final domainValues = prepareDatapoints(
+    finalYmax,
+    finalYmin,
+    yAxisParams.yAxisTickCount,
+    isIntegralDataset: isIntegralDataset,
+    roundedTicks: roundedTicks,
+  );
+  var scaleDomain = <double>[domainValues.first, domainValues.last];
+
+  if (scaleType == FluentAxisScaleType.log) {
+    // utilities.ts:835-836 starts from the raw extent, so the prepared domain is
+    // discarded entirely here; 0 at `:837` and `:840` is the "no user bound"
+    // sentinel [FluentYAxisParams.yMinValue] and
+    // [FluentYAxisParams.yMaxValue] default to.
+    var domainStart = minMax.startValue;
+    var domainEnd = minMax.endValue;
+    if (yAxisParams.yMinValue > 0) {
+      domainStart = math.min(domainStart, yAxisParams.yMinValue);
+    }
+    if (yAxisParams.yMaxValue > 0) {
+      domainEnd = math.max(domainEnd, yAxisParams.yMaxValue);
+    }
+    scaleDomain = <double>[domainStart, domainEnd];
+  }
+
+  // The range is inverted — the domain floor sits at the bottom of the plot.
+  // 0 stands in for the margins upstream asserts are always resolved by then
+  // (`:848`) and for the event-label height it gates on `eventAnnotationProps`
+  // being present, which the port folds into nullability.
+  final scale = _createNumericScale(scaleType)
+    ..domainOf(scaleDomain)
+    ..rangeOf(<double>[
+      yAxisParams.containerHeight - (yAxisParams.margins.bottom ?? 0),
+      (yAxisParams.margins.top ?? 0) + (yAxisParams.eventLabelHeight ?? 0),
+    ]);
+
+  final orientation =
+      (!isRtl && useSecondaryYScale) || (isRtl && !useSecondaryYScale)
+      ? d3.FluentAxisOrientation.right
+      : d3.FluentAxisOrientation.left;
+
+  List<Object>? customTickValues;
+  if (yAxisParams.tickValues != null) {
+    customTickValues = yAxisParams.tickValues;
+  } else if (yAxisParams.tickStep != null) {
+    // Upstream's guard is `else if (tickStep)` (`:855`), so a 0 or empty-string
+    // step is skipped there and admitted here; `generateNumericTicks` returns
+    // null for both, which lands on the same generated ticks either way.
+    customTickValues = generateNumericTicks(
+      scaleType,
+      yAxisParams.tickStep!,
+      yAxisParams.tick0,
+      scale.domain.map((d) => (d as num).toDouble()).toList(),
+    );
+  }
+
+  // utilities.ts:860 assigns axisData.yAxisDomainValues here and :889 overwrites
+  // it unconditionally, so that assignment is dead and is not ported.
+  final tickValues =
+      customTickValues ??
+      (scaleType != FluentAxisScaleType.log
+          ? domainValues.cast<Object>()
+          : scale.ticks(yAxisParams.yAxisTickCount));
+
+  final defaultFormat = scale.tickFormat(yAxisParams.yAxisTickCount);
+  final tickLabels = <String>[
+    for (final (i, value) in tickValues.indexed)
+      _formatYTick(
+        value,
+        i,
+        tickValues: yAxisParams.tickValues,
+        tickText: yAxisParams.tickText,
+        yAxisTickFormat: yAxisParams.yAxisTickFormat,
+        defaultFormat: defaultFormat,
+      ),
+  ];
+
+  axisData
+    ..yAxisDomainValues = scale.domain
+        .map((d) => (d as num).toDouble())
+        .toList()
+    ..yAxisTickText = tickLabels;
+
+  return FluentAxisSpec(
+    scale: scale,
+    tickValues: tickValues,
+    tickLabels: tickLabels,
+    orientation: orientation,
+    tickSizeInner:
+        -(yAxisParams.containerWidth -
+            (yAxisParams.margins.left ?? 0) -
+            (yAxisParams.margins.right ?? 0)),
+    // d3-axis leaves tickSizeOuter at 6 unless a caller changes it, and
+    // utilities.ts:851 changes only the padding and the inner size.
+    tickSizeOuter: 6,
+    tickPadding: yAxisParams.tickPadding,
+  );
+}
+
 /// Whether [useUtc] would be truthy in JavaScript.
 ///
 /// `utilities.ts:509` and `:515` test `useUTC` itself rather than the narrowed

@@ -1122,4 +1122,399 @@ void main() {
       );
     });
   });
+
+  group('createNumericYAxis', () {
+    FluentYAxisParams yParams({
+      double start = 0,
+      double end = 100,
+      double maxOfYVal = 0,
+      double yMaxValue = 0,
+      double yMinValue = 0,
+    }) {
+      return FluentYAxisParams(
+        margins: _margins,
+        containerWidth: 700,
+        containerHeight: 300,
+        yMinMaxValues: FluentChartMinMax(startValue: start, endValue: end),
+        maxOfYVal: maxOfYVal,
+        yMaxValue: yMaxValue,
+        yMinValue: yMinValue,
+        tickPadding: 10,
+      );
+    }
+
+    test('takes its ticks straight from prepareDatapoints', () {
+      final axisData = FluentAxisData();
+      final spec = createNumericYAxis(
+        yParams(),
+        axisData,
+        isRtl: false,
+        isIntegralDataset: true,
+        chartType: FluentChartType.lineChart,
+      );
+      expect(
+        spec.tickValues,
+        <double>[0, 25, 50, 75, 100],
+        reason:
+            'utilities.ts:824 builds domainValues with prepareDatapoints and '
+            ':862 makes them the literal tick set.',
+      );
+      expect(
+        spec.tickLabels,
+        <String>['0', '25', '50', '75', '100'],
+        reason: 'utilities.ts:876 formats through defaultYAxisTickFormatter.',
+      );
+      expect(
+        axisData.yAxisDomainValues,
+        <double>[0, 100],
+        reason:
+            'utilities.ts:889 writes the resolved scale domain, not the ticks.',
+      );
+      expect(
+        axisData.yAxisTickText,
+        spec.tickLabels,
+        reason: 'utilities.ts:890 writes the same labels the spec carries.',
+      );
+    });
+
+    test('spans the full plot width with a negative inner tick size', () {
+      final spec = createNumericYAxis(
+        yParams(),
+        FluentAxisData(),
+        isRtl: false,
+        isIntegralDataset: true,
+        chartType: FluentChartType.lineChart,
+      );
+      expect(
+        spec.tickSizeInner,
+        -640,
+        reason:
+            'utilities.ts:851 — -(containerWidth 700 - left 40 - right 20), '
+            'which is a horizontal gridline.',
+      );
+      expect(
+        spec.tickSizeOuter,
+        6,
+        reason: "utilities.ts:851 leaves tickSizeOuter at d3-axis's default 6.",
+      );
+    });
+
+    test('flips to the right for a secondary scale in LTR', () {
+      final left = createNumericYAxis(
+        yParams(),
+        FluentAxisData(),
+        isRtl: false,
+        isIntegralDataset: true,
+        chartType: FluentChartType.lineChart,
+      );
+      final right = createNumericYAxis(
+        yParams(),
+        FluentAxisData(),
+        isRtl: false,
+        isIntegralDataset: true,
+        chartType: FluentChartType.lineChart,
+        useSecondaryYScale: true,
+      );
+      expect(
+        left.orientation,
+        d3.FluentAxisOrientation.left,
+        reason: 'utilities.ts:849-850.',
+      );
+      expect(
+        right.orientation,
+        d3.FluentAxisOrientation.right,
+        reason: '(!isRtl && useSecondaryYScale) selects axisRight.',
+      );
+    });
+
+    test('flips to the right for the PRIMARY scale in RTL', () {
+      final spec = createNumericYAxis(
+        yParams(),
+        FluentAxisData(),
+        isRtl: true,
+        isIntegralDataset: true,
+        chartType: FluentChartType.lineChart,
+      );
+      expect(
+        spec.orientation,
+        d3.FluentAxisOrientation.right,
+        reason: '(isRtl && !useSecondaryYScale) also selects axisRight.',
+      );
+    });
+
+    test('swallows a legitimate zero maximum', () {
+      final spec = createNumericYAxis(
+        yParams(end: 80, maxOfYVal: 0),
+        FluentAxisData(),
+        isRtl: false,
+        isIntegralDataset: true,
+        chartType: FluentChartType.lineChart,
+      );
+      expect(
+        spec.scale.domain.last,
+        80,
+        reason:
+            'parity with utilities.ts:821 — `maxOfYVal || endValue || 0` uses '
+            '||, so a caller that genuinely means a maximum of 0 falls through '
+            'to the data extent instead.',
+      );
+    });
+
+    test('clamps the domain floor at zero for all-positive data', () {
+      final spec = createNumericYAxis(
+        yParams(start: 20, end: 100),
+        FluentAxisData(),
+        isRtl: false,
+        isIntegralDataset: true,
+        chartType: FluentChartType.lineChart,
+      );
+      expect(
+        spec.scale.domain.first,
+        0,
+        reason:
+            'utilities.ts:823 — Math.min(startValue || 0, yMinValue || 0), so '
+            'an all-positive series still starts at zero.',
+      );
+    });
+
+    test('does not inflate a scatter domain by ten per cent', () {
+      final scatter = createNumericYAxis(
+        yParams(),
+        FluentAxisData(),
+        isRtl: false,
+        isIntegralDataset: true,
+        chartType: FluentChartType.scatterChart,
+      );
+      final line = createNumericYAxis(
+        yParams(),
+        FluentAxisData(),
+        isRtl: false,
+        isIntegralDataset: true,
+        chartType: FluentChartType.lineChart,
+      );
+      expect(
+        scatter.scale.domain,
+        line.scale.domain,
+        reason:
+            'utilities.ts:825-831 computes a scatter y padding and then never '
+            'reads it — line 832 rebuilds scaleDomain from domainValues. The '
+            'block is dead and is deliberately not ported.',
+      );
+    });
+
+    test('discards prepareDatapoints on a log scale', () {
+      final spec = createNumericYAxis(
+        yParams(start: 1, end: 1000),
+        FluentAxisData(),
+        isRtl: false,
+        isIntegralDataset: true,
+        chartType: FluentChartType.lineChart,
+        scaleType: FluentAxisScaleType.log,
+      );
+      expect(
+        spec.scale.domain,
+        <double>[1, 1000],
+        reason:
+            'utilities.ts:834-844 replaces the prepared domain with the raw '
+            'extent when the scale is logarithmic.',
+      );
+    });
+  });
+
+  group('createNumericYAxis against Oracle B', () {
+    // The VerticalBarChart default story is the plainest captured numeric y
+    // axis: a left primary scale with the full-width gridline, no secondary
+    // scale and no event annotations.
+    const storyId = 'charts-verticalbarchart--vertical-bar-default';
+    final story = _loadOracleStory(storyId);
+    final elements = _elements(story);
+    // d3AxisLeft anchors its labels at the end (`d3-axis/src/axis.js:111`) and
+    // utilities.ts:886 leaves that anchor alone for a primary LTR axis, so this
+    // is the one captured root group that is a y axis.
+    final root = elements.firstWhere(
+      (element) =>
+          element['parent'] == -1 &&
+          element['tag'] == 'g' &&
+          element['textAnchor'] == 'end',
+    );
+    final capturedDomainPath =
+        elements.firstWhere(
+              (element) =>
+                  element['parent'] == root['index'] &&
+                  element['tag'] == 'path',
+            )['d']
+            as String;
+    final tickOffsets = <double>[];
+    final capturedLabels = <String>[];
+    final tickLabelOffsets = <double>[];
+    final tickLineLengths = <double>[];
+    for (final tickGroup in elements.where(
+      (element) => element['parent'] == root['index'] && element['tag'] == 'g',
+    )) {
+      final children = elements.where(
+        (element) => element['parent'] == tickGroup['index'],
+      );
+      final text = children.firstWhere((child) => child['tag'] == 'text');
+      // 'translate(0,275.5)' — a y axis carries its tick offset second.
+      tickOffsets.add(_numbers(tickGroup['transform'] as String).last);
+      capturedLabels.add(text['text'] as String);
+      tickLabelOffsets.add((text['x'] as num).toDouble());
+      tickLineLengths.add(
+        (children.firstWhere((child) => child['tag'] == 'line')['x2'] as num)
+            .toDouble(),
+      );
+    }
+    final crispOffset = (story['crispOffset'] as num).toDouble();
+
+    // 650 by 310 is the captured SVG box. The margins are the ones the capture
+    // implies: the range runs 310 - 35 = 275 down to margins.top 20, and the
+    // gridline is 650 - 40 - 20 = 590 long.
+    const params = FluentYAxisParams(
+      margins: FluentChartMargins(left: 40, right: 20, top: 20, bottom: 35),
+      containerWidth: 650,
+      containerHeight: 310,
+      // The tallest captured bar spans the whole 275..20 range, so reading the
+      // bar tops back through the scale puts the data maximum at 50000.
+      yMinMaxValues: FluentChartMinMax(startValue: 0, endValue: 50000),
+      // CartesianChart.tsx:304 always passes 10, never the destructured 12.
+      tickPadding: 10,
+    );
+
+    FluentAxisSpec buildSpec([FluentAxisData? axisData]) => createNumericYAxis(
+      params,
+      axisData ?? FluentAxisData(),
+      isRtl: false,
+      isIntegralDataset: true,
+      chartType: FluentChartType.verticalBarChart,
+    );
+
+    List<d3.FluentAxisTickGeometry> geometryTicks(FluentAxisSpec spec) =>
+        d3.FluentAxisGeometry(
+          orientation: spec.orientation,
+          scale: spec.scale,
+          tickValues: spec.tickValues,
+          tickLabels: spec.tickLabels,
+          offset: crispOffset,
+          tickSizeInner: spec.tickSizeInner,
+          tickSizeOuter: spec.tickSizeOuter,
+          tickPadding: spec.tickPadding,
+        ).ticks;
+
+    test('the corpus fixture still carries a five-tick numeric y axis', () {
+      // Guard against a renamed or re-captured story quietly emptying every
+      // assertion below.
+      expect(
+        tickOffsets.length,
+        5,
+        reason:
+            '$storyId captured five y ticks; a different count means the '
+            'fixture changed and the expectations here are stale.',
+      );
+      expect(
+        story['deviceScaleFactor'],
+        1,
+        reason:
+            'the geometry below only agrees with flutter test at scale 1, '
+            'where the crispness offset is 0.5.',
+      );
+    });
+
+    test('reproduces the captured tick values and labels', () {
+      final axisData = FluentAxisData();
+      final spec = buildSpec(axisData);
+      expect(
+        spec.tickValues,
+        <double>[0, 12500, 25000, 37500, 50000],
+        reason:
+            'prepareDatapoints(50000, 0, 4) steps by 12500 and utilities.ts:862 '
+            'makes that the literal tick set.',
+      );
+      expect(
+        spec.tickLabels,
+        capturedLabels,
+        reason:
+            'defaultYAxisTickFormatter is formatPrefix(\'.2~\') '
+            '(utilities.ts:216-235), which is why the capture reads 12.5k and '
+            '50k rather than 12500 and 50000.',
+      );
+      expect(
+        axisData.yAxisDomainValues,
+        <double>[0, 50000],
+        reason:
+            'utilities.ts:889 writes the resolved scale domain, and the '
+            'captured domain path pins its range to that same pair.',
+      );
+    });
+
+    test('reproduces the captured tick positions', () {
+      final spec = buildSpec();
+      final ticks = geometryTicks(spec);
+      for (var i = 0; i < ticks.length; i++) {
+        expect(
+          ticks[i].position,
+          closeTo(tickOffsets[i], _oracleTolerance),
+          reason:
+              'axis_geometry adds the crispness offset once to position(d) '
+              '(`d3-axis/src/axis.js:98`), so tick $i must land on the '
+              'captured translate.',
+        );
+      }
+    });
+
+    test('reproduces the captured gridline length and label offset', () {
+      final spec = buildSpec();
+      final ticks = geometryTicks(spec);
+      expect(
+        spec.tickSizeInner,
+        -590,
+        reason:
+            'utilities.ts:851 — -(650 - 40 - 20), drawn leftwards by k = -1 and '
+            'so captured as a positive x2 of 590.',
+      );
+      expect(
+        ticks.map((tick) => tick.lineEnd.dx),
+        everyElement(closeTo(-spec.tickSizeInner, _oracleTolerance)),
+        reason:
+            'k * tickSizeInner (`d3-axis/src/axis.js:67`) turns the negative '
+            'inner size into the captured rightward gridline.',
+      );
+      expect(
+        tickLineLengths,
+        everyElement(closeTo(-spec.tickSizeInner, _oracleTolerance)),
+        reason: 'every captured gridline is that same length.',
+      );
+      expect(
+        ticks.map((tick) => tick.labelAnchor.dx),
+        everyElement(closeTo(tickLabelOffsets.first, _oracleTolerance)),
+        reason:
+            'd3-axis/src/axis.js:46 places the label at '
+            'k * (max(tickSizeInner, 0) + tickPadding), which for a left axis '
+            'with a negative inner size is the captured -10.',
+      );
+    });
+
+    test('reproduces the captured domain path end caps', () {
+      final spec = buildSpec();
+      final range = spec.scale.range;
+      // 'M-6,275.5H0.5V20.5H-6' in the order the numbers appear: the bottom
+      // cap's x and y, the crisp x of the spine, the top cap's y and its x
+      // again. Compared as numbers because the same path written from Dart
+      // doubles reads '6.0'.
+      expect(
+        _numbers(capturedDomainPath),
+        <double>[
+          -spec.tickSizeOuter,
+          range.first + crispOffset,
+          crispOffset,
+          range.last + crispOffset,
+          -spec.tickSizeOuter,
+        ],
+        reason:
+            'd3-axis/src/axis.js:93 draws a left axis as '
+            'M k*tickSizeOuter,range0 H offset V range1 H k*tickSizeOuter, so '
+            'the captured path pins the range to 275..20 and tickSizeOuter '
+            'to 6.',
+      );
+    });
+  });
 }
