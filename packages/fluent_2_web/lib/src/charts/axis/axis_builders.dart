@@ -5,6 +5,8 @@ import '../internal/d3/format.dart' as d3;
 import '../internal/d3/scale_continuous.dart' as d3;
 import '../internal/d3/scale_linear.dart' as d3;
 import '../internal/d3/scale_log.dart' as d3;
+import '../internal/d3/scale_time.dart' as d3;
+import '../internal/d3/time_format.dart' as d3;
 import '../model/chart_common.dart';
 import 'axis_types.dart';
 import 'tick_format.dart';
@@ -183,3 +185,198 @@ FluentAxisSpec createNumericXAxis(
     tickPadding: xAxisParams.tickPadding,
   );
 }
+
+/// Builds a date x axis.
+///
+/// Ports `createDateXAxis` (`utilities.ts:441-546`). Differences from the
+/// numeric axis that are easy to lose:
+///
+/// * `nice()` is **unconditional** here (`:468`), where the numeric axis gates
+///   it on [FluentXAxisParams.showRoundOffXTickValues];
+/// * the destructured `tickPadding` default is `6`, not `10` (`:454`);
+/// * `hideTickOverlap` pads by [kHideTickOverlapDatePad], twice the numeric pad
+///   (`:519`);
+/// * only [FluentChartType.ganttChart] gets the gridline override (`:529-531`) —
+///   [FluentChartType.horizontalBarChartWithAxis] does not, even though it does
+///   on the numeric axis (`:308`);
+/// * there is no `isRtl` parameter at all; RTL arrives as a reversed domain.
+///
+/// The format levels are scanned over d3's own default ten ticks (`:477`), and
+/// the two derived formatters are independent: the strftime one is used only
+/// when [timeFormatLocale] is supplied, the Intl one otherwise.
+///
+/// One shared-type consequence: [FluentXAxisParams.tickPadding] carries the
+/// numeric-axis default of `10`, so a caller who wants the date axis's own
+/// destructured `6` has to pass it. Upstream gets that for free because each
+/// builder destructures its own default out of the same bag, and the port has
+/// one class and therefore one default. In practice the difference is invisible
+/// from the shell, which always resolves a `tickPadding` of its own
+/// (`CartesianChart.tsx:215`) and so never lets either default apply — the
+/// captured LineChart date axis puts its labels at `y = 16`, which is
+/// `max(6, 0) + 10`.
+///
+/// [useUtc] is upstream's `string | boolean` union (`:448`), so it arrives as an
+/// [Object].
+FluentAxisSpec createDateXAxis(
+  FluentXAxisParams xAxisParams,
+  FluentTickParams tickParams, {
+  String? culture,
+  FluentDateTimeFormatOptions? options,
+  d3.TimeLocaleDefinition? timeFormatLocale,
+  String Function(DateTime)? customDateTimeFormatter,
+  Object? useUtc,
+  FluentChartType? chartType,
+}) {
+  final domainNRange = xAxisParams.domainNRangeValues;
+  // utilities.ts:463 accepts the boolean true or the string 'utc'.
+  final isUtcSet = useUtc == true || useUtc == 'utc';
+  final scale = isUtcSet ? d3.scaleUtc() : d3.scaleTime();
+  scale
+    ..domainOfDates(<DateTime>[
+      domainNRange.dStartValue as DateTime,
+      domainNRange.dEndValue as DateTime,
+    ])
+    ..rangeOf(<double>[domainNRange.rStartValue, domainNRange.rEndValue])
+    ..nice();
+
+  // 6 is the default tick count at utilities.ts:470.
+  var tickCount = xAxisParams.xAxisCount ?? 6;
+
+  // 100 and -1 are the sentinels at utilities.ts:472-473; they survive when the
+  // scale produces no ticks, which is why the Intl table is total.
+  var lowestFormatLevel = 100;
+  var highestFormatLevel = -1;
+  for (final tick in scale.ticks()) {
+    final level = getDateFormatLevel(tick as DateTime, useUtc: isUtcSet);
+    if (level > highestFormatLevel) {
+      highestFormatLevel = level;
+    }
+    if (level < lowestFormatLevel) {
+      lowestFormatLevel = level;
+    }
+  }
+
+  final formatOptions =
+      options ??
+      multiLevelDateTimeFormatOptions(lowestFormatLevel, highestFormatLevel);
+  final locale = timeFormatLocale != null
+      ? d3.timeFormatLocale(timeFormatLocale)
+      : null;
+  String Function(DateTime)? localeFormat;
+  if (locale != null) {
+    // utilities.ts:490-495 builds this formatter unconditionally, so an empty
+    // tick list would index the table with the sentinels and throw there;
+    // building it only under a locale keeps the one reachable call in range.
+    final specifier = multiLevelD3DateFormat(
+      lowestFormatLevel,
+      highestFormatLevel,
+    );
+    localeFormat = isUtcSet
+        ? locale.utcFormat(specifier)
+        : locale.format(specifier);
+  }
+
+  String formatTick(DateTime value, int index) {
+    final tickText = xAxisParams.tickText;
+    if (tickParams.tickValues != null &&
+        tickText != null &&
+        index < tickText.length) {
+      return tickText[index];
+    }
+    if (customDateTimeFormatter != null) {
+      return customDateTimeFormatter(value);
+    }
+    if (localeFormat != null) {
+      return localeFormat(value);
+    }
+    final specifier = tickParams.tickFormat;
+    if (culture == null && specifier != null) {
+      // utilities.ts:509 branches on `useUTC`'s truthiness rather than on
+      // `isUtcSet`, so any non-empty string picks the UTC formatter.
+      return _isUtcTruthy(useUtc)
+          ? d3.utcFormat(specifier)(value)
+          : d3.timeFormat(specifier)(value);
+    }
+    // utilities.ts:515 passes showTZname false — the one caller that does.
+    return formatDateToLocaleString(
+      value,
+      culture: culture,
+      useUtc: _isUtcTruthy(useUtc),
+      showTZname: false,
+      options: formatOptions,
+    );
+  }
+
+  if (xAxisParams.hideTickOverlap) {
+    final measure = xAxisParams.calcMaxLabelWidth;
+    final probeLabels = <String>[
+      for (final (i, v) in scale.ticks().indexed) formatTick(v as DateTime, i),
+    ];
+    // Upstream calls `calcMaxLabelWidth` unguarded (`:519`) and throws when the
+    // caller left it out; 0 stands in here, which leaves the pad alone as the
+    // per-label budget.
+    final longestLabelWidth =
+        (measure?.call(probeLabels) ?? 0) + kHideTickOverlapDatePad;
+    final range = scale.range;
+    final span = (range.last - range.first).abs();
+    tickCount = math.min(
+      // 1 is the floor at utilities.ts:521, which keeps a range narrower than
+      // one label from asking for zero ticks.
+      math.max(1, (span / longestLabelWidth).floor()),
+      kHideTickOverlapMaxTicks,
+    );
+  }
+
+  var tickSizeInner = xAxisParams.xAxistickSize;
+  if (chartType == FluentChartType.ganttChart) {
+    // 0 stands in for an absent top margin, as upstream's `margins.top!`
+    // asserts one is always resolved by then (`:530`).
+    tickSizeInner =
+        -(xAxisParams.containerHeight - (xAxisParams.margins.top ?? 0));
+  }
+
+  List<Object>? customTickValues;
+  if (tickParams.tickValues != null) {
+    customTickValues = tickParams.tickValues;
+  } else if (xAxisParams.tickStep != null) {
+    // Upstream's guard is `else if (tickStep)` (`:536`), so a 0 or empty-string
+    // step is skipped there and admitted here; `generateDateTicks` returns null
+    // for both, which lands on the same generated ticks either way.
+    //
+    // parity: upstream hands `useUTC as boolean` straight through (`:537`),
+    // which for a truthy string other than 'utc' would put the ticks in UTC
+    // while the scale itself stayed local. [isUtcSet] keeps the two agreed,
+    // and the two values coincide over the documented `true | 'utc'` union.
+    customTickValues = generateDateTicks(
+      xAxisParams.tickStep!,
+      xAxisParams.tick0,
+      scale.domain.cast<DateTime>(),
+      useUtc: isUtcSet,
+    );
+  }
+
+  final tickValues = customTickValues ?? scale.ticks(tickCount);
+  final tickLabels = <String>[
+    for (final (i, v) in tickValues.indexed) formatTick(v as DateTime, i),
+  ];
+
+  return FluentAxisSpec(
+    scale: scale,
+    tickValues: tickValues,
+    tickLabels: tickLabels,
+    orientation: d3.FluentAxisOrientation.bottom,
+    tickSizeInner: tickSizeInner,
+    // d3-axis leaves tickSizeOuter at 6 unless a caller changes it, and no
+    // caller here does (utilities.ts:524-528).
+    tickSizeOuter: 6,
+    tickPadding: xAxisParams.tickPadding,
+  );
+}
+
+/// Whether [useUtc] would be truthy in JavaScript.
+///
+/// `utilities.ts:509` and `:515` test `useUTC` itself rather than the narrowed
+/// `isUtcSet`, so the string `'utc'` and any other non-empty string both count
+/// while `false`, `undefined` and `''` do not.
+bool _isUtcTruthy(Object? useUtc) =>
+    useUtc != null && useUtc != false && useUtc != '';

@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:fluent_2_web/src/charts/axis/axis_builders.dart';
 import 'package:fluent_2_web/src/charts/axis/axis_types.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/axis_geometry.dart' as d3;
+import 'package:fluent_2_web/src/charts/internal/d3/time_format.dart' as d3;
 import 'package:fluent_2_web/src/charts/model/chart_common.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -564,6 +565,281 @@ void main() {
         plain.tickLabelOffsets.length + tooltip.tickLabelOffsets.length,
         greaterThan(1),
         reason: 'both fixtures must have contributed at least one label.',
+      );
+    });
+  });
+
+  group('createDateXAxis', () {
+    FluentXAxisParams dateParams({
+      DateTime? start,
+      DateTime? end,
+      bool hideTickOverlap = false,
+      double Function(List<String>)? calcMaxLabelWidth,
+    }) {
+      return FluentXAxisParams(
+        domainNRangeValues: FluentChartDomainRange(
+          dStartValue: start ?? DateTime.utc(2020),
+          dEndValue: end ?? DateTime.utc(2020, 12, 31),
+          rStartValue: 40,
+          rEndValue: 680,
+        ),
+        containerHeight: 300,
+        containerWidth: 700,
+        margins: _margins,
+        // utilities.ts:454 destructures 6 on the date axis; FluentXAxisParams
+        // carries the numeric-axis default of 10, so the caller supplies it.
+        tickPadding: 6,
+        hideTickOverlap: hideTickOverlap,
+        calcMaxLabelWidth: calcMaxLabelWidth,
+      );
+    }
+
+    test('always nices the domain, unlike the numeric axis', () {
+      final spec = createDateXAxis(
+        dateParams(
+          start: DateTime.utc(2020, 1, 3),
+          end: DateTime.utc(2020, 12, 28),
+        ),
+        const FluentTickParams(),
+        useUtc: true,
+      );
+      expect(
+        spec.scale.domain.first,
+        DateTime.utc(2020),
+        reason:
+            'utilities.ts:465-468 calls nice() unconditionally, so the domain '
+            'snaps outward to a month boundary.',
+      );
+    });
+
+    test('uses a six-tick default and the six-pixel tick padding', () {
+      final spec = createDateXAxis(
+        dateParams(),
+        const FluentTickParams(),
+        useUtc: true,
+      );
+      expect(
+        spec.tickValues.length,
+        greaterThan(0),
+        reason: 'the axis produces ticks.',
+      );
+      expect(
+        spec.tickPadding,
+        6,
+        reason:
+            'utilities.ts:454 destructures tickPadding = 6 on the date axis, not '
+            'the 10 the numeric axis uses.',
+      );
+    });
+
+    test('formats through the strftime table when a locale is supplied', () {
+      final spec = createDateXAxis(
+        dateParams(start: DateTime.utc(2020), end: DateTime.utc(2020, 12, 31)),
+        const FluentTickParams(),
+        useUtc: true,
+        timeFormatLocale: d3.defaultTimeLocale,
+      );
+      expect(
+        spec.tickLabels.first,
+        'Jan 2020',
+        reason:
+            'utilities.ts:504-506 uses the multi-level d3 formatter; the niced '
+            'domain runs 1 Jan 2020 to 1 Jan 2021, so the scanned levels are 6 '
+            "(month) and 7 (year) and the table cell is M_Y, '%b %Y'.",
+      );
+    });
+
+    test('prefers a custom formatter over everything but tickText', () {
+      final spec = createDateXAxis(
+        dateParams(),
+        const FluentTickParams(),
+        useUtc: true,
+        customDateTimeFormatter: (d) => 'D${d.month}',
+      );
+      expect(
+        spec.tickLabels.first,
+        startsWith('D'),
+        reason: 'utilities.ts:501-503 puts customDateTimeFormatter second.',
+      );
+    });
+
+    test('adds forty pixels of pad when hiding overlap, not twenty', () {
+      final spec = createDateXAxis(
+        dateParams(hideTickOverlap: true, calcMaxLabelWidth: (labels) => 280),
+        const FluentTickParams(),
+        useUtc: true,
+      );
+      expect(
+        spec.tickValues.length,
+        2,
+        reason:
+            'utilities.ts:519 adds 40 rather than the numeric axis 20, so '
+            'floor(640 / 320) is 2; over the niced 1 Jan 2020 to 1 Jan 2021 '
+            'domain d3 answers that target with a one-year step, which is the '
+            'two endpoints and nothing between them.',
+      );
+    });
+
+    test('draws gridlines for Gantt but not for HorizontalBarChartWithAxis', () {
+      final gantt = createDateXAxis(
+        dateParams(),
+        const FluentTickParams(),
+        useUtc: true,
+        chartType: FluentChartType.ganttChart,
+      );
+      final hbwa = createDateXAxis(
+        dateParams(),
+        const FluentTickParams(),
+        useUtc: true,
+        chartType: FluentChartType.horizontalBarChartWithAxis,
+      );
+      expect(
+        gantt.tickSizeInner,
+        -280,
+        reason: 'utilities.ts:529-531 lists GanttChart only.',
+      );
+      expect(
+        hbwa.tickSizeInner,
+        6,
+        reason:
+            'HBWA is in the numeric-axis list at utilities.ts:308 but NOT in the '
+            'date-axis list at :529.',
+      );
+    });
+  });
+
+  group('createDateXAxis against Oracle B', () {
+    const storyId = 'charts-linechart--line-chart-basic';
+    final story = _loadOracleStory(storyId);
+    final captured = _CapturedAxis(story);
+    const crispOffset = 0.5;
+    // The domain path reads 'M64.5,6V0.5H680.5V6', so the range is 64 to 680.
+    const rStart = 64.0;
+    const rEnd = 680.0;
+
+    // The captured ticks are seven whole days, evenly spaced across the whole
+    // range, which is the niced domain read back off the capture: `nice()` is
+    // idempotent once both endpoints already sit on an interval boundary, so
+    // feeding it back in exercises the same code path the story did. The
+    // weekday pattern (one Sunday inside any seven-day window) and therefore
+    // the resolved format levels do not depend on the year, and 2020 is the
+    // year LineChartBasic's own data uses.
+    FluentAxisSpec buildSpec() => createDateXAxis(
+      FluentXAxisParams(
+        domainNRangeValues: FluentChartDomainRange(
+          dStartValue: DateTime.utc(2020, 3, 3),
+          dEndValue: DateTime.utc(2020, 3, 9),
+          rStartValue: rStart,
+          rEndValue: rEnd,
+        ),
+        // The axis group sits at translate(0, 205) inside a 260-high SVG.
+        containerHeight: 205,
+        containerWidth: 700,
+        margins: const FluentChartMargins(
+          left: 40,
+          right: 20,
+          top: 20,
+          bottom: 35,
+        ),
+        // CartesianChart.tsx:215 always resolves a tickPadding and hands it to
+        // every axis builder, so the 6 destructured at utilities.ts:454 is
+        // unreachable from the shell and the captured label offset is 6 + 10.
+        tickPadding: 10,
+      ),
+      const FluentTickParams(),
+      // The capture shows seven exactly equal day steps, so no daylight-saving
+      // transition intervened and the capture zone agrees with UTC over this
+      // window; asserting in UTC makes the expectation zone-independent.
+      useUtc: true,
+    );
+
+    test('the corpus fixture still carries a seven-tick date x axis', () {
+      // Guard against a renamed or re-captured story quietly emptying every
+      // assertion below.
+      expect(
+        captured.tickOffsets.length,
+        7,
+        reason:
+            '$storyId captured seven x ticks; a different count means the '
+            'fixture changed and the expectations here are stale.',
+      );
+      expect(
+        story['deviceScaleFactor'],
+        1,
+        reason:
+            'the geometry below only agrees with flutter test at scale 1, where '
+            'the crispness offset is 0.5.',
+      );
+    });
+
+    test('reproduces the captured tick values and labels', () {
+      final spec = buildSpec();
+      expect(
+        spec.tickValues,
+        <DateTime>[
+          for (var day = 3; day <= 9; day++) DateTime.utc(2020, 3, day),
+        ],
+        reason:
+            'utilities.ts:470 asks for six ticks over a six-day domain, so d3 '
+            'answers a one-day step and seven tick values.',
+      );
+      expect(
+        spec.tickLabels,
+        captured.tickLabels,
+        reason:
+            'the levels scanned over d3\'s default ten ticks (utilities.ts:477) '
+            'span hour to week, so formatOptions renders a short month, a '
+            'two-digit day and a twelve-hour hour.',
+      );
+    });
+
+    test('reproduces the captured tick positions', () {
+      final spec = buildSpec();
+      for (var i = 0; i < spec.tickValues.length; i++) {
+        expect(
+          spec.scale(spec.tickValues[i])! + crispOffset,
+          closeTo(captured.tickOffsets[i], _oracleTolerance),
+          reason:
+              'axis_geometry adds the crispness offset once to position(d) '
+              '(`d3-axis/src/axis.js:76`), so tick $i must land on the captured '
+              'translate.',
+        );
+      }
+    });
+
+    test('reproduces the captured tick length and label offset', () {
+      final spec = buildSpec();
+      expect(
+        captured.tickLineLengths,
+        everyElement(closeTo(spec.tickSizeInner, _oracleTolerance)),
+        reason:
+            'a LineChart date axis takes no gridline override, so every '
+            'captured tick line is the destructured xAxistickSize of 6 '
+            '(utilities.ts:455).',
+      );
+      expect(
+        math.max(spec.tickSizeInner, 0.0) + spec.tickPadding,
+        closeTo(captured.tickLabelOffsets.first, _oracleTolerance),
+        reason:
+            'd3-axis/src/axis.js:46 places the label at '
+            'max(tickSizeInner, 0) + tickPadding, which is the captured 16.',
+      );
+    });
+
+    test('reproduces the captured domain path end caps', () {
+      final spec = buildSpec();
+      expect(
+        _numbers(captured.domainPath),
+        <double>[
+          rStart + crispOffset,
+          spec.tickSizeOuter,
+          crispOffset,
+          rEnd + crispOffset,
+          spec.tickSizeOuter,
+        ],
+        reason:
+            'd3-axis/src/axis.js:88 draws the outer caps at tickSizeOuter, so '
+            'the captured path pins tickSizeOuter to 6.',
       );
     });
   });
