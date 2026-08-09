@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 
 import '../model/callout_data.dart';
@@ -295,4 +297,95 @@ String capitalizeLegendLabel(String label) {
     atWordStart = false;
   }
   return buffer.toString();
+}
+
+/// The bar width a chart falls back to, in logical pixels.
+///
+/// `DEFAULT_BAR_WIDTH` (`utilities.ts:1891`).
+const double kDefaultBarWidth = 16;
+
+/// The narrowest a bar may be, in logical pixels.
+///
+/// `MIN_BAR_WIDTH` (`utilities.ts:1892`).
+const double kMinBarWidth = 1;
+
+/// Resolves a bar width from the caller's prop and the computed fit.
+///
+/// Ports `getBarWidth` (`utilities.ts:1894-1913`). [barWidth] is upstream's
+/// `number | 'default' | 'auto' | undefined`; [adjustedValue] is the width the
+/// chart's own band maths produced, and [mode] is the owning chart's mode, of
+/// which only `'histogram'` is significant here (`:1901`).
+///
+/// The order matters: pick, then cap with [maxBarWidth], then floor at
+/// [kMinBarWidth].
+double getBarWidth(
+  Object? barWidth,
+  double? maxBarWidth, {
+  double adjustedValue = kDefaultBarWidth,
+  String? mode,
+}) {
+  double width;
+  if (barWidth == 'auto' || mode == 'histogram') {
+    // utilities.ts:1901-1902.
+    width = adjustedValue;
+  } else if (barWidth is num) {
+    // utilities.ts:1903-1904.
+    width = barWidth.toDouble();
+  } else {
+    // utilities.ts:1906.
+    width = math.min(adjustedValue, kDefaultBarWidth);
+  }
+  if (maxBarWidth != null) {
+    // utilities.ts:1908-1910.
+    width = math.min(width, maxBarWidth);
+  }
+  // utilities.ts:1911.
+  return math.max(width, kMinBarWidth);
+}
+
+/// Resolves a band-scale padding, clamped into 0..1.
+///
+/// Ports `getScalePadding` (`utilities.ts:1915-1919`): the explicit [prop] wins,
+/// then the [shorthand], then [defaultValue]; anything that is not a number is
+/// skipped.
+double getScalePadding(
+  Object? prop, [
+  Object? shorthand,
+  double defaultValue = 0,
+]) {
+  final double padding;
+  // utilities.ts:1916.
+  if (prop is num) {
+    padding = prop.toDouble();
+  } else if (shorthand is num) {
+    padding = shorthand.toDouble();
+  } else {
+    padding = defaultValue;
+  }
+  // utilities.ts:1917 — `Math.max(0, Math.min(padding, 1))`, which is a clamp
+  // into the closed unit interval; the bounds are upstream's own 0 and 1.
+  return padding.clamp(0, 1);
+}
+
+/// Whether the caller supplied a padding at all.
+///
+/// Ports `isScalePaddingDefined` (`utilities.ts:1921-1923`). Distinct from
+/// [getScalePadding] returning 0, because an explicit 0 and an absent value make
+/// different charts.
+bool isScalePaddingDefined(Object? prop, [Object? shorthand]) =>
+    prop is num || shorthand is num;
+
+/// [str] cut to [maxLength] characters with [ellipsis] appended.
+///
+/// Ports `truncateString` (`utilities.ts:2036-2042`). The ellipsis is added
+/// **after** the slice and is not counted against [maxLength], so a truncated
+/// result is longer than [maxLength] — that is upstream behaviour and every
+/// axis-label width calculation is built on it.
+String truncateString(String str, int maxLength, {String ellipsis = '...'}) {
+  // utilities.ts:2037-2039.
+  if (str.length <= maxLength) {
+    return str;
+  }
+  // utilities.ts:2041.
+  return str.substring(0, maxLength) + ellipsis;
 }

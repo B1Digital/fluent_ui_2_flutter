@@ -449,4 +449,159 @@ void main() {
       );
     });
   });
+
+  group('getBarWidth', () {
+    test("'auto' takes the adjusted value outright", () {
+      expect(
+        getBarWidth('auto', null, adjustedValue: 40),
+        40,
+        reason: 'utilities.ts:1901-1902.',
+      );
+    });
+    test("mode 'histogram' does the same, whatever the width prop says", () {
+      expect(
+        getBarWidth('default', null, adjustedValue: 40, mode: 'histogram'),
+        40,
+        reason:
+            "utilities.ts:1901 `barWidthProp === 'auto' || modeProp === "
+            "'histogram'`.",
+      );
+    });
+    test('a number is taken as given', () {
+      expect(
+        getBarWidth(24, null),
+        24,
+        reason: "utilities.ts:1903-1904 `typeof barWidthProp === 'number'`.",
+      );
+    });
+    test('anything else clamps the adjusted value to the 16px default', () {
+      expect(
+        getBarWidth(null, null, adjustedValue: 40),
+        16,
+        reason:
+            'utilities.ts:1906 `Math.min(adjustedValue, DEFAULT_BAR_WIDTH)` '
+            'with DEFAULT_BAR_WIDTH 16 (:1891).',
+      );
+      expect(
+        getBarWidth('default', null, adjustedValue: 9),
+        9,
+        reason: 'The min picks the adjusted value when it is the smaller.',
+      );
+    });
+    test('maxBarWidth caps the result', () {
+      expect(getBarWidth(24, 20), 20, reason: 'utilities.ts:1908-1910.');
+    });
+    test('the 1px floor is applied last', () {
+      expect(
+        getBarWidth(0, null),
+        1,
+        reason:
+            'utilities.ts:1911 `Math.max(barWidth, MIN_BAR_WIDTH)` with '
+            'MIN_BAR_WIDTH 1 (:1892).',
+      );
+      expect(
+        getBarWidth(24, 0),
+        1,
+        reason: 'The cap runs before the floor, so 0 becomes 1.',
+      );
+    });
+    test('exports the two constants', () {
+      expect(kDefaultBarWidth, 16, reason: 'utilities.ts:1891.');
+      expect(kMinBarWidth, 1, reason: 'utilities.ts:1892.');
+    });
+  });
+
+  group('getScalePadding', () {
+    test('prefers the prop, then the shorthand, then the default', () {
+      expect(getScalePadding(0.3, 0.6, 0.9), 0.3, reason: 'utilities.ts:1916.');
+      expect(
+        getScalePadding(null, 0.6, 0.9),
+        0.6,
+        reason: 'utilities.ts:1916.',
+      );
+      expect(
+        getScalePadding(null, null, 0.9),
+        0.9,
+        reason: 'utilities.ts:1916.',
+      );
+      expect(getScalePadding(null), 0, reason: 'defaultValue defaults to 0.');
+    });
+    test('clamps into 0..1', () {
+      expect(
+        getScalePadding(-3),
+        0,
+        reason: 'utilities.ts:1917 Math.max(0, …).',
+      );
+      expect(
+        getScalePadding(4),
+        1,
+        reason: 'utilities.ts:1917 Math.min(…, 1).',
+      );
+    });
+    test('ignores a non-numeric prop', () {
+      expect(
+        getScalePadding('0.5', 0.25),
+        0.25,
+        reason: "utilities.ts:1916 tests `typeof prop === 'number'`.",
+      );
+    });
+  });
+
+  group('isScalePaddingDefined', () {
+    test('is true when either side is a number', () {
+      expect(
+        isScalePaddingDefined(0),
+        isTrue,
+        reason:
+            'utilities.ts:1922 — 0 is a number, so the falsy trap does '
+            'not apply here.',
+      );
+      expect(
+        isScalePaddingDefined(null, 0.5),
+        isTrue,
+        reason: 'utilities.ts:1922.',
+      );
+      expect(
+        isScalePaddingDefined(null, null),
+        isFalse,
+        reason: 'Neither is set.',
+      );
+      expect(
+        isScalePaddingDefined('0.5'),
+        isFalse,
+        reason: 'A string is not a number (utilities.ts:1922).',
+      );
+    });
+  });
+
+  group('truncateString', () {
+    test('leaves a short-enough string alone', () {
+      expect(
+        truncateString('Jan', 4),
+        'Jan',
+        reason: 'utilities.ts:2037-2039 `str.length <= maxLength`.',
+      );
+      expect(
+        truncateString('Janu', 4),
+        'Janu',
+        reason: 'The comparison is inclusive.',
+      );
+    });
+    test('appends the ellipsis AFTER the slice, so the result grows', () {
+      expect(
+        truncateString('January', 4),
+        'Janu...',
+        reason:
+            'utilities.ts:2041 `str.slice(0, maxLength) + ellipsis` — the '
+            'ellipsis is not counted against maxLength.',
+      );
+    });
+    test('honours a custom ellipsis', () {
+      expect(
+        truncateString('January', 4, ellipsis: '…'),
+        'Janu…',
+        reason: 'utilities.ts:2036 default parameter.',
+      );
+    });
+  });
 }
