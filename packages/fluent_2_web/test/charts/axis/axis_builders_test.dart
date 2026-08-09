@@ -1829,4 +1829,315 @@ void main() {
       );
     });
   });
+
+  group('createStringYAxis', () {
+    test('draws no tick lines at all by default', () {
+      final spec = createStringYAxis(
+        const FluentYAxisParams(
+          margins: _margins,
+          containerWidth: 700,
+          containerHeight: 300,
+          tickPadding: 10,
+        ),
+        const <String>['a', 'b', 'c'],
+        FluentAxisData(),
+        isRtl: false,
+      );
+      expect(
+        spec.tickSizeInner,
+        0,
+        reason:
+            'utilities.ts:987 ends the chain with tickSize(0), which sets '
+            'both.',
+      );
+      expect(
+        spec.tickSizeOuter,
+        0,
+        reason: 'tickSize(0) sets the outer size too.',
+      );
+    });
+
+    test('degenerates the band and adds gridlines for VSBC', () {
+      final spec = createStringYAxis(
+        const FluentYAxisParams(
+          margins: _margins,
+          containerWidth: 700,
+          containerHeight: 300,
+          tickPadding: 10,
+        ),
+        const <String>['a', 'b', 'c'],
+        FluentAxisData(),
+        isRtl: false,
+        chartType: FluentChartType.verticalStackedBarChart,
+      );
+      expect(
+        spec.scale.bandwidth,
+        0,
+        reason:
+            'utilities.ts:973-975 sets paddingInner(1), which collapses the band '
+            'to a point position with step = range / n.',
+      );
+      expect(
+        spec.tickSizeInner,
+        -640,
+        reason:
+            'utilities.ts:988-990 overrides only the inner size, so the final '
+            'geometry is inner -640 with outer still 0.',
+      );
+      expect(
+        spec.tickSizeOuter,
+        0,
+        reason: 'the tickSize(0) from :987 survives.',
+      );
+    });
+
+    test('uses every category as a tick and writes the labels back', () {
+      final axisData = FluentAxisData();
+      final spec = createStringYAxis(
+        const FluentYAxisParams(
+          margins: _margins,
+          containerWidth: 700,
+          containerHeight: 300,
+          tickPadding: 10,
+        ),
+        const <String>['a', 'b'],
+        axisData,
+        isRtl: false,
+      );
+      expect(
+        spec.tickValues,
+        <String>['a', 'b'],
+        reason: 'utilities.ts:977 defaults the tick values to dataPoints.',
+      );
+      expect(
+        axisData.yAxisTickText,
+        <String>['a', 'b'],
+        reason: 'utilities.ts:993 writes the formatted labels.',
+      );
+      expect(
+        axisData.yAxisDomainValues,
+        isEmpty,
+        reason:
+            'utilities.ts:950-996 never touches yAxisDomainValues on a band y '
+            'axis, so the caller-owned list keeps whatever it had.',
+      );
+    });
+
+    test('flips to the right under RTL', () {
+      final spec = createStringYAxis(
+        const FluentYAxisParams(
+          margins: _margins,
+          containerWidth: 700,
+          containerHeight: 300,
+          tickPadding: 10,
+        ),
+        const <String>['a'],
+        FluentAxisData(),
+        isRtl: true,
+      );
+      expect(
+        spec.orientation,
+        d3.FluentAxisOrientation.right,
+        reason: 'utilities.ts:976.',
+      );
+    });
+  });
+
+  group('createStringYAxis against Oracle B', () {
+    // HeatMapChart is the one captured chart whose y values are categories:
+    // `HeatMapChart.tsx:801` wires this builder in and `:808` passes
+    // `yAxisPadding={0.02}`, which is the only reason the captured tick spacing
+    // is 50.797 rather than an even 51.
+    const storyId = 'charts-heatmapchart--heat-map-chart-basic';
+    final story = _loadOracleStory(storyId);
+    final elements = _elements(story);
+    // d3AxisLeft anchors its labels at the end (`d3-axis/src/axis.js:111`) while
+    // the bottom x axis is middle-anchored and the heat cells are start-
+    // anchored, so the one end-anchored root group is this y axis.
+    final root = elements.firstWhere(
+      (element) =>
+          element['parent'] == -1 &&
+          element['tag'] == 'g' &&
+          element['textAnchor'] == 'end',
+    );
+    final capturedDomainPath =
+        elements.firstWhere(
+              (element) =>
+                  element['parent'] == root['index'] &&
+                  element['tag'] == 'path',
+            )['d']
+            as String;
+    final tickOffsets = <double>[];
+    final capturedLabels = <String>[];
+    final tickLabelOffsets = <double>[];
+    final tickLineLengths = <double>[];
+    for (final tickGroup in elements.where(
+      (element) => element['parent'] == root['index'] && element['tag'] == 'g',
+    )) {
+      final children = elements.where(
+        (element) => element['parent'] == tickGroup['index'],
+      );
+      final text = children.firstWhere((child) => child['tag'] == 'text');
+      // 'translate(0,249.09362549800795)' — a y axis carries its tick offset
+      // second.
+      tickOffsets.add(_numbers(tickGroup['transform'] as String).last);
+      capturedLabels.add(text['text'] as String);
+      tickLabelOffsets.add((text['x'] as num).toDouble());
+      tickLineLengths.add(
+        (children.firstWhere((child) => child['tag'] == 'line')['x2'] as num)
+            .toDouble(),
+      );
+    }
+    final crispOffset = (story['crispOffset'] as num).toDouble();
+
+    // 450 by 310 is the captured SVG box. The y axis group sits at
+    // translate(40, 0) and the x axis domain path runs to 430.5, so the left and
+    // right margins are the base 40 and 20; the captured y domain path
+    // 'M0.5,275.5V20.5' pins the range to 275..20, which is
+    // containerHeight - 35 and the base top margin of 20.
+    const params = FluentYAxisParams(
+      margins: FluentChartMargins(left: 40, right: 20, top: 20, bottom: 35),
+      containerWidth: 450,
+      containerHeight: 310,
+      // HeatMapChart.tsx:808.
+      yAxisPadding: 0.02,
+      // CartesianChart.tsx:304 always passes 10, never the destructured 12.
+      tickPadding: 10,
+    );
+
+    FluentAxisSpec buildSpec([FluentAxisData? axisData]) => createStringYAxis(
+      params,
+      capturedLabels,
+      axisData ?? FluentAxisData(),
+      isRtl: false,
+      chartType: FluentChartType.heatMapChart,
+    );
+
+    List<d3.FluentAxisTickGeometry> geometryTicks(FluentAxisSpec spec) =>
+        d3.FluentAxisGeometry(
+          orientation: spec.orientation,
+          scale: spec.scale,
+          tickValues: spec.tickValues,
+          tickLabels: spec.tickLabels,
+          offset: crispOffset,
+          tickSizeInner: spec.tickSizeInner,
+          tickSizeOuter: spec.tickSizeOuter,
+          tickPadding: spec.tickPadding,
+        ).ticks;
+
+    test('the corpus fixture still carries a five-category y axis', () {
+      // Guard against a renamed or re-captured story quietly emptying every
+      // assertion below — the categories are also the builder's input here.
+      expect(
+        capturedLabels,
+        <String>['Texas', 'Alaska', 'Ohio', 'DC', 'NYC'],
+        reason:
+            '$storyId captured these five categories in this order; a different '
+            'set means the fixture changed and the expectations here are stale.',
+      );
+      expect(
+        story['deviceScaleFactor'],
+        1,
+        reason:
+            'the geometry below only agrees with flutter test at scale 1, '
+            'where the crispness offset is 0.5.',
+      );
+    });
+
+    test('reproduces the captured categories as both ticks and labels', () {
+      final axisData = FluentAxisData();
+      final spec = buildSpec(axisData);
+      expect(
+        spec.tickValues,
+        capturedLabels,
+        reason: 'utilities.ts:977 makes dataPoints the literal tick set.',
+      );
+      expect(
+        spec.tickLabels,
+        capturedLabels,
+        reason:
+            'utilities.ts:985 returns the domain value unchanged when there is '
+            'neither a tickText nor a tickFormat function.',
+      );
+      expect(
+        axisData.yAxisDomainValues,
+        isEmpty,
+        reason:
+            'unlike createNumericYAxis at :889, this builder writes only '
+            'yAxisTickText (:993).',
+      );
+    });
+
+    test('reproduces the captured band tick positions', () {
+      final spec = buildSpec();
+      final ticks = geometryTicks(spec);
+      expect(
+        ticks.length,
+        tickOffsets.length,
+        reason: 'one tick per captured category.',
+      );
+      for (var i = 0; i < ticks.length; i++) {
+        expect(
+          ticks[i].position,
+          closeTo(tickOffsets[i], _oracleTolerance),
+          reason:
+              'axis_geometry centres a band tick at position(d) + the crispness '
+              'offset (`d3-axis/src/axis.js:98`), so tick $i must land on the '
+              'captured translate. The 0.02 padding at HeatMapChart.tsx:808 is '
+              'what makes the captured step 50.797.',
+        );
+      }
+    });
+
+    test('reproduces the captured zero-length ticks and label offset', () {
+      final spec = buildSpec();
+      final ticks = geometryTicks(spec);
+      expect(
+        tickLineLengths,
+        everyElement(closeTo(0, _oracleTolerance)),
+        reason:
+            'every captured x2 is 0, which is utilities.ts:987 tickSize(0) — a '
+            'chart type other than VerticalStackedBarChart never reaches the '
+            ':989 override.',
+      );
+      expect(
+        ticks.map((tick) => tick.lineEnd.dx),
+        everyElement(closeTo(0, _oracleTolerance)),
+        reason: 'k * tickSizeInner (`d3-axis/src/axis.js:67`) of zero is zero.',
+      );
+      expect(
+        ticks.map((tick) => tick.labelAnchor.dx),
+        everyElement(closeTo(tickLabelOffsets.first, _oracleTolerance)),
+        reason:
+            'd3-axis/src/axis.js:46 places the label at '
+            'k * (max(tickSizeInner, 0) + tickPadding), which for a left axis '
+            'with a zero inner size is the captured -10.',
+      );
+    });
+
+    test('reproduces the cap-less domain path of a zero outer size', () {
+      final spec = buildSpec();
+      final range = spec.scale.range;
+      expect(
+        spec.tickSizeOuter,
+        0,
+        reason: 'utilities.ts:987 tickSize(0) zeroes the outer size as well.',
+      );
+      // 'M0.5,275.5V20.5' — the spine alone. d3-axis/src/axis.js:93 only writes
+      // the two H end caps when tickSizeOuter is non-zero, so this capture is
+      // direct evidence for the assertion above: an outer size of 6 would have
+      // been captured as 'M-6,275.5H0.5V20.5H-6'.
+      expect(
+        _numbers(capturedDomainPath),
+        <double>[
+          crispOffset,
+          range.first + crispOffset,
+          range.last + crispOffset,
+        ],
+        reason:
+            'the captured spine pins the band range to 275..20, which is '
+            'utilities.ts:971 — [containerHeight - margins.bottom, margins.top].',
+      );
+    });
+  });
 }

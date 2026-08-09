@@ -771,6 +771,106 @@ FluentAxisSpec createYAxisForHorizontalBarChartWithAxis(
   );
 }
 
+/// Builds a band y axis for every chart except HorizontalBarChartWithAxis.
+///
+/// Ports `createStringYAxis` (`utilities.ts:950-996`). The chain ends with
+/// `tickSize(0)` (`:987`), which zeroes both the inner and outer sizes, so this
+/// axis normally draws no tick line at all, and its domain path is the bare
+/// spine with no end caps. VerticalStackedBarChart then takes two overrides:
+/// `paddingInner(1).paddingOuter(0)` (`:973-975`), which collapses the band to a
+/// point position, and an inner tick size spanning the plot (`:988-990`) —
+/// leaving the final geometry at inner `-(plotWidth)` with outer still `0`.
+///
+/// Unlike [createNumericYAxis] this builder writes only
+/// [FluentAxisData.yAxisTickText] (`:993`); there is no counterpart to the
+/// `yAxisDomainValues` assignment at `:889`, because a band domain is not a
+/// numeric pair.
+///
+/// The upstream `barWidth` parameter (`:955`) is never read and is not ported.
+FluentAxisSpec createStringYAxis(
+  FluentYAxisParams yAxisParams,
+  List<String> dataPoints,
+  FluentAxisData axisData, {
+  required bool isRtl,
+  FluentChartType? chartType,
+}) {
+  // 0 stands in for the margins upstream asserts are always resolved by then
+  // (`:971`).
+  final scale = d3.scaleBand()
+    ..domainOf(dataPoints.cast<Object>())
+    ..rangeOf(<double>[
+      yAxisParams.containerHeight - (yAxisParams.margins.bottom ?? 0),
+      yAxisParams.margins.top ?? 0,
+    ])
+    ..padding(yAxisParams.yAxisPadding);
+  if (chartType == FluentChartType.verticalStackedBarChart) {
+    scale
+      ..paddingInner(1)
+      ..paddingOuter(0);
+  }
+
+  final tickValues = <Object>[
+    ...(yAxisParams.tickValues ?? dataPoints.cast<Object>()),
+  ];
+  final tickLabels = <String>[
+    for (final (i, value) in tickValues.indexed)
+      _formatBandTick(
+        value,
+        i,
+        tickValues: yAxisParams.tickValues,
+        tickText: yAxisParams.tickText,
+        yAxisTickFormat: yAxisParams.yAxisTickFormat,
+      ),
+  ];
+
+  axisData.yAxisTickText = tickLabels;
+
+  // tickSize(0) zeroes both sizes (utilities.ts:987); VSBC then re-sets only the
+  // inner one (:988-990).
+  final tickSizeInner = chartType == FluentChartType.verticalStackedBarChart
+      ? -(yAxisParams.containerWidth -
+            (yAxisParams.margins.left ?? 0) -
+            (yAxisParams.margins.right ?? 0))
+      : 0.0;
+
+  return FluentAxisSpec(
+    scale: scale,
+    tickValues: tickValues,
+    tickLabels: tickLabels,
+    orientation: isRtl
+        ? d3.FluentAxisOrientation.right
+        : d3.FluentAxisOrientation.left,
+    tickSizeInner: tickSizeInner,
+    tickSizeOuter: 0,
+    tickPadding: yAxisParams.tickPadding,
+  );
+}
+
+/// Resolves a band y tick label.
+///
+/// Ports the `tickFormat` closure at `utilities.ts:978-986` and `:927-935`:
+/// [tickText] wins, then a caller function, then the raw category string. There
+/// is no d3-format arm and no blanking short-circuit on a band axis.
+///
+/// [yAxisTickFormat] carries the same `string | function` union as on
+/// [FluentYAxisParams.yAxisTickFormat], but only the function arm is reachable
+/// here (`:982`), so a specifier string falls through to the category itself.
+String _formatBandTick(
+  Object value,
+  int index, {
+  required List<Object>? tickValues,
+  required List<String>? tickText,
+  required Object? yAxisTickFormat,
+}) {
+  if (tickValues != null && tickText != null && index < tickText.length) {
+    return tickText[index];
+  }
+  if (yAxisTickFormat is String Function(Object, int)) {
+    return yAxisTickFormat(value, index);
+  }
+  return value.toString();
+}
+
 /// Whether [useUtc] would be truthy in JavaScript.
 ///
 /// `utilities.ts:509` and `:515` test `useUTC` itself rather than the narrowed
