@@ -846,6 +846,78 @@ FluentAxisSpec createStringYAxis(
   );
 }
 
+/// Builds the band y axis of HorizontalBarChartWithAxis.
+///
+/// Ports `createStringYAxisForHorizontalBarChartWithAxis`
+/// (`utilities.ts:901-942`). A padding of exactly `1` is rewritten to `0.99`
+/// (`:920`) so the bandwidth — and therefore every bar's height — never
+/// collapses to zero; the same clamp is duplicated at
+/// `HorizontalBarChartWithAxis.tsx:531`.
+///
+/// parity: `:919` reads `yAxisPadding ?? 0.5`, a default this port does not
+/// repeat, because [FluentYAxisParams.yAxisPadding] is not nullable and falls
+/// back to `0` (`utilities.ts:964`). The arm is unreachable upstream anyway —
+/// this builder is wired in by HorizontalBarChartWithAxis alone
+/// (`HorizontalBarChartWithAxis.tsx:920`), and `:77` has already resolved
+/// `props.yAxisPadding ?? 0.5` before `:907` passes it down — so a caller that
+/// wants the upstream default passes `0.5` itself.
+///
+/// Unlike [createStringYAxis] the tick sizes are left at d3's default six
+/// (`:936` sets only the padding, the tick values and the format), so this axis
+/// draws a short tick line and its domain path keeps both end caps. The upstream
+/// `barWidth` parameter (`:906`) is never read and is not ported.
+FluentAxisSpec createStringYAxisForHorizontalBarChartWithAxis(
+  FluentYAxisParams yAxisParams,
+  List<String> dataPoints,
+  FluentAxisData axisData, {
+  required bool isRtl,
+}) {
+  // 0.99 is the anti-collapse clamp at utilities.ts:920.
+  var padding = yAxisParams.yAxisPadding;
+  if (padding == 1) {
+    padding = 0.99;
+  }
+
+  // 0 stands in for the margins upstream asserts are always resolved by then
+  // (`:923`).
+  final scale = d3.scaleBand()
+    ..domainOf(dataPoints.cast<Object>())
+    ..rangeOf(<double>[
+      yAxisParams.containerHeight - (yAxisParams.margins.bottom ?? 0),
+      yAxisParams.margins.top ?? 0,
+    ])
+    ..padding(padding);
+
+  final tickValues = <Object>[
+    ...(yAxisParams.tickValues ?? dataPoints.cast<Object>()),
+  ];
+  final tickLabels = <String>[
+    for (final (i, value) in tickValues.indexed)
+      _formatBandTick(
+        value,
+        i,
+        tickValues: yAxisParams.tickValues,
+        tickText: yAxisParams.tickText,
+        yAxisTickFormat: yAxisParams.yAxisTickFormat,
+      ),
+  ];
+
+  axisData.yAxisTickText = tickLabels;
+
+  return FluentAxisSpec(
+    scale: scale,
+    tickValues: tickValues,
+    tickLabels: tickLabels,
+    orientation: isRtl
+        ? d3.FluentAxisOrientation.right
+        : d3.FluentAxisOrientation.left,
+    // Both sizes stay at d3-axis's default 6 (utilities.ts:936).
+    tickSizeInner: 6,
+    tickSizeOuter: 6,
+    tickPadding: yAxisParams.tickPadding,
+  );
+}
+
 /// Resolves a band y tick label.
 ///
 /// Ports the `tickFormat` closure at `utilities.ts:978-986` and `:927-935`:

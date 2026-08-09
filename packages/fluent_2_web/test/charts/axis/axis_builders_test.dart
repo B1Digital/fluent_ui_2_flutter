@@ -2140,4 +2140,270 @@ void main() {
       );
     });
   });
+
+  group('createStringYAxisForHorizontalBarChartWithAxis', () {
+    FluentYAxisParams bandYParams({double? padding}) {
+      return FluentYAxisParams(
+        margins: _margins,
+        containerWidth: 700,
+        containerHeight: 300,
+        tickPadding: 10,
+        yAxisPadding: padding ?? 0.5,
+      );
+    }
+
+    test('defaults the band padding to a half', () {
+      final spec = createStringYAxisForHorizontalBarChartWithAxis(
+        bandYParams(),
+        <String>['a', 'b'],
+        FluentAxisData(),
+        isRtl: false,
+      );
+      // range span is 300 - 35 - 20 = 245, n = 2, padding 0.5 both sides.
+      expect(
+        spec.scale.step,
+        closeTo(245 / (2 - 0.5 + 1), 1e-9),
+        reason:
+            'utilities.ts:919 — yAxisPadding ?? 0.5, applied through padding() '
+            'which sets inner and outer together.',
+      );
+    });
+
+    test('clamps a padding of exactly one down to 0.99', () {
+      final spec = createStringYAxisForHorizontalBarChartWithAxis(
+        bandYParams(padding: 1),
+        <String>['a', 'b'],
+        FluentAxisData(),
+        isRtl: false,
+      );
+      expect(
+        spec.scale.bandwidth,
+        greaterThan(0),
+        reason:
+            'utilities.ts:920 rewrites 1 to 0.99 so the bandwidth never collapses '
+            'to zero, which would give every bar no height.',
+      );
+    });
+
+    test('leaves the tick sizes at the d3 defaults', () {
+      final spec = createStringYAxisForHorizontalBarChartWithAxis(
+        bandYParams(),
+        <String>['a'],
+        FluentAxisData(),
+        isRtl: false,
+      );
+      expect(
+        spec.tickSizeInner,
+        6,
+        reason:
+            'utilities.ts:936 sets only tickPadding, tickValues and tickFormat, '
+            'so both sizes stay at 6 — unlike createStringYAxis, which zeroes them.',
+      );
+    });
+
+    test('writes the labels back but not the domain', () {
+      final axisData = FluentAxisData();
+      createStringYAxisForHorizontalBarChartWithAxis(
+        bandYParams(),
+        <String>['a', 'b'],
+        axisData,
+        isRtl: false,
+      );
+      expect(axisData.yAxisTickText, <String>[
+        'a',
+        'b',
+      ], reason: 'utilities.ts:939 writes yAxisTickText.');
+      expect(
+        axisData.yAxisDomainValues,
+        isEmpty,
+        reason: 'utilities.ts:901-942 never assigns yAxisDomainValues.',
+      );
+    });
+  });
+
+  group('createStringYAxisForHorizontalBarChartWithAxis against Oracle B', () {
+    // The captured HorizontalBarChartWithAxis story whose five y values are
+    // distinct, untruncated categories. `HorizontalBarChartWithAxis.tsx:920`
+    // wires this builder in and `:907` hands it the padding `:77` has already
+    // resolved to 0.5. The sibling `string-axis-tooltip` story is unusable as an
+    // oracle for the *scale*: its captured labels are all the truncated
+    // 'Stri...', so feeding them back as the domain would collapse four bands
+    // into one.
+    const storyId =
+        'charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-negative';
+    final story = _loadOracleStory(storyId);
+    final elements = _elements(story);
+    // d3AxisLeft is the one root group whose text is end-anchored
+    // (`d3-axis/src/axis.js:111`); the bottom x axis is middle-anchored and the
+    // bar labels are start-anchored.
+    final root = elements.firstWhere(
+      (element) =>
+          element['parent'] == -1 &&
+          element['tag'] == 'g' &&
+          element['textAnchor'] == 'end',
+    );
+    final capturedDomainPath =
+        elements.firstWhere(
+              (element) =>
+                  element['parent'] == root['index'] &&
+                  element['tag'] == 'path',
+            )['d']
+            as String;
+    final tickOffsets = <double>[];
+    final capturedLabels = <String>[];
+    final tickLabelOffsets = <double>[];
+    final tickLineLengths = <double>[];
+    for (final tickGroup in elements.where(
+      (element) => element['parent'] == root['index'] && element['tag'] == 'g',
+    )) {
+      final children = elements.where(
+        (element) => element['parent'] == tickGroup['index'],
+      );
+      final text = children.firstWhere((child) => child['tag'] == 'text');
+      // 'translate(0,268.95454545454544)' — a y axis carries its tick offset
+      // second.
+      tickOffsets.add(_numbers(tickGroup['transform'] as String).last);
+      capturedLabels.add(text['text'] as String);
+      tickLabelOffsets.add((text['x'] as num).toDouble());
+      tickLineLengths.add(
+        (children.firstWhere((child) => child['tag'] == 'line')['x2'] as num)
+            .toDouble(),
+      );
+    }
+    final crispOffset = (story['crispOffset'] as num).toDouble();
+
+    // The captured y domain path 'M-6,307.5H0.5V28.5H-6' pins the range to
+    // 307..28. Those are the *domain* margins
+    // `HorizontalBarChartWithAxis.tsx:554-556` hands the shell: the base 20 top
+    // and 35 bottom (the x axis group sits at translate(0, 315) = 350 - 35) each
+    // widened by a `_domainMargin` of MIN_DOMAIN_MARGIN = 8 (`utilities.ts:89`).
+    // Eight is exact here because the string-axis branch at `:546-550` only adds
+    // the leftover half-space when the bars do not fill the plot, and with five
+    // categories at padding 0.5 they exactly do: numBars = 5 + 4 * 1 = 9 and
+    // barHeight = 279 / 9, so reqHeight == totalHeight == 279.
+    const params = FluentYAxisParams(
+      margins: FluentChartMargins(left: 40, right: 20, top: 28, bottom: 43),
+      containerWidth: 650,
+      containerHeight: 350,
+      // HorizontalBarChartWithAxis.tsx:77.
+      yAxisPadding: 0.5,
+      // CartesianChart.tsx:304 always passes 10, never the destructured 12.
+      tickPadding: 10,
+    );
+
+    FluentAxisSpec buildSpec([FluentAxisData? axisData]) =>
+        createStringYAxisForHorizontalBarChartWithAxis(
+          params,
+          capturedLabels,
+          axisData ?? FluentAxisData(),
+          isRtl: false,
+        );
+
+    List<d3.FluentAxisTickGeometry> geometryTicks(FluentAxisSpec spec) =>
+        d3.FluentAxisGeometry(
+          orientation: spec.orientation,
+          scale: spec.scale,
+          tickValues: spec.tickValues,
+          tickLabels: spec.tickLabels,
+          offset: crispOffset,
+          tickSizeInner: spec.tickSizeInner,
+          tickSizeOuter: spec.tickSizeOuter,
+          tickPadding: spec.tickPadding,
+        ).ticks;
+
+    test('the corpus fixture still carries a five-category y axis', () {
+      // Guard against a renamed or re-captured story quietly emptying every
+      // assertion below — the categories are also the builder's input here.
+      expect(
+        capturedLabels,
+        <String>['A', 'B', 'C', 'D', 'E'],
+        reason:
+            '$storyId captured these five categories in this order; a different '
+            'set means the fixture changed and the expectations here are stale.',
+      );
+      expect(
+        story['deviceScaleFactor'],
+        1,
+        reason:
+            'the geometry below only agrees with flutter test at scale 1, where '
+            'the crispness offset is 0.5.',
+      );
+    });
+
+    test('reproduces the captured band tick positions', () {
+      final spec = buildSpec();
+      final ticks = geometryTicks(spec);
+      expect(
+        ticks.length,
+        tickOffsets.length,
+        reason: 'one tick per captured category (utilities.ts:926).',
+      );
+      for (var i = 0; i < ticks.length; i++) {
+        expect(
+          ticks[i].position,
+          closeTo(tickOffsets[i], _oracleTolerance),
+          reason:
+              'axis_geometry centres a band tick at position(d) + the crispness '
+              'offset (`d3-axis/src/axis.js:98`), so tick $i must land on the '
+              'captured translate. The padding of 0.5 at :924 is what makes the '
+              'captured step 279 / 5.5 = 50.727.',
+        );
+      }
+    });
+
+    test('reproduces the captured six-pixel ticks and label offset', () {
+      final spec = buildSpec();
+      final ticks = geometryTicks(spec);
+      expect(
+        tickLineLengths,
+        everyElement(closeTo(-6, _oracleTolerance)),
+        reason:
+            'every captured x2 is -6, which is d3-axis\'s untouched default '
+            'inner size of 6 times the left-axis k of -1 '
+            '(`d3-axis/src/axis.js:67`) — utilities.ts:936 never calls tickSize.',
+      );
+      expect(
+        ticks.map((tick) => tick.lineEnd.dx),
+        everyElement(closeTo(-6, _oracleTolerance)),
+        reason: 'the port must reproduce that same k * tickSizeInner.',
+      );
+      expect(
+        ticks.map((tick) => tick.labelAnchor.dx),
+        everyElement(closeTo(tickLabelOffsets.first, _oracleTolerance)),
+        reason:
+            'd3-axis/src/axis.js:46 places the label at '
+            'k * (max(tickSizeInner, 0) + tickPadding), which for a left axis is '
+            'the captured -(6 + 10).',
+      );
+    });
+
+    test('reproduces the capped domain path of a six-pixel outer size', () {
+      final spec = buildSpec();
+      final range = spec.scale.range;
+      expect(
+        spec.tickSizeOuter,
+        6,
+        reason:
+            'the two -6 verticals in the captured path are the end caps '
+            'd3-axis/src/axis.js:93 writes only for a non-zero outer size, so '
+            'utilities.ts:936 leaving tickSize alone is directly observable.',
+      );
+      // 'M-6,307.5H0.5V28.5H-6' — cap, spine start, spine end, cap. A left axis
+      // draws its caps at k * tickSizeOuter, hence the sign.
+      expect(
+        _numbers(capturedDomainPath),
+        <double>[
+          -6,
+          range.first + crispOffset,
+          crispOffset,
+          range.last + crispOffset,
+          -6,
+        ],
+        reason:
+            'the captured spine pins the band range to 307..28, which is '
+            'utilities.ts:923 — [containerHeight - margins.bottom, margins.top] '
+            'over the domain margins of HorizontalBarChartWithAxis.tsx:554-556.',
+      );
+    });
+  });
 }
