@@ -7,9 +7,9 @@ void main() {
   // 40 elements: below Dart's insertion-sort cutoff a merge sort happens to be
   // stable, so a short list proves nothing.
   List<_Item> sample() => <_Item>[
-        for (var i = 0; i < 40; i++)
-          (key: <String>['b', 'a', 'a', 'c'][i % 4], seq: i),
-      ];
+    for (var i = 0; i < 40; i++)
+      (key: <String>['b', 'a', 'a', 'c'][i % 4], seq: i),
+  ];
 
   int byKey(_Item a, _Item b) => a.key.compareTo(b.key);
 
@@ -19,7 +19,8 @@ void main() {
     expect(
       direct.map((_Item e) => e.seq).toList(),
       isNot(stable.map((_Item e) => e.seq).toList()),
-      reason: 'if this ever starts passing, Dart has become stable and the '
+      reason:
+          'if this ever starts passing, Dart has become stable and the '
           'helper can be deleted — until then d3-sankey needs it',
     );
   });
@@ -33,7 +34,8 @@ void main() {
     expect(
       aSeqs,
       orderedEquals(<int>[...aSeqs]..sort()),
-      reason: 'V8 has sorted stably since ES2019, and d3-sankey ties on '
+      reason:
+          'V8 has sorted stably since ES2019, and d3-sankey ties on '
           'ascendingBreadth twelve times per layout (sankey.js:263,286)',
     );
   });
@@ -45,7 +47,8 @@ void main() {
     expect(
       input.map((_Item e) => e.seq).toList(),
       before,
-      reason: 'd3 sorts an index array, never the caller List, and the sankey '
+      reason:
+          'd3 sorts an index array, never the caller List, and the sankey '
           'columns are re-sorted twelve times over the same node objects',
     );
   });

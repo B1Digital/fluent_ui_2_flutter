@@ -38,10 +38,10 @@ List<double> tickSpec(double start, double stop, double count) {
   final factor = error >= e10
       ? 10.0
       : error >= e5
-          ? 5.0
-          : error >= e2
-              ? 2.0
-              : 1.0;
+      ? 5.0
+      : error >= e2
+      ? 2.0
+      : 1.0;
   double i1;
   double i2;
   double inc;
@@ -90,8 +90,9 @@ List<double> ticks(double start, double stop, double count) {
     return <double>[start];
   }
   final reverse = stop < start;
-  final spec =
-      reverse ? tickSpec(stop, start, count) : tickSpec(start, stop, count);
+  final spec = reverse
+      ? tickSpec(stop, start, count)
+      : tickSpec(start, stop, count);
   // 0, 1 and 2 index the `[i1, i2, inc]` triple `tickSpec` returns.
   final i1 = spec[0];
   final i2 = spec[1];

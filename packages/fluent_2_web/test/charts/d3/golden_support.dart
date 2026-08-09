@@ -21,21 +21,20 @@ Future<Map<String, dynamic>> loadD3Golden() async {
 List<Map<String, dynamic>> goldenCases(
   Map<String, dynamic> corpus,
   String section,
-) =>
-    (corpus[section]! as List<Object?>)
-        .cast<Map<String, dynamic>>()
-        .toList(growable: false);
+) => (corpus[section]! as List<Object?>).cast<Map<String, dynamic>>().toList(
+  growable: false,
+);
 
 /// JSON has no NaN or Infinity literal, so the generator writes them as
 /// strings. This turns them back into doubles; a JSON `null` stays null.
 double? jsNum(Object? value) => switch (value) {
-      null => null,
-      'NaN' => double.nan,
-      'Infinity' => double.infinity,
-      '-Infinity' => double.negativeInfinity,
-      final num n => n.toDouble(),
-      _ => throw ArgumentError.value(value, 'value', 'not a JSON number'),
-    };
+  null => null,
+  'NaN' => double.nan,
+  'Infinity' => double.infinity,
+  '-Infinity' => double.negativeInfinity,
+  final num n => n.toDouble(),
+  _ => throw ArgumentError.value(value, 'value', 'not a JSON number'),
+};
 
 /// [jsNum] over a JSON array.
 List<double?> jsNums(Object? value) =>
@@ -50,10 +49,7 @@ Matcher closeToJs(Object? expected) {
     return isNull;
   }
   if (want.isNaN) {
-    return predicate<Object?>(
-      (Object? v) => v is double && v.isNaN,
-      'is NaN',
-    );
+    return predicate<Object?>((Object? v) => v is double && v.isNaN, 'is NaN');
   }
   return equals(want);
 }

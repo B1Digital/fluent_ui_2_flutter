@@ -16,20 +16,28 @@ void main() {
     expect(
       d3.ticks(0, 1, 10),
       orderedEquals(<double>[
-        0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1,
+        0,
+        0.1,
+        0.2,
+        0.3,
+        0.4,
+        0.5,
+        0.6,
+        0.7,
+        0.8,
+        0.9,
+        1,
       ]),
-      reason: 'd3-array/src/ticks.js:40 evaluates (i1 + i) / -inc, and 3 / 10 '
+      reason:
+          'd3-array/src/ticks.js:40 evaluates (i1 + i) / -inc, and 3 / 10 '
           'is exactly 0.3 while 3 * 0.1 is 0.30000000000000004',
     );
-    expect(
-      3 * 0.1,
-      isNot(0.3),
-      reason: 'the arithmetic the division avoids',
-    );
+    expect(3 * 0.1, isNot(0.3), reason: 'the arithmetic the division avoids');
     expect(
       d3.tickIncrement(0, 1, 10),
       -10.0,
-      reason: 'ticks.js:17 stores inc negated in the fractional branch, so the '
+      reason:
+          'ticks.js:17 stores inc negated in the fractional branch, so the '
           'raw value is a reciprocal and callers must not treat it as a step',
     );
     expect(
@@ -64,7 +72,8 @@ void main() {
     expect(
       d3.nice(0.1, 0.9, 5),
       orderedEquals(<double>[0, 1]),
-      reason: 'd3-array/src/nice.js:3-17 has no maxIter; d3-scale/src/linear.js'
+      reason:
+          'd3-array/src/nice.js:3-17 has no maxIter; d3-scale/src/linear.js'
           ':29 caps its own copy at 10',
     );
     expect(
@@ -75,53 +84,59 @@ void main() {
   });
 
   group('against the d3 golden corpus', () {
-    test('every ticks/tickIncrement/tickStep/nice case matches exactly',
-        () async {
-      final corpus = await loadD3Golden();
-      final cases = goldenCases(corpus, 'ticks');
-      expect(
-        cases,
-        isNotEmpty,
-        reason: 'the corpus must actually have been read',
-      );
-      for (final c in cases) {
-        final start = jsNum(c['start'])!;
-        final stop = jsNum(c['stop'])!;
-        final count = jsNum(c['count'])!;
-        final label = 'ticks($start, $stop, $count)';
+    test(
+      'every ticks/tickIncrement/tickStep/nice case matches exactly',
+      () async {
+        final corpus = await loadD3Golden();
+        final cases = goldenCases(corpus, 'ticks');
+        expect(
+          cases,
+          isNotEmpty,
+          reason: 'the corpus must actually have been read',
+        );
+        for (final c in cases) {
+          final start = jsNum(c['start'])!;
+          final stop = jsNum(c['stop'])!;
+          final count = jsNum(c['count'])!;
+          final label = 'ticks($start, $stop, $count)';
 
-        final rawTicks = c['ticks']! as List<Object?>;
-        final wantTicks = jsNums(rawTicks);
-        final gotTicks = d3.ticks(start, stop, count);
-        expect(
-          gotTicks.length,
-          wantTicks.length,
-          reason: '$label tick count',
-        );
-        for (var i = 0; i < wantTicks.length; i++) {
+          final rawTicks = c['ticks']! as List<Object?>;
+          final wantTicks = jsNums(rawTicks);
+          final gotTicks = d3.ticks(start, stop, count);
           expect(
-            gotTicks[i],
-            closeToJs(rawTicks[i]),
-            reason: '$label tick $i must be bit-identical, not close',
+            gotTicks.length,
+            wantTicks.length,
+            reason: '$label tick count',
           );
+          for (var i = 0; i < wantTicks.length; i++) {
+            expect(
+              gotTicks[i],
+              closeToJs(rawTicks[i]),
+              reason: '$label tick $i must be bit-identical, not close',
+            );
+          }
+          expect(
+            d3.tickIncrement(start, stop, count),
+            closeToJs(c['tickIncrement']),
+            reason: '$label tickIncrement',
+          );
+          expect(
+            d3.tickStep(start, stop, count),
+            closeToJs(c['tickStep']),
+            reason: '$label tickStep',
+          );
+          final rawNice = c['nice']! as List<Object?>;
+          final wantNice = jsNums(rawNice);
+          final gotNice = d3.nice(start, stop, count);
+          expect(
+            gotNice[0],
+            closeToJs(rawNice[0]),
+            reason: '$label nice start',
+          );
+          expect(gotNice[1], closeToJs(rawNice[1]), reason: '$label nice stop');
+          expect(wantNice.length, 2, reason: 'nice always returns a pair');
         }
-        expect(
-          d3.tickIncrement(start, stop, count),
-          closeToJs(c['tickIncrement']),
-          reason: '$label tickIncrement',
-        );
-        expect(
-          d3.tickStep(start, stop, count),
-          closeToJs(c['tickStep']),
-          reason: '$label tickStep',
-        );
-        final rawNice = c['nice']! as List<Object?>;
-        final wantNice = jsNums(rawNice);
-        final gotNice = d3.nice(start, stop, count);
-        expect(gotNice[0], closeToJs(rawNice[0]), reason: '$label nice start');
-        expect(gotNice[1], closeToJs(rawNice[1]), reason: '$label nice stop');
-        expect(wantNice.length, 2, reason: 'nice always returns a pair');
-      }
-    });
+      },
+    );
   });
 }

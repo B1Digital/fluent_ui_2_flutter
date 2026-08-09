@@ -36,10 +36,10 @@ List<double> _tickSpecProbe(double start, double stop, double count) {
   final factor = error >= _e10
       ? 10.0
       : error >= _e5
-          ? 5.0
-          : error >= _e2
-              ? 2.0
-              : 1.0;
+      ? 5.0
+      : error >= _e2
+      ? 2.0
+      : 1.0;
   double i1;
   double i2;
   double inc;
@@ -88,7 +88,8 @@ void main() {
       expect(
         d3.jsRound(-0.5).isNegative,
         isTrue,
-        reason: 'Math.round(-0.5) is negative zero, and d3-format reads the '
+        reason:
+            'Math.round(-0.5) is negative zero, and d3-format reads the '
             'sign of zero at locale.js:77',
       );
       expect(d3.jsRound(-2.5), -2.0, reason: 'Math.round(-2.5) === -2');
@@ -117,7 +118,8 @@ void main() {
       expect(
         math.log(1000) / math.ln10,
         isNot(3.0),
-        reason: 'this is the trap: it evaluates to 2.9999999999999996, so '
+        reason:
+            'this is the trap: it evaluates to 2.9999999999999996, so '
             'floor() gives 2 and every tick step is off by a decade',
       );
     });
@@ -144,7 +146,8 @@ void main() {
       expect(
         math.pow(10, 23),
         isNot(1e23),
-        reason: 'Dart math.pow(int, int) does exact integer arithmetic and '
+        reason:
+            'Dart math.pow(int, int) does exact integer arithmetic and '
             'returns 200376420520689664',
       );
     });
@@ -200,7 +203,8 @@ void main() {
         expect(
           _tickSpecProbe(start, stop, count)[2],
           closeToJs(c['tickIncrement']),
-          reason: 'tickIncrement($start, $stop, $count) — a log10 that is not '
+          reason:
+              'tickIncrement($start, $stop, $count) — a log10 that is not '
               'exact at a decade, or a pow10 built with math.pow, changes this',
         );
       }
@@ -230,43 +234,47 @@ void main() {
         expect(
           d3.log10(tick),
           e.toDouble(),
-          reason: 'log10(1e$e) must be exact, or log.js:87 and :102 pick the '
+          reason:
+              'log10(1e$e) must be exact, or log.js:87 and :102 pick the '
               'wrong decade and the whole axis shifts',
         );
       }
     });
 
-    test('jsNumberToString reproduces every number in the path corpus',
-        () async {
-      final corpus = await loadD3Golden();
-      // Every number in a `d` string was written by JS string concatenation
-      // (`d3-path/src/path.js:26-145`), so the corpus records String(number)
-      // output directly.
-      final pattern = RegExp(r'-?\d+(?:\.\d+)?(?:e[-+]?\d+)?');
-      var checked = 0;
-      for (final c in goldenCases(corpus, 'shape')) {
-        for (final key in const <String>['d', 'arc']) {
-          final value = c[key];
-          if (value is! String) {
-            continue;
-          }
-          for (final match in pattern.allMatches(value)) {
-            final token = match.group(0)!;
-            expect(
-              d3.jsNumberToString(double.parse(token)),
-              token,
-              reason: 'String($token) round-trips; Dart would print '
-                  '"${double.parse(token)}"',
-            );
-            checked++;
+    test(
+      'jsNumberToString reproduces every number in the path corpus',
+      () async {
+        final corpus = await loadD3Golden();
+        // Every number in a `d` string was written by JS string concatenation
+        // (`d3-path/src/path.js:26-145`), so the corpus records String(number)
+        // output directly.
+        final pattern = RegExp(r'-?\d+(?:\.\d+)?(?:e[-+]?\d+)?');
+        var checked = 0;
+        for (final c in goldenCases(corpus, 'shape')) {
+          for (final key in const <String>['d', 'arc']) {
+            final value = c[key];
+            if (value is! String) {
+              continue;
+            }
+            for (final match in pattern.allMatches(value)) {
+              final token = match.group(0)!;
+              expect(
+                d3.jsNumberToString(double.parse(token)),
+                token,
+                reason:
+                    'String($token) round-trips; Dart would print '
+                    '"${double.parse(token)}"',
+              );
+              checked++;
+            }
           }
         }
-      }
-      expect(
-        checked,
-        greaterThan(100),
-        reason: 'the path corpus must actually have been walked',
-      );
-    });
+        expect(
+          checked,
+          greaterThan(100),
+          reason: 'the path corpus must actually have been walked',
+        );
+      },
+    );
   });
 }
