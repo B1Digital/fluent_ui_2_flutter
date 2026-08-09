@@ -95,7 +95,7 @@ double _firstNumber(String source) {
 /// text (`d3-axis/src/axis.js:111`) inside a group the shell translates down the
 /// plot height (`CartesianChart.tsx` renders it at `translate(0, y)`).
 class _CapturedAxis {
-  _CapturedAxis(this.story) {
+  _CapturedAxis(Map<String, dynamic> story) {
     final elements = _elements(story);
     final root = elements.firstWhere(
       (element) =>
@@ -133,7 +133,6 @@ class _CapturedAxis {
     }
   }
 
-  final Map<String, dynamic> story;
   late final String domainPath;
   final List<double> tickOffsets = <double>[];
   final List<String> tickLabels = <String>[];
