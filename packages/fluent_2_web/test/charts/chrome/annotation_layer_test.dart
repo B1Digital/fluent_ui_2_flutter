@@ -3,6 +3,10 @@ import 'dart:math' as math;
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:fluent_2_web/src/charts/chrome/annotation_layer.dart';
 import 'package:fluent_2_web/src/charts/chrome/annotation_layer_style.dart';
+import 'package:fluent_2_web/src/charts/internal/d3/scale.dart';
+import 'package:fluent_2_web/src/charts/internal/d3/scale_band.dart';
+import 'package:fluent_2_web/src/charts/internal/d3/scale_linear.dart';
+import 'package:fluent_2_web/src/charts/model/chart_annotation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -420,6 +424,378 @@ void main() {
             'ChartAnnotationLayer.tsx:210-221 and :658 — the plain-text '
             'projection is the aria-label when none is supplied.',
       );
+    });
+  });
+
+  mainCoordinates();
+}
+
+/// The coordinate-resolution half of the suite (`ChartAnnotationLayer.tsx`
+/// `:243-394`), called from [main].
+void mainCoordinates() {
+  // A minimal linear scale over [0, 10] -> [0, 100] and a band scale, both
+  // implementing the frozen Scale interface from internal/d3/scale.dart.
+  final linear = scaleLinear()
+    ..domainOf(<double>[0, 10])
+    ..rangeOf(<double>[0, 100]);
+  final band = scaleBand()
+    ..domainOf(<Object>['a', 'b'])
+    ..rangeOf(<double>[0, 100]);
+
+  FluentChartAnnotationContext contextWith({Scale? x, Scale? y}) =>
+      FluentChartAnnotationContext(
+        plotRect: const Rect.fromLTWH(20, 10, 200, 100),
+        chartSize: const Size(300, 200),
+        isRtl: false,
+        xScale: x,
+        yScalePrimary: y,
+      );
+
+  group('fluentAnnotationBandOffset', () {
+    test('a band scale is centred on its band', () {
+      expect(
+        fluentAnnotationBandOffset(band, 'a'),
+        moreOrLessEquals(band('a')! + band.bandwidth / 2, epsilon: 0.001),
+        reason:
+            'ChartAnnotationLayer.tsx:251-253 adds bandwidth() / 2 whenever the '
+            'scale exposes one.',
+      );
+    });
+
+    test('a continuous scale is not shifted', () {
+      expect(
+        fluentAnnotationBandOffset(linear, 5),
+        moreOrLessEquals(50, epsilon: 0.001),
+        reason:
+            'ChartAnnotationLayer.tsx:254 returns the raw position when there '
+            'is no bandwidth.',
+      );
+    });
+
+    test('a domain miss is null, not a guess', () {
+      expect(
+        fluentAnnotationBandOffset(band, 'z'),
+        isNull,
+        reason:
+            'ChartAnnotationLayer.tsx:248-250 returns undefined for anything '
+            'that is not a finite number, and ScaleBand returns null on a miss.',
+      );
+    });
+  });
+
+  group('resolveFluentAnnotationCoordinates', () {
+    test('a data coordinate goes through the scales', () {
+      final resolved = resolveFluentAnnotationCoordinates(
+        const FluentChartAnnotation(
+          text: 'x',
+          coordinates: FluentDataCoordinate(x: 5, y: 5),
+        ),
+        contextWith(x: linear, y: linear),
+      );
+      expect(
+        resolved!.anchor,
+        const Offset(50, 50),
+        reason: 'ChartAnnotationLayer.tsx:271-281.',
+      );
+    });
+
+    test('a DateTime is scaled by its epoch milliseconds', () {
+      final epoch = DateTime.utc(1970, 1, 1, 0, 0, 0, 5);
+      final resolved = resolveFluentAnnotationCoordinates(
+        FluentChartAnnotation(
+          text: 'x',
+          coordinates: FluentDataCoordinate(x: epoch, y: 5),
+        ),
+        contextWith(x: linear, y: linear),
+      );
+      expect(
+        resolved!.anchor.dx,
+        moreOrLessEquals(50, epsilon: 0.001),
+        reason:
+            'ChartAnnotationLayer.tsx:272 converts a Date with .getTime() '
+            'before scaling, which is millisecondsSinceEpoch in Dart.',
+      );
+    });
+
+    test('a relative coordinate is a fraction of the plot rect', () {
+      final resolved = resolveFluentAnnotationCoordinates(
+        const FluentChartAnnotation(
+          text: 'x',
+          coordinates: FluentRelativeCoordinate(x: 0.5, y: 0.25),
+        ),
+        contextWith(),
+      );
+      expect(
+        resolved!.anchor,
+        const Offset(20 + 200 * 0.5, 10 + 100 * 0.25),
+        reason: 'ChartAnnotationLayer.tsx:298-300.',
+      );
+    });
+
+    test('a pixel coordinate is an offset from the plot origin', () {
+      final resolved = resolveFluentAnnotationCoordinates(
+        const FluentChartAnnotation(
+          text: 'x',
+          coordinates: FluentPixelCoordinate(x: 5, y: 5),
+        ),
+        contextWith(),
+      );
+      expect(
+        resolved!.anchor,
+        const Offset(25, 15),
+        reason:
+            'ChartAnnotationLayer.tsx:305 — plotRect origin plus the value.',
+      );
+    });
+
+    test('a mixed coordinate takes one space per axis', () {
+      final resolved = resolveFluentAnnotationCoordinates(
+        const FluentChartAnnotation(
+          text: 'x',
+          coordinates: FluentMixedCoordinate(
+            xSpace: FluentCoordinateSpace.pixel,
+            ySpace: FluentCoordinateSpace.relative,
+            x: 5,
+            y: 0.5,
+          ),
+        ),
+        contextWith(),
+      );
+      expect(
+        resolved!.anchor,
+        const Offset(25, 60),
+        reason: 'ChartAnnotationLayer.tsx:342-347.',
+      );
+    });
+
+    test('a missing scale skips the annotation entirely', () {
+      expect(
+        resolveFluentAnnotationCoordinates(
+          const FluentChartAnnotation(
+            text: 'x',
+            coordinates: FluentDataCoordinate(x: 5, y: 5),
+          ),
+          contextWith(),
+        ),
+        isNull,
+        reason:
+            'ChartAnnotationLayer.tsx:255-258 returns undefined without a '
+            'scale, and :376-378 drops the whole annotation when either '
+            'coordinate is undefined.',
+      );
+    });
+
+    test('the layout offsets shift the point but not the anchor', () {
+      final resolved = resolveFluentAnnotationCoordinates(
+        const FluentChartAnnotation(
+          text: 'x',
+          coordinates: FluentPixelCoordinate(x: 5, y: 5),
+          layout: FluentChartAnnotationLayout(offsetX: 30, offsetY: -4),
+        ),
+        contextWith(),
+      );
+      expect(
+        resolved!.anchor,
+        const Offset(25, 15),
+        reason:
+            'ChartAnnotationLayer.tsx:380 keeps the anchor at the datum; the '
+            'connector is drawn to it.',
+      );
+      expect(
+        resolved.point,
+        const Offset(55, 11),
+        reason: 'ChartAnnotationLayer.tsx:382-383.',
+      );
+    });
+
+    test('a truthy clipToBounds clamps the POINT into the plot rect', () {
+      final resolved = resolveFluentAnnotationCoordinates(
+        const FluentChartAnnotation(
+          text: 'x',
+          coordinates: FluentPixelCoordinate(x: 5, y: 5),
+          layout: FluentChartAnnotationLayout(offsetX: 500, clipToBounds: true),
+        ),
+        contextWith(),
+      );
+      expect(
+        resolved!.point.dx,
+        220,
+        reason:
+            'ChartAnnotationLayer.tsx:385-388 clamps to plotRect.x + width, '
+            'which is 20 + 200.',
+      );
+    });
+
+    test('a null clipToBounds leaves the point alone', () {
+      final resolved = resolveFluentAnnotationCoordinates(
+        const FluentChartAnnotation(
+          text: 'x',
+          coordinates: FluentPixelCoordinate(x: 5, y: 5),
+          layout: FluentChartAnnotationLayout(offsetX: 500),
+        ),
+        contextWith(),
+      );
+      expect(
+        resolved!.point.dx,
+        525,
+        reason:
+            'ChartAnnotationLayer.tsx:385 is `if (layout?.clipToBounds)` — only '
+            'truthy clamps here. The undefined case still clips the BOX at '
+            ':544, which is the tri-state the contract records.',
+      );
+    });
+  });
+
+  group('the corpus resolves a data coordinate onto its own data points', () {
+    final story = loadOracleStory(
+      'charts-linechart--line-chart-annotations-example',
+    );
+    Offset at(OracleElement element) => story.absoluteTranslate(element);
+    final texts = story.byTag('text');
+    // The two axes are rebuilt from their own tick labels. `6` and `52` are
+    // each unique in the svg; `0` labels both axes, so it is pinned to the row
+    // (x axis) or the column (y axis) its partner sits on. Every tick is
+    // translated by story.crispOffset (`d3-axis/src/axis.js:47`), so removing
+    // it recovers the scale's real range.
+    final xMax = texts.singleWhere((element) => element.text == '6');
+    final xMin = texts.singleWhere(
+      (element) => element.text == '0' && at(element).dy == at(xMax).dy,
+    );
+    final yMax = texts.singleWhere((element) => element.text == '52');
+    final yMin = texts.singleWhere(
+      (element) => element.text == '0' && at(element).dx == at(yMax).dx,
+    );
+    final xScale = scaleLinear()
+      ..domainOf(<double>[double.parse(xMin.text!), double.parse(xMax.text!)])
+      ..rangeOf(<double>[
+        at(xMin).dx - story.crispOffset,
+        at(xMax).dx - story.crispOffset,
+      ]);
+    final yScale = scaleLinear()
+      ..domainOf(<double>[double.parse(yMin.text!), double.parse(yMax.text!)])
+      ..rangeOf(<double>[
+        at(yMin).dy - story.crispOffset,
+        at(yMax).dy - story.crispOffset,
+      ]);
+    // The data-arm resolution must NOT add this origin — the scales already
+    // emit svg coordinates. It is passed so the test would catch that mistake.
+    final context = FluentChartAnnotationContext(
+      plotRect: Rect.fromLTRB(
+        xScale.range.first,
+        yScale.range.last,
+        xScale.range.last,
+        yScale.range.first,
+      ),
+      chartSize: Size(story.width, story.height),
+      isRtl: false,
+      xScale: xScale,
+      yScalePrimary: yScale,
+    );
+
+    /// The line's point markers: `M cx-r cy A r r 0 1 0 cx+r cy` twice, so the
+    /// centre is the midpoint of the arc's own endpoints.
+    List<Offset> pointCentres() => story
+        .byTag('path')
+        .where((element) => element.d!.contains('A0.5 0.5'))
+        .map((element) {
+          final numbers = svgPathNumbers(element.d!);
+          return Offset((numbers[0] + numbers[7]) / 2, numbers[1]);
+        })
+        .toList();
+
+    /// Every plotted datum, resolved back to a pixel through the two scales.
+    List<Offset> resolvedAnchors() => pointCentres().map((centre) {
+      final x = (xScale.invert(centre.dx)! as double).roundToDouble();
+      final y = (yScale.invert(centre.dy)! as double).roundToDouble();
+      return resolveFluentAnnotationCoordinates(
+        FluentChartAnnotation(
+          text: 'annotation',
+          coordinates: FluentDataCoordinate(x: x, y: y),
+        ),
+        context,
+      )!.anchor;
+    }).toList();
+
+    test('each plotted point round-trips through the data arm', () {
+      final centres = pointCentres();
+      expect(
+        centres.length,
+        7,
+        reason:
+            'The story plots seven points; a zero count would make the loop '
+            'below vacuous.',
+      );
+      final circle = story.soleElement('circle');
+      expectOracleOffset(
+        'the highlighted last point #${circle.index} confirms the arc-midpoint '
+        'centre convention',
+        Offset(circle.cx!, circle.cy!),
+        centres.last,
+      );
+      final anchors = resolvedAnchors();
+      for (var i = 0; i < centres.length; i++) {
+        // The inverted datum must be one of the story's integers, or the
+        // forward resolution below would only be proving invert ∘ scale = id.
+        final x = xScale.invert(centres[i].dx)! as double;
+        final y = yScale.invert(centres[i].dy)! as double;
+        expectOracleNumber(
+          'point #$i x inverts to a whole datum',
+          x.roundToDouble(),
+          x,
+        );
+        expectOracleNumber(
+          'point #$i y inverts to a whole datum',
+          y.roundToDouble(),
+          y,
+        );
+        expectOracleOffset(
+          'ChartAnnotationLayer.tsx:271-281 — a data coordinate at '
+          '(${x.round()}, ${y.round()}) resolves onto point #$i of '
+          '${story.id}, with no plotRect origin (${context.plotRect.left}, '
+          '${context.plotRect.top}) added',
+          centres[i],
+          anchors[i],
+        );
+      }
+    });
+
+    test('each connector runs at one of those anchors', () {
+      final anchors = resolvedAnchors();
+      final lines = _connectorLayer(
+        story,
+      ).elements.where((element) => element.tag == 'line').toList();
+      expect(
+        lines.length,
+        2,
+        reason:
+            'Two of the four annotations in the story carry a connector; a '
+            'zero count would make the loop below vacuous.',
+      );
+      for (final line in lines) {
+        final start = Offset(line.x1!, line.y1!);
+        final end = Offset(line.x2!, line.y2!);
+        final along = end - start;
+        // The connector stops short of the datum by its arrowhead trim, which
+        // stage 22 owns; what stage 21 must get right is that the anchor lies
+        // on the ray the connector points along.
+        final hits = anchors.where((anchor) {
+          final toAnchor = anchor - end;
+          final perpendicular =
+              (along.dx * toAnchor.dy - along.dy * toAnchor.dx).abs() /
+              along.distance;
+          final forwards = along.dx * toAnchor.dx + along.dy * toAnchor.dy > 0;
+          return forwards && perpendicular <= kOracleGeometryTolerance;
+        }).toList();
+        expect(
+          hits.length,
+          1,
+          reason:
+              'ChartAnnotationLayer.tsx:380 — connector #${line.index} of '
+              '${story.id} runs from the box to its datum, so exactly one '
+              'resolved anchor is collinear with it and beyond its end at '
+              '$end. Got ${hits.length}: $hits.',
+        );
+      }
     });
   });
 }

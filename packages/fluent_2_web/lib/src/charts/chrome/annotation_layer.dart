@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+import '../internal/d3/scale.dart';
+import '../model/chart_annotation.dart';
 import 'annotation_layer_style.dart';
 
 /// One node of the annotation markup tree. `ChartAnnotationLayer.tsx:36-39`.
@@ -258,3 +260,217 @@ List<InlineSpan> parseFluentAnnotationMarkup(String text, TextStyle base) =>
 /// `simpleMarkupNodesToPlainText` (`ChartAnnotationLayer.tsx:210-221`), used as
 /// the default accessible label at `:658`.
 String fluentAnnotationPlainText(String text) => _plain(_parse(text));
+
+/// The geometry an annotation layer resolves its coordinates against.
+///
+/// Ports `ChartAnnotationContext` (`ChartAnnotationLayer.types.ts:15-31`).
+/// `svgRect` becomes [chartSize] and `plotRect` a [Rect].
+@immutable
+class FluentChartAnnotationContext {
+  /// Creates a context.
+  const FluentChartAnnotationContext({
+    required this.plotRect,
+    required this.chartSize,
+    required this.isRtl,
+    this.xScale,
+    this.yScalePrimary,
+    this.yScaleSecondary,
+  });
+
+  /// The plotting area, in chart coordinates
+  /// (`ChartAnnotationLayer.types.ts:17`).
+  final Rect plotRect;
+
+  /// The whole chart's size, used as the clamping viewport when an annotation
+  /// opts out of the plot bounds (`ChartAnnotationLayer.types.ts:19`).
+  final Size chartSize;
+
+  /// Whether the chart is laid out right-to-left
+  /// (`ChartAnnotationLayer.types.ts:21`).
+  final bool isRtl;
+
+  /// The x scale, or null when the chart has none
+  /// (`ChartAnnotationLayer.types.ts:24`).
+  final Scale? xScale;
+
+  /// The primary y scale (`ChartAnnotationLayer.types.ts:27`).
+  final Scale? yScalePrimary;
+
+  /// The secondary y scale, for annotations that name it
+  /// (`ChartAnnotationLayer.types.ts:30`).
+  final Scale? yScaleSecondary;
+}
+
+/// An annotation's datum anchor and its box's reference point.
+///
+/// Ports `ResolvedAnnotationPosition` — what `resolveCoordinates` returns
+/// (`ChartAnnotationLayer.tsx:390-393`).
+@immutable
+class FluentResolvedAnnotationPosition {
+  /// Creates a resolved position.
+  const FluentResolvedAnnotationPosition({
+    required this.anchor,
+    required this.point,
+  });
+
+  /// The datum itself. The connector is always drawn to this
+  /// (`ChartAnnotationLayer.tsx:380`).
+  final Offset anchor;
+
+  /// The box's reference point: the anchor plus the layout offsets, optionally
+  /// clamped (`ChartAnnotationLayer.tsx:382-388`).
+  final Offset point;
+}
+
+/// Scales [value], centring it on its band when [scale] has a bandwidth.
+///
+/// `normalizeBandOffset` (`ChartAnnotationLayer.tsx:243-255`). Returns null for
+/// anything that does not scale to a finite number, which drops the whole
+/// annotation at the call site rather than drawing it at NaN.
+double? fluentAnnotationBandOffset(Scale? scale, Object? value) {
+  // `scale?.(value as never)` at :247. A null value cannot reach a Dart Scale,
+  // whose `call` takes a non-nullable Object, and is the `typeof position !==
+  // 'number'` case at :248 either way.
+  if (scale == null || value == null) {
+    return null;
+  }
+  final position = scale(value);
+  // :248-250 — a band-scale miss and a non-numeric continuous input are both
+  // null here, and only a log scale's negative input is NaN.
+  if (position == null || position.isNaN) {
+    return null;
+  }
+  // :251-253. Upstream branches on `typeof scale.bandwidth === 'function'`,
+  // which is the band scales; a continuous Scale reports a bandwidth of 0
+  // (`scale.dart`'s contract, `scale_continuous.dart:143`), so adding half of
+  // it unconditionally is the same arithmetic without the type test.
+  return position + scale.bandwidth / 2;
+}
+
+/// One axis of one coordinate, in the space that axis names.
+///
+/// `resolveAxisCoordinate` (`ChartAnnotationLayer.tsx:284-309`), which delegates
+/// its `data` case to `resolveDataCoordinate` (`:261-282`).
+double? _resolveAxis(
+  FluentCoordinateSpace space,
+  Object? value,
+  FluentChartAnnotationContext context, {
+  required bool isX,
+  FluentAnnotationYAxis yAxis = FluentAnnotationYAxis.primary,
+}) {
+  switch (space) {
+    case FluentCoordinateSpace.data:
+      // :268-270 and :276-279 — no scale, no annotation.
+      final scale = isX
+          ? context.xScale
+          : (yAxis == FluentAnnotationYAxis.secondary
+                ? context.yScaleSecondary
+                : context.yScalePrimary);
+      if (scale == null) {
+        return null;
+      }
+      // :272 and :280 — a Date is scaled by its epoch milliseconds.
+      final parsed = value is DateTime ? value.millisecondsSinceEpoch : value;
+      return fluentAnnotationBandOffset(scale, parsed);
+    case FluentCoordinateSpace.relative:
+      // :295-297.
+      if (value is! num || value.isNaN) {
+        return null;
+      }
+      // :298-300.
+      return isX
+          ? context.plotRect.left + context.plotRect.width * value
+          : context.plotRect.top + context.plotRect.height * value;
+    case FluentCoordinateSpace.pixel:
+      // :302-304.
+      if (value is! num || value.isNaN) {
+        return null;
+      }
+      // :305.
+      return isX ? context.plotRect.left + value : context.plotRect.top + value;
+  }
+}
+
+/// Resolves [annotation]'s anchor and box reference point, or null to skip it.
+///
+/// `resolveCoordinates` (`ChartAnnotationLayer.tsx:353-394`). Returning null
+/// drops the annotation entirely, which is what upstream does when either axis
+/// fails to resolve (`:376-378`).
+///
+/// The `clipToBounds` clamp applied here is the **first** of its two meanings:
+/// `:385` clamps the anchor-derived point only when the flag is truthy. The
+/// second — selecting the viewport for the box clamp with `!== false` at
+/// `:544` — lives in the layout step, and `null` behaves differently from both
+/// `true` and `false`; [FluentChartAnnotationLayout.clampsAnchor] and
+/// [FluentChartAnnotationLayout.clampsViewport] are the two readings.
+FluentResolvedAnnotationPosition? resolveFluentAnnotationCoordinates(
+  FluentChartAnnotation annotation,
+  FluentChartAnnotationContext context,
+) {
+  final coordinates = annotation.coordinates;
+  // `getCoordinateDescriptor` (:334-351). A sealed class makes the `default`
+  // arm at :348-349 unreachable, so there is no null descriptor to guard.
+  final (xSpace, ySpace, x, y, yAxis) = switch (coordinates) {
+    // :336-337.
+    FluentDataCoordinate() => (
+      FluentCoordinateSpace.data,
+      FluentCoordinateSpace.data,
+      coordinates.x,
+      coordinates.y,
+      coordinates.yAxis,
+    ),
+    // :338-339.
+    FluentRelativeCoordinate() => (
+      FluentCoordinateSpace.relative,
+      FluentCoordinateSpace.relative,
+      coordinates.x,
+      coordinates.y,
+      FluentAnnotationYAxis.primary,
+    ),
+    // :340-341.
+    FluentPixelCoordinate() => (
+      FluentCoordinateSpace.pixel,
+      FluentCoordinateSpace.pixel,
+      coordinates.x,
+      coordinates.y,
+      FluentAnnotationYAxis.primary,
+    ),
+    // :342-347.
+    FluentMixedCoordinate() => (
+      coordinates.xSpace,
+      coordinates.ySpace,
+      coordinates.x,
+      coordinates.y,
+      coordinates.yAxis,
+    ),
+  };
+
+  // :371 — the x axis never reads the yAxis selector.
+  final anchorX = _resolveAxis(xSpace, x, context, isX: true);
+  // :372-374.
+  final anchorY = _resolveAxis(ySpace, y, context, isX: false, yAxis: yAxis);
+  // :376-378.
+  if (anchorX == null || anchorY == null) {
+    return null;
+  }
+
+  final layout = annotation.layout;
+  // :380.
+  final anchor = Offset(anchorX, anchorY);
+  // :368-369 and :382-383.
+  var left = anchorX + (layout?.offsetX ?? 0);
+  var top = anchorY + (layout?.offsetY ?? 0);
+
+  // :385 — TRUTHY only, which is what clampsAnchor reads.
+  if (layout?.clampsAnchor ?? false) {
+    // :386-387.
+    left = left.clamp(context.plotRect.left, context.plotRect.right);
+    top = top.clamp(context.plotRect.top, context.plotRect.bottom);
+  }
+
+  // :390-393.
+  return FluentResolvedAnnotationPosition(
+    anchor: anchor,
+    point: Offset(left, top),
+  );
+}
