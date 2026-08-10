@@ -1,12 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:fluent_2_web/fluent_2_web.dart';
-// `polar_chart.dart` is not barrel-exported yet — the integration task owns
-// `lib/fluent_2_web.dart`, so the test reaches for the library directly, exactly
-// as `polar_chart_scales_test.dart` does for the scales.
-import 'package:fluent_2_web/src/charts/polar_chart.dart';
-import 'package:fluent_2_web/src/charts/polar_chart_scales.dart';
-import 'package:fluent_2_web/src/charts/polar_chart_style.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';

@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:fluent_2_web/fluent_2_web.dart';
-import 'package:fluent_2_web/src/charts/polar_chart_scales.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/oracle_fixture.dart';
