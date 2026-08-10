@@ -378,3 +378,128 @@ FluentPolarRadialScale createPolarRadialScale(
     ],
   );
 }
+
+/// Default number of angular ticks (`PolarChart.utils.ts:239`).
+const int kPolarAngularTickCount = 8;
+
+/// A resolved angular axis: the datum-to-radians mapping plus its ticks.
+@immutable
+class FluentPolarAngularScale {
+  /// Creates a resolved angular axis.
+  const FluentPolarAngularScale({
+    required this.radiansOf,
+    required this.tickValues,
+    required this.tickLabels,
+  });
+
+  /// Maps a datum theta — a category name or a number of degrees — to screen
+  /// radians.
+  final double Function(Object value) radiansOf;
+
+  /// Values the spokes and angular labels are drawn at, always in datum units.
+  final List<Object> tickValues;
+
+  /// Rendered label per entry of [tickValues], same length and order.
+  final List<String> tickLabels;
+}
+
+/// Builds the angular axis.
+///
+/// Ports `createAngularScale` (`PolarChart.utils.ts:188-246`). A categorical
+/// axis divides the full turn into `360 / domain.length` and places category
+/// *i* at `i * period` (`:208-217`). A numeric axis ignores its domain entirely
+/// and maps the raw datum degrees (`:242`) — the domain is computed upstream
+/// only so that `getScaleType` can classify it.
+///
+/// [tickStep] is the `number | string` union at `:197` and [tick0] the
+/// `number | Date` union at `:198`, so both arrive as [Object].
+FluentPolarAngularScale createPolarAngularScale(
+  FluentPolarScaleKind kind,
+  List<Object> domain, {
+  int? tickCount,
+  List<Object>? tickValues,
+  List<String>? tickText,
+  String? tickFormat,
+  Object? tickStep,
+  Object? tick0,
+  FluentPolarDirection direction = FluentPolarDirection.counterclockwise,
+  FluentPolarAngularUnit unit = FluentPolarAngularUnit.degrees,
+}) {
+  // `:211` / `:225` — a custom label is used only when BOTH `tickValues` and
+  // `tickText` were supplied and the entry at that index is usable.
+  String? customLabel(int index) {
+    if (tickValues == null || tickText == null) {
+      return null;
+    }
+    // JavaScript reads a past-the-end index as `undefined`, which
+    // `isInvalidValue` rejects; Dart would throw, so the bound is explicit.
+    if (index >= tickText.length) {
+      return null;
+    }
+    if (isInvalidChartValue(tickText[index])) {
+      return null;
+    }
+    return tickText[index];
+  }
+
+  if (kind == FluentPolarScaleKind.category) {
+    final indexOf = <Object, int>{
+      for (var i = 0; i < domain.length; i++) domain[i]: i,
+    };
+    // `:208` — an empty domain divides by zero here exactly as upstream does;
+    // the resulting NaN angle is filtered out later by `isPlottable`.
+    final period = 360 / domain.length;
+    final values = tickValues ?? domain;
+    return FluentPolarAngularScale(
+      // `:217` — a category the domain never saw indexes to `undefined`, and
+      // `undefined * period` is NaN, which `isPlottable` later filters out.
+      radiansOf: (value) => polarDegreesToRadians(
+        normalizePolarAngle(
+          (indexOf[value]?.toDouble() ?? double.nan) * period,
+          direction,
+        ),
+      ),
+      tickValues: values,
+      tickLabels: <String>[
+        for (var i = 0; i < values.length; i++)
+          customLabel(i) ?? values[i].toString(),
+      ],
+    );
+  }
+
+  var customTickValues = tickValues;
+  if (tickStep != null) {
+    // `:234-237` — the generated domain is a full turn minus one epsilon so
+    // that the closing tick is not duplicated, and radian steps come back as
+    // degrees.
+    final radians = unit == FluentPolarAngularUnit.radians;
+    final generated = generateNumericTicks(null, tickStep, tick0, <double>[
+      0,
+      (radians ? 2 * math.pi : 360) - kPolarEpsilon,
+    ]);
+    customTickValues = generated
+        ?.map<Object>((v) => radians ? polarRadiansToDegrees(v) : v)
+        .toList();
+  }
+  // `:239` — the default of eight ticks puts a spoke every 45 degrees.
+  final values =
+      customTickValues ??
+      d3
+          .range(0, 360, 360 / (tickCount ?? kPolarAngularTickCount))
+          .cast<Object>();
+
+  final numberFormat = tickFormat == null ? null : d3.format(tickFormat);
+  return FluentPolarAngularScale(
+    radiansOf: (value) => polarDegreesToRadians(
+      normalizePolarAngle((value as num).toDouble(), direction),
+    ),
+    tickValues: values,
+    tickLabels: <String>[
+      for (var i = 0; i < values.length; i++)
+        customLabel(i) ??
+            (numberFormat != null
+                ? numberFormat(values[i] as num)
+                : formatPolarAngle(values[i], unit)),
+    ],
+  );
+}

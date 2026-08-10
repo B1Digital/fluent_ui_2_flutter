@@ -342,4 +342,133 @@ void main() {
       expect(kPolarRadialTickCount, 4, reason: 'PolarChart.utils.ts:76');
     });
   });
+
+  group('createPolarAngularScale', () {
+    test('a numeric axis ticks every 45 degrees by default', () {
+      final angular = createPolarAngularScale(
+        FluentPolarScaleKind.linear,
+        <Object>[0, 360],
+      );
+      expect(
+        angular.tickValues,
+        <Object>[0, 45, 90, 135, 180, 225, 270, 315],
+        reason:
+            'PolarChart.utils.ts:239 — d3Range(0, 360, 360 / (tickCount ?? 8))',
+      );
+      expect(
+        angular.tickLabels.first,
+        '0°',
+        reason: 'formatAngle in degrees (PolarChart.utils.ts:231)',
+      );
+    });
+
+    test('the numeric scale ignores its domain and maps raw degrees', () {
+      final angular = createPolarAngularScale(
+        FluentPolarScaleKind.linear,
+        <Object>[10, 20],
+      );
+      expect(
+        angular.radiansOf(0),
+        closeTo(math.pi / 2, 1e-12),
+        reason:
+            'PolarChart.utils.ts:242 feeds the raw value straight into '
+            'normalizeAngle; the domain is only used to pick the scale kind',
+      );
+      expect(
+        angular.radiansOf(90),
+        closeTo(0, 1e-12),
+        reason: '450 - 90 = 360 folds to 0 radians',
+      );
+    });
+
+    test('clockwise keeps the datum degrees', () {
+      final angular = createPolarAngularScale(
+        FluentPolarScaleKind.linear,
+        <Object>[0, 360],
+        direction: FluentPolarDirection.clockwise,
+      );
+      expect(
+        angular.radiansOf(90),
+        closeTo(math.pi / 2, 1e-12),
+        reason: 'PolarChart.utils.ts:186 passes clockwise degrees through',
+      );
+    });
+
+    test('a category axis spreads the domain over a full turn', () {
+      final angular = createPolarAngularScale(
+        FluentPolarScaleKind.category,
+        <Object>['n', 'e', 's', 'w'],
+      );
+      expect(
+        angular.radiansOf('n'),
+        closeTo(math.pi / 2, 1e-12),
+        reason:
+            'PolarChart.utils.ts:208-217 — period is 360 / 4 and index 0 is at '
+            'datum 0 degrees, which counter-clockwise puts at 90',
+      );
+      expect(
+        angular.radiansOf('e'),
+        closeTo(0, 1e-12),
+        reason: 'index 1 sits at datum 90, which folds to 0',
+      );
+      expect(
+        angular.tickLabels,
+        <String>['n', 'e', 's', 'w'],
+        reason: 'a category axis labels with the domain values',
+      );
+    });
+
+    test('radians relabel the same tick values', () {
+      final angular = createPolarAngularScale(
+        FluentPolarScaleKind.linear,
+        <Object>[0, 360],
+        tickCount: 4,
+        unit: FluentPolarAngularUnit.radians,
+      );
+      expect(
+        angular.tickValues,
+        <Object>[0, 90, 180, 270],
+        reason: 'tick values stay in degrees regardless of the unit',
+      );
+      expect(
+        angular.tickLabels,
+        <String>['0π', '0.5π', '1π', '1.5π'],
+        reason: 'PolarChart.utils.ts:255 divides by 180 before appending pi',
+      );
+    });
+
+    test('tickStep in radians is converted back to degrees', () {
+      final angular = createPolarAngularScale(
+        FluentPolarScaleKind.linear,
+        <Object>[0, 360],
+        unit: FluentPolarAngularUnit.radians,
+        tickStep: math.pi / 2,
+        tick0: 0,
+      );
+      expect(
+        angular.tickValues.map((v) => (v as num).round()).toList(),
+        <int>[0, 90, 180, 270],
+        reason:
+            'PolarChart.utils.ts:234-237 generates over [0, 2pi - EPSILON] then '
+            'maps each value back through radToDeg',
+      );
+    });
+
+    test('a d3 format string overrides formatAngle', () {
+      final angular = createPolarAngularScale(
+        FluentPolarScaleKind.linear,
+        <Object>[0, 360],
+        tickCount: 2,
+        tickFormat: '.1f',
+      );
+      expect(angular.tickLabels, <String>[
+        '0.0',
+        '180.0',
+      ], reason: 'PolarChart.utils.ts:228-230');
+    });
+
+    test('the default angular tick count is eight', () {
+      expect(kPolarAngularTickCount, 8, reason: 'PolarChart.utils.ts:239');
+    });
+  });
 }
