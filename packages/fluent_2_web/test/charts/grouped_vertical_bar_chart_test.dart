@@ -209,6 +209,50 @@ FluentCartesianLayout _layout({double height = 350, double width = 800}) =>
       startFromX: 0,
     );
 
+/// One category carrying one legend — the v1 input the widget tests hover.
+List<FluentGroupedVerticalBarChartData> _gvbcCategories() =>
+    const <FluentGroupedVerticalBarChartData>[
+      FluentGroupedVerticalBarChartData(
+        name: 'Category',
+        series: <FluentGroupedBarSeriesPoint>[
+          FluentGroupedBarSeriesPoint(key: 'L', data: 100, legend: 'L'),
+        ],
+      ),
+    ];
+
+/// Two bar series over one category — the v2 input.
+List<FluentDataSeries> _gvbcV2Series() => const <FluentDataSeries>[
+  FluentBarSeries(
+    legend: 'v2a',
+    data: <FluentDataPointV2>[FluentDataPointV2(x: 'Q1', y: 10)],
+  ),
+  FluentBarSeries(
+    legend: 'v2b',
+    data: <FluentDataPointV2>[FluentDataPointV2(x: 'Q1', y: 20)],
+  ),
+];
+
+/// The same two bar series with a line over the top — the only input shape
+/// that can carry one (`GroupedVerticalBarChart.tsx:288-291`).
+List<FluentDataSeries> _gvbcV2WithLine() => <FluentDataSeries>[
+  ..._gvbcV2Series(),
+  const FluentLineSeries(
+    legend: 'Trend',
+    data: <FluentDataPointV2>[FluentDataPointV2(x: 'Q1', y: 15)],
+  ),
+];
+
+/// The y a captured axis tick sits at, with the crispness offset removed.
+double _yOfTick(OracleStory story, String label) {
+  final text = story.soleElement(
+    'text',
+    // -10 is the captured y-tick label offset; it separates the axis labels
+    // from the bar labels, which carry the same strings.
+    where: (element) => element.text == label && element.x == -10,
+  );
+  return story.absoluteTranslate(story.parentOf(text)!).dy - story.crispOffset;
+}
+
 /// Records what `paintSeries` draws. `noSuchMethod` swallows the rest, so a
 /// painter that starts clipping or saving layers is not silently accepted —
 /// those calls simply do not land in these lists.
@@ -217,6 +261,24 @@ class _RecordingCanvas implements Canvas {
   final List<RRect> rrects = <RRect>[];
   final List<Color> fills = <Color>[];
   final List<Offset> paragraphs = <Offset>[];
+  final List<
+    ({Offset from, Offset to, Color colour, double width, StrokeCap cap})
+  >
+  lines =
+      <({Offset from, Offset to, Color colour, double width, StrokeCap cap})>[];
+  final List<
+    ({Offset centre, double radius, Color colour, double width, bool stroked})
+  >
+  circles =
+      <
+        ({
+          Offset centre,
+          double radius,
+          Color colour,
+          double width,
+          bool stroked,
+        })
+      >[];
 
   @override
   void drawRect(Rect rect, Paint paint) {
@@ -234,6 +296,24 @@ class _RecordingCanvas implements Canvas {
   @override
   void drawParagraph(ui.Paragraph paragraph, Offset offset) =>
       paragraphs.add(offset);
+
+  @override
+  void drawLine(Offset from, Offset to, Paint paint) => lines.add((
+    from: from,
+    to: to,
+    colour: paint.color,
+    width: paint.strokeWidth,
+    cap: paint.strokeCap,
+  ));
+
+  @override
+  void drawCircle(Offset centre, double radius, Paint paint) => circles.add((
+    centre: centre,
+    radius: radius,
+    colour: paint.color,
+    width: paint.strokeWidth,
+    stroked: paint.style == PaintingStyle.stroke,
+  ));
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -949,18 +1029,6 @@ void main() {
     ];
     const legends = <String>['s1', 's2', 's3', 's4'];
 
-    /// The y a captured axis tick sits at, with the crispness offset removed.
-    double yOfTick(OracleStory story, String label) {
-      final text = story.soleElement(
-        'text',
-        // -10 is the captured y-tick label offset; it separates the axis
-        // labels from the bar labels, which carry the same strings.
-        where: (element) => element.text == label && element.x == -10,
-      );
-      return story.absoluteTranslate(story.parentOf(text)!).dy -
-          story.crispOffset;
-    }
-
     test('every captured bar rect comes back out of barsFor', () {
       final story = loadOracleStory(storyId);
       final groups = _groupElements(story);
@@ -1008,7 +1076,7 @@ void main() {
           yScalePrimary: d3.scaleLinear()
             // 0 and 60000 are the first and last captured y ticks.
             ..domainOf(<double>[0, 60000])
-            ..rangeOf(<double>[yOfTick(story, '0'), yOfTick(story, '60k')]),
+            ..rangeOf(<double>[_yOfTick(story, '0'), _yOfTick(story, '60k')]),
           containerWidth: story.width,
           containerHeight: story.height,
         ),
@@ -1041,6 +1109,740 @@ void main() {
           );
         }
       }
+    });
+  });
+
+  group('GVBC line overlay', () {
+    // charts-groupedverticalbarchart--grouped-vertical-bar-chart-line: four
+    // quarters, four bar legends per group, two line series over the top.
+    const storyId =
+        'charts-groupedverticalbarchart--grouped-vertical-bar-chart-line';
+    const categories = <String>[
+      'Jan - Mar',
+      'Apr - Jun',
+      'Jul - Sep',
+      'Oct - Dec',
+    ];
+    // The captured line colours. Every GVBC story sets its colours explicitly
+    // — the bars of the default story start at palette entry 2, not 0 — so
+    // these are read off the capture rather than walked out of the palette.
+    const lineOne = Color(0xFF637CEF);
+    const lineTwo = Color(0xFFE3008C);
+    // Inverted from the captured dot centres through the captured y scale,
+    // whose '0' and '55k' ticks the assertions below rebuild.
+    const valuesOne = <double>[-21600, 21812, -21712, 24800];
+    const valuesTwo = <double>[29700, -28400, 28200, -29400];
+    // GroupedVerticalBarChart.tsx:842 — the captured halo is 7px wide, which
+    // is `3 + lineBorderWidth * 2` at a lineBorderWidth of 2.
+    const lineBorderWidth = 2.0;
+
+    List<FluentLineSeries> lineSeries({
+      double? borderWidth = lineBorderWidth,
+    }) => <FluentLineSeries>[
+      for (final (legend, colour, values) in <(String, Color, List<double>)>[
+        ('Line 1', lineOne, valuesOne),
+        ('Line 2', lineTwo, valuesTwo),
+      ])
+        FluentLineSeries(
+          legend: legend,
+          color: colour,
+          lineOptions: borderWidth == null
+              ? null
+              : FluentLineOptions(lineBorderWidth: borderWidth),
+          data: <FluentDataPointV2>[
+            for (var i = 0; i < categories.length; i++)
+              FluentDataPointV2(x: categories[i], y: values[i]),
+          ],
+        ),
+    ];
+
+    FluentGroupedVerticalBarChartDelegate delegate({
+      double? borderWidth = lineBorderWidth,
+      String? activeLinePoint,
+      List<String> selectedLegends = const <String>[],
+      bool isHighContrast = false,
+    }) => FluentGroupedVerticalBarChartDelegate(
+      data: const <FluentGroupedVerticalBarChartData>[],
+      lineSeries: lineSeries(borderWidth: borderWidth),
+      style: _style,
+      colors: _colours(isHighContrast: isHighContrast),
+      measurer: _measurer,
+      textStyles: _textStyles,
+      selectedLegends: selectedLegends,
+      legendColours: const <String, Color>{
+        'Line 1': lineOne,
+        'Line 2': lineTwo,
+      },
+      activeLinePoint: activeLinePoint,
+    );
+
+    /// The story's own scales: the x band the four groups sit on and the y
+    /// position scale its ticks describe.
+    FluentCartesianChildContext contextOf(OracleStory story) {
+      final domainPath = story.soleElement(
+        'path',
+        where: (element) =>
+            (element.d ?? '').contains('V${story.crispOffset}H'),
+      );
+      final numbers = svgPathNumbers(domainPath.d!);
+      return FluentCartesianChildContext(
+        xScale: _bandScale(
+          domain: categories,
+          // The path emits x0, 6, crisp, x1, 6.
+          range: <double>[
+            numbers[0] - story.crispOffset,
+            numbers[3] - story.crispOffset,
+          ],
+          innerPadding:
+              FluentGroupedVerticalBarChartGeometry.defaultInnerPadding(
+                // The four bar legends the capture draws per group; the line
+                // dots sit on the band those four define.
+                4,
+              ),
+          outerPadding: 0,
+        ),
+        yScalePrimary: d3.scaleLinear()
+          // 0 and 55000 are the first and last captured y ticks above zero.
+          ..domainOf(<double>[0, 55000])
+          ..rangeOf(<double>[_yOfTick(story, '0'), _yOfTick(story, '55k')]),
+        containerWidth: story.width,
+        containerHeight: story.height,
+      );
+    }
+
+    test('the capture carries four bar legends per group', () {
+      final story = loadOracleStory(storyId);
+      final groups = _groupElements(story);
+      expect(
+        groups.length,
+        categories.length,
+        reason: '$storyId must capture one <g> per category',
+      );
+      for (final group in groups) {
+        expect(
+          story
+              .byTag('rect')
+              .where((element) => element.parent == group.index)
+              .length,
+          4,
+          reason:
+              'the inner padding the line dots are centred on is derived from '
+              'the bar legend count (GroupedVerticalBarChart.tsx:132-136)',
+        );
+      }
+    });
+
+    test('every captured dot centre comes back out of paintSeries', () {
+      final story = loadOracleStory(storyId);
+      final canvas = _RecordingCanvas();
+      delegate().paintSeries(canvas, contextOf(story), _layout(), _colours());
+      final captured = story.byTag('circle').toList();
+      expect(
+        captured.length,
+        categories.length * 2,
+        reason: '$storyId captures four dots on each of two lines',
+      );
+      expect(
+        canvas.circles.length,
+        captured.length * 2,
+        reason:
+            'each dot is a fill and a ring, GroupedVerticalBarChart.tsx:871 '
+            'and :873',
+      );
+      for (var i = 0; i < captured.length; i++) {
+        expectOracleOffset(
+          'dot $i',
+          captured[i].centre,
+          // Fill then ring, so the fill of dot i is at 2i.
+          canvas.circles[i * 2].centre,
+        );
+      }
+    });
+
+    test('every captured line segment comes back out of paintSeries', () {
+      final story = loadOracleStory(storyId);
+      final canvas = _RecordingCanvas();
+      delegate().paintSeries(canvas, contextOf(story), _layout(), _colours());
+      // 3 is the captured stroke width of a line, 7 that of its halo.
+      final captured = story
+          .byTag('line')
+          .where((element) => element.strokeWidth == 3)
+          .toList();
+      expect(
+        captured.length,
+        (categories.length - 1) * 2,
+        reason: '$storyId captures three segments on each of two lines',
+      );
+      final painted = canvas.lines
+          .where((line) => line.width == 3)
+          .toList(growable: false);
+      expect(
+        painted.length,
+        captured.length,
+        reason: 'one drawLine per captured <line>',
+      );
+      for (var i = 0; i < captured.length; i++) {
+        expectOracleOffset(
+          'segment $i start',
+          captured[i].start,
+          painted[i].from,
+        );
+        expectOracleOffset('segment $i end', captured[i].end, painted[i].to);
+      }
+    });
+
+    test(
+      'the halo is drawn under every line and 2 * lineBorderWidth wider',
+      () {
+        final story = loadOracleStory(storyId);
+        final canvas = _RecordingCanvas();
+        delegate().paintSeries(canvas, contextOf(story), _layout(), _colours());
+        final capturedHalo = story
+            .byTag('line')
+            .where((element) => element.strokeWidth > 3)
+            .toList();
+        expect(
+          capturedHalo.length,
+          (categories.length - 1) * 2,
+          reason: '$storyId captures one halo per segment',
+        );
+        expect(
+          capturedHalo.first.strokeWidth,
+          3 + lineBorderWidth * 2,
+          reason:
+              'GroupedVerticalBarChart.tsx:842 hard-codes the 3 rather than '
+              'reading lineOptions.strokeWidth',
+        );
+        expect(
+          canvas.lines
+              .take(capturedHalo.length)
+              .every((line) => line.width == 7),
+          isTrue,
+          reason:
+              'every halo is painted before any line, as the two <g> groups at '
+              'GroupedVerticalBarChart.tsx:894-896 are ordered',
+        );
+        expect(
+          canvas.lines.first.colour,
+          capturedHalo.first.stroke,
+          reason:
+              'the halo is colorNeutralBackground1 when lineOptions names no '
+              'lineBorderColor, GroupedVerticalBarChart.tsx:836',
+        );
+        expect(
+          canvas.lines.first.cap,
+          StrokeCap.round,
+          reason: 'strokeLinecap="round", GroupedVerticalBarChart.tsx:843',
+        );
+      },
+    );
+
+    test('a line with no lineBorderWidth paints no halo', () {
+      final story = loadOracleStory(storyId);
+      final canvas = _RecordingCanvas();
+      delegate(
+        borderWidth: null,
+      ).paintSeries(canvas, contextOf(story), _layout(), _colours());
+      expect(
+        canvas.lines.map((line) => line.width).toSet(),
+        <double>{3},
+        reason:
+            'the halo is gated on `lineBorderWidth > 0`, '
+            'GroupedVerticalBarChart.tsx:834',
+      );
+    });
+
+    test('the idle dot is drawn sub-pixel and the active one at 8', () {
+      final story = loadOracleStory(storyId);
+      final captured = story.byTag('circle').toList();
+      expect(
+        captured.first.r,
+        0.3,
+        reason:
+            'the idle radius at GroupedVerticalBarChart.tsx:870 is 0.3, not 0',
+      );
+      expect(
+        captured.first.strokeWidth,
+        3,
+        reason: 'GroupedVerticalBarChart.tsx:873',
+      );
+      final canvas = _RecordingCanvas();
+      delegate(
+        // Series 0, point 1 — the dot id `_getDotId` builds at `.tsx:996`.
+        activeLinePoint: '0-1',
+      ).paintSeries(canvas, contextOf(story), _layout(), _colours());
+      expect(
+        canvas.circles.map((circle) => circle.radius).toList(),
+        <double>[
+          0.3,
+          0.3,
+          8,
+          8,
+          0.3,
+          0.3,
+          0.3,
+          0.3,
+          0.3,
+          0.3,
+          0.3,
+          0.3,
+          0.3,
+          0.3,
+          0.3,
+          0.3,
+        ],
+        reason:
+            'only the dot whose id is active grows, '
+            'GroupedVerticalBarChart.tsx:870',
+      );
+      expect(
+        // Fill then ring, so the ring of the grown dot is at index 3.
+        canvas.circles[3].width,
+        3,
+        reason:
+            'the ring keeps its 3px stroke, '
+            'GroupedVerticalBarChart.tsx:873',
+      );
+    });
+
+    test('an active category grows the dot of every line', () {
+      final story = loadOracleStory(storyId);
+      final canvas = _RecordingCanvas();
+      delegate(
+        activeLinePoint: categories[1],
+      ).paintSeries(canvas, contextOf(story), _layout(), _colours());
+      expect(
+        canvas.circles.where((circle) => circle.radius == 8).length,
+        4,
+        reason:
+            '`activeLinePoint === point.x` is the isCalloutForStack arm of '
+            'GroupedVerticalBarChart.tsx:869, and it matches on both lines',
+      );
+    });
+
+    test('a line dimmed by another legend drops to 0.1', () {
+      final story = loadOracleStory(storyId);
+      final canvas = _RecordingCanvas();
+      delegate(
+        selectedLegends: <String>['Line 2'],
+      ).paintSeries(canvas, contextOf(story), _layout(), _colours());
+      expect(
+        canvas.lines.first.colour.a,
+        // 1e-6 absorbs the 8-bit round trip a Paint colour makes.
+        closeTo(0.1, 1e-6),
+        reason:
+            '`opacity={shouldHighlight ? 1 : 0.1}`, '
+            'GroupedVerticalBarChart.tsx:840',
+      );
+      expect(
+        canvas.lines.last.colour.a,
+        1,
+        reason: 'the selected line keeps full opacity',
+      );
+    });
+
+    test('high contrast flattens the line and its halo apart', () {
+      final story = loadOracleStory(storyId);
+      final canvas = _RecordingCanvas();
+      delegate(isHighContrast: true).paintSeries(
+        canvas,
+        contextOf(story),
+        _layout(),
+        _colours(isHighContrast: true),
+      );
+      final line = canvas.lines.firstWhere((line) => line.width == 3);
+      expect(
+        line.colour.toARGB32(),
+        _canvasText.toARGB32(),
+        reason:
+            'a line is a series mark, so flattenMark sends it to the system '
+            'foreground — design spec section 5.3',
+      );
+      expect(
+        canvas.lines.first.colour.toARGB32(),
+        _placeholder.toARGB32(),
+        reason:
+            'the halo behind it is what keeps the line off the marks under it, '
+            'so it takes FluentChartColors.flattenMarkStroke and lands on the '
+            'canvas colour',
+      );
+      expect(
+        canvas.circles[1].colour.toARGB32(),
+        _placeholder.toARGB32(),
+        reason:
+            'and so does the dot ring, which is the marker halo — '
+            'flattenMarkStroke, not flattenMark',
+      );
+    });
+
+    test('a dot is a hit region carrying the line point', () {
+      final story = loadOracleStory(storyId);
+      final regions = delegate().buildHitRegions(contextOf(story), _layout());
+      expect(
+        regions.length,
+        categories.length * 2,
+        reason:
+            'one region per dot, `tabIndex={shouldHighlight ? 0 : ...}` at '
+            'GroupedVerticalBarChart.tsx:877',
+      );
+      expect(
+        regions.first.legend,
+        'Line 1',
+        reason: 'the region names the line series',
+      );
+      expect(
+        regions.first.popoverData.xValue,
+        categories.first,
+        reason:
+            'XValue = xAxisCalloutData ?? groupData.xAxisPoint, '
+            'GroupedVerticalBarChart.tsx:975',
+      );
+      expect(
+        regions.first.semanticsLabel,
+        // The reading is the chart's own scientific format, as the bar regions
+        // above it are; U+2212 is the minus that formatter emits.
+        '${categories.first}. Line 1, \u221221.6k.',
+        reason: 'getAriaLabel, GroupedVerticalBarChart.tsx:724-729',
+      );
+      expect(
+        regions.first.bounds.width,
+        16,
+        reason:
+            'the target is the 8px active dot, GroupedVerticalBarChart.tsx:870',
+      );
+    });
+
+    test('a dimmed line is not an interactive region', () {
+      final story = loadOracleStory(storyId);
+      final regions = delegate(
+        selectedLegends: <String>['Line 2'],
+      ).buildHitRegions(contextOf(story), _layout());
+      expect(
+        regions.map((region) => region.legend).toSet(),
+        <String>{'Line 2'},
+        reason:
+            'a dimmed dot gets no tab index at '
+            'GroupedVerticalBarChart.tsx:877',
+      );
+    });
+  });
+
+  group('FluentGroupedVerticalBarChart', () {
+    Future<void> pump(WidgetTester tester, Widget chart) => tester.pumpWidget(
+      FluentApp(
+        theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+        home: Center(child: SizedBox(width: 800, height: 350, child: chart)),
+      ),
+    );
+
+    testWidgets('dataV2 replaces data when non-empty', (tester) async {
+      await pump(
+        tester,
+        FluentGroupedVerticalBarChart(
+          data: _gvbcCategories(),
+          dataV2: _gvbcV2Series(),
+        ),
+      );
+      final d =
+          tester
+                  .widget<FluentCartesianChart>(
+                    find.byType(FluentCartesianChart),
+                  )
+                  .delegate
+              as FluentGroupedVerticalBarChartDelegate;
+      expect(
+        d.barLegends,
+        <String>['v2a', 'v2b'],
+        reason:
+            'GroupedVerticalBarChart.tsx:296-304 — dataV2 wins only when it is '
+            'a non-empty array',
+      );
+    });
+
+    testWidgets('an empty dataV2 leaves data in place', (tester) async {
+      await pump(
+        tester,
+        FluentGroupedVerticalBarChart(
+          data: _gvbcCategories(),
+          dataV2: const <FluentDataSeries>[],
+        ),
+      );
+      final d =
+          tester
+                  .widget<FluentCartesianChart>(
+                    find.byType(FluentCartesianChart),
+                  )
+                  .delegate
+              as FluentGroupedVerticalBarChartDelegate;
+      expect(
+        d.barLegends,
+        <String>['L'],
+        reason:
+            '`Array.isArray(props.dataV2) && props.dataV2.length > 0`, '
+            'GroupedVerticalBarChart.tsx:302',
+      );
+    });
+
+    testWidgets('line legends lead the legend row', (tester) async {
+      await pump(
+        tester,
+        FluentGroupedVerticalBarChart(dataV2: _gvbcV2WithLine()),
+      );
+      final legends = tester
+          .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+          .legends;
+      expect(
+        legends.first.title,
+        'Trend',
+        reason:
+            'GroupedVerticalBarChart.tsx:252-253 adds line legends first, the '
+            'reverse of VerticalStackedBarChart',
+      );
+      expect(
+        legends.map((legend) => legend.title).toList(),
+        <String>['Trend', 'v2a', 'v2b'],
+        reason: 'and the bar legends follow in first-appearance order',
+      );
+    });
+
+    testWidgets('the colour walk counts every point, then the lines', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentGroupedVerticalBarChart(dataV2: _gvbcV2WithLine()),
+      );
+      final legends = tester
+          .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+          .legends;
+      expect(
+        legends.map((legend) => legend.color).toList(),
+        <Color>[
+          // Two bar points advance the counter to 2 before the line series is
+          // reached (GroupedVerticalBarChart.tsx:298-352).
+          FluentDataVizPalette.next(2),
+          FluentDataVizPalette.next(0),
+          FluentDataVizPalette.next(1),
+        ],
+        reason:
+            'the counter advances per bar point and the lines are coloured '
+            'after every bar, GroupedVerticalBarChart.tsx:322 and :344',
+      );
+    });
+
+    testWidgets('the nearest-dot tie-break keeps the current point', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentGroupedVerticalBarChart(dataV2: _gvbcV2WithLine()),
+      );
+      final state = tester.state<FluentGroupedVerticalBarChartState>(
+        find.byType(FluentGroupedVerticalBarChart),
+      );
+      expect(
+        state.nearestLinePointIndex(<double>[200, 300], 1, 250),
+        1,
+        reason:
+            'the comparison is strict < at GroupedVerticalBarChart.tsx:930, so '
+            'an exact midpoint keeps the current index',
+      );
+      expect(
+        state.nearestLinePointIndex(<double>[200, 300], 1, 249.9),
+        0,
+        reason: 'just under the midpoint flips to the previous point',
+      );
+      expect(
+        state.nearestLinePointIndex(<double>[200, 300], 0, 299),
+        0,
+        reason: 'the first point has no predecessor to flip to, `.tsx:928`',
+      );
+    });
+
+    testWidgets('the popover anchors to the bar, not the pointer', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentGroupedVerticalBarChart(
+          data: _gvbcCategories(),
+          // 200 is a test constant: the pointer assertions hover the chart's
+          // own centre, and a 24px bar would need the plot centre solved here
+          // to be hit at all.
+          barWidth: 200.0,
+          maxBarWidth: 300,
+        ),
+      );
+      final g = await tester.createGesture(kind: ui.PointerDeviceKind.mouse);
+      await g.addPointer(location: Offset.zero);
+      addTearDown(g.removePointer);
+      final centre = tester.getCenter(find.byType(FluentCartesianChart));
+      await g.moveTo(centre);
+      await tester.pumpAndSettle();
+      final first = tester
+          .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+          .anchor;
+      await g.moveTo(centre + const Offset(40, 20));
+      await tester.pumpAndSettle();
+      final second = tester
+          .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+          .anchor;
+      expect(
+        second,
+        first,
+        reason:
+            'GVBC alone sets popoverTarget to the element, not a virtual '
+            'element at the pointer (GroupedVerticalBarChart.tsx:437, :970), '
+            'so moving inside one bar cannot move the popover',
+      );
+      expect(
+        tester
+            .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+            .props
+            .popoverAnchorsToRegion,
+        isTrue,
+        reason: 'and the anchor is the hovered bar, not the pointer',
+      );
+    });
+
+    testWidgets('the semantic title counts bar and line series', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentGroupedVerticalBarChart(
+          dataV2: _gvbcV2WithLine(),
+          chartTitle: 'Usage',
+        ),
+      );
+      expect(
+        tester
+            .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+            .props
+            .chartTitleForSemantics,
+        'Usage. Vertical bar chart with 2 grouped bar series and 1 line '
+        'series. ',
+        reason: 'GroupedVerticalBarChart.tsx:789-795',
+      );
+    });
+
+    testWidgets('a chart with no lines ends the sentence at the bar count', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentGroupedVerticalBarChart(data: _gvbcCategories()),
+      );
+      expect(
+        tester
+            .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+            .props
+            .chartTitleForSemantics,
+        'Vertical bar chart with 1 grouped bar series. ',
+        reason:
+            'the line arm of GroupedVerticalBarChart.tsx:793 is a plain `. `',
+      );
+    });
+
+    testWidgets('an empty chart narrates instead of painting', (tester) async {
+      await pump(tester, const FluentGroupedVerticalBarChart());
+      expect(
+        find.byType(FluentCartesianChart),
+        findsNothing,
+        reason: '`_isChartEmpty`, GroupedVerticalBarChart.tsx:780-787',
+      );
+      expect(
+        find.bySemanticsLabel('Graph has no data to display'),
+        findsOneWidget,
+        reason: 'the alert div at GroupedVerticalBarChart.tsx:1029',
+      );
+    });
+
+    testWidgets('a line with data alone is not an empty chart', (tester) async {
+      await pump(
+        tester,
+        const FluentGroupedVerticalBarChart(
+          dataV2: <FluentDataSeries>[
+            FluentLineSeries(
+              legend: 'Trend',
+              data: <FluentDataPointV2>[FluentDataPointV2(x: 'Q1', y: 15)],
+            ),
+          ],
+        ),
+      );
+      expect(
+        find.byType(FluentCartesianChart),
+        findsOneWidget,
+        reason:
+            '`_lineData.some(series => series.data.length > 0)`, '
+            'GroupedVerticalBarChart.tsx:785',
+      );
+    });
+
+    testWidgets('hovering a line dot enlarges it and opens its popover', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const FluentGroupedVerticalBarChart(
+          // One bar legend, so the group is one bar wide and its centre is the
+          // band centre the dot sits on; 200 is the same test constant the
+          // popover assertions use, so the first hover cannot miss it.
+          dataV2: <FluentDataSeries>[
+            FluentBarSeries(
+              legend: 'v2a',
+              data: <FluentDataPointV2>[FluentDataPointV2(x: 'Q1', y: 10)],
+            ),
+            FluentLineSeries(
+              legend: 'Trend',
+              data: <FluentDataPointV2>[FluentDataPointV2(x: 'Q1', y: 15)],
+            ),
+          ],
+          barWidth: 200.0,
+          maxBarWidth: 300,
+        ),
+      );
+      final chart = find.byType(FluentCartesianChart);
+      final g = await tester.createGesture(kind: ui.PointerDeviceKind.mouse);
+      await g.addPointer(location: Offset.zero);
+      addTearDown(g.removePointer);
+      FluentGroupedVerticalBarChartDelegate mounted() =>
+          tester.widget<FluentCartesianChart>(chart).delegate
+              as FluentGroupedVerticalBarChartDelegate;
+      // The single line point sits on the band centre, which is also where the
+      // one bar column is centred, so hovering a bar reports the dot's x as
+      // the anchor it stays pinned to. The y is solved by the shell, so it is
+      // swept rather than derived.
+      await g.moveTo(tester.getCenter(chart));
+      await tester.pumpAndSettle();
+      final origin = tester.getTopLeft(chart);
+      final x =
+          origin.dx +
+          tester
+              .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+              .anchor
+              .dx;
+      // 4 is the sweep step and 320 the tallest plot an 350px chart can have;
+      // both are test constants.
+      for (var y = 0.0; y < 320 && mounted().activeLinePoint == null; y += 4) {
+        await g.moveTo(Offset(x, origin.dy + y));
+        await tester.pump();
+      }
+      expect(
+        mounted().activeLinePoint,
+        '0-0',
+        reason:
+            'the pointer within the active dot radius makes that dot the '
+            'active one, GroupedVerticalBarChart.tsx:916-937',
+      );
+      expect(
+        tester
+            .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+            .data
+            .legend,
+        'Trend',
+        reason: 'and the dot is the hit region the popover reads',
+      );
     });
   });
 }
