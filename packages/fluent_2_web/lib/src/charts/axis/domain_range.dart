@@ -26,9 +26,15 @@ Object? _pointX(Object point) => switch (point) {
 };
 
 /// The y of a line or scatter data point.
+///
+/// A scatter point's y is `num | String` (`ScatterChart.tsx:126-132`); a
+/// category y belongs to a band axis, which takes its domain from the label
+/// list rather than from a numeric extent, so it is dropped here exactly as
+/// `findHBCWANumericMinMaxOfY` drops one (`utilities.ts:1668`).
 double? _pointY(Object point) => switch (point) {
   FluentLineChartDataPoint() => point.y,
-  FluentScatterChartDataPoint() => point.y,
+  FluentScatterChartDataPoint(y: final num y) => y.toDouble(),
+  FluentScatterChartDataPoint() => null,
   _ => null,
 };
 

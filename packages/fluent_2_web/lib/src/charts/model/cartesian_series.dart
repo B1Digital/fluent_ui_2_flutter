@@ -99,13 +99,25 @@ class FluentScatterChartDataPoint {
   }) : assert(
          x is num || x is DateTime || x is String,
          'types/DataPoint.ts:366 — `number | Date | string`.',
+       ),
+       assert(
+         y is num || y is String,
+         'ScatterChart.tsx:126-132 and :410-412 branch on `typeof y === '
+         "'string'`, so a category y is a live arm even though "
+         'types/DataPoint.ts:376 narrows the declared type to `number`.',
        );
 
   /// The independent value: a number, a [DateTime] or a category.
   final Object x;
 
-  /// The dependent value.
-  final double y;
+  /// The dependent value: a number, or a category on a band y axis.
+  ///
+  /// Declared `number` upstream (`types/DataPoint.ts:376`) but read as
+  /// `typeof y === 'string'` in two places ScatterChart cannot reach otherwise
+  /// — the y-axis type at `ScatterChart.tsx:126-132` and the band centring at
+  /// `:410-412` — so the declaration is the narrower of the two and this is the
+  /// one the port follows.
+  final Object y;
 
   /// A label drawn beside the marker when the mode includes text.
   final String? text;

@@ -107,13 +107,20 @@ List<FluentCustomizedCalloutData> calloutData(
         case final FluentScatterChartDataPoint point:
           add(
             x: point.x,
-            y: point.y,
+            // A scatter y is `num | String`. Upstream stores the raw value in
+            // the callout (`utilities.ts:1049`) and lets React print it; the
+            // ported reading is typed `double`, so a category y is carried by
+            // `yAxisCalloutText` — which the popover prefers anyway
+            // (`ChartPopover.tsx:44`) — and the number falls back to NaN.
+            y: point.y is num ? (point.y as num).toDouble() : double.nan,
             legend: series.legend,
             colour: series.color,
             index: index,
             hideCallout: point.hideCallout,
             xAxisCalloutData: point.xAxisCalloutData,
-            yAxisCalloutText: point.yAxisCalloutText,
+            yAxisCalloutText:
+                point.yAxisCalloutText ??
+                (point.y is String ? point.y as String : null),
             yAxisCalloutBreakdown: point.yAxisCalloutBreakdown,
           );
         default:
