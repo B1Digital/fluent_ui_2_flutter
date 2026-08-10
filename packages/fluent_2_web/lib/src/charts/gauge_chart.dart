@@ -2,7 +2,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
+import 'chrome/chart_title.dart';
 import 'gauge_chart_style.dart';
+import 'internal/chart_text_measurer.dart';
+import 'internal/d3/axis_geometry.dart';
+import 'internal/d3/path_sink.dart' as d3;
+import 'internal/d3/shape_arc.dart' as d3;
 import 'internal/data_viz_palette.dart';
 import 'model/chart_common.dart';
 
@@ -290,4 +295,380 @@ class FluentGaugeLayout {
   /// The resolved bands, with the `Unknown` filler appended when the caller's
   /// maximum exceeds their total (`GaugeChart.tsx:204-213`).
   final List<FluentGaugeSegment> segments;
+}
+
+/// One painted arc of a gauge, with the segment it came from.
+@immutable
+class FluentGaugeArc {
+  /// Creates an arc.
+  const FluentGaugeArc({
+    required this.path,
+    required this.segmentIndex,
+    required this.startAngle,
+    required this.endAngle,
+  });
+
+  /// The path, in painter coordinates relative to the gauge origin.
+  final Path path;
+
+  /// Index into [FluentGaugeLayout.segments]. Under right-to-left the paint
+  /// order reverses but the index does not (`GaugeChart.tsx:233`).
+  final int segmentIndex;
+
+  /// Start angle, d3 convention.
+  final double startAngle;
+
+  /// End angle, d3 convention.
+  final double endAngle;
+}
+
+/// Builds the gauge's arcs.
+///
+/// Unlike the donut, this call sets `padRadius` explicitly to the outer radius
+/// (`GaugeChart.tsx:218`), so `p0 = asin(R / r0 * sin(1 / R))` grows sharply as
+/// the inner radius shrinks and the two rings are trimmed by visibly different
+/// amounts.
+List<FluentGaugeArc> fluentGaugeArcs(
+  FluentGaugeLayout layout, {
+  required double arcPadding,
+  required double cornerRadius,
+  required bool isRtl,
+}) {
+  final ordered = isRtl
+      // GaugeChart.tsx:219 — the ARRAY is reversed, not the angles.
+      ? layout.segments.reversed.toList(growable: false)
+      : layout.segments;
+  final span = layout.maxValue - layout.minValue;
+  final generator = d3.Arc(
+    // GaugeChart.tsx:216.
+    cornerRadius: cornerRadius,
+    // GaugeChart.tsx:218 — the one caller in the port that pins padRadius.
+    padRadius: layout.outerRadius,
+  );
+  // GaugeChart.tsx:220 — nine o'clock in screen terms, because d3's arc
+  // subtracts a further quarter turn internally.
+  var prevAngle = -math.pi / 2;
+  final arcs = <FluentGaugeArc>[];
+  for (var index = 0; index < ordered.length; index++) {
+    final segment = ordered[index];
+    // GaugeChart.tsx:223 — the half disc is PI wide.
+    final endAngle =
+        prevAngle + (span == 0 ? 0 : segment.size / span) * math.pi;
+    final sink = d3.UiPathSink();
+    generator(
+      d3.ArcDatum(
+        startAngle: prevAngle,
+        endAngle: endAngle,
+        innerRadius: layout.innerRadius,
+        outerRadius: layout.outerRadius,
+        // GaugeChart.tsx:217 — the pad angle is a constant arc LENGTH of
+        // ARC_PADDING px converted to radians at the outer radius.
+        padAngle: arcPadding / layout.outerRadius,
+      ),
+      sink,
+    );
+    arcs.add(
+      FluentGaugeArc(
+        path: sink.path,
+        segmentIndex: isRtl ? layout.segments.length - 1 - index : index,
+        startAngle: prevAngle,
+        endAngle: endAngle,
+      ),
+    );
+    prevAngle = endAngle;
+  }
+  return arcs;
+}
+
+/// The needle outline, already translated into the frame the rotation spins.
+///
+/// `GaugeChart.tsx:255-269` authors the path around a local origin and then
+/// translates it by `-innerRadius + EXTRA_NEEDLE_LENGTH / 2` **inside** the
+/// `rotate(theta, 0, 0)` group, so the pivot stays at the gauge origin and the
+/// hub ends up on the far side of it, riding the arc band. Both arc commands
+/// use sweep flag 0 — the anticlockwise sweep — with radii
+/// `halfStrokeWidth + 1` and `halfStrokeWidth + 3`, which is 2 and 4 at the
+/// fixed stroke width of 2. Both caps therefore bulge OUTWARD, which is what
+/// the captured bbox of `[-18, -4, 22, 8]` in
+/// `charts-gaugechart--gauge-chart-basic` records for a 16px needle.
+Path fluentGaugeNeedlePath({
+  required double innerRadius,
+  required double needleLength,
+  required double extraNeedleLength,
+  required double strokeWidth,
+}) {
+  final half = strokeWidth / 2;
+  // GaugeChart.tsx:260-261 — halfStrokeWidth + 1.
+  final tipRadius = half + 1;
+  // GaugeChart.tsx:259,262-263 — halfStrokeWidth + 3.
+  final hubRadius = half + 3;
+  // GaugeChart.tsx:268.
+  final dx = -innerRadius + extraNeedleLength / 2;
+  return (Path()
+        ..moveTo(0, -hubRadius)
+        ..lineTo(-needleLength, -tipRadius)
+        ..arcToPoint(
+          Offset(-needleLength, tipRadius),
+          radius: Radius.circular(tipRadius),
+          // Sweep flag 0 in SVG is the anticlockwise sweep, which is
+          // `clockwise: false` here.
+          clockwise: false,
+        )
+        ..lineTo(0, hubRadius)
+        ..arcToPoint(
+          Offset(0, -hubRadius),
+          radius: Radius.circular(hubRadius),
+          clockwise: false,
+        )
+        ..close())
+      .shift(Offset(dx, 0));
+}
+
+/// Paints a gauge: the limits, then the bands, then the needle, then the
+/// centred value and its sublabel.
+///
+/// The order is upstream's document order (`GaugeChart.tsx:610-698`) and SVG
+/// paints in document order, so the needle covers the band it points at and the
+/// chart value sits over both. The chart title is NOT painted here: upstream
+/// delegates it to `ChartTitle` (`:601`), which the port renders as a widget so
+/// its tooltip stays interactive.
+class FluentGaugeChartPainter extends CustomPainter {
+  /// Creates a painter over pre-resolved geometry.
+  const FluentGaugeChartPainter({
+    required this.layout,
+    required this.arcs,
+    required this.colours,
+    required this.opacities,
+    required this.focusedIndex,
+    required this.needlePath,
+    required this.needleRotationDegrees,
+    required this.needleFill,
+    required this.needleStroke,
+    required this.needleStrokeWidth,
+    required this.segmentFocusStrokeColour,
+    required this.focusStrokeWidth,
+    required this.minLabel,
+    required this.maxLabel,
+    required this.valueLabel,
+    required this.sublabel,
+    required this.labelOffset,
+    required this.limitsTextStyle,
+    required this.chartValueTextStyle,
+    required this.sublabelTextStyle,
+    required this.measurer,
+    required this.textDirection,
+  });
+
+  /// The resolved margins, radii and origin.
+  final FluentGaugeLayout layout;
+
+  /// The bands to paint, in paint order.
+  final List<FluentGaugeArc> arcs;
+
+  /// Fill per [FluentGaugeLayout.segments] entry, indexed by
+  /// [FluentGaugeArc.segmentIndex].
+  ///
+  /// Already flattened for high contrast by the widget: see
+  /// `FluentChartColors.flattenMark`. Upstream's marks carry no
+  /// `forced-color-adjust`, so a palette colour that reached the canvas in
+  /// forced-colours mode would draw an invisible gauge.
+  final List<Color> colours;
+
+  /// Opacity per segment — 1, or the dimmed value when another legend is
+  /// highlighted (`GaugeChart.tsx:641`).
+  final List<double> opacities;
+
+  /// The segment index that owns keyboard focus, or null.
+  final int? focusedIndex;
+
+  /// The needle outline from [fluentGaugeNeedlePath].
+  final Path needlePath;
+
+  /// The needle's rotation about [FluentGaugeLayout.origin], in degrees.
+  final double needleRotationDegrees;
+
+  /// The needle's fill (`useGaugeChartStyles.styles.ts` — `.needle`).
+  final Color needleFill;
+
+  /// The needle's outline colour.
+  final Color needleStroke;
+
+  /// The needle's outline width (`GaugeChart.tsx:257`).
+  final double needleStrokeWidth;
+
+  /// The ring drawn around a focused band. `GaugeChart.tsx:639` toggles only
+  /// the WIDTH, so the colour comes from the segment class either way.
+  final Color segmentFocusStrokeColour;
+
+  /// The focus ring's width, which upstream reuses `ARC_PADDING` for
+  /// (`GaugeChart.tsx:639`).
+  final double focusStrokeWidth;
+
+  /// The formatted minimum, or null when `hideMinMax` is set.
+  final String? minLabel;
+
+  /// The formatted maximum, or null when `hideMinMax` is set.
+  final String? maxLabel;
+
+  /// The centred value, already truncated to the hole.
+  final String valueLabel;
+
+  /// The optional line under the value, already truncated.
+  final String? sublabel;
+
+  /// The gap between the arc's outer edge and the limit labels
+  /// (`GaugeChart.tsx:613`).
+  final double labelOffset;
+
+  /// Text style for the two limit labels.
+  final TextStyle limitsTextStyle;
+
+  /// Text style for the centred value, its size already taken from the
+  /// breakpoint (`GaugeChart.tsx:679`).
+  final TextStyle chartValueTextStyle;
+
+  /// Text style for the sublabel.
+  final TextStyle sublabelTextStyle;
+
+  /// The chart's one measurer.
+  final FluentChartTextMeasurer measurer;
+
+  /// Reading direction — the limits swap sides under right-to-left
+  /// (`GaugeChart.tsx:613`, `:623`).
+  final TextDirection textDirection;
+
+  /// Draws [text] with its SVG anchor and dominant baseline honoured.
+  void _text(
+    Canvas canvas,
+    String text,
+    TextStyle style,
+    Offset at,
+    FluentAxisTextAnchor anchor,
+    FluentChartTitleBaseline baseline,
+  ) {
+    if (text.isEmpty) {
+      return;
+    }
+    final metrics = measurer.measure(text, style);
+    final painter = measurer.layoutPainter(text, style);
+    final dx = switch (anchor) {
+      FluentAxisTextAnchor.start => 0.0,
+      FluentAxisTextAnchor.middle => -metrics.width / 2,
+      FluentAxisTextAnchor.end => -metrics.width,
+    };
+    // The baseline offset positions the named baseline; TextPainter paints from
+    // the top-left, so the ascent comes back off.
+    final dy = fluentChartBaselineOffset(baseline, metrics) - metrics.ascent;
+    painter.paint(canvas, at + Offset(dx, dy));
+    painter.dispose();
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    // GaugeChart.tsx:599 — every child below is placed against the origin.
+    canvas.translate(layout.origin.dx, layout.origin.dy);
+
+    final isRtl = textDirection == TextDirection.rtl;
+    // GaugeChart.tsx:613 — (_isRTL ? 1 : -1) * (_outerRadius + LABEL_OFFSET),
+    // with text-anchor "end", which under direction: rtl anchors the LEFT edge.
+    final limitX = layout.outerRadius + labelOffset;
+    if (minLabel != null) {
+      _text(
+        canvas,
+        minLabel!,
+        limitsTextStyle,
+        Offset(isRtl ? limitX : -limitX, 0),
+        isRtl ? FluentAxisTextAnchor.start : FluentAxisTextAnchor.end,
+        FluentChartTitleBaseline.alphabetic,
+      );
+    }
+    if (maxLabel != null) {
+      _text(
+        canvas,
+        maxLabel!,
+        limitsTextStyle,
+        Offset(isRtl ? -limitX : limitX, 0),
+        isRtl ? FluentAxisTextAnchor.end : FluentAxisTextAnchor.start,
+        FluentChartTitleBaseline.alphabetic,
+      );
+    }
+
+    for (final arc in arcs) {
+      // GaugeChart.tsx:641 — the element `opacity` covers fill and stroke
+      // alike, so it multiplies both paints below.
+      final opacity = opacities[arc.segmentIndex];
+      canvas.drawPath(
+        arc.path,
+        Paint()
+          ..style = PaintingStyle.fill
+          ..color = colours[arc.segmentIndex].withValues(
+            alpha: colours[arc.segmentIndex].a * opacity,
+          ),
+      );
+      if (focusedIndex == arc.segmentIndex) {
+        // GaugeChart.tsx:639 — the focus indicator is a widening of the
+        // segment's own stroke, never a recolouring.
+        canvas.drawPath(
+          arc.path,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = focusStrokeWidth
+            ..color = segmentFocusStrokeColour.withValues(
+              alpha: segmentFocusStrokeColour.a * opacity,
+            ),
+        );
+      }
+    }
+
+    canvas.save();
+    // GaugeChart.tsx:265 — rotate(theta, 0, 0). The path already carries the
+    // translate that sits INSIDE this group, so the pivot is the origin.
+    canvas.rotate(needleRotationDegrees * math.pi / 180);
+    canvas.drawPath(
+      needlePath,
+      Paint()
+        ..style = PaintingStyle.fill
+        ..color = needleFill,
+    );
+    canvas.drawPath(
+      needlePath,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = needleStrokeWidth
+        ..color = needleStroke,
+    );
+    canvas.restore();
+
+    // GaugeChart.tsx:673-683 — x=0, y=0, text-anchor middle, the default
+    // alphabetic baseline.
+    _text(
+      canvas,
+      valueLabel,
+      chartValueTextStyle,
+      Offset.zero,
+      FluentAxisTextAnchor.middle,
+      FluentChartTitleBaseline.alphabetic,
+    );
+    if (sublabel != null) {
+      // GaugeChart.tsx:688-694 — x=0, y=4, dominant-baseline hanging.
+      _text(
+        canvas,
+        sublabel!,
+        sublabelTextStyle,
+        Offset(0, labelOffset),
+        FluentAxisTextAnchor.middle,
+        FluentChartTitleBaseline.hanging,
+      );
+    }
+
+    canvas.restore();
+  }
+
+  // ponytail: the widget rebuilds `arcs` and both colour lists on every build,
+  // so no field-by-field comparison here could ever return false — `Path` and
+  // `FluentGaugeArc` have no value equality. Give them one if a profile ever
+  // shows the gauge repainting hot.
+  @override
+  bool shouldRepaint(FluentGaugeChartPainter oldDelegate) => true;
 }
