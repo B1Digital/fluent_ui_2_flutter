@@ -1,6 +1,15 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:fluent_2_web/src/charts/axis/axis_types.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
+import 'package:fluent_2_web/src/charts/internal/chart_colors.dart';
+import 'package:fluent_2_web/src/charts/internal/chart_text_measurer.dart';
+import 'package:fluent_2_web/src/charts/internal/chart_text_styles.dart';
+import 'package:fluent_2_web/src/charts/internal/chart_utils.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/scale.dart';
+import 'package:fluent_2_web/src/charts/internal/d3/scale_band.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/scale_linear.dart';
+import 'package:fluent_2_web/src/charts/model/bar_data.dart';
 import 'package:fluent_2_web/src/charts/model/chart_common.dart';
 import 'package:fluent_2_web/src/charts/model/chart_value.dart';
 import 'package:fluent_2_web/src/charts/vertical_bar_chart.dart';
@@ -71,8 +80,9 @@ List<FluentVerticalBarRect> _bars({
     final top = isNegative ? baseline : baseline - adjusted;
     // 16 is `_barWidth`'s default (`DEFAULT_BAR_WIDTH`, utilities.ts:1891).
     const barWidth = 16.0;
-    // 6 above and 12 below, VerticalBarChart.tsx:965.
-    final labelDy = isNegative ? 12.0 : -6.0;
+    // 6 above the top and 12 below the FOOT, VerticalBarChart.tsx:658-663
+    // and :965 — `yPoint` is the rect's bottom edge for a negative bar.
+    final labelDy = isNegative ? adjusted + 12.0 : -6.0;
     out.add(
       FluentVerticalBarRect(
         rect: Rect.fromLTWH(i * barWidth, top, barWidth, adjusted),
@@ -434,8 +444,10 @@ void main() {
       );
       expect(
         bars.single.labelAnchor.dy,
-        closeTo(315 - 147.5 + 12, 1e-9),
-        reason: 'a negative bar labels 12px below yPoint, :965',
+        closeTo(315 - 147.5 + 73.75 + 12, 1e-9),
+        reason:
+            'a negative bar labels 12px below yPoint, and :658-663 makes '
+            "yPoint the bar's foot rather than its top",
       );
     });
   });
@@ -671,4 +683,590 @@ void main() {
       );
     });
   });
+
+  group('FluentVerticalBarChartDelegate', () {
+    test(
+      'a string x axis offsets the group by half the leftover bandwidth',
+      () {
+        final delegate = _stringDelegate(
+          categories: <String>['a', 'b', 'c'],
+          ys: <double>[10, 20, 30],
+        );
+        final ctx = _bandContext(<String>['a', 'b', 'c'], width: 800);
+        final bars = delegate.barsFor(ctx, _layout(width: 800, height: 350));
+        expect(
+          bars.length,
+          3,
+          reason: 'a count guard before the geometry assertion',
+        );
+        expect(
+          bars.first.rect.left,
+          closeTo(
+            ctx.xScale('a')! + 0.5 * (ctx.xScale.bandwidth - kDefaultBarWidth),
+            1e-9,
+          ),
+          reason:
+              'VerticalBarChart.tsx:722-725 translates the whole bar group by '
+              '0.5 * (bandwidth - _barWidth)',
+        );
+      },
+    );
+
+    test('a numeric x axis centres the bar on its scale value', () {
+      final delegate = _numericDelegate(
+        xs: <double>[1, 2, 3],
+        ys: <double>[10, 20, 30],
+      );
+      final ctx = _linearContext(width: 800);
+      final bars = delegate.barsFor(ctx, _layout(width: 800, height: 350));
+      expect(bars.length, 3, reason: 'a count guard');
+      expect(
+        bars.first.rect.left,
+        closeTo(ctx.xScale(1)! - kDefaultBarWidth / 2, 1e-9),
+        reason: 'VerticalBarChart.tsx:656 subtracts _barWidth / 2',
+      );
+    });
+
+    test('bar labels sit 6px above a positive bar and 12px below a negative '
+        'one', () {
+      final delegate = _numericDelegate(
+        xs: <double>[1, 2],
+        ys: <double>[50, -50],
+      );
+      final bars = delegate.barsFor(
+        _linearContext(width: 800),
+        _layout(width: 800, height: 350),
+      );
+      expect(bars.length, 2, reason: 'a count guard');
+      expect(
+        bars[0].labelAnchor.dy,
+        closeTo(bars[0].rect.top - 6, 1e-9),
+        reason: 'VerticalBarChart.tsx:965 uses yPoint - 6 for a positive bar',
+      );
+      expect(
+        bars[1].labelAnchor.dy,
+        closeTo(bars[1].rect.bottom + 12, 1e-9),
+        reason:
+            'VerticalBarChart.tsx:658-663 sets yPoint to '
+            '`containerHeight - bottom + adjustedBarHeight - yBarScale(ref)` '
+            'for a negative bar, which is the rect BOTTOM, and :965 then adds '
+            '12 to it — pinned by three Oracle B stories in the group below',
+      );
+    });
+
+    test('the overlaid line centres on the band for a string axis', () {
+      final delegate = _stringDelegateWithLine(
+        categories: <String>['a', 'b'],
+        ys: <double>[10, 20],
+        lineYs: <double>[5, 15],
+      );
+      final ctx = _bandContext(<String>['a', 'b'], width: 800);
+      final dots = delegate.lineDotsFor(ctx);
+      expect(dots.length, 2, reason: 'a count guard');
+      expect(
+        dots.first.dx,
+        closeTo(ctx.xScale('a')! + 0.5 * ctx.xScale.bandwidth, 1e-9),
+        reason: 'VerticalBarChart.tsx:184 adds 0.5 * bandwidth',
+      );
+      expect(
+        dots.first.dy,
+        closeTo(ctx.yScalePrimary(5)!, 1e-9),
+        reason: 'VerticalBarChart.tsx:186 reads the primary y position scale',
+      );
+      expect(
+        delegate.linePathFor(ctx),
+        isNotNull,
+        reason: 'both points carry lineData, so the path exists',
+      );
+    });
+
+    test('a dimmed bar keeps its rect but loses its label', () {
+      final delegate = _numericDelegate(
+        xs: <double>[1, 2],
+        ys: <double>[50, 60],
+        legends: <String>['a', 'b'],
+        selectedLegends: <String>['a'],
+      );
+      final bars = delegate.barsFor(
+        _linearContext(width: 800),
+        _layout(width: 800, height: 350),
+      );
+      expect(bars.length, 2, reason: 'a count guard');
+      expect(
+        bars[1].opacity,
+        0.1,
+        reason: 'VerticalBarChart.tsx:687 dims a non-highlighted bar',
+      );
+      expect(
+        delegate.shouldPaintLabel(bars[1]),
+        isFalse,
+        reason:
+            'VerticalBarChart.tsx:950 suppresses the label when the legend is '
+            'neither highlighted nor unhighlighted-everywhere',
+      );
+      expect(
+        delegate.shouldPaintLabel(bars[0]),
+        isTrue,
+        reason: 'the selected legend keeps its label',
+      );
+    });
+
+    test('labels vanish once the bar is narrower than 16px', () {
+      final delegate = _numericDelegate(
+        xs: <double>[1],
+        ys: <double>[50],
+        barWidth: 15,
+      );
+      final bars = delegate.barsFor(
+        _linearContext(width: 800),
+        _layout(width: 800, height: 350),
+      );
+      expect(bars.length, 1, reason: 'a count guard');
+      expect(
+        delegate.shouldPaintLabel(bars.single),
+        isFalse,
+        reason: 'VerticalBarChart.tsx:950 tests _barWidth < 16',
+      );
+    });
+
+    test('hideLabels suppresses every label', () {
+      final delegate = _delegateOver(const <FluentVerticalBarChartDataPoint>[
+        FluentVerticalBarChartDataPoint(x: 1, y: 50),
+      ], hideLabels: true);
+      final bars = delegate.barsFor(
+        _linearContext(width: 800),
+        _layout(width: 800, height: 350),
+      );
+      expect(bars.length, 1, reason: 'a count guard');
+      expect(
+        delegate.shouldPaintLabel(bars.single),
+        isFalse,
+        reason: 'VerticalBarChart.tsx:950 short-circuits on props.hideLabels',
+      );
+    });
+
+    test('a zero-height bar is absent, not zero-height', () {
+      final delegate = _numericDelegate(
+        xs: <double>[1, 2],
+        ys: <double>[0, 50],
+      );
+      final bars = delegate.barsFor(
+        _linearContext(width: 800),
+        _layout(width: 800, height: 350),
+      );
+      expect(
+        bars.map((FluentVerticalBarRect b) => b.index).toList(),
+        <int>[1],
+        reason:
+            'VerticalBarChart.tsx:648-651 returns an empty fragment, so the '
+            'bar never reaches the DOM',
+      );
+    });
+
+    test('a hit region carries the bar rect and the composed aria label', () {
+      final delegate = _delegateOver(const <FluentVerticalBarChartDataPoint>[
+        FluentVerticalBarChartDataPoint(x: 1, y: 50, legend: 'a'),
+      ]);
+      final ctx = _linearContext(width: 800);
+      final layout = _layout(width: 800, height: 350);
+      final regions = delegate.buildHitRegions(ctx, layout);
+      expect(regions.length, 1, reason: 'a count guard');
+      expect(
+        regions.single.bounds,
+        delegate.barsFor(ctx, layout).single.rect,
+        reason: 'the region a user hovers is the rect that was painted',
+      );
+      expect(
+        regions.single.semanticsLabel,
+        '1. a, 50.0.',
+        reason: 'VerticalBarChart.tsx:936-938 composes `x. legend, y.`',
+      );
+    });
+  });
+
+  group('FluentVerticalBarChartDelegate under forced colours', () {
+    _RecordingCanvas paint({required bool isHighContrast}) {
+      final delegate = _stringDelegateWithLine(
+        categories: <String>['a', 'b'],
+        ys: <double>[10, 20],
+        lineYs: <double>[5, 15],
+        isHighContrast: isHighContrast,
+      );
+      final canvas = _RecordingCanvas();
+      delegate.paintSeries(
+        canvas,
+        _bandContext(<String>['a', 'b'], width: 800),
+        _layout(width: 800, height: 350),
+        delegate.colors,
+      );
+      return canvas;
+    }
+
+    // The alpha channel carries the legend dimming, which the tests above
+    // already pin, so the flattening assertions compare the RGB triple only.
+    int rgb(Color colour) => colour.toARGB32() & 0x00FFFFFF;
+
+    final style = resolveFluentVerticalBarChartStyle(_delegateTheme);
+
+    test('an ordinary theme keeps the series and line colours', () {
+      final canvas = paint(isHighContrast: false);
+      expect(canvas.rectFills.length, 2, reason: 'a count guard');
+      expect(
+        rgb(canvas.rectFills.first),
+        rgb(
+          FluentVerticalBarChartGeometry.colourFor(
+            10,
+            palette: style.palette!.resolve(<WidgetState>{})!,
+            yMax: 20,
+          ),
+        ),
+        reason: 'flattenMark is the identity outside high contrast',
+      );
+      expect(
+        rgb(canvas.circleStrokes.first),
+        rgb(style.lineColor!.resolve(<WidgetState>{})!),
+        reason: 'and so is flattenMarkStroke on the line dot halo',
+      );
+    });
+
+    test('high contrast flattens the bars and the line', () {
+      final canvas = paint(isHighContrast: true);
+      expect(canvas.rectFills.length, 2, reason: 'a count guard');
+      expect(
+        canvas.rectFills.map(rgb).toSet(),
+        <int>{rgb(_canvasTextColour)},
+        reason:
+            'design spec section 5.3: a forced-colours browser rewrites every '
+            'series fill to CanvasText, so FluentChartColors.flattenMark must '
+            'be on every bar fill',
+      );
+      expect(
+        canvas.pathStrokes.map(rgb).toSet(),
+        <int>{rgb(_canvasTextColour)},
+        reason: 'the overlaid line is a series mark and flattens with them',
+      );
+      expect(
+        canvas.circleStrokes.map(rgb).toSet(),
+        <int>{rgb(_canvasColour)},
+        reason:
+            'FluentChartColors.flattenMarkStroke sends the dot halo to Canvas '
+            'instead, which is the only thing keeping the dot from '
+            'disappearing into the flattened line beneath it',
+      );
+    });
+  });
+
+  group('FluentVerticalBarChartDelegate against Oracle B', () {
+    // `VerticalBarChartBasic`'s data, recovered below from the captured tick
+    // positions and bar heights.
+    const storyXs = <double>[
+      0,
+      10000,
+      25000,
+      40000,
+      52000,
+      68000,
+      80000,
+      92000,
+    ];
+    const storyYs = <double>[
+      10000,
+      50000,
+      30000,
+      13000,
+      43000,
+      30000,
+      20000,
+      45000,
+    ];
+
+    /// The eight bars of a VerticalBarChart story, paired with their labels.
+    List<(OracleElement, OracleElement)> barsAndLabels(OracleStory story) {
+      final out = <(OracleElement, OracleElement)>[];
+      for (final rect in story.byTag('rect')) {
+        final parent = story.parentOf(rect);
+        if (parent == null || parent.tag != 'g') {
+          continue;
+        }
+        final labels = story
+            .childrenOf(parent)
+            .where((OracleElement e) => e.tag == 'text')
+            .toList();
+        if (labels.length == 1) {
+          out.add((rect, labels.single));
+        }
+      }
+      return out;
+    }
+
+    test('the default story x scale is the numeric domain margin', () {
+      final story = loadOracleStory(
+        'charts-verticalbarchart--vertical-bar-default',
+      );
+      // The x-axis tick labels carry no `x` attribute; the y-axis ones sit at
+      // x = -10, which is what separates them.
+      final zeroTick = story.soleElement(
+        'text',
+        where: (OracleElement e) => e.text == '0' && e.x == null,
+      );
+      final group = story.parentOf(zeroTick)!;
+      expectOracleNumber(
+        'x scale range start',
+        _margins.left! + kMinDomainMargin + kDefaultBarWidth,
+        group.translate!.dx - story.crispOffset,
+      );
+    });
+
+    test('reproduces every bar rect of the default story', () {
+      final story = loadOracleStory(
+        'charts-verticalbarchart--vertical-bar-default',
+      );
+      final captured = barsAndLabels(story);
+      expect(captured.length, 8, reason: 'the story draws eight bars');
+      final delegate = _delegateOver(<FluentVerticalBarChartDataPoint>[
+        for (var i = 0; i < storyXs.length; i++)
+          FluentVerticalBarChartDataPoint(x: storyXs[i], y: storyYs[i]),
+      ]);
+      final ctx = FluentCartesianChildContext(
+        // `.nice()` rounds the 0..92000 data extent up to 0..100000
+        // (VerticalBarChart.tsx:594-596); the range is the one the test above
+        // recovers from the captured ticks.
+        xScale: ScaleLinear()
+          ..domainOf(<double>[0, 100000])
+          ..rangeOf(<double>[
+            _margins.left! + kMinDomainMargin + kDefaultBarWidth,
+            story.width - _margins.right! - kMinDomainMargin - kDefaultBarWidth,
+          ]),
+        yScalePrimary: _positionScale(containerHeight: story.height),
+        containerWidth: story.width,
+        containerHeight: story.height,
+      );
+      final bars = delegate.barsFor(
+        ctx,
+        _layout(width: story.width, height: story.height),
+      );
+      expect(bars.length, 8, reason: 'a count guard');
+      for (var i = 0; i < bars.length; i++) {
+        expectOracleRect('bar $i', captured[i].$1.rect, bars[i].rect);
+      }
+    });
+
+    test('reproduces the default story bar label anchors', () {
+      final story = loadOracleStory(
+        'charts-verticalbarchart--vertical-bar-default',
+      );
+      final captured = barsAndLabels(story);
+      expect(captured.length, 8, reason: 'a count guard');
+      for (final (rect, label) in captured) {
+        expectOracleOffset(
+          'label anchor over ${label.text}',
+          Offset(label.x!, label.y!),
+          Offset(rect.rect.center.dx, rect.rect.top - 6),
+        );
+      }
+    });
+
+    test('a negative bar anchors its label below the bar, not below the '
+        'baseline', () {
+      // The mixed-sign story is already covered by the style group above; this
+      // pins the all-negative one, where EVERY bar hangs from the baseline.
+      final story = loadOracleStory(
+        'charts-verticalbarchart--vertical-bar-all-negative',
+      );
+      final captured = barsAndLabels(story);
+      expect(captured.length, 8, reason: 'the story draws eight bars');
+      for (final (rect, label) in captured) {
+        expectOracleOffset(
+          'label anchor over ${label.text}',
+          Offset(label.x!, label.y!),
+          Offset(rect.rect.center.dx, rect.rect.bottom + 12),
+        );
+      }
+    });
+  });
 }
+
+// ---------------------------------------------------------------------------
+// The delegate.
+// ---------------------------------------------------------------------------
+
+/// Records only what the delegate's fills and strokes carry.
+class _RecordingCanvas implements Canvas {
+  final List<Color> rectFills = <Color>[];
+  final List<Color> pathStrokes = <Color>[];
+  final List<Color> circleFills = <Color>[];
+  final List<Color> circleStrokes = <Color>[];
+  final List<double> circleRadii = <double>[];
+
+  @override
+  void drawRect(Rect rect, Paint paint) => rectFills.add(paint.color);
+
+  @override
+  void drawRRect(RRect rrect, Paint paint) => rectFills.add(paint.color);
+
+  @override
+  void drawPath(Path path, Paint paint) => pathStrokes.add(paint.color);
+
+  @override
+  void drawCircle(Offset c, double radius, Paint paint) {
+    circleRadii.add(radius);
+    (paint.style == PaintingStyle.stroke ? circleStrokes : circleFills).add(
+      paint.color,
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+/// The single measurer the whole subtree shares, as the chart-invariants gate
+/// requires.
+final _measurer = FluentChartTextMeasurer();
+
+final _delegateTheme = FluentThemeData.light(
+  fontPlatform: FluentFontPlatform.web,
+);
+
+const _placeholderColour = Color(0xFF010203);
+const _canvasTextColour = Color(0xFFFFFFFF);
+const _canvasColour = Color(0xFF000000);
+
+/// The ten-slot colour set, so `isHighContrast` can be flipped without a
+/// second [FluentThemeData].
+FluentChartColors _colours({bool isHighContrast = false}) => FluentChartColors(
+  axisText: _canvasTextColour,
+  axisTick: _placeholderColour,
+  axisTitle: _placeholderColour,
+  gridLine: _placeholderColour,
+  markStroke: _placeholderColour,
+  surface: _canvasColour,
+  popoverSurface: _placeholderColour,
+  tooltipSurface: _placeholderColour,
+  legendDimmed: _placeholderColour,
+  isHighContrast: isHighContrast,
+);
+
+FluentVerticalBarChartDelegate _delegateOver(
+  List<FluentVerticalBarChartDataPoint> points, {
+  Object? barWidthProp,
+  List<String> selectedLegends = const <String>[],
+  String? activeLegend,
+  String? lineLegendText,
+  Object? activeXDataPoint,
+  bool isHighContrast = false,
+  bool hideLabels = false,
+}) => FluentVerticalBarChartDelegate(
+  points: points,
+  style: resolveFluentVerticalBarChartStyle(_delegateTheme),
+  colors: _colours(isHighContrast: isHighContrast),
+  measurer: _measurer,
+  textStyles: FluentChartTextStyles.of(_delegateTheme),
+  selectedLegends: selectedLegends,
+  activeLegend: activeLegend,
+  activeXDataPoint: activeXDataPoint,
+  barWidthProp: barWidthProp,
+  hideLabels: hideLabels,
+  lineLegendText: lineLegendText,
+);
+
+FluentVerticalBarChartDelegate _stringDelegate({
+  required List<String> categories,
+  required List<double> ys,
+}) => _delegateOver(<FluentVerticalBarChartDataPoint>[
+  for (var i = 0; i < categories.length; i++)
+    FluentVerticalBarChartDataPoint(x: categories[i], y: ys[i]),
+]);
+
+FluentVerticalBarChartDelegate _numericDelegate({
+  required List<double> xs,
+  required List<double> ys,
+  List<String>? legends,
+  List<String> selectedLegends = const <String>[],
+  Object? barWidth,
+  bool isHighContrast = false,
+}) => _delegateOver(
+  <FluentVerticalBarChartDataPoint>[
+    for (var i = 0; i < xs.length; i++)
+      FluentVerticalBarChartDataPoint(x: xs[i], y: ys[i], legend: legends?[i]),
+  ],
+  barWidthProp: barWidth,
+  selectedLegends: selectedLegends,
+  isHighContrast: isHighContrast,
+);
+
+FluentVerticalBarChartDelegate _stringDelegateWithLine({
+  required List<String> categories,
+  required List<double> ys,
+  required List<double> lineYs,
+  String? lineLegendText,
+  bool isHighContrast = false,
+}) => _delegateOver(
+  <FluentVerticalBarChartDataPoint>[
+    for (var i = 0; i < categories.length; i++)
+      FluentVerticalBarChartDataPoint(
+        x: categories[i],
+        y: ys[i],
+        lineData: FluentBarLineDatum(y: lineYs[i]),
+      ),
+  ],
+  lineLegendText: lineLegendText,
+  isHighContrast: isHighContrast,
+);
+
+/// The primary y position scale, which only the overlaid line reads: the bars
+/// build their own magnitude scale (`VerticalBarChart.tsx:584-586`).
+Scale _positionScale({required double containerHeight, double yMax = 100}) =>
+    ScaleLinear()
+      ..domainOf(<double>[0, yMax])
+      ..rangeOf(<double>[containerHeight - _margins.bottom!, _margins.top!]);
+
+/// The band x scale `_getScales` builds for a string axis
+/// (`VerticalBarChart.tsx:608-616`), at [kMinDomainMargin].
+FluentCartesianChildContext _bandContext(
+  List<String> categories, {
+  required double width,
+  double containerHeight = 350,
+}) => FluentCartesianChildContext(
+  xScale: ScaleBand()
+    ..domainOf(categories.cast<Object>())
+    ..rangeOf(<double>[
+      _margins.left! + kMinDomainMargin,
+      width - _margins.right! - kMinDomainMargin,
+    ])
+    ..paddingInner(_defaultInnerPadding),
+  yScalePrimary: _positionScale(containerHeight: containerHeight),
+  containerWidth: width,
+  containerHeight: containerHeight,
+);
+
+/// The linear x scale `_getScales` builds for a numeric axis
+/// (`VerticalBarChart.tsx:590-596`).
+FluentCartesianChildContext _linearContext({
+  required double width,
+  double xMin = 1,
+  double xMax = 3,
+  double containerHeight = 350,
+  double domainMargin = kMinDomainMargin,
+}) => FluentCartesianChildContext(
+  xScale: ScaleLinear()
+    ..domainOf(<double>[xMin, xMax])
+    ..rangeOf(<double>[
+      _margins.left! + domainMargin,
+      width - _margins.right! - domainMargin,
+    ]),
+  yScalePrimary: _positionScale(containerHeight: containerHeight),
+  containerWidth: width,
+  containerHeight: containerHeight,
+);
+
+FluentCartesianLayout _layout({
+  required double width,
+  required double height,
+  FluentChartMargins margins = _margins,
+}) => FluentCartesianLayout.resolve(
+  size: Size(width, height),
+  margins: margins,
+  xAxisLabelReserve: 0,
+  isRtl: false,
+  startFromX: 0,
+);
