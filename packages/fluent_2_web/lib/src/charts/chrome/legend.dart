@@ -4,8 +4,12 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../buttons/button.dart';
 import '../../internal/focus_ring.dart';
 import '../../internal/interaction.dart';
+import '../../overlays/menu.dart';
+import '../../overlays/menu_item.dart';
+import '../internal/chart_text_measurer.dart';
 import '../internal/chart_utils.dart';
 import 'legend_shape.dart';
 import 'legend_style.dart';
@@ -21,6 +25,28 @@ import 'legend_style.dart';
 //   Flutter 3.44 — `IndexedSemantics` covers `aria-posinset` and nothing covers
 //   the set size. [FluentChartLegendRow.listLength] therefore carries the
 //   number for the day the framework gains one, and is not read today.
+//
+// Three things about the overflow menu this port cannot reproduce faithfully:
+//
+// * Whether activating a checkbox row closes the menu is governed by
+//   `@fluentui/react-menu` and `persistOnItemClick` is never passed
+//   (`OverflowMenu.tsx:58`), so upstream's behaviour is **UNKNOWN from this
+//   tree**. `FluentMenu` always closes on activation (`menu.dart:516`), which
+//   makes a multi-select legend awkward — every pick reopens the menu. Fixing it
+//   means a `persistOnItemClick` flag on `FluentMenu`, which is another task's
+//   file. Reported rather than forked.
+// * The overflow rows forward hover and focus to the legend's highlight
+//   handlers upstream (`OverflowMenu.tsx:42-45`). `FluentMenuItem` has no hover
+//   or focus callback, so that highlight is dropped. Upgrade path: one
+//   `onHoverChanged` field on the existing `FluentMenuItem` model.
+// * `OverflowMenu.tsx:39` passes `checkmark={null}` and renders the whole legend
+//   row — swatch included — as the menu row's content. `FluentMenuItem` paints
+//   the checkmark in the very slot an icon would take (`menu_item.dart:476-491`)
+//   and the checkmark wins, so the swatch cannot ride along; the checkmark
+//   carries the selection instead. `// ponytail:` — the label plus a checkmark
+//   is the smallest thing that still tells the reader which series is which and
+//   which are selected. Upgrade path: the same `icon`/`checkmark` split
+//   upstream has, if a second widget ever needs it.
 
 /// Whether a legend strip allows one selection or several.
 ///
@@ -156,6 +182,78 @@ bool fluentChartLegendIsDimmed(
   // Legends.tsx:407 — `activeLegend === title || activeLegend === ''`.
   return activeLegend.isNotEmpty && activeLegend != title;
 }
+
+/// Laid-out width of one legend row, in logical pixels.
+///
+/// The same arithmetic `cloneLegendsToSVG` uses
+/// (`image-export-utils.ts:313-315`): padding, swatch, gap, measured text,
+/// padding — except the swatch is [kLegendSwatchBoxSize], because that is the
+/// on-screen footprint, where the exporter substitutes [kLegendShapeSize].
+/// `charts-legends--legends-overflow` settles which: its swatch boxes are 14
+/// wide and its row pitch is the label plus 38.
+///
+/// The label is title-cased before it is measured. `measureTextWithDOM` copies
+/// `text-transform` (`utilities.ts:2137-2144`) while the canvas measurer at
+/// `:1265` does not, so upstream measures the legend post-capitalisation and
+/// axis labels pre-capitalisation. This is the legend path.
+double fluentChartLegendRowWidth(
+  String title,
+  TextStyle style,
+  FluentChartTextMeasurer measurer,
+) =>
+    kLegendPadding +
+    kLegendSwatchBoxSize +
+    kLegendShapeMarginEnd +
+    measurer.width(capitalizeLegendLabel(title), style) +
+    kLegendPadding;
+
+/// How many rows stay in the listbox before the rest collapse into the menu.
+///
+/// `useOverflowMenu` (`@fluentui/react-overflow`) is not in the extracted
+/// source, so its measurement is **UNKNOWN from that tree**; only its
+/// configuration is knowable. This computes the count from measured widths on
+/// the single line the strip occupies, reserving [triggerWidth] because the
+/// trigger is a sibling of the listbox and shares the line
+/// (`Legends.tsx:135`).
+///
+/// ponytail: one line, no gap term — upstream's flex line has no gap either
+/// (`Legends.tsx:129-133`), and `charts-legends--legends-overflow` confirms it:
+/// its swatch pitch is exactly one row width. The remaining uncertainty is the
+/// trigger, whose rendered width that capture does not record. Probe that
+/// settles it: capture the story at a sequence of widths with Oracle B and
+/// compare the visible count.
+int fluentChartLegendVisibleCount(
+  List<double> rowWidths,
+  double available,
+  double triggerWidth,
+) {
+  var total = 0.0;
+  for (final width in rowWidths) {
+    total += width;
+  }
+  // OverflowMenu.tsx:18-20 renders nothing at all when nothing overflows, so
+  // the trigger costs nothing in that case.
+  if (total <= available) return rowWidths.length;
+
+  final budget = available - triggerWidth;
+  var fitted = 0;
+  var running = 0.0;
+  for (final width in rowWidths) {
+    running += width;
+    if (running > budget) break;
+    fitted++;
+  }
+  // A bare "+n more" with no visible legend has no context; keep one row.
+  return fitted == 0 ? 1 : fitted;
+}
+
+/// Margin around one row in the wrapped-lines layout.
+///
+/// `useLegendsStyles.styles.ts:125` — `margin: 4px` on `legendContainer`, which
+/// exists only in that branch (`Legends.tsx:159`). Doubles as the annotation gap
+/// (`:130`). Declared here rather than in `legend_style.dart` because only this
+/// layout reads it; it is not a style slot.
+const double kLegendWrappedContainerMargin = 4;
 
 /// Height of a legend swatch that stands for a line drawn over a bar chart.
 ///
@@ -460,6 +558,10 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
   final List<FocusNode> _nodes = <FocusNode>[];
   int _focusedIndex = 0;
 
+  /// Owned by the state rather than built per frame so its cache survives a
+  /// rebuild — the overflow branch measures every label on every layout.
+  final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
+
   @override
   void initState() {
     super.initState();
@@ -539,6 +641,130 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
     }
   }
 
+  /// Every row, wrapping onto further lines, each beside its annotation.
+  ///
+  /// `Legends.tsx:142-169` — no overflow menu exists in this branch at all.
+  Widget _buildWrapped(List<Widget> rows) => Wrap(
+    alignment: widget.centerLegends
+        ? WrapAlignment.center
+        : WrapAlignment.start,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    children: <Widget>[
+      for (var index = 0; index < rows.length; index++)
+        Padding(
+          // useLegendsStyles.styles.ts:125 — `margin: 4px` on legendContainer,
+          // which charts-legends--legends-wrap-lines captures as an 8px gap
+          // between adjacent containers.
+          padding: const EdgeInsets.all(kLegendWrappedContainerMargin),
+          child: widget.legends[index].annotationBuilder == null
+              ? rows[index]
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  // useLegendsStyles.styles.ts:127-131 — flex, centred, 4px gap.
+                  children: <Widget>[
+                    rows[index],
+                    const SizedBox(width: kLegendWrappedContainerMargin),
+                    Builder(builder: widget.legends[index].annotationBuilder!),
+                  ],
+                ),
+        ),
+    ],
+  );
+
+  /// One line of rows, with the tail collapsed into a menu.
+  ///
+  /// `Legends.tsx:111-140`. The annotation slot does not exist here, which is
+  /// upstream's own asymmetry (`:129-133` against `:159-164`).
+  Widget _buildOverflow(
+    List<Widget> rows,
+    FluentChartLegendStyle style,
+    FluentThemeData theme,
+  ) {
+    final labelStyle = style.labelTextStyle!.resolve(<WidgetState>{})!;
+    // FluentButton medium sets body1Strong (button.dart:264) and 12 of padding
+    // each side (:257) inside a 1px secondary border (:280-282).
+    final triggerStyle = theme.typography.body1Strong;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final widths = <double>[
+          for (final item in widget.legends)
+            fluentChartLegendRowWidth(item.title, labelStyle, _measurer),
+        ];
+        // The trigger reads `+{n} {overflowText}`; its widest form is the whole
+        // list in the menu, so measure that (OverflowMenu.tsx:16).
+        final triggerWidth =
+            _measurer.width(
+              _triggerLabel(widget.legends.length),
+              triggerStyle,
+            ) +
+            2 * (FluentSpacing.m + FluentStroke.thin);
+        final visible = fluentChartLegendVisibleCount(
+          widths,
+          constraints.maxWidth,
+          triggerWidth,
+        );
+        final overflowing = visible < rows.length;
+        final strip = ConstraintsTransformBox(
+          constraintsTransform: ConstraintsTransformBox.maxWidthUnconstrained,
+          // useLegendsStyles.styles.ts:44 is `whiteSpace: nowrap` and the
+          // resizable area is capped at 800 (`:116`): an over-long strip is cut
+          // off, never wrapped. hardEdge is that. It matters because
+          // [fluentChartLegendVisibleCount] keeps one row even when one row does
+          // not fit — without the clip that row would report a layout overflow.
+          clipBehavior: Clip.hardEdge,
+          alignment: AlignmentDirectional.centerStart,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: rows.take(visible).toList(growable: false),
+          ),
+        );
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          // Legends.tsx:115 — `textAlign: center` when centerLegends is set.
+          mainAxisAlignment: widget.centerLegends
+              ? MainAxisAlignment.center
+              : MainAxisAlignment.start,
+          children: <Widget>[
+            // Only the rows give way. The trigger keeps its full width, because
+            // a clipped trigger is an unreachable menu: at 148px with one 133px
+            // row the button landed outside the clip and stopped hit-testing.
+            // Flexible is safe here only because `overflowing` implies the line
+            // is bounded — a `Flexible` under unbounded width is an error.
+            if (overflowing) Flexible(child: strip) else strip,
+            if (overflowing)
+              // The overflow trigger is deliberately a SIBLING of the listbox
+              // (Legends.tsx:116-120) so a menu button is never a listbox
+              // child.
+              FluentMenu(
+                // MenuList carries the same 'Legends' name as the listbox
+                // (OverflowMenu.tsx:64).
+                semanticLabel: 'Legends',
+                items: <FluentMenuItem>[
+                  for (var index = visible; index < rows.length; index++)
+                    FluentMenuItem(
+                      // The checkmark stands in for upstream's aria-checked
+                      // row; see the note at the top of this file.
+                      checked: _selected.contains(widget.legends[index].title),
+                      label: Text(
+                        capitalizeLegendLabel(widget.legends[index].title),
+                      ),
+                      onPressed: () => _handlePressed(index),
+                    ),
+                ],
+                builder: (context, toggle) => FluentButton(
+                  onPressed: toggle,
+                  child: Text(_triggerLabel(rows.length - visible)),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// `+{n} {overflowText}` — `OverflowMenu.tsx:16`.
+  String _triggerLabel(int count) => '+$count ${widget.overflowText}';
+
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
@@ -577,13 +803,10 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
         // Legends.tsx:124 — the listbox is labelled 'Legends', and only when
         // allowFocusOnLegends is set does the role appear at all (:122).
         label: widget.allowFocusOnLegends ? 'Legends' : null,
-        child: Wrap(
-          alignment: widget.centerLegends
-              ? WrapAlignment.center
-              : WrapAlignment.start,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: rows,
-        ),
+        // Legends.tsx:109 — the two layouts are mutually exclusive.
+        child: widget.enabledWrapLines
+            ? _buildWrapped(rows)
+            : _buildOverflow(rows, style, theme),
       ),
     );
   }

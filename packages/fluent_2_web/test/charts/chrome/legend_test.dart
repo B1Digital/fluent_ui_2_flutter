@@ -4,6 +4,7 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:fluent_2_web/src/charts/chrome/legend.dart';
 import 'package:fluent_2_web/src/charts/chrome/legend_shape.dart';
 import 'package:fluent_2_web/src/charts/chrome/legend_style.dart';
+import 'package:fluent_2_web/src/charts/internal/chart_text_measurer.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_utils.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/widgets.dart';
@@ -919,5 +920,401 @@ void main() {
         );
       },
     );
+  });
+
+  group('fluentChartLegendRowWidth', () {
+    final labelStyle = resolveFluentChartLegendStyle(
+      theme,
+    ).labelTextStyle!.resolve(<WidgetState>{})!;
+
+    testWidgets('the row box model matches charts-legends--legends-overflow', (
+      tester,
+    ) async {
+      final story = loadOracleStory('charts-legends--legends-overflow');
+      // react-overflow parks a collapsed row at (-16, -16) with a 0x0 box, so a
+      // row that is actually in the strip is one with a width.
+      final rects = story
+          .boxes('fui-legend__rect')
+          .where((box) => box.rect.width > 0)
+          .toList(growable: false);
+      final texts = story
+          .boxes('fui-legend__text')
+          .where((box) => box.rect.width > 0)
+          .toList(growable: false);
+      expect(
+        rects,
+        hasLength(6),
+        reason:
+            'Count guard: the six rows this story left in the strip. Filtering '
+            'to width > 0 could otherwise leave an empty list and the pitch '
+            'below would be read off nothing.',
+      );
+      expect(
+        texts,
+        hasLength(6),
+        reason: 'Count guard: one label per visible row.',
+      );
+
+      // Two adjacent rows are laid end to end with no gap of their own
+      // (Legends.tsx:129-133 puts them straight into the flex line), so the
+      // pitch between two swatches IS one row's width.
+      final capturedPitch = rects[1].rect.left - rects.first.rect.left;
+      final capturedChrome = capturedPitch - texts.first.rect.width;
+      expectOracleNumber(
+        'captured row width less its label is padding, swatch, gap, padding',
+        2 * kLegendPadding + kLegendSwatchBoxSize + kLegendShapeMarginEnd,
+        capturedChrome,
+      );
+
+      final measurer = FluentChartTextMeasurer();
+      expectOracleNumber(
+        'fluentChartLegendRowWidth reserves exactly that chrome',
+        capturedChrome,
+        fluentChartLegendRowWidth('legend 1', labelStyle, measurer) -
+            measurer.width('Legend 1', labelStyle),
+      );
+    });
+
+    testWidgets('the label is measured after it is title-cased', (
+      tester,
+    ) async {
+      final measurer = FluentChartTextMeasurer();
+      expectOracleNumber(
+        'row width is the capitalised label, not the raw one',
+        fluentChartLegendRowWidth('llll llll', labelStyle, measurer),
+        fluentChartLegendRowWidth('Llll Llll', labelStyle, measurer),
+      );
+      // The test font is monospaced, so this only holds because the same string
+      // reaches the measurer either way; `measureTextWithDOM` copies
+      // `text-transform` (utilities.ts:2137-2144) where the canvas measurer at
+      // `:1265` does not, which is why the legend measures post-capitalisation.
+      expect(
+        measurer.cachedCount,
+        1,
+        reason:
+            'Both calls measured one and the same string, so the measurer saw '
+            'a single distinct key — proof the capitalisation happens before '
+            'the measurement rather than after it.',
+      );
+    });
+  });
+
+  group('fluentChartLegendVisibleCount', () {
+    test('everything fits when there is room', () {
+      expect(
+        fluentChartLegendVisibleCount(<double>[60, 60, 60], 800, 70),
+        3,
+        reason:
+            'OverflowMenu.tsx:18-20 returns null when nothing overflows, so all '
+            'three rows stay in the listbox.',
+      );
+    });
+
+    test('the trigger reserves its own width', () {
+      expect(
+        fluentChartLegendVisibleCount(<double>[60, 60, 60], 130, 70),
+        1,
+        reason:
+            'The trigger is a sibling of the listbox (Legends.tsx:135), so it '
+            'competes for the same line: 60 fits inside 130 - 70 = 60, a second '
+            'row does not.',
+      );
+    });
+
+    test('at least one row is always shown', () {
+      expect(
+        fluentChartLegendVisibleCount(<double>[400], 100, 70),
+        1,
+        reason:
+            'Collapsing every legend into the menu would leave a bare "+1 more" '
+            'button with no context, which no upstream story renders.',
+      );
+    });
+
+    test('it reproduces the split captured for the seventeen-legend strip', () {
+      // Seventeen real row widths: --legends-wrap-lines draws every one of them
+      // on screen, so its `legendContainer` boxes — `flex: 0 1 auto` around the
+      // row (useLegendsStyles.styles.ts:123-125) — give the row widths directly.
+      final wrapped = loadOracleStory('charts-legends--legends-wrap-lines');
+      final widths = wrapped
+          .boxes('fui-legend__legendContainer')
+          .map((box) => box.rect.width)
+          .toList(growable: false);
+      expect(
+        widths,
+        hasLength(17),
+        reason:
+            'Count guard: the seventeen legends of the Legends stories. A short '
+            'list would make the breakpoint below unreachable.',
+      );
+
+      // How much of the line --legends-overflow actually filled, measured from
+      // the first row's leading edge to the last visible row's trailing edge.
+      // The strip's own available width is NOT knowable from this capture: that
+      // story recorded no `fui-legend__resizableArea` box, and `useOverflowMenu`
+      // is not in the extracted tree, so the trigger's rendered width — the
+      // other half of upstream's breakpoint — is unknown. What is knowable is
+      // that six rows fitted the span and a seventh did not.
+      final overflow = loadOracleStory('charts-legends--legends-overflow');
+      final rects = overflow
+          .boxes('fui-legend__rect')
+          .where((box) => box.rect.width > 0)
+          .toList(growable: false);
+      final texts = overflow
+          .boxes('fui-legend__text')
+          .where((box) => box.rect.width > 0)
+          .toList(growable: false);
+      expect(
+        rects,
+        hasLength(6),
+        reason: 'Count guard: the six rows left in the strip.',
+      );
+      expect(
+        overflow.boxes('fui-legend__rect'),
+        hasLength(17),
+        reason:
+            'Count guard: the other eleven are captured too, parked off-screen, '
+            'which is what makes the eleven-in-the-menu arithmetic below real.',
+      );
+      final span =
+          (texts.last.rect.right + kLegendPadding) -
+          (rects.first.rect.left - kLegendPadding);
+
+      // Only the difference `available - triggerWidth` is read, so any trigger
+      // width reproduces the capture as long as the budget is the captured span.
+      const triggerWidth = 120.0;
+      expect(
+        fluentChartLegendVisibleCount(
+          widths,
+          span + triggerWidth,
+          triggerWidth,
+        ),
+        6,
+        reason:
+            'charts-legends--legends-overflow left six rows in the strip and '
+            'collapsed eleven, so the budget it filled must keep exactly six.',
+      );
+      expect(
+        '+${widths.length - 6} more',
+        '+11 more',
+        reason:
+            'OverflowMenu.tsx:16 renders `+{overflowCount} {title}` over the '
+            'rows that did not fit, which the capture puts at eleven.',
+      );
+    });
+  });
+
+  group('layout branches', () {
+    testWidgets('overflow mode collapses the tail into a menu', (tester) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 160,
+              child: FluentChartLegend(
+                legends: List<FluentChartLegendItem>.generate(
+                  6,
+                  (i) => FluentChartLegendItem(
+                    title: 'series number $i',
+                    color: seriesColour,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(
+        find.textContaining('more'),
+        findsOneWidget,
+        reason:
+            'OverflowMenu.tsx:16 renders `+{n} {title}` and Legends.tsx:108 '
+            "defaults that title to 'more'.",
+      );
+    });
+
+    testWidgets('a collapsed row is still selectable from the menu', (
+      tester,
+    ) async {
+      final reported = <List<String>>[];
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 160,
+              child: FluentChartLegend(
+                onChange: (selected, current) => reported.add(selected),
+                legends: List<FluentChartLegendItem>.generate(
+                  6,
+                  (i) => FluentChartLegendItem(
+                    title: 'series number $i',
+                    color: seriesColour,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.textContaining('more'));
+      await tester.pumpAndSettle();
+      final menuRows = find.textContaining('Series Number');
+      expect(
+        menuRows,
+        findsNWidgets(6),
+        reason:
+            'Count guard: one row still in the strip plus the five the menu '
+            'took. Without it the tap below could hit the strip row.',
+      );
+      await tester.tap(menuRows.last);
+      await tester.pumpAndSettle();
+      expect(
+        reported,
+        <List<String>>[
+          <String>['series number 5'],
+        ],
+        reason:
+            'OverflowMenu.tsx:40 forwards the row onClick to the legend button, '
+            'so a collapsed legend selects exactly as a visible one does.',
+      );
+    });
+
+    testWidgets('wrapped mode never renders an overflow trigger', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 160,
+              child: FluentChartLegend(
+                enabledWrapLines: true,
+                legends: List<FluentChartLegendItem>.generate(
+                  6,
+                  (i) => FluentChartLegendItem(
+                    title: 'series number $i',
+                    color: seriesColour,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(
+        find.textContaining('more'),
+        findsNothing,
+        reason:
+            'Legends.tsx:142-169 has no OverflowMenu at all — the two branches '
+            'are mutually exclusive.',
+      );
+    });
+
+    testWidgets('the annotation slot renders only in wrapped mode', (
+      tester,
+    ) async {
+      final legends = <FluentChartLegendItem>[
+        FluentChartLegendItem(
+          title: 'alpha',
+          color: seriesColour,
+          annotationBuilder: (context) => const Text('note'),
+        ),
+      ];
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 400,
+              child: FluentChartLegend(
+                enabledWrapLines: true,
+                legends: legends,
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(
+        find.text('note'),
+        findsOneWidget,
+        reason:
+            'Legends.tsx:163 renders legendAnnotation in the wrapped branch.',
+      );
+
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 400,
+              child: FluentChartLegend(legends: legends),
+            ),
+          ),
+        ),
+      );
+      expect(
+        find.text('note'),
+        findsNothing,
+        reason:
+            'Legends.tsx:129-133 has no annotation slot, so overflow mode drops '
+            'it silently. // parity: reproduced.',
+      );
+    });
+
+    testWidgets('wrapped rows carry the captured 4px container margin', (
+      tester,
+    ) async {
+      final story = loadOracleStory('charts-legends--legends-wrap-lines');
+      final containers = story.boxes('fui-legend__legendContainer');
+      expect(
+        containers,
+        hasLength(17),
+        reason:
+            'Count guard: one container per legend. The captured gap below is '
+            'read off the first two of them.',
+      );
+      // useLegendsStyles.styles.ts:125 — `margin: 4px` on each container, so
+      // adjacent containers on one line sit 8 apart.
+      final capturedGap = containers[1].rect.left - containers.first.rect.right;
+      expectOracleNumber('captured container gap', 2 * 4, capturedGap);
+
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: const Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 400,
+              child: FluentChartLegend(
+                enabledWrapLines: true,
+                legends: <FluentChartLegendItem>[
+                  FluentChartLegendItem(title: 'a', color: seriesColour),
+                  FluentChartLegendItem(title: 'b', color: seriesColour),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      final rows = find.byType(FluentChartLegendRow);
+      expect(
+        rows,
+        findsNWidgets(2),
+        reason: 'Count guard: two rows, both on the one line 400 affords.',
+      );
+      expectOracleNumber(
+        'rendered gap between two wrapped rows',
+        capturedGap,
+        tester.getTopLeft(rows.at(1)).dx - tester.getTopRight(rows.first).dx,
+      );
+    });
   });
 }
