@@ -1,14 +1,23 @@
 import 'dart:math' as math;
 
+import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
+import 'axis/tick_format.dart';
+import 'chrome/chart_popover.dart';
 import 'chrome/chart_title.dart';
+import 'chrome/legend.dart';
 import 'gauge_chart_style.dart';
+import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
+import 'internal/chart_text_styles.dart';
+import 'internal/chart_utils.dart';
 import 'internal/d3/axis_geometry.dart';
+import 'internal/d3/js_math.dart' as d3;
 import 'internal/d3/path_sink.dart' as d3;
 import 'internal/d3/shape_arc.dart' as d3;
 import 'internal/data_viz_palette.dart';
+import 'model/callout_data.dart';
 import 'model/chart_common.dart';
 
 /// Which of the two gauge layouts upstream's `variant` prop selects.
@@ -671,4 +680,749 @@ class FluentGaugeChartPainter extends CustomPainter {
   // shows the gauge repainting hot.
   @override
   bool shouldRepaint(FluentGaugeChartPainter oldDelegate) => true;
+}
+
+/// The visible or accessible label for one gauge segment.
+///
+/// A literal port of `getSegmentLabel` (`GaugeChart.tsx:55-71`). The share form
+/// appears only when the scale starts at zero **and** the variant is the
+/// single-segment one; every other combination shows the range. The percentage
+/// goes through `Number.prototype.toFixed()` with no argument (`:64`, `:69`),
+/// which is zero decimal places, so [d3.jsRound] supplies JavaScript's half-up
+/// rounding before the string is built.
+String fluentGaugeSegmentLabel(
+  FluentGaugeSegment segment,
+  double minValue,
+  double maxValue,
+  FluentGaugeChartVariant variant, {
+  required bool forSemantics,
+}) {
+  final isShareForm =
+      minValue == 0 && variant == FluentGaugeChartVariant.singleSegment;
+  // GaugeChart.tsx:64 and :69 — the same percentage in both arms. The literal
+  // 100 is the percent conversion, not a tuning value.
+  final percent = d3.jsRound(segment.size / maxValue * 100).toStringAsFixed(0);
+  final size = d3.jsNumberToString(segment.size);
+  final start = d3.jsNumberToString(segment.start);
+  final end = d3.jsNumberToString(segment.end);
+  if (forSemantics) {
+    return isShareForm
+        // GaugeChart.tsx:63-64.
+        ? '${segment.legend}, $size out of '
+              '${d3.jsNumberToString(maxValue)} or $percent%'
+        // GaugeChart.tsx:65.
+        : '${segment.legend}, $start to $end';
+  }
+  return isShareForm
+      // GaugeChart.tsx:69 — no space before the bracket.
+      ? '$size ($percent%)'
+      // GaugeChart.tsx:70 — spaces round the dash.
+      : '$start - $end';
+}
+
+/// The chart value, either painted in the middle of the arc or read out in the
+/// popover.
+///
+/// A literal port of `getChartValueLabel` (`GaugeChart.tsx:73-97`). The two
+/// forms are deliberately opposites: whichever of fraction and percentage is
+/// painted, the popover shows the other, so the two together disclose the value
+/// without repeating it (`GaugeChart.tsx:81-82`). [format] is either a
+/// [FluentGaugeValueFormat] or a `String Function(double swept, double span)`
+/// standing in for upstream's `(sweepFraction: [number, number]) => string`;
+/// the callback arm is ignored for the popover, exactly as upstream ignores it
+/// (`:80-88`).
+String fluentGaugeValueLabel(
+  double chartValue,
+  double minValue,
+  double maxValue,
+  Object? format, {
+  required bool forCallout,
+}) {
+  final value = d3.jsNumberToString(chartValue);
+  final max = d3.jsNumberToString(maxValue);
+  // GaugeChart.tsx:86 and :96 — the percentage is of maxValue, not of the span.
+  final percent = d3.jsRound(chartValue / maxValue * 100).toStringAsFixed(0);
+  if (forCallout) {
+    if (minValue != 0) {
+      // GaugeChart.tsx:83-84 — a non-zero minimum drops both decorations.
+      return value;
+    }
+    return format == FluentGaugeValueFormat.fraction
+        // GaugeChart.tsx:86 — the fraction is painted, so the callout inverts.
+        ? '$percent%'
+        // GaugeChart.tsx:87.
+        : '$value/$max';
+  }
+  if (format is String Function(double, double)) {
+    // GaugeChart.tsx:90-91 — the callback receives the SWEPT amount and the
+    // span, not the raw value and maximum.
+    return format(chartValue - minValue, maxValue - minValue);
+  }
+  if (minValue != 0) {
+    // GaugeChart.tsx:92-93.
+    return value;
+  }
+  return format == FluentGaugeValueFormat.fraction
+      // GaugeChart.tsx:95.
+      ? '$value/$max'
+      // GaugeChart.tsx:96 — the default is the percentage.
+      : '$percent%';
+}
+
+/// Applies one [FluentGaugeChartStyle] to every [FluentGaugeChart] below it.
+class FluentGaugeChartTheme extends InheritedTheme {
+  /// Applies [style] to every [FluentGaugeChart] in [child].
+  const FluentGaugeChartTheme({
+    super.key,
+    required this.style,
+    required super.child,
+  });
+
+  /// The style layered over the resolved defaults.
+  final FluentGaugeChartStyle style;
+
+  /// The nearest gauge chart style, or null.
+  static FluentGaugeChartStyle? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<FluentGaugeChartTheme>()
+      ?.style;
+
+  @override
+  bool updateShouldNotify(FluentGaugeChartTheme oldWidget) =>
+      style != oldWidget.style;
+
+  @override
+  Widget wrap(BuildContext context, Widget child) =>
+      FluentGaugeChartTheme(style: style, child: child);
+}
+
+/// A Fluent 2 gauge chart: a half-disc of segments with a needle.
+///
+/// Ports `GaugeChart.tsx`. The widget declares no intrinsic size beyond the
+/// style's fallbacks; wrap it in a [SizedBox] to pin one, per design spec §2.2.
+class FluentGaugeChart extends StatefulWidget {
+  /// Creates a gauge chart.
+  const FluentGaugeChart({
+    super.key,
+    required this.chartValue,
+    required this.segments,
+    this.minValue = 0,
+    this.maxValue,
+    this.width,
+    this.height,
+    this.chartTitle,
+    this.sublabel,
+    this.hideMinMax = false,
+    this.chartValueFormat,
+    this.hideLegend = false,
+    this.hideTooltip = false,
+    this.culture,
+    this.variant = FluentGaugeChartVariant.multipleSegments,
+    this.roundCorners = false,
+    this.canSelectMultipleLegends = false,
+    this.style,
+  });
+
+  /// Where the needle points, in the same units as the segments.
+  final double chartValue;
+
+  /// The segments, in sweep order from the minimum.
+  final List<FluentGaugeChartSegment> segments;
+
+  /// The value at the left end of the arc (`GaugeChart.tsx:183`).
+  final double minValue;
+
+  /// The value at the right end. When it exceeds the segment total an
+  /// `Unknown` filler segment covers the difference (`GaugeChart.tsx:200-209`).
+  final double? maxValue;
+
+  /// An explicit width, overriding the incoming constraints.
+  final double? width;
+
+  /// An explicit height, overriding the incoming constraints.
+  final double? height;
+
+  /// The visible title, painted above the arc (`GaugeChart.tsx:600-609`).
+  final String? chartTitle;
+
+  /// A caption below the chart value (`GaugeChart.tsx:685-698`).
+  final String? sublabel;
+
+  /// Hides both limit labels, which also shrinks the side margins to the bare
+  /// gauge margin (`GaugeChart.tsx:109-112`).
+  final bool hideMinMax;
+
+  /// Either a [FluentGaugeValueFormat] or a
+  /// `String Function(double swept, double span)`.
+  final Object? chartValueFormat;
+
+  /// Hides the legend strip and reclaims its height (`GaugeChart.tsx:119`).
+  final bool hideLegend;
+
+  /// Suppresses the popover entirely (`GaugeChart.tsx:703`).
+  final bool hideTooltip;
+
+  /// The locale tag upstream passes to `formatToLocaleString` for popover text
+  /// (`GaugeChart.tsx:456`).
+  ///
+  /// `// parity:` not applied — every string this chart puts in the popover is
+  /// already formatted by [fluentGaugeSegmentLabel] or
+  /// [fluentGaugeValueLabel], both of which build their own text, so upstream's
+  /// extra pass over the finished string is a no-op it never notices.
+  final String? culture;
+
+  /// Chooses the segment-label form (`GaugeChart.tsx:63`, `:68`).
+  final FluentGaugeChartVariant variant;
+
+  /// Rounds the arc ends (`GaugeChart.tsx:214`).
+  final bool roundCorners;
+
+  /// Allows more than one legend to stay selected (`GaugeChart.tsx:322-326`).
+  final bool canSelectMultipleLegends;
+
+  /// The style layered over [FluentGaugeChartTheme] and the resolved defaults.
+  final FluentGaugeChartStyle? style;
+
+  @override
+  State<FluentGaugeChart> createState() => _FluentGaugeChartState();
+}
+
+/// The name upstream gives the needle when it opens the popover, and the one
+/// value of `focusedElement` that is never a legend (`GaugeChart.tsx:399`).
+const String _kNeedleAnchor = 'Needle';
+
+class _FluentGaugeChartState extends State<FluentGaugeChart> {
+  List<String> _selectedLegends = const <String>[];
+  String _hoveredLegend = '';
+  String? _focusedElement;
+  Offset? _anchor;
+  List<FluentYValueHover> _hoverValues = const <FluentYValueHover>[];
+  final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
+
+  @override
+  void didUpdateWidget(FluentGaugeChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // GaugeChart.tsx:155-163 — the selection resets only when the incoming
+    // list actually differs, compared element-wise.
+    final incoming = <String>[
+      for (final segment in widget.segments) segment.legend,
+    ];
+    if (!areArraysEqual(incoming, <String>[
+      for (final segment in oldWidget.segments) segment.legend,
+    ])) {
+      _selectedLegends = const <String>[];
+    }
+  }
+
+  List<String> get _highlighted => _selectedLegends.isNotEmpty
+      ? _selectedLegends
+      : (_hoveredLegend.isEmpty ? const <String>[] : <String>[_hoveredLegend]);
+
+  bool _isDimmed(String legend) =>
+      _highlighted.isNotEmpty &&
+      !isLegendHighlightedMulti(
+        legend,
+        selectedLegends: _selectedLegends,
+        activeLegend: _hoveredLegend.isEmpty ? null : _hoveredLegend,
+      );
+
+  /// How many bands the gauge ends up with, filler included.
+  ///
+  /// Duplicates the tail of `_processProps` (`GaugeChart.tsx:184-209`) rather
+  /// than reading [FluentGaugeLayout.segments], because the region label that
+  /// needs it is hoisted above the [LayoutBuilder]: a semantics node inside the
+  /// builder is not the widget's own render object, and `getSemantics` would
+  /// walk past it to the app's.
+  int get _segmentCount {
+    // GaugeChart.tsx:186 — the running total is seeded with the minimum.
+    var total = widget.minValue;
+    for (final segment in widget.segments) {
+      // GaugeChart.tsx:189 — Math.max(segment.size, 0).
+      total += math.max(segment.size, 0.0);
+    }
+    // GaugeChart.tsx:203 — a strict `<`, so a maximum exactly at the total
+    // appends nothing.
+    final hasFiller = widget.maxValue != null && total < widget.maxValue!;
+    return widget.segments.length + (hasFiller ? 1 : 0);
+  }
+
+  void _showPopover(String legend, Rect bounds, FluentGaugeLayout layout) {
+    // GaugeChart.tsx:399-401 — the needle always opens the popover; a segment
+    // opens it only while it is not dimmed.
+    if (legend != _kNeedleAnchor && _isDimmed(legend)) {
+      return;
+    }
+    setState(() {
+      _anchor = bounds.center;
+      // GaugeChart.tsx:389-397 — every segment that is not dimmed, in order.
+      _hoverValues = <FluentYValueHover>[
+        for (final segment in layout.segments)
+          if (!_isDimmed(segment.legend))
+            FluentYValueHover(
+              legend: segment.legend,
+              // GaugeChart.tsx:99-101 widens YValueHover.y to a string for
+              // this chart alone; the port keeps `y` numeric and carries the
+              // label in `yAxisCalloutData`, the slot both callout bodies
+              // already prefer over `y` (`GaugeChart.tsx:543`,
+              // `ChartPopover.tsx:232`).
+              yAxisCalloutText: fluentGaugeSegmentLabel(
+                segment,
+                layout.minValue,
+                layout.maxValue,
+                widget.variant,
+                forSemantics: false,
+              ),
+              color: segment.colour,
+            ),
+      ];
+    });
+  }
+
+  void _hidePopover() {
+    setState(() {
+      _anchor = null;
+      _hoverValues = const <FluentYValueHover>[];
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final resolved = resolveFluentGaugeChartStyle(
+      theme,
+    ).merge(FluentGaugeChartTheme.maybeOf(context)).merge(widget.style);
+    const states = <WidgetState>{};
+    final textStyles = FluentChartTextStyles.of(theme);
+    final chartColours = FluentChartColors.of(theme);
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+
+    return Semantics(
+      container: true,
+      // The gauge's own children carry roles upstream — `option` on each band,
+      // `img` on the needle and the limits — so they must stay separate nodes
+      // instead of being folded into the region's label.
+      explicitChildNodes: true,
+      // GaugeChart.tsx:577-579 — the title prefix, then the count, then a
+      // trailing space that upstream also emits.
+      label:
+          '${widget.chartTitle == null ? '' : '${widget.chartTitle}. '}'
+          'Gauge chart with $_segmentCount segments. ',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final layout = FluentGaugeLayout.compute(
+            size: Size(
+              widget.width ??
+                  (constraints.hasBoundedWidth
+                      ? constraints.maxWidth
+                      : resolved.intrinsicWidth!.resolve(states)!),
+              widget.height ??
+                  (constraints.hasBoundedHeight
+                      ? constraints.maxHeight
+                      : resolved.intrinsicHeight!.resolve(states)!),
+            ),
+            segments: widget.segments,
+            minValue: widget.minValue,
+            maxValue: widget.maxValue,
+            hasTitle: widget.chartTitle != null,
+            hasSublabel: widget.sublabel != null,
+            hideMinMax: widget.hideMinMax,
+            hideLegend: widget.hideLegend,
+            gaugeMargin: resolved.gaugeMargin!.resolve(states)!,
+            labelWidth: resolved.labelWidth!.resolve(states)!,
+            labelHeight: resolved.labelHeight!.resolve(states)!,
+            labelOffset: resolved.labelOffset!.resolve(states)!,
+            titleOffset: resolved.titleOffset!.resolve(states)!,
+            extraNeedleLength: resolved.extraNeedleLength!.resolve(states)!,
+            legendsHeight: widget.hideLegend
+                ? 0
+                : resolved.legendsHeight!.resolve(states)!,
+            unknownColour: resolved.unknownSegmentColor!.resolve(states)!,
+            isDark: theme.brightness == Brightness.dark,
+          );
+          final arcs = fluentGaugeArcs(
+            layout,
+            arcPadding: resolved.arcPadding!.resolve(states)!,
+            // GaugeChart.tsx:214 — 3 when roundCorners is set, otherwise 0.
+            cornerRadius: widget.roundCorners
+                ? resolved.cornerRadius!.resolve(states)!
+                : 0,
+            isRtl: isRtl,
+          );
+          final valueLabel = fluentGaugeValueLabel(
+            widget.chartValue,
+            layout.minValue,
+            layout.maxValue,
+            widget.chartValueFormat,
+            forCallout: false,
+          );
+          final chartValueStyle =
+              (resolved.chartValueTextStyle!.resolve(states) ??
+                      textStyles.chartTitle)
+                  // GaugeChart.tsx:678 — the breakpoint drives the size, not
+                  // the class.
+                  .copyWith(fontSize: layout.chartValueFontSize);
+          final sublabelStyle =
+              resolved.sublabelTextStyle!.resolve(states) ??
+              textStyles.axisTick;
+          final rotation = FluentGaugeLayout.needleRotation(
+            widget.chartValue,
+            layout.minValue,
+            layout.maxValue,
+          );
+
+          // GaugeChart.tsx:681 — the chart value is clipped to the hole minus
+          // the 24px inset, then ellipsised by _wrapContent (:432-434). The 2
+          // turns the inner radius into the diameter.
+          final shownValue = truncateString(
+            valueLabel,
+            _fitCharacters(
+              valueLabel,
+              chartValueStyle,
+              layout.innerRadius * 2 -
+                  resolved.chartValueInset!.resolve(states)!,
+            ),
+          );
+          // GaugeChart.tsx:695 — the sublabel gets the whole hole.
+          final shownSublabel = widget.sublabel == null
+              ? null
+              : truncateString(
+                  widget.sublabel!,
+                  _fitCharacters(
+                    widget.sublabel!,
+                    sublabelStyle,
+                    layout.innerRadius * 2,
+                  ),
+                );
+
+          final painter = FluentGaugeChartPainter(
+            layout: layout,
+            arcs: arcs,
+            colours: <Color>[
+              for (final segment in layout.segments)
+                chartColours.flattenMark(segment.colour),
+            ],
+            // GaugeChart.tsx:646 — 1 when highlighted or nothing is
+            // highlighted, otherwise the dimmed 0.1.
+            opacities: <double>[
+              for (final segment in layout.segments)
+                _isDimmed(segment.legend)
+                    ? resolved.dimmedOpacity!.resolve(states)!
+                    : 1.0,
+            ],
+            focusedIndex: _focusedElement == null
+                ? null
+                : layout.segments.indexWhere(
+                    (segment) => segment.legend == _focusedElement,
+                  ),
+            needlePath: fluentGaugeNeedlePath(
+              innerRadius: layout.innerRadius,
+              needleLength: layout.needleLength,
+              extraNeedleLength: resolved.extraNeedleLength!.resolve(states)!,
+              strokeWidth: resolved.needleStrokeWidth!.resolve(states)!,
+            ),
+            // GaugeChart.tsx:247 — right-to-left mirrors the angle, not the
+            // path. The 180 is the half disc's own sweep.
+            needleRotationDegrees: isRtl ? 180 - rotation : rotation,
+            needleFill: resolved.needleFill!.resolve(states)!,
+            needleStroke: resolved.needleStroke!.resolve(states)!,
+            needleStrokeWidth: resolved.needleStrokeWidth!.resolve(states)!,
+            segmentFocusStrokeColour: resolved.segmentFocusStrokeColor!.resolve(
+              states,
+            )!,
+            // GaugeChart.tsx:643 — the focus ring reuses the pad width.
+            focusStrokeWidth: resolved.arcPadding!.resolve(states)!,
+            minLabel: widget.hideMinMax
+                ? null
+                : formatScientificLimitWidth(layout.minValue),
+            maxLabel: widget.hideMinMax
+                ? null
+                : formatScientificLimitWidth(layout.maxValue),
+            // The value and the sublabel are `SVGTooltipText` upstream
+            // (`GaugeChart.tsx:671`, `:686`), not bare `<text>`: both carry a
+            // hover tooltip. The port renders those two as widgets for the
+            // same reason it renders the title as one, so the painter is told
+            // to leave them alone rather than drawing them a second time.
+            valueLabel: '',
+            sublabel: null,
+            labelOffset: resolved.labelOffset!.resolve(states)!,
+            limitsTextStyle:
+                resolved.limitsTextStyle!.resolve(states) ??
+                textStyles.axisTick,
+            chartValueTextStyle: chartValueStyle,
+            sublabelTextStyle: sublabelStyle,
+            measurer: _measurer,
+            textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+          );
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Expanded(
+                child: MouseRegion(
+                  onExit: (_) => _hidePopover(),
+                  child: Stack(
+                    children: <Widget>[
+                      Positioned.fill(child: CustomPaint(painter: painter)),
+                      if (widget.chartTitle != null)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          // GaugeChart.tsx:604 — one titleOffset above the arc,
+                          // then back up by the row the title occupies.
+                          top:
+                              layout.origin.dy -
+                              layout.outerRadius -
+                              resolved.titleOffset!.resolve(states)! -
+                              resolved.labelHeight!.resolve(states)!,
+                          child: FluentChartTitle(
+                            title: widget.chartTitle!,
+                            textStyle:
+                                resolved.titleTextStyle!.resolve(states) ??
+                                textStyles.chartTitle,
+                          ),
+                        ),
+                      for (var i = 0; i < layout.segments.length; i++)
+                        _hitTarget(
+                          bounds: arcs
+                              .firstWhere((arc) => arc.segmentIndex == i)
+                              .path
+                              .getBounds()
+                              .shift(layout.origin),
+                          label: fluentGaugeSegmentLabel(
+                            layout.segments[i],
+                            layout.minValue,
+                            layout.maxValue,
+                            widget.variant,
+                            forSemantics: true,
+                          ),
+                          // GaugeChart.tsx:660 — a dimmed segment leaves the
+                          // tab order entirely.
+                          focusable: !_isDimmed(layout.segments[i].legend),
+                          onEnter: (bounds) {
+                            _focusedElement = layout.segments[i].legend;
+                            _showPopover(
+                              layout.segments[i].legend,
+                              bounds,
+                              layout,
+                            );
+                          },
+                        ),
+                      _hitTarget(
+                        bounds: painter.needlePath.getBounds().shift(
+                          layout.origin,
+                        ),
+                        // GaugeChart.tsx:275-276 — the non-callout form.
+                        label: 'Current value: $valueLabel',
+                        focusable: true,
+                        onEnter: (bounds) =>
+                            _showPopover(_kNeedleAnchor, bounds, layout),
+                      ),
+                      if (!widget.hideMinMax) ...<Widget>[
+                        // GaugeChart.tsx:617 and :627 — both limits are
+                        // image-role nodes with their own labels.
+                        _hitTarget(
+                          bounds: _limitBounds(
+                            layout,
+                            resolved,
+                            states,
+                            isMaximum: false,
+                          ),
+                          label:
+                              'Min value: '
+                              '${d3.jsNumberToString(layout.minValue)}',
+                          focusable: false,
+                          onEnter: null,
+                        ),
+                        _hitTarget(
+                          bounds: _limitBounds(
+                            layout,
+                            resolved,
+                            states,
+                            isMaximum: true,
+                          ),
+                          label:
+                              'Max value: '
+                              '${d3.jsNumberToString(layout.maxValue)}',
+                          focusable: false,
+                          onEnter: null,
+                        ),
+                      ],
+                      // GaugeChart.tsx:673-679 — x=0, y=0, text-anchor middle,
+                      // the default alphabetic baseline, and `aria-hidden`
+                      // because the needle already announces the same string.
+                      _centredText(
+                        shownValue,
+                        chartValueStyle,
+                        layout.origin,
+                        FluentChartTitleBaseline.alphabetic,
+                      ),
+                      if (shownSublabel != null)
+                        // GaugeChart.tsx:688-692 — x=0, y=4, hanging.
+                        _centredText(
+                          shownSublabel,
+                          sublabelStyle,
+                          layout.origin +
+                              Offset(0, resolved.labelOffset!.resolve(states)!),
+                          FluentChartTitleBaseline.hanging,
+                        ),
+                      if (_anchor != null && !widget.hideTooltip)
+                        Positioned.fill(
+                          // The popover follows the cursor, so letting it take
+                          // the pointer would pull the pointer off the band
+                          // that opened it and close it again.
+                          child: IgnorePointer(
+                            child: FluentChartPopover(
+                              anchor: _anchor!,
+                              data: FluentChartPopoverData(
+                                // GaugeChart.tsx:386-387 — the callout inverts
+                                // the painted form.
+                                xValue:
+                                    'Current value is '
+                                    '${fluentGaugeValueLabel(widget.chartValue, layout.minValue, layout.maxValue, widget.chartValueFormat, forCallout: true)}',
+                                yValues: _hoverValues,
+                                // GaugeChart.tsx:705-707 passes
+                                // `_multiValueCallout`, which is the stacked
+                                // body.
+                                isCalloutForStack: true,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              if (!widget.hideLegend)
+                SizedBox(
+                  height: resolved.legendsHeight!.resolve(states)!,
+                  // GaugeChart.tsx:283-297 — built from layout.segments, which
+                  // already carries the Unknown filler pushed at :200-209.
+                  child: FluentChartLegend(
+                    centerLegends: true,
+                    selectionMode: widget.canSelectMultipleLegends
+                        ? FluentChartLegendSelectionMode.multiple
+                        : FluentChartLegendSelectionMode.single,
+                    selectedLegends: _selectedLegends,
+                    legends: <FluentChartLegendItem>[
+                      for (final segment in layout.segments)
+                        FluentChartLegendItem(
+                          title: segment.legend,
+                          color: segment.colour,
+                          onHoverAction: () =>
+                              setState(() => _hoveredLegend = segment.legend),
+                          onMouseOutAction: ({required bool isLegendFocused}) =>
+                              setState(() => _hoveredLegend = ''),
+                        ),
+                    ],
+                    onChange: (selected, current) => setState(() {
+                      // GaugeChart.tsx:322-326 — single selection keeps only
+                      // the last entry, upstream's `slice(-1)`.
+                      _selectedLegends = widget.canSelectMultipleLegends
+                          ? selected
+                          : selected
+                                .skip(math.max(0, selected.length - 1))
+                                .toList(growable: false);
+                    }),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// The box one limit label occupies, outside the arc (`GaugeChart.tsx:613`,
+  /// `:623`).
+  Rect _limitBounds(
+    FluentGaugeLayout layout,
+    FluentGaugeChartStyle resolved,
+    Set<WidgetState> states, {
+    required bool isMaximum,
+  }) {
+    final offset = resolved.labelOffset!.resolve(states)!;
+    final width = resolved.labelWidth!.resolve(states)!;
+    final height = resolved.labelHeight!.resolve(states)!;
+    return Rect.fromLTWH(
+      isMaximum
+          ? layout.origin.dx + layout.outerRadius + offset
+          : layout.origin.dx - layout.outerRadius - offset - width,
+      // The 2 centres the row on the arc's own baseline, which is y = 0.
+      layout.origin.dy - height / 2,
+      width,
+      height,
+    );
+  }
+
+  /// One `text-anchor: middle` string placed against [anchorPoint] the way
+  /// [FluentGaugeChartPainter] would place it, and hidden from assistive tech.
+  ///
+  /// `aria-hidden="true"` at `GaugeChart.tsx:679`: the needle's own label
+  /// already reads the chart value, and the sublabel is decoration.
+  Widget _centredText(
+    String text,
+    TextStyle style,
+    Offset anchorPoint,
+    FluentChartTitleBaseline baseline,
+  ) {
+    final metrics = _measurer.measure(text, style);
+    return Positioned(
+      // The 2 halves the advance width, which is what `text-anchor: middle`
+      // does.
+      left: anchorPoint.dx - metrics.width / 2,
+      top:
+          anchorPoint.dy +
+          fluentChartBaselineOffset(baseline, metrics) -
+          metrics.ascent,
+      child: Semantics(
+        container: true,
+        excludeSemantics: true,
+        child: Text(text, style: style, maxLines: 1),
+      ),
+    );
+  }
+
+  /// How many characters of [text] fit in [maxWidth], mirroring
+  /// `_wrapContent`'s one-character-at-a-time trim (`GaugeChart.tsx:418-434`).
+  int _fitCharacters(String text, TextStyle style, double maxWidth) {
+    if (_measurer.width(text, style) <= maxWidth) {
+      return text.length;
+    }
+    for (var length = text.length - 1; length > 0; length--) {
+      // The upstream loop measures `content + '...'`, so the ellipsis is inside
+      // the budget (`GaugeChart.tsx:427`).
+      if (_measurer.width('${text.substring(0, length)}...', style) <=
+          maxWidth) {
+        return length;
+      }
+    }
+    return 0;
+  }
+
+  Widget _hitTarget({
+    required Rect bounds,
+    required String label,
+    required bool focusable,
+    required void Function(Rect bounds)? onEnter,
+  }) => Positioned.fromRect(
+    rect: bounds,
+    child: MouseRegion(
+      onEnter: onEnter == null ? null : (_) => onEnter(bounds),
+      child: Focus(
+        canRequestFocus: focusable,
+        onFocusChange: (hasFocus) {
+          if (!hasFocus) {
+            _focusedElement = null;
+            _hidePopover();
+          } else if (onEnter != null) {
+            onEnter(bounds);
+          }
+        },
+        child: Semantics(
+          label: label,
+          image: onEnter == null,
+          child: const SizedBox.expand(),
+        ),
+      ),
+    ),
+  );
 }
