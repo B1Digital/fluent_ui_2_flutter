@@ -301,7 +301,10 @@ class FluentChartImageExporter {
   final GlobalKey boundaryKey;
 
   /// Legends to synthesise. Empty means no strip is drawn at all, which is
-  /// what `hideLegends` does at `hooks.ts:32`.
+  /// what `hideLegends` does at `hooks.ts:33` — the argument
+  /// `hideLegends ? undefined : legendsRef.current?.toSVG`, which is what
+  /// `exportChartsAsImage` receives in place of a legend cloner. `:32` is the
+  /// chart-container argument above it.
   final List<FluentChartLegendItem> legends;
 
   /// Measurer for the legend labels.

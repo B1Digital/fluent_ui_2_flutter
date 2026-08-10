@@ -3,6 +3,7 @@ import 'package:fluent_2_web/src/charts/internal/d3/sankey.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../support/oracle_fixture.dart';
 import 'd3/golden_support.dart';
 
 /// `SankeyChart.tsx:180-216` is the value-normalisation pass that runs between the two
@@ -623,6 +624,165 @@ void main() {
           );
         }
       }
+    });
+  });
+
+  group('Oracle B: the captured node rectangles', () {
+    // Half a pixel: wide enough to accept the serialised "124" whatever the
+    // decimal noise, and nowhere near the 65.47-wide backdrop behind the title,
+    // which is the only other rect a Sankey story draws.
+    const nodeRectWidthTolerance = 0.5;
+
+    // The title every one of the four Sankey captures renders, so
+    // sankeyTitleHeight resolves the same 36 the captures put the first node
+    // row at rather than this test asserting the margin twice over.
+    const capturedTitle = 'Sankey Chart';
+
+    /// Every node rectangle in [id], ordered by column then by row.
+    ///
+    /// Node rectangles are the ones exactly [kSankeyNodeWidth] wide
+    /// (`SankeyChart.tsx:817`); the fifth rect in each story is the white
+    /// backdrop the title draws (`SankeyChart.tsx:554-560`).
+    List<Rect> capturedNodeRects(String id) {
+      final story = loadOracleStory(id);
+      final rects = <Rect>[
+        for (final element in story.byTag('rect'))
+          if (element.width != null &&
+              (element.width! - kSankeyNodeWidth).abs() <
+                  nodeRectWidthTolerance)
+            Rect.fromLTWH(
+              element.x!,
+              element.y!,
+              element.width!,
+              element.height!,
+            ),
+      ];
+      // A filtered loop over a capture asserts nothing when the filter matches
+      // nothing, and this one would then compare two empty lists.
+      expect(
+        rects,
+        isNotEmpty,
+        reason:
+            '$id records no rect $kSankeyNodeWidth wide, so either the capture '
+            'lost the nodes or SankeyChart.tsx:62 changed the node width',
+      );
+      return rects..sort(
+        (a, b) => a.left == b.left
+            ? a.top.compareTo(b.top)
+            : a.left.compareTo(b.left),
+      );
+    }
+
+    /// Asserts [data] laid out at [id]'s captured size lands every node on the
+    /// rectangle the shipped React chart drew.
+    void expectLayoutReproducesCapture(String id, FluentSankeyChartData data) {
+      final story = loadOracleStory(id);
+      final captured = capturedNodeRects(id);
+      expect(
+        captured.length,
+        data.nodes.length,
+        reason:
+            '$id draws ${captured.length} node rectangles but the graph read '
+            'back off it has ${data.nodes.length} nodes, so the transcription '
+            'below is wrong and every coordinate it compares is meaningless',
+      );
+      final layout = computeFluentSankeyLayout(
+        data: data,
+        size: Size(story.width, story.height),
+        titleHeight: sankeyTitleHeight(chartTitle: capturedTitle),
+        isRtl: false,
+      );
+      final solved =
+          <Rect>[
+            for (final node in layout.nodes)
+              Rect.fromLTRB(node.x0, node.y0, node.x1, node.y1),
+          ]..sort(
+            (a, b) => a.left == b.left
+                ? a.top.compareTo(b.top)
+                : a.left.compareTo(b.left),
+          );
+      for (var i = 0; i < captured.length; i++) {
+        expectOracleRect('$id node rect $i', captured[i], solved[i]);
+      }
+    }
+
+    // The graph behind charts-sankeychart--sankey-chart-basic and
+    // --sankey-chart-responsive, read back off the two captures: six labelled
+    // nodes over four columns, and eight streams whose bands give the link
+    // weights. Only the ratios survive the capture — d3-sankey normalises the
+    // column totals to the plot height (`sankey.js:82-96`) — so these are the
+    // captured band widths divided by the 28px the labelled weights put on one
+    // unit in --sankey-chart-basic.
+    const sixNodeGraph = FluentSankeyChartData(
+      nodes: <FluentSankeyNode>[
+        FluentSankeyNode(nodeId: 0, name: 'node0'),
+        FluentSankeyNode(nodeId: 1, name: 'node1'),
+        FluentSankeyNode(nodeId: 2, name: 'node2'),
+        FluentSankeyNode(nodeId: 3, name: 'node3'),
+        FluentSankeyNode(nodeId: 4, name: 'node4'),
+        FluentSankeyNode(nodeId: 5, name: 'node5'),
+      ],
+      links: <FluentSankeyLink>[
+        FluentSankeyLink(source: 0, target: 4, value: 2),
+        FluentSankeyLink(source: 0, target: 2, value: 2),
+        FluentSankeyLink(source: 1, target: 2, value: 2),
+        FluentSankeyLink(source: 1, target: 3, value: 2),
+        FluentSankeyLink(source: 2, target: 4, value: 2),
+        FluentSankeyLink(source: 2, target: 3, value: 2),
+        FluentSankeyLink(source: 3, target: 4, value: 4),
+        FluentSankeyLink(source: 3, target: 5, value: 4),
+      ],
+    );
+
+    // The graph behind charts-sankeychart--sankey-chart-rebalance: two sources
+    // feeding two targets, with one stream worth 10000 and the other three
+    // worth 1 each. The two small nodes come out 3.16px tall against the big
+    // ones' 320.84, which is a hundred times their 0.02% share of the column —
+    // this is the story the one-percent lift (`SankeyChart.tsx:180-216`) exists
+    // for, and the only capture in the corpus that exercises it.
+    //
+    // Their names are unrecoverable and do not matter: 3.16px is under
+    // MIN_HEIGHT_FOR_TYPE (`SankeyChart.tsx:55`), so neither small node renders
+    // text, and computeFluentSankeyLayout reads nodeId and the links only.
+    const rebalanceGraph = FluentSankeyChartData(
+      nodes: <FluentSankeyNode>[
+        FluentSankeyNode(nodeId: 0, name: 'Large Source'),
+        FluentSankeyNode(nodeId: 1, name: 'Small Source'),
+        FluentSankeyNode(nodeId: 2, name: 'Large Target'),
+        FluentSankeyNode(nodeId: 3, name: 'Small Target'),
+      ],
+      links: <FluentSankeyLink>[
+        FluentSankeyLink(source: 0, target: 2, value: 10000),
+        FluentSankeyLink(source: 0, target: 3, value: 1),
+        FluentSankeyLink(source: 1, target: 2, value: 1),
+        FluentSankeyLink(source: 1, target: 3, value: 1),
+      ],
+    );
+
+    test('--sankey-chart-basic lands every node on its captured rectangle', () {
+      expectLayoutReproducesCapture(
+        'charts-sankeychart--sankey-chart-basic',
+        sixNodeGraph,
+      );
+    });
+
+    test('--sankey-chart-responsive is the same graph in a wider box', () {
+      // The pair is the point. --sankey-chart-basic renders this graph at
+      // 820x412 and --sankey-chart-responsive at 944x468, so a column pitch or
+      // a margin that was fitted to one box rather than solved from it passes
+      // the first test and fails this one. Nothing else in the corpus captures
+      // one Sankey graph at two sizes.
+      expectLayoutReproducesCapture(
+        'charts-sankeychart--sankey-chart-responsive',
+        sixNodeGraph,
+      );
+    });
+
+    test('--sankey-chart-rebalance lifts its two sub-one-percent nodes', () {
+      expectLayoutReproducesCapture(
+        'charts-sankeychart--sankey-chart-rebalance',
+        rebalanceGraph,
+      );
     });
   });
 
