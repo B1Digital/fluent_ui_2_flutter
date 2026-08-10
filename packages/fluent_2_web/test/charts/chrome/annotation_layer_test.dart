@@ -428,6 +428,7 @@ void main() {
   });
 
   mainCoordinates();
+  mainSizing();
 }
 
 /// The coordinate-resolution half of the suite (`ChartAnnotationLayer.tsx`
@@ -806,3 +807,223 @@ void mainCoordinates() {
 OracleSvg _connectorLayer(OracleStory story) => story.svgs.singleWhere(
   (svg) => svg.slot == 'fui-chartAnnotationLayer__connectorLayer',
 );
+
+/// The sizing-and-clamping half of the suite
+/// (`ChartAnnotationLayer.tsx:532-559`), called from [main].
+void mainSizing() {
+  const context = FluentChartAnnotationContext(
+    plotRect: Rect.fromLTWH(20, 10, 200, 100),
+    chartSize: Size(300, 200),
+    isRtl: false,
+  );
+
+  FluentAnnotationBox layout(
+    Offset point, {
+    FluentChartAnnotationLayout? layoutProps,
+    Size measured = const Size(40, 20),
+  }) => fluentLayoutAnnotationBox(
+    resolved: FluentResolvedAnnotationPosition(anchor: point, point: point),
+    measured: measured,
+    layout: layoutProps,
+    context: context,
+  );
+
+  group('fluentLayoutAnnotationBox', () {
+    test('the default alignment centres the box on the point', () {
+      expect(
+        layout(const Offset(100, 50)).rect,
+        const Rect.fromLTWH(100 - 20, 50 - 10, 40, 20),
+        reason:
+            'ChartAnnotationLayer.tsx:26-27 default to center and middle, and '
+            ':538-539 turn those into -width/2 and -height/2.',
+      );
+    });
+
+    test('start and top leave the point at the corner', () {
+      expect(
+        layout(
+          const Offset(100, 50),
+          layoutProps: const FluentChartAnnotationLayout(
+            align: FluentChartAnnotationAlign.start,
+            verticalAlign: FluentChartAnnotationVerticalAlign.top,
+          ),
+        ).rect.topLeft,
+        const Offset(100, 50),
+        reason: 'ChartAnnotationLayer.tsx:538-539, the zero arms.',
+      );
+    });
+
+    test('end and bottom put the point at the far corner', () {
+      expect(
+        layout(
+          const Offset(100, 50),
+          layoutProps: const FluentChartAnnotationLayout(
+            align: FluentChartAnnotationAlign.end,
+            verticalAlign: FluentChartAnnotationVerticalAlign.bottom,
+          ),
+        ).rect.bottomRight,
+        const Offset(100, 50),
+        reason: 'ChartAnnotationLayer.tsx:538-539, the full-size arms.',
+      );
+    });
+
+    test('a null clipToBounds still clamps the BOX to the plot rect', () {
+      expect(
+        layout(const Offset(215, 50)).rect.right,
+        context.plotRect.right,
+        reason:
+            'ChartAnnotationLayer.tsx:544 is `layout?.clipToBounds !== false`, '
+            'so undefined selects the plot rect as the clamping viewport even '
+            'though :385 left the point alone. That asymmetry is the whole '
+            'reason clipToBounds is a tri-state.',
+      );
+    });
+
+    test('an explicit false widens the viewport to the whole chart', () {
+      expect(
+        layout(
+          const Offset(215, 50),
+          layoutProps: const FluentChartAnnotationLayout(clipToBounds: false),
+        ).rect.right,
+        moreOrLessEquals(215 + 20, epsilon: 0.001),
+        reason:
+            'ChartAnnotationLayer.tsx:547-548 switches to the svgRect, which is '
+            '300 wide here, so a box ending at 235 needs no clamping at all.',
+      );
+    });
+
+    test('a box wider than the viewport is pinned to its origin', () {
+      expect(
+        layout(const Offset(100, 50), measured: const Size(400, 20)).rect.left,
+        context.plotRect.left,
+        reason:
+            'ChartAnnotationLayer.tsx:553 clamps against '
+            'Math.max(viewportX, maxTopLeftX), so a negative maximum collapses '
+            'onto the origin rather than inverting the clamp.',
+      );
+    });
+
+    test('the display point tracks the clamped box', () {
+      final box = layout(const Offset(215, 50));
+      expect(
+        box.displayPoint,
+        box.rect.center,
+        reason:
+            'ChartAnnotationLayer.tsx:556-559 recovers the display point by '
+            'undoing the alignment offset, which for the default centre '
+            'alignment is the rect centre. The connector starts there, not at '
+            'the unclamped point.',
+      );
+    });
+
+    test('a size of zero is floored at one', () {
+      expect(
+        layout(const Offset(100, 50), measured: Size.zero).rect.size,
+        const Size(1, 1),
+        reason:
+            'ChartAnnotationLayer.tsx:535-536 wrap both dimensions in '
+            'Math.max(..., 1).',
+      );
+    });
+  });
+
+  group('the corpus keeps every annotation box inside the plot rect', () {
+    final story = loadOracleStory(
+      'charts-linechart--line-chart-annotations-example',
+    );
+    // The plot rect is the two axes' ranges, recovered from their tick labels
+    // exactly as the coordinate group above does: the x axis is translated to
+    // y 445 and the y axis to x 40, both carrying story.crispOffset
+    // (`d3-axis/src/axis.js:47`).
+    final texts = story.byTag('text');
+    Offset at(OracleElement element) => story.absoluteTranslate(element);
+    final xMax = texts.singleWhere((element) => element.text == '6');
+    final xMin = texts.singleWhere(
+      (element) => element.text == '0' && at(element).dy == at(xMax).dy,
+    );
+    final yMax = texts.singleWhere((element) => element.text == '52');
+    final yMin = texts.singleWhere(
+      (element) => element.text == '0' && at(element).dx == at(yMax).dx,
+    );
+    final plotRect = Rect.fromLTRB(
+      at(xMin).dx - story.crispOffset,
+      at(yMax).dy - story.crispOffset,
+      at(xMax).dx - story.crispOffset,
+      at(yMin).dy - story.crispOffset,
+    );
+    final context = FluentChartAnnotationContext(
+      plotRect: plotRect,
+      chartSize: Size(story.width, story.height),
+      isRtl: false,
+    );
+    // The `foreignObject` per annotation is the box upstream painted; x/y are
+    // its top-left in svg coordinates (`ChartAnnotationLayer.tsx:636-641`).
+    final captured = _connectorLayer(
+      story,
+    ).elements.where((element) => element.tag == 'foreignObject').toList();
+
+    test('the four captured boxes fit the viewport a null flag selects', () {
+      expect(
+        captured.length,
+        4,
+        reason:
+            'The story declares four annotations; a zero count would make the '
+            'loops below vacuous.',
+      );
+      for (final box in captured) {
+        final rect = Rect.fromLTWH(box.x!, box.y!, box.width!, box.height!);
+        expect(
+          plotRect.contains(rect.topLeft) &&
+              plotRect.contains(rect.bottomRight),
+          isTrue,
+          reason:
+              'ChartAnnotationLayer.tsx:544-554 — box #${box.index} of '
+              '${story.id} at $rect is inside the plot rect $plotRect, so the '
+              'clamp had nothing to do and the captured rect is the pure '
+              'alignment result.',
+        );
+        expectOracleRect(
+          'ChartAnnotationLayer.tsx:538-539 — the default centre/middle arms '
+          'put box #${box.index} of ${story.id} back where it was captured, '
+          'unmoved by the :550-554 clamp',
+          rect,
+          fluentLayoutAnnotationBox(
+            resolved: FluentResolvedAnnotationPosition(
+              anchor: rect.center,
+              point: rect.center,
+            ),
+            measured: rect.size,
+            layout: null,
+            context: context,
+          ).rect,
+        );
+      }
+    });
+
+    test(
+      'pushing a captured box off the right edge pins it to the plot rect',
+      () {
+        for (final box in captured) {
+          final size = Size(box.width!, box.height!);
+          expect(
+            fluentLayoutAnnotationBox(
+              resolved: FluentResolvedAnnotationPosition(
+                anchor: Offset(plotRect.right + 1000, plotRect.center.dy),
+                point: Offset(plotRect.right + 1000, plotRect.center.dy),
+              ),
+              measured: size,
+              layout: null,
+              context: context,
+            ).rect.right,
+            moreOrLessEquals(plotRect.right, epsilon: kOracleGeometryTolerance),
+            reason:
+                'ChartAnnotationLayer.tsx:550-553 — box #${box.index} of '
+                '${story.id} is ${size.width} wide, narrower than the '
+                '${plotRect.width}-wide plot rect, so a point off the right edge '
+                'clamps its top-left to viewportX + viewportWidth - width.',
+          );
+        }
+      },
+    );
+  });
+}

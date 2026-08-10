@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 
 import '../internal/d3/scale.dart';
@@ -472,5 +474,92 @@ FluentResolvedAnnotationPosition? resolveFluentAnnotationCoordinates(
   return FluentResolvedAnnotationPosition(
     anchor: anchor,
     point: Offset(left, top),
+  );
+}
+
+/// An annotation box after alignment and clamping.
+@immutable
+class FluentAnnotationBox {
+  /// Creates a laid-out box.
+  const FluentAnnotationBox({
+    required this.rect,
+    required this.displayPoint,
+    required this.anchor,
+  });
+
+  /// Where the box is painted.
+  final Rect rect;
+
+  /// The box's reference point after clamping — where a connector starts.
+  final Offset displayPoint;
+
+  /// The datum, unchanged, so a later pass can still reach it.
+  final Offset anchor;
+}
+
+/// Aligns and clamps an annotation box. `ChartAnnotationLayer.tsx:532-559`.
+///
+/// [measured] is the box's real size. Upstream falls back to
+/// `layout.maxWidth ?? 180` and `60` (`:535-536`) because a hidden `div` cannot
+/// be measured until after the first paint; Flutter measures synchronously, so
+/// those defaults never bind — see the plan's recorded contract deviation.
+///
+/// This is where `clipToBounds`'s **second** meaning lives: `:544` selects the
+/// clamping viewport with `!== false`, so a null flag clips the box to the plot
+/// rect even though `:385` left the point alone
+/// ([FluentChartAnnotationLayout.clampsViewport]).
+FluentAnnotationBox fluentLayoutAnnotationBox({
+  required FluentResolvedAnnotationPosition resolved,
+  required Size measured,
+  required FluentChartAnnotationLayout? layout,
+  required FluentChartAnnotationContext context,
+}) {
+  // ChartAnnotationLayer.tsx:535-536.
+  final width = math.max(measured.width, 1.0);
+  final height = math.max(measured.height, 1.0);
+
+  // ChartAnnotationLayer.tsx:538-539, with the :26-27 defaults.
+  final offsetX = switch (layout?.align ?? FluentChartAnnotationAlign.center) {
+    FluentChartAnnotationAlign.center => -width / 2,
+    FluentChartAnnotationAlign.end => -width,
+    FluentChartAnnotationAlign.start => 0.0,
+  };
+  final offsetY = switch (layout?.verticalAlign ??
+      FluentChartAnnotationVerticalAlign.middle) {
+    FluentChartAnnotationVerticalAlign.middle => -height / 2,
+    FluentChartAnnotationVerticalAlign.bottom => -height,
+    FluentChartAnnotationVerticalAlign.top => 0.0,
+  };
+
+  // ChartAnnotationLayer.tsx:541-542.
+  final baseLeft = resolved.point.dx + offsetX;
+  final baseTop = resolved.point.dy + offsetY;
+
+  // ChartAnnotationLayer.tsx:544 — `!== false`, so a null flag still clips.
+  final viewport = (layout?.clampsViewport ?? true)
+      ? context.plotRect
+      // :547-548 — the svgRect, whose origin is the svg's own.
+      : Offset.zero & context.chartSize;
+
+  // ChartAnnotationLayer.tsx:550-554 — clamping is skipped for a zero-size
+  // viewport, and the upper bound is floored at the origin so a box larger than
+  // the viewport pins rather than inverting.
+  // The two maxima are hoisted, as :550-551 hoists maxTopLeftX/maxTopLeftY;
+  // inline they would also infer as num from clamp's parameter type.
+  final maxLeft = math.max(viewport.left, viewport.right - width);
+  final maxTop = math.max(viewport.top, viewport.bottom - height);
+  final left = viewport.width > 0
+      ? baseLeft.clamp(viewport.left, maxLeft)
+      : baseLeft;
+  final top = viewport.height > 0
+      ? baseTop.clamp(viewport.top, maxTop)
+      : baseTop;
+
+  return FluentAnnotationBox(
+    rect: Rect.fromLTWH(left, top, width, height),
+    // ChartAnnotationLayer.tsx:556-559 — undo the alignment offset so the
+    // connector starts from the clamped box, not the original point.
+    displayPoint: Offset(left - offsetX, top - offsetY),
+    anchor: resolved.anchor,
   );
 }
