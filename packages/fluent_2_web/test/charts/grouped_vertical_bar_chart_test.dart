@@ -1,8 +1,6 @@
 import 'dart:ui' as ui;
 
 import 'package:fluent_2_web/fluent_2_web.dart';
-import 'package:fluent_2_web/src/charts/grouped_vertical_bar_chart.dart';
-import 'package:fluent_2_web/src/charts/grouped_vertical_bar_chart_style.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/scale.dart' as d3;
 import 'package:fluent_2_web/src/charts/internal/d3/scale_band.dart' as d3;
 import 'package:fluent_2_web/src/charts/internal/d3/scale_linear.dart' as d3;

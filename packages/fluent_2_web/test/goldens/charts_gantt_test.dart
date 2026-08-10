@@ -1,8 +1,4 @@
 import 'package:fluent_2_web/fluent_2_web.dart';
-// `src/charts/gantt_chart.dart` is not in `lib/fluent_2_web.dart` yet — that
-// file is owned by the integration task — so this test deep-imports the widget
-// exactly as `test/charts/gantt_chart_test.dart` already does.
-import 'package:fluent_2_web/src/charts/gantt_chart.dart';
 import 'package:flutter/widgets.dart';
 
 import '../support/golden.dart';

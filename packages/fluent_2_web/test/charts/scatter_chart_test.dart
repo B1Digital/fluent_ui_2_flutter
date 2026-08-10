@@ -1,9 +1,6 @@
 import 'package:fluent_2_web/fluent_2_web.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/scale_band.dart' as d3;
 import 'package:fluent_2_web/src/charts/internal/d3/scale_linear.dart' as d3;
-import 'package:fluent_2_web/src/charts/internal/marker_geometry.dart';
-import 'package:fluent_2_web/src/charts/scatter_chart.dart';
-import 'package:fluent_2_web/src/charts/scatter_chart_style.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';

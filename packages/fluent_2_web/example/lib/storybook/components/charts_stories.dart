@@ -1,9 +1,3 @@
-// The seven shell-free chart widgets are not exported from
-// `lib/fluent_2_web.dart` yet — that file is owned by the integration tasks —
-// so this file deep-imports them, exactly as
-// `test/goldens/charts_shell_free_golden_test.dart` already does. Swap these
-// seven lines for the barrel once the exports land.
-// ignore_for_file: implementation_imports
 import 'package:fluent_2_web/fluent_2_web.dart';
 import 'package:flutter/widgets.dart';
 import 'package:storybook_flutter/storybook_flutter.dart';
@@ -11,7 +5,7 @@ import 'package:storybook_flutter/storybook_flutter.dart';
 import 'story_kit.dart';
 
 /// Stories for the shared chart chrome, then the seven charts that bypass the
-/// cartesian shell.
+/// cartesian shell, then the nine that consume it.
 ///
 /// A getter, not a function, because `all_stories.dart` spreads every sibling
 /// as `...xStories`. The chart sample data below is shared with
@@ -494,6 +488,359 @@ List<Story> get chartsStories => [
               child: FluentFunnelChart(
                 data: _stackedFunnel,
                 orientation: FluentFunnelOrientation.horizontal,
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ),
+  // The nine charts that consume the cartesian shell. Each mirrors the upstream
+  // storybook's basic story so a reviewer can put the two side by side, at the
+  // size plan 10's Oracle B capture recorded for that story (the widths and
+  // heights below are those captures, not chosen numbers).
+  Story(
+    name: 'Charts/FluentScatterChart',
+    description: 'Markers on two continuous axes, radius scaled by the plot.',
+    builder: (context) => const DemoColumn(
+      children: [
+        DemoRail(
+          title: 'Basic',
+          children: [
+            SizedBox(
+              width: 650,
+              height: 310,
+              child: FluentScatterChart(
+                data: FluentChartData(
+                  chartTitle: 'Scatter chart basic',
+                  scatterChartData: [
+                    FluentScatterChartSeries(
+                      legend: 'Series 1',
+                      data: [
+                        FluentScatterChartDataPoint(x: 20, y: 33),
+                        FluentScatterChartDataPoint(x: 25, y: 42),
+                        FluentScatterChartDataPoint(x: 32, y: 18),
+                        FluentScatterChartDataPoint(x: 41, y: 55),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ),
+  Story(
+    name: 'Charts/FluentVerticalBarChart',
+    description: 'One bar per category on a band x axis.',
+    builder: (context) => const DemoColumn(
+      children: [
+        DemoRail(
+          title: 'Basic',
+          children: [
+            SizedBox(
+              width: 650,
+              height: 310,
+              child: FluentVerticalBarChart(
+                chartTitle: 'Vertical bar chart basic',
+                data: [
+                  FluentVerticalBarChartDataPoint(
+                    x: 'Jan',
+                    y: 3500,
+                    legend: 'Q1',
+                  ),
+                  FluentVerticalBarChartDataPoint(
+                    x: 'Feb',
+                    y: 2500,
+                    legend: 'Q1',
+                  ),
+                  FluentVerticalBarChartDataPoint(
+                    x: 'Mar',
+                    y: 1900,
+                    legend: 'Q1',
+                  ),
+                  FluentVerticalBarChartDataPoint(
+                    x: 'Apr',
+                    y: 4200,
+                    legend: 'Q2',
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ),
+  Story(
+    name: 'Charts/FluentAreaChart',
+    description: 'Stacked bands over a time axis.',
+    builder: (context) => DemoColumn(
+      children: [
+        DemoRail(
+          title: 'Basic',
+          children: [
+            SizedBox(
+              width: 700,
+              height: 260,
+              child: FluentAreaChart(
+                data: FluentChartData(
+                  chartTitle: 'Area chart basic',
+                  lineChartData: [
+                    FluentLineChartSeries(
+                      legend: 'First',
+                      data: [
+                        FluentLineChartDataPoint(
+                          x: DateTime.utc(2024, 3),
+                          y: 10,
+                        ),
+                        FluentLineChartDataPoint(
+                          x: DateTime.utc(2024, 3, 8),
+                          y: 30,
+                        ),
+                        FluentLineChartDataPoint(
+                          x: DateTime.utc(2024, 3, 15),
+                          y: 20,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ),
+  Story(
+    name: 'Charts/FluentLineChart',
+    description: 'One stroked path per series, with markers at each point.',
+    builder: (context) => const DemoColumn(
+      children: [
+        DemoRail(
+          title: 'Basic',
+          children: [
+            SizedBox(
+              width: 700,
+              height: 260,
+              child: FluentLineChart(
+                data: FluentChartData(
+                  chartTitle: 'Line chart basic',
+                  lineChartData: [
+                    FluentLineChartSeries(
+                      legend: 'Latency',
+                      data: [
+                        FluentLineChartDataPoint(x: 1, y: 10),
+                        FluentLineChartDataPoint(x: 2, y: 30),
+                        FluentLineChartDataPoint(x: 3, y: 25),
+                        FluentLineChartDataPoint(x: 4, y: 40),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ),
+  Story(
+    name: 'Charts/FluentHorizontalBarChartWithAxis',
+    description: 'The vertical bar chart transposed: band y, continuous x.',
+    builder: (context) => const DemoColumn(
+      children: [
+        DemoRail(
+          title: 'Basic',
+          children: [
+            SizedBox(
+              width: 650,
+              height: 310,
+              child: FluentHorizontalBarChartWithAxis(
+                chartTitle: 'Horizontal bar chart with axis',
+                data: [
+                  FluentHorizontalBarChartWithAxisDataPoint(
+                    x: 40,
+                    y: 'alpha',
+                    legend: 'A',
+                  ),
+                  FluentHorizontalBarChartWithAxisDataPoint(
+                    x: 25,
+                    y: 'beta',
+                    legend: 'B',
+                  ),
+                  FluentHorizontalBarChartWithAxisDataPoint(
+                    x: 60,
+                    y: 'gamma',
+                    legend: 'C',
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ),
+  Story(
+    name: 'Charts/FluentGanttChart',
+    description: 'One span per row on a time axis.',
+    builder: (context) => DemoColumn(
+      children: [
+        DemoRail(
+          title: 'Basic',
+          children: [
+            SizedBox(
+              width: 600,
+              height: 310,
+              child: FluentGanttChart(
+                chartTitle: 'Gantt chart basic',
+                data: [
+                  FluentGanttChartDataPoint(
+                    x: FluentGanttSpan(
+                      start: DateTime.utc(2024, 3),
+                      end: DateTime.utc(2024, 3, 15),
+                    ),
+                    y: 'Design',
+                    legend: 'Phase 1',
+                  ),
+                  FluentGanttChartDataPoint(
+                    x: FluentGanttSpan(
+                      start: DateTime.utc(2024, 3, 10),
+                      end: DateTime.utc(2024, 4, 2),
+                    ),
+                    y: 'Build',
+                    legend: 'Phase 2',
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ),
+  Story(
+    name: 'Charts/FluentGroupedVerticalBarChart',
+    description: 'Series side by side inside each category band.',
+    builder: (context) => const DemoColumn(
+      children: [
+        DemoRail(
+          title: 'Basic',
+          children: [
+            SizedBox(
+              width: 650,
+              height: 310,
+              child: FluentGroupedVerticalBarChart(
+                chartTitle: 'Grouped vertical bar chart',
+                data: [
+                  FluentGroupedVerticalBarChartData(
+                    name: 'Jan',
+                    series: [
+                      FluentGroupedBarSeriesPoint(
+                        key: 'a',
+                        data: 30,
+                        legend: 'A',
+                      ),
+                      FluentGroupedBarSeriesPoint(
+                        key: 'b',
+                        data: 44,
+                        legend: 'B',
+                      ),
+                    ],
+                  ),
+                  FluentGroupedVerticalBarChartData(
+                    name: 'Feb',
+                    series: [
+                      FluentGroupedBarSeriesPoint(
+                        key: 'a',
+                        data: 20,
+                        legend: 'A',
+                      ),
+                      FluentGroupedBarSeriesPoint(
+                        key: 'b',
+                        data: 61,
+                        legend: 'B',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ),
+  Story(
+    name: 'Charts/FluentVerticalStackedBarChart',
+    description: 'Series stacked within one bar per category.',
+    builder: (context) => const DemoColumn(
+      children: [
+        DemoRail(
+          title: 'Basic',
+          children: [
+            SizedBox(
+              width: 650,
+              height: 310,
+              child: FluentVerticalStackedBarChart(
+                chartTitle: 'Vertical stacked bar chart',
+                data: [
+                  FluentVerticalStackedBarGroup(
+                    xAxisPoint: 'Jan',
+                    chartData: [
+                      FluentStackedBarDatum(data: 40, legend: 'A'),
+                      FluentStackedBarDatum(data: 30, legend: 'B'),
+                    ],
+                  ),
+                  FluentVerticalStackedBarGroup(
+                    xAxisPoint: 'Feb',
+                    chartData: [
+                      FluentStackedBarDatum(data: 25, legend: 'A'),
+                      FluentStackedBarDatum(data: 45, legend: 'B'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ),
+  Story(
+    name: 'Charts/FluentHeatMapChart',
+    description: 'A cell per x/y pair, coloured by an interpolated scale.',
+    builder: (context) => const DemoColumn(
+      children: [
+        DemoRail(
+          title: 'Basic',
+          children: [
+            SizedBox(
+              width: 450,
+              height: 310,
+              child: FluentHeatMapChart(
+                chartTitle: 'Heat map chart basic',
+                domainValuesForColorScale: [0, 100],
+                rangeValuesForColorScale: [
+                  Color(0xFFEDF8FB),
+                  Color(0xFF005A9E),
+                ],
+                data: [
+                  FluentHeatMapChartData(
+                    legend: 'Utilisation',
+                    value: 60,
+                    data: [
+                      FluentHeatMapChartDataPoint(x: 'Mon', y: 'AM', value: 20),
+                      FluentHeatMapChartDataPoint(x: 'Mon', y: 'PM', value: 80),
+                      FluentHeatMapChartDataPoint(x: 'Tue', y: 'AM', value: 55),
+                      FluentHeatMapChartDataPoint(x: 'Tue', y: 'PM', value: 95),
+                    ],
+                  ),
+                ],
               ),
             ),
           ],

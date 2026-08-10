@@ -1,8 +1,4 @@
 import 'package:fluent_2_web/fluent_2_web.dart';
-// `src/charts/scatter_chart.dart` is not in `lib/fluent_2_web.dart` yet — that
-// file is owned by the integration task — so this test deep-imports the widget,
-// exactly as `cartesian_chart_golden_test.dart` already does for the shell.
-import 'package:fluent_2_web/src/charts/scatter_chart.dart';
 import 'package:flutter/widgets.dart';
 
 import '../support/golden.dart';
