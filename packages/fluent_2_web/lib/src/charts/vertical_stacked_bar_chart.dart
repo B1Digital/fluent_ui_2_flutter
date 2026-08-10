@@ -150,7 +150,7 @@ class FluentStackedBarSegmentLayout {
   final bool isLast;
 
   /// The arc-topped path used instead of a plain rect when the stack corner
-  /// radius applies (`VerticalStackedBarChart.tsx:1089-1099`).
+  /// radius applies (`VerticalStackedBarChart.tsx:1092-1098`).
   final Path? roundedTopPath;
 }
 
@@ -306,7 +306,7 @@ class FluentVerticalStackedBarChartDelegate
   /// change and never matches its own bars. Spec section 5.2 exception 1
   /// exempts non-determinism from bug fidelity: no golden can pin a random
   /// colour. The deterministic rule below is the same one the marks use
-  /// upstream, `_colors[index]` (`:1035`), extended with `% length` because
+  /// upstream, `_colors[index]` (`:1036`), extended with `% length` because
   /// that index is `undefined` from the sixth segment on and leaves the bar
   /// unpainted.
   Color segmentPaletteColour(FluentStackedBarDatum datum, int index) =>
@@ -314,7 +314,7 @@ class FluentVerticalStackedBarChartDelegate
 
   /// The `{ x, y }` row per stack that the axis solves read.
   ///
-  /// Ports `_createDataSetLayer` (`VerticalStackedBarChart.tsx:336-353`): the y
+  /// Ports `_createDataSetLayer` (`VerticalStackedBarChart.tsx:337-354`): the y
   /// is the stack total, or 0 on a category y axis.
   List<Object> get dataset => <Object>[
     for (final stack in stacks)
@@ -342,7 +342,7 @@ class FluentVerticalStackedBarChartDelegate
   /// Builds the six-verb rounded-top path.
   ///
   /// `M x (y+r) a r r 0 0 1 r -r h (w-2r) a r r 0 0 1 r r v (h-r) h -w z`
-  /// (`VerticalStackedBarChart.tsx:1089-1099`).
+  /// (`VerticalStackedBarChart.tsx:1092-1098`).
   static Path roundedTopPath({
     required double x,
     required double y,
@@ -404,7 +404,7 @@ class FluentVerticalStackedBarChartDelegate
       ])
       ..rangeOf(<double>[0, layout.size.height - bottom - top]);
     final dim = style.barOpacity!.resolve(<WidgetState>{WidgetState.disabled})!;
-    // `_noLegendHighlighted` (`:424-426`).
+    // `_noLegendHighlighted` (`:421-423`).
     final noneHighlighted =
         selectedLegends.isEmpty &&
         (activeLegend == null || activeLegend!.isEmpty);
@@ -430,7 +430,7 @@ class FluentVerticalStackedBarChartDelegate
         // VerticalStackedBarChart.tsx:1021-1023.
         continue;
       }
-      // `:1025-1028` — the pixel the stack grows out of, in both directions.
+      // `:1026-1029` — the pixel the stack grows out of, in both directions.
       final baseline =
           layout.size.height - bottom - (yBarScale(kStackedBarYOrigin) ?? 0);
       var positiveStart = baseline;
@@ -452,15 +452,15 @@ class FluentVerticalStackedBarChartDelegate
         }
         final double topEdge;
         if (value >= kStackedBarYOrigin) {
-          // VerticalStackedBarChart.tsx:1073-1075.
+          // VerticalStackedBarChart.tsx:1074-1076.
           positiveStart -= height + gapOffset;
           topEdge = positiveStart;
         } else {
-          // VerticalStackedBarChart.tsx:1077-1078.
+          // VerticalStackedBarChart.tsx:1078-1079.
           topEdge = negativeStart + gapOffset;
           negativeStart = topEdge + height;
         }
-        // `_isLegendHighlighted(...) || _noLegendHighlighted()` (`:1037`).
+        // `_isLegendHighlighted(...) || _noLegendHighlighted()` (`:1038`).
         final highlighted =
             noneHighlighted ||
             isLegendHighlightedMulti(
@@ -478,7 +478,7 @@ class FluentVerticalStackedBarChartDelegate
             segmentIndex: k,
             isLast: isLast,
             // `barCornerRadius && barHeight > barCornerRadius &&
-            // index === barsToDisplay.length - 1` (`:1089`).
+            // index === barsToDisplay.length - 1` (`:1086`).
             roundedTopPath:
                 isLast && barCornerRadius > 0 && height > barCornerRadius
                 ? roundedTopPath(
@@ -530,7 +530,7 @@ class FluentVerticalStackedBarChartDelegate
   @override
   FluentChartMinMax resolveYMinMax({bool useSecondaryYScale = false}) {
     if (useSecondaryYScale) {
-      // VerticalStackedBarChart.tsx:1234-1243 — only lines reach the secondary
+      // VerticalStackedBarChart.tsx:1234-1244 — only lines reach the secondary
       // scale in this chart.
       final values = <double>[
         for (final stack in stacks)

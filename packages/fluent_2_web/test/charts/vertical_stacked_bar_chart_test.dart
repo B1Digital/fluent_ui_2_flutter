@@ -498,7 +498,7 @@ void main() {
         closeTo(315 - 2.87 - 2.87 - 4 - 281.26 - 4, 1e-6),
         reason:
             'yPositiveStart -= barHeight + gapOffset for each segment, '
-            'VerticalStackedBarChart.tsx:1073-1076',
+            'VerticalStackedBarChart.tsx:1074-1076',
       );
     });
 
@@ -580,14 +580,14 @@ void main() {
         reason:
             'the domain is [-50, 0], so yBarScale(0) is the full 295 and the '
             'baseline sits at the plot ceiling, '
-            'VerticalStackedBarChart.tsx:1025-1028',
+            'VerticalStackedBarChart.tsx:1026-1029',
       );
       expect(
         seg.rect.height,
         closeTo(295, 1e-9),
         reason:
             'yPoint = yNegativeStart + gapOffset then yNegativeStart = yPoint '
-            '+ barHeight, VerticalStackedBarChart.tsx:1077-1078',
+            '+ barHeight, VerticalStackedBarChart.tsx:1078-1079',
       );
     });
 
@@ -711,7 +711,7 @@ void main() {
         p.getBounds(),
         const Rect.fromLTWH(100, 200, 24, 40),
         reason:
-            'the six verbs at VerticalStackedBarChart.tsx:1089-1099 close '
+            'the six verbs at VerticalStackedBarChart.tsx:1092-1098 close '
             'exactly on the rect',
       );
       expect(
@@ -722,7 +722,7 @@ void main() {
       expect(
         p.contains(const Offset(101, 239)),
         isTrue,
-        reason: 'the bottom-left corner is square, :1097-1098',
+        reason: 'the bottom-left corner is square, :1096-1097',
       );
     });
 
@@ -741,7 +741,7 @@ void main() {
         <bool>[false, true],
         reason:
             'the guard ends with `index === barsToDisplay.length - 1`, '
-            'VerticalStackedBarChart.tsx:1089',
+            'VerticalStackedBarChart.tsx:1086',
       );
       expect(
         segs.last.roundedTopPath!.getBounds(),
@@ -766,7 +766,7 @@ void main() {
         isNull,
         reason:
             'the guard is barCornerRadius && barHeight > barCornerRadius, '
-            'VerticalStackedBarChart.tsx:1089',
+            'VerticalStackedBarChart.tsx:1086',
       );
     });
   });
@@ -899,7 +899,7 @@ void main() {
         <double>[-10, 30],
         reason:
             '_createDataSetLayer sums each stack before findVSBCNumericMinMaxOfY '
-            'reads it, VerticalStackedBarChart.tsx:344-351',
+            'reads it, VerticalStackedBarChart.tsx:344-352',
       );
     });
   });
