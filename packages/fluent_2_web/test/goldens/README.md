@@ -63,7 +63,7 @@ Never commit a `--update-goldens` run you have not looked at. The whole point is
 that the diff is reviewable, and an unexamined regeneration converts a caught
 regression into a committed one.
 
-216 images, ~5 MB total. Keep the growth per component small: coarsen a grid
+222 images, ~5.3 MB total. Keep the growth per component small: coarsen a grid
 rather than adding a megabyte of PNG.
 
 ## Known ceiling
