@@ -1491,6 +1491,64 @@ void main() {
     FluentCartesianChart shellOf(WidgetTester tester) =>
         tester.widget<FluentCartesianChart>(find.byType(FluentCartesianChart));
 
+    testWidgets('the mounted chart really paints its markers', (tester) async {
+      // Every other marker test drives a hand-built delegate. This one takes
+      // the painter the widget itself mounted, so it fails if `markersFor`
+      // stops being reached from `FluentLineChart.build` — the delegate the
+      // shell is handed, the layout it solved, the size it was given.
+      await pump(tester, FluentLineChart(data: _lineData()));
+      // The plot is the first CustomPaint under the shell: the Column puts it
+      // ahead of the legend (`cartesian_chart.dart:370-382`), and it is built
+      // with `painter: FluentCartesianChartPainter` at `:542-543`.
+      final plot = find
+          .descendant(
+            of: find.byType(FluentCartesianChart),
+            matching: find.byType(CustomPaint),
+          )
+          .first;
+      final recorder = _LineRecorder();
+      tester
+          .widget<CustomPaint>(plot)
+          .painter!
+          .paint(recorder, tester.getSize(plot));
+      expect(
+        recorder.paths,
+        hasLength(16),
+        reason:
+            'the eight plotted points of _lineData, each filled then stroked '
+            '(LineChart.tsx:936); nothing else under the shell draws a path, '
+            'because the axes stroke lines (axis_painter.dart:93 and :105) '
+            'and every label paints a paragraph',
+      );
+      final plotRect = Offset.zero & tester.getSize(plot);
+      for (final (bounds, _) in recorder.paths) {
+        expect(
+          bounds.width,
+          closeTo(
+            FluentLineMarkerPainter.kInvisibleSize,
+            _kPathBoundsTolerance,
+          ),
+          reason:
+              'an inactive point of a single-shape line is a 1px box '
+              '(LineChart.tsx:479); a zero-width one means the markers are '
+              'wired up but draw nothing',
+        );
+        expect(
+          plotRect.contains(bounds.center),
+          isTrue,
+          reason: 'a marker painted outside $plotRect is not on the plot',
+        );
+      }
+      expect(
+        recorder.paths.map((entry) => entry.$1.center.dx).toSet(),
+        hasLength(4),
+        reason:
+            'both series of _lineData share the same four x values, so the '
+            'sixteen paths stand on four columns; one column would mean every '
+            'marker collapsed onto the same point',
+      );
+    });
+
     testWidgets('isCalloutForStack defaults to true', (tester) async {
       await pump(tester, FluentLineChart(data: _lineData()));
       expect(
