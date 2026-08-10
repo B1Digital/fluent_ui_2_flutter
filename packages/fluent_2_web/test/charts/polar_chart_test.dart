@@ -10,6 +10,8 @@ import 'package:fluent_2_web/src/charts/polar_chart_style.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../support/oracle_fixture.dart';
+
 /// `PolarChart.tsx:90-142` resolves sizing, colours and rendering order before any
 /// painting happens, and every one of those steps is order-sensitive.
 void main() {
@@ -646,6 +648,107 @@ void main() {
         isTrue,
         reason: 'd3 emits null for an empty dataset; the port emits nothing',
       );
+    });
+  });
+
+  group('series paths against the captured story', () {
+    final story = loadOracleStory('charts-polarchart--polar-chart-basic');
+    // `PolarChartBasic` renders recharts' radar demo: six subjects, two
+    // areapolar series, no hole, sweeping clockwise from twelve o'clock. The
+    // twelve captured `<circle>` centres pin every one of these numbers.
+    const subjects = <String>[
+      'Math',
+      'Chinese',
+      'English',
+      'Geography',
+      'Physics',
+      'History',
+    ];
+    List<FluentPolarDataPoint> points(List<double> radii) =>
+        <FluentPolarDataPoint>[
+          for (var i = 0; i < radii.length; i++)
+            FluentPolarDataPoint(r: radii[i], theta: subjects[i]),
+        ];
+    final layout = FluentPolarLayout.compute(
+      size: Size(story.width, story.height),
+      data: <FluentPolarSeries>[
+        FluentAreaPolarSeries(
+          legend: 'Mike',
+          color: const Color(0xFF8884D8),
+          data: points(<double>[120, 98, 86, 99, 85, 65]),
+        ),
+        FluentAreaPolarSeries(
+          legend: 'Lily',
+          color: const Color(0xFF82CA9D),
+          data: points(<double>[110, 130, 130, 100, 90, 85]),
+        ),
+      ],
+      margins: const FluentChartMargins(),
+      hole: 0,
+      direction: FluentPolarDirection.clockwise,
+    );
+
+    test('the reconstruction lands on the captured marker centres', () {
+      final circles = story.byTag('circle');
+      expect(
+        circles,
+        hasLength(layout.markers.length),
+        reason:
+            'the reconstruction must cover every captured point before any '
+            'path assertion below means anything',
+      );
+      for (var i = 0; i < circles.length; i++) {
+        expectOracleOffset(
+          'marker $i',
+          Offset(circles[i].cx!, circles[i].cy!),
+          layout.markers[i].position,
+        );
+      }
+    });
+
+    test('every area and line path matches the captured bounds', () {
+      // `PolarChart.tsx:457` is the only 0.7 fill-opacity in the svg, and
+      // `:481` the only 3px stroke.
+      final areas = story
+          .byTag('path')
+          .where((e) => e.fillOpacity == 0.7)
+          .toList();
+      final lines = story
+          .byTag('path')
+          .where((e) => e.strokeWidth == 3)
+          .toList();
+      expect(
+        <int>[areas.length, lines.length],
+        <int>[2, 2],
+        reason: 'the story draws two areapolar series, each with an outline',
+      );
+      for (var i = 0; i < layout.series.length; i++) {
+        final series = layout.series[i];
+        final legend = series.series.legend;
+        expectOracleColour('$legend fill', series.color, areas[i].fill);
+        expectOracleColour('$legend stroke', series.color, lines[i].stroke);
+        expectOracleRect(
+          '$legend areaPath',
+          areas[i].bbox!,
+          layout.areaPath(series).getBounds(),
+          tolerance: kOracleMeasuredTolerance,
+        );
+        final line = layout.linePath(series);
+        expectOracleRect(
+          '$legend linePath',
+          lines[i].bbox!,
+          line.getBounds(),
+          tolerance: kOracleMeasuredTolerance,
+        );
+        expect(
+          line.computeMetrics().single.isClosed,
+          isFalse,
+          reason:
+              'the captured outline "${lines[i].d}" carries no Z: '
+              'PolarChart.tsx:471 leaves the lineRadial on the open '
+              'curveLinear while the fill closes on curveLinearClosed',
+        );
+      }
     });
   });
 
