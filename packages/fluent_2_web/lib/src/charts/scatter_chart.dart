@@ -197,7 +197,7 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
         child: const SizedBox.shrink(),
       );
     }
-    _delegate = FluentScatterChartDelegate(
+    final delegate = _delegate = FluentScatterChartDelegate(
       data: widget.data,
       style: style,
       colors: FluentChartColors.of(theme),
@@ -228,6 +228,14 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
         // one leaves this widget the only thing that can raise a popover, which
         // it does from [_handlePointerMove] through `overlayBuilder`.
         popoverBuilder: (context) => const SizedBox.shrink(),
+        // `{...(_isScatterPolarRef.current ? { yMaxValue: 1, yMinValue: -1 }
+        // : {})}` (`ScatterChart.tsx:742`), spread after `{...props}` at `:723`
+        // so it overrides a caller's own bounds. The polar transform writes
+        // onto the unit circle (`scatterpolar-utils.tsx:41-42`), so without
+        // this the ring and the data are scaled by whatever extent the data
+        // happens to have.
+        yMinValue: delegate.isScatterPolar ? -1 : null,
+        yMaxValue: delegate.isScatterPolar ? 1 : null,
       ),
       legendSelectionMode: widget.legendSelectionMode,
       selectedLegends: null,

@@ -371,15 +371,17 @@ class FluentCartesianChartProps {
 
   /// A copy of this bag with the listed fields replaced.
   ///
-  /// // ponytail: only the eight fields a chart actually rebrands are
+  /// // ponytail: only the eleven fields a chart actually rebrands are
   /// parameters. Every shell chart wraps its caller's bag to add its own
   /// narration (`LineChart.tsx:1843-1846`), its band height (`:165`), its
   /// popover body (`GanttChart.tsx:604`), its focus granularity
-  /// (`VerticalStackedBarChart.tsx:486-489`) and the hard-coded tick values at
-  /// `HeatMapChart.tsx:805-807` and `GroupedVerticalBarChart.tsx:1006`; the
-  /// other 41 fields belong to the caller. Add a parameter when a caller needs
-  /// one. An omitted parameter keeps the current value, so a null can never be
-  /// written over a field that was set.
+  /// (`VerticalStackedBarChart.tsx:486-489`), the scatterpolar y bounds at
+  /// `LineChart.tsx:1922` and `ScatterChart.tsx:742`, and the hard-coded tick
+  /// values at `HeatMapChart.tsx:805-807` and
+  /// `GroupedVerticalBarChart.tsx:1006`; the other 39 fields belong to the
+  /// caller. Add a parameter when a caller needs one. An omitted parameter
+  /// keeps the current value, so a null can never be written over a field that
+  /// was set.
   FluentCartesianChartProps copyWith({
     String? chartTitleForSemantics,
     double? eventLabelHeight,
@@ -389,6 +391,9 @@ class FluentCartesianChartProps {
     bool? popoverAnchorsToRegion,
     double? tickPadding,
     double? xAxistickSize,
+    bool? showRoundOffXTickValues,
+    double? yMinValue,
+    double? yMaxValue,
   }) => FluentCartesianChartProps(
     margins: margins,
     hideLegend: hideLegend,
@@ -396,8 +401,8 @@ class FluentCartesianChartProps {
     tickValues: tickValues,
     yAxisTickFormat: yAxisTickFormat,
     secondaryYScaleOptions: secondaryYScaleOptions,
-    yMinValue: yMinValue,
-    yMaxValue: yMaxValue,
+    yMinValue: yMinValue ?? this.yMinValue,
+    yMaxValue: yMaxValue ?? this.yMaxValue,
     xMinValue: xMinValue,
     xMaxValue: xMaxValue,
     yAxisTickCount: yAxisTickCount,
@@ -431,7 +436,8 @@ class FluentCartesianChartProps {
     yAxis: yAxis,
     showYAxisLables: showYAxisLables,
     showYAxisLablesTooltip: showYAxisLablesTooltip,
-    showRoundOffXTickValues: showRoundOffXTickValues,
+    showRoundOffXTickValues:
+        showRoundOffXTickValues ?? this.showRoundOffXTickValues,
     enableFirstRenderOptimization: enableFirstRenderOptimization,
     chartTitleForSemantics:
         chartTitleForSemantics ?? this.chartTitleForSemantics,

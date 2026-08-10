@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart_props.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_painter.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
@@ -622,6 +623,120 @@ void main() {
       );
     });
   });
+
+  // `LineChart.tsx:1922` and `ScatterChart.tsx:742` each spread
+  // `{ yMaxValue: 1, yMinValue: -1 }` onto CartesianChart. Both spreads sit
+  // AFTER `{...props}` (`:1910` and `:723`), so they override a caller's own
+  // bounds rather than merging with them. The ring is placed on the unit circle
+  // (`scatterpolar-utils.tsx:41-42`), so without the pin a trace that stays
+  // inside the circle scales the ring straight off the plot.
+  group('scatterpolar y domain', () {
+    /// The y ticks the mounted chart's own primary axis resolved.
+    List<double> yTicks(WidgetTester tester) =>
+        (tester.widget<CustomPaint>(_plotFinder()).painter!
+                as FluentCartesianChartPainter)
+            .yAxisPrimary
+            .tickValues
+            .cast<num>()
+            .map((value) => value.toDouble())
+            .toList();
+
+    FluentCartesianChart shellOf(WidgetTester tester) =>
+        tester.widget<FluentCartesianChart>(find.byType(FluentCartesianChart));
+
+    testWidgets('a scatterpolar line chart pins its y bounds to -1 and 1', (
+      tester,
+    ) async {
+      await _paintMounted(
+        tester,
+        FluentLineChart(data: _polarData(radius: 0.4)),
+      );
+      expect(
+        (shellOf(tester).props.yMinValue, shellOf(tester).props.yMaxValue),
+        (-1.0, 1.0),
+        reason: 'LineChart.tsx:1922',
+      );
+      final ticks = yTicks(tester);
+      expect(
+        ticks.first,
+        lessThanOrEqualTo(-1),
+        reason:
+            'finalYmin is min(startValue || 0, yMinValue || 0) '
+            '(utilities.ts:823), so a trace inside the unit circle still '
+            'reaches -1',
+      );
+      expect(
+        ticks.last,
+        greaterThanOrEqualTo(1),
+        reason:
+            'finalYmax is tempVal > yMaxValue ? tempVal : yMaxValue '
+            '(utilities.ts:822)',
+      );
+    });
+
+    testWidgets('a scatterpolar scatter chart pins the same two bounds', (
+      tester,
+    ) async {
+      await _paintMounted(
+        tester,
+        FluentScatterChart(data: _polarScatterData(radius: 0.4)),
+      );
+      expect(
+        (shellOf(tester).props.yMinValue, shellOf(tester).props.yMaxValue),
+        (-1.0, 1.0),
+        reason: 'ScatterChart.tsx:742',
+      );
+      final ticks = yTicks(tester);
+      expect(
+        ticks.first,
+        lessThanOrEqualTo(-1),
+        reason: 'the scatter twin resolves the same domain floor',
+      );
+      expect(
+        ticks.last,
+        greaterThanOrEqualTo(1),
+        reason: 'and the same ceiling',
+      );
+    });
+
+    testWidgets('the pin overrides a caller that named its own bounds', (
+      tester,
+    ) async {
+      await _paintMounted(
+        tester,
+        FluentLineChart(
+          data: _polarData(radius: 0.4),
+          props: const FluentCartesianChartProps(yMinValue: 3, yMaxValue: 7),
+        ),
+      );
+      expect(
+        (shellOf(tester).props.yMinValue, shellOf(tester).props.yMaxValue),
+        (-1.0, 1.0),
+        reason:
+            'LineChart.tsx:1922 spreads AFTER {...props} at :1910, so the '
+            'literal wins; merging instead would leave the ring at 3..7',
+      );
+    });
+
+    testWidgets('a chart with no scatterpolar trace keeps its own bounds', (
+      tester,
+    ) async {
+      await _paintMounted(
+        tester,
+        FluentLineChart(
+          data: _polarData(radius: 0.4, mode: null),
+          props: const FluentCartesianChartProps(yMinValue: 3, yMaxValue: 7),
+        ),
+      );
+      expect(
+        (shellOf(tester).props.yMinValue, shellOf(tester).props.yMaxValue),
+        (3.0, 7.0),
+        reason:
+            'the ternary at LineChart.tsx:1922 spreads an EMPTY object when '
+            '_isScatterPolar is false',
+      );
+    });
+  });
 }
 
 /// One recorded canvas operation, reduced to the fields the assertions read.
@@ -755,6 +870,7 @@ FluentLineChartSeries _polarSeries({
   Color? colour = _kSeriesColour,
   bool plottable = true,
   List<String>? ring = _kRingLabels,
+  double radius = 1,
 }) => FluentLineChartSeries(
   legend: legend,
   color: colour,
@@ -767,7 +883,10 @@ FluentLineChartSeries _polarSeries({
   polarLineOptions: FluentPolarLineOptions(axisLabel: ring),
   data: <FluentLineChartDataPoint>[
     for (final (x, y) in _kRhombus.take(points))
-      FluentLineChartDataPoint(x: plottable ? x : double.nan, y: y),
+      FluentLineChartDataPoint(
+        x: plottable ? x * radius : double.nan,
+        y: y * radius,
+      ),
   ],
 );
 
@@ -778,6 +897,7 @@ FluentScatterChartSeries _polarScatterSeries({
   String legend = 'radar',
   String? mode = 'scatterpolar',
   List<String>? ring = _kRingLabels,
+  double radius = 1,
 }) => FluentScatterChartSeries(
   legend: legend,
   color: _kSeriesColour,
@@ -786,7 +906,8 @@ FluentScatterChartSeries _polarScatterSeries({
   ),
   polarLineOptions: FluentPolarLineOptions(axisLabel: ring),
   data: <FluentScatterChartDataPoint>[
-    for (final (x, y) in _kRhombus) FluentScatterChartDataPoint(x: x, y: y),
+    for (final (x, y) in _kRhombus)
+      FluentScatterChartDataPoint(x: x * radius, y: y * radius),
   ],
 );
 
@@ -833,18 +954,25 @@ FluentCartesianLayout _polarLayout() => FluentCartesianLayout.resolve(
 );
 
 /// One `mode: 'scatterpolar'`, `fill: 'toself'` trace, ready to mount.
-FluentChartData _polarData({List<String>? ring = _kRingLabels}) =>
-    FluentChartData(
-      lineChartData: <FluentLineChartSeries>[_polarSeries(ring: ring)],
-    );
+FluentChartData _polarData({
+  List<String>? ring = _kRingLabels,
+  double radius = 1,
+  String? mode = 'scatterpolar',
+}) => FluentChartData(
+  lineChartData: <FluentLineChartSeries>[
+    _polarSeries(ring: ring, radius: radius, mode: mode),
+  ],
+);
 
 /// The same trace as scatter data.
-FluentChartData _polarScatterData({List<String>? ring = _kRingLabels}) =>
-    FluentChartData(
-      scatterChartData: <FluentScatterChartSeries>[
-        _polarScatterSeries(ring: ring),
-      ],
-    );
+FluentChartData _polarScatterData({
+  List<String>? ring = _kRingLabels,
+  double radius = 1,
+}) => FluentChartData(
+  scatterChartData: <FluentScatterChartSeries>[
+    _polarScatterSeries(ring: ring, radius: radius),
+  ],
+);
 
 /// The plot is the first CustomPaint under the shell: the Column puts it ahead
 /// of the legend (`cartesian_chart.dart:370-382`).
