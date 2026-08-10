@@ -1,5 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'internal/chart_colors.dart';
+import 'internal/chart_text_measurer.dart';
+import 'internal/d3/js_math.dart' as d3;
 import 'model/bar_data.dart';
 
 /// One bar of one horizontal-bar row, in percentage units of the row width.
@@ -192,4 +196,228 @@ class FluentHorizontalBarRowLayout {
       barHeight,
     );
   }
+}
+
+/// Which scale a horizontal bar chart draws against.
+///
+/// Upstream declares `HorizontalBarChartVariant` with `PartToWhole` documented
+/// as the default (`HorizontalBarChart.types.ts:83`) but never assigns one;
+/// every check is `=== AbsoluteScale`, so an unset variant behaves as
+/// part-to-whole.
+enum FluentHorizontalBarChartVariant {
+  /// Bars share one row that sums to the whole.
+  partToWhole,
+
+  /// One value against an absolute maximum, with the value drawn as a label
+  /// inside the row instead of beside it.
+  absoluteScale,
+}
+
+/// How the number beside a row is rendered
+/// (`HorizontalBarChart.tsx:143-190`).
+enum FluentChartDataMode {
+  /// The value alone. Upstream's `'default'`, renamed because `default` is a
+  /// Dart keyword.
+  byDefault,
+
+  /// `value / total`, with the literal spaces upstream puts round the slash.
+  fraction,
+
+  /// The value as a whole percentage of the total.
+  percentage,
+
+  /// Nothing at all.
+  hidden,
+}
+
+/// Paints one row's bars, and the absolute-scale label when there is one.
+///
+/// Bars are drawn in `chartData` order with no stroke, no corner radius and no
+/// shadow (`HorizontalBarChart.tsx:306-330`), and the painter deliberately does
+/// not clip: the last bar of a full row ends `(n - 1) * 3` px past the row edge
+/// and upstream shows it, because the svg is `overflow: visible`
+/// (`useHorizontalBarChartStyles.styles.ts:49`).
+class FluentHorizontalBarStripPainter extends CustomPainter {
+  /// Creates a strip painter.
+  const FluentHorizontalBarStripPainter({
+    required this.layout,
+    required this.fills,
+    required this.opacities,
+    required this.barHeight,
+    required this.textDirection,
+    this.colors,
+    this.absoluteLabel,
+    this.absoluteLabelStyle,
+    this.absoluteLabelOffset = 4,
+    this.absoluteLabelIndex,
+  });
+
+  /// The one measurer, used for the absolute-scale label.
+  ///
+  /// Static because [FluentChartTextMeasurer.layoutPainter] keeps no
+  /// per-instance state and the painter is const; a caller with its own
+  /// measurer changes nothing about the result.
+  static final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
+
+  /// The resolved row geometry.
+  final FluentHorizontalBarRowLayout layout;
+
+  /// One fill per segment, in segment order.
+  final List<Color> fills;
+
+  /// One opacity per segment — 1 or the style's dimmed value
+  /// (`HorizontalBarChart.tsx:327`).
+  final List<double> opacities;
+
+  /// Height of each bar.
+  final double barHeight;
+
+  /// Ambient text direction, which selects the label's anchor and the sign of
+  /// its translate (`HorizontalBarChart.tsx:294`, `:297`).
+  final TextDirection textDirection;
+
+  /// The resolved chart colours, or null to paint [fills] as given.
+  ///
+  /// Only [FluentChartColors.flattenMark] is read. A bar carries no
+  /// `forced-color-adjust` upstream, so a forced-colours browser repaints every
+  /// one of them in the system foreground and the forty-colour palette
+  /// disappears (design spec section 5.3); Flutter does nothing there unless
+  /// told to, so the flattening is explicit. Passing null is only correct when
+  /// the caller has already flattened.
+  final FluentChartColors? colors;
+
+  /// The absolute-scale label, or null when the variant is part-to-whole or
+  /// `hideLabels` is set.
+  final String? absoluteLabel;
+
+  /// Type for [absoluteLabel] — `caption1Strong`
+  /// (`useHorizontalBarChartStyles.styles.ts:94-100`).
+  final TextStyle? absoluteLabelStyle;
+
+  /// The `translate(±4)` applied to the label
+  /// (`HorizontalBarChart.tsx:297`).
+  final double absoluteLabelOffset;
+
+  /// Index of the placeholder segment the label is anchored to.
+  final int? absoluteLabelIndex;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final chartColors = colors;
+    for (var i = 0; i < layout.segments.length; i++) {
+      if (absoluteLabelIndex == i) continue;
+      final fill = chartColors == null
+          ? fills[i]
+          : chartColors.flattenMark(fills[i]);
+      canvas.drawRect(
+        layout.rectOf(i, barHeight),
+        Paint()..color = fill.withValues(alpha: opacities[i]),
+      );
+    }
+    final label = absoluteLabel;
+    final index = absoluteLabelIndex;
+    if (label == null || index == null) return;
+    final painter = _measurer.layoutPainter(
+      label,
+      absoluteLabelStyle ?? const TextStyle(),
+    );
+    final anchorPercent = textDirection == TextDirection.rtl
+        // HorizontalBarChart.tsx:294.
+        ? 100 - layout.segments[index].startPercent
+        : layout.segments[index].startPercent;
+    final signedOffset = textDirection == TextDirection.rtl
+        ? -absoluteLabelOffset
+        : absoluteLabelOffset;
+    painter.paint(
+      canvas,
+      Offset(
+        anchorPercent / 100 * layout.rowWidth + signedOffset,
+        // HorizontalBarChart.tsx:295-296 — dominant-baseline "central" centres
+        // the em box on `y = barHeight / 2`, which is
+        // FluentChartTextMetrics.centralOffset: the measurer drops the type
+        // token's leading, so the line box is exactly ascent + descent and that
+        // offset is half the height.
+        barHeight / 2 - painter.height / 2,
+      ),
+    );
+    painter.dispose();
+  }
+
+  @override
+  bool shouldRepaint(FluentHorizontalBarStripPainter oldDelegate) =>
+      oldDelegate.layout != layout ||
+      !listEquals(oldDelegate.fills, fills) ||
+      !listEquals(oldDelegate.opacities, opacities) ||
+      oldDelegate.barHeight != barHeight ||
+      oldDelegate.colors != colors ||
+      oldDelegate.absoluteLabel != absoluteLabel ||
+      oldDelegate.absoluteLabelStyle != absoluteLabelStyle ||
+      oldDelegate.absoluteLabelOffset != absoluteLabelOffset ||
+      oldDelegate.absoluteLabelIndex != absoluteLabelIndex ||
+      oldDelegate.textDirection != textDirection;
+}
+
+/// Paints the downward-pointing benchmark marker above a row.
+///
+/// Upstream builds it out of CSS borders — 4px transparent on the left and
+/// right, 7px coloured on top (`useHorizontalBarChartStyles.styles.ts:84-93`) —
+/// which renders as an 8 x 7 triangle whose wide edge is the TOP and whose apex
+/// is at the bottom centre.
+class FluentBenchmarkTrianglePainter extends CustomPainter {
+  /// Creates a benchmark painter.
+  const FluentBenchmarkTrianglePainter({
+    required this.ratio,
+    required this.colour,
+    required this.triangleWidth,
+    required this.triangleHeight,
+  });
+
+  /// Upstream's `benchmarkRatio` as a fraction of the row width.
+  ///
+  /// `HorizontalBarChart.tsx:198` computes it as
+  /// `Math.round(data / total * 100)`, an integer percentage, so the marker
+  /// quantises to whole percentage points. A zero total is division by zero in
+  /// JavaScript too — `Math.round(Infinity)` is `Infinity`, and the `left:
+  /// calc(Infinity% - 4px)` that follows is an invalid declaration the browser
+  /// drops — so the guard keeps the marker at the origin rather than feeding a
+  /// non-finite offset to a [Path].
+  static double ratioFor({required double benchmark, required double total}) =>
+      total == 0 ? 0 : d3.jsRound(benchmark / total * 100) / 100;
+
+  /// Horizontal position as a fraction of the painted width.
+  final double ratio;
+
+  /// Fill colour — `colorPaletteBlueBorderActive`.
+  final Color colour;
+
+  /// Base width, 8 (`useHorizontalBarChartStyles.styles.ts:87-88`).
+  final double triangleWidth;
+
+  /// Height, 7 (`useHorizontalBarChartStyles.styles.ts:89`).
+  final double triangleHeight;
+
+  /// The triangle, centred on [ratio] of [size]'s width.
+  ///
+  /// `left: calc(<ratio>% - 4px)` on a box 8 wide
+  /// (`HorizontalBarChart.tsx:201`) puts the centre exactly on the ratio.
+  Path buildPath(Size size) {
+    final centre = ratio * size.width;
+    final half = triangleWidth / 2;
+    return Path()
+      ..moveTo(centre - half, 0)
+      ..lineTo(centre + half, 0)
+      ..lineTo(centre, triangleHeight)
+      ..close();
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) =>
+      canvas.drawPath(buildPath(size), Paint()..color = colour);
+
+  @override
+  bool shouldRepaint(FluentBenchmarkTrianglePainter oldDelegate) =>
+      oldDelegate.ratio != ratio ||
+      oldDelegate.colour != colour ||
+      oldDelegate.triangleWidth != triangleWidth ||
+      oldDelegate.triangleHeight != triangleHeight;
 }
