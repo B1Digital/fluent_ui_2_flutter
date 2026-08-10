@@ -1,11 +1,13 @@
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:fluent_2_core/fluent_2_core.dart';
 // The barrel is owned by the integration task, so these files are imported
 // directly until `line_chart.dart` is exported from it.
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
+import 'package:fluent_2_web/src/charts/chrome/event_annotation.dart';
+import 'package:fluent_2_web/src/charts/chrome/legend.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_colors.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_text_measurer.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_text_styles.dart';
@@ -14,8 +16,10 @@ import 'package:fluent_2_web/src/charts/internal/data_viz_palette.dart';
 import 'package:fluent_2_web/src/charts/line_chart.dart';
 import 'package:fluent_2_web/src/charts/line_chart_style.dart';
 import 'package:fluent_2_web/src/charts/model/cartesian_series.dart';
+import 'package:fluent_2_web/src/charts/model/chart_annotation.dart';
 import 'package:fluent_2_web/src/charts/model/chart_common.dart';
 import 'package:fluent_2_web/src/charts/model/line_options.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/oracle_fixture.dart';
@@ -891,7 +895,246 @@ void main() {
       );
     });
   });
+
+  group('FluentLineChart', () {
+    Future<void> pump(
+      WidgetTester tester,
+      Widget chart, {
+      Size size = const Size(700, 350),
+    }) => tester.pumpWidget(
+      FluentApp(
+        theme: _theme(),
+        home: Center(
+          child: SizedBox(width: size.width, height: size.height, child: chart),
+        ),
+      ),
+    );
+
+    FluentCartesianChart shellOf(WidgetTester tester) =>
+        tester.widget<FluentCartesianChart>(find.byType(FluentCartesianChart));
+
+    testWidgets('isCalloutForStack defaults to true', (tester) async {
+      await pump(tester, FluentLineChart(data: _lineData()));
+      expect(
+        tester
+            .widget<FluentLineChart>(find.byType(FluentLineChart))
+            .isCalloutForStack,
+        isTrue,
+        reason: 'the destructured default at LineChart.tsx:147',
+      );
+    });
+
+    testWidgets('isCalloutForStack false narrows the popover to one datum', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentLineChart(data: _lineData(), isCalloutForStack: false),
+      );
+      final state = tester.state<FluentLineChartState>(
+        find.byType(FluentLineChart),
+      );
+      expect(
+        state.hoverValuesFor(2).length,
+        1,
+        reason: 'LineChart.tsx:1660-1668 filters found.values by matching y',
+      );
+    });
+
+    testWidgets('isCalloutForStack true keeps every series at that x', (
+      tester,
+    ) async {
+      await pump(tester, FluentLineChart(data: _lineData()));
+      final state = tester.state<FluentLineChartState>(
+        find.byType(FluentLineChart),
+      );
+      expect(
+        state.hoverValuesFor(2).map((point) => point.legend),
+        <String>['alpha', 'beta'],
+        reason: 'LineChart.tsx:1655 hands the whole stack to the callout',
+      );
+    });
+
+    testWidgets('event annotations reserve the label band at the top', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentLineChart(
+          data: _dateLineData(),
+          eventAnnotations: <FluentEventAnnotation>[
+            FluentEventAnnotation(
+              date: DateTime.utc(2024, 3, 15),
+              event: 'Launch',
+            ),
+          ],
+          eventAnnotationMergedLabel: (int n) => '$n events',
+        ),
+      );
+      expect(
+        find.byType(FluentEventAnnotationLayer),
+        findsOneWidget,
+        reason: 'LineChart.tsx:1958-1959 mounts the annotation layer',
+      );
+      expect(
+        shellOf(tester).props.eventLabelHeight,
+        36,
+        reason: 'eventLabelHeight defaults to 36, LineChart.tsx:166',
+      );
+    });
+
+    testWidgets('no annotations means no layer and a zero band', (
+      tester,
+    ) async {
+      await pump(tester, FluentLineChart(data: _dateLineData()));
+      expect(
+        find.byType(FluentEventAnnotationLayer),
+        findsNothing,
+        reason: 'LineChart.tsx:1954 gates the layer on eventAnnotationProps',
+      );
+      expect(
+        shellOf(tester).props.eventLabelHeight,
+        0,
+        reason: 'nothing to reserve when the band is not drawn',
+      );
+    });
+
+    testWidgets('the legend row appends the colour-fill bars after the lines', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentLineChart(
+          data: _lineData(),
+          colorFillBars: const <FluentColorFillBar>[
+            FluentColorFillBar(
+              legend: 'Weekend',
+              color: Color(0xFF00FF00),
+              data: <FluentColorFillBarRange>[
+                FluentColorFillBarRange(startX: 2, endX: 3),
+              ],
+            ),
+          ],
+        ),
+      );
+      final legends = shellOf(tester).legends;
+      expect(
+        legends.last.title,
+        'Weekend',
+        reason: 'LineChart.tsx:451 spreads colorFillBarsLegendDataItems last',
+      );
+      expect(
+        legends.map((item) => item.title),
+        <String>['alpha', 'beta', 'Weekend'],
+        reason: 'the lines keep author order ahead of the bars',
+      );
+    });
+
+    testWidgets('the semantic title counts lines', (tester) async {
+      await pump(
+        tester,
+        FluentLineChart(data: _lineData(chartTitle: 'Latency')),
+      );
+      expect(
+        shellOf(tester).props.chartTitleForSemantics,
+        'Latency. Line chart with 2 lines. ',
+        reason: 'LineChart.tsx:1843-1846',
+      );
+    });
+
+    testWidgets('the legend is single-select', (tester) async {
+      await pump(tester, FluentLineChart(data: _lineData()));
+      expect(
+        shellOf(tester).legendSelectionMode,
+        FluentChartLegendSelectionMode.single,
+        reason: 'LineChart.tsx:186 tracks one selectedLegend, not a list',
+      );
+    });
+
+    testWidgets(
+      'Oracle B: the events story pins the band top and the bottom inset',
+      (tester) async {
+        final story = loadOracleStory('charts-linechart--line-chart-events');
+        final rules = story
+            .byTag('line')
+            .where((element) => element.strokeDasharray == '8px')
+            .toList();
+        expect(
+          rules,
+          hasLength(3),
+          reason: 'the capture holds three deduplicated event rules',
+        );
+        await pump(
+          tester,
+          FluentLineChart(
+            data: _dateLineData(),
+            // The story passes `eventAnnotationProps.labelHeight`, which
+            // overrides the 36 at LineChart.tsx:180-181.
+            style: FluentLineChartStyle.from(eventLabelHeight: 18),
+            eventAnnotations: <FluentEventAnnotation>[
+              FluentEventAnnotation(
+                date: DateTime.utc(2024, 3, 15),
+                event: 'Launch',
+              ),
+            ],
+            eventAnnotationMergedLabel: (int n) => '$n events',
+          ),
+          size: Size(story.width, story.height),
+        );
+        final layer = tester.widget<FluentEventAnnotationLayer>(
+          find.byType(FluentEventAnnotationLayer),
+        );
+        // EventAnnotation.tsx:19-20 — `textY = chartYTop - 20` and
+        // `lineTopY = textY + 7`, so the captured rule starts 13px below the
+        // chartYTop this widget computes.
+        expectOracleNumber('chartYTop', rules.first.y1! + 13, layer.chartTop);
+        // `chartYBottom = containerHeight - 35` (LineChart.tsx:1959) measured
+        // against the capture rather than hard-coded.
+        expectOracleNumber(
+          'the bottom inset',
+          story.height - rules.first.y2!,
+          tester.getSize(find.byType(FluentEventAnnotationLayer)).height -
+              layer.chartBottom,
+        );
+      },
+    );
+  });
 }
+
+/// Two four-point lines sharing the x values 1..4.
+FluentChartData _lineData({String? chartTitle}) => FluentChartData(
+  chartTitle: chartTitle,
+  lineChartData: <FluentLineChartSeries>[
+    FluentLineChartSeries(
+      legend: 'alpha',
+      data: <Object>[
+        for (var i = 1; i <= 4; i++)
+          FluentLineChartDataPoint(x: i, y: i * 10.0),
+      ],
+    ),
+    FluentLineChartSeries(
+      legend: 'beta',
+      data: <Object>[
+        for (var i = 1; i <= 4; i++)
+          FluentLineChartDataPoint(x: i, y: 45 - i * 5.0),
+      ],
+    ),
+  ],
+);
+
+/// One line on a date axis spanning March 2024, the axis an event annotation
+/// needs.
+FluentChartData _dateLineData() => FluentChartData(
+  lineChartData: <FluentLineChartSeries>[
+    FluentLineChartSeries(
+      legend: 'alpha',
+      data: <Object>[
+        for (var day = 10; day <= 20; day += 2)
+          FluentLineChartDataPoint(x: DateTime.utc(2024, 3, day), y: day * 1.0),
+      ],
+    ),
+  ],
+);
 
 FluentThemeData _theme() =>
     FluentThemeData.light(fontPlatform: FluentFontPlatform.web);

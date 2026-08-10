@@ -1,10 +1,15 @@
+import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
 import 'axis/axis_builders.dart' as builders;
 import 'axis/axis_types.dart';
 import 'axis/domain_range.dart';
+import 'cartesian/cartesian_chart.dart';
+import 'cartesian/cartesian_chart_props.dart';
 import 'cartesian/cartesian_layout.dart';
 import 'cartesian/cartesian_series_delegate.dart';
+import 'chrome/event_annotation.dart';
+import 'chrome/legend.dart';
 import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
 import 'internal/chart_text_styles.dart';
@@ -15,9 +20,242 @@ import 'internal/d3/shape_line_area.dart' as d3;
 import 'internal/d3/stable_sort.dart';
 import 'internal/data_viz_palette.dart';
 import 'line_chart_style.dart';
+import 'model/callout_data.dart';
 import 'model/cartesian_series.dart';
+import 'model/chart_annotation.dart';
 import 'model/chart_common.dart';
 import 'model/chart_value.dart';
+
+/// A Fluent 2 line chart.
+///
+/// Ports `LineChart.tsx`, the largest chart in the package. Two render engines
+/// live behind [FluentLineChartDelegate]; this widget owns the legend state
+/// (single-select, unlike every bar chart), the hover model and the optional
+/// event-annotation band.
+class FluentLineChart extends StatefulWidget {
+  /// Creates a line chart over [data].
+  const FluentLineChart({
+    super.key,
+    required this.data,
+    this.props = const FluentCartesianChartProps(),
+    this.eventAnnotations = const <FluentEventAnnotation>[],
+    this.eventAnnotationMergedLabel,
+    this.colorFillBars = const <FluentColorFillBar>[],
+    this.allowMultipleShapesForPoints = false,
+    this.optimizeLargeData = false,
+    this.isCalloutForStack = true,
+    this.culture,
+    this.style,
+    this.legendSelectionMode = FluentChartLegendSelectionMode.single,
+    this.focusNode,
+  });
+
+  /// The data bundle. Only [FluentChartData.lineChartData] and
+  /// [FluentChartData.chartTitle] are read.
+  final FluentChartData data;
+
+  /// Shell configuration.
+  final FluentCartesianChartProps props;
+
+  /// Dated rules drawn across the plot with a label band above it.
+  final List<FluentEventAnnotation> eventAnnotations;
+
+  /// Label used when several annotations collapse into one
+  /// (`EventAnnotation.tsx:61-119`). Required when [eventAnnotations] is not
+  /// empty.
+  final String Function(int count)? eventAnnotationMergedLabel;
+
+  /// Shaded x ranges drawn behind the lines.
+  final List<FluentColorFillBar> colorFillBars;
+
+  /// Whether points cycle through the eight marker shapes. Also makes the
+  /// first and last point of every series permanently visible.
+  final bool allowMultipleShapesForPoints;
+
+  /// Forces the single-path engine.
+  final bool optimizeLargeData;
+
+  /// Whether the popover lists every series at the hovered x. Defaults to
+  /// true (`LineChart.tsx:147`).
+  final bool isCalloutForStack;
+
+  /// BCP-47 locale for popover formatting.
+  final String? culture;
+
+  /// Style override, highest precedence.
+  final FluentLineChartStyle? style;
+
+  /// Whether the legend allows more than one selection.
+  final FluentChartLegendSelectionMode legendSelectionMode;
+
+  /// The chart's single focus node.
+  final FocusNode? focusNode;
+
+  @override
+  State<FluentLineChart> createState() => FluentLineChartState();
+}
+
+/// State for [FluentLineChart]. Public only so widget tests can reach
+/// [hoverValuesFor], which is the shape `FluentAreaChartState` already uses.
+class FluentLineChartState extends State<FluentLineChart> {
+  /// LineChart tracks ONE selected legend, not a list (`LineChart.tsx:186`).
+  final String _selectedLegend = '';
+  String? _activeLegend;
+  String? _activePointId;
+  (int, int)? _nearestPoint;
+  late final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
+  late List<FluentCustomizedCalloutData> _calloutPoints;
+
+  List<FluentLineChartSeries> get _series =>
+      widget.data.lineChartData ?? const <FluentLineChartSeries>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _calloutPoints = calloutData(_series);
+  }
+
+  @override
+  void didUpdateWidget(FluentLineChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.data != widget.data) {
+      _calloutPoints = calloutData(_series);
+    }
+  }
+
+  @override
+  void dispose() {
+    _measurer.invalidate();
+    super.dispose();
+  }
+
+  /// The popover rows for the hovered x value.
+  ///
+  /// With `isCalloutForStack` false the stack is narrowed to the single datum
+  /// whose y matches the latched point (`LineChart.tsx:1660-1668`). Upstream's
+  /// `find` returns the FIRST match, and it can only run from a circle whose y
+  /// it already knows; the port is reachable before any point is latched, so
+  /// with none latched the first row stands in — either way the answer is at
+  /// most one row, which is the whole meaning of the flag.
+  List<FluentCustomizedCalloutDataPoint> hoverValuesFor(Object x) {
+    final found =
+        findCalloutPoints(_calloutPoints, x, isXAxisDate: x is DateTime) ??
+        const <FluentCustomizedCalloutDataPoint>[];
+    if (widget.isCalloutForStack) {
+      return found;
+    }
+    final nearest = _nearestPoint;
+    final matching = nearest == null
+        ? found
+        : found.where(
+            (point) =>
+                point.y ==
+                (_series[nearest.$1].data[nearest.$2]
+                        as FluentLineChartDataPoint)
+                    .y,
+          );
+    return matching.take(1).toList(growable: false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final style = resolveFluentLineChartStyle(
+      theme,
+    ).merge(FluentLineChartTheme.maybeOf(context)).merge(widget.style);
+    // Upstream always reserves 36 (`LineChart.tsx:166`); with no band to draw
+    // there is nothing to reserve, so the field is assigned explicitly rather
+    // than left null.
+    final eventLabelHeight = widget.eventAnnotations.isEmpty
+        ? 0.0
+        : style.eventLabelHeight!.resolve(<WidgetState>{})!;
+    return FluentCartesianChart(
+      focusNode: widget.focusNode,
+      legendSelectionMode: widget.legendSelectionMode,
+      props: widget.props.copyWith(
+        eventLabelHeight: eventLabelHeight,
+        chartTitleForSemantics: widget.data.chartTitle == null
+            ? null
+            // `${chartTitle}. Line chart with ${n} lines. ` (`:1843-1846`).
+            : '${widget.data.chartTitle}. Line chart with '
+                  '${_series.length} lines. ',
+      ),
+      legends: <FluentChartLegendItem>[
+        for (var i = 0; i < _series.length; i++)
+          FluentChartLegendItem(
+            title: _series[i].legend,
+            color: _series[i].color ?? FluentDataVizPalette.next(i),
+            shape: _series[i].legendShape,
+            onHoverAction: () => setState(() {
+              // `hoverAction` clears the hover first (`:432-435`).
+              _nearestPoint = null;
+              _activePointId = null;
+              _activeLegend = _series[i].legend;
+            }),
+            onMouseOutAction: ({required bool isLegendFocused}) =>
+                setState(() => _activeLegend = null),
+          ),
+        // Colour-fill bar legends follow the lines (`LineChart.tsx:451`).
+        for (final bar in widget.colorFillBars)
+          FluentChartLegendItem(
+            title: bar.legend,
+            color: bar.color,
+            stripePattern: bar.applyPattern,
+            onHoverAction: () => setState(() => _activeLegend = bar.legend),
+            onMouseOutAction: ({required bool isLegendFocused}) =>
+                setState(() => _activeLegend = null),
+          ),
+      ],
+      delegate: FluentLineChartDelegate(
+        series: _series,
+        style: style,
+        colors: FluentChartColors.of(theme),
+        measurer: _measurer,
+        textStyles: FluentChartTextStyles.of(theme),
+        selectedLegend: _selectedLegend,
+        activeLegend: _activeLegend,
+        activePointId: _activePointId,
+        nearestPoint: _nearestPoint,
+        optimizeLargeData: widget.optimizeLargeData,
+        allowMultipleShapesForPoints: widget.allowMultipleShapesForPoints,
+        colorFillBars: widget.colorFillBars,
+        // The plan reads `props.strokeWidth` here, but plan 05 dropped that
+        // field from the props bag (`cartesian_chart_props.dart:75`), so the
+        // override comes from `lineOptions.strokeWidth` or the style alone.
+        xScaleType: widget.props.xScaleType,
+        yScaleType: widget.props.yScaleType,
+        xMinValue: widget.props.xMinValue,
+        xMaxValue: widget.props.xMaxValue,
+        yMinValue: widget.props.yMinValue,
+      ),
+      overlayBuilder: widget.eventAnnotations.isEmpty
+          ? null
+          : (context, child, layout) => FluentEventAnnotationLayer(
+              events: widget.eventAnnotations,
+              xScale: child.xScale,
+              // chartYTop / chartYBottom (`LineChart.tsx:1958-1959`).
+              chartTop: (layout.margins.top ?? 0) + eventLabelHeight,
+              chartBottom:
+                  layout.size.height - kFluentLineEventAnnotationBottomInset,
+              mergedLabel:
+                  widget.eventAnnotationMergedLabel ??
+                  (count) => '$count events',
+            ),
+      onChartMouseLeave: () => setState(() {
+        // `_handleChartMouseLeave` clears the hover (`:1195-1200`).
+        _activePointId = null;
+        _nearestPoint = null;
+      }),
+    );
+  }
+}
+
+/// The gap kept below the event-annotation rules.
+///
+/// `chartYBottom={props.containerHeight! - 35}` (`LineChart.tsx:1959`); the
+/// Oracle B capture of `LineChartEvents` ends its rules at y=225 in a 260px
+/// container, which is the same 35.
+const double kFluentLineEventAnnotationBottomInset = 35;
 
 /// The eight LineChart marker shapes.
 ///
