@@ -50,4 +50,25 @@ void main() {
       ]),
     );
   });
+
+  test('the seven shell-free charts are on the shelf', () {
+    final names = allStories.map((story) => story.name).toSet();
+    expect(
+      names,
+      containsAll(<String>[
+        'Charts/FluentSparkline',
+        'Charts/FluentChartTable',
+        'Charts/FluentHorizontalBarChart',
+        'Charts/FluentAnnotationOnlyChart',
+        'Charts/FluentDonutChart',
+        'Charts/FluentGaugeChart',
+        'Charts/FluentFunnelChart',
+      ]),
+      reason:
+          'Every shell-free chart needs a storybook entry: the GitHub '
+          'Pages deploy builds this app on every push to main, so a story '
+          'that fails to compile lands as a red test rather than a failed '
+          'deploy.',
+    );
+  });
 }
