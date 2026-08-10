@@ -4,11 +4,13 @@
 library;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:fluent_2_web/src/charts/axis/axis_types.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart_props.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart_style.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_painter.dart';
 import 'package:fluent_2_web/src/charts/chrome/legend.dart';
+import 'package:fluent_2_web/src/charts/model/chart_value.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -255,6 +257,128 @@ void main() {
       1,
       reason: 'onMouseLeave on the root div, CartesianChart.tsx:749',
     );
+  });
+
+  group('min-width reflow', () {
+    Widget narrow({
+      required FluentChartReflowMode mode,
+      FluentChartType chartType = FluentChartType.lineChart,
+    }) => SizedBox(
+      width: 200,
+      height: 260,
+      child: FluentCartesianChart(
+        delegate: StubCartesianDelegate(
+          xAxisType: FluentChartAxisType.category,
+          chartType: chartType,
+          categories: const <String>[
+            'January',
+            'February',
+            'March',
+            'April',
+            'May',
+            'June',
+            'July',
+          ],
+        ),
+        // The overlap cull is what a narrow box normally reaches for; turning
+        // it off (`CartesianChart.tsx:220`) leaves all seven months on the
+        // axis, which is the state min-width reflow exists to serve.
+        props: FluentCartesianChartProps(
+          hideLegend: true,
+          hideTickOverlap: false,
+          reflowMode: mode,
+        ),
+        legends: const <FluentChartLegendItem>[],
+      ),
+    );
+
+    testWidgets('none keeps the chart inside its box', (tester) async {
+      await pump(tester, narrow(mode: FluentChartReflowMode.none));
+      expect(
+        find.byType(SingleChildScrollView),
+        findsNothing,
+        reason:
+            "reflowProps.mode defaults to 'none', CartesianChart.types.ts:417",
+      );
+      expect(
+        painterOf(tester).layout.size.width,
+        200,
+        reason: 'the chart shrinks with its box',
+      );
+    });
+
+    testWidgets('minWidth scrolls instead of shrinking', (tester) async {
+      await pump(tester, narrow(mode: FluentChartReflowMode.minWidth));
+      expect(
+        find.byType(SingleChildScrollView),
+        findsOneWidget,
+        reason:
+            'upstream pairs min-width with chartWrapperMinWidth '
+            '{ overflow: auto } (useCartesianChartStyles.styles.ts:51-52); '
+            'Flutter needs the scroller spelled out — design spec section 5.1',
+      );
+      expect(
+        painterOf(tester).layout.size.width,
+        greaterThan(200),
+        reason:
+            'the chart is re-solved at _calculateChartMinWidth, '
+            'CartesianChart.tsx:534-550',
+      );
+    });
+
+    testWidgets('the three vertical bar types add 16 to the minimum', (
+      tester,
+    ) async {
+      await pump(tester, narrow(mode: FluentChartReflowMode.minWidth));
+      final line = painterOf(tester).layout.size.width;
+      await pump(
+        tester,
+        narrow(
+          mode: FluentChartReflowMode.minWidth,
+          chartType: FluentChartType.verticalBarChart,
+        ),
+      );
+      expect(
+        painterOf(tester).layout.size.width - line,
+        16,
+        reason:
+            'minDomainMargin * 2 for GroupedVerticalBarChart, VerticalBarChart '
+            'and VerticalStackedBarChart, CartesianChart.tsx:540-547',
+      );
+    });
+
+    testWidgets('a box already wider than the minimum does not scroll', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        SizedBox(
+          // 700 rather than the 1000 the plan wrote: the default test surface
+          // is 800 wide, so a 1000-wide box is squeezed back to 800 by the
+          // constraints and the assertion measures the surface, not the reflow.
+          width: 700,
+          height: 260,
+          child: FluentCartesianChart(
+            delegate: StubCartesianDelegate(),
+            props: const FluentCartesianChartProps(
+              hideLegend: true,
+              reflowMode: FluentChartReflowMode.minWidth,
+            ),
+            legends: const <FluentChartLegendItem>[],
+          ),
+        ),
+      );
+      expect(
+        find.byType(SingleChildScrollView),
+        findsNothing,
+        reason: 'no scroller when the box already clears the minimum',
+      );
+      expect(
+        painterOf(tester).layout.size.width,
+        700,
+        reason: 'Math.max(rect.width, minWidth) at CartesianChart.tsx:513-515',
+      );
+    });
   });
 
   group('Oracle B: charts-linechart--line-chart-basic', () {

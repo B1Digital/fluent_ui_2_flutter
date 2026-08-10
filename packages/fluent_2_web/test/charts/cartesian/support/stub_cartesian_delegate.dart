@@ -55,6 +55,10 @@ class StubCartesianDelegate extends FluentCartesianSeriesDelegate {
   FluentChartAxisType get yAxisType => FluentChartAxisType.numeric;
 
   @override
+  List<String>? get datasetForXAxisDomain =>
+      xAxisType == FluentChartAxisType.category ? categories : null;
+
+  @override
   String? get chartTitle => 'Stub chart. ';
 
   @override

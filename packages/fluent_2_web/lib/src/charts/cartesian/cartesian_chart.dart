@@ -209,37 +209,121 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
         return const SizedBox.expand();
       }
       final geometry = _solve(size: size, isRtl: isRtl, textStyles: textStyles);
-      return Semantics(
-        container: true,
-        label: buildFluentCartesianChartDescription(
-          chartTitle: widget.delegate.chartTitle,
-          xAxisTitle: widget.props.xAxisTitle,
-          xAxisType: widget.delegate.xAxisType,
-          yAxisTitle: widget.props.yAxisTitle,
-          yAxisType: widget.delegate.yAxisType,
-          secondaryYAxisTitle: widget.props.secondaryYAxisTitle,
-          hasSecondaryScale: widget.props.secondaryYScaleOptions != null,
-        ),
-        child: CustomPaint(
-          size: size,
-          painter: FluentCartesianChartPainter(
-            layout: geometry.layout,
-            delegate: widget.delegate,
-            xAxis: geometry.xAxis,
-            yAxisPrimary: geometry.yAxisPrimary,
-            yAxisSecondary: geometry.yAxisSecondary,
-            xLabelLayout: geometry.xLabelLayout,
-            style: style,
-            colors: colors,
-            textStyles: textStyles,
-            measurer: _measurer,
-            crispOffset: crispOffset,
-            props: widget.props,
-          ),
-        ),
+
+      if (widget.props.reflowMode == FluentChartReflowMode.minWidth) {
+        final minWidth = _minChartWidth(
+          geometry: geometry,
+          textStyles: textStyles,
+        );
+        if (minWidth > size.width) {
+          final wide = Size(minWidth, size.height);
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox.fromSize(
+              size: wide,
+              child: _paint(
+                geometry: _solve(
+                  size: wide,
+                  isRtl: isRtl,
+                  textStyles: textStyles,
+                ),
+                size: wide,
+                style: style,
+                colors: colors,
+                textStyles: textStyles,
+                crispOffset: crispOffset,
+              ),
+            ),
+          );
+        }
+      }
+
+      return _paint(
+        geometry: geometry,
+        size: size,
+        style: style,
+        colors: colors,
+        textStyles: textStyles,
+        crispOffset: crispOffset,
       );
     },
   );
+
+  Widget _paint({
+    required _CartesianGeometry geometry,
+    required Size size,
+    required FluentCartesianChartStyle style,
+    required FluentChartColors colors,
+    required FluentChartTextStyles textStyles,
+    required double crispOffset,
+  }) => Semantics(
+    container: true,
+    label: buildFluentCartesianChartDescription(
+      chartTitle: widget.delegate.chartTitle,
+      xAxisTitle: widget.props.xAxisTitle,
+      xAxisType: widget.delegate.xAxisType,
+      yAxisTitle: widget.props.yAxisTitle,
+      yAxisType: widget.delegate.yAxisType,
+      secondaryYAxisTitle: widget.props.secondaryYAxisTitle,
+      hasSecondaryScale: widget.props.secondaryYScaleOptions != null,
+    ),
+    child: CustomPaint(
+      size: size,
+      painter: FluentCartesianChartPainter(
+        layout: geometry.layout,
+        delegate: widget.delegate,
+        xAxis: geometry.xAxis,
+        yAxisPrimary: geometry.yAxisPrimary,
+        yAxisSecondary: geometry.yAxisSecondary,
+        xLabelLayout: geometry.xLabelLayout,
+        style: style,
+        colors: colors,
+        textStyles: textStyles,
+        measurer: _measurer,
+        crispOffset: crispOffset,
+        props: widget.props,
+      ),
+    ),
+  );
+
+  /// `_calculateChartMinWidth` (`CartesianChart.tsx:534-550`).
+  ///
+  /// Upstream guards this with `_isFirstRender` because its tick labels only
+  /// exist after a render; here they come from the solve that just ran, so the
+  /// widened chart is re-solved in the same frame.
+  double _minChartWidth({
+    required _CartesianGeometry geometry,
+    required FluentChartTextStyles textStyles,
+  }) {
+    final labels = geometry.xAxis.tickLabels;
+    // "Adding 10px for padding on both sides" (`CartesianChart.tsx:535-536`).
+    final labelWidth =
+        calcMaxLabelWidthWithTransform(
+          labels,
+          wrapXAxisLabels: widget.props.wrapXAxisLables,
+          rotateXAxisLabels: widget.props.rotateXAxisLables,
+          showXAxisLabelsTooltip: widget.props.showXAxisLablesTooltip,
+          xAxisType: widget.delegate.xAxisType,
+          noOfCharsToTruncate: widget.props.noOfCharsToTruncate,
+          style: textStyles.axisTick,
+          measurer: _measurer,
+        ) +
+        10;
+    final margins = geometry.layout.margins;
+    var minWidth =
+        (margins.left ?? 0) +
+        (margins.right ?? 0) +
+        labelWidth * (labels.length - 1);
+    // The three vertical bar charts reserve one domain margin per side
+    // (`CartesianChart.tsx:540-547`); `minDomainMargin` is a local 8 there and
+    // `MIN_DOMAIN_MARGIN` at `utilities.ts:89`.
+    if (widget.delegate.chartType == FluentChartType.groupedVerticalBarChart ||
+        widget.delegate.chartType == FluentChartType.verticalBarChart ||
+        widget.delegate.chartType == FluentChartType.verticalStackedBarChart) {
+      minWidth += kMinDomainMargin * 2;
+    }
+    return minWidth;
+  }
 
   /// Solves the geometry, twice when the left margin depends on the y tick
   /// labels.
