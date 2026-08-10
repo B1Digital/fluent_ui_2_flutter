@@ -78,7 +78,7 @@ const Map<String, String> kChartInternalOrphanAllowlist = <String, String>{
       'lib/ by construction — the same reason FluentAreaChart has no lib/ '
       'caller and the reason this scan is scoped to internal/ at all. It is '
       'the non-throwing query for whether toImage will succeed, versus the '
-      'StateError at image_export.dart:451.',
+      'StateError at image_export.dart:455.',
 
   // --- Blocked: the consumer is not ported --------------------------------
   'fluentChartIsDarkTheme':
