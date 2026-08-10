@@ -269,32 +269,52 @@ class FluentChartLegendRow extends StatelessWidget {
         // reproduces that override instead of announcing the label twice.
         label: label,
         excludeSemantics: true,
-        child: FluentInteractive(
-          focusNode: focusNode,
-          onPressed: onPressed,
-          builder: (context, interactionStates, child) => FluentFocusRing(
-            visible: interactionStates.contains(WidgetState.focused),
-            borderRadius: radius,
-            child: Padding(padding: padding, child: child!),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Opacity(
-                opacity: swatchOpacity,
-                child: SizedBox(
-                  key: const ValueKey<String>('legend-swatch'),
-                  width: swatchSize,
-                  height: swatchHeight,
-                  child: _buildSwatch(fill: fill),
-                ),
+        child: MouseRegion(
+          // FluentInteractive folds hover into its WidgetState set and reports
+          // nothing outward (internal/interaction.dart:206-208). A legend hover
+          // is a side effect on the plot, not a visual state on this row, so it
+          // is observed here rather than by extending a widget every button in
+          // the package depends on.
+          onEnter: (_) => onHighlightChanged?.call(true),
+          onExit: (_) => onHighlightChanged?.call(false),
+          child: Focus(
+            // Legends.tsx:316-319 — onFocus is onMouseOver and onBlur is
+            // onMouseOut, so keyboard traversal highlights the series exactly as
+            // a pointer hover does. This node must not steal focus from the
+            // FluentInteractive below it, and onFocusChange on a non-focusable
+            // node still reports descendant focus, which is what carries the
+            // row's own focus through to the chart.
+            canRequestFocus: false,
+            skipTraversal: skipTraversal,
+            onFocusChange: (hasFocus) => onHighlightChanged?.call(hasFocus),
+            child: FluentInteractive(
+              focusNode: focusNode,
+              onPressed: onPressed,
+              builder: (context, interactionStates, child) => FluentFocusRing(
+                visible: interactionStates.contains(WidgetState.focused),
+                borderRadius: radius,
+                child: Padding(padding: padding, child: child!),
               ),
-              SizedBox(width: marginEnd),
-              Opacity(
-                opacity: labelOpacity,
-                child: Text(label, style: labelStyle, maxLines: 1),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Opacity(
+                    opacity: swatchOpacity,
+                    child: SizedBox(
+                      key: const ValueKey<String>('legend-swatch'),
+                      width: swatchSize,
+                      height: swatchHeight,
+                      child: _buildSwatch(fill: fill),
+                    ),
+                  ),
+                  SizedBox(width: marginEnd),
+                  Opacity(
+                    opacity: labelOpacity,
+                    child: Text(label, style: labelStyle, maxLines: 1),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

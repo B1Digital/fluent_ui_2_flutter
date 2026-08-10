@@ -5,6 +5,7 @@ import 'package:fluent_2_web/src/charts/chrome/legend.dart';
 import 'package:fluent_2_web/src/charts/chrome/legend_shape.dart';
 import 'package:fluent_2_web/src/charts/chrome/legend_style.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_utils.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -776,5 +777,147 @@ void main() {
             'defaults and the widget style, which is the package-wide order.',
       );
     });
+  });
+
+  group('FluentChartLegend hover and focus symmetry', () {
+    Future<void> pumpStrip(WidgetTester tester, Widget child) =>
+        tester.pumpWidget(
+          FluentApp(
+            theme: theme,
+            home: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(width: 800, child: child),
+            ),
+          ),
+        );
+
+    testWidgets('hovering a legend fires its hover action and dims the others', (
+      tester,
+    ) async {
+      var hovered = 0;
+      var left = 0;
+      await pumpStrip(
+        tester,
+        FluentChartLegend(
+          legends: <FluentChartLegendItem>[
+            FluentChartLegendItem(
+              title: 'alpha',
+              color: const Color(0xFF0078D4),
+              onHoverAction: () => hovered++,
+              onMouseOutAction: ({required isLegendFocused}) => left++,
+            ),
+            const FluentChartLegendItem(
+              title: 'beta',
+              color: Color(0xFF107C10),
+            ),
+          ],
+        ),
+      );
+
+      final pointer = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(pointer.removePointer);
+      await pointer.addPointer(location: Offset.zero);
+      await pointer.moveTo(tester.getCenter(find.text('Alpha')));
+      await tester.pump();
+
+      expect(
+        hovered,
+        1,
+        reason: 'Legends.tsx:316 wires onMouseOver to legend.hoverAction.',
+      );
+      expect(
+        tester
+            .widgetList<Opacity>(find.byType(Opacity))
+            .map((o) => o.opacity)
+            .contains(kInactiveLegendTextOpacity),
+        isTrue,
+        reason:
+            'Legends.tsx:411-413 dims every legend other than the hovered one, '
+            'which is what makes hover a series highlight.',
+      );
+
+      await pointer.moveTo(const Offset(700, 700));
+      await tester.pump();
+      expect(
+        left,
+        1,
+        reason:
+            'Legends.tsx:317 wires onMouseOut to legend.onMouseOutAction, and '
+            'Legends.tsx:263 clears the active legend with it.',
+      );
+    });
+
+    testWidgets('focusing a legend highlights it exactly like a hover', (
+      tester,
+    ) async {
+      var hovered = 0;
+      await pumpStrip(
+        tester,
+        FluentChartLegend(
+          legends: <FluentChartLegendItem>[
+            FluentChartLegendItem(
+              title: 'alpha',
+              color: const Color(0xFF0078D4),
+              onHoverAction: () => hovered++,
+              onMouseOutAction: ({required isLegendFocused}) {},
+            ),
+            const FluentChartLegendItem(
+              title: 'beta',
+              color: Color(0xFF107C10),
+            ),
+          ],
+        ),
+      );
+      Focus.of(tester.element(find.text('Alpha'))).requestFocus();
+      await tester.pump();
+      expect(
+        hovered,
+        1,
+        reason:
+            'Legends.tsx:318 assigns onFocus the same handler as onMouseOver, '
+            'so keyboard traversal highlights the series identically.',
+      );
+    });
+
+    testWidgets(
+      'a row with no hover action does not become the active legend',
+      (tester) async {
+        await pumpStrip(
+          tester,
+          const FluentChartLegend(
+            legends: <FluentChartLegendItem>[
+              FluentChartLegendItem(title: 'alpha', color: Color(0xFF0078D4)),
+              FluentChartLegendItem(title: 'beta', color: Color(0xFF107C10)),
+            ],
+          ),
+        );
+        final pointer = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        addTearDown(pointer.removePointer);
+        await pointer.addPointer(location: Offset.zero);
+        await pointer.moveTo(tester.getCenter(find.text('Alpha')));
+        await tester.pump();
+        final opacities = tester
+            .widgetList<Opacity>(find.byType(Opacity))
+            .map((o) => o.opacity)
+            .toList(growable: false);
+        expect(
+          opacities,
+          hasLength(4),
+          reason:
+              'Count guard: two rows, each with a swatch Opacity and a label '
+              'Opacity. Without them `every` below would pass vacuously.',
+        );
+        expect(
+          opacities.every((opacity) => opacity == 1.0),
+          isTrue,
+          reason:
+              'Legends.tsx:255 only calls setActiveLegend inside '
+              '`if (legend.hoverAction)`, so a row with no hover action never '
+              'dims its neighbours.',
+        );
+      },
+    );
   });
 }
