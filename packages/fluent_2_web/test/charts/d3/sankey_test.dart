@@ -62,24 +62,206 @@ void main() {
     );
   });
 
-  test('the layout is deterministic across runs — stable ties', () {
-    String layout() {
-      final (nodes, links) = sample();
-      return Sankey()
-          .nodeWidth(124)
-          .extentOf(0, 0, 800, 400)(nodes, links)
-          .nodes
-          .map((SankeyLayoutNode n) => '${n.id}:${n.y0}')
-          .join(',');
-    }
+  // ---------------------------------------------------------------------------
+  // Exact breadth ties.
+  //
+  // `ascendingBreadth` is `a.y0 - b.y0` (`d3-sankey/src/sankey.js:13-15`), so it
+  // returns 0 for any two nodes a column has pushed onto the same y0, and both
+  // column sorts — `sankey.js:263` in the left-to-right pass, `:286` in the
+  // right-to-left one — hand those ties to `Array.prototype.sort`, stable in V8
+  // since ES2019. Dart's `List.sort` is not, which is why the port routes both
+  // through `stableSort`. Without a layout that actually ties, that routing is
+  // unobservable: reversing the tie order at all six call sites leaves every
+  // other test in this suite green.
+  //
+  // The graph below ties on purpose. Two sources P and Q feed two sinks X and Y
+  // with values a = P→X, b = P→Y, c = Q→X, d = Q→Y. Both columns hold the same
+  // total — each is a + b + c + d — so with `nodePadding(0)`
+  // `initializeNodeBreadths` (`sankey.js:211-231`) packs each flush into the
+  // extent and has no slack to share out (`:223` divides zero by the node
+  // count): P at 0, Q at (a + b)k, X at 0 and Y at (a + c)k, for the `:212`
+  // value-to-pixel scale k.
+  //
+  // The first relaxation runs at alpha 1 (`sankey.js:238`, `Math.pow(0.99, 0)`)
+  // and lands each node on the value-weighted mean of its neighbours' ribbon
+  // tops (`:275-279` right to left, `:252-256` left to right). Zero padding
+  // collapses those tops to plain sums of ribbon widths, leaving, in units of k,
+  //
+  //   P → bc/(a + b)          Q → (ac + d(a + b))/(c + d)
+  //   X → bc/(a + c)          Y → (ab + d(a + c))/(b + d)
+  //
+  // Both pairs collide at once when b == c — which makes the two conditions the
+  // same equation — and b^2(b + d) == (a + b)(ab + d(a + b)). (5, 10, 10, 2)
+  // satisfies it: 100 * 12 == 15 * 80.
+  //
+  // That covers two of the six `stableSort` calls in the port —
+  // `sankey.dart:450` and `:482`, the two column sorts. The other four cannot
+  // be covered this way and do not need to be: `ascendingSourceBreadth` and
+  // `ascendingTargetBreadth` fall back to `a.index - b.index`
+  // (`sankey.js:5-11`), and `computeNodeLinks` numbers every link across the
+  // whole link list (`sankey.js:134`, `sankey.dart:207-208`), so those two
+  // comparators return 0 only when handed the same link twice. Sorting a
+  // reversed copy at `sankey.dart:546`, `:552`, `:562` or `:566` is a no-op:
+  // stability there is unobservable, not untested. The order those four produce
+  // is load-bearing and is covered — reversing the sorted result at any of them
+  // fails the tests below, and at three of the four the corpus test too.
+  // ---------------------------------------------------------------------------
 
+  /// Two sources feeding two sinks, in the input order P, X, Y, Q.
+  ///
+  /// The input order is the column order — `computeNodeLayers`
+  /// (`sankey.js:193-209`) appends nodes as it walks the input — so column 0
+  /// starts as `[P, Q]` and column 1 as `[X, Y]`, and that is the order a
+  /// stable sort has to hold on to through a tie.
+  (List<SankeyLayoutNode>, List<SankeyLayoutLink>) tieGraph(
+    double pToX,
+    double pToY,
+    double qToX,
+    double qToY,
+  ) {
+    final p = SankeyLayoutNode(id: 'P');
+    final x = SankeyLayoutNode(id: 'X');
+    final y = SankeyLayoutNode(id: 'Y');
+    final q = SankeyLayoutNode(id: 'Q');
+    return (
+      <SankeyLayoutNode>[p, x, y, q],
+      <SankeyLayoutLink>[
+        SankeyLayoutLink(source: p, target: x, value: pToX),
+        SankeyLayoutLink(source: p, target: y, value: pToY),
+        SankeyLayoutLink(source: q, target: x, value: qToX),
+        SankeyLayoutLink(source: q, target: y, value: qToY),
+      ],
+    );
+  }
+
+  test('both column sorts tie, and the tie keeps the input order', () {
+    // iterations(1) is what puts the left-to-right pair on the same y0 as
+    // well: only there does beta reach 1 on the first pass (`sankey.js:239`,
+    // `max(1 - alpha, (i + 1) / iterations)`), so `resolveCollisions` repacks
+    // the source column flush against the extent before the left-to-right pass
+    // reads it, and the closed form above holds for X and Y too. The corpus
+    // already covers `iterations(1)` as a supported setting
+    // (`crawlers/d3-golden/generate.mjs:498`).
+    final (nodes, links) = tieGraph(5, 10, 10, 2);
+    final graph = Sankey()
+        .nodePadding(0)
+        .iterations(1)
+        .extentOf(0, 0, 800, 320)(nodes, links);
+    // Ground truth: d3-sankey run on this graph under node, same settings
+    // (`crawlers/d3-golden/node_modules/d3-sankey`). Every digit below is V8's,
+    // and the port reproduces all of them bit for bit — alpha is 0.99^0 here,
+    // so the sub-ulp `math.pow` deviation of `sankey.dart:370-377` cannot bite.
+    const wantNodes = <(String, double, double)>[
+      ('P', 0, 177.77777777777777),
+      ('X', 0, 177.77777777777777),
+      ('Y', 177.77777777777777, 320),
+      ('Q', 177.77777777777777, 320),
+    ];
     expect(
-      layout(),
-      layout(),
+      graph.nodes,
+      hasLength(wantNodes.length),
+      reason: 'the layout returns the four input nodes',
+    );
+    for (var i = 0; i < wantNodes.length; i++) {
+      final node = graph.nodes[i];
+      final (id, y0, y1) = wantNodes[i];
+      expect(node.id, id, reason: 'node $i is $id');
+      expect(
+        node.y0,
+        y0,
+        reason:
+            '$id y0 — inverting either tie swaps the pair inside its column '
+            'and moves this edge',
+      );
+      expect(node.y1, y1, reason: '$id y1');
+    }
+    const wantLinks = <(String, double, double, double)>[
+      ('P→X', 59.25925925925925, 29.629629629629626, 29.629629629629626),
+      ('P→Y', 118.5185185185185, 118.5185185185185, 237.037037037037),
+      ('Q→X', 118.5185185185185, 237.037037037037, 118.5185185185185),
+      ('Q→Y', 23.703703703703702, 308.14814814814815, 308.14814814814815),
+    ];
+    expect(
+      graph.links,
+      hasLength(wantLinks.length),
+      reason: 'the layout returns the four input links',
+    );
+    for (var i = 0; i < wantLinks.length; i++) {
+      final link = graph.links[i];
+      final (label, width, y0, y1) = wantLinks[i];
+      expect(
+        '${link.source.id}→${link.target.id}',
+        label,
+        reason: 'link $i is $label',
+      );
+      expect(link.width, width, reason: '$label width');
+      expect(link.y0, y0, reason: '$label y0 follows its source node');
+      expect(link.y1, y1, reason: '$label y1 follows its target node');
+    }
+  });
+
+  test('the right-to-left tie holds at the default six iterations', () {
+    final (nodes, links) = tieGraph(5, 10, 10, 2);
+    final graph = Sankey().nodePadding(0).extentOf(0, 0, 800, 320)(
+      nodes,
+      links,
+    );
+    // The right-to-left tie is in the first relaxation, where alpha is 1
+    // whatever the iteration count, so it survives the d3 default of six
+    // (`sankey.js:64`). Only y0 is asserted: the later iterations run alpha
+    // through `math.pow(0.99, 3)`, one ulp off V8 (`sankey.dart:370-377`),
+    // which shows up in y1 at the extent edge but not in these four values —
+    // all four are V8's own, from d3-sankey under node.
+    const wantY0 = <(String, double)>[
+      ('P', 0),
+      ('X', 0),
+      ('Y', 177.77777777777777),
+      ('Q', 177.77777777777777),
+    ];
+    expect(graph.nodes, hasLength(wantY0.length), reason: 'four nodes back');
+    for (var i = 0; i < wantY0.length; i++) {
+      final (id, y0) = wantY0[i];
+      expect(graph.nodes[i].id, id, reason: 'node $i is $id');
+      expect(
+        graph.nodes[i].y0,
+        y0,
+        reason:
+            '$id y0 — with the tie inverted at sankey.js:286 the sources swap, '
+            'putting Q on top at 0 and P at 142.22',
+      );
+    }
+  });
+
+  test('the left-to-right tie holds at the default six iterations', () {
+    // The left-to-right pass reads a source column the collision pass has
+    // already nudged, so the closed form above does not survive past
+    // `iterations(1)` and this quadruple came from scanning integer values
+    // 1..14 for a layout that an inverted tie order moves; (1, 3, 1, 3) is the
+    // first. Its sinks tie in a later iteration, and the values below are once
+    // more d3-sankey's under node.
+    final (nodes, links) = tieGraph(1, 3, 1, 3);
+    final graph = Sankey().nodePadding(0).extentOf(0, 0, 800, 320)(
+      nodes,
+      links,
+    );
+    final x = graph.nodes[1];
+    final y = graph.nodes[2];
+    expect(x.id, 'X', reason: 'node 1 is X');
+    expect(y.id, 'Y', reason: 'node 2 is Y');
+    expect(
+      <double>[x.y0, x.y1, y.y0, y.y1],
+      <double>[0, 80, 80, 320],
       reason:
-          'ascendingBreadth returns 0 on every tie and is applied twelve '
-          'times per layout (sankey.js:263,286); an unstable sort makes the '
-          'diagram shuffle between renders',
+          'X keeps the top of its column through the tie; inverting it at '
+          'sankey.js:263 drops X to 240 and lifts Y to 0',
+    );
+    expect(
+      graph.nodes[0].y0,
+      lessThan(graph.nodes[3].y0),
+      reason:
+          'P stays above Q — asserted as an order, not a number, because the '
+          'source column lands on 159.99999999999997 against V8\'s 160 through '
+          'the `math.pow(0.99, 3)` deviation of sankey.dart:370-377',
     );
   });
 
