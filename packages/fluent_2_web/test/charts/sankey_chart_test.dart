@@ -1,12 +1,8 @@
 import 'dart:ui' show PathMetric;
 
 import 'package:fluent_2_web/fluent_2_web.dart';
-// `sankey_chart.dart` and `sankey_chart_layout.dart` are not barrel-exported yet
-// — the integration task owns `lib/fluent_2_web.dart`, so the test reaches for
-// the libraries directly, exactly as `sankey_chart_layout_test.dart` does.
+// The d3 kernel is deliberately never barrel-exported, so this one stays deep.
 import 'package:fluent_2_web/src/charts/internal/d3/sankey.dart';
-import 'package:fluent_2_web/src/charts/sankey_chart.dart';
-import 'package:fluent_2_web/src/charts/sankey_chart_layout.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
