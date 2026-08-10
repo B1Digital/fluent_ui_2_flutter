@@ -12,8 +12,10 @@ import 'internal/chart_text_measurer.dart';
 import 'internal/chart_text_styles.dart';
 import 'internal/chart_utils.dart';
 import 'internal/d3/array_stats.dart' as d3;
+import 'internal/d3/path_sink.dart' as d3;
 import 'internal/d3/scale.dart';
 import 'internal/d3/scale_linear.dart';
+import 'internal/d3/shape_line_area.dart' as d3;
 import 'model/bar_data.dart';
 import 'model/chart_common.dart';
 import 'model/chart_value.dart';
@@ -288,12 +290,45 @@ class FluentVerticalStackedBarChartDelegate
       : getTypeOfAxis(stacks.first.xAxisPoint, isXAxis: true);
 
   @override
-  FluentChartAxisType get yAxisType =>
-      // `_initYAxisParams` (`VerticalStackedBarChart.tsx:1247-1249`). The
-      // line-data fallback at `:1250-1256` lands with the line overlay.
-      stacks.isEmpty || stacks.first.chartData.isEmpty
-      ? FluentChartAxisType.numeric
-      : getTypeOfAxis(stacks.first.chartData.first.data, isXAxis: false);
+  FluentChartAxisType get yAxisType {
+    // `_initYAxisParams` (`VerticalStackedBarChart.tsx:1247-1258`).
+    if (stacks.isNotEmpty && stacks.first.chartData.isNotEmpty) {
+      return getTypeOfAxis(stacks.first.chartData.first.data, isXAxis: false);
+    }
+    // `:1250-1256` — a `forEach` over the line legends, so the **last**
+    // non-secondary legend wins rather than the first.
+    var resolved = FluentChartAxisType.numeric;
+    for (final points in _lineObject.values) {
+      if (!points.first.point.useSecondaryYScale) {
+        resolved = getTypeOfAxis(points.first.point.y, isXAxis: false);
+      }
+    }
+    return resolved;
+  }
+
+  /// The line points grouped by legend, in first-appearance order.
+  ///
+  /// Ports `_getFormattedLineData` (`VerticalStackedBarChart.tsx:520-540`),
+  /// whose `LineObject` is a plain object and therefore enumerates in insertion
+  /// order — as a Dart [Map] does. Each entry carries the stack the point was
+  /// declared on, which is upstream's `xItem`.
+  Map<String, List<({Object xAxisPoint, FluentStackedBarLineDatum point})>>
+  get _lineObject {
+    final byLegend =
+        <
+          String,
+          List<({Object xAxisPoint, FluentStackedBarLineDatum point})>
+        >{};
+    for (final stack in stacks) {
+      for (final line
+          in stack.lineData ?? const <FluentStackedBarLineDatum>[]) {
+        (byLegend[line.legend] ??=
+                <({Object xAxisPoint, FluentStackedBarLineDatum point})>[])
+            .add((xAxisPoint: stack.xAxisPoint, point: line));
+      }
+    }
+    return byLegend;
+  }
 
   /// The colour segment [index] of a stack draws in, before high-contrast
   /// flattening. The legend reads this too, so a swatch and its segments can
@@ -586,6 +621,287 @@ class FluentVerticalStackedBarChartDelegate
         isRtl: isRtl,
         chartType: FluentChartType.verticalStackedBarChart,
       );
+
+  /// The category y labels, in the order [yAxisCategoryOrder] asks for.
+  ///
+  /// Ports `_getOrderedYAxisLabels` (`VerticalStackedBarChart.tsx:1301-1307`)
+  /// over `_mapCategoryToValues(true)` (`:1309-1327`): the category is the
+  /// segment's `data` and the value pushed under it is the **stack's x**, so an
+  /// aggregate order such as `'mean ascending'` sorts the categories by where
+  /// they appear along the x axis. A non-numeric x contributes no value, which
+  /// is upstream's `typeof value === 'number'` guard at `:1325`.
+  List<String> get orderedYAxisLabels {
+    if (yAxisType != FluentChartAxisType.category) {
+      // VerticalStackedBarChart.tsx:1302-1304.
+      return const <String>[];
+    }
+    final categoryToValues = <String, List<double>>{};
+    for (final stack in stacks) {
+      for (final segment in stack.chartData) {
+        final values = categoryToValues.putIfAbsent(
+          '${segment.data}',
+          () => <double>[],
+        );
+        if (stack.xAxisPoint is num) {
+          values.add((stack.xAxisPoint as num).toDouble());
+        }
+      }
+    }
+    return sortAxisCategories(categoryToValues, yAxisCategoryOrder);
+  }
+
+  @override
+  List<String>? get stringDatasetForYAxisDomain =>
+      yAxisType == FluentChartAxisType.category
+      // The leading '' is deliberate: it reserves the baseline band, which
+      // every stack is measured down to (`VerticalStackedBarChart.tsx:1401`).
+      ? <String>['', ...orderedYAxisLabels]
+      : null;
+
+  @override
+  FluentChartMargins? yDomainMargins(double containerHeight) {
+    // `_getYDomainMargins` (`VerticalStackedBarChart.tsx:1261-1291`) returns
+    // `{..._margins, top: _margins.top + 0}` off the string branch, which is
+    // the shell's own margins; null is how the delegate spells that.
+    if (yAxisType != FluentChartAxisType.category) {
+      return null;
+    }
+    // Defaults from CartesianChart.tsx:41-42, the margins the shell has
+    // already written into `_margins` by the time `:1268` reads them.
+    const marginTop = 20.0;
+    const marginBottom = 35.0;
+    final totalHeight = containerHeight - marginBottom - marginTop;
+    final labels = orderedYAxisLabels;
+    var maxBarHeightInLabels = 0.0;
+    for (final stack in stacks) {
+      var barHeightInLabels = 0.0;
+      for (final segment in stack.chartData) {
+        // `:1278` — one label unit per band the segment sits above, so a
+        // segment on the lowest category counts once.
+        barHeightInLabels += labels.indexOf('${segment.data}') + 1;
+      }
+      maxBarHeightInLabels = math.max(maxBarHeightInLabels, barHeightInLabels);
+    }
+    // `:1283` — the guard is there because the division would otherwise be by
+    // zero for a chart whose stacks are all empty.
+    final yAxisLabelHeight = maxBarHeightInLabels == 0
+        ? 0.0
+        : totalHeight / maxBarHeightInLabels;
+    return FluentChartMargins(
+      // `:1284` — negative when the stacks are shorter than the label column,
+      // which pulls the top margin back in.
+      top:
+          marginTop + yAxisLabelHeight * (maxBarHeightInLabels - labels.length),
+    );
+  }
+
+  /// Resolves every stack segment on a category y axis.
+  ///
+  /// Ports the string branch of `_createBar`
+  /// (`VerticalStackedBarChart.tsx:1056-1065`), where a segment's height is
+  /// measured from the plot floor to the **centre** of its label's band. The
+  /// band has zero width because `createStringYAxis` forces `paddingInner(1)`
+  /// for this chart (`utilities.ts:973-975`), so the centring term is zero in
+  /// practice; it is kept because upstream writes it and a padding change would
+  /// need it.
+  ///
+  /// Two things the numeric [segmentsFor] does are absent here, both because
+  /// upstream skips them on this branch: there is no `Y_ORIGIN` term in the
+  /// baseline (`:1026-1029`), and there is no negative direction — every
+  /// segment grows upwards off the floor.
+  List<FluentStackedBarSegmentLayout> categorySegmentsFor(
+    FluentCartesianChildContext context,
+    FluentCartesianLayout layout,
+  ) {
+    if (stacks.isEmpty) {
+      return const <FluentStackedBarSegmentLayout>[];
+    }
+    final isBandX = xAxisType == FluentChartAxisType.category;
+    final barWidth = isBandX
+        ? getBarWidth(
+            barWidthProp,
+            maxBarWidth,
+            adjustedValue: context.xScale.bandwidth,
+          )
+        : getBarWidth(barWidthProp, maxBarWidth);
+    // VerticalStackedBarChart.tsx:1002-1003.
+    final translate = isBandX
+        ? (context.xScale.bandwidth - barWidth) / 2
+        : -barWidth / 2;
+    final floor = layout.size.height - (layout.margins.bottom ?? 0);
+    final dim = style.barOpacity!.resolve(<WidgetState>{WidgetState.disabled})!;
+    // `_noLegendHighlighted` (`:421-423`).
+    final noneHighlighted =
+        selectedLegends.isEmpty &&
+        (activeLegend == null || activeLegend!.isEmpty);
+
+    final out = <FluentStackedBarSegmentLayout>[];
+    for (var si = 0; si < stacks.length; si++) {
+      final stack = stacks[si];
+      // `barsToDisplay` (`:1006-1014`) — the third clause is the string-axis
+      // one, which drops a segment whose label is not in the band domain.
+      final visible = stack.chartData
+          .where(
+            (segment) =>
+                segment.data != 0 &&
+                segment.data != '' &&
+                context.yScalePrimary(segment.data) != null,
+          )
+          .toList(growable: false);
+      if (visible.isEmpty) {
+        // `:1016-1018` returns undefined, and `:1222` filters the stack out.
+        continue;
+      }
+      final metrics = computeFluentStackedBarGapMetrics(
+        bars: visible,
+        yBarScale: context.yScalePrimary,
+        isStringYAxis: true,
+        barGapMax: barGapMax,
+      );
+      var positiveStart = floor;
+      final x = context.xScale(stack.xAxisPoint)! + translate;
+      for (var k = 0; k < visible.length; k++) {
+        final gapOffset = k > 0 ? metrics.gapHeight : 0.0;
+        // `Math.max(…, barMinimumHeight, 1)` at `:1057-1064` takes three
+        // arguments; the trailing 1 keeps a segment on the baseline band
+        // visible rather than collapsing it to nothing.
+        final height = math.max(
+          math.max(
+            floor -
+                (context.yScalePrimary(visible[k].data)! +
+                    context.yScalePrimary.bandwidth / 2) -
+                gapOffset,
+            barMinimumHeight,
+          ),
+          1.0,
+        );
+        positiveStart -= height + gapOffset;
+        // `_isLegendHighlighted(...) || _noLegendHighlighted()` (`:1038`).
+        final highlighted =
+            noneHighlighted ||
+            isLegendHighlightedMulti(
+              visible[k].legend,
+              selectedLegends: selectedLegends,
+              activeLegend: activeLegend,
+            );
+        out.add(
+          FluentStackedBarSegmentLayout(
+            rect: Rect.fromLTWH(x, positiveStart, barWidth, height),
+            colour: colors.flattenMark(segmentPaletteColour(visible[k], k)),
+            opacity: highlighted ? 1 : dim,
+            stackIndex: si,
+            segmentIndex: k,
+            isLast: k == visible.length - 1,
+          ),
+        );
+      }
+    }
+    return out;
+  }
+
+  /// Ports the radius arm of `_getCircleOpacityAndRadius`
+  /// (`VerticalStackedBarChart.tsx:681-700`).
+  ///
+  /// A dimmed dot is drawn at opacity 0 rather than hidden, so that it stays
+  /// focusable (`:650-652`); this returns 0 for that case and the caller skips
+  /// painting while keeping the hit region.
+  ///
+  /// [noneHighlighted] is upstream's `_noLegendHighlighted()`, whose arm at
+  /// `:694-699` keeps every dot at radius 8 and hides the inactive ones with
+  /// opacity alone. Without it a chart with no legend selection would draw
+  /// 0.3px dots where the capture shows 8px ones.
+  double lineDotRadiusFor({
+    required bool highlighted,
+    required bool isActiveX,
+    bool noneHighlighted = false,
+  }) {
+    if (noneHighlighted) {
+      return style.lineDotRadius!.resolve(<WidgetState>{WidgetState.hovered})!;
+    }
+    if (!highlighted) {
+      return 0;
+    }
+    return isActiveX
+        ? style.lineDotRadius!.resolve(<WidgetState>{WidgetState.hovered})!
+        : style.lineDotRadius!.resolve(const <WidgetState>{})!;
+  }
+
+  /// The colour of the line segment ending at [endIndex].
+  ///
+  /// `// parity:` `stroke={lineObject[item][i].color}` (`.tsx:614`) reads the
+  /// segment's **destination** point, so a colour change takes effect one
+  /// segment early.
+  ///
+  /// ponytail: indexes the flattened point list, so a chart with more than one
+  /// line legend would need the legend passed in too. No caller has two yet;
+  /// widen it to `lineSegmentColour(String legend, int endIndex)` when the
+  /// painter lands.
+  Color lineSegmentColour(int endIndex) =>
+      colors.flattenMark(lineDatums[endIndex + 1].color);
+
+  /// The fill of an overlaid line's dot, which is the halo separating it from
+  /// the line beneath it (`VerticalStackedBarChart.tsx:648`).
+  ///
+  /// Routed through [FluentChartColors.flattenMarkStroke] rather than
+  /// [FluentChartColors.flattenMark], so forced colours send it to `Canvas`
+  /// while the dot's stroke goes to `CanvasText` — flattening both the same way
+  /// would erase the dot (spec section 5.3).
+  Color get lineDotFillColour => colors.flattenMarkStroke(
+    style.lineDotFillColor!.resolve(const <WidgetState>{})!,
+  );
+
+  /// Every line point, in stack order then declaration order.
+  List<FluentStackedBarLineDatum> get lineDatums => <FluentStackedBarLineDatum>[
+    for (final stack in stacks) ...?stack.lineData,
+  ];
+
+  /// One path per line legend.
+  ///
+  /// Ports the `<line>` run of `_createLines`
+  /// (`VerticalStackedBarChart.tsx:556-620`) as a single polyline per legend.
+  /// `xScaleBandwidthTranslate` is half a band on a category x axis and zero
+  /// otherwise (`:556`); `yScaleBandwidthTranslate` is half a band only for a
+  /// point on a **primary** category y axis (`:587-590`). Both are `transform`
+  /// attributes upstream and are folded into the coordinates here.
+  ///
+  /// `// parity:` upstream decides `useSecondaryYScale` per **segment**, from
+  /// both endpoints (`:568-569`), so a line crossing between the scales draws
+  /// its crossing segment entirely on the primary one. A polyline can only
+  /// decide per point, so the crossing segment is drawn between the two scales
+  /// instead.
+  Map<String, Path> linePathsFor(FluentCartesianChildContext context) {
+    final xShift = xAxisType == FluentChartAxisType.category
+        ? context.xScale.bandwidth / 2
+        : 0.0;
+    return <String, Path>{
+      for (final entry in _lineObject.entries)
+        entry.key: _linePath(context, entry.value, xShift),
+    };
+  }
+
+  Path _linePath(
+    FluentCartesianChildContext context,
+    List<({Object xAxisPoint, FluentStackedBarLineDatum point})> points,
+    double xShift,
+  ) {
+    final sink = d3.UiPathSink();
+    d3.Line<({Object xAxisPoint, FluentStackedBarLineDatum point})>(
+      x: (p, _, _) => context.xScale(p.xAxisPoint)! + xShift,
+      y: (p, _, _) {
+        final useSecondary =
+            p.point.useSecondaryYScale && context.yScaleSecondary != null;
+        final scale = useSecondary
+            ? context.yScaleSecondary!
+            : context.yScalePrimary;
+        final yShift =
+            !useSecondary && yAxisType == FluentChartAxisType.category
+            ? context.yScalePrimary.bandwidth / 2
+            : 0.0;
+        return scale(p.point.resolvedData)! + yShift;
+      },
+    )(points, sink);
+    return sink.path;
+  }
 
   @override
   void paintSeries(

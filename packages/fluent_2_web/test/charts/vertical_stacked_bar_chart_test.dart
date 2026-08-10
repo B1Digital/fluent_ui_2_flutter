@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
@@ -903,6 +905,342 @@ void main() {
       );
     });
   });
+
+  // None of the eight captured VerticalStackedBarChart stories puts the chart
+  // on a category y axis, so the numbers below are derived from
+  // `VerticalStackedBarChart.tsx` rather than from a fixture.
+  group('VSBC category y axis', () {
+    test('the band domain is prefixed with an empty label', () {
+      final d = _vsbcStringYDelegate(labels: <String>['low', 'mid', 'high']);
+      expect(
+        d.stringDatasetForYAxisDomain,
+        <String>['', 'low', 'mid', 'high'],
+        reason: "VerticalStackedBarChart.tsx:1401 passes ['', ..._yAxisLabels]",
+      );
+    });
+
+    test('the y axis type falls back to the line data', () {
+      final d = _vsbcStringYDelegate(
+        labels: <String>['low'],
+        stackLabelIndices: <List<int>>[<int>[]],
+      );
+      expect(
+        d.yAxisType,
+        FluentChartAxisType.category,
+        reason:
+            'with no segments in the first stack, _initYAxisParams reads '
+            '_lineObject[legend][0].y instead, '
+            'VerticalStackedBarChart.tsx:1250-1256',
+      );
+      expect(
+        d.stringDatasetForYAxisDomain,
+        <String>[''],
+        reason:
+            'the fallback never adds the line value to _yAxisLabels, which '
+            '_mapCategoryToValues builds from chartData alone, :1309-1327',
+      );
+    });
+
+    test('the y domain margin inflates the top by the label surplus', () {
+      final d = _vsbcStringYDelegate(
+        labels: <String>['low', 'mid', 'high'],
+        // Two stacks: the first names 'low' so the band domain covers all
+        // three labels, the second index-sums to 5 label units.
+        stackLabelIndices: <List<int>>[
+          <int>[1],
+          <int>[2, 3],
+        ],
+      );
+      // totalHeight = 350 - 35 - 20 = 295 ; maxBarHeightInLabels = 5
+      // yAxisLabelHeight = 59 ; tickMarginTop = 59 * (5 - 3) = 118
+      expect(
+        d.yDomainMargins(350)!.top,
+        closeTo(20 + 118, 1e-9),
+        reason: 'VerticalStackedBarChart.tsx:1261-1291',
+      );
+    });
+
+    test('a zero maxBarHeightInLabels leaves the margin alone', () {
+      final d = _vsbcStringYDelegate(
+        labels: <String>['low'],
+        stackLabelIndices: <List<int>>[<int>[]],
+      );
+      expect(
+        d.yDomainMargins(350)!.top,
+        closeTo(20, 1e-9),
+        reason: 'yAxisLabelHeight is 0 when maxBarHeightInLabels is 0, :1283',
+      );
+    });
+
+    test('a numeric y axis declines the margin override entirely', () {
+      expect(
+        _vsbcDelegate(
+          stacks: <List<double>>[
+            <double>[50],
+          ],
+          barGapMax: 0,
+          yMax: 50,
+        ).yDomainMargins(350),
+        isNull,
+        reason:
+            'the StringAxis guard at :1271 leaves yAxisTickMarginTop at 0, '
+            "which the shell spells as 'keep your own margins'",
+      );
+    });
+
+    test('a category segment measures from the band centre', () {
+      final d = _vsbcStringYDelegate(
+        labels: <String>['low', 'mid', 'high'],
+        stackLabelIndices: <List<int>>[
+          <int>[2],
+        ],
+      );
+      final ctx = _vsbcBandYContext();
+      final seg = d.categorySegmentsFor(ctx, _layout(height: 350)).single;
+      expect(
+        seg.rect.height,
+        closeTo(
+          315 - (ctx.yScalePrimary('mid')! + ctx.yScalePrimary.bandwidth / 2),
+          1e-9,
+        ),
+        reason:
+            'barHeight = H - bottom - (yScale(data) + bandwidth/2) - gap, '
+            'VerticalStackedBarChart.tsx:1057-1064',
+      );
+      expect(
+        ctx.yScalePrimary.bandwidth,
+        0,
+        reason:
+            'createStringYAxis forces paddingInner(1) for VSBC, so the '
+            'bandwidth is zero, utilities.ts:973-975',
+      );
+      expect(
+        seg.rect.bottom,
+        closeTo(315, 1e-9),
+        reason:
+            'the string branch drops the Y_ORIGIN term, so every stack grows '
+            'off the plot floor, VerticalStackedBarChart.tsx:1026-1029',
+      );
+      expect(
+        seg.colour,
+        _palette.first,
+        reason: 'the first segment takes _colors[0] through flattenMark, :1036',
+      );
+    });
+
+    test('a segment outside the band domain is filtered out', () {
+      final d = _vsbcStringYDelegate(
+        labels: <String>['low', 'unlabelled'],
+        stackLabelIndices: <List<int>>[
+          <int>[1, 2],
+        ],
+      );
+      final segs = d.categorySegmentsFor(
+        _vsbcBandYContext(),
+        _layout(height: 350),
+      );
+      expect(
+        segs.length,
+        1,
+        reason:
+            'barsToDisplay drops a data whose band is undefined, '
+            'VerticalStackedBarChart.tsx:1006-1014',
+      );
+    });
+  });
+
+  group('VSBC line overlay', () {
+    test('the dot radius table covers all four states', () {
+      final d = _vsbcWithLines();
+      expect(
+        d.lineDotRadiusFor(highlighted: true, isActiveX: true),
+        8,
+        reason: 'VerticalStackedBarChart.tsx:687',
+      );
+      expect(
+        d.lineDotRadiusFor(highlighted: true, isActiveX: false),
+        0.3,
+        reason:
+            'a highlighted legend at another x keeps a focusable stub, :689',
+      );
+      expect(
+        d.lineDotRadiusFor(highlighted: false, isActiveX: true),
+        0,
+        reason: 'a dimmed legend hides the dot entirely, :691',
+      );
+      expect(
+        d.lineDotRadiusFor(
+          highlighted: true,
+          isActiveX: false,
+          noneHighlighted: true,
+        ),
+        8,
+        reason:
+            'with nothing highlighted every dot keeps r 8 and is hidden by '
+            'opacity instead, VerticalStackedBarChart.tsx:694-699',
+      );
+    });
+
+    test('the line takes the DESTINATION point colour', () {
+      final d = _vsbcWithLines(
+        colours: <Color>[const Color(0xFF111111), const Color(0xFF222222)],
+      );
+      expect(
+        d.lineSegmentColour(0).toARGB32(),
+        0xFF222222,
+        reason:
+            'parity: `stroke = lineObject[item][i].color` reads the '
+            'segment END, VerticalStackedBarChart.tsx:614',
+      );
+    });
+
+    test('high contrast flattens the stroke and the halo to opposite slots', () {
+      final d = _vsbcWithLines(isHighContrast: true);
+      expect(
+        d.lineSegmentColour(0),
+        _canvasText,
+        reason:
+            'spec section 5.3 — a line stroke is a mark, so it routes through '
+            'flattenMark',
+      );
+      expect(
+        d.lineDotFillColour,
+        _canvas,
+        reason:
+            "the dot's fill is the halo that separates it from the line it "
+            'sits on, so it routes through flattenMarkStroke and lands on '
+            'Canvas, not CanvasText',
+      );
+      expect(
+        d.lineDotFillColour,
+        isNot(d.lineSegmentColour(0)),
+        reason: 'flattening both the same way would erase the dot',
+      );
+    });
+
+    test('the line is shifted half a band on a category x axis', () {
+      final band = _vsbcWithLines(xPoints: _stackLabels.take(2).toList());
+      expect(
+        band.xAxisType,
+        FluentChartAxisType.category,
+        reason: 'the helper labels its stacks, so the x axis is a band axis',
+      );
+      final ctx = _vsbcContext();
+      final path = band.linePathsFor(ctx)['line 0']!;
+      expect(
+        path.getBounds().left,
+        // Path bounds are float32, so the epsilon is the storage width and not
+        // a slack in the geometry.
+        closeTo(ctx.xScale(_stackLabels[0])! + ctx.xScale.bandwidth / 2, 1e-4),
+        reason:
+            'xScaleBandwidthTranslate is bandwidth/2 on a string x axis, '
+            'VerticalStackedBarChart.tsx:556',
+      );
+    });
+  });
+
+  group('Oracle B — charts-verticalstackedbarchart--vertical-stacked-bar-'
+      'secondary-y-axis', () {
+    /// The three captured `<line>` elements of the overlaid series, left to
+    /// right. Their stroke is the only purple in the capture.
+    List<OracleElement> lineSegments(OracleStory story) {
+      final segments =
+          story
+              .byTag('line')
+              .where((e) => e.stroke == const Color(0xFFB146C2))
+              .toList()
+            ..sort((a, b) => a.x1!.compareTo(b.x1!));
+      expect(
+        segments.length,
+        3,
+        reason:
+            '${story.id} captured four line points and therefore three '
+            'segments, or the assertions below check nothing',
+      );
+      return segments;
+    }
+
+    test('the overlaid line path visits every captured vertex', () {
+      final story = loadOracleStory(
+        'charts-verticalstackedbarchart--vertical-stacked-bar-secondary-y-axis',
+      );
+      final segments = lineSegments(story);
+      final xs = <Object>[segments.first.x1!, for (final s in segments) s.x2!];
+      final ys = <double>[segments.first.y1!, for (final s in segments) s.y2!];
+      for (final s in segments) {
+        expectOracleOffset(
+          '${story.id} line segment translate',
+          Offset.zero,
+          Offset(s.ctm![4], s.ctm![5]),
+          tolerance: kOracleMeasuredTolerance,
+        );
+      }
+      final d = _vsbcWithLines(
+        xPoints: xs,
+        lineYs: ys,
+        useSecondaryYScale: true,
+      );
+      final path = d.linePathsFor(_identityContext(xs, ys))['line 0']!;
+      expectOracleRect(
+        '${story.id} overlaid line bounds',
+        Rect.fromLTRB(
+          segments.first.x1!,
+          ys.reduce(math.min),
+          segments.last.x2!,
+          ys.reduce(math.max),
+        ),
+        path.getBounds(),
+      );
+      final metrics = path.computeMetrics().toList();
+      expect(
+        metrics.length,
+        1,
+        reason: 'four defined points make one unbroken contour',
+      );
+      var captured = 0.0;
+      for (final s in segments) {
+        captured += (Offset(s.x2!, s.y2!) - Offset(s.x1!, s.y1!)).distance;
+      }
+      expectOracleNumber(
+        '${story.id} overlaid line total length',
+        captured,
+        metrics.single.length,
+      );
+    });
+
+    test('an unhighlighted dot keeps the 8px radius the capture shows', () {
+      final story = loadOracleStory(
+        'charts-verticalstackedbarchart--vertical-stacked-bar-secondary-y-axis',
+      );
+      final dots = story.byTag('circle');
+      expect(
+        dots.length,
+        4,
+        reason: '${story.id} captured one dot per line point',
+      );
+      final d = _vsbcWithLines();
+      for (final dot in dots) {
+        expectOracleNumber(
+          '${story.id} dot radius with nothing highlighted',
+          dot.r!,
+          d.lineDotRadiusFor(
+            highlighted: true,
+            // The story sets no activeXAxisDataPoint, so no dot is active.
+            isActiveX: false,
+            noneHighlighted: true,
+          ),
+        );
+        expect(
+          dot.opacity,
+          0,
+          reason:
+              'the capture proves the r-8 dot is hidden by opacity, not by '
+              'radius, so it stays focusable, '
+              'VerticalStackedBarChart.tsx:694-698',
+        );
+      }
+    });
+  });
 }
 
 /// The five DataViz tokens VSBC falls back to, in upstream order
@@ -1012,5 +1350,137 @@ FluentVerticalStackedBarChartDelegate _vsbcDelegate({
     barMinimumHeight: barMinimumHeight,
     yMinValue: yMin,
     yMaxValue: yMax,
+  );
+}
+
+/// A delegate whose primary y axis is categorical.
+///
+/// Each entry of [stackLabelIndices] is one stack, spelled as the **one-based**
+/// positions of its segments' labels within [labels] — which is exactly the
+/// quantity `_yAxisLabels.indexOf(`${bar.data}`) + 1` sums at
+/// `VerticalStackedBarChart.tsx:1278`. The default gives one stack per label,
+/// so the band domain covers every entry of [labels].
+///
+/// Every stack carries one line point, because `_initYAxisParams` falls back to
+/// the line data to type the y axis when the first stack has no segments
+/// (`VerticalStackedBarChart.tsx:1250-1256`).
+FluentVerticalStackedBarChartDelegate _vsbcStringYDelegate({
+  required List<String> labels,
+  List<List<int>>? stackLabelIndices,
+}) {
+  final indices =
+      stackLabelIndices ??
+      <List<int>>[
+        for (var i = 1; i <= labels.length; i++) <int>[i],
+      ];
+  expect(
+    indices.length,
+    lessThanOrEqualTo(_stackLabels.length),
+    reason: 'the x domain has to cover every stack, or xScale returns null',
+  );
+  final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+  return FluentVerticalStackedBarChartDelegate(
+    stacks: <FluentVerticalStackedBarGroup>[
+      for (final (i, positions) in indices.indexed)
+        FluentVerticalStackedBarGroup(
+          chartData: <FluentStackedBarDatum>[
+            for (final p in positions)
+              FluentStackedBarDatum(data: labels[p - 1], legend: 'series $p'),
+          ],
+          xAxisPoint: _stackLabels[i],
+          lineData: <FluentStackedBarLineDatum>[
+            FluentStackedBarLineDatum(
+              y: labels.first,
+              color: _palette.first,
+              legend: 'line',
+            ),
+          ],
+        ),
+    ],
+    style: resolveFluentVerticalStackedBarChartStyle(theme),
+    colors: _colours(),
+    measurer: FluentChartTextMeasurer(),
+    textStyles: FluentChartTextStyles.of(theme),
+    selectedLegends: const <String>[],
+    palette: _palette,
+  );
+}
+
+/// A child context whose y scale is the zero-bandwidth band a category y axis
+/// builds (`utilities.ts:973-975`), so a 350px layout leaves the plot floor at
+/// 315 and the ceiling at 20.
+FluentCartesianChildContext _vsbcBandYContext() => FluentCartesianChildContext(
+  xScale: _bandScale(
+    domain: _stackLabels,
+    range: <double>[40, 620],
+    innerPadding: 2 / 3,
+    outerPadding: 0,
+  ),
+  yScalePrimary: _bandScale(
+    domain: <String>['', 'low', 'mid', 'high'],
+    range: <double>[315, 20],
+    innerPadding: 1,
+    outerPadding: 0,
+  ),
+  containerWidth: 640,
+  containerHeight: 350,
+);
+
+/// A context whose scales are the identity over [xs] and [ys], so a captured
+/// pixel feeds straight back in as a domain value.
+FluentCartesianChildContext _identityContext(List<Object> xs, List<double> ys) {
+  final xValues = xs.cast<double>();
+  final identityX = scaleLinear()
+    ..domainOf(<double>[xValues.reduce(math.min), xValues.reduce(math.max)])
+    ..rangeOf(<double>[xValues.reduce(math.min), xValues.reduce(math.max)]);
+  final identityY = scaleLinear()
+    ..domainOf(<double>[ys.reduce(math.min), ys.reduce(math.max)])
+    ..rangeOf(<double>[ys.reduce(math.min), ys.reduce(math.max)]);
+  return FluentCartesianChildContext(
+    xScale: identityX,
+    yScalePrimary: identityY,
+    yScaleSecondary: identityY,
+    containerWidth: 700,
+    containerHeight: 260,
+  );
+}
+
+/// A delegate carrying one line legend, `'line 0'`, with one point per stack.
+FluentVerticalStackedBarChartDelegate _vsbcWithLines({
+  List<Color>? colours,
+  List<double> lineYs = const <double>[10, 20],
+  List<Object>? xPoints,
+  bool isHighContrast = false,
+  bool useSecondaryYScale = false,
+}) {
+  final palette = colours ?? _palette;
+  expect(
+    lineYs.length,
+    lessThanOrEqualTo(xPoints?.length ?? _stackLabels.length),
+    reason: 'the x domain has to cover every stack, or xScale returns null',
+  );
+  final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+  return FluentVerticalStackedBarChartDelegate(
+    stacks: <FluentVerticalStackedBarGroup>[
+      for (final (i, y) in lineYs.indexed)
+        FluentVerticalStackedBarGroup(
+          chartData: _segments(<double>[50]),
+          xAxisPoint: xPoints?[i] ?? _stackLabels[i],
+          lineData: <FluentStackedBarLineDatum>[
+            FluentStackedBarLineDatum(
+              y: y,
+              color: palette[i % palette.length],
+              legend: 'line 0',
+              useSecondaryYScale: useSecondaryYScale,
+            ),
+          ],
+        ),
+    ],
+    style: resolveFluentVerticalStackedBarChartStyle(theme),
+    colors: _colours(isHighContrast: isHighContrast),
+    measurer: FluentChartTextMeasurer(),
+    textStyles: FluentChartTextStyles.of(theme),
+    selectedLegends: const <String>[],
+    palette: _palette,
   );
 }
