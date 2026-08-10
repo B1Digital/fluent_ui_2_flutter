@@ -1,3 +1,7 @@
+import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:fluent_2_web/src/charts/chrome/legend_shape.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -265,6 +269,192 @@ void main() {
           tolerance: kOracleMeasuredTolerance,
         );
       }
+    });
+  });
+
+  mainPart2();
+}
+
+/// Renders [painter] into a [kLegendShapeViewportSize] square and returns the
+/// raw RGBA bytes, so a pixel can be asserted rather than a call log.
+Future<ByteData> renderShape(FluentChartLegendShapePainter painter) async {
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  const size = Size(kLegendShapeViewportSize, kLegendShapeViewportSize);
+  painter.paint(canvas, size);
+  final image = await recorder.endRecording().toImage(
+    kLegendShapeViewportSize.toInt(),
+    kLegendShapeViewportSize.toInt(),
+  );
+  final data = await image.toByteData();
+  image.dispose();
+  return data!;
+}
+
+/// The packed ARGB of the device pixel ([x], [y]) inside the RGBA [data] a
+/// [renderShape] call returned.
+int argbAt(ByteData data, int x, int y) {
+  final offset = (y * kLegendShapeViewportSize.toInt() + x) * 4;
+  final r = data.getUint8(offset);
+  final g = data.getUint8(offset + 1);
+  final b = data.getUint8(offset + 2);
+  final a = data.getUint8(offset + 3);
+  return (a << 24) | (r << 16) | (g << 8) | b;
+}
+
+/// The [FluentChartLegendShapePainter] group, called from [main].
+void mainPart2() {
+  const fill = Color(0xFF0078D4);
+  const stroke = Color(0xFF107C10);
+
+  group('FluentChartLegendShapePainter', () {
+    test(
+      'the viewBox origin shifts the square one pixel down and right',
+      () async {
+        final data = await renderShape(
+          const FluentChartLegendShapePainter(
+            shape: FluentChartLegendShape.square,
+            fill: fill,
+            stroke: stroke,
+            strokeWidth: 0,
+          ),
+        );
+        expect(
+          argbAt(data, 7, 7),
+          fill.toARGB32(),
+          reason:
+              'The square covers user space 1..12; with the viewBox origin of '
+              'shape.tsx:41 that is device 2..13, so the centre is filled.',
+        );
+        expect(
+          argbAt(data, 0, 0),
+          0x00000000,
+          reason:
+              'User-space (0, 0) maps to device (1, 1), so device (0, 0) is '
+              'outside every authored shape and stays transparent.',
+        );
+      },
+    );
+
+    test('an unrotated shape reports zero rotation', () {
+      expect(
+        fluentChartLegendShapeRotation(FluentChartLegendShape.square),
+        0,
+        reason: 'shape.tsx:44 only rotates the diamond and the pyramid.',
+      );
+    });
+
+    test('the diamond rotation matches the box Chromium measured', () {
+      final diamonds = legendShapeSvgs()
+          .where(
+            (swatch) =>
+                shapeOfCapturedPath(swatch.$2) ==
+                FluentChartLegendShape.diamond,
+          )
+          .toList();
+      expect(
+        diamonds.length,
+        2,
+        reason:
+            'charts-legends--legends-basic and --legends-controlled each render '
+            'one diamond swatch; a drop here makes the loop below vacuous.',
+      );
+      for (final (storyId, svg) in diamonds) {
+        // A kLegendShapeViewportSize square rotated by theta about any origin
+        // has the axis-aligned extent size * (|cos theta| + |sin theta|); the
+        // origin only moves it. So the captured 19.799 pins the angle the
+        // painter applies — and nothing more, which is why the painter's
+        // docstring still calls the origin unverified.
+        final extent =
+            kLegendShapeViewportSize *
+            (math
+                    .cos(
+                      fluentChartLegendShapeRotation(
+                        FluentChartLegendShape.diamond,
+                      ),
+                    )
+                    .abs() +
+                math
+                    .sin(
+                      fluentChartLegendShapeRotation(
+                        FluentChartLegendShape.diamond,
+                      ),
+                    )
+                    .abs());
+        expectOracleNumber(
+          '$storyId diamond swatch width',
+          extent,
+          svg.width,
+          tolerance: kOracleMeasuredTolerance,
+        );
+        expectOracleNumber(
+          '$storyId diamond swatch height',
+          extent,
+          svg.height,
+          tolerance: kOracleMeasuredTolerance,
+        );
+      }
+    });
+
+    test('the pyramid rotates a half turn about the viewport corner', () async {
+      final data = await renderShape(
+        const FluentChartLegendShapePainter(
+          shape: FluentChartLegendShape.pyramid,
+          fill: fill,
+          stroke: stroke,
+          strokeWidth: 0,
+        ),
+      );
+      final anyPainted = List<int>.generate(
+        kLegendShapeViewportSize.toInt() * kLegendShapeViewportSize.toInt(),
+        (i) => argbAt(
+          data,
+          i % kLegendShapeViewportSize.toInt(),
+          i ~/ kLegendShapeViewportSize.toInt(),
+        ),
+      ).any((argb) => argb != 0x00000000);
+      expect(
+        anyPainted,
+        isFalse,
+        reason:
+            'rotate(180, 0, 0) at shape.tsx:44 maps the triangle, which spans '
+            'x 0..12 and y 0..10, into negative coordinates, so the whole '
+            'pyramid falls outside the 14x14 viewport and nothing is drawn. '
+            'This is upstream geometry, not a transcription error — see the '
+            'Oracle B probe named in the painter docstring.',
+      );
+    });
+
+    test('shouldRepaint tracks every input', () {
+      const a = FluentChartLegendShapePainter(
+        shape: FluentChartLegendShape.circle,
+        fill: fill,
+        stroke: stroke,
+      );
+      expect(
+        a.shouldRepaint(
+          const FluentChartLegendShapePainter(
+            shape: FluentChartLegendShape.circle,
+            fill: fill,
+            stroke: stroke,
+          ),
+        ),
+        isFalse,
+        reason: 'Identical inputs must not force a repaint.',
+      );
+      expect(
+        a.shouldRepaint(
+          const FluentChartLegendShapePainter(
+            shape: FluentChartLegendShape.circle,
+            fill: stroke,
+            stroke: stroke,
+          ),
+        ),
+        isTrue,
+        reason:
+            'The fill is the dim indicator (Legends.tsx:390-416), so a change '
+            'to it must repaint.',
+      );
     });
   });
 }

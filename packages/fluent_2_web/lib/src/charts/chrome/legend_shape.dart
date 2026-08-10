@@ -235,3 +235,92 @@ double fluentChartLegendShapeRotation(FluentChartLegendShape shape) =>
       FluentChartLegendShape.pyramid => math.pi,
       _ => 0,
     };
+
+/// Paints one legend marker into a [kLegendShapeViewportSize] square.
+///
+/// Reproduces `shape.tsx:32-54` exactly, in its own order: the `transform` on
+/// the `<svg>` element runs first, then the viewBox maps user space into the
+/// rendered box, then the path is filled and stroked.
+///
+/// `Legends.tsx:363-366` supplies `fill` (the possibly-dimmed colour),
+/// `stroke: legend.color` (never dimmed) and `strokeWidth: 2`. Keeping the
+/// stroke at the undimmed colour is what leaves a coloured outline behind when
+/// a legend is filtered out, and it is the only visual difference between a
+/// dimmed swatch and an absent one.
+///
+/// **The rotation origin is unverified against a live render.**
+/// `shape.tsx:43-45` sets the SVG `transform` attribute on an outermost `<svg>`
+/// in HTML flow. SVG 2 says the rotation origin is user-space (0, 0); a CSS
+/// `transform` on the same element would use `transform-origin: 50% 50%`.
+/// Browsers have historically differed. This painter follows the source, so a
+/// [FluentChartLegendShape.pyramid] swatch lands entirely outside the viewport
+/// and paints nothing.
+///
+/// The Oracle B probe the plan nominated to settle this —
+/// `charts-legends--legends-basic`, whose two svg swatches are a diamond and a
+/// triangle — **is** in the corpus and cannot settle it. It proves the
+/// transform is applied at all: that story's diamond swatch measures
+/// 19.799011 × 19.798988, which is 14 × √2, against 14 × 14 for the triangle.
+/// But a rotation's bounding-box *size* is independent of its origin, and
+/// `crawlers/storybooks-fluentui/capture_oracle.mjs:205-213` records only an
+/// svg's `width` and `height`, never its position, so the two candidate origins
+/// are indistinguishable in the capture. Settling it needs a re-capture that
+/// also stores `getBoundingClientRect().x`/`.y` for every swatch svg.
+class FluentChartLegendShapePainter extends CustomPainter {
+  /// Creates a painter for one marker.
+  const FluentChartLegendShapePainter({
+    required this.shape,
+    required this.fill,
+    required this.stroke,
+    // Legends.tsx:365 — `strokeWidth: 2` on every legend swatch. The popover's
+    // swatch omits it entirely (ChartPopover.tsx:215), which is why this is a
+    // parameter rather than a constant.
+    this.strokeWidth = 2,
+  });
+
+  /// Which of the nine markers to draw.
+  final FluentChartLegendShape shape;
+
+  /// Path fill. Already dimmed by the caller when the legend is filtered out.
+  final Color fill;
+
+  /// Path stroke. Always `legend.color`, never dimmed (`Legends.tsx:366`).
+  final Color stroke;
+
+  /// Stroke width. Zero suppresses the outline.
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = fluentChartLegendShapePath(shape);
+    if (path.computeMetrics().isEmpty) return;
+
+    canvas.save();
+    // The element transform, about the rendered box's own (0, 0).
+    canvas.rotate(fluentChartLegendShapeRotation(shape));
+    // The viewBox mapping: `-1 -1 14 14` into a 14x14 box is a pure
+    // translation, because the scale is 14 / 14 = 1 (`shape.tsx:39-41`).
+    canvas.translate(kLegendShapeViewBoxOrigin, kLegendShapeViewBoxOrigin);
+
+    // dottedLine is three open subpaths and has no interior, so filling it is a
+    // no-op rather than a special case.
+    canvas.drawPath(path, Paint()..color = fill);
+    if (strokeWidth > 0) {
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = stroke
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth,
+      );
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(FluentChartLegendShapePainter oldDelegate) =>
+      oldDelegate.shape != shape ||
+      oldDelegate.fill != fill ||
+      oldDelegate.stroke != stroke ||
+      oldDelegate.strokeWidth != strokeWidth;
+}
