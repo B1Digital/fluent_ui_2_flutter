@@ -168,7 +168,7 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
       ? FluentChartAxisType.category
       : FluentChartAxisType.numeric;
 
-  /// Whether neither axis is a band scale (`ScatterChart.tsx:389`).
+  /// Whether neither axis is a band scale (`ScatterChart.tsx:388`).
   bool get isContinuousXy =>
       xAxisType != FluentChartAxisType.category &&
       yAxisType != FluentChartAxisType.category;
@@ -187,7 +187,7 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
       containerWidth,
       isRtl: isRtl,
       scaleType: xScaleType,
-      // ScatterChart.tsx:205-212 hard-codes hasMarkersMode true, so the numeric
+      // ScatterChart.tsx:211 hard-codes hasMarkersMode true, so the numeric
       // x domain ALWAYS carries the ten-percent marker pad.
       hasMarkersMode: true,
       xMinVal: xMinValue,
@@ -223,7 +223,7 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
       raw.endValue,
       scaleType: yScaleType,
     );
-    // ponytail: exactly one pad, at `ScatterChart.tsx:181-190`.
+    // ponytail: exactly one pad, at `ScatterChart.tsx:180-190`.
     // `utilities.ts:825-831` computes a second one into locals that `:832`
     // never reads, so reproducing it would be a bug, not parity. Contract §1.
     return FluentChartMinMax(
@@ -280,7 +280,7 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
   );
 
   /// The unique category x values, in series-forward, point-forward order
-  /// (`ScatterChart.tsx:709-714`).
+  /// (`ScatterChart.tsx:710-714`).
   List<String> get xAxisCategories {
     final seen = <String>{};
     for (final series in _series) {
@@ -297,7 +297,7 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
   ///
   /// With the default order upstream walks the **series backwards** and the
   /// points forwards, keeping first-seen order in that reversed traversal
-  /// (`ScatterChart.tsx:303-315`); any other order delegates to
+  /// (`ScatterChart.tsx:299-315`); any other order delegates to
   /// [sortAxisCategories].
   List<String> get orderedYAxisLabels {
     if (yAxisCategoryOrder != FluentAxisCategoryOrder.defaultOrder) {
@@ -314,7 +314,7 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
     return seen.toList(growable: false);
   }
 
-  /// `_mapCategoryToValues` (`ScatterChart.tsx:319-336`): only a **numeric** x
+  /// `_mapCategoryToValues` (`ScatterChart.tsx:321-337`): only a **numeric** x
   /// joins the bucket, so a category-against-category chart sorts on empty
   /// lists.
   Map<String, List<double>> _categoryToValues() {
@@ -379,7 +379,8 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
         selectedLegends: selectedLegends,
         activeLegend: activeLegend,
       );
-      // `_noLegendHighlighted` (`ScatterChart.tsx:447`), whose activeLegend arm
+      // `_noLegendHighlighted` (`ScatterChart.tsx:639-641`), read at `:431`,
+      // whose activeLegend arm
       // is an emptiness test rather than a null test upstream.
       final noneHighlighted =
           selectedLegends.isEmpty &&
@@ -410,7 +411,7 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
           defaultRadius: defaultRadius,
           activeRadius: activeRadius,
         );
-        // `currentPointHidden` (`ScatterChart.tsx:430`).
+        // `currentPointHidden` (`ScatterChart.tsx:433`).
         final hidden = series.hideInactiveDots && !isActive;
         marks.add(
           FluentScatterMark(
@@ -456,7 +457,7 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
         hi = hi == null || size > hi ? size : hi;
       }
     }
-    // `?? 0` reproduces `d3Min(...) ?? 0` at ScatterChart.tsx:376 and :386.
+    // `?? 0` reproduces `d3Min(...) ?? 0` at ScatterChart.tsx:377 and :383.
     return (lo ?? 0, hi ?? 0);
   }
 
@@ -524,13 +525,13 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
       ),
   ];
 
-  /// The popover reading for [mark] (`ScatterChart.tsx:520-546`).
+  /// The popover reading for [mark] (`ScatterChart.tsx:686-698`).
   FluentChartPopoverData popoverFor(FluentScatterMark mark) {
     final series = _series[mark.seriesIndex];
     final point = series.data[mark.pointIndex];
     return FluentChartPopoverData(
       xValue: point.xAxisCalloutData ?? '${point.x}',
-      // ScatterChart.tsx:694 always sets isCalloutForStack, so the multi-value
+      // ScatterChart.tsx:695 always sets isCalloutForStack, so the multi-value
       // popover body is used even for a single marker.
       isCalloutForStack: true,
       yValues: <FluentYValueHover>[

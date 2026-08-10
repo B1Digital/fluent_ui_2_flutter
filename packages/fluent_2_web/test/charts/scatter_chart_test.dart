@@ -232,7 +232,8 @@ void main() {
       expect(
         marks.first.centre.dx,
         ctx.xScale('a')! + ctx.xScale.bandwidth / 2,
-        reason: '_xBandwidth = xScale.bandwidth() / 2 at ScatterChart.tsx:373',
+        reason:
+            '_xBandwidth = xScale.bandwidth() / 2 at ScatterChart.tsx:372-373',
       );
     });
 
@@ -247,7 +248,7 @@ void main() {
         delegate.yAxisType,
         FluentChartAxisType.category,
         reason:
-            'ScatterChart.tsx:126-132 reads the first point of the first '
+            'ScatterChart.tsx:124-132 reads the first point of the first '
             'series and calls a String y a band axis',
       );
       expect(
@@ -265,7 +266,7 @@ void main() {
       expect(
         delegate.marksFor(_numericContext()).length,
         2,
-        reason: 'isPlottable gates the push at ScatterChart.tsx:413-415',
+        reason: 'isPlottable gates the push at ScatterChart.tsx:414-416',
       );
     });
 
@@ -293,7 +294,7 @@ void main() {
         minMax.startValue,
         closeTo(2, 1e-9),
         reason:
-            '10 - 0.1 * (90 - 10) == 2; ScatterChart.tsx:181-190 pads once and '
+            '10 - 0.1 * (90 - 10) == 2; ScatterChart.tsx:180-190 pads once and '
             'utilities.ts:825-831 is DEAD, adding nothing',
       );
       expect(
@@ -319,7 +320,7 @@ void main() {
         range.dStartValue,
         closeTo(2, 1e-9),
         reason:
-            'ScatterChart.tsx:205-212 hard-codes hasMarkersMode true, so the '
+            'ScatterChart.tsx:211 hard-codes hasMarkersMode true, so the '
             'numeric x domain is always padded by a tenth of its extent',
       );
       expect(
@@ -406,7 +407,7 @@ void main() {
         delegate.orderedYAxisLabels,
         <String>['s2y1', 's2y2', 's1y1'],
         reason:
-            'ScatterChart.tsx:303-315 walks series backwards, points '
+            'ScatterChart.tsx:299-315 walks series backwards, points '
             'forwards, keeping first-seen order',
       );
     });
@@ -418,7 +419,7 @@ void main() {
       expect(
         delegate.orderedYAxisLabels,
         <String>['a', 'b'],
-        reason: 'ScatterChart.tsx:316 delegates any non-default order',
+        reason: 'ScatterChart.tsx:318 delegates any non-default order',
       );
     });
 
@@ -431,7 +432,7 @@ void main() {
         delegate.xAxisCategories,
         <String>['b', 'a', 'c'],
         reason:
-            'ScatterChart.tsx:709-714 pushes every unique string x in data '
+            'ScatterChart.tsx:710-714 pushes every unique string x in data '
             'order, forwards through both loops',
       );
       expect(
@@ -457,7 +458,7 @@ void main() {
         regions.single.semanticsLabel,
         '1. S0, 10.',
         reason:
-            'ScatterChart.tsx:655 joins the x, the legend and the y with '
+            'ScatterChart.tsx:647-656 joins the x, the legend and the y with '
             '". " and ", " and ends with a full stop',
       );
     });
