@@ -70,6 +70,7 @@ export 'src/charts/model/line_options.dart';
 export 'src/charts/model/polar_data.dart';
 export 'src/charts/model/sankey_data.dart';
 export 'src/charts/model/series_v2.dart';
+export 'src/charts/sparkline_style.dart';
 export 'src/inputs/calendar.dart';
 export 'src/inputs/calendar_style.dart';
 export 'src/inputs/checkbox.dart';
