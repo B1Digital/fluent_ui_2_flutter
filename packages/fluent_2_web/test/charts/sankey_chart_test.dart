@@ -7,8 +7,10 @@ import 'package:fluent_2_web/fluent_2_web.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/sankey.dart';
 import 'package:fluent_2_web/src/charts/sankey_chart.dart';
 import 'package:fluent_2_web/src/charts/sankey_chart_layout.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart' show NumberFormat;
 
 import '../support/oracle_fixture.dart';
 
@@ -414,6 +416,271 @@ void main() {
         }
       });
     }
+  });
+
+  group('FluentSankeyChart', () {
+    final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+
+    Future<void> pump(WidgetTester tester, Widget chart, {Size? size}) =>
+        tester.pumpWidget(
+          FluentApp(
+            theme: theme,
+            home: Center(
+              child: SizedBox.fromSize(
+                // 912x468 are the upstream container defaults
+                // (`SankeyChart.tsx:571-572`).
+                size: size ?? const Size(912, 468),
+                child: chart,
+              ),
+            ),
+          ),
+        );
+
+    const graph = FluentSankeyChartData(
+      nodes: <FluentSankeyNode>[
+        FluentSankeyNode(nodeId: 0, name: 'Inbox'),
+        FluentSankeyNode(nodeId: 1, name: 'Archive'),
+        FluentSankeyNode(nodeId: 2, name: 'Deleted'),
+      ],
+      links: <FluentSankeyLink>[
+        FluentSankeyLink(source: 0, target: 1, value: 70),
+        FluentSankeyLink(source: 0, target: 2, value: 30),
+      ],
+    );
+
+    testWidgets('paints one painter with the whole diagram', (tester) async {
+      await pump(tester, const FluentSankeyChart(data: graph));
+      expect(
+        tester
+            .widgetList<CustomPaint>(find.byType(CustomPaint))
+            .map((c) => c.painter)
+            .whereType<FluentSankeyChartPainter>(),
+        hasLength(1),
+        reason: 'the whole svg is one canvas',
+      );
+    });
+
+    testWidgets('the chart announces its node and link counts', (tester) async {
+      await pump(tester, const FluentSankeyChart(data: graph));
+      expect(
+        tester
+            .widgetList<Semantics>(find.byType(Semantics))
+            .any(
+              (s) =>
+                  s.properties.label == 'Sankey chart with 3 nodes and 2 links',
+            ),
+        isTrue,
+        reason: 'SankeyChart.tsx:1157',
+      );
+    });
+
+    testWidgets('an empty graph renders the alert instead', (tester) async {
+      await pump(
+        tester,
+        const FluentSankeyChart(
+          data: FluentSankeyChartData(
+            nodes: <FluentSankeyNode>[],
+            links: <FluentSankeyLink>[],
+          ),
+        ),
+      );
+      expect(
+        tester
+            .widgetList<CustomPaint>(find.byType(CustomPaint))
+            .map((c) => c.painter)
+            .whereType<FluentSankeyChartPainter>(),
+        isEmpty,
+        reason: 'SankeyChart.tsx:1197 replaces the whole chart',
+      );
+      expect(
+        tester
+            .widgetList<Semantics>(find.byType(Semantics))
+            .any((s) => s.properties.label == 'Graph has no data to display'),
+        isTrue,
+        reason: 'SankeyChart.tsx:1047 is the default empty label',
+      );
+    });
+
+    testWidgets('hovering a node selects its path and keeps the popover shut', (
+      tester,
+    ) async {
+      await pump(tester, const FluentSankeyChart(data: graph));
+      final state = tester.state<FluentSankeyChartState>(
+        find.byType(FluentSankeyChart),
+      );
+      final node = state.layout.nodes[0];
+      final origin = tester.getTopLeft(find.byType(FluentSankeyChart));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer();
+      addTearDown(gesture.removePointer);
+      // 2 halves the node box to hit its centre.
+      await gesture.moveTo(
+        origin + Offset((node.x0 + node.x1) / 2, (node.y0 + node.y1) / 2),
+      );
+      await tester.pump();
+      expect(state.selection.selectedNode, 0, reason: 'SankeyChart.tsx:883');
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason:
+            'SankeyChart.tsx:885 only opens the callout for a node shorter than '
+            'MIN_HEIGHT_FOR_TYPE, and this one fills its column',
+      );
+    });
+
+    testWidgets('hovering a stream opens the popover with the From message', (
+      tester,
+    ) async {
+      await pump(tester, const FluentSankeyChart(data: graph));
+      final state = tester.state<FluentSankeyChartState>(
+        find.byType(FluentSankeyChart),
+      );
+      final link = state.layout.links[0];
+      final origin = tester.getTopLeft(find.byType(FluentSankeyChart));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer();
+      addTearDown(gesture.removePointer);
+      // 2 takes the ribbon's midpoint, which curveBumpX puts on its centre
+      // line.
+      await gesture.moveTo(
+        origin +
+            Offset(
+              (link.source.x1 + link.target.x0) / 2,
+              (link.y0 + link.y1) / 2,
+            ),
+      );
+      await tester.pump();
+      final popover = tester.widget<FluentChartPopover>(
+        find.byType(FluentChartPopover),
+      );
+      expect(
+        popover.data.xValue,
+        'Archive',
+        reason: 'SankeyChart.tsx:670 puts the TARGET name in XValue',
+      );
+      expect(
+        popover.data.yValue,
+        '70',
+        reason: 'SankeyChart.tsx:671 formats the unnormalised link value',
+      );
+      expect(
+        popover.data.descriptionMessage,
+        'From Inbox',
+        reason: 'SankeyChart.tsx:1036, 1040 — the linkFrom template',
+      );
+    });
+
+    testWidgets('leaving the chart closes the popover', (tester) async {
+      await pump(tester, const FluentSankeyChart(data: graph));
+      final state = tester.state<FluentSankeyChartState>(
+        find.byType(FluentSankeyChart),
+      );
+      final link = state.layout.links[0];
+      final origin = tester.getTopLeft(find.byType(FluentSankeyChart));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer();
+      addTearDown(gesture.removePointer);
+      // 2 takes the ribbon's midpoint, as above.
+      await gesture.moveTo(
+        origin +
+            Offset(
+              (link.source.x1 + link.target.x0) / 2,
+              (link.y0 + link.y1) / 2,
+            ),
+      );
+      await tester.pump();
+      await gesture.moveTo(Offset.zero);
+      await tester.pump();
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason: 'SankeyChart.tsx:1143 closes the callout on the root leave',
+      );
+    });
+
+    testWidgets('a number format is applied to weights and aria labels', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentSankeyChart(data: graph, numberFormat: NumberFormat('#,##0.00')),
+      );
+      final state = tester.state<FluentSankeyChartState>(
+        find.byType(FluentSankeyChart),
+      );
+      expect(
+        state.visuals.first.weightText,
+        '100.00',
+        reason:
+            'SankeyChart.tsx:612-613 routes through toLocaleString when '
+            'formatNumberOptions is set',
+      );
+    });
+
+    testWidgets('without a format the weight uses the JS toString', (
+      tester,
+    ) async {
+      await pump(tester, const FluentSankeyChart(data: graph));
+      final state = tester.state<FluentSankeyChartState>(
+        find.byType(FluentSankeyChart),
+      );
+      expect(
+        state.visuals.first.weightText,
+        '100',
+        reason:
+            'SankeyChart.tsx:614 falls back to value.toString(), which prints an '
+            'integral double without a decimal point',
+      );
+    });
+
+    testWidgets('min-width reflow wraps the chart in a horizontal scroller', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const FluentSankeyChart(
+          data: graph,
+          reflowMode: FluentSankeyReflowMode.minWidth,
+        ),
+        // 300 is narrower than the two-column minimum of 406.
+        size: const Size(300, 468),
+      );
+      final scroller = tester.widget<SingleChildScrollView>(
+        find.byType(SingleChildScrollView),
+      );
+      expect(
+        scroller.scrollDirection,
+        Axis.horizontal,
+        reason:
+            'useSankeyChartStyles.styles.ts:86 sets overflow auto; Flutter needs '
+            'an explicit scroll view (spec 5.1)',
+      );
+      final state = tester.state<FluentSankeyChartState>(
+        find.byType(FluentSankeyChart),
+      );
+      expect(
+        state.layout.size.width,
+        calculateSankeyChartMinWidth(state.layout.columnCount),
+        reason: 'SankeyChart.tsx:590-592 widens the container to the minimum',
+      );
+    });
+
+    testWidgets('an unbounded box falls back to 912 by 468', (tester) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: const SingleChildScrollView(
+            child: FluentSankeyChart(data: graph),
+          ),
+        ),
+      );
+      expect(
+        tester.getSize(find.byType(FluentSankeyChart)).height,
+        kSankeyDefaultHeight,
+        reason:
+            'SankeyChart.tsx:571-572 initialises the container to 912 x 468',
+      );
+    });
   });
 }
 

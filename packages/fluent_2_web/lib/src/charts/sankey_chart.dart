@@ -1,16 +1,22 @@
 import 'dart:collection';
 
+import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:intl/intl.dart' show NumberFormat;
 
+import 'chrome/axis_label_tooltip.dart';
+import 'chrome/chart_popover.dart';
 import 'chrome/chart_title.dart';
 import 'internal/chart_text_measurer.dart';
 import 'internal/d3/axis_geometry.dart';
 import 'internal/d3/curves.dart';
+import 'internal/d3/js_math.dart';
 import 'internal/d3/path_sink.dart';
 import 'internal/d3/sankey.dart';
 import 'internal/d3/shape_line_area.dart';
 import 'internal/d3/stable_sort.dart' as d3;
+import 'model/sankey_data.dart';
 import 'sankey_chart_layout.dart';
 import 'sankey_chart_style.dart';
 
@@ -522,4 +528,353 @@ class FluentSankeyChartPainter extends CustomPainter {
       oldDelegate.isRtl != isRtl ||
       oldDelegate.chartTitle != chartTitle ||
       !identical(oldDelegate.visuals, visuals);
+}
+
+/// Container width used when the chart is given an unbounded constraint
+/// (`SankeyChart.tsx:572`).
+const double kSankeyDefaultWidth = 912;
+
+/// Container height used when the chart is given an unbounded constraint
+/// (`SankeyChart.tsx:571`).
+const double kSankeyDefaultHeight = 468;
+
+/// How the chart reacts when its container is narrower than its minimum width.
+enum FluentSankeyReflowMode {
+  /// Squash the diagram into whatever width there is. The upstream default.
+  none,
+
+  /// Keep the minimum width and scroll horizontally
+  /// (`useSankeyChartStyles.styles.ts:86`).
+  minWidth,
+}
+
+/// A Fluent 2 sankey diagram.
+///
+/// Ports `SankeyChart` (`SankeyChart.tsx:543-1200`). `width`, `height`,
+/// `className`, `pathColor` and `enableReflow` are omitted: all five are dead
+/// upstream (`:36-48`). `parentRef` and `shouldResize` are replaced by the
+/// widget's own [BoxConstraints].
+class FluentSankeyChart extends StatefulWidget {
+  /// Creates a sankey chart.
+  const FluentSankeyChart({
+    required this.data,
+    super.key,
+    this.chartTitle,
+    this.titleFontSize,
+    this.hideTitle = false,
+    this.colorsForNodes,
+    this.borderColorsForNodes,
+    this.numberFormat,
+    this.linkFromLabel = 'From {0}',
+    this.emptySemanticLabel = 'Graph has no data to display',
+    this.nodeSemanticLabel = 'node {0} with weight {1}',
+    this.linkSemanticLabel = 'link from {0} to {1} with weight {2}',
+    this.reflowMode = FluentSankeyReflowMode.none,
+    this.style,
+  });
+
+  /// Nodes and links.
+  final FluentSankeyChartData data;
+
+  /// Title drawn above the diagram (`SankeyChart.tsx:1159-1161`).
+  final String? chartTitle;
+
+  /// Title font size, which also sets the top margin (`SankeyChart.tsx:556`).
+  final double? titleFontSize;
+
+  /// Whether the title is suppressed. Upstream spells this `hideLegend`
+  /// (`SankeyChart.tsx:1159`) even though the chart has no legend.
+  final bool hideTitle;
+
+  /// Node fills. Used only together with [borderColorsForNodes].
+  final List<Color>? colorsForNodes;
+
+  /// Node borders. Used only together with [colorsForNodes].
+  final List<Color>? borderColorsForNodes;
+
+  /// Formatter for every weight. Null renders `value.toString()`
+  /// (`SankeyChart.tsx:612-614`).
+  final NumberFormat? numberFormat;
+
+  /// Template for the popover's description line (`SankeyChart.tsx:1036`).
+  final String linkFromLabel;
+
+  /// Announced when there is nothing to draw (`SankeyChart.tsx:1047`).
+  final String emptySemanticLabel;
+
+  /// Template for a node's label (`SankeyChart.tsx:1045`).
+  final String nodeSemanticLabel;
+
+  /// Template for a stream's label (`SankeyChart.tsx:1044`).
+  final String linkSemanticLabel;
+
+  /// Behaviour when the container is narrower than the diagram's minimum width.
+  final FluentSankeyReflowMode reflowMode;
+
+  /// Style override, layered over the theme's.
+  final FluentSankeyChartStyle? style;
+
+  @override
+  State<FluentSankeyChart> createState() => FluentSankeyChartState();
+}
+
+/// State of a [FluentSankeyChart].
+///
+/// Public so that a `GlobalKey<FluentSankeyChartState>` can reach the layout and
+/// the selection, which is what upstream's `componentRef`
+/// (`SankeyChart.tsx:548`) exposes.
+class FluentSankeyChartState extends State<FluentSankeyChart> {
+  final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
+  FluentSankeySelection _selection = FluentSankeySelection.none;
+  FluentSankeyLayoutResult? _layout;
+  List<FluentSankeyNodeVisual> _visuals = const <FluentSankeyNodeVisual>[];
+  List<FluentSankeyDomItem> _order = const <FluentSankeyDomItem>[];
+  FluentChartPopoverData? _popover;
+  Offset _popoverAnchor = Offset.zero;
+  String? _tooltipName;
+
+  /// The layout the chart last painted.
+  FluentSankeyLayoutResult get layout => _layout!;
+
+  /// The node text visuals the chart last painted.
+  List<FluentSankeyNodeVisual> get visuals => _visuals;
+
+  /// The current selection.
+  FluentSankeySelection get selection => _selection;
+
+  @override
+  void dispose() {
+    _measurer.invalidate();
+    super.dispose();
+  }
+
+  /// `_formatNumber` (`SankeyChart.tsx:610-617`).
+  String _formatNumber(double value) => widget.numberFormat != null
+      ? widget.numberFormat!.format(value)
+      : jsNumberToString(value);
+
+  /// `updatePosition` (`SankeyChart.tsx:1023-1032`) — a 1px dead zone.
+  void _updateAnchor(Offset next) {
+    // 1 is upstream's movement threshold (`:1024`).
+    if ((next - _popoverAnchor).distance > 1) {
+      _popoverAnchor = next;
+    }
+  }
+
+  void _closeCallout() {
+    _popover = null;
+    _updateAnchor(Offset.zero);
+  }
+
+  void _onHover(Offset local) {
+    final l = _layout;
+    if (l == null) {
+      return;
+    }
+    // Reverse paint order: whatever was drawn last is on top.
+    for (final item in _order.reversed) {
+      if (item.isNode) {
+        final node = l.nodes[item.index];
+        final rect = Rect.fromLTRB(node.x0, node.y0, node.x1, node.y1);
+        if (!rect.contains(local)) {
+          continue;
+        }
+        setState(() {
+          _closeCallout();
+          _selection = FluentSankeySelection.forNode(node);
+          _updateAnchor(local);
+          // `:885` — only a node shorter than MIN_HEIGHT_FOR_TYPE gets a
+          // callout.
+          if (node.y1 - node.y0 < kSankeyMinHeightForType) {
+            _popover = FluentChartPopoverData(
+              xValue: l.data.nodes[item.index].name,
+              color: l.nodeColors[item.index],
+              yValue: _formatNumber(l.nodeActualValues[item.index]),
+            );
+          }
+          _tooltipName = _visuals[item.index].trimmed
+              ? l.data.nodes[item.index].name
+              : null;
+        });
+        return;
+      }
+      final link = l.links[item.index];
+      if (!sankeyLinkPath(link).contains(local)) {
+        continue;
+      }
+      setState(() {
+        _closeCallout();
+        _selection = FluentSankeySelection.forLink(link);
+        _updateAnchor(local);
+        // `:667-673` — target name on top, unnormalised weight below, source in
+        // the description line.
+        _popover = FluentChartPopoverData(
+          xValue: l.data.nodes[link.target.index].name,
+          color: l.nodeColors[link.source.index],
+          yValue: _formatNumber(l.linkUnnormalisedValues[item.index]),
+          descriptionMessage: formatSankeyTemplate(
+            widget.linkFromLabel,
+            <Object?>[l.data.nodes[link.source.index].name],
+          ),
+        );
+        _tooltipName = null;
+      });
+      return;
+    }
+    if (_selection.active || _popover != null || _tooltipName != null) {
+      setState(_clearHover);
+    }
+  }
+
+  void _clearHover() {
+    _selection = FluentSankeySelection.none;
+    _closeCallout();
+    _tooltipName = null;
+  }
+
+  /// The stream's screen-reader label (`SankeyChart.tsx:1048-1053`).
+  String _linkSemanticLabel(FluentSankeyLayoutResult solved, int index) {
+    final link = solved.links[index];
+    return formatSankeyTemplate(widget.linkSemanticLabel, <Object?>[
+      solved.data.nodes[link.source.index].name,
+      solved.data.nodes[link.target.index].name,
+      _formatNumber(solved.linkUnnormalisedValues[index]),
+    ]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final style = resolveFluentSankeyChartStyle(
+      theme,
+    ).merge(FluentSankeyChartTheme.maybeOf(context)).merge(widget.style);
+    const states = <WidgetState>{};
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+
+    if (widget.data.nodes.isEmpty || widget.data.links.isEmpty) {
+      // `:1197` — a zero-opacity alert region, nothing painted.
+      return Semantics(
+        container: true,
+        liveRegion: true,
+        label: widget.emptySemanticLabel,
+        child: const SizedBox.shrink(),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final available = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : kSankeyDefaultWidth;
+        final height = constraints.hasBoundedHeight
+            ? constraints.maxHeight
+            : kSankeyDefaultHeight;
+        final titleHeight = sankeyTitleHeight(
+          chartTitle: widget.hideTitle ? null : widget.chartTitle,
+          titleFontSize: widget.titleFontSize,
+        );
+        var size = Size(available, height);
+        var solved = computeFluentSankeyLayout(
+          data: widget.data,
+          size: size,
+          titleHeight: titleHeight,
+          isRtl: isRtl,
+          colorsForNodes: widget.colorsForNodes,
+          borderColorsForNodes: widget.borderColorsForNodes,
+        );
+        if (widget.reflowMode == FluentSankeyReflowMode.minWidth) {
+          // `:590-592` needs the column count, which only the first pass knows.
+          // Upstream has the same chicken-and-egg and starts from 0; solving
+          // twice is deterministic instead of settling over two frames.
+          final minWidth = calculateSankeyChartMinWidth(solved.columnCount);
+          if (minWidth > available) {
+            size = Size(minWidth, height);
+            solved = computeFluentSankeyLayout(
+              data: widget.data,
+              size: size,
+              titleHeight: titleHeight,
+              isRtl: isRtl,
+              colorsForNodes: widget.colorsForNodes,
+              borderColorsForNodes: widget.borderColorsForNodes,
+            );
+          }
+        }
+        _layout = solved;
+        _visuals = computeSankeyNodeVisuals(
+          layout: solved,
+          measurer: _measurer,
+          nameStyle: style.nameTextStyle!.resolve(states)!,
+          weightMeasurementStyle: style.weightMeasurementTextStyle!.resolve(
+            states,
+          )!,
+          formatNumber: _formatNumber,
+          nodeSemanticLabel: (name, weight) => formatSankeyTemplate(
+            widget.nodeSemanticLabel,
+            <Object?>[name, weight],
+          ),
+        );
+        _order = sankeyDomOrder(solved);
+
+        final canvas = Semantics(
+          container: true,
+          // `:1157`.
+          label:
+              'Sankey chart with ${solved.nodes.length} nodes and '
+              '${solved.links.length} links',
+          // `:1172` and `:1178` give every node and stream its own node, whose
+          // labels the painter cannot carry.
+          hint: <String>[
+            for (final visual in _visuals) visual.semanticLabel,
+            for (var i = 0; i < solved.links.length; i++)
+              _linkSemanticLabel(solved, i),
+          ].join('. '),
+          child: MouseRegion(
+            onHover: (event) => _onHover(event.localPosition),
+            onExit: (_) => setState(_clearHover),
+            child: Stack(
+              children: <Widget>[
+                CustomPaint(
+                  size: size,
+                  painter: FluentSankeyChartPainter(
+                    layout: solved,
+                    visuals: _visuals,
+                    order: _order,
+                    selection: _selection,
+                    style: style,
+                    states: states,
+                    measurer: _measurer,
+                    isRtl: isRtl,
+                    chartTitle: widget.hideTitle ? null : widget.chartTitle,
+                  ),
+                ),
+                if (_popover != null)
+                  FluentChartPopover(data: _popover!, anchor: _popoverAnchor),
+                // `:994-1004` — the full name only when the drawn one was
+                // trimmed.
+                if (_tooltipName != null)
+                  Positioned(
+                    left: _popoverAnchor.dx,
+                    // 28 lifts the tooltip clear of the pointer, the same gap
+                    // `useSankeyChartStyles.styles.ts:47` gives the label div.
+                    top: _popoverAnchor.dy - 28,
+                    child: FluentAxisLabelTooltip(
+                      fullText: _tooltipName!,
+                      renderedText: '',
+                      child: const SizedBox.shrink(),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+
+        return widget.reflowMode == FluentSankeyReflowMode.minWidth
+            ? SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox.fromSize(size: size, child: canvas),
+              )
+            : SizedBox.fromSize(size: size, child: canvas);
+      },
+    );
+  }
 }
