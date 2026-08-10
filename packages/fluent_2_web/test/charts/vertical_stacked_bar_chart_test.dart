@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart_props.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_colors.dart';
@@ -1241,7 +1243,205 @@ void main() {
       }
     });
   });
+
+  group('FluentVerticalStackedBarChart', () {
+    Future<void> pump(WidgetTester tester, Widget chart) => tester.pumpWidget(
+      FluentApp(
+        theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+        home: Center(child: SizedBox(width: 800, height: 350, child: chart)),
+      ),
+    );
+
+    testWidgets('the legend colour is deterministic, not random', (
+      tester,
+    ) async {
+      await pump(tester, FluentVerticalStackedBarChart(data: _vsbcStacks()));
+      final first = tester
+          .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+          .legends;
+      await tester.pumpWidget(const SizedBox.shrink());
+      await pump(tester, FluentVerticalStackedBarChart(data: _vsbcStacks()));
+      final second = tester
+          .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+          .legends;
+      expect(
+        first.map((l) => l.color.toARGB32()).toList(),
+        second.map((l) => l.color.toARGB32()).toList(),
+        reason:
+            'ponytail: VerticalStackedBarChart.tsx:167 picks '
+            'defaultPalette[Math.floor(Math.random() * 4 + 1)], re-rolled on '
+            'every render. Spec 5.2 exception 1 fixes non-determinism, so the '
+            'port uses defaultPalette[index % 5] — the same colour the segment '
+            'itself paints.',
+      );
+    });
+
+    testWidgets('the legend swatch matches the segment it stands for', (
+      tester,
+    ) async {
+      await pump(tester, FluentVerticalStackedBarChart(data: _vsbcStacks()));
+      final shell = tester.widget<FluentCartesianChart>(
+        find.byType(FluentCartesianChart),
+      );
+      final d = shell.delegate as FluentVerticalStackedBarChartDelegate;
+      expect(
+        shell.legends.first.color.toARGB32(),
+        d.palette[0].toARGB32(),
+        reason:
+            'the deterministic replacement makes the swatch and the bar '
+            'agree, which the random pick could never guarantee',
+      );
+    });
+
+    testWidgets('isCalloutForStack switches focus to the whole stack', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentVerticalStackedBarChart(
+          data: _vsbcStacks(),
+          isCalloutForStack: true,
+        ),
+      );
+      final shell = tester.widget<FluentCartesianChart>(
+        find.byType(FluentCartesianChart),
+      );
+      expect(
+        shell.props.hitRegionGranularity,
+        FluentChartHitGranularity.group,
+        reason:
+            '_toFocusWholeStack at VerticalStackedBarChart.tsx:486-489 '
+            'moves the focus props from each rect onto the stack group',
+      );
+    });
+
+    testWidgets('line legends follow the bar legends', (tester) async {
+      await pump(
+        tester,
+        FluentVerticalStackedBarChart(data: _vsbcStacksWithLine()),
+      );
+      final legends = tester
+          .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+          .legends;
+      expect(
+        legends.last.isLineLegendInBarChart,
+        isTrue,
+        reason:
+            'VerticalStackedBarChart.tsx:207 appends line legends, the '
+            'reverse of GroupedVerticalBarChart',
+      );
+    });
+
+    testWidgets('allowHoverOnLegend false removes the hover handlers', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentVerticalStackedBarChart(
+          data: _vsbcStacks(),
+          allowHoverOnLegend: false,
+        ),
+      );
+      final legends = tester
+          .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+          .legends;
+      expect(
+        legends.first.onHoverAction,
+        isNull,
+        reason: 'VerticalStackedBarChart.tsx:164 omits the handlers entirely',
+      );
+    });
+
+    testWidgets('the semantic title counts stacks and lines', (tester) async {
+      await pump(
+        tester,
+        FluentVerticalStackedBarChart(
+          data: _vsbcStacksWithLine(),
+          chartTitle: 'Spend',
+        ),
+      );
+      expect(
+        tester
+            .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+            .props
+            .chartTitleForSemantics,
+        'Spend. Vertical bar chart with 3 stacked bars and 1 lines. ',
+        reason:
+            'VerticalStackedBarChart.tsx:968-977 — note the unpluralised '
+            '"1 lines", reproduced',
+      );
+    });
+
+    testWidgets('an all-empty dataset renders the no-data live region', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const FluentVerticalStackedBarChart(
+          data: <FluentVerticalStackedBarGroup>[],
+        ),
+      );
+      expect(
+        find.byType(FluentCartesianChart),
+        findsNothing,
+        reason:
+            'VerticalStackedBarChart.tsx:893-899 short-circuits before the '
+            'shell when no stack carries chartData or lineData',
+      );
+    });
+
+    testWidgets('selecting a legend reaches the delegate', (tester) async {
+      await pump(tester, FluentVerticalStackedBarChart(data: _vsbcStacks()));
+      final shell = tester.widget<FluentCartesianChart>(
+        find.byType(FluentCartesianChart),
+      );
+      shell.onLegendChange!(<String>['series 0']);
+      await tester.pump();
+      final d =
+          tester
+                  .widget<FluentCartesianChart>(
+                    find.byType(FluentCartesianChart),
+                  )
+                  .delegate
+              as FluentVerticalStackedBarChartDelegate;
+      expect(
+        d.selectedLegends,
+        <String>['series 0'],
+        reason:
+            'the legend selection has to reach the segment dimming at '
+            'VerticalStackedBarChart.tsx:1038, which reads _selectedLegends',
+      );
+    });
+  });
 }
+
+/// Three two-segment stacks, the shape every widget test above measures.
+List<FluentVerticalStackedBarGroup> _vsbcStacks() =>
+    <FluentVerticalStackedBarGroup>[
+      for (var i = 0; i < 3; i++)
+        FluentVerticalStackedBarGroup(
+          chartData: _segments(<double>[10.0 + i, 20.0 + i]),
+          xAxisPoint: _stackLabels[i],
+        ),
+    ];
+
+/// [_vsbcStacks] with one line legend laid over it, so the semantic title has
+/// both counts to report.
+List<FluentVerticalStackedBarGroup> _vsbcStacksWithLine() =>
+    <FluentVerticalStackedBarGroup>[
+      for (final (i, stack) in _vsbcStacks().indexed)
+        FluentVerticalStackedBarGroup(
+          chartData: stack.chartData,
+          xAxisPoint: stack.xAxisPoint,
+          lineData: <FluentStackedBarLineDatum>[
+            FluentStackedBarLineDatum(
+              y: 25 + i,
+              color: _palette[0],
+              legend: 'line 0',
+            ),
+          ],
+        ),
+    ];
 
 /// The five DataViz tokens VSBC falls back to, in upstream order
 /// (`VerticalStackedBarChart.tsx:316-322`).

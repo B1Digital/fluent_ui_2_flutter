@@ -1,12 +1,16 @@
 import 'dart:math' as math;
 
+import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
 import 'axis/axis_builders.dart' as builders;
 import 'axis/axis_types.dart';
 import 'axis/domain_range.dart';
+import 'cartesian/cartesian_chart.dart';
+import 'cartesian/cartesian_chart_props.dart';
 import 'cartesian/cartesian_layout.dart';
 import 'cartesian/cartesian_series_delegate.dart';
+import 'chrome/legend.dart';
 import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
 import 'internal/chart_text_styles.dart';
@@ -622,6 +626,49 @@ class FluentVerticalStackedBarChartDelegate
         chartType: FluentChartType.verticalStackedBarChart,
       );
 
+  /// The category x labels, in the order [xAxisCategoryOrder] asks for.
+  ///
+  /// Ports `_getOrderedXAxisLabels` (`VerticalStackedBarChart.tsx:1293-1299`)
+  /// over `_mapCategoryToValues()` (`:1309-1336`): the category is the stack's
+  /// x and the values pushed under it are its segment values and its line ys,
+  /// so an aggregate order such as `'mean ascending'` sorts the stacks by
+  /// magnitude. A non-numeric value contributes nothing, which is upstream's
+  /// `typeof value === 'number'` guard at `:1325` and `:1332`.
+  ///
+  /// The entry is only created from inside the segment and line loops, so a
+  /// stack carrying neither never reaches the domain — upstream's structure
+  /// at `:1312-1334`, not an accident.
+  List<String> get orderedXAxisLabels {
+    if (xAxisType != FluentChartAxisType.category) {
+      // VerticalStackedBarChart.tsx:1294-1296.
+      return const <String>[];
+    }
+    final categoryToValues = <String, List<double>>{};
+    for (final stack in stacks) {
+      final category = '${stack.xAxisPoint}';
+      for (final segment in stack.chartData) {
+        final values = categoryToValues.putIfAbsent(category, () => <double>[]);
+        if (segment.data is num) {
+          values.add((segment.data as num).toDouble());
+        }
+      }
+      for (final line
+          in stack.lineData ?? const <FluentStackedBarLineDatum>[]) {
+        final values = categoryToValues.putIfAbsent(category, () => <double>[]);
+        if (line.y is num) {
+          values.add((line.y as num).toDouble());
+        }
+      }
+    }
+    return sortAxisCategories(categoryToValues, xAxisCategoryOrder);
+  }
+
+  @override
+  List<String>? get datasetForXAxisDomain =>
+      // `datasetForXAxisDomain={_xAxisLabels}` (`.tsx:1384`), which is
+      // `_getOrderedXAxisLabels()` (`:353`) and empty off a non-category axis.
+      xAxisType == FluentChartAxisType.category ? orderedXAxisLabels : null;
+
   /// The category y labels, in the order [yAxisCategoryOrder] asks for.
   ///
   /// Ports `_getOrderedYAxisLabels` (`VerticalStackedBarChart.tsx:1301-1307`)
@@ -944,4 +991,305 @@ class FluentVerticalStackedBarChartDelegate
     FluentCartesianChildContext context,
     FluentCartesianLayout layout,
   ) => const <FluentChartHitRegion>[];
+}
+
+/// A Fluent 2 stacked vertical bar chart.
+///
+/// Ports `VerticalStackedBarChart.tsx`. Supports a numeric or a category y
+/// axis, an optional line overlay, and two mutually exclusive focus models
+/// selected by [isCalloutForStack].
+class FluentVerticalStackedBarChart extends StatefulWidget {
+  /// Creates a stacked bar chart over [data].
+  const FluentVerticalStackedBarChart({
+    super.key,
+    required this.data,
+    this.props = const FluentCartesianChartProps(),
+    this.barWidth,
+    this.maxBarWidth = 24,
+    this.barGapMax = 0,
+    this.barCornerRadius = 0,
+    this.barMinimumHeight = 0,
+    this.chartTitle,
+    this.isCalloutForStack = false,
+    this.allowHoverOnLegend = true,
+    this.onBarClick,
+    this.culture,
+    this.xAxisPadding,
+    this.hideLabels = false,
+    this.roundCorners = false,
+    this.mode,
+    this.xAxisInnerPadding,
+    this.xAxisOuterPadding,
+    this.xAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
+    this.yAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
+    this.style,
+    this.legendSelectionMode = FluentChartLegendSelectionMode.single,
+    this.focusNode,
+  });
+
+  /// The stacks, in author order.
+  final List<FluentVerticalStackedBarGroup> data;
+
+  /// Shell configuration.
+  final FluentCartesianChartProps props;
+
+  /// `number | 'default' | 'auto'`.
+  final Object? barWidth;
+
+  /// Bar width ceiling — 24 (`VerticalStackedBarChart.tsx:90`).
+  final double maxBarWidth;
+
+  /// Maximum gap between segments; 0 disables gaps
+  /// (`VerticalStackedBarChart.tsx:986`).
+  final double barGapMax;
+
+  /// Corner radius applied to the topmost segment
+  /// (`VerticalStackedBarChart.tsx:986`).
+  final double barCornerRadius;
+
+  /// Floor on a segment's height (`VerticalStackedBarChart.tsx:986`).
+  final double barMinimumHeight;
+
+  /// Human title, folded into the accessible description.
+  final String? chartTitle;
+
+  /// Whether hover and focus address the whole stack instead of one segment
+  /// (`VerticalStackedBarChart.tsx:486-489`).
+  final bool isCalloutForStack;
+
+  /// Whether the legend responds to hover — default true
+  /// (`VerticalStackedBarChart.tsx:164`).
+  final bool allowHoverOnLegend;
+
+  /// Called with the segment, or the whole stack when [isCalloutForStack].
+  final void Function(Object data)? onBarClick;
+
+  /// BCP-47 locale for popover formatting.
+  final String? culture;
+
+  /// Legacy shorthand feeding both band paddings.
+  final double? xAxisPadding;
+
+  /// Whether the stack total labels are suppressed.
+  final bool hideLabels;
+
+  /// Whether segments get a 3px corner radius.
+  final bool roundCorners;
+
+  /// `'plotly'` or null.
+  final String? mode;
+
+  /// Band inner padding override.
+  final double? xAxisInnerPadding;
+
+  /// Band outer padding override.
+  final double? xAxisOuterPadding;
+
+  /// Ordering applied to a category x axis.
+  final FluentAxisCategoryOrder xAxisCategoryOrder;
+
+  /// Ordering applied to a category y axis.
+  final FluentAxisCategoryOrder yAxisCategoryOrder;
+
+  /// Style override, highest precedence.
+  final FluentVerticalStackedBarChartStyle? style;
+
+  /// Whether the legend allows more than one selection.
+  final FluentChartLegendSelectionMode legendSelectionMode;
+
+  /// The chart's single focus node.
+  final FocusNode? focusNode;
+
+  @override
+  State<FluentVerticalStackedBarChart> createState() =>
+      _FluentVerticalStackedBarChartState();
+}
+
+class _FluentVerticalStackedBarChartState
+    extends State<FluentVerticalStackedBarChart> {
+  List<String> _selectedLegends = const <String>[];
+  String? _activeLegend;
+  Object? _activeXAxisDataPoint;
+  final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
+
+  int get _lineCount => <String>{
+    for (final stack in widget.data)
+      for (final line in stack.lineData ?? const <FluentStackedBarLineDatum>[])
+        line.legend,
+  }.length;
+
+  /// `useUTC` is `string | boolean` upstream and is read as a JS truthy value
+  /// (`CartesianChart.types.ts:448`), so an empty string is false.
+  bool get _useUtc =>
+      widget.props.useUTC == true ||
+      (widget.props.useUTC is String && (widget.props.useUTC! as String) != '');
+
+  @override
+  void dispose() {
+    _measurer.invalidate();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Emptiness: no stack with chartData or lineData
+    // (`VerticalStackedBarChart.tsx:893-899`).
+    if (widget.data.every(
+      (stack) => stack.chartData.isEmpty && (stack.lineData?.isEmpty ?? true),
+    )) {
+      return Semantics(
+        container: true,
+        liveRegion: true,
+        label: 'Graph has no data to display',
+        child: const SizedBox.shrink(),
+      );
+    }
+    final theme = FluentTheme.of(context);
+    final style = resolveFluentVerticalStackedBarChartStyle(theme)
+        .merge(FluentVerticalStackedBarChartTheme.maybeOf(context))
+        .merge(widget.style);
+    final palette = style.linePalette!.resolve(const <WidgetState>{})!;
+    return FluentCartesianChart(
+      focusNode: widget.focusNode,
+      legendSelectionMode: widget.legendSelectionMode,
+      selectedLegends: _selectedLegends,
+      onLegendChange: (selected) => setState(() => _selectedLegends = selected),
+      props: widget.props.copyWith(
+        // `isCalloutForStack` moves the focus props off each rect and onto the
+        // stack group (`VerticalStackedBarChart.tsx:486-489`), which is the
+        // shell's group granularity.
+        hitRegionGranularity: widget.isCalloutForStack
+            ? FluentChartHitGranularity.group
+            : FluentChartHitGranularity.mark,
+        // `Vertical bar chart with N stacked bars` + ` and M lines`
+        // (`VerticalStackedBarChart.tsx:968-977`).
+        // parity: upstream never pluralises "lines".
+        chartTitleForSemantics:
+            '${widget.chartTitle == null ? '' : '${widget.chartTitle}. '}'
+            'Vertical bar chart with ${widget.data.length} stacked bars'
+            '${_lineCount > 0 ? ' and $_lineCount lines' : ''}. ',
+      ),
+      legends: _legends(palette),
+      delegate: FluentVerticalStackedBarChartDelegate(
+        stacks: widget.data,
+        style: style,
+        colors: FluentChartColors.of(theme),
+        measurer: _measurer,
+        textStyles: FluentChartTextStyles.of(theme),
+        selectedLegends: _selectedLegends,
+        palette: palette,
+        activeLegend: _activeLegend,
+        activeXAxisDataPoint: _activeXAxisDataPoint,
+        barWidthProp: widget.barWidth,
+        maxBarWidth: widget.maxBarWidth,
+        barGapMax: widget.barGapMax,
+        barCornerRadius: widget.barCornerRadius,
+        barMinimumHeight: widget.barMinimumHeight,
+        hideLabels: widget.hideLabels,
+        roundCorners: widget.roundCorners,
+        mode: widget.mode,
+        useUtc: _useUtc,
+        xAxisInnerPadding: widget.xAxisInnerPadding,
+        xAxisOuterPadding: widget.xAxisOuterPadding,
+        xAxisPadding: widget.xAxisPadding,
+        xAxisCategoryOrder: widget.xAxisCategoryOrder,
+        yAxisCategoryOrder: widget.yAxisCategoryOrder,
+        yAxisTickFormat: widget.props.yAxisTickFormat,
+      ),
+      onChartMouseLeave: () => setState(() => _activeXAxisDataPoint = null),
+    );
+  }
+
+  List<FluentChartLegendItem> _legends(List<Color> palette) {
+    final out = <FluentChartLegendItem>[];
+    final seen = <String>{};
+    for (final stack in widget.data) {
+      for (var k = 0; k < stack.chartData.length; k++) {
+        final datum = stack.chartData[k];
+        // ponytail: upstream deduplicates on the (title, colour) PAIR while
+        // the colour is `defaultPalette[Math.floor(Math.random() * 4 + 1)]`
+        // (`VerticalStackedBarChart.tsx:167-169`), so a legend could appear
+        // several times with different swatches. Spec section 5.2 exception 1
+        // fixes non-determinism: the colour is the same value the segment
+        // paints, and deduplication is by title alone as a result.
+        final colour = datum.color ?? palette[k % palette.length];
+        if (!seen.add(datum.legend)) {
+          continue;
+        }
+        out.add(
+          FluentChartLegendItem(
+            title: datum.legend,
+            color: colour,
+            onHoverAction: widget.allowHoverOnLegend
+                ? () => setState(() {
+                    // `hoverAction` clears the x hover first (`.tsx:159-162`).
+                    _activeXAxisDataPoint = null;
+                    _activeLegend = datum.legend;
+                  })
+                : null,
+            onMouseOutAction: widget.allowHoverOnLegend
+                ? ({required bool isLegendFocused}) =>
+                      setState(() => _activeLegend = null)
+                : null,
+          ),
+        );
+      }
+    }
+    // Line legends are appended AFTER the bar legends
+    // (`VerticalStackedBarChart.tsx:207`).
+    final lineSeen = <String>{};
+    for (final stack in widget.data) {
+      for (final line
+          in stack.lineData ?? const <FluentStackedBarLineDatum>[]) {
+        if (!lineSeen.add(line.legend)) {
+          continue;
+        }
+        out.add(
+          FluentChartLegendItem(
+            title: line.legend,
+            color: line.color,
+            shape: line.legendShape,
+            isLineLegendInBarChart: true,
+            onHoverAction: widget.allowHoverOnLegend
+                ? () => setState(() => _activeLegend = line.legend)
+                : null,
+            onMouseOutAction: widget.allowHoverOnLegend
+                ? ({required bool isLegendFocused}) =>
+                      setState(() => _activeLegend = null)
+                : null,
+          ),
+        );
+      }
+    }
+    return out;
+  }
+}
+
+/// Applies a [FluentVerticalStackedBarChartStyle] to every stacked vertical bar
+/// chart below it.
+class FluentVerticalStackedBarChartTheme extends InheritedTheme {
+  /// Applies [style] to every stacked vertical bar chart in `child`.
+  const FluentVerticalStackedBarChartTheme({
+    super.key,
+    required this.style,
+    required super.child,
+  });
+
+  /// The style layered over the derived defaults.
+  final FluentVerticalStackedBarChartStyle style;
+
+  /// The nearest stacked vertical bar chart style, or null.
+  static FluentVerticalStackedBarChartStyle? maybeOf(
+    BuildContext context,
+  ) => context
+      .dependOnInheritedWidgetOfExactType<FluentVerticalStackedBarChartTheme>()
+      ?.style;
+
+  @override
+  bool updateShouldNotify(FluentVerticalStackedBarChartTheme oldWidget) =>
+      style != oldWidget.style;
+
+  @override
+  Widget wrap(BuildContext context, Widget child) =>
+      FluentVerticalStackedBarChartTheme(style: style, child: child);
 }
