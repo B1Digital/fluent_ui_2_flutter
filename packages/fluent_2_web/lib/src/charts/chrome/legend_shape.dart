@@ -324,3 +324,89 @@ class FluentChartLegendShapePainter extends CustomPainter {
       oldDelegate.stroke != stroke ||
       oldDelegate.strokeWidth != strokeWidth;
 }
+
+/// Repeat period of the legend stripe pattern, in logical pixels.
+///
+/// The final stop of `Legends.tsx:300`'s `repeating-linear-gradient`.
+const double kStripePeriod = 4;
+
+/// Where the coloured band begins inside one [kStripePeriod].
+///
+/// `Legends.tsx:300` is
+/// `repeating-linear-gradient(135deg, transparent, transparent 3px, COLOR 1px,
+/// COLOR 4px)`. The `1px` is **behind** the `3px` before it. CSS Images 3
+/// section 3.4.3 requires each stop to be raised to the largest preceding
+/// stop, so `COLOR 1px` becomes `COLOR 3px` and the real rendering is
+/// transparent from 0 to 3 and coloured from 3 to 4. The upstream declaration
+/// is malformed; its rendering is nonetheless well defined, and this is it.
+///
+/// Handing those literals to a Dart [LinearGradient] does something else
+/// entirely — `stops` must be non-decreasing and normalised, so the values
+/// either trip an assertion or are silently reinterpreted. Hence a painter.
+const double kStripeColourStart = 3;
+
+/// Distance of [point] along the 135° gradient axis, in logical pixels.
+///
+/// CSS measures gradient angles clockwise from "up", so 135° points down and
+/// right: the unit vector is `(sin 135°, −cos 135°)` = `(√½, √½)` in screen
+/// coordinates, where y grows downwards. For a square box at 135° the gradient
+/// line's zero crosses the top-left corner, so the box origin is phase zero.
+double fluentChartStripePhase(Offset point) =>
+    (point.dx + point.dy) / math.sqrt2;
+
+/// Paints the legend's diagonal stripe pattern.
+///
+/// Used when `Legend.stripePattern` is set, which suppresses the flat
+/// background fill (`Legends.tsx:297`, `:377`) and substitutes this.
+///
+/// Antialiasing is off deliberately: the CSS stop at 3px is a hard edge
+/// because the preceding stop was clamped onto it, so there is no gradient to
+/// smooth, and a smoothed edge would leak colour into the transparent band.
+class FluentChartStripePainter extends CustomPainter {
+  /// Creates a stripe painter in [color].
+  const FluentChartStripePainter({required this.color});
+
+  /// The stripe colour. Already dimmed by the caller when appropriate — the
+  /// gradient interpolates `${color}` twice (`Legends.tsx:300`), so it is flat.
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    // A raster with antialiasing off keeps a pixel when its *centre* falls
+    // inside the band, but [fluentChartStripePhase] is defined at a pixel's
+    // *origin* — the top-left corner the CSS gradient line starts from. Half a
+    // logical pixel on each axis is the offset between the two, so shifting by
+    // it makes the painted grid and the phase function agree exactly: the pixel
+    // at (x, y) is coloured iff `fluentChartStripePhase(Offset(x, y))` lands in
+    // a coloured band. Visually this is a sub-pixel phase shift of the infinite
+    // pattern, which upstream leaves to the browser's own device grid anyway.
+    canvas.translate(0.5, 0.5);
+    // Rotating by +45 degrees makes the gradient axis the canvas x axis, so one
+    // band is a rectangle rather than a sheared quadrilateral.
+    canvas.rotate(math.pi / 4);
+    final paint = Paint()
+      ..color = color
+      ..isAntiAlias = false;
+    // The rotated box never reaches further than its own diagonal from the
+    // origin in either direction, and width + height bounds that.
+    final extent = size.width + size.height;
+    for (var phase = -extent; phase <= extent; phase += kStripePeriod) {
+      canvas.drawRect(
+        Rect.fromLTWH(
+          phase + kStripeColourStart,
+          -extent,
+          kStripePeriod - kStripeColourStart,
+          2 * extent,
+        ),
+        paint,
+      );
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(FluentChartStripePainter oldDelegate) =>
+      oldDelegate.color != color;
+}

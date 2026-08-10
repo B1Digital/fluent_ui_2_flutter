@@ -273,6 +273,7 @@ void main() {
   });
 
   mainPart2();
+  mainPart3();
 }
 
 /// Renders [painter] into a [kLegendShapeViewportSize] square and returns the
@@ -524,3 +525,96 @@ kAuthoredLegendShapePaths = <String, FluentChartLegendShape>{
   // shape.tsx:29.
   'M0 6 H3 M5 6 H8 M10 6 H13': FluentChartLegendShape.dottedLine,
 };
+
+/// The [FluentChartStripePainter] group, called from [main].
+void mainPart3() {
+  const stripe = Color(0xFFD13438);
+
+  group('the out-of-order legend stripe gradient', () {
+    test('the phase runs along the 135 degree gradient axis', () {
+      expect(
+        fluentChartStripePhase(Offset.zero),
+        0,
+        reason:
+            'For a 135deg CSS gradient the line starts at the top-left corner, '
+            'so the origin is phase 0.',
+      );
+      expect(
+        fluentChartStripePhase(const Offset(5, 0)),
+        moreOrLessEquals(3.5355, epsilon: 0.001),
+        reason:
+            'The unit vector of a 135deg gradient is (sin135, -cos135) = '
+            '(0.7071, 0.7071) in screen coordinates, so the phase at (5, 0) is '
+            '5 * 0.7071 = 3.5355.',
+      );
+      expect(
+        fluentChartStripePhase(const Offset(0, 5)),
+        moreOrLessEquals(3.5355, epsilon: 0.001),
+        reason: 'The axis is symmetric in x and y at 135 degrees.',
+      );
+    });
+
+    test('CSS clamping puts the colour band at 3..4, not 1..4', () {
+      expect(
+        kStripeColourStart,
+        3,
+        reason:
+            'Legends.tsx:300 writes `transparent 3px, COLOR 1px, COLOR 4px`. '
+            'CSS clamps every stop to at least its predecessor, so the 1px '
+            'stop becomes 3px and the colour begins at 3, not 1.',
+      );
+      expect(
+        kStripePeriod,
+        4,
+        reason:
+            'The last stop of the repeating gradient is 4px, which is the '
+            'repeat period (Legends.tsx:300).',
+      );
+    });
+
+    test('paints the 3..4 band and leaves 0..3 clear', () async {
+      final data = await renderStripe(
+        const FluentChartStripePainter(color: stripe),
+      );
+
+      expect(
+        argbAt(data, 5, 0),
+        stripe.toARGB32(),
+        reason:
+            'Phase at (5, 0) is 3.54, inside the clamped 3..4 colour band, so '
+            'the pixel takes the legend colour.',
+      );
+      expect(
+        argbAt(data, 2, 0),
+        0x00000000,
+        reason:
+            'Phase at (2, 0) is 1.41, inside the transparent 0..3 band. A '
+            'naive port of the literal stops would have coloured it, because '
+            'the source says the colour starts at 1px.',
+      );
+      expect(
+        argbAt(data, 6, 0),
+        0x00000000,
+        reason:
+            'Phase at (6, 0) is 4.24, which is 0.24 into the next period and '
+            'therefore transparent again — the period is 4, not 5.',
+      );
+    });
+  });
+}
+
+/// Renders [painter] into a [kLegendShapeViewportSize] square and returns the
+/// raw RGBA bytes, so [argbAt] can read a single device pixel back.
+Future<ByteData> renderStripe(FluentChartStripePainter painter) async {
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  const size = Size(kLegendShapeViewportSize, kLegendShapeViewportSize);
+  painter.paint(canvas, size);
+  final image = await recorder.endRecording().toImage(
+    kLegendShapeViewportSize.toInt(),
+    kLegendShapeViewportSize.toInt(),
+  );
+  final data = await image.toByteData();
+  image.dispose();
+  return data!;
+}
