@@ -29,6 +29,7 @@ void main() {
     FluentPopoverPosition position = FluentPopoverPosition.above,
     FluentPopoverAlign align = FluentPopoverAlign.center,
     bool withArrow = false,
+    bool trapFocus = true,
     FluentPopoverStyle? style,
     FluentPopoverStyle? themeStyle,
     Widget content = const Text('Body', key: body),
@@ -60,6 +61,7 @@ void main() {
                 position: position,
                 align: align,
                 withArrow: withArrow,
+                trapFocus: trapFocus,
                 style: style,
                 semanticLabel: semanticLabel,
                 content: content,
@@ -790,6 +792,71 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pump();
       expect(first.hasPrimaryFocus, isTrue);
+    });
+
+    // The search-as-you-type case. Trapping focus on a surface anchored to a
+    // text field makes the first keystroke the last: the results appear and the
+    // caret is gone, so the query can only be typed one character per click.
+    testWidgets('trapFocus: false leaves the caret where it was', (
+      tester,
+    ) async {
+      final node = FocusNode(debugLabel: 'trigger');
+      addTearDown(node.dispose);
+
+      await pump(
+        tester,
+        trapFocus: false,
+        child: Focus(
+          focusNode: node,
+          child: const SizedBox(key: trigger, width: 40, height: 20),
+        ),
+      );
+      node.requestFocus();
+      await tester.pump();
+
+      await open(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(body), findsOneWidget, reason: 'the surface is open');
+      expect(
+        node.hasPrimaryFocus,
+        isTrue,
+        reason: 'an open surface must not take the caret off the trigger',
+      );
+    });
+
+    // Not merely unfocused on open: unfocusABLE. A focusable row inside an
+    // untrapped surface would otherwise still be a Tab stop, and tabbing off
+    // the field would land in the results instead of on the next control.
+    testWidgets('trapFocus: false keeps the surface out of the tab order', (
+      tester,
+    ) async {
+      final node = FocusNode(debugLabel: 'trigger');
+      final inside = FocusNode(debugLabel: 'inside');
+      addTearDown(node.dispose);
+      addTearDown(inside.dispose);
+
+      await pump(
+        tester,
+        trapFocus: false,
+        content: Focus(
+          key: body,
+          focusNode: inside,
+          child: const SizedBox(width: 40, height: 20),
+        ),
+        child: Focus(
+          focusNode: node,
+          child: const SizedBox(key: trigger, width: 40, height: 20),
+        ),
+      );
+      node.requestFocus();
+      await tester.pump();
+      await open(tester);
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(inside.hasFocus, isFalse);
     });
   });
 

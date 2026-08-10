@@ -547,6 +547,9 @@ class FluentPopoverTheme extends InheritedTheme {
 /// within the surface rather than walking off into the page behind it, which is
 /// upstream's `trapFocus` behaviour.
 ///
+/// Pass `trapFocus: false` when the trigger is a **text field** — see that
+/// field for why a search-as-you-type surface must not take the caret.
+///
 /// ## Motion
 ///
 /// Entrance only, and it is [FluentMotionSpec.popover]. See
@@ -571,6 +574,7 @@ class FluentPopover extends StatefulWidget {
     this.position = FluentPopoverPosition.above,
     this.align = FluentPopoverAlign.center,
     this.withArrow = false,
+    this.trapFocus = true,
     this.style,
     this.semanticLabel,
   });
@@ -610,6 +614,28 @@ class FluentPopover extends StatefulWidget {
   /// Defaults to false, matching both React and the Figma file, where all
   /// twelve arrow layers ship hidden.
   final bool withArrow;
+
+  /// Whether the surface takes focus while it is open.
+  ///
+  /// True is upstream's `trapFocus`: focus moves into the surface one frame
+  /// after it opens, Tab cycles inside it, and closing hands focus back to
+  /// whatever held it. Right for a menu, a filter panel, a column chooser —
+  /// anything whose trigger is a button and whose content is operable.
+  ///
+  /// **False when the trigger is a text field.** A search-as-you-type surface
+  /// drops out of a box the user is still typing in, so taking the caret makes
+  /// the first keystroke the last: the results appear and the field goes dead.
+  /// Focus is left exactly where it was, nothing is captured to restore, and
+  /// the content is wrapped in [ExcludeFocus] so Tab cannot walk into it either
+  /// — which is how `FluentTagPicker`'s own listbox already behaves.
+  ///
+  /// Two things move to the trigger when this is false, because a surface with
+  /// no focus receives no keys: **Escape**, and any arrow-key navigation of the
+  /// content. `FluentSearchBox` and `FluentInput` both already own Escape.
+  ///
+  /// Defaults to true only because every consumer predates the flag; upstream's
+  /// own `trapFocus` prop is opt-in.
+  final bool trapFocus;
 
   /// Overrides layered over the theme defaults. Merged last, so it wins.
   final FluentPopoverStyle? style;
@@ -698,12 +724,16 @@ class _FluentPopoverState extends State<FluentPopover> {
     if (_entry != null) return;
     final overlay = Overlay.of(context, debugRequiredFor: widget);
     // Captured before the scope takes focus, so closing can hand it back.
-    _restore = FocusManager.instance.primaryFocus;
+    // Nothing to hand back when focus never moves, and capturing anyway would
+    // make closing yank the caret back to wherever it happened to be.
+    _restore = widget.trapFocus ? FocusManager.instance.primaryFocus : null;
     // FluentTheme is an InheritedTheme, so this carries it — and any other
     // InheritedTheme between here and the overlay — across the boundary.
     final captured = InheritedTheme.capture(from: context, to: overlay.context);
     _entry = OverlayEntry(builder: (_) => captured.wrap(_buildSurface()));
     overlay.insert(_entry!);
+
+    if (!widget.trapFocus) return;
 
     // Focus moves into the surface, which is upstream's `findFirstFocusable` +
     // `activateModal`. Deferred one frame because the scope node is not
@@ -829,7 +859,16 @@ class _FluentPopoverState extends State<FluentPopover> {
                     container: true,
                     explicitChildNodes: true,
                     label: widget.semanticLabel,
-                    child: buildFluentPopover(state, style, states),
+                    // Not trapping means the surface never takes focus at all,
+                    // not merely that it is not focused on open: a focusable
+                    // row inside it would otherwise still be a Tab stop, and
+                    // tabbing off the field the popover belongs to would land
+                    // the caret in the results instead of on the next control.
+                    child: widget.trapFocus
+                        ? buildFluentPopover(state, style, states)
+                        : ExcludeFocus(
+                            child: buildFluentPopover(state, style, states),
+                          ),
                   ),
                 ),
               ),
