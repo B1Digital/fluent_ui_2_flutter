@@ -1,4 +1,13 @@
+import 'dart:math' as math;
+
+import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+
+import '../internal/chart_text_measurer.dart';
+import '../internal/chart_text_styles.dart';
+import '../internal/d3/scale.dart';
+import '../model/chart_annotation.dart';
 
 /// Slack added to the label width before packing. `EventAnnotation.tsx:20`.
 const double kEventAnnotationTextPadding = 5;
@@ -147,4 +156,277 @@ List<FluentEventLabelPlacement> fluentPackEventAnnotationLabels(
   }
 
   return placements;
+}
+
+/// A packed label with its resolved text, ready to paint.
+@immutable
+class FluentEventLabel {
+  /// Creates a resolved label.
+  const FluentEventLabel({
+    required this.text,
+    required this.x,
+    required this.anchor,
+  });
+
+  /// The label text: one event's own, or `mergedLabel(count)`.
+  final String text;
+
+  /// The rule the label sits on.
+  final double x;
+
+  /// Which side of [x] the text extends.
+  final FluentEventLabelAnchor anchor;
+}
+
+/// Paints LineChart's event annotations: dashed rules and their labels.
+///
+/// The labels wrap and are **bottom-aligned**: `Textbox.tsx:44` lifts the whole
+/// block by `-numLines * lineHeight` so it grows upwards from its baseline,
+/// which is what keeps it clear of the plot as it gains lines.
+class FluentEventAnnotationPainter extends CustomPainter {
+  /// Creates a painter.
+  const FluentEventAnnotationPainter({
+    required this.rules,
+    required this.labels,
+    required this.lineTop,
+    required this.lineBottom,
+    required this.textBaseline,
+    required this.labelWidth,
+    required this.strokeColor,
+    required this.labelColor,
+    required this.textStyle,
+  });
+
+  /// One offset per deduplicated rule; only `dx` is meaningful.
+  final List<Offset> rules;
+
+  /// The packed labels.
+  final List<FluentEventLabel> labels;
+
+  /// Top of every rule: `chartTop - 13`.
+  final double lineTop;
+
+  /// Bottom of every rule: `chartBottom`.
+  final double lineBottom;
+
+  /// Baseline the labels sit on: `chartTop - 20`.
+  final double textBaseline;
+
+  /// Width the labels wrap at.
+  final double labelWidth;
+
+  /// Rule colour.
+  final Color strokeColor;
+
+  /// Label colour.
+  final Color labelColor;
+
+  /// Label text style — `10pt`, which is 13.33 logical pixels
+  /// (`EventAnnotation.tsx:22`).
+  final TextStyle textStyle;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = strokeColor
+      ..style = PaintingStyle.stroke
+      // EventAnnotation.tsx:34 gives no stroke-width, so SVG's default of 1
+      // applies.
+      ..strokeWidth = 1;
+
+    for (final rule in rules) {
+      _dashedLine(
+        canvas,
+        Offset(rule.dx, lineTop),
+        Offset(rule.dx, lineBottom),
+        paint,
+      );
+    }
+
+    // Built here rather than held by the widget because nothing is cached: a
+    // wrapping label is laid out through [FluentChartTextMeasurer.layoutPainter]
+    // and never through the string-keyed [FluentChartTextMeasurer.measure]. The
+    // factory stays the only place a `TextPainter` is constructed, so the labels
+    // are drawn with the configuration every other chart painter measures with.
+    final measurer = FluentChartTextMeasurer();
+    final labelStyle = textStyle.copyWith(color: labelColor);
+
+    for (final label in labels) {
+      final painter = measurer.layoutPainter(label.text, labelStyle)
+        // The factory is a single-line one; `Textbox.tsx:21-42` wraps on
+        // whitespace at the label width.
+        ..maxLines = null
+        // LabelLink.tsx:81 puts the packed anchor on `text-anchor`.
+        ..textAlign = label.anchor == FluentEventLabelAnchor.end
+            ? TextAlign.right
+            : TextAlign.left
+        ..layout(maxWidth: labelWidth);
+
+      final lines = painter.computeLineMetrics().length;
+      // Textbox.tsx:44 — bottom alignment by lifting the block.
+      final top = textBaseline - lines * kEventAnnotationLineHeight;
+      final left = label.anchor == FluentEventLabelAnchor.end
+          ? label.x - painter.width
+          : label.x;
+      painter
+        ..paint(canvas, Offset(left, top))
+        ..dispose();
+    }
+  }
+
+  void _dashedLine(Canvas canvas, Offset from, Offset to, Paint paint) {
+    final total = (to - from).distance;
+    if (total == 0) {
+      return;
+    }
+    final unit = (to - from) / total;
+    var travelled = 0.0;
+    var drawing = true;
+    while (travelled < total) {
+      final step = math.min(kEventAnnotationDashArray.first, total - travelled);
+      if (drawing) {
+        canvas.drawLine(
+          from + unit * travelled,
+          from + unit * (travelled + step),
+          paint,
+        );
+      }
+      travelled += step;
+      drawing = !drawing;
+    }
+  }
+
+  @override
+  bool shouldRepaint(FluentEventAnnotationPainter oldDelegate) =>
+      !listEquals(oldDelegate.rules, rules) ||
+      oldDelegate.labels.length != labels.length ||
+      oldDelegate.lineTop != lineTop ||
+      oldDelegate.lineBottom != lineBottom ||
+      oldDelegate.textBaseline != textBaseline ||
+      oldDelegate.labelWidth != labelWidth ||
+      oldDelegate.strokeColor != strokeColor ||
+      oldDelegate.labelColor != labelColor ||
+      oldDelegate.textStyle != textStyle;
+}
+
+/// LineChart's event annotation overlay: a dashed rule per date, with packed
+/// labels above the plot.
+///
+/// Ports `EventsAnnotation` (`EventAnnotation.tsx`), `LabelLink` and `Textbox`.
+///
+/// Clicking a label does nothing, deliberately: `LabelLink.tsx:35-59` is a
+/// commented-out v8 `Callout` block with `callout = null` beside a
+/// `TODO - need to replace callout with popover`, and `onRenderCard` is
+/// collected and never rendered. [FluentEventAnnotation.cardBuilder] is
+/// therefore accepted and ignored. `// parity:` — implementing it would be new
+/// behaviour, not a port.
+class FluentEventAnnotationLayer extends StatelessWidget {
+  /// Creates an event annotation overlay.
+  const FluentEventAnnotationLayer({
+    required this.events,
+    required this.xScale,
+    required this.chartTop,
+    required this.chartBottom,
+    required this.mergedLabel,
+    super.key,
+    this.strokeColor,
+    this.labelColor,
+    this.labelHeight = kEventAnnotationLineHeight,
+    // EventAnnotation.tsx:17 — 105, not the 110 the packer works in.
+    this.labelWidth = kEventAnnotationDefaultLabelWidth,
+  });
+
+  /// The events to mark.
+  final List<FluentEventAnnotation> events;
+
+  /// The chart's x scale.
+  final Scale xScale;
+
+  /// Top of the plot area.
+  final double chartTop;
+
+  /// Bottom of the plot area.
+  final double chartBottom;
+
+  /// Rule colour, or null for `colorNeutralForeground1`.
+  /// `EventAnnotation.tsx:29-31`.
+  final Color? strokeColor;
+
+  /// Label colour, or null for `colorNeutralForeground1`.
+  /// `LabelLink.tsx:62-64`.
+  final Color? labelColor;
+
+  /// Line height of a wrapped label.
+  ///
+  /// `EventsAnnotationProps.labelHeight` (`LineChart.types.ts:106`) is declared
+  /// upstream and never read; `EventAnnotation.tsx:21` hard-codes 18 instead.
+  /// ponytail: wired to the real line height here, because a dead prop on a
+  /// public API is worse than a live one and the default is unchanged.
+  final double labelHeight;
+
+  /// Width the labels wrap at.
+  final double labelWidth;
+
+  /// The text for a label speaking for several events.
+  /// `LineChart.types.ts:108` — required, with no default.
+  final String Function(int count) mergedLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    // EventAnnotation.tsx:27 — ascending by date, before anything else.
+    final sorted = List<FluentEventAnnotation>.of(events)
+      ..sort((a, b) => a.date.compareTo(b.date));
+    final positions = <double>[
+      for (final event in sorted) xScale(event.date.millisecondsSinceEpoch)!,
+    ];
+
+    // EventAnnotation.tsx:33 — the RULES are deduplicated by date, but the
+    // labels still see every event.
+    final seen = <int>{};
+    final rules = <Offset>[
+      for (var i = 0; i < sorted.length; i++)
+        if (seen.add(sorted[i].date.millisecondsSinceEpoch))
+          Offset(positions[i], 0),
+    ];
+
+    final range = xScale.range;
+    final placements = fluentPackEventAnnotationLabels(
+      positions,
+      // EventAnnotation.tsx:37 — textWidth + textPadding.
+      labelWidth + kEventAnnotationTextPadding,
+      range.last,
+      range.first,
+    );
+
+    return IgnorePointer(
+      child: CustomPaint(
+        painter: FluentEventAnnotationPainter(
+          rules: rules,
+          labels: <FluentEventLabel>[
+            for (final placement in placements)
+              FluentEventLabel(
+                // LabelLink.tsx:66-70.
+                text: placement.aggregatedIndices.length == 1
+                    ? sorted[placement.aggregatedIndices.single].event
+                    : mergedLabel(placement.aggregatedIndices.length),
+                x: placement.x,
+                anchor: placement.anchor,
+              ),
+          ],
+          lineTop: chartTop - kEventAnnotationLineTopOffset,
+          lineBottom: chartBottom,
+          textBaseline: chartTop - kEventAnnotationTextTopOffset,
+          labelWidth: labelWidth,
+          strokeColor: strokeColor ?? theme.colors.neutralForeground1,
+          labelColor: labelColor ?? theme.colors.neutralForeground1,
+          // EventAnnotation.tsx:22 — '10pt', which is 10 * 96 / 72 = 13.33px.
+          textStyle: FluentChartTextStyles.of(theme).markerLabel.copyWith(
+            fontSize: 10 * 96 / 72,
+            height: labelHeight / (10 * 96 / 72),
+          ),
+        ),
+      ),
+    );
+  }
 }

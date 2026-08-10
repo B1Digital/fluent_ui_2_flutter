@@ -1,4 +1,9 @@
+import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:fluent_2_web/src/charts/chrome/event_annotation.dart';
+import 'package:fluent_2_web/src/charts/internal/d3/scale_time.dart';
+import 'package:fluent_2_web/src/charts/internal/data_viz_palette.dart';
+import 'package:fluent_2_web/src/charts/model/chart_annotation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/oracle_fixture.dart';
@@ -330,6 +335,152 @@ void main() {
         reason:
             'The other two captured labels read a single event name each '
             '(LabelLink.tsx:66-67).',
+      );
+    });
+  });
+
+  group('FluentEventAnnotationLayer', () {
+    final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+    // `scaleTime()` is the local-time scale; the layer feeds it epoch
+    // milliseconds, so the zone never enters the arithmetic.
+    final scale = scaleTime()
+      ..domainOfDates(<DateTime>[
+        DateTime.utc(2026, 1, 1),
+        DateTime.utc(2026, 1, 31),
+      ])
+      ..rangeOf(<double>[0, 300]);
+
+    Future<void> pump(
+      WidgetTester tester,
+      List<FluentEventAnnotation> events, {
+      Color? strokeColor,
+    }) => tester.pumpWidget(
+      FluentApp(
+        theme: theme,
+        home: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 300,
+            height: 200,
+            child: FluentEventAnnotationLayer(
+              events: events,
+              xScale: scale,
+              chartTop: 40,
+              chartBottom: 180,
+              strokeColor: strokeColor,
+              mergedLabel: (count) => '$count events',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    FluentEventAnnotationPainter painterOf(WidgetTester tester) => tester
+        .widgetList<CustomPaint>(find.byType(CustomPaint))
+        .map((p) => p.painter)
+        .whereType<FluentEventAnnotationPainter>()
+        .first;
+
+    testWidgets('events are sorted by date before packing', (tester) async {
+      await pump(tester, <FluentEventAnnotation>[
+        FluentEventAnnotation(date: DateTime.utc(2026, 1, 20), event: 'later'),
+        FluentEventAnnotation(date: DateTime.utc(2026, 1, 5), event: 'earlier'),
+      ]);
+      expect(
+        painterOf(tester).rules.first.dx < painterOf(tester).rules.last.dx,
+        isTrue,
+        reason: 'EventAnnotation.tsx:27 sorts lineDefs ascending by +date.',
+      );
+    });
+
+    testWidgets('duplicate dates share one rule', (tester) async {
+      await pump(tester, <FluentEventAnnotation>[
+        FluentEventAnnotation(date: DateTime.utc(2026, 1, 10), event: 'a'),
+        FluentEventAnnotation(date: DateTime.utc(2026, 1, 10), event: 'b'),
+      ]);
+      expect(
+        painterOf(tester).rules.length,
+        1,
+        reason:
+            'EventAnnotation.tsx:33 deduplicates by date.toString() before '
+            'drawing the rules, though the LABELS still see both events.',
+      );
+    });
+
+    testWidgets('the rule spans chartTop - 13 to chartBottom', (tester) async {
+      await pump(tester, <FluentEventAnnotation>[
+        FluentEventAnnotation(date: DateTime.utc(2026, 1, 10), event: 'a'),
+      ]);
+      final painter = painterOf(tester);
+      expect(
+        painter.lineTop,
+        40 - kEventAnnotationLineTopOffset,
+        reason:
+            'EventAnnotation.tsx:18-19 — textY = chartYTop - 20 and lineTopY = '
+            'textY + 7.',
+      );
+      expect(
+        painter.lineBottom,
+        180,
+        reason: 'EventAnnotation.tsx:34 — y2 is chartYBottom.',
+      );
+    });
+
+    testWidgets('several crowded events collapse into a merged label', (
+      tester,
+    ) async {
+      await pump(tester, <FluentEventAnnotation>[
+        FluentEventAnnotation(date: DateTime.utc(2026, 1, 10), event: 'a'),
+        FluentEventAnnotation(date: DateTime.utc(2026, 1, 11), event: 'b'),
+        FluentEventAnnotation(date: DateTime.utc(2026, 1, 12), event: 'c'),
+      ]);
+      expect(
+        painterOf(tester).labels.single.text,
+        '3 events',
+        reason:
+            'LabelLink.tsx:66-70 uses the event text for a single index and '
+            'mergedLabel(count) for several.',
+      );
+    });
+
+    testWidgets('a palette token is resolved against the live theme', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        <FluentEventAnnotation>[
+          FluentEventAnnotation(date: DateTime.utc(2026, 1, 10), event: 'a'),
+        ],
+        strokeColor: FluentDataVizPalette.resolve(FluentDataVizToken.color3),
+      );
+      expect(
+        painterOf(tester).strokeColor.toARGB32(),
+        FluentDataVizPalette.resolve(FluentDataVizToken.color3).toARGB32(),
+        reason:
+            'EventAnnotation.tsx:29-31 hard-codes isDarkTheme to false with an '
+            'inline `ToDo fix`. That is a defect the source itself disowns, and '
+            'reproducing it would put light-theme palette values on a dark '
+            'chart, so the port reads the theme instead (contract section 6.7).',
+      );
+    });
+
+    testWidgets('labels are not keyboard reachable', (tester) async {
+      await pump(tester, <FluentEventAnnotation>[
+        FluentEventAnnotation(date: DateTime.utc(2026, 1, 10), event: 'a'),
+      ]);
+      expect(
+        // The plan's unscoped `find.byType(Focus)` cannot hold: FluentApp's own
+        // shell puts Focus widgets in the tree. Scoped to the layer, which is
+        // what the assertion is actually about.
+        find.descendant(
+          of: find.byType(FluentEventAnnotationLayer),
+          matching: find.byType(Focus),
+        ),
+        findsNothing,
+        reason:
+            'LabelLink.tsx:74 sets data-is-focusable to false, so the labels '
+            'are not tab stops. The click callout there is dead code (:35-59), '
+            'so there is nothing to reach anyway.',
       );
     });
   });
