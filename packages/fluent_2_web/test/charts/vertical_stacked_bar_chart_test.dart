@@ -1,9 +1,17 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
+import 'package:fluent_2_web/src/charts/internal/chart_colors.dart';
+import 'package:fluent_2_web/src/charts/internal/chart_text_measurer.dart';
+import 'package:fluent_2_web/src/charts/internal/chart_text_styles.dart';
+import 'package:fluent_2_web/src/charts/internal/chart_utils.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/scale.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/scale_band.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/scale_linear.dart';
 import 'package:fluent_2_web/src/charts/internal/data_viz_palette.dart';
 import 'package:fluent_2_web/src/charts/model/bar_data.dart';
+import 'package:fluent_2_web/src/charts/model/chart_common.dart';
+import 'package:fluent_2_web/src/charts/model/chart_value.dart';
 import 'package:fluent_2_web/src/charts/vertical_stacked_bar_chart.dart';
 import 'package:fluent_2_web/src/charts/vertical_stacked_bar_chart_style.dart';
 import 'package:flutter/widgets.dart';
@@ -460,4 +468,549 @@ void main() {
       );
     });
   });
+
+  group('VSBC numeric stacking', () {
+    test('the running heights and gaps land on the expected pixels', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[1, 1, 98],
+        ],
+        barGapMax: 4,
+        yMax: 100,
+      );
+      final segs = d.segmentsFor(_vsbcContext(), _layout(height: 350));
+      // heightValueScale == (295 - 8) / 100 == 2.87. The tolerance is there
+      // because `yBarScale(100)` lands a few ulps off 295, not because the
+      // expectation is approximate.
+      expect(
+        segs.map((s) => s.rect.height).toList(),
+        <Matcher>[
+          closeTo(2.87, 1e-9),
+          closeTo(2.87, 1e-9),
+          closeTo(281.26, 1e-9),
+        ],
+        reason:
+            'barHeight = |heightValueScale * data|, '
+            'VerticalStackedBarChart.tsx:1068',
+      );
+      expect(
+        segs.last.rect.top,
+        closeTo(315 - 2.87 - 2.87 - 4 - 281.26 - 4, 1e-6),
+        reason:
+            'yPositiveStart -= barHeight + gapOffset for each segment, '
+            'VerticalStackedBarChart.tsx:1073-1076',
+      );
+    });
+
+    test('a segment below the stack minimum is raised', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[0.1, 99.9],
+        ],
+        barGapMax: 0,
+        yMax: 100,
+      );
+      final segs = d.segmentsFor(_vsbcContext(), _layout(height: 350));
+      expect(
+        segs.first.rect.height,
+        greaterThanOrEqualTo(2.9),
+        reason:
+            'minHeight = max(heightValueScale * absStackTotal / 100, '
+            'barMinimumHeight) lifts a 0.1-unit segment, '
+            'VerticalStackedBarChart.tsx:1070',
+      );
+      expect(
+        segs.first.rect.height,
+        closeTo(295 / 1.009 / 100, 1e-9),
+        reason:
+            'the one-percent floor has already inflated scalingRatio to '
+            '1.009, so the minimum is 295 / 1.009 / 100',
+      );
+    });
+
+    test('a zero or empty-string segment is filtered out of the stack', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[0, 50, 50],
+        ],
+        barGapMax: 0,
+        yMax: 100,
+      );
+      expect(
+        d.segmentsFor(_vsbcContext(), _layout(height: 350)).length,
+        2,
+        reason:
+            "barsToDisplay filters data !== 0 && data !== '' at "
+            'VerticalStackedBarChart.tsx:1006-1014',
+      );
+    });
+
+    test('a stack with nothing to display is skipped entirely', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[0, 0],
+          <double>[50],
+        ],
+        barGapMax: 0,
+        yMax: 100,
+      );
+      expect(
+        d
+            .segmentsFor(_vsbcContext(), _layout(height: 350))
+            .map((s) => s.stackIndex)
+            .toSet(),
+        <int>{1},
+        reason: 'the whole stack returns undefined and is filtered at :1222',
+      );
+    });
+
+    test('a negative segment grows downwards from the baseline', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[-50],
+        ],
+        barGapMax: 0,
+        yMax: 0,
+        yMin: -50,
+      );
+      final seg = d.segmentsFor(_vsbcContext(), _layout(height: 350)).single;
+      expect(
+        seg.rect.top,
+        closeTo(315 - 295, 1e-9),
+        reason:
+            'the domain is [-50, 0], so yBarScale(0) is the full 295 and the '
+            'baseline sits at the plot ceiling, '
+            'VerticalStackedBarChart.tsx:1025-1028',
+      );
+      expect(
+        seg.rect.height,
+        closeTo(295, 1e-9),
+        reason:
+            'yPoint = yNegativeStart + gapOffset then yNegativeStart = yPoint '
+            '+ barHeight, VerticalStackedBarChart.tsx:1077-1078',
+      );
+    });
+
+    test('a dimmed segment resolves the disabled opacity', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[50, 50],
+        ],
+        barGapMax: 0,
+        yMax: 100,
+        selectedLegends: <String>['series 1'],
+      );
+      expect(
+        d
+            .segmentsFor(_vsbcContext(), _layout(height: 350))
+            .map((s) => s.opacity)
+            .toList(),
+        <double>[0.1, 1.0],
+        reason:
+            'opacity={shouldHighlight ? 1 : 0.1}, '
+            'VerticalStackedBarChart.tsx:1101',
+      );
+    });
+
+    test('segment colours cycle the five-token palette by stack position', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[10, 10, 10, 10, 10, 10],
+        ],
+        barGapMax: 0,
+        yMax: 100,
+      );
+      final segs = d.segmentsFor(_vsbcContext(), _layout(height: 350));
+      expect(
+        segs[5].colour.toARGB32(),
+        segs[0].colour.toARGB32(),
+        reason:
+            'ponytail: upstream `_colors[index]` is undefined for a sixth '
+            'segment (VerticalStackedBarChart.tsx:316-322); the port wraps at '
+            'index % 5 so the bar is never unpainted',
+      );
+      expect(
+        segs.take(5).map((s) => s.colour.toARGB32()).toList(),
+        _palette.map((c) => c.toARGB32()).toList(),
+        reason: 'the first five take the five tokens in upstream order',
+      );
+    });
+
+    test('the palette index is deterministic across renders', () {
+      const datum = FluentStackedBarDatum(data: 1, legend: 'series 0');
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[10, 10],
+        ],
+        barGapMax: 0,
+        yMax: 100,
+      );
+      expect(
+        <int>{
+          for (var i = 0; i < 8; i++)
+            d.segmentPaletteColour(datum, 1).toARGB32(),
+        },
+        <int>{_palette[1].toARGB32()},
+        reason:
+            'ponytail: VerticalStackedBarChart.tsx:167 re-rolls '
+            '`defaultPalette[Math.floor(Math.random() * 4 + 1)]` on every '
+            'render, which no golden can pin; the port indexes by position',
+      );
+      expect(
+        d.segmentPaletteColour(datum, 0).toARGB32(),
+        _palette[0].toARGB32(),
+        reason:
+            'ponytail: `Math.random() * 4 + 1` can never yield 0, so upstream '
+            'never shows the first token in a legend swatch',
+      );
+      expect(
+        d.segmentsFor(_vsbcContext(), _layout(height: 350)).first.colour,
+        d.segmentPaletteColour(datum, 0),
+        reason: 'the marks and the legend read one rule, not two',
+      );
+    });
+
+    test('a mark flattens under high contrast while the legend does not', () {
+      final contrast = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[50, 50],
+        ],
+        barGapMax: 0,
+        yMax: 100,
+        isHighContrast: true,
+      );
+      const datum = FluentStackedBarDatum(data: 50, legend: 'series 0');
+      expect(
+        contrast
+            .segmentsFor(_vsbcContext(), _layout(height: 350))
+            .map((s) => s.colour)
+            .toSet(),
+        <Color>{_canvasText},
+        reason:
+            'spec section 5.3 — every mark fill routes through flattenMark, '
+            'so forced colours collapse the palette to the system foreground',
+      );
+      expect(
+        contrast.segmentPaletteColour(datum, 0),
+        _palette[0],
+        reason: 'the legend keeps its palette, spec section 5.3',
+      );
+    });
+  });
+
+  group('VSBC rounded top', () {
+    test('the last segment gets an arc path when the radius fits', () {
+      final p = FluentVerticalStackedBarChartDelegate.roundedTopPath(
+        x: 100,
+        y: 200,
+        width: 24,
+        height: 40,
+        radius: 6,
+      );
+      expect(
+        p.getBounds(),
+        const Rect.fromLTWH(100, 200, 24, 40),
+        reason:
+            'the six verbs at VerticalStackedBarChart.tsx:1089-1099 close '
+            'exactly on the rect',
+      );
+      expect(
+        p.contains(const Offset(100.5, 200.5)),
+        isFalse,
+        reason: 'the top-left corner is cut away by the first arc, :1092-1093',
+      );
+      expect(
+        p.contains(const Offset(101, 239)),
+        isTrue,
+        reason: 'the bottom-left corner is square, :1097-1098',
+      );
+    });
+
+    test('the last segment of a stack carries the arc', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[50, 50],
+        ],
+        barGapMax: 0,
+        yMax: 100,
+        barCornerRadius: 6,
+      );
+      final segs = d.segmentsFor(_vsbcContext(), _layout(height: 350));
+      expect(
+        <bool>[for (final s in segs) s.roundedTopPath != null],
+        <bool>[false, true],
+        reason:
+            'the guard ends with `index === barsToDisplay.length - 1`, '
+            'VerticalStackedBarChart.tsx:1089',
+      );
+      expect(
+        segs.last.roundedTopPath!.getBounds(),
+        // Path bounds are float32, so the epsilon is the storage width and not
+        // a slack in the geometry.
+        rectMoreOrLessEquals(segs.last.rect, epsilon: 1e-4),
+        reason: 'the arc path spans exactly the segment it replaces',
+      );
+    });
+
+    test('no arc path when the radius exceeds the segment height', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[100, 0.5],
+        ],
+        barGapMax: 0,
+        yMax: 100,
+        barCornerRadius: 20,
+      );
+      expect(
+        d.segmentsFor(_vsbcContext(), _layout(height: 350)).last.roundedTopPath,
+        isNull,
+        reason:
+            'the guard is barCornerRadius && barHeight > barCornerRadius, '
+            'VerticalStackedBarChart.tsx:1089',
+      );
+    });
+  });
+
+  group(
+    'Oracle B — charts-verticalstackedbarchart--vertical-stacked-bar-default '
+    'segment placement',
+    () {
+      test('a numeric-axis segment is drawn half a bar left of its x', () {
+        final story = loadOracleStory(
+          'charts-verticalstackedbarchart--vertical-stacked-bar-default',
+        );
+        final barWidth = getBarWidth(null, 24);
+        expect(
+          barWidth,
+          _kOracleBarWidth,
+          reason:
+              'the story passes no barWidth, so getBarWidth falls to '
+              'min(DEFAULT_BAR_WIDTH, DEFAULT_BAR_WIDTH), utilities.ts:1906',
+        );
+        final stacks = _oracleStacks(story);
+        expect(stacks.length, 6, reason: 'the default story draws six stacks');
+        // Every captured segment carries `transform="translate(-8, 0)"`, so the
+        // rect's own `x` is the unshifted `xBarScale(xAxisPoint)`.
+        final xValues = <Object>[for (final stack in stacks) stack.first.x!];
+        final delegate = _vsbcDelegate(
+          stacks: <List<double>>[
+            for (final _ in stacks) <double>[50],
+          ],
+          barGapMax: 0,
+          yMax: 50,
+          xPoints: xValues,
+        );
+        expect(
+          delegate.xAxisType,
+          FluentChartAxisType.numeric,
+          reason:
+              'a numeric xAxisPoint takes the `-_barWidth / 2` arm at :1003',
+        );
+        // An identity scale, so the delegate's translate is the only thing that
+        // moves a segment off its x.
+        final identity = scaleLinear()
+          ..domainOf(<double>[stacks.first.first.x!, stacks.last.first.x!])
+          ..rangeOf(<double>[stacks.first.first.x!, stacks.last.first.x!]);
+        final segments = delegate.segmentsFor(
+          FluentCartesianChildContext(
+            xScale: identity,
+            yScalePrimary: _magnitudeScale(domain: <double>[0, 50], span: 295),
+            containerWidth: 650,
+            containerHeight: 350,
+          ),
+          _layout(height: 350),
+        );
+        expect(
+          segments.length,
+          stacks.length,
+          reason: 'one segment per captured stack, or the loop asserts nothing',
+        );
+        for (final (i, stack) in stacks.indexed) {
+          expectOracleNumber(
+            '${story.id} stack $i translate',
+            -barWidth / 2,
+            stack.first.ctm![4],
+          );
+          expectOracleNumber(
+            '${story.id} stack $i drawn left edge',
+            stack.first.x! + stack.first.ctm![4],
+            segments[i].rect.left,
+          );
+          expectOracleNumber(
+            '${story.id} stack $i width',
+            _kOracleBarWidth,
+            segments[i].rect.width,
+          );
+        }
+        // The tick under a stack sits on the bar's centre, offset by the half
+        // pixel the capture bakes into every axis line.
+        final ticks = <double>[
+          for (final line in story.byTag('line'))
+            if (line.y2 == 6) line.ctm![4],
+        ];
+        expect(
+          ticks.length,
+          11,
+          reason: 'the captured x axis has eleven tick marks',
+        );
+        for (final stack in stacks) {
+          final centre = stack.first.x! + story.crispOffset;
+          final nearest = ticks.reduce(
+            (a, b) => (a - centre).abs() < (b - centre).abs() ? a : b,
+          );
+          expectOracleNumber(
+            '${story.id} tick over a segment centre',
+            centre,
+            nearest,
+          );
+        }
+      });
+    },
+  );
+
+  group('VSBC axis wiring', () {
+    test('the x axis type follows the first stack point', () {
+      expect(
+        _vsbcDelegate(
+          stacks: <List<double>>[
+            <double>[1],
+          ],
+          barGapMax: 0,
+          yMax: 1,
+        ).xAxisType,
+        FluentChartAxisType.category,
+        reason:
+            'the fixtures label their stacks, and `getTypeOfAxis` maps a '
+            'string to a band axis, VerticalStackedBarChart.tsx:325-326',
+      );
+    });
+
+    test('the y extent is the stack totals, not the segment values', () {
+      final minMax = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[10, 20],
+          <double>[-5, -5],
+        ],
+        barGapMax: 0,
+        yMax: 0,
+      ).resolveYMinMax();
+      expect(
+        <double>[minMax.startValue, minMax.endValue],
+        <double>[-10, 30],
+        reason:
+            '_createDataSetLayer sums each stack before findVSBCNumericMinMaxOfY '
+            'reads it, VerticalStackedBarChart.tsx:344-351',
+      );
+    });
+  });
+}
+
+/// The five DataViz tokens VSBC falls back to, in upstream order
+/// (`VerticalStackedBarChart.tsx:316-322`).
+final List<Color> _palette = <Color>[
+  FluentDataVizPalette.resolve(FluentDataVizToken.color6),
+  FluentDataVizPalette.resolve(FluentDataVizToken.color1),
+  FluentDataVizPalette.resolve(FluentDataVizToken.color5),
+  FluentDataVizPalette.resolve(FluentDataVizToken.color7),
+  FluentDataVizPalette.resolve(FluentDataVizToken.color10),
+];
+
+const _placeholder = Color(0xFF010203);
+const _canvasText = Color(0xFFFFFFFF);
+const _canvas = Color(0xFF000000);
+
+/// The eleven-field colour set, so `isHighContrast` can be flipped without a
+/// second [FluentThemeData].
+FluentChartColors _colours({bool isHighContrast = false}) => FluentChartColors(
+  axisText: _canvasText,
+  axisTick: _placeholder,
+  axisTitle: _placeholder,
+  gridLine: _placeholder,
+  markStroke: _placeholder,
+  surface: _canvas,
+  popoverSurface: _placeholder,
+  tooltipSurface: _placeholder,
+  legendDimmed: _placeholder,
+  isHighContrast: isHighContrast,
+);
+
+/// The margins the shell defaults to (`CartesianChart.tsx:41-42`), so a 350px
+/// layout leaves exactly 295px of plot.
+const _margins = FluentChartMargins(left: 40, right: 20, top: 20, bottom: 35);
+
+FluentCartesianLayout _layout({required double height}) =>
+    FluentCartesianLayout.resolve(
+      size: Size(640, height),
+      margins: _margins,
+      xAxisLabelReserve: 0,
+      isRtl: false,
+      startFromX: 0,
+    );
+
+/// The stack labels `_vsbcDelegate` names its groups with. Eight is more than
+/// any fixture below needs, so the band scale never misses.
+const List<String> _stackLabels = <String>[
+  'stack 0',
+  'stack 1',
+  'stack 2',
+  'stack 3',
+  'stack 4',
+  'stack 5',
+  'stack 6',
+  'stack 7',
+];
+
+/// A child context whose x scale is the band scale a category axis builds, and
+/// whose y scale is unread by the numeric segment solve — that one builds its
+/// own `yBarScale` (`VerticalStackedBarChart.tsx:850-853`).
+FluentCartesianChildContext _vsbcContext() => FluentCartesianChildContext(
+  xScale: _bandScale(
+    domain: _stackLabels,
+    range: <double>[40, 620],
+    // getScalePadding's category default (VerticalStackedBarChart.tsx:329).
+    innerPadding: 2 / 3,
+    outerPadding: 0,
+  ),
+  yScalePrimary: _magnitudeScale(domain: <double>[0, 100], span: 295),
+  containerWidth: 640,
+  containerHeight: 350,
+);
+
+FluentVerticalStackedBarChartDelegate _vsbcDelegate({
+  required List<List<double>> stacks,
+  required double barGapMax,
+  required double yMax,
+  double yMin = 0,
+  double barMinimumHeight = 0,
+  double barCornerRadius = 0,
+  List<String> selectedLegends = const <String>[],
+  bool isHighContrast = false,
+  List<Object>? xPoints,
+}) {
+  expect(
+    stacks.length,
+    lessThanOrEqualTo(xPoints?.length ?? _stackLabels.length),
+    reason: 'the x domain has to cover every stack, or xScale returns null',
+  );
+  final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+  return FluentVerticalStackedBarChartDelegate(
+    stacks: <FluentVerticalStackedBarGroup>[
+      for (final (i, values) in stacks.indexed)
+        FluentVerticalStackedBarGroup(
+          chartData: _segments(values),
+          xAxisPoint: xPoints?[i] ?? _stackLabels[i],
+        ),
+    ],
+    style: resolveFluentVerticalStackedBarChartStyle(theme),
+    colors: _colours(isHighContrast: isHighContrast),
+    measurer: FluentChartTextMeasurer(),
+    textStyles: FluentChartTextStyles.of(theme),
+    selectedLegends: selectedLegends,
+    palette: _palette,
+    barGapMax: barGapMax,
+    barCornerRadius: barCornerRadius,
+    barMinimumHeight: barMinimumHeight,
+    yMinValue: yMin,
+    yMaxValue: yMax,
+  );
 }
