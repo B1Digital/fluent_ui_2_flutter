@@ -547,7 +547,7 @@ class FluentLineMark {
 
   /// Stroke width: the series' own under engine A (`LineChart.tsx:912`), a
   /// flat 1 under engine B (`:803`), and 0 for an inactive one-point marker
-  /// (`:623`), which is upstream's way of not stroking it at all.
+  /// (`:624`), which is upstream's way of not stroking it at all.
   final double strokeWidth;
 
   /// 1 when this mark's legend owns the highlight; otherwise 0.01 under
@@ -1114,7 +1114,7 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
             FluentLineMark(
               centre: centre,
               shapeIndex: null,
-              // `:790` compares `activePoint` against the id *prefix* rather
+              // `:792` compares `activePoint` against the id *prefix* rather
               // than against this marker's own id, so it never matches and an
               // engine-B marker never grows on hover. Reproduced, not
               // repaired.
@@ -1363,7 +1363,7 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
           path,
           Paint()..color = mark.fill.withValues(alpha: mark.opacity),
         );
-        // `:623` strokes an inactive one-point marker at width 0, which is
+        // `:624` strokes an inactive one-point marker at width 0, which is
         // SVG for "no outline"; Flutter would draw a hairline instead.
         if (mark.strokeWidth == 0) {
           continue;

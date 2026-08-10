@@ -24,7 +24,8 @@
 //   VerticalStackedBarChart     vertical_stacked_bar_chart_test.dart       5
 //
 // Counted as blocks holding a direct expectOracle* call, so re-derivable with
-// `grep -c expectOracle`; GanttChart's second block asserts through the shared
+// `grep -rlc expectOracle` over test/charts and counting enclosing test blocks — a bare
+// `grep -c expectOracle` counts call lines (104), not blocks; GanttChart's second block asserts through the shared
 // `expectBarsMatch`, hence 1+1. It is a floor, not a total. Fifteen further
 // blocks load a story to drive the port — grouped_vertical_bar_chart_test.dart
 // feeds it through `contextOf(story)` — while taking their expected value from
