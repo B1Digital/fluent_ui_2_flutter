@@ -233,7 +233,7 @@ List<FluentDataSeries> _gvbcV2Series() => const <FluentDataSeries>[
 ];
 
 /// The same two bar series with a line over the top — the only input shape
-/// that can carry one (`GroupedVerticalBarChart.tsx:288-291`).
+/// that can carry one (`GroupedVerticalBarChart.tsx:290-291`).
 List<FluentDataSeries> _gvbcV2WithLine() => <FluentDataSeries>[
   ..._gvbcV2Series(),
   const FluentLineSeries(
@@ -1132,7 +1132,7 @@ void main() {
     // whose '0' and '55k' ticks the assertions below rebuild.
     const valuesOne = <double>[-21600, 21812, -21712, 24800];
     const valuesTwo = <double>[29700, -28400, 28200, -29400];
-    // GroupedVerticalBarChart.tsx:842 — the captured halo is 7px wide, which
+    // GroupedVerticalBarChart.tsx:837 — the captured halo is 7px wide, which
     // is `3 + lineBorderWidth * 2` at a lineBorderWidth of 2.
     const lineBorderWidth = 2.0;
 
@@ -1310,7 +1310,7 @@ void main() {
           capturedHalo.first.strokeWidth,
           3 + lineBorderWidth * 2,
           reason:
-              'GroupedVerticalBarChart.tsx:842 hard-codes the 3 rather than '
+              'GroupedVerticalBarChart.tsx:837 hard-codes the 3 rather than '
               'reading lineOptions.strokeWidth',
         );
         expect(
@@ -1320,7 +1320,7 @@ void main() {
           isTrue,
           reason:
               'every halo is painted before any line, as the two <g> groups at '
-              'GroupedVerticalBarChart.tsx:894-896 are ordered',
+              'GroupedVerticalBarChart.tsx:909-911 are ordered',
         );
         expect(
           canvas.lines.first.colour,
@@ -1332,7 +1332,7 @@ void main() {
         expect(
           canvas.lines.first.cap,
           StrokeCap.round,
-          reason: 'strokeLinecap="round", GroupedVerticalBarChart.tsx:843',
+          reason: 'strokeLinecap="round", GroupedVerticalBarChart.tsx:838',
         );
       },
     );
@@ -1348,7 +1348,7 @@ void main() {
         <double>{3},
         reason:
             'the halo is gated on `lineBorderWidth > 0`, '
-            'GroupedVerticalBarChart.tsx:834',
+            'GroupedVerticalBarChart.tsx:827',
       );
     });
 
@@ -1368,7 +1368,7 @@ void main() {
       );
       final canvas = _RecordingCanvas();
       delegate(
-        // Series 0, point 1 — the dot id `_getDotId` builds at `.tsx:996`.
+        // Series 0, point 1 — the dot id `_getDotId` builds at `.tsx:987`.
         activeLinePoint: '0-1',
       ).paintSeries(canvas, contextOf(story), _layout(), _colours());
       expect(
@@ -1416,7 +1416,7 @@ void main() {
         4,
         reason:
             '`activeLinePoint === point.x` is the isCalloutForStack arm of '
-            'GroupedVerticalBarChart.tsx:869, and it matches on both lines',
+            'GroupedVerticalBarChart.tsx:863, and it matches on both lines',
       );
     });
 
@@ -1432,7 +1432,7 @@ void main() {
         closeTo(0.1, 1e-6),
         reason:
             '`opacity={shouldHighlight ? 1 : 0.1}`, '
-            'GroupedVerticalBarChart.tsx:840',
+            'GroupedVerticalBarChart.tsx:839',
       );
       expect(
         canvas.lines.last.colour.a,
@@ -1754,7 +1754,7 @@ void main() {
       expect(
         find.bySemanticsLabel('Graph has no data to display'),
         findsOneWidget,
-        reason: 'the alert div at GroupedVerticalBarChart.tsx:1029',
+        reason: 'the alert div at GroupedVerticalBarChart.tsx:1031',
       );
     });
 

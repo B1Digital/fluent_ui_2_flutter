@@ -230,7 +230,7 @@ typedef FluentGroupedBarRect = ({
 /// One resolved dot of a line series overlaid on the bars.
 ///
 /// `dotId` is upstream's `_getDotId(seriesIdx, pointIdx)`
-/// (`GroupedVerticalBarChart.tsx:996`) minus its per-instance prefix, which
+/// (`GroupedVerticalBarChart.tsx:987`) minus its per-instance prefix, which
 /// only exists there to keep two charts' DOM ids apart.
 typedef FluentGroupedLineDot = ({
   int seriesIndex,
@@ -384,7 +384,7 @@ class FluentGroupedVerticalBarChartDelegate
   final String? culture;
 
   /// Whether a hovered mark reports its whole category rather than itself
-  /// (`.tsx:447`, `:985`).
+  /// (`.tsx:447`, `:984`).
   final bool isCalloutForStack;
 
   final double? _xAxisInnerPadding;
@@ -646,7 +646,7 @@ class FluentGroupedVerticalBarChartDelegate
   /// The line overlay (`_createLines`, `GroupedVerticalBarChart.tsx:797-912`).
   ///
   /// Three passes in upstream's own order — every halo, then every line, then
-  /// every dot (`.tsx:903-909`) — so one series' line can never cross over
+  /// every dot (`.tsx:909-911`) — so one series' line can never cross over
   /// another's dot.
   void _paintLines(Canvas canvas, FluentCartesianChildContext context) {
     if (lineSeries.isEmpty) {
@@ -671,7 +671,7 @@ class FluentGroupedVerticalBarChartDelegate
     for (var s = 0; s < lineSeries.length; s++) {
       final series = lineSeries[s];
       final border = series.lineOptions?.lineBorderWidth ?? 0;
-      // `.tsx:834` gates the halo on a positive border width.
+      // `.tsx:827` gates the halo on a positive border width.
       if (border <= 0) {
         continue;
       }
@@ -688,10 +688,10 @@ class FluentGroupedVerticalBarChartDelegate
                     style.lineBorderColor!.resolve(const <WidgetState>{})!,
               )
               .withValues(alpha: _isLegendActive(series.legend) ? full : dim)
-          // `3 + lineBorderWidth * 2` (`.tsx:842`): the 3 is a literal
+          // `3 + lineBorderWidth * 2` (`.tsx:837`): the 3 is a literal
           // upstream, not `lineOptions.strokeWidth`.
           ..strokeWidth = strokeWidth + border * 2
-          // `strokeLinecap="round"` (`.tsx:843`).
+          // `strokeLinecap="round"` (`.tsx:838`).
           ..strokeCap = StrokeCap.round,
       );
     }
@@ -705,11 +705,11 @@ class FluentGroupedVerticalBarChartDelegate
           ..color = colors
               .flattenMark(series.color ?? legendColour(series.legend))
               .withValues(alpha: _isLegendActive(series.legend) ? full : dim)
-          // `.tsx:852-854`.
+          // `.tsx:852-853`.
           ..strokeWidth = series.lineOptions?.strokeWidth ?? strokeWidth
           ..strokeCap = series.lineOptions?.strokeLinecap ?? StrokeCap.round,
       );
-      // ponytail: `strokeDasharray` (`.tsx:855`) is dropped. Dashing a
+      // ponytail: `strokeDasharray` (`.tsx:854`) is dropped. Dashing a
       // three-segment polyline needs the same path-metrics walk LineChart
       // carries for its own dashes; lift that helper here if a caller asks.
     }
@@ -745,8 +745,8 @@ class FluentGroupedVerticalBarChartDelegate
   /// Whether [dot] is the enlarged one.
   ///
   /// `activeLinePoint === point.x || activeLinePoint === dotId`
-  /// (`GroupedVerticalBarChart.tsx:869`): the category arm is what
-  /// `isCalloutForStack` sets (`:985`), so a stack callout grows the dot of
+  /// (`GroupedVerticalBarChart.tsx:863`): the category arm is what
+  /// `isCalloutForStack` sets (`:984`), so a stack callout grows the dot of
   /// every line at that category.
   bool isLinePointActive(FluentGroupedLineDot dot) =>
       activeLinePoint != null &&
@@ -805,7 +805,7 @@ class FluentGroupedVerticalBarChartDelegate
       );
     }
     // The dots come last, so the shell's backwards walk finds one over a bar —
-    // which is the hit order the SVG gives them too (`.tsx:903-909`).
+    // which is the hit order the SVG gives them too (`.tsx:909-911`).
     for (final dot in fluentGroupedLineDots(lineSeries, context)) {
       final series = lineSeries[dot.seriesIndex];
       // `tabIndex={shouldHighlight ? 0 : undefined}` (`.tsx:877`).
@@ -852,7 +852,7 @@ class FluentGroupedVerticalBarChartDelegate
   }
 
   /// The stack-wide readings of [category], filtered the way
-  /// `setYValueHover` filters them (`GroupedVerticalBarChart.tsx:983`).
+  /// `setYValueHover` filters them (`GroupedVerticalBarChart.tsx:980-982`).
   List<FluentYValueHover> _yValuesOf(String category) => <FluentYValueHover>[
     for (final group in data)
       if (group.name == category)
@@ -1109,7 +1109,7 @@ class FluentGroupedVerticalBarChartState
             key: series.key ?? series.legend,
             data: point.y is num ? (point.y as num).toDouble() : 0,
             legend: series.legend,
-            // `point.color ?? series.color` (`.tsx:282`).
+            // `point.color ?? series.color` (`.tsx:281`).
             color: point.color ?? series.color,
             xAxisCalloutData: point.xAxisCalloutData,
             yAxisCalloutData: point.yAxisCalloutData,
@@ -1261,7 +1261,7 @@ class FluentGroupedVerticalBarChartState
         // virtual element at the pointer (`.tsx:437`, `:970`).
         popoverAnchorsToRegion: true,
         // `isCalloutForStack` moves the callout onto the whole group
-        // (`.tsx:447`, `:985`), which is the shell's group granularity.
+        // (`.tsx:447`, `:984`), which is the shell's group granularity.
         hitRegionGranularity: widget.isCalloutForStack
             ? FluentChartHitGranularity.group
             : FluentChartHitGranularity.mark,
@@ -1274,7 +1274,7 @@ class FluentGroupedVerticalBarChartState
             color: colours[series.legend]!,
             shape: series.legendShape,
             onHoverAction: () => setState(() {
-              // `hoverAction` clears the line hover first (`.tsx:241-242`).
+              // `hoverAction` clears the line hover first (`.tsx:240-243`).
               _activeLinePoint = null;
               _activeLegend = series.legend;
             }),
@@ -1319,7 +1319,7 @@ class FluentGroupedVerticalBarChartState
       ),
       onPointerMoveInPlot: _handlePointerMove,
       onChartMouseLeave: () => setState(() {
-        // `_handleChartMouseLeave` (`.tsx:938-941`).
+        // `_handleChartMouseLeave` (`.tsx:507-517`).
         _activeLinePoint = null;
       }),
     );
