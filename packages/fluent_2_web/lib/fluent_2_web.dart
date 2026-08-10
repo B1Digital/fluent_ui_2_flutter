@@ -87,6 +87,7 @@ export 'src/charts/internal/chart_text_measurer.dart';
 export 'src/charts/internal/chart_text_styles.dart';
 export 'src/charts/internal/chart_utils.dart';
 export 'src/charts/internal/data_viz_palette.dart';
+export 'src/charts/internal/image_export.dart';
 export 'src/charts/internal/marker_geometry.dart';
 export 'src/charts/internal/scatter_polar.dart';
 export 'src/charts/line_chart.dart';

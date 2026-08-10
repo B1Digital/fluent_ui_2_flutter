@@ -6,7 +6,6 @@ import 'package:fluent_2_web/fluent_2_web.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/sankey.dart';
 // The image exporter is not barrel-exported either: `lib/fluent_2_web.dart` is
 // owned by the integration task.
-import 'package:fluent_2_web/src/charts/internal/image_export.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';

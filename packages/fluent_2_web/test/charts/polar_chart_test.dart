@@ -5,7 +5,6 @@ import 'package:fluent_2_web/fluent_2_web.dart';
 // The image exporter is not barrel-exported: `lib/fluent_2_web.dart` is owned
 // by the integration task, so the handle is reached the same deep way
 // `image_export_test.dart` reaches it.
-import 'package:fluent_2_web/src/charts/internal/image_export.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';

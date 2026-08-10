@@ -43,6 +43,7 @@ void main() {
           x: 1,
           values: <FluentCustomizedCalloutDataPoint>[],
         ),
+        FluentChartController(),
         FluentChartLegendShape.circle,
         FluentDataVizToken.color1,
         FluentDataVizPalette.next(0),
