@@ -1,6 +1,11 @@
+import 'dart:math' as math;
+
+import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
+import '../axis/axis_label_layout.dart';
 import '../internal/chart_text_measurer.dart';
+import '../internal/chart_text_styles.dart';
 import '../internal/d3/axis_geometry.dart';
 
 /// The four SVG `dominant-baseline` values chart chrome actually uses.
@@ -208,4 +213,80 @@ class FluentChartTitlePainter extends CustomPainter {
       oldDelegate.rotationRadians != rotationRadians ||
       oldDelegate.showBackground != showBackground ||
       oldDelegate.backgroundColor != backgroundColor;
+}
+
+/// `ChartTitle`'s own axis-title padding. `ChartTitle.tsx:8`.
+///
+/// Module-local upstream and deliberately distinct from `CartesianChart`'s
+/// identically-named constant, which is why it is not shared here either.
+const double kChartTitleAxisPadding = 8;
+
+/// The default `y` for a painted chart title. `ChartTitle.tsx:80-87`.
+///
+/// `max(fontSize + 8, 20 - 8)`, with a missing [fontSize] defaulting to 13
+/// (`:83`). The 12 floor only binds below a 4px font, so in practice the
+/// left arm always wins.
+double fluentChartTitleDefaultY(double? fontSize) => math.max(
+  // ChartTitle.tsx:83 — the literal 13 fallback.
+  (fontSize ?? 13) + kChartTitleAxisPadding,
+  kChartTitlePadding - kChartTitleAxisPadding,
+);
+
+/// The visible chart title of a shell-free chart.
+///
+/// The laid-out counterpart of [FluentChartTitlePainter], for charts that stack
+/// their title above the plot as a widget rather than painting it into the
+/// canvas — Funnel, Donut, Sankey, Gauge and ChartTable all do
+/// (`FunnelChart.tsx:491`, `DonutChart.tsx:361`, `SankeyChart.tsx:1160`,
+/// `GaugeChart.tsx:601`, `ChartTable.tsx:110`).
+///
+/// Every one of those call sites passes `maxWidth = width - 20`, except
+/// GaugeChart, which passes none and so inherits `SVGTooltipText`'s arbitrary
+/// `?? 100` fallback (`SVGTooltipText.tsx:49`, whose own TODO at `:50` admits
+/// it). That fallback is the chart's to supply, not this widget's.
+class FluentChartTitle extends StatelessWidget {
+  /// Creates a chart title.
+  const FluentChartTitle({
+    super.key,
+    required this.title,
+    this.maxWidth,
+    this.textStyle,
+  });
+
+  /// The title text.
+  final String title;
+
+  /// Width the title is shaved to fit, or null for no truncation.
+  final double? maxWidth;
+
+  /// Overrides [FluentChartTextStyles.chartTitle].
+  final TextStyle? textStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final style = textStyle ?? FluentChartTextStyles.of(theme).chartTitle;
+    final measurer = FluentChartTextMeasurer();
+    final shown = maxWidth == null
+        ? title
+        // shrinkToFit ports wrapContent (utilities.ts:1232-1248) verbatim,
+        // including its bare-first-measurement asymmetry, and is owned by
+        // axis/axis_label_layout.dart.
+        : shrinkToFit(title, style, maxWidth!, measurer).text;
+
+    return Padding(
+      // Common.styles.ts:89 — spacingVerticalS is 8.
+      padding: const EdgeInsets.only(bottom: FluentSpacing.s),
+      child: Semantics(
+        header: true,
+        child: Text(
+          shown,
+          style: style,
+          // Common.styles.ts:88.
+          textAlign: TextAlign.center,
+          maxLines: 1,
+        ),
+      ),
+    );
+  }
 }

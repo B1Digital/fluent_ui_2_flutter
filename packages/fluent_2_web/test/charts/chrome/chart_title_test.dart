@@ -1,7 +1,9 @@
 import 'dart:ui' show PictureRecorder;
 
+import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:fluent_2_web/src/charts/chrome/chart_title.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_text_measurer.dart';
+import 'package:fluent_2_web/src/charts/internal/chart_text_styles.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/axis_geometry.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -600,6 +602,149 @@ void main() {
             'text, every pixel inside it would be the backdrop and the title '
             'would have vanished. SVGTooltipText.tsx:174-183 emits the rect '
             'before the Tooltip that wraps the <text>, so the text is on top.',
+      );
+    });
+  });
+
+  group('fluentChartTitleDefaultY', () {
+    test('is fontSize + 8, floored at 12', () {
+      expect(
+        fluentChartTitleDefaultY(13),
+        21,
+        reason:
+            'ChartTitle.tsx:82-85 — max(fontSize + AXIS_TITLE_PADDING, '
+            'CHART_TITLE_PADDING - AXIS_TITLE_PADDING) = max(13 + 8, 20 - 8).',
+      );
+      expect(
+        fluentChartTitleDefaultY(null),
+        21,
+        reason:
+            'ChartTitle.tsx:83 defaults a missing font size to 13, so the '
+            'result is the same 21.',
+      );
+      expect(
+        fluentChartTitleDefaultY(2),
+        12,
+        reason:
+            'The 12 floor only binds below a 4px font, which no chart ships. '
+            'It is ported because it is cheap and the alternative is an '
+            'unexplained absence.',
+      );
+    });
+
+    test('the two paddings are distinct constants', () {
+      expect(
+        kChartTitleAxisPadding,
+        8,
+        reason:
+            'ChartTitle.tsx:8 declares its OWN AXIS_TITLE_PADDING, module-local '
+            "and distinct from CartesianChart's copy.",
+      );
+      expect(
+        kChartTitlePadding,
+        20,
+        reason: 'Common.styles.ts:10 — CHART_TITLE_PADDING.',
+      );
+    });
+  });
+
+  group('FluentChartTitle', () {
+    final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+
+    Future<void> pump(WidgetTester tester, Widget child) => tester.pumpWidget(
+      FluentApp(
+        theme: theme,
+        home: Center(child: child),
+      ),
+    );
+
+    testWidgets('renders caption2Strong by default', (tester) async {
+      await pump(tester, const FluentChartTitle(title: 'Revenue'));
+      expect(
+        tester.widget<Text>(find.text('Revenue')).style!.fontWeight,
+        theme.typography.caption2Strong.fontWeight,
+        reason:
+            'Common.styles.ts:85 gives getChartTitleStyles typographyStyles'
+            '.caption2Strong, which is what FluentChartTextStyles.chartTitle '
+            'resolves to.',
+      );
+    });
+
+    testWidgets('centres the title', (tester) async {
+      await pump(tester, const FluentChartTitle(title: 'Revenue'));
+      expect(
+        tester.widget<Text>(find.text('Revenue')).textAlign,
+        TextAlign.center,
+        reason: 'Common.styles.ts:88 — `textAlign: center`.',
+      );
+    });
+
+    testWidgets('truncates to maxWidth with an ellipsis', (tester) async {
+      await pump(
+        tester,
+        const FluentChartTitle(
+          title: 'A very long chart title indeed',
+          maxWidth: 40,
+        ),
+      );
+      expect(
+        tester.widget<Text>(find.textContaining('...')).data,
+        endsWith('...'),
+        reason:
+            'wrapContent (utilities.ts:1232-1248) shaves one character at a '
+            'time and re-appends the ellipsis, which shrinkToFit ports; a '
+            'title narrower than its box ends in one.',
+      );
+      expect(
+        find.text('A very long chart title indeed'),
+        findsNothing,
+        reason:
+            'Guard against a vacuous pass: the untruncated title must be gone, '
+            'or the ellipsis assertion above could be matching the full string.',
+      );
+    });
+
+    testWidgets('leaves a short title untouched', (tester) async {
+      await pump(
+        tester,
+        const FluentChartTitle(title: 'Revenue', maxWidth: 400),
+      );
+      expect(
+        tester.widget<Text>(find.text('Revenue')).data,
+        'Revenue',
+        reason:
+            'shrinkToFit returns its input verbatim when it already fits '
+            '(utilities.ts:1237), so maxWidth alone must not add an ellipsis.',
+      );
+    });
+
+    testWidgets('reserves the 8px bottom margin', (tester) async {
+      await pump(tester, const FluentChartTitle(title: 'Revenue'));
+      expect(
+        tester
+            .widgetList<Padding>(find.byType(Padding))
+            .map((p) => p.padding)
+            .contains(const EdgeInsets.only(bottom: FluentSpacing.s)),
+        isTrue,
+        reason:
+            'Common.styles.ts:89 — `marginBottom: spacingVerticalS`, which is 8.',
+      );
+    });
+
+    testWidgets('honours an overriding textStyle', (tester) async {
+      await pump(
+        tester,
+        const FluentChartTitle(
+          title: 'Revenue',
+          textStyle: TextStyle(fontSize: 31),
+        ),
+      );
+      expect(
+        tester.widget<Text>(find.text('Revenue')).style!.fontSize,
+        31,
+        reason:
+            'The chart supplies the resolved title style when it has one; the '
+            'theme lookup is only the default.',
       );
     });
   });
