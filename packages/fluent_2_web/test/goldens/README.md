@@ -88,14 +88,15 @@ any of them will (correctly) fail its image.
   `outline` and `ghost` appearances: no fill, no border, no visible label. The
   last row of `badge.high_contrast.png` has two cells where the other six
   colours have four.
-- **A striped legend swatch has no border**, so a dimmed one is invisible.
-  Upstream puts `border: 1px solid` on the shared `fui-legend__rect` class
-  (`useLegendsStyles.styles.ts:82`) and colours it from `legend.color`, which is
-  never dimmed (`Legends.tsx:298`, `:378`); only the *fill* is blanked for a
-  stripe pattern (`:298`, `:379`). The Dart port returns a bare
-  `FluentChartStripePainter` with no surrounding border
-  (`lib/src/charts/chrome/legend.dart:437-440`), and because a dimmed stripe is
-  painted in `dimmedSwatchColor` — the background — the whole swatch disappears.
-  Row 1 of `chart_chrome.light.png` is the symptom: `gamma` has a label and no
-  swatch. Row 2 is the same strip undimmed, which is the only cell in the net
-  that proves the stripe painter runs at all.
+Row 2 of `chart_chrome.light.png` is the strip undimmed, which is the only cell
+in the net that proves the stripe painter runs at all.
+
+A defect this net caught and that is now **fixed**, kept here because the image
+is its regression test: a striped legend swatch used to render with no border,
+so a dimmed one — painted in `dimmedSwatchColor`, the page background —
+disappeared from row 1 entirely. Upstream draws the stripe pattern as a
+`content` declaration on the same `fui-legend__rect` div as a plain swatch
+(`shape.tsx:35`, `Legends.tsx:379-381`), and that div carries `border: 1px
+solid` unconditionally (`useLegendsStyles.styles.ts:82`) coloured from
+`legend.color`, which is never dimmed (`Legends.tsx:378`); only the
+*background colour* is blanked (`:377`).

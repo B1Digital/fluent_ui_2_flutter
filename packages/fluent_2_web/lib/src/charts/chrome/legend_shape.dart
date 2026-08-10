@@ -6,7 +6,7 @@ import 'package:flutter/widgets.dart';
 ///
 /// Ports `LegendShape` (`Legends.types.ts:269`), which is the union of the
 /// literals `'default'` and `'triangle'` with the keys of `Points`
-/// (`utilities.ts:1713-1721`) and `CustomPoints` (`:1723-1725`). `'triangle'`
+/// (`utilities.ts:1713-1721`) and `CustomPoints` (`:1724-1726`). `'triangle'`
 /// appears on both sides of that union, so the ten Dart values below are the
 /// complete set.
 ///
@@ -43,7 +43,7 @@ enum FluentChartLegendShape {
   /// `Points.octagon` (`utilities.ts:1721`).
   octagon(7),
 
-  /// `CustomPoints.dottedLine` (`utilities.ts:1724`).
+  /// `CustomPoints.dottedLine` (`utilities.ts:1725`).
   dottedLine(null);
 
   const FluentChartLegendShape(this.pointIndex);

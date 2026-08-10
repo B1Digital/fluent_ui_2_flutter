@@ -66,6 +66,31 @@ void main() {
       );
     });
 
+    test('only high contrast dims the swatch by opacity', () {
+      expect(
+        resolveFluentChartLegendStyle(
+          theme,
+        ).dimmedSwatchOpacity!.resolve(<WidgetState>{}),
+        1,
+        reason:
+            'Legends.tsx:383 emits --rect-opacity-high-contrast, which '
+            'useLegendsStyles.styles.ts:78 only reads inside the '
+            'HighContrastSelector block (:76). Outside forced colours the '
+            'swatch is dimmed by swapping its fill (:400, :412), so any '
+            'opacity here would dim it twice.',
+      );
+      expect(
+        resolveFluentChartLegendStyle(
+          FluentThemeData.highContrast(fontPlatform: FluentFontPlatform.web),
+        ).dimmedSwatchOpacity!.resolve(<WidgetState>{}),
+        kInactiveLegendSwatchOpacityHc,
+        reason:
+            'Guard on the branch itself, not just the constant: the resolver '
+            'reads FluentChartColors.isHighContrast, and an inverted ternary '
+            'passes every other test in this file.',
+      );
+    });
+
     test('the swatch footprint is 14, the export footprint is 13', () {
       expect(
         kLegendSwatchBoxSize,

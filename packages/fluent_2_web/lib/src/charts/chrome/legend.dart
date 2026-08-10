@@ -434,30 +434,39 @@ class FluentChartLegendRow extends StatelessWidget {
 
   Widget _buildSwatch({required Color fill}) {
     final shape = shapeOverride ?? item.shape;
-    if (item.stripePattern) {
-      // Legends.tsx:297 blanks the flat background when a stripe pattern is
-      // set, so the stripes are the whole fill.
-      return CustomPaint(painter: FluentChartStripePainter(color: fill));
-    }
-    if (shape == null || shape == FluentChartLegendShape.defaultShape) {
-      // shape.tsx:35 — the fallback bordered rectangle.
-      return DecoratedBox(
-        decoration: BoxDecoration(
-          color: fill,
-          border: Border.all(
-            color: item.color,
-            width: style.swatchBorderWidth!.resolve(<WidgetState>{})!,
-          ),
+    // shape.tsx:34 dispatches on the shape alone, before anything else: a key
+    // of `pointPath` renders the `<svg>` at :37, and only a miss falls through
+    // to the `classNameForNonSvg` div at :35. The stripe pattern is a `content`
+    // declaration on that div (Legends.tsx:379-381), so it is unreachable for
+    // the eight Points shapes — the dispatch has to come first here too.
+    if (shape != null && shape != FluentChartLegendShape.defaultShape) {
+      return CustomPaint(
+        painter: FluentChartLegendShapePainter(
+          shape: shape,
+          fill: fill,
+          // Legends.tsx:366 — never dimmed.
+          stroke: item.color,
         ),
       );
     }
-    return CustomPaint(
-      painter: FluentChartLegendShapePainter(
-        shape: shape,
-        fill: fill,
-        // Legends.tsx:366 — never dimmed.
-        stroke: item.color,
+    // shape.tsx:35 — the fallback rectangle. It carries
+    // `useLegendsStyles.styles.ts:82` `border: 1px solid` unconditionally,
+    // coloured from `legend.color` (Legends.tsx:378), which is never dimmed.
+    // Legends.tsx:377 blanks only the *background colour* for a stripe
+    // pattern, so a striped swatch is this same bordered box with the stripes
+    // painted into it — without the border a dimmed striped swatch is filled
+    // with the page background and vanishes.
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: item.stripePattern ? null : fill,
+        border: Border.all(
+          color: item.color,
+          width: style.swatchBorderWidth!.resolve(<WidgetState>{})!,
+        ),
       ),
+      child: item.stripePattern
+          ? CustomPaint(painter: FluentChartStripePainter(color: fill))
+          : null,
     );
   }
 }

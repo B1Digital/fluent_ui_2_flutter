@@ -20,7 +20,7 @@ void main() {
         reason:
             "Legends.types.ts:269 unions 'default', 'triangle', the eight "
             'Points members (utilities.ts:1713-1721) and the one CustomPoints '
-            'member (:1723-1725); triangle appears twice and collapses.',
+            'member (:1724-1726); triangle appears twice and collapses.',
       );
     });
 
@@ -53,7 +53,7 @@ void main() {
       expect(
         FluentChartLegendShape.dottedLine.pointIndex,
         isNull,
-        reason: 'dottedLine lives in CustomPoints (utilities.ts:1723-1725).',
+        reason: 'dottedLine lives in CustomPoints (utilities.ts:1724-1726).',
       );
     });
   });

@@ -337,6 +337,107 @@ void main() {
       );
     });
 
+    testWidgets('a striped swatch keeps the bordered rect it is drawn on', (
+      tester,
+    ) async {
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        FluentChartLegendRow(
+          item: const FluentChartLegendItem(
+            title: 'first',
+            color: seriesColour,
+            stripePattern: true,
+          ),
+          shapeOverride: null,
+          // Dimmed is the case that exposes it: the stripes are painted in
+          // dimmedSwatchColor, which is the page background, so without the
+          // border the swatch disappears from the strip entirely.
+          dimmed: true,
+          selected: false,
+          indexInList: 0,
+          listLength: 1,
+          style: resolveFluentChartLegendStyle(theme),
+          focusNode: node,
+          skipTraversal: false,
+        ),
+      );
+      final border = tester
+          .widgetList<DecoratedBox>(find.byType(DecoratedBox))
+          .map((box) => box.decoration)
+          .whereType<BoxDecoration>()
+          .map((decoration) => decoration.border)
+          .whereType<Border>()
+          .toList(growable: false);
+      expect(
+        border,
+        hasLength(1),
+        reason:
+            'Count guard: exactly one bordered box, the swatch. Reading .single '
+            'off an empty list would fail for the wrong reason.',
+      );
+      expect(
+        border.single.top.color.toARGB32(),
+        seriesColour.toARGB32(),
+        reason:
+            'shape.tsx:35 renders a stripe pattern into the SAME '
+            'classNameForNonSvg div as a plain swatch, and that div carries '
+            'useLegendsStyles.styles.ts:82 `border: 1px solid` coloured from '
+            'legend.color (Legends.tsx:378), which is never dimmed. '
+            'Legends.tsx:377 blanks only the background-color.',
+      );
+      expect(
+        tester
+            .widgetList<CustomPaint>(find.byType(CustomPaint))
+            .map((paint) => paint.painter)
+            .whereType<FluentChartStripePainter>(),
+        hasLength(1),
+        reason: 'The stripes are still painted inside that border.',
+      );
+    });
+
+    testWidgets('an svg shape wins over a stripe pattern', (tester) async {
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        FluentChartLegendRow(
+          item: const FluentChartLegendItem(
+            title: 'first',
+            color: seriesColour,
+            shape: FluentChartLegendShape.circle,
+            stripePattern: true,
+          ),
+          shapeOverride: null,
+          dimmed: false,
+          selected: false,
+          indexInList: 0,
+          listLength: 1,
+          style: resolveFluentChartLegendStyle(theme),
+          focusNode: node,
+          skipTraversal: false,
+        ),
+      );
+      expect(
+        tester
+            .widgetList<CustomPaint>(find.byType(CustomPaint))
+            .map((paint) => paint.painter)
+            .whereType<FluentChartStripePainter>(),
+        isEmpty,
+        reason:
+            'shape.tsx:34 dispatches on the shape alone: a key of pointPath '
+            'returns the <svg> at :37 and never reaches the '
+            'classNameForNonSvg div the stripe `content` is set on, so the '
+            'stripe is unreachable for the eight Points shapes.',
+      );
+      expect(
+        painterOf(tester).shape,
+        FluentChartLegendShape.circle,
+        reason: 'Guard: the svg branch is the one that ran.',
+      );
+    });
+
     testWidgets('the label is title-cased before it is painted', (
       tester,
     ) async {
