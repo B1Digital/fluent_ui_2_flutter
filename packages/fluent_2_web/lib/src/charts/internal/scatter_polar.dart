@@ -38,14 +38,22 @@ const double kScatterPolarLabelMinPixelGap = 40;
 /// sub-paths instead of drawing a straight line through it.
 ///
 /// Returns `null` when there are fewer than [kScatterPolarMinFillPoints]
-/// points, which is the guard at `LineChart.tsx:1318`. The caller owns the
-/// other three conditions of that guard — `fill === 'toself'`, the legend
-/// selection and `_isScatterPolar` — because none of them is geometry.
+/// points, which is the guard at `LineChart.tsx:1318`, and again when no point
+/// is plottable at all: d3's line generator returns `null` for an empty buffer,
+/// so `:1330` never reaches the `<path>` push. The caller owns the other three
+/// conditions of the `:1318` guard — `fill === 'toself'`, the legend selection
+/// and `_isScatterPolar` — because none of them is geometry.
 Path? scatterPolarFillPath({
   required List<Offset> points,
   D3CurveFactory curve = curveLinear,
 }) {
   if (points.length < kScatterPolarMinFillPoints) {
+    return null;
+  }
+  // `LineChart.tsx:1330` — `d3Line()(data)` is `buffer + '' || null`, so a run
+  // in which `defined` rejected every point yields null rather than an empty
+  // path, and no element is pushed.
+  if (!points.any((point) => isPlottable(point.dx, point.dy))) {
     return null;
   }
   final sink = UiPathSink();

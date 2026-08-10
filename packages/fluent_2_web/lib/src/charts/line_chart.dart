@@ -20,6 +20,7 @@ import 'internal/d3/shape_line_area.dart' as d3;
 import 'internal/d3/stable_sort.dart';
 import 'internal/data_viz_palette.dart';
 import 'internal/marker_geometry.dart';
+import 'internal/scatter_polar.dart';
 import 'line_chart_style.dart';
 import 'model/callout_data.dart';
 import 'model/cartesian_series.dart';
@@ -764,6 +765,17 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
   bool get hasMarkersMode =>
       series.any((series) => series.lineOptions?.mode?.markers ?? false);
 
+  /// Whether this is a scatterpolar chart (`LineChart.tsx:273`).
+  ///
+  /// Ports `isScatterPolarSeries` (`utilities.ts:2204-2209`), which compares
+  /// the **whole** mode literal instead of testing for a substring the way
+  /// every other mode consumer does. `'scatterpolar'` contains none of
+  /// `lines`, `markers` or `text`, so `FluentLineMode.upstreamName` and not the
+  /// three flags is what carries it.
+  bool get isScatterPolar => series.any(
+    (series) => series.lineOptions?.mode?.upstreamName == 'scatterpolar',
+  );
+
   /// Ports `_legendHighlighted` (`LineChart.tsx:1817-1819`) — LineChart is the
   /// single-select model B, not the multi-select model A the bar charts use.
   bool highlighted(String legend) => isLegendHighlightedSingle(
@@ -823,6 +835,76 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
       curve: getCurveFactory(line.lineOptions?.curve, d3.curveLinear),
     )(data, sink);
     return sink.path;
+  }
+
+  /// The closed `fill: 'toself'` areas, one per qualifying series.
+  ///
+  /// Ports `LineChart.tsx:1315-1344`, which sits **outside** the engine A / B
+  /// branch that closes at `:1313` and so runs under both. All five upstream
+  /// conditions are answered here or by [scatterPolarFillPath]:
+  ///
+  /// 1. `fillMode === 'toself'` (`:1318`) — any other value, including null,
+  ///    paints nothing;
+  /// 2. `data.length >= 3` (`:1318`), which is [kScatterPolarMinFillPoints]
+  ///    inside the helper;
+  /// 3. `isLegendSelected` (`:1317`), the same
+  ///    `_legendHighlighted || _noLegendHighlighted` pair [markerOpacityFor]
+  ///    reads. Upstream's third arm, `isSelectedLegend`, is
+  ///    `legendProps.selectedLegends.length > 0` (`:191-193`), a prop the port
+  ///    does not carry;
+  /// 4. `_isScatterPolar` (`:1318`) — [isScatterPolar];
+  /// 5. `if (fillPath)` (`:1330`), the helper's null for a run with no
+  ///    plottable point.
+  ///
+  /// Series are walked last to first so series 0 lands on top, exactly as
+  /// [segmentsFor] and [markersFor] do (`:535`).
+  List<({int seriesIndex, Path path, Color fill, Color stroke})>
+  scatterPolarFillsFor(FluentCartesianChildContext context) {
+    if (!isScatterPolar) {
+      return const <({int seriesIndex, Path path, Color fill, Color stroke})>[];
+    }
+    final out = <({int seriesIndex, Path path, Color fill, Color stroke})>[];
+    for (var i = series.length - 1; i >= 0; i--) {
+      final line = series[i];
+      if (line.lineOptions?.fill != 'toself') {
+        continue;
+      }
+      if (!highlighted(line.legend) && !_noneHighlighted) {
+        continue;
+      }
+      final data = line.data.cast<FluentLineChartDataPoint>();
+      final yScale = line.useSecondaryYScale && context.yScaleSecondary != null
+          ? context.yScaleSecondary!
+          : context.yScalePrimary;
+      final path = scatterPolarFillPath(
+        // A non-plottable coordinate is dropped by the helper's `defined`
+        // before it is drawn, so the NaN these fall back to never reaches the
+        // sink — the same shape [singlePathFor] uses.
+        points: <Offset>[
+          for (final point in data)
+            Offset(
+              context.xScale(point.x) ?? double.nan,
+              yScale(point.y) ?? double.nan,
+            ),
+        ],
+        // `:1325` reads the series' own curve, the one `:668` resolved.
+        curve: getCurveFactory(line.lineOptions?.curve, d3.curveLinear),
+      );
+      if (path == null) {
+        continue;
+      }
+      // `:1335` and `:1337` both spell `lineColor`; spec section 5.3 splits
+      // them under forced colours, or an area and its outline would flatten to
+      // the same system colour and the outline would vanish.
+      final rawColour = line.color ?? FluentDataVizPalette.next(i);
+      out.add((
+        seriesIndex: i,
+        path: path,
+        fill: colors.flattenMark(rawColour),
+        stroke: colors.flattenMarkStroke(rawColour),
+      ));
+    }
+    return out;
   }
 
   /// Resolves the colour-fill bar rects.
@@ -1321,6 +1403,13 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     for (final mark in markersFor(context)) {
       (marks[mark.seriesIndex] ??= <FluentLineMark>[]).add(mark);
     }
+    // `:1331` pushes the scatterpolar area onto `linesForLine`, so it sits
+    // above that series' own segments and below its markers.
+    final fills = <int, List<({Path path, Color fill, Color stroke})>>{};
+    for (final area in scatterPolarFillsFor(context)) {
+      (fills[area.seriesIndex] ??= <({Path path, Color fill, Color stroke})>[])
+          .add((path: area.path, fill: area.fill, stroke: area.stroke));
+    }
     // `:535` pushes the groups last series first, so series 0's `<g>` is last
     // in the document and lands on top.
     for (var i = series.length - 1; i >= 0; i--) {
@@ -1356,6 +1445,29 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
             ..color = segment.colour.withValues(alpha: segment.opacity),
           dashed: true,
         );
+      }
+      for (final area
+          in fills[i] ?? const <({Path path, Color fill, Color stroke})>[]) {
+        canvas
+          // `:1335-1336` — fill={lineColor} fillOpacity={0.5}.
+          ..drawPath(
+            area.path,
+            Paint()
+              ..color = area.fill.withValues(alpha: kScatterPolarFillOpacity),
+          )
+          // `:1337-1339` — stroke={lineColor} strokeWidth={2}
+          // strokeOpacity={0.8}. The area carries no `pointerEvents` of its own
+          // (`:1340`) because it is painted onto the canvas and declares no
+          // region in [buildHitRegions], so it cannot be hit in the first place.
+          ..drawPath(
+            area.path,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = kScatterPolarFillStrokeWidth
+              ..color = area.stroke.withValues(
+                alpha: kScatterPolarFillStrokeOpacity,
+              ),
+          );
       }
       for (final mark in marks[i] ?? const <FluentLineMark>[]) {
         final path = mark.path;
