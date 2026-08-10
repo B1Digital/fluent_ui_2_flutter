@@ -448,6 +448,13 @@ void main() {
           .byTag('path')
           .where((e) => e.strokeWidth == 0)
           .toList(growable: false);
+      expect(
+        captured.length,
+        3,
+        reason:
+            'Three segments, three arc paths — the needle strokes at 2px. '
+            'Without the count the loop below passes on an empty filter.',
+      );
       final produced = arcPathsOf(layout);
       for (var i = 0; i < captured.length; i++) {
         expectOracleSvgPath('arc $i', captured[i].d!, produced[i]);

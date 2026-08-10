@@ -80,6 +80,17 @@ void main() {
         isFalse,
         reason: 'Nothing but the apex survives at the bottom edge.',
       );
+      // 110 is inside the top edge — widthScale(100) is 70, so the stage spans
+      // x 105 to 175 — but a triangle has narrowed to roughly half a pixel by
+      // y = 399. Without this the pair above passes for a rectangle too, since
+      // the centre is inside either shape and 20 is outside either one.
+      expect(
+        geometry.path!.contains(const Offset(110, 399)),
+        isFalse,
+        reason:
+            'funnelGeometry.ts:46 — a bottomWidth that did not collapse to 0 '
+            'would leave the full top edge standing at the bottom.',
+      );
     });
 
     test('the last segment text sits a third of the way down', () {
