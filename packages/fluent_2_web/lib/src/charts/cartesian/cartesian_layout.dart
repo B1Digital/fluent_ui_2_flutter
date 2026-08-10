@@ -1,7 +1,13 @@
 import 'dart:math' as math;
 
+import 'package:flutter/widgets.dart';
+
+import '../axis/axis_label_layout.dart';
+import '../axis/axis_painter.dart';
 import '../axis/axis_types.dart';
+import '../internal/chart_text_measurer.dart';
 import '../model/chart_common.dart';
+import '../model/chart_value.dart';
 import 'cartesian_chart_props.dart';
 
 /// Solves the shell's margin rectangle.
@@ -108,4 +114,102 @@ abstract final class FluentCartesianMarginSolver {
   }
 
   static bool _isPresent(String? value) => value != null && value != '';
+}
+
+/// Solves how much vertical space the x tick labels steal, and how they are
+/// laid out to do it.
+///
+/// This is `_transformXAxisLabels` (`CartesianChart.tsx:614-653`) together with
+/// the automatic branch at `:282-293`, ported as a pure function. Upstream
+/// computes the same number by writing the axis into the DOM with d3 and then
+/// re-measuring it, which is why its value lags a render behind; measuring with
+/// a [FluentChartTextMeasurer] instead makes it available in the same frame.
+///
+/// Returns null when no transformation applies, which is upstream's reserve of
+/// zero and tells [FluentAxisPainter] to use the geometry's own tick labels.
+///
+/// The branch order is load-bearing:
+///
+/// * [tickLayout] of [FluentTickLayout.auto] short-circuits both other
+///   branches;
+/// * the wrap branch runs when either [FluentCartesianChartProps.wrapXAxisLables]
+///   or [FluentCartesianChartProps.showXAxisLablesTooltip] is set;
+/// * the rotate branch runs only when
+///   [FluentCartesianChartProps.wrapXAxisLables] is **off**, and it
+///   *overwrites* the wrap result rather than adding to it.
+FluentXAxisLabelLayout? solveFluentCartesianXAxisLabels({
+  required FluentCartesianChartProps props,
+  required FluentAxisSpec xAxis,
+  required FluentChartAxisType xAxisType,
+  required FluentTickLayout tickLayout,
+  required List<String>? datasetForXAxisDomain,
+  required double containerWidth,
+  required double marginBottom,
+  required TextStyle textStyle,
+  required FluentChartTextMeasurer measurer,
+}) {
+  if (tickLayout == FluentTickLayout.auto) {
+    return autoLayoutXAxisLabels(
+      xAxis.tickValues,
+      xAxis.tickLabels,
+      xAxis.scale,
+      containerWidth,
+      style: textStyle,
+      measurer: measurer,
+    );
+  }
+
+  FluentXAxisLabelLayout? layout;
+
+  if (props.wrapXAxisLables || props.showXAxisLablesTooltip) {
+    // `maxXAxisLabelWidth` is left undefined off a band axis
+    // (`CartesianChart.tsx:622-631`), and `createWrapOfXLabels` then falls back
+    // to `DEFAULT_WRAP_WIDTH` (`utilities.ts:1127`).
+    var width = kDefaultWrapWidth;
+    if (xAxisType == FluentChartAxisType.category) {
+      width = (datasetForXAxisDomain?.length ?? 0) > 1
+          // `CartesianChart.tsx:627` — one band's stride is the space a label
+          // may occupy before it collides with its neighbour.
+          ? xAxis.scale.step
+          // `:629` — a single category owns the whole width.
+          : containerWidth;
+    }
+    layout = wrapXLabels(
+      xAxis.tickLabels,
+      width: width,
+      showXAxisLabelsTooltip: props.showXAxisLablesTooltip,
+      noOfCharsToTruncate: props.noOfCharsToTruncate,
+      style: textStyle,
+      measurer: measurer,
+    );
+  }
+
+  if (!props.wrapXAxisLables &&
+      props.rotateXAxisLables &&
+      xAxisType == FluentChartAxisType.category) {
+    final rotated = rotateXAxisLabels(
+      xAxis.tickLabels,
+      // Upstream measures the live tick groups, so the box it rotates is the
+      // one this axis's own tick size and padding produced
+      // (`utilities.ts:1824`); the port hands them over rather than assuming
+      // d3-axis's defaults, which the shell replaces when
+      // `showXAxisLablesTooltip` drops the padding to 5
+      // (`CartesianChart.tsx:215`).
+      tickSizeInner: xAxis.tickSizeInner,
+      tickPadding: xAxis.tickPadding,
+      style: textStyle,
+      measurer: measurer,
+    );
+    layout = FluentXAxisLabelLayout(
+      labels: rotated.labels,
+      // `CartesianChart.tsx:651` reuses the bottom margin as padding beneath
+      // the rotated text, with the comment "margins.bottom is used as padding
+      // here". It overwrites the wrap reserve; it does not accumulate.
+      reserveHeight: rotated.reserveHeight + marginBottom,
+      rotationRadians: rotated.rotationRadians,
+      rotationTranslateY: rotated.rotationTranslateY,
+    );
+  }
+
+  return layout;
 }
