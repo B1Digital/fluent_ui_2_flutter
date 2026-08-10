@@ -310,6 +310,105 @@ void main() {
     );
   });
 
+  FluentChartLegend legendOf(WidgetTester tester) =>
+      tester.widget<FluentChartLegend>(find.byType(FluentChartLegend));
+
+  Widget legendChart({
+    List<String>? selectedLegends,
+    void Function(List<String> selected)? onLegendChange,
+  }) => SizedBox(
+    width: 400,
+    height: 260,
+    child: FluentCartesianChart(
+      delegate: StubCartesianDelegate(),
+      props: const FluentCartesianChartProps(),
+      legends: const <FluentChartLegendItem>[
+        FluentChartLegendItem(title: 'A', color: Color(0xFF0078D4)),
+        FluentChartLegendItem(title: 'B', color: Color(0xFF107C10)),
+      ],
+      legendSelectionMode: FluentChartLegendSelectionMode.multiple,
+      selectedLegends: selectedLegends,
+      onLegendChange: onLegendChange,
+    ),
+  );
+
+  testWidgets('with no external selection the shell keeps its own', (
+    tester,
+  ) async {
+    await pump(tester, legendChart());
+    expect(
+      legendOf(tester).selectedLegends,
+      isEmpty,
+      reason: 'the uncontrolled selection starts empty, Legends.tsx:50',
+    );
+    legendOf(tester).onChange!(const <String>['A'], null);
+    await tester.pump();
+    expect(
+      legendOf(tester).selectedLegends,
+      const <String>['A'],
+      reason: 'uncontrolled, so setSelectedLegends runs, Legends.tsx:248-249',
+    );
+  });
+
+  testWidgets('onLegendChange fires on the uncontrolled path', (tester) async {
+    List<String>? seen;
+    await pump(tester, legendChart(onLegendChange: (s) => seen = s));
+    legendOf(tester).onChange!(const <String>['B'], null);
+    await tester.pump();
+    expect(
+      seen,
+      const <String>['B'],
+      reason:
+          'props.onChange is called with Object.keys of the next selection '
+          'whether or not the row is controlled, Legends.tsx:250',
+    );
+    expect(
+      legendOf(tester).selectedLegends,
+      const <String>['B'],
+      reason: 'and the internal store still moved, because nothing controls it',
+    );
+  });
+
+  testWidgets('an external selection outranks the internal one', (
+    tester,
+  ) async {
+    List<String>? seen;
+    await pump(
+      tester,
+      legendChart(
+        selectedLegends: const <String>['A'],
+        onLegendChange: (s) => seen = s,
+      ),
+    );
+    legendOf(tester).onChange!(const <String>['A', 'B'], null);
+    await tester.pump();
+    expect(
+      legendOf(tester).selectedLegends,
+      const <String>['A'],
+      reason:
+          'controlled mode ignores the click until the owner feeds a new list '
+          'back, Legends.tsx:208 and :248',
+    );
+    expect(seen, const <String>[
+      'A',
+      'B',
+    ], reason: 'the owner still hears about it, Legends.tsx:250');
+  });
+
+  testWidgets('a new external selection reaches the legend row', (
+    tester,
+  ) async {
+    await pump(tester, legendChart(selectedLegends: const <String>['A']));
+    await pump(tester, legendChart(selectedLegends: const <String>['B']));
+    expect(
+      legendOf(tester).selectedLegends,
+      const <String>['B'],
+      reason:
+          'the authoritative prop is re-read on every build, the analogue of '
+          'the effect at Legends.tsx:75-96 whose deps include selectedLegends',
+    );
+  });
+
   group('min-width reflow', () {
     Widget narrow({
       required FluentChartReflowMode mode,

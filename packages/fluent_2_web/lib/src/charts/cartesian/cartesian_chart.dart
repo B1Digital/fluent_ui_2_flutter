@@ -70,6 +70,8 @@ class FluentCartesianChart extends StatefulWidget {
     required this.props,
     required this.legends,
     this.legendSelectionMode = FluentChartLegendSelectionMode.single,
+    this.selectedLegends,
+    this.onLegendChange,
     this.focusNode,
     this.onChartMouseLeave,
     this.overlayBuilder,
@@ -89,6 +91,28 @@ class FluentCartesianChart extends StatefulWidget {
 
   /// Whether one or several legends may be selected at a time.
   final FluentChartLegendSelectionMode legendSelectionMode;
+
+  /// The selected legend titles, when the owner controls the selection.
+  ///
+  /// Non-null puts the legend row in controlled mode: it is drawn from this
+  /// list and a click on a legend changes nothing here until the owner supplies
+  /// a new list, exactly as `_isInControlledMode` at `Legends.tsx:205-209`
+  /// governs the upstream row. Null leaves the selection to the shell's own
+  /// state. The initial-value prop is a separate one upstream —
+  /// `defaultSelectedLegends` (`Legends.types.ts:196-210`) — and this is not it.
+  ///
+  /// The declarative adapters own their selection so they can round-trip it
+  /// through `onSchemaChange`, and upstream spreads it into every chart they
+  /// render (`DeclarativeChart.tsx:411-415`).
+  final List<String>? selectedLegends;
+
+  /// Called with the complete new selection whenever a legend is clicked.
+  ///
+  /// Fires in both modes, because `_onClick` calls `props.onChange`
+  /// unconditionally at `Legends.tsx:250`. The titles are the only argument:
+  /// upstream also passes the event and the clicked legend, and
+  /// `DeclarativeChart.tsx:396-401` — the only consumer — drops both.
+  final void Function(List<String> selectedLegends)? onLegendChange;
 
   /// One focus node for the whole plot.
   ///
@@ -160,6 +184,8 @@ class _CartesianGeometry {
 
 class _FluentCartesianChartState extends State<FluentCartesianChart> {
   final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
+
+  /// The selection while [FluentCartesianChart.selectedLegends] is null.
   List<String> _selectedLegends = const <String>[];
   FocusNode? _internalFocusNode;
   List<FluentChartHitRegion> _regions = const <FluentChartHitRegion>[];
@@ -169,6 +195,17 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
 
   FocusNode get _focusNode =>
       widget.focusNode ?? (_internalFocusNode ??= FocusNode());
+
+  /// `Legends.tsx:208` — a supplied selection is authoritative, so it wins over
+  /// anything a click recorded here.
+  ///
+  /// ponytail: a chart that stops being controlled keeps the last controlled
+  /// list rather than resetting, where upstream's effect would rewrite the
+  /// internal map from an absent prop and clear it (`Legends.tsx:75-90`). No
+  /// caller toggles the prop between null and non-null; if one ever does, clear
+  /// `_selectedLegends` in `didUpdateWidget`.
+  List<String> get _effectiveSelectedLegends =>
+      widget.selectedLegends ?? _selectedLegends;
 
   @override
   void didUpdateWidget(FluentCartesianChart oldWidget) {
@@ -350,9 +387,16 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
                   child: FluentChartLegend(
                     legends: widget.legends,
                     selectionMode: widget.legendSelectionMode,
-                    selectedLegends: _selectedLegends,
-                    onChange: (selected, _) =>
-                        setState(() => _selectedLegends = selected),
+                    selectedLegends: _effectiveSelectedLegends,
+                    onChange: (selected, _) {
+                      // `Legends.tsx:248-249` — the internal store only moves
+                      // in uncontrolled mode …
+                      if (widget.selectedLegends == null) {
+                        setState(() => _selectedLegends = selected);
+                      }
+                      // … but `:250` reports either way.
+                      widget.onLegendChange?.call(selected);
+                    },
                   ),
                 ),
             ],
