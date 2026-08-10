@@ -482,6 +482,31 @@ void main() {
         reason: 'the first dash is as long as the pattern says',
       );
     });
+
+    test('paintSeries paints a marker at every data point', () {
+      final recorder = _LineRecorder();
+      _lineDelegate(ys: const <double>[1, 2, 3]).paintSeries(
+        recorder,
+        _ctx(),
+        _layout(),
+        FluentChartColors.of(_theme()),
+      );
+      expect(
+        recorder.paths.map((entry) => entry.$2).toList(),
+        const <PaintingStyle>[
+          PaintingStyle.fill,
+          PaintingStyle.stroke,
+          PaintingStyle.fill,
+          PaintingStyle.stroke,
+          PaintingStyle.fill,
+          PaintingStyle.stroke,
+        ],
+        reason:
+            'LineChart.tsx:936 pushes one <path> marker per point carrying '
+            'both a fill and a stroke, so three points is three filled and '
+            'three stroked paths',
+      );
+    });
   });
 
   group('LineChart engine A against Oracle B', () {
@@ -626,6 +651,559 @@ void main() {
           segments[i].end,
         );
       }
+    });
+  });
+
+  group('LineChart markers', () {
+    test('every plottable point gets a marker, gap or no gap', () {
+      final marks = _lineDelegate(
+        ys: const <double>[1, 2, 3, 4],
+        gaps: const <FluentLineChartGap>[
+          FluentLineChartGap(startIndex: 1, endIndex: 2),
+        ],
+      ).markersFor(_ctx());
+      expect(
+        marks.map((mark) => mark.pointIndex),
+        <int>[0, 1, 2, 3],
+        reason:
+            '_checkInGap is read at LineChart.tsx:1215 for the line only; '
+            'the marker pushes at :846 and :1010 never consult it',
+      );
+    });
+
+    test('a non-plottable point is skipped rather than drawn at NaN', () {
+      expect(
+        _lineDelegate(
+          ys: const <double>[1, double.nan, 3],
+        ).markersFor(_ctx()).map((mark) => mark.pointIndex),
+        <int>[0, 2],
+        reason: 'LineChart.tsx:845 gates the whole push on isPlottable',
+      );
+    });
+
+    test('without allowMultipleShapesForPoints every marker is shape 0', () {
+      final marks = _lineDelegate(
+        legends: const <String>['a', 'b', 'c'],
+      ).markersFor(_ctx());
+      expect(
+        marks.map((mark) => mark.shapeIndex).toSet(),
+        <int>{0},
+        reason:
+            'LineChart.tsx:492 short-circuits the cycle to 0 when the flag is '
+            'off, whatever the series index is',
+      );
+      expect(
+        marks.map((mark) => mark.size).toSet(),
+        <double>{FluentLineMarkerPainter.kInvisibleSize},
+        reason:
+            'and :474-478 gives every point the invisible size, because the '
+            'first/last exemption lives inside the flag',
+      );
+    });
+
+    test('allowMultipleShapesForPoints cycles the shape over the series', () {
+      final marks = _lineDelegate(
+        legends: <String>[for (var i = 0; i < 9; i++) 's$i'],
+        allowMultipleShapesForPoints: true,
+      ).markersFor(_ctx());
+      expect(
+        <int>{for (final mark in marks) mark.seriesIndex},
+        <int>{for (var i = 0; i < 9; i++) i},
+        reason: 'all nine series must contribute, or the cycle is untested',
+      );
+      for (final mark in marks) {
+        expect(
+          mark.shapeIndex,
+          mark.seriesIndex % 8,
+          reason:
+              'LineChart.tsx:492 indexes by the SERIES index — `_points[i]'
+              '.index`, injected at :283 — so series 8 is a circle again',
+        );
+      }
+    });
+
+    test(
+      'a wide shape is narrowed by its width ratio, a narrow one is not',
+      () {
+        // The eighth series is the octagon, whose 2.414 ratio is the largest.
+        final marks = _lineDelegate(
+          legends: <String>[for (var i = 0; i < 8; i++) 's$i'],
+          allowMultipleShapesForPoints: true,
+        ).markersFor(_ctx());
+        final first = <int, FluentLineMark>{
+          for (final mark in marks)
+            if (mark.pointIndex == 0) mark.seriesIndex: mark,
+        };
+        expect(
+          first.length,
+          8,
+          reason: 'one first point per shape, or the table below is unindexed',
+        );
+        // The first point of a series is exempt, so its box is the full
+        // strokeWidth * PATH_MULTIPLY_SIZE (LineChart.tsx:468).
+        const box = 4 * FluentLineMarkerPainter.kPathMultiplySize;
+        for (var i = 0; i < 8; i++) {
+          final ratio = FluentLineMarkerPainter.kWidthRatios[i];
+          expect(
+            first[i]!.size,
+            ratio > 1 ? box / ratio : box,
+            reason:
+                'LineChart.tsx:494 divides only when widthRatio > 1, and shape '
+                '$i has ratio $ratio (utilities.ts:1747-1771)',
+          );
+        }
+      },
+    );
+
+    test('markers mode swaps the shape for a sized circle', () {
+      final marks = _lineDelegate(
+        mode: const FluentLineMode(markers: true, lines: false),
+      ).markersFor(_ctx());
+      expect(
+        marks.map((mark) => mark.shapeIndex).toSet(),
+        <int?>{null},
+        reason: 'LineChart.tsx:850 renders a <circle>, not _getPointPath',
+      );
+      expect(
+        marks.map((mark) => mark.size).toSet(),
+        <double>{3.5},
+        reason:
+            'and sizes it with calculateMarkerRadius, whose falsy-markerSize '
+            'branch is the 3.5 default (utilities.ts:2324)',
+      );
+    });
+
+    test('text mode alone also swaps the shape for a circle', () {
+      expect(
+        _lineDelegate(
+          mode: const FluentLineMode(text: true, lines: false),
+        ).markersFor(_ctx()).map((mark) => mark.shapeIndex).toSet(),
+        <int?>{null},
+        reason:
+            'LineChart.tsx:850 is `mode.includes(markers) || supportsTextMode`',
+      );
+    });
+
+    test('a markers-only series still draws markers while drawing no line', () {
+      final d = _lineDelegate(
+        mode: const FluentLineMode(markers: true, lines: false),
+      );
+      expect(
+        d.segmentsFor(_ctx()),
+        isEmpty,
+        reason: 'LineChart.tsx:1213 suppresses the line outside lines mode',
+      );
+      expect(
+        d.markersFor(_ctx()),
+        hasLength(3),
+        reason:
+            'but markers and lines are independently switchable: :846 pushes '
+            'a marker whatever the mode says',
+      );
+    });
+
+    test('a one-point series is a bare circle at 0.1, not engine A 0.01', () {
+      final marks = _lineDelegate(
+        ys: const <double>[5],
+        legends: const <String>['a', 'b'],
+        selectedLegend: 'b',
+      ).markersFor(_ctx());
+      final lone = marks.firstWhere((mark) => mark.seriesIndex == 0);
+      expect(
+        lone.shapeIndex,
+        isNull,
+        reason: 'LineChart.tsx:577 draws a <circle> before either engine runs',
+      );
+      expect(
+        lone.strokeWidth,
+        0,
+        reason: 'LineChart.tsx:623 strokes it only while active',
+      );
+      expect(
+        lone.opacity,
+        0.1,
+        reason:
+            'LineChart.tsx:591 dims it to 0.1, unlike the 0.01 of the engine '
+            'A markers at :909',
+      );
+    });
+
+    test('engine B draws markers only in markers mode', () {
+      expect(
+        _lineDelegate(curve: FluentLineCurve.linear).markersFor(_ctx()),
+        isEmpty,
+        reason:
+            'LineChart.tsx:773 gates the engine B marker loop on '
+            'mode.includes(markers); a curved line with no mode draws none',
+      );
+      final marks = _lineDelegate(
+        curve: FluentLineCurve.linear,
+        mode: const FluentLineMode(markers: true),
+      ).markersFor(_ctx());
+      expect(
+        marks,
+        hasLength(3),
+        reason: 'LineChart.tsx:775 walks every point, not every segment',
+      );
+      expect(
+        marks.map((mark) => mark.strokeWidth).toSet(),
+        <double>{1},
+        reason: 'LineChart.tsx:803 pins the engine B marker stroke to 1',
+      );
+    });
+
+    test('an engine B marker never grows, because upstream compares ids', () {
+      expect(
+        _lineDelegate(
+          curve: FluentLineCurve.linear,
+          mode: const FluentLineMode(markers: true),
+          activePointId: '0_1',
+        ).markersFor(_ctx()).map((mark) => mark.size).toSet(),
+        <double>{3.5},
+        reason:
+            'parity: LineChart.tsx:790 tests activePoint against the id '
+            'PREFIX _circleId, never against this marker own id, so the '
+            'active radius 5.5 is unreachable there',
+      );
+    });
+
+    test('the active point grows to the hover box and inverts its fill', () {
+      final theme = _theme();
+      final marks = _lineDelegate(activePointId: '0_1').markersFor(_ctx());
+      final active = marks[1];
+      expect(
+        active.size,
+        FluentLineMarkerPainter.kHoverSize,
+        reason: 'PointSize.hoverSize is 11, LineChart.tsx:64 and :466',
+      );
+      expect(
+        active.fill,
+        FluentChartColors.of(theme).markStroke,
+        reason:
+            '_getPointFill inverts the active marker to '
+            'colorNeutralBackground1, LineChart.tsx:499',
+      );
+      expect(
+        marks[0].size,
+        FluentLineMarkerPainter.kInvisibleSize,
+        reason: 'its neighbours stay at the invisible size',
+      );
+    });
+
+    test('an active circle marker grows to the 5.5 active radius', () {
+      expect(
+        _lineDelegate(
+          mode: const FluentLineMode(markers: true),
+          activePointId: '0_2',
+        ).markersFor(_ctx())[2].size,
+        5.5,
+        reason:
+            'calculateMarkerRadius returns activeRadius 5.5 on the falsy '
+            'markerSize branch, utilities.ts:2325 and :2343',
+      );
+    });
+
+    test('a point markerColor beats both the series colour and the hover', () {
+      const authored = Color(0xFF884422);
+      final marks = _lineDelegate(
+        markerColor: authored,
+        activePointId: '0_1',
+      ).markersFor(_ctx());
+      expect(
+        marks[1].fill,
+        authored,
+        reason:
+            'LineChart.tsx:910 is `markerColor || _getPointFill(…)`, and the '
+            'JS || short-circuits ahead of the active inversion',
+      );
+      expect(
+        marks[0].fill,
+        authored,
+        reason: 'an inactive point reads the same colour',
+      );
+    });
+
+    test('hideInactiveDots dims every marker but the active one', () {
+      final marks = _lineDelegate(
+        hideInactiveDots: true,
+        activePointId: '0_1',
+      ).markersFor(_ctx());
+      expect(
+        marks.map((mark) => mark.opacity),
+        <double>[0.01, 1, 0.01],
+        reason:
+            'currentPointHidden (LineChart.tsx:841) folds into the same 0.01 '
+            'the legend dimming uses at :909',
+      );
+    });
+
+    test('a marker of an unhighlighted legend dims to 0.01', () {
+      expect(
+        _lineDelegate(legends: const <String>['a', 'b'], selectedLegend: 'a')
+            .markersFor(_ctx())
+            .where((mark) => mark.seriesIndex == 1)
+            .map((mark) => mark.opacity),
+        everyElement(0.01),
+        reason: 'LineChart.tsx:909 — engine A dims markers to 0.01',
+      );
+    });
+
+    test('paintSeries paints each series markers after its own line', () {
+      final recorder = _LineRecorder();
+      _lineDelegate(ys: const <double>[1, 2]).paintSeries(
+        recorder,
+        _ctx(),
+        _layout(),
+        FluentChartColors.of(_theme()),
+      );
+      expect(
+        recorder.paths,
+        hasLength(4),
+        reason:
+            'two points, each filled then stroked (LineChart.tsx:1366 puts '
+            'pointsForLine last inside the series <g>)',
+      );
+      for (final painted in recorder.paths) {
+        expect(
+          painted.$1.width,
+          closeTo(
+            FluentLineMarkerPainter.kInvisibleSize,
+            _kPathBoundsTolerance,
+          ),
+          reason: 'and each painted path is the 1px invisible box',
+        );
+      }
+    });
+
+    test('an inactive one-point marker is filled but never stroked', () {
+      final recorder = _LineRecorder();
+      _lineDelegate(ys: const <double>[5]).paintSeries(
+        recorder,
+        _ctx(),
+        _layout(),
+        FluentChartColors.of(_theme()),
+      );
+      expect(
+        recorder.paths.map((entry) => entry.$2),
+        <PaintingStyle>[PaintingStyle.fill],
+        reason:
+            'strokeWidth 0 is SVG for no outline (LineChart.tsx:623); Flutter '
+            'would draw a hairline if it were stroked anyway',
+      );
+    });
+
+    test('high contrast flattens the marker fill and stroke differently', () {
+      final theme = FluentThemeData.highContrast(
+        fontPlatform: FluentFontPlatform.web,
+      );
+      final colours = FluentChartColors.of(theme);
+      final mark = _lineDelegate(withTheme: theme).markersFor(_ctx()).first;
+      expect(
+        mark.fill,
+        colours.flattenMark(FluentDataVizPalette.next(0)),
+        reason: 'spec §5.3: a series mark flattens to the system colour',
+      );
+      expect(
+        mark.stroke,
+        colours.flattenMarkStroke(FluentDataVizPalette.next(0)),
+        reason:
+            'while its outline flattens to the CANVAS colour, or a 4px '
+            'stroke around a 1px box erases the marker it outlines',
+      );
+      expect(
+        mark.stroke,
+        isNot(mark.fill),
+        reason: 'flattening both the same way would erase the outline',
+      );
+    });
+
+    test('high contrast flattens an authored line border colour', () {
+      final theme = FluentThemeData.highContrast(
+        fontPlatform: FluentFontPlatform.web,
+      );
+      final colours = FluentChartColors.of(theme);
+      // An authored colour, unlike the colorNeutralBackground1 default, is not
+      // already equal to what flattenMarkStroke returns — which is what makes
+      // this assertion bite where a default-coloured halo cannot.
+      const authored = Color(0xFF884422);
+      final segment = _lineDelegate(
+        lineBorderWidth: 2,
+        lineBorderColor: authored,
+        withTheme: theme,
+      ).segmentsFor(_ctx()).first;
+      expect(
+        segment.borderColour,
+        colours.flattenMarkStroke(authored),
+        reason:
+            'LineChart.tsx:1233 takes lineBorderColor as authored, and spec '
+            '§5.3 flattens the halo to the canvas colour under forced colours',
+      );
+      expect(
+        segment.borderColour,
+        isNot(authored),
+        reason:
+            'the authored colour must not survive high contrast, or the halo '
+            'is indistinguishable from the flattened line in front of it',
+      );
+    });
+  });
+
+  group('LineChart markers against Oracle B', () {
+    // Every LineChart story leaves allowMultipleShapesForPoints unset and
+    // declares no mode, so all 236 captured markers are shape 0 at the
+    // invisible size. That is what the corpus can prove: placement, count,
+    // size, paint and dimming. The twenty-four shape coefficients are proved
+    // separately against `_getPointPath` by the bounds group above.
+    for (final id in oracleStoryIds(component: 'LineChart')) {
+      test('$id reproduces every captured marker', () {
+        final story = loadOracleStory(id);
+        final groups = _plotMarkerGroups(story);
+        if (id == 'charts-linechart--line-chart-large-data') {
+          expect(
+            groups,
+            isEmpty,
+            reason:
+                'the one optimizeLargeData story renders its points through '
+                'the engine B circle branch, so it must contribute no shape '
+                'marker at all',
+          );
+          return;
+        }
+        expect(
+          groups,
+          isNotEmpty,
+          reason:
+              '$id must contribute a marker group, or this test is a pass '
+              'having measured nothing',
+        );
+        for (final captured in groups) {
+          final marks = _delegateFromCapturedMarkers(
+            captured,
+          ).markersFor(_identityCtx());
+          expect(
+            marks.length,
+            captured.length,
+            reason:
+                'engine A emits one marker per point (LineChart.tsx:846 and '
+                ':1010) and the capture holds ${captured.length}',
+          );
+          for (var i = 0; i < captured.length; i++) {
+            final numbers = svgPathNumbers(captured[i].d!);
+            // M x-w/2 y  A w/2 w/2 0 1 0 x+w/2 y  M …  A … — eighteen numbers,
+            // of which the chord is the box width _getBoxWidthOfShape chose.
+            final box = numbers[7] - numbers[0];
+            expectOracleNumber('$id marker $i box width', box, marks[i].size);
+            expect(
+              marks[i].shapeIndex,
+              0,
+              reason:
+                  'the captured d is two 180° arcs, which is allPointPaths[0] '
+                  '(LineChart.tsx:84-88)',
+            );
+            expectOracleSvgPath(
+              '$id marker $i path',
+              captured[i].d!,
+              _shapeZeroPath(marks[i].path.getBounds()),
+            );
+            expectOracleNumber(
+              '$id marker $i stroke width',
+              captured[i].strokeWidth,
+              marks[i].strokeWidth,
+            );
+            expectOracleNumber(
+              '$id marker $i opacity',
+              captured[i].opacity,
+              marks[i].opacity,
+            );
+            expectOracleColour(
+              '$id marker $i fill',
+              captured[i].fill,
+              marks[i].fill,
+            );
+            expectOracleColour(
+              '$id marker $i stroke',
+              captured[i].stroke,
+              marks[i].stroke,
+            );
+          }
+        }
+      });
+    }
+
+    test('line-chart-basic reproduces its one-point circle at r 3.5', () {
+      final story = loadOracleStory('charts-linechart--line-chart-basic');
+      // The story also carries two `opacity: 0` r-8 circles at cx 680 — the
+      // invisible callout latches of LineChart.tsx:1155-1165, not markers — so
+      // the drawn one is the visible one, exactly as marker_geometry_test.dart
+      // already selects it.
+      final circles = story
+          .byTag('circle')
+          .where((circle) => circle.opacity != 0)
+          .toList();
+      expect(
+        circles.length,
+        1,
+        reason:
+            'the basic story captures one visible circle, its one-point '
+            'series; a different count would read the radius off the wrong '
+            'element',
+      );
+      final captured = circles.single;
+      final mark = _delegate(
+        <FluentLineChartSeries>[
+          FluentLineChartSeries(
+            legend: 'lone',
+            color: captured.fill,
+            data: <FluentLineChartDataPoint>[
+              FluentLineChartDataPoint(x: captured.cx!, y: captured.cy!),
+            ],
+          ),
+        ],
+        theme: _theme(),
+        selectedLegend: '',
+      ).markersFor(_identityCtx()).single;
+      expect(
+        mark.shapeIndex,
+        isNull,
+        reason:
+            'LineChart.tsx:577 draws a one-point series as a <circle>, never '
+            'through _getPointPath',
+      );
+      expectOracleOffset(
+        'the one-point circle centre',
+        captured.centre,
+        mark.centre,
+      );
+      expectOracleNumber('the one-point circle radius', captured.r!, mark.size);
+      expectOracleNumber(
+        'the one-point circle stroke width',
+        captured.strokeWidth,
+        mark.strokeWidth,
+      );
+      expectOracleNumber(
+        'the one-point circle opacity',
+        captured.opacity,
+        mark.opacity,
+      );
+      expectOracleColour('the one-point circle fill', captured.fill, mark.fill);
+    });
+
+    test('the corpus dims some markers and leaves others opaque', () {
+      // Without both cases present every opacity assertion above could pass on
+      // a port that hard-codes 1.
+      final opacities = <double>{
+        for (final id in oracleStoryIds(component: 'LineChart'))
+          for (final group in _plotMarkerGroups(loadOracleStory(id)))
+            for (final marker in group) marker.opacity,
+      };
+      expect(
+        opacities,
+        <double>{1, 0.01},
+        reason:
+            'the gaps story highlights one of its four legends, so the corpus '
+            'carries both the undimmed 1 and the engine A 0.01 of '
+            'LineChart.tsx:909',
+      );
     });
   });
 
@@ -1182,28 +1760,45 @@ FluentLineChartDelegate _lineDelegate({
   String selectedLegend = '',
   FluentLineMode? mode,
   double? lineBorderWidth,
+  Color? lineBorderColor,
   String? strokeDasharray,
   FluentThemeData? withTheme,
+  bool allowMultipleShapesForPoints = false,
+  bool optimizeLargeData = false,
+  bool hideInactiveDots = false,
+  String? activePointId,
+  Color? markerColor,
+  double? markerSize,
 }) => _delegate(
   <FluentLineChartSeries>[
     for (final legend in legends)
       FluentLineChartSeries(
         legend: legend,
         gaps: gaps,
+        hideInactiveDots: hideInactiveDots,
         lineOptions: FluentLineOptions(
           curve: curve,
           mode: mode,
           lineBorderWidth: lineBorderWidth,
+          lineBorderColor: lineBorderColor,
           strokeDasharray: strokeDasharray,
         ),
         data: <FluentLineChartDataPoint>[
           for (var i = 0; i < ys.length; i++)
-            FluentLineChartDataPoint(x: i, y: ys[i]),
+            FluentLineChartDataPoint(
+              x: i,
+              y: ys[i],
+              markerColor: markerColor,
+              markerSize: markerSize,
+            ),
         ],
       ),
   ],
   theme: withTheme ?? _theme(),
   selectedLegend: selectedLegend,
+  allowMultipleShapesForPoints: allowMultipleShapesForPoints,
+  optimizeLargeData: optimizeLargeData,
+  activePointId: activePointId,
 );
 
 /// The y-domain ceiling of [_ctx]. The fill-bar rect is pinned to it, so the
@@ -1270,6 +1865,9 @@ FluentLineChartDelegate _delegate(
   required FluentThemeData theme,
   required String selectedLegend,
   List<FluentColorFillBar> colorFillBars = const <FluentColorFillBar>[],
+  bool allowMultipleShapesForPoints = false,
+  bool optimizeLargeData = false,
+  String? activePointId,
 }) => FluentLineChartDelegate(
   series: series,
   style: resolveFluentLineChartStyle(theme),
@@ -1278,6 +1876,9 @@ FluentLineChartDelegate _delegate(
   textStyles: FluentChartTextStyles.of(theme),
   selectedLegend: selectedLegend,
   colorFillBars: colorFillBars,
+  allowMultipleShapesForPoints: allowMultipleShapesForPoints,
+  optimizeLargeData: optimizeLargeData,
+  activePointId: activePointId,
 );
 
 /// The captured `<line>` elements of one series group: the halo strokes first,
@@ -1319,6 +1920,83 @@ List<_CapturedSeries> _plotLineGroups(OracleStory story) {
   return out;
 }
 
+/// The shape-0 `<path>` markers of a story, grouped by the series `<g>` they
+/// were rendered into, in document order.
+///
+/// A shape-0 marker is `M A M A` — two 180° arcs — which is the only path in
+/// the corpus with that command signature: the axis domains are `M V H V` and
+/// `M H V H`, an engine B line is `M L…L`, and the stripe pattern is
+/// `M l M l M l`. Selecting on the signature rather than on a class or an
+/// index is what keeps a re-capture from silently matching the wrong element.
+List<List<OracleElement>> _plotMarkerGroups(OracleStory story) {
+  final byParent = <int, List<OracleElement>>{};
+  for (final element in story.byTag('path')) {
+    final d = element.d;
+    if (d == null) {
+      continue;
+    }
+    final commands = tokeniseSvgPath(
+      d,
+    ).where((token) => double.tryParse(token) == null).join();
+    if (commands != 'MAMA') {
+      continue;
+    }
+    (byParent[element.parent] ??= <OracleElement>[]).add(element);
+  }
+  return List<List<OracleElement>>.unmodifiable(byParent.values);
+}
+
+/// A single-series delegate whose points are exactly [markers]' centres.
+///
+/// The identity context of [_identityCtx] then maps each datum straight back
+/// to the pixel the browser drew it at, so the scales — Oracle A's business —
+/// are out of the way and what is left under test is the marker resolution
+/// itself. The series colour and stroke width are read off the capture for the
+/// same reason: they are what upstream fed the marker, so a port that reached
+/// for the halo colour or the engine B stroke width fails here.
+FluentLineChartDelegate _delegateFromCapturedMarkers(
+  List<OracleElement> markers,
+) {
+  final centres = <Offset>[
+    for (final marker in markers)
+      () {
+        final numbers = svgPathNumbers(marker.d!);
+        return Offset((numbers[0] + numbers[7]) / 2, numbers[1]);
+      }(),
+  ];
+  return _delegate(
+    <FluentLineChartSeries>[
+      FluentLineChartSeries(
+        legend: 'captured',
+        color: markers.first.fill,
+        lineOptions: FluentLineOptions(strokeWidth: markers.first.strokeWidth),
+        data: <FluentLineChartDataPoint>[
+          for (final centre in centres)
+            FluentLineChartDataPoint(x: centre.dx, y: centre.dy),
+        ],
+      ),
+    ],
+    theme: _theme(),
+    // A captured marker below full opacity is one upstream dimmed because a
+    // different legend was highlighted, which is the only way this corpus
+    // exercises LineChart.tsx:909.
+    selectedLegend: markers.first.opacity == 1 ? '' : 'another legend',
+  );
+}
+
+/// Upstream's `allPointPaths[0]` template (`LineChart.tsx:84-88`), written
+/// from the box a resolved mark actually paints.
+///
+/// The numbers come from `Path.getBounds()` of the mark under test, not from a
+/// re-derivation of `_getPointPath`, so this compares the painted geometry
+/// against the captured `d` rather than one transcription against another.
+String _shapeZeroPath(Rect box) {
+  final r = box.width / 2;
+  final y = box.center.dy;
+  return 'M${box.left} $y A$r $r 0 1 0 ${box.right} $y '
+      'M${box.left} $y A $r $r 0 1 1 ${box.right} $y';
+}
+
 FluentLineChartDelegate _delegateFromCapturedChain(_CapturedSeries group) =>
     _delegateFromPoints(
       <Offset>[
@@ -1330,18 +2008,26 @@ FluentLineChartDelegate _delegateFromCapturedChain(_CapturedSeries group) =>
           group.borders.first.strokeWidth - group.lines.first.strokeWidth,
     );
 
-/// Records the stroke widths [Canvas.drawLine] was called with, in order.
+/// Records the stroke widths [Canvas.drawLine] was called with, in order,
+/// and every [Canvas.drawPath] beside them.
 ///
 /// `implements Canvas` plus `noSuchMethod`, the trick `slider_test.dart` uses:
-/// the point is the paint order, not the pixels.
+/// the point is the paint order, not the pixels. Markers arrive through
+/// `drawPath` and lines through `drawLine`, so the two lists never mix.
 class _LineRecorder implements Canvas {
   final List<double> strokeWidths = <double>[];
   final List<(Offset, Offset)> drawn = <(Offset, Offset)>[];
+  final List<(Rect, PaintingStyle)> paths = <(Rect, PaintingStyle)>[];
 
   @override
   void drawLine(Offset p1, Offset p2, Paint paint) {
     strokeWidths.add(paint.strokeWidth);
     drawn.add((p1, p2));
+  }
+
+  @override
+  void drawPath(Path path, Paint paint) {
+    paths.add((path.getBounds(), paint.style));
   }
 
   @override

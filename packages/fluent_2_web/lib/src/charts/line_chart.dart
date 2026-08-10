@@ -19,6 +19,7 @@ import 'internal/d3/path_sink.dart' as d3;
 import 'internal/d3/shape_line_area.dart' as d3;
 import 'internal/d3/stable_sort.dart';
 import 'internal/data_viz_palette.dart';
+import 'internal/marker_geometry.dart';
 import 'line_chart_style.dart';
 import 'model/callout_data.dart';
 import 'model/cartesian_series.dart';
@@ -281,6 +282,27 @@ abstract final class FluentLineMarkerPainter {
   /// `LineChart.tsx:71`).
   static const double kDefaultLineStrokeSize = 4;
 
+  /// How much wider than its nominal box each shape is drawn.
+  ///
+  /// The `widthRatio` column of `pointTypes` (`utilities.ts:1747-1771`), in
+  /// the `Points` enum's order — the same order [pathFor] switches on. A
+  /// hexagon reaches `x ± w` and an octagon `x ± 1.207w`, so
+  /// their boxes have to be divided back down at the call site
+  /// (`LineChart.tsx:493-494`); the other five are drawn inside their box and
+  /// carry a ratio of 1. Its length is also upstream's
+  /// `Object.keys(pointTypes).length`, the modulus of the shape cycle
+  /// (`LineChart.tsx:492`).
+  static const List<double> kWidthRatios = <double>[
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1.168,
+    2.414,
+  ];
+
   /// Builds the path for [shapeIndex] (0 circle … 7 octagon) centred on
   /// [centre] with box width [w].
   static Path pathFor(int shapeIndex, Offset centre, double w) {
@@ -469,6 +491,80 @@ class FluentLineSegment {
   /// Border colour: `lineBorderColor` or `colorNeutralBackground1`
   /// (`LineChart.tsx:1233`), already flattened for high contrast.
   final Color? borderColour;
+}
+
+/// One painted data-point marker, resolved against the live scales.
+///
+/// Produced by [FluentLineChartDelegate.markersFor]. Upstream emits two
+/// different elements for a marker — a `<path>` through `_getPointPath`
+/// (`LineChart.tsx:936`, `:1101`) and a plain `<circle>` (`:577`, `:851`,
+/// `:1018`, `:784`) — and the choice changes how the mark is *sized*, so
+/// [shapeIndex] carries the distinction rather than two mark classes.
+@immutable
+class FluentLineMark {
+  /// Creates a mark.
+  const FluentLineMark({
+    required this.centre,
+    required this.shapeIndex,
+    required this.size,
+    required this.fill,
+    required this.stroke,
+    required this.strokeWidth,
+    required this.opacity,
+    required this.seriesIndex,
+    required this.pointIndex,
+  });
+
+  /// Marker centre in plot coordinates.
+  final Offset centre;
+
+  /// The shape 0..7 of a `<path>` marker, or null for a plain `<circle>`.
+  ///
+  /// Upstream draws the circle whenever the series mode includes `markers` or
+  /// `text` (`LineChart.tsx:850`, `:1016`), for a one-point series (`:577`)
+  /// and for every engine-B marker (`:784`); every other marker is a shape.
+  final int? shapeIndex;
+
+  /// The box width of a `<path>` marker, already divided by its
+  /// [FluentLineMarkerPainter.kWidthRatios] entry (`LineChart.tsx:494`), or the
+  /// radius of a `<circle>` from [calculateMarkerRadius].
+  ///
+  /// One field rather than two nullable ones: exactly one number sizes a
+  /// marker, and which number it is follows from [shapeIndex].
+  final double size;
+
+  /// Fill colour, already flattened by [FluentChartColors.flattenMark].
+  final Color fill;
+
+  /// Stroke colour, already flattened by
+  /// [FluentChartColors.flattenMarkStroke].
+  ///
+  /// Upstream strokes a marker with the same colour it fills it with
+  /// (`LineChart.tsx:911`); the two only diverge under forced colours, where
+  /// sending both to the system foreground would erase the outline
+  /// (spec section 5.3), exactly as ScatterChart does it.
+  final Color stroke;
+
+  /// Stroke width: the series' own under engine A (`LineChart.tsx:912`), a
+  /// flat 1 under engine B (`:803`), and 0 for an inactive one-point marker
+  /// (`:623`), which is upstream's way of not stroking it at all.
+  final double strokeWidth;
+
+  /// 1 when this mark's legend owns the highlight; otherwise 0.01 under
+  /// engine A (`LineChart.tsx:909`) and 0.1 both for a one-point marker
+  /// (`:591`) and under engine B (`:804`).
+  final double opacity;
+
+  /// Index of the owning series in author order.
+  final int seriesIndex;
+
+  /// Index of the point inside its series.
+  final int pointIndex;
+
+  /// The outline this mark paints, in plot coordinates.
+  Path get path => shapeIndex == null
+      ? (Path()..addOval(Rect.fromCircle(center: centre, radius: size)))
+      : FluentLineMarkerPainter.pathFor(shapeIndex!, centre, size);
 }
 
 /// One x range of a colour-fill bar.
@@ -878,6 +974,229 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     return out;
   }
 
+  /// The largest `markerSize` anywhere in [series], or 0.
+  ///
+  /// `d3Max(_points, point => d3Max(point.data, item => item.markerSize))`
+  /// (`LineChart.tsx:530-534`). `d3Max` of an all-undefined list is
+  /// `undefined`, which upstream asserts away with a `!`; it can only reach
+  /// [calculateMarkerRadius] alongside an equally absent `pointMarkerSize`,
+  /// which returns on its falsy branch before reading it. 0 is therefore the
+  /// same answer, and it is the `?? 0` ScatterChart already spells out.
+  double get maxMarkerSize {
+    var largest = 0.0;
+    for (final line in series) {
+      for (final point in line.data.cast<FluentLineChartDataPoint>()) {
+        final size = point.markerSize;
+        if (size != null && size > largest) {
+          largest = size;
+        }
+      }
+    }
+    return largest;
+  }
+
+  /// Resolves every data-point marker for [context].
+  ///
+  /// Series are walked last to first so series 0 paints on top, exactly as
+  /// [segmentsFor] does (`LineChart.tsx:535`).
+  ///
+  /// Markers are **not** gated on the mode the way lines are. Engine A draws
+  /// one at every plottable point whatever the mode is, and lets the mode pick
+  /// between a `<circle>` and a `<path>` (`LineChart.tsx:850`); engine B draws
+  /// them only in markers mode (`:773`). [lineModeDrawsLines] — upstream's
+  /// `shouldDrawLines` (`:698`) — therefore has no say here, and a
+  /// `'markers'`-only series draws its markers while drawing no line at all.
+  /// A gap suppresses only the line: `_checkInGap`'s answer is read at `:1215`
+  /// and nowhere near the marker pushes, which is why the gaps story captures
+  /// a marker on both sides of every gap.
+  List<FluentLineMark> markersFor(FluentCartesianChildContext context) {
+    final out = <FluentLineMark>[];
+    final largestMarker = maxMarkerSize;
+    // `_getPointFill` inverts an active marker to the canvas colour
+    // (`LineChart.tsx:498-521`). Deliberately not flattened: under forced
+    // colours `flattenMark` would send it to the same system foreground as the
+    // marker it is meant to invert, which is the reasoning ScatterChart's
+    // `activeMarkerFillColor` records (spec section 5.3).
+    final activeFill = colors.markStroke;
+    final dimPoint = style.pointOpacity!.resolve(<WidgetState>{
+      WidgetState.disabled,
+    })!;
+    for (var i = series.length - 1; i >= 0; i--) {
+      final line = series[i];
+      final data = line.data.cast<FluentLineChartDataPoint>();
+      final useSecondary =
+          line.useSecondaryYScale && context.yScaleSecondary != null;
+      final yScale = useSecondary
+          ? context.yScaleSecondary!
+          : context.yScalePrimary;
+      final rawColour = line.color ?? FluentDataVizPalette.next(i);
+      final colour = colors.flattenMark(rawColour);
+      // `:545-556` — the pixel budget is measured per series, because the
+      // secondary y scale changes it, and is not measured at all outside
+      // markers mode.
+      final extraMaxPixels = hasMarkersMode
+          ? getRangeForScatterMarkerSize(
+              points: series,
+              xScale: context.xScale,
+              yScalePrimary: context.yScalePrimary,
+              yScaleSecondary: context.yScaleSecondary,
+              useSecondaryYScale: useSecondary,
+              xScaleType: xScaleType,
+              yScaleType: yScaleType,
+              // parity: upstream reads `props.secondaryYScaleType` here
+              // (`:554`); the ported props carry one y scale type, the same
+              // divergence [yScaleType] already records.
+              secondaryYScaleType: yScaleType,
+            )
+          : 0.0;
+
+      Offset? centreOf(int index) {
+        final x = context.xScale(data[index].x);
+        final y = yScale(data[index].y);
+        return isPlottable(x, y) ? Offset(x!, y!) : null;
+      }
+
+      double radiusOf(int index, {required bool isActive}) =>
+          calculateMarkerRadius(
+            pointMarkerSize: data[index].markerSize,
+            // `:582` and `:788` both pass a zero floor.
+            minMarkerSize: 0,
+            maxMarkerSize: largestMarker,
+            extraMaxPixels: extraMaxPixels,
+            // `:585` — LineChart never passes false, unlike ScatterChart.
+            isContinuousXY: true,
+            isActive: isActive,
+          );
+
+      // `:556` — a one-point series is a bare circle, drawn ahead of the
+      // engine branch. Neither engine can add to it: engine B is gated on
+      // `data.length > 1` (`:670`) and engine A's loop starts at 1.
+      if (data.length == 1) {
+        final centre = centreOf(0);
+        if (centre == null) {
+          continue;
+        }
+        final isActive = activePointId == '${i}_0';
+        out.add(
+          FluentLineMark(
+            centre: centre,
+            shapeIndex: null,
+            size: radiusOf(0, isActive: isActive),
+            // `:590` — this branch reads no `markerColor`.
+            fill: isActive ? activeFill : colour,
+            stroke: colors.flattenMarkStroke(rawColour),
+            // `:623-624` — stroked only while active, and at the constant
+            // rather than at the series' own width.
+            strokeWidth: isActive
+                ? FluentLineMarkerPainter.kDefaultLineStrokeSize
+                : 0,
+            // `:591` — 0.1, not engine A's 0.01.
+            opacity: markerOpacityForEngineB(line.legend),
+            seriesIndex: i,
+            pointIndex: 0,
+          ),
+        );
+        continue;
+      }
+
+      if (usesSinglePathEngine) {
+        // `:773` — engine B draws markers only in markers mode.
+        if (!(line.lineOptions?.mode?.markers ?? false)) {
+          continue;
+        }
+        for (var j = 0; j < data.length; j++) {
+          final centre = centreOf(j);
+          if (centre == null) {
+            continue;
+          }
+          final markerColour = data[j].markerColor ?? rawColour;
+          out.add(
+            FluentLineMark(
+              centre: centre,
+              shapeIndex: null,
+              // `:790` compares `activePoint` against the id *prefix* rather
+              // than against this marker's own id, so it never matches and an
+              // engine-B marker never grows on hover. Reproduced, not
+              // repaired.
+              size: radiusOf(j, isActive: false),
+              fill: colors.flattenMark(markerColour),
+              stroke: colors.flattenMarkStroke(markerColour),
+              strokeWidth: markerStrokeWidthForEngineB,
+              opacity: markerOpacityForEngineB(line.legend),
+              seriesIndex: i,
+              pointIndex: j,
+            ),
+          );
+        }
+        continue;
+      }
+
+      // Engine A (`:844-1160`) walks j from 1, drawing the point *before* j
+      // and, once j is the last index, the point at j as well. That is one
+      // marker per point, which is what this loop says directly.
+      final shape = allowMultipleShapesForPoints
+          // `:492` — the cycle runs over the series index, not the point
+          // index; `:284` pins that index to -1, i.e. unused, when the flag is
+          // off.
+          ? i % FluentLineMarkerPainter.kWidthRatios.length
+          : 0;
+      final ratio = FluentLineMarkerPainter.kWidthRatios[shape];
+      final strokeWidth =
+          line.lineOptions?.strokeWidth ??
+          strokeWidthOverride ??
+          style.strokeWidth!.resolve(<WidgetState>{})!;
+      // `:850` and `:1016` — markers or text mode replaces the shape with a
+      // plain circle sized by `calculateMarkerRadius`.
+      final mode = line.lineOptions?.mode;
+      final isCircle = (mode?.markers ?? false) || (mode?.text ?? false);
+      for (var j = 0; j < data.length; j++) {
+        final centre = centreOf(j);
+        if (centre == null) {
+          continue;
+        }
+        final isActive = activePointId == '${i}_$j';
+        final isLast = j == data.length - 1;
+        // `:1147` reads the point's own `markerColor`, but the last point's
+        // *circle* at `:1073-1074` does not. Reproduced rather than tidied.
+        final markerColour = isCircle && isLast ? null : data[j].markerColor;
+        // `_getBoxWidthOfShape` (`:463-480`), whose `pointIndex === 1` names
+        // the point before j == 1 — the first one.
+        final box = FluentLineMarkerPainter.boxWidthFor(
+          allowMultipleShapes: allowMultipleShapesForPoints,
+          isActive: isActive,
+          isFirstOrLast: j == 0 || isLast,
+          strokeWidth: strokeWidth,
+        );
+        out.add(
+          FluentLineMark(
+            centre: centre,
+            shapeIndex: isCircle ? null : shape,
+            size: isCircle
+                ? radiusOf(j, isActive: isActive)
+                // `:494` — only a shape wider than its box is narrowed.
+                : (ratio > 1 ? box / ratio : box),
+            // `markerColor || _getPointFill(…)` (`:910`): the per-point colour
+            // short-circuits ahead of the active inversion, so a marker that
+            // names its own colour keeps it while hovered.
+            fill: markerColour != null
+                ? colors.flattenMark(markerColour)
+                : (isActive ? activeFill : colour),
+            stroke: colors.flattenMarkStroke(markerColour ?? rawColour),
+            strokeWidth: strokeWidth,
+            // `currentPointHidden` (`:841`) dims a marker of a series that
+            // hides its inactive dots, on top of the legend dimming.
+            opacity: line.hideInactiveDots && !isActive
+                ? dimPoint
+                : markerOpacityFor(line.legend),
+            seriesIndex: i,
+            pointIndex: j,
+          ),
+        );
+      }
+    }
+    return out;
+  }
+
   @override
   FluentChartDomainRange resolveXDomainRange({
     required FluentChartMargins margins,
@@ -991,15 +1310,23 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     FluentCartesianLayout layout,
     FluentChartColors colors,
   ) {
-    // `:1363-1364` groups per series and renders every border of that series
-    // before any of its lines, so a halo never covers its own neighbour.
+    // `:1357-1367` wraps each series in its own `<g>` holding that series'
+    // borders, then its lines, then its points — so a halo never covers its
+    // own neighbour and a marker is never buried under the next series' line.
     final grouped = <int, List<FluentLineSegment>>{};
     for (final segment in segmentsFor(context)) {
       (grouped[segment.seriesIndex] ??= <FluentLineSegment>[]).add(segment);
     }
-    for (final group in grouped.values) {
+    final marks = <int, List<FluentLineMark>>{};
+    for (final mark in markersFor(context)) {
+      (marks[mark.seriesIndex] ??= <FluentLineMark>[]).add(mark);
+    }
+    // `:535` pushes the groups last series first, so series 0's `<g>` is last
+    // in the document and lands on top.
+    for (var i = series.length - 1; i >= 0; i--) {
+      final group = grouped[i] ?? const <FluentLineSegment>[];
       final cap =
-          series[group.first.seriesIndex].lineOptions?.strokeLinecap ??
+          series[i].lineOptions?.strokeLinecap ??
           // `:1231` — the cap defaults to round, not to SVG's butt.
           StrokeCap.round;
       for (final segment in group) {
@@ -1028,6 +1355,25 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
             ..strokeWidth = segment.strokeWidth
             ..color = segment.colour.withValues(alpha: segment.opacity),
           dashed: true,
+        );
+      }
+      for (final mark in marks[i] ?? const <FluentLineMark>[]) {
+        final path = mark.path;
+        canvas.drawPath(
+          path,
+          Paint()..color = mark.fill.withValues(alpha: mark.opacity),
+        );
+        // `:623` strokes an inactive one-point marker at width 0, which is
+        // SVG for "no outline"; Flutter would draw a hairline instead.
+        if (mark.strokeWidth == 0) {
+          continue;
+        }
+        canvas.drawPath(
+          path,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = mark.strokeWidth
+            ..color = mark.stroke.withValues(alpha: mark.opacity),
         );
       }
     }
