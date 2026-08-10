@@ -4,6 +4,8 @@ import 'package:fluent_2_web/src/charts/sankey_chart_layout.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'd3/golden_support.dart';
+
 /// `SankeyChart.tsx:180-216` is the value-normalisation pass that runs between the two
 /// `sankey()` calls; every literal in it changes the rendered node heights.
 void main() {
@@ -274,5 +276,354 @@ void main() {
       'From ',
       reason: 'utilities/string.ts:30-32 substitutes an empty string for null',
     );
+  });
+
+  group('computeFluentSankeyLayout', () {
+    const chain = FluentSankeyChartData(
+      nodes: <FluentSankeyNode>[
+        FluentSankeyNode(nodeId: 0, name: 'A'),
+        FluentSankeyNode(nodeId: 1, name: 'B'),
+        FluentSankeyNode(nodeId: 2, name: 'C'),
+      ],
+      links: <FluentSankeyLink>[
+        FluentSankeyLink(source: 0, target: 1, value: 10),
+        FluentSankeyLink(source: 1, target: 2, value: 10),
+      ],
+    );
+
+    const skewed = FluentSankeyChartData(
+      nodes: <FluentSankeyNode>[
+        FluentSankeyNode(nodeId: 0, name: 'Big'),
+        FluentSankeyNode(nodeId: 1, name: 'Tiny'),
+        FluentSankeyNode(nodeId: 2, name: 'Sink'),
+      ],
+      links: <FluentSankeyLink>[
+        FluentSankeyLink(source: 0, target: 2, value: 1000),
+        FluentSankeyLink(source: 1, target: 2, value: 1),
+      ],
+    );
+
+    test('the title height floors at 36 and grows with the font', () {
+      expect(
+        sankeyTitleHeight(),
+        36,
+        reason: 'SankeyChart.tsx:554-560 — no title still reserves 36',
+      );
+      expect(
+        sankeyTitleHeight(chartTitle: 'Flow'),
+        36,
+        reason: 'max(13 + CHART_TITLE_PADDING 20, 36) = max(33, 36)',
+      );
+      expect(
+        sankeyTitleHeight(chartTitle: 'Flow', titleFontSize: 24),
+        44,
+        reason: 'max(24 + 20, 36)',
+      );
+    });
+
+    test('the extent uses the fixed margins and the node width is 124', () {
+      final layout = computeFluentSankeyLayout(
+        data: chain,
+        size: const Size(912, 468),
+        titleHeight: 36,
+        isRtl: false,
+      );
+      expect(
+        layout.nodes.first.x0,
+        48,
+        reason: 'SankeyChart.tsx:561 pins the left margin at 48',
+      );
+      expect(
+        layout.nodes.first.x1 - layout.nodes.first.x0,
+        kSankeyNodeWidth,
+        reason: 'SankeyChart.tsx:337 sets nodeWidth to 124',
+      );
+      expect(
+        layout.nodes.last.x1,
+        closeTo(912 - 48, 1e-9),
+        reason: 'the rightmost column ends on the right margin',
+      );
+      expect(
+        layout.columnCount,
+        3,
+        reason: 'a three-node chain lays out in three columns',
+      );
+      expect(
+        layout.size,
+        const Size(912, 468),
+        reason:
+            'preRenderLayout (SankeyChart.tsx:344) returns the container size, '
+            'not the plot size',
+      );
+    });
+
+    test('every node lands inside the vertical margins', () {
+      final layout = computeFluentSankeyLayout(
+        data: chain,
+        size: const Size(912, 468),
+        titleHeight: 36,
+        isRtl: false,
+      );
+      for (final node in layout.nodes) {
+        expect(
+          node.y0,
+          greaterThanOrEqualTo(36 - 1e-6),
+          reason: 'the top margin is the title height',
+        );
+        expect(
+          node.y1,
+          lessThanOrEqualTo(468 - 32 + 1e-6),
+          reason: 'SankeyChart.tsx:561 pins the bottom margin at 32',
+        );
+      }
+    });
+
+    test('actual values come from the FIRST pass, not the second', () {
+      final layout = computeFluentSankeyLayout(
+        data: skewed,
+        size: const Size(912, 468),
+        titleHeight: 36,
+        isRtl: false,
+      );
+      expect(
+        layout.nodeActualValues[1],
+        1,
+        reason:
+            'SankeyChart.tsx:243-252 writes back the values captured before '
+            'the one-percent normalisation',
+      );
+      expect(
+        layout.linkUnnormalisedValues[1],
+        1,
+        reason: "SankeyChart.tsx:245-247 keeps the caller's link weight",
+      );
+    });
+
+    test('the sub-one-percent node is drawn taller than its weight', () {
+      final layout = computeFluentSankeyLayout(
+        data: skewed,
+        size: const Size(912, 468),
+        titleHeight: 36,
+        isRtl: false,
+      );
+      final tinyHeight = layout.nodes[1].y1 - layout.nodes[1].y0;
+      final bigHeight = layout.nodes[0].y1 - layout.nodes[0].y0;
+      expect(
+        tinyHeight / bigHeight,
+        greaterThan(1 / 1000),
+        reason:
+            'SankeyChart.tsx:197-199 lifts a sub-one-percent node so it stays '
+            'visible; without the second sankey() pass the lift would be lost',
+      );
+    });
+
+    test('RTL swaps the alignment function only', () {
+      final ltr = computeFluentSankeyLayout(
+        data: chain,
+        size: const Size(912, 468),
+        titleHeight: 36,
+        isRtl: false,
+      );
+      final rtl = computeFluentSankeyLayout(
+        data: chain,
+        size: const Size(912, 468),
+        titleHeight: 36,
+        isRtl: true,
+      );
+      expect(
+        rtl.nodes.first.x0,
+        ltr.nodes.first.x0,
+        reason:
+            'SankeyChart.tsx:342 swaps sankeyJustify for sankeyRight; the '
+            'layout itself is not mirrored',
+      );
+    });
+
+    test('an empty graph reports itself empty and lays nothing out', () {
+      final layout = computeFluentSankeyLayout(
+        data: const FluentSankeyChartData(
+          nodes: <FluentSankeyNode>[],
+          links: <FluentSankeyLink>[],
+        ),
+        size: const Size(912, 468),
+        titleHeight: 36,
+        isRtl: false,
+      );
+      expect(
+        layout.isEmpty,
+        isTrue,
+        reason: 'SankeyChart.tsx:675-678 needs both lists non-empty',
+      );
+      expect(layout.nodes, isEmpty, reason: 'nothing to lay out');
+    });
+
+    test('a circular graph throws the upstream error', () {
+      expect(
+        () => computeFluentSankeyLayout(
+          data: const FluentSankeyChartData(
+            nodes: <FluentSankeyNode>[
+              FluentSankeyNode(nodeId: 0, name: 'A'),
+              FluentSankeyNode(nodeId: 1, name: 'B'),
+            ],
+            links: <FluentSankeyLink>[
+              FluentSankeyLink(source: 0, target: 1, value: 1),
+              FluentSankeyLink(source: 1, target: 0, value: 1),
+            ],
+          ),
+          size: const Size(912, 468),
+          titleHeight: 36,
+          isRtl: false,
+        ),
+        throwsStateError,
+        reason: 'sankey.js:169 throws "circular link"',
+      );
+    });
+
+    test('the two-pass pipeline reproduces the d3 golden corpus', () async {
+      // The corpus solves the bare kernel on `[[0, 0], [800, 400]]`
+      // (`crawlers/d3-golden/generate.mjs:492-499`). Every formula in
+      // `sankey.js` reads the extent only through `x1 - x0` and `y1 - y0` or as
+      // an offset from `x0`/`y0`, so the layout is a pure translation: giving
+      // the pipeline a 896 x 468 container with the fixed 48/32 margins and a
+      // 36pt title band puts the extent at `[[48, 36], [848, 436]]`, the corpus
+      // shifted by exactly the margin.
+      //
+      // Nothing in this graph falls under one percent of its column and no
+      // column is sparse enough to retune the padding, so the second pass is a
+      // no-op and the corpus numbers must survive the whole pipeline. That is
+      // the assertion: the two-pass wrapper must not perturb a layout the
+      // kernel already gets right.
+      const dx = kSankeyMarginHorizontal;
+      const dy = 36.0;
+      const width = 800 + 2 * kSankeyMarginHorizontal;
+      const height = 400 + dy + kSankeyMarginBottom;
+      const sample = FluentSankeyChartData(
+        nodes: <FluentSankeyNode>[
+          FluentSankeyNode(nodeId: 'a', name: 'a'),
+          FluentSankeyNode(nodeId: 'b', name: 'b'),
+          FluentSankeyNode(nodeId: 'c', name: 'c'),
+          FluentSankeyNode(nodeId: 'd', name: 'd'),
+          FluentSankeyNode(nodeId: 'e', name: 'e'),
+        ],
+        links: <FluentSankeyLink>[
+          FluentSankeyLink(source: 0, target: 2, value: 10),
+          FluentSankeyLink(source: 1, target: 2, value: 5),
+          FluentSankeyLink(source: 0, target: 3, value: 3),
+          FluentSankeyLink(source: 2, target: 4, value: 12),
+          FluentSankeyLink(source: 3, target: 4, value: 3),
+        ],
+      );
+
+      final corpus = await loadD3Golden();
+      final cases = goldenCases(corpus, 'sankey');
+      expect(
+        cases,
+        hasLength(6),
+        reason: 'the corpus holds six sankey vectors',
+      );
+      // Only the two vectors generated with the chart's own nodeWidth 124,
+      // nodePadding 8 and six iterations are reachable through the pipeline;
+      // the other four vary knobs `preRenderLayout` never exposes.
+      final reachable = cases
+          .where(
+            (Map<String, dynamic> c) =>
+                c['nodeWidth'] == 124 &&
+                c['nodePadding'] == 8 &&
+                c['iterations'] == 6 &&
+                (c['extent']! as List<Object?>).toString() ==
+                    '[[0, 0], [800, 400]]',
+          )
+          .toList(growable: false);
+      expect(
+        reachable,
+        hasLength(2),
+        reason:
+            'vectors 0 and 1 are the justify and right runs at the chart '
+            "settings; a smaller count means the corpus moved and this test's "
+            'translation argument no longer applies',
+      );
+
+      // The translation is exact in real arithmetic, but subtracting the margin
+      // back off is one more rounding: `283.1111111111112 + 36 - 36` lands on
+      // `283.1111111111111`, one ulp low. 1e-9 is four orders of magnitude over
+      // an ulp at this scale and still a ten-thousandth of a device pixel.
+      Matcher closeToShifted(Object? want) =>
+          closeTo((want! as num).toDouble(), 1e-9);
+
+      for (final c in reachable) {
+        final layout = computeFluentSankeyLayout(
+          data: sample,
+          size: const Size(width, height),
+          titleHeight: dy,
+          isRtl: c['align'] == 'right',
+        );
+        final label = 'sankey vector align=${c['align']}';
+        final wantNodes = (c['nodes']! as List<Object?>)
+            .cast<Map<String, dynamic>>();
+        expect(
+          layout.nodes,
+          hasLength(wantNodes.length),
+          reason: '$label: node count',
+        );
+        for (var i = 0; i < wantNodes.length; i++) {
+          final n = layout.nodes[i];
+          expect(
+            n.layer,
+            wantNodes[i]['layer'],
+            reason: '$label: node $i layer',
+          );
+          expect(
+            n.value,
+            closeToJs(wantNodes[i]['value']),
+            reason: '$label: node $i value',
+          );
+          expect(
+            n.x0 - dx,
+            closeToShifted(wantNodes[i]['x0']),
+            reason: '$label: node $i x0',
+          );
+          expect(
+            n.x1 - dx,
+            closeToShifted(wantNodes[i]['x1']),
+            reason: '$label: node $i x1',
+          );
+          expect(
+            n.y0 - dy,
+            closeToShifted(wantNodes[i]['y0']),
+            reason: '$label: node $i y0',
+          );
+          expect(
+            n.y1 - dy,
+            closeToShifted(wantNodes[i]['y1']),
+            reason: '$label: node $i y1',
+          );
+        }
+        final wantLinks = (c['links']! as List<Object?>)
+            .cast<Map<String, dynamic>>();
+        expect(
+          layout.links,
+          hasLength(wantLinks.length),
+          reason: '$label: link count',
+        );
+        for (var i = 0; i < wantLinks.length; i++) {
+          final l = layout.links[i];
+          expect(
+            l.width,
+            closeToJs(wantLinks[i]['width']),
+            reason: '$label: link $i width',
+          );
+          expect(
+            l.y0 - dy,
+            closeToShifted(wantLinks[i]['y0']),
+            reason: '$label: link $i y0',
+          );
+          expect(
+            l.y1 - dy,
+            closeToShifted(wantLinks[i]['y1']),
+            reason: '$label: link $i y1',
+          );
+        }
+      }
+    });
   });
 }

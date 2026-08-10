@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
+import 'internal/chart_text_styles.dart';
 import 'internal/d3/array_stats.dart' as d3;
 import 'internal/d3/sankey.dart';
 import 'model/sankey_data.dart';
@@ -249,6 +250,179 @@ double calculateSankeyChartMinWidth(int columnCount) =>
     // The minimum column gap is half a node width, and there is one fewer gap
     // than there are columns (`:1019`).
     (columnCount - 1) * (kSankeyNodeWidth / 2);
+
+/// Height the chart reserves above the plot for its title.
+///
+/// Ports `SankeyChart.tsx:554-560`: a title costs its font size plus
+/// `CHART_TITLE_PADDING`, floored at 36; no title still reserves 36.
+double sankeyTitleHeight({String? chartTitle, double? titleFontSize}) =>
+    chartTitle != null
+    // 13 is upstream's fallback title size (`SankeyChart.tsx:556`).
+    ? math.max(
+        (titleFontSize ?? 13) + kChartTitlePadding,
+        kSankeyMinTitleHeight,
+      )
+    : kSankeyMinTitleHeight;
+
+/// The solved sankey layout: node and link geometry plus the derived values.
+@immutable
+class FluentSankeyLayoutResult {
+  /// Creates a layout result. Prefer [computeFluentSankeyLayout].
+  const FluentSankeyLayoutResult({
+    required this.data,
+    required this.nodes,
+    required this.links,
+    required this.nodeActualValues,
+    required this.linkUnnormalisedValues,
+    required this.nodeColors,
+    required this.nodeBorderColors,
+    required this.columnCount,
+    required this.size,
+    required this.titleHeight,
+  });
+
+  /// The caller's data, for names and ids. Indexed by [SankeyLayoutNode.index].
+  final FluentSankeyChartData data;
+
+  /// The laid-out nodes, in input order.
+  final List<SankeyLayoutNode> nodes;
+
+  /// The laid-out links, in input order.
+  final List<SankeyLayoutLink> links;
+
+  /// Pre-normalisation node weights, indexed by node index
+  /// (`SankeyChart.tsx:249-251`).
+  final List<double> nodeActualValues;
+
+  /// Pre-normalisation link weights, indexed by link index
+  /// (`SankeyChart.tsx:244-248`).
+  final List<double> linkUnnormalisedValues;
+
+  /// Fill colour per node index.
+  final List<Color> nodeColors;
+
+  /// Border colour per node index.
+  final List<Color> nodeBorderColors;
+
+  /// Number of node columns, which drives the minimum reflow width.
+  final int columnCount;
+
+  /// The container size the layout was solved against.
+  final Size size;
+
+  /// Top margin, which is the title's reserved band.
+  final double titleHeight;
+
+  /// Whether there is nothing to draw (`SankeyChart.tsx:675-678`).
+  bool get isEmpty => nodes.isEmpty || links.isEmpty;
+}
+
+/// Runs the whole upstream layout pipeline.
+///
+/// Ports `_normalizeSankeyData` (`SankeyChart.tsx:681-731`). The order matters:
+/// the d3 layout runs (`:695`), the one-percent normalisation rewrites node and
+/// link values (`:714`), the padding is retuned (`:715`), and then the layout
+/// runs a **second** time (`:719`). Upstream's comment at `:716-718` says the
+/// second pass is what makes links hoverable; in fact it is also what makes the
+/// lifted values reach the geometry, because `_computeNodeValues` recomputes
+/// every node weight from its links.
+FluentSankeyLayoutResult computeFluentSankeyLayout({
+  required FluentSankeyChartData data,
+  required Size size,
+  required double titleHeight,
+  required bool isRtl,
+  List<Color>? colorsForNodes,
+  List<Color>? borderColorsForNodes,
+}) {
+  final colours = assignSankeyNodeColors(
+    data.nodes,
+    colorsForNodes: colorsForNodes,
+    borderColorsForNodes: borderColorsForNodes,
+  );
+  if (data.nodes.isEmpty || data.links.isEmpty) {
+    return FluentSankeyLayoutResult(
+      data: data,
+      nodes: const <SankeyLayoutNode>[],
+      links: const <SankeyLayoutLink>[],
+      nodeActualValues: const <double>[],
+      linkUnnormalisedValues: const <double>[],
+      nodeColors: colours.fills,
+      nodeBorderColors: colours.borders,
+      columnCount: 0,
+      size: size,
+      titleHeight: titleHeight,
+    );
+  }
+
+  // `:286-299` — upstream clones the caller's data; here the layout objects are
+  // new by construction, so the caller's immutable model is never touched.
+  final nodes = <SankeyLayoutNode>[
+    for (final node in data.nodes) SankeyLayoutNode(id: node.nodeId),
+  ];
+  final links = <SankeyLayoutLink>[
+    for (final link in data.links)
+      SankeyLayoutLink(
+        source: nodes[link.source],
+        target: nodes[link.target],
+        value: link.value,
+      ),
+  ];
+
+  // `:336-342` — the margins are fixed and not overridable by props.
+  final sankey = Sankey()
+    ..nodeWidth(kSankeyNodeWidth)
+    ..extentOf(
+      kSankeyMarginHorizontal,
+      titleHeight,
+      size.width - kSankeyMarginHorizontal,
+      size.height - kSankeyMarginBottom,
+    )
+    ..nodeAlign(isRtl ? sankeyRight : sankeyJustify);
+
+  sankey(nodes, links);
+
+  final columns = groupSankeyNodesByColumn(nodes);
+  final columnCount = columns.length;
+  // `:712-713` — capture the post-first-pass values before anything mutates
+  // them.
+  final nodeValues = <double>[for (final node in nodes) node.value];
+  final linkValues = <double>[for (final link in links) link.value];
+  final actualValues = List<double>.filled(nodes.length, 0);
+  final unnormalised = List<double?>.filled(links.length, null);
+
+  adjustSankeyOnePercentHeightNodes(
+    columns: columns,
+    nodeValues: nodeValues,
+    linkValues: linkValues,
+    actualValues: actualValues,
+    unnormalisedValues: unnormalised,
+  );
+  // `:715` passes the container height minus the margins, NOT the plot height
+  // the layout returned. Reproduced verbatim.
+  adjustSankeyPadding(
+    sankey,
+    size.height - titleHeight - kSankeyMarginBottom,
+    columns,
+  );
+  sankey(nodes, links);
+
+  return FluentSankeyLayoutResult(
+    data: data,
+    nodes: nodes,
+    links: links,
+    nodeActualValues: actualValues,
+    // `:245-247` — `if (!link.unnormalizedValue)`, so a link the normalisation
+    // never touched keeps its own value.
+    linkUnnormalisedValues: <double>[
+      for (var i = 0; i < links.length; i++) unnormalised[i] ?? linkValues[i],
+    ],
+    nodeColors: colours.fills,
+    nodeBorderColors: colours.borders,
+    columnCount: columnCount,
+    size: size,
+    titleHeight: titleHeight,
+  );
+}
 
 /// Matches a `{0}`-style placeholder (`utilities/string.ts:5`).
 final RegExp _formatRegExp = RegExp(r'\{\d+\}');
