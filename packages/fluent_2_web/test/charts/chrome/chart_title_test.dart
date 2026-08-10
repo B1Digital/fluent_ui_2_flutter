@@ -1,5 +1,8 @@
+import 'dart:ui' show PictureRecorder;
+
 import 'package:fluent_2_web/src/charts/chrome/chart_title.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_text_measurer.dart';
+import 'package:fluent_2_web/src/charts/internal/d3/axis_geometry.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -365,6 +368,238 @@ void main() {
         reason:
             'Sorting must not reorder them: a chart that mixed two of these up '
             'would paint low rather than fail loudly.',
+      );
+    });
+  });
+
+  group('fluentChartTitleBackgroundRect', () {
+    test('is asymmetric exactly as SVGTooltipText.tsx:169-179 writes it', () {
+      final rect = fluentChartTitleBackgroundRect(
+        const Offset(100, 50),
+        const Size(60, 16),
+      );
+      expect(
+        rect.left,
+        100 - 60 / 2 - kChartTitleBackgroundPadding,
+        reason: 'SVGTooltipText.tsx:169 — `x - textWidth / 2 - PADDING`.',
+      );
+      expect(
+        rect.top,
+        50 - 16 / 2 - 2 * kChartTitleBackgroundPadding,
+        reason:
+            'SVGTooltipText.tsx:170 — `y - textHeight / 2 - 2 * PADDING`. The '
+            'vertical inset is twice the horizontal one, deliberately.',
+      );
+      expect(
+        rect.width,
+        60 + 2 * kChartTitleBackgroundPadding,
+        reason: 'SVGTooltipText.tsx:178 — `textWidth + 2 * PADDING`.',
+      );
+      expect(
+        rect.height,
+        16 + kChartTitleBackgroundPadding,
+        reason:
+            'SVGTooltipText.tsx:179 — `textHeight + PADDING`, ONE padding, not '
+            'two. The rect is lifted by 6 but grows by only 3, so it sits high '
+            'of centre. Reproduced, not corrected.',
+      );
+    });
+
+    test('PADDING is 3', () {
+      expect(
+        kChartTitleBackgroundPadding,
+        3,
+        reason: 'SVGTooltipText.tsx:43 — `const PADDING = 3`.',
+      );
+    });
+
+    test('the horizontal centring ignores the text anchor', () {
+      expect(
+        fluentChartTitleBackgroundRect(
+          const Offset(100, 50),
+          const Size(60, 16),
+        ).center.dx,
+        100,
+        reason:
+            'SVGTooltipText.tsx:169 always subtracts half the width, so the '
+            'rect is centred on x whatever the text anchor is. A start-anchored '
+            'title therefore has its backing rect offset by half its width. '
+            '// parity: reproduced.',
+      );
+    });
+
+    test('matches the gauge chart title backdrop the capture rendered', () {
+      // `GaugeChart.tsx` renders its title through `ChartTitle`, which passes
+      // `showBackground: true` (`ChartTitle.tsx:91`), so the capture carries
+      // the real `<rect>` upstream computed — element 1 — immediately before
+      // the `<text>` it backs — element 2 — inside the same `<g>`, hence the
+      // same coordinate space.
+      final story = loadOracleStory(
+        'charts-gaugechart--gauge-chart-single-segment',
+      );
+      final title = story.soleElement(
+        'text',
+        where: (element) => element.text == 'Storage capacity',
+      );
+      final backdrop = story.soleElement('rect');
+      // `SVGTooltipText.tsx:58-63` feeds the rect from the text's own
+      // `getBBox()`, which is the ascent-plus-descent box the capture recorded.
+      final bbox = title.bbox!;
+      final predicted = fluentChartTitleBackgroundRect(
+        Offset(title.x!, title.y!),
+        Size(bbox.width, bbox.height),
+      );
+      expect(
+        backdrop.index,
+        lessThan(title.index),
+        reason:
+            'SVGTooltipText.tsx:174-183 emits the rect before the Tooltip that '
+            'wraps the text, so the text paints on top of it.',
+      );
+      expectOracleRect(
+        'gauge title backdrop',
+        Rect.fromLTWH(
+          backdrop.x!,
+          backdrop.y!,
+          backdrop.width!,
+          backdrop.height!,
+        ),
+        predicted,
+      );
+      expect(
+        <double>[predicted.left, predicted.top, bbox.width, bbox.height],
+        <double>[-40.609375, -86, 75.21875, 14],
+        reason:
+            'Pinning the arithmetic in the open so the assertion above cannot '
+            'pass vacuously: the title sits at x = 0, y = -73 with a 75.21875 x '
+            '14 box, so the rect lands at (0 - 37.609375 - 3, -73 - 7 - 6) and '
+            'measures 81.21875 x 17 — three pixels wider each side, six above '
+            'and none below.',
+      );
+    });
+  });
+
+  group('FluentChartTitlePainter', () {
+    final measurer = FluentChartTextMeasurer();
+    const style = TextStyle(fontSize: 12);
+
+    test('shouldRepaint tracks the text, the anchor and the rotation', () {
+      final base = FluentChartTitlePainter(
+        text: 'Revenue',
+        style: style,
+        anchor: const Offset(100, 20),
+        textAnchor: FluentAxisTextAnchor.middle,
+        baseline: FluentChartTitleBaseline.alphabetic,
+        rotationRadians: 0,
+        showBackground: true,
+        backgroundColor: const Color(0xFFFFFFFF),
+        measurer: measurer,
+      );
+      expect(
+        base.shouldRepaint(
+          FluentChartTitlePainter(
+            text: 'Revenue',
+            style: style,
+            anchor: const Offset(100, 20),
+            textAnchor: FluentAxisTextAnchor.middle,
+            baseline: FluentChartTitleBaseline.alphabetic,
+            rotationRadians: 0,
+            showBackground: true,
+            backgroundColor: const Color(0xFFFFFFFF),
+            measurer: measurer,
+          ),
+        ),
+        isFalse,
+        reason: 'Identical inputs must not repaint.',
+      );
+      expect(
+        base.shouldRepaint(
+          FluentChartTitlePainter(
+            text: 'Revenue',
+            style: style,
+            anchor: const Offset(100, 20),
+            textAnchor: FluentAxisTextAnchor.middle,
+            baseline: FluentChartTitleBaseline.alphabetic,
+            // The y-axis title is drawn rotated (CartesianChart.tsx:879).
+            rotationRadians: -1.5707963267948966,
+            showBackground: true,
+            backgroundColor: const Color(0xFFFFFFFF),
+            measurer: measurer,
+          ),
+        ),
+        isTrue,
+        reason: 'A rotation change moves every pixel.',
+      );
+    });
+
+    testWidgets('paints the backing rect before the text', (tester) async {
+      const inkColour = Color(0xFF000000);
+      const backdropColour = Color(0xFFFF0000);
+      const inked = TextStyle(fontSize: 12, color: inkColour);
+      const anchor = Offset(60, 20);
+      final recorder = PictureRecorder();
+      final canvas = Canvas(recorder);
+      FluentChartTitlePainter(
+        text: 'Revenue',
+        style: inked,
+        anchor: anchor,
+        textAnchor: FluentAxisTextAnchor.middle,
+        baseline: FluentChartTitleBaseline.alphabetic,
+        rotationRadians: 0,
+        showBackground: true,
+        backgroundColor: backdropColour,
+        measurer: measurer,
+      ).paint(canvas, const Size(120, 40));
+      final picture = recorder.endRecording();
+      // `Picture.toImage` is completed by the engine, and the widget binding's
+      // fake async never pumps that completion, so it must run for real.
+      final pixels = (await tester.runAsync(() async {
+        final image = await picture.toImage(120, 40);
+        final bytes = await image.toByteData();
+        image.dispose();
+        return bytes;
+      }))!;
+      picture.dispose();
+      // `toByteData` defaults to `rawRgba`, so the alpha byte moves to the top
+      // to give the 0xAARRGGBB that `toARGB32` returns.
+      int pixelAt(int x, int y) {
+        final base = (y * 120 + x) * 4;
+        return pixels.getUint8(base + 3) << 24 |
+            pixels.getUint8(base) << 16 |
+            pixels.getUint8(base + 1) << 8 |
+            pixels.getUint8(base + 2);
+      }
+
+      final metrics = measurer.measure('Revenue', inked);
+      final rect = fluentChartTitleBackgroundRect(
+        Offset.zero,
+        Size(metrics.width, metrics.height),
+      ).shift(anchor);
+      // Inside the rect's three-pixel left pad, so the glyphs cannot reach it.
+      expect(
+        pixelAt(rect.left.round() + 1, rect.center.dy.round()),
+        backdropColour.toARGB32(),
+        reason:
+            'The backdrop must actually cover its rect: 0xFFFF0000 here proves '
+            'the drawRect of SVGTooltipText.tsx:175-182 happened at the '
+            'computed geometry rather than nowhere.',
+      );
+      var inkPixels = 0;
+      for (var y = rect.top.round(); y < rect.bottom.round(); y++) {
+        for (var x = rect.left.round(); x < rect.right.round(); x++) {
+          if (pixelAt(x, y) != backdropColour.toARGB32()) {
+            inkPixels++;
+          }
+        }
+      }
+      expect(
+        inkPixels,
+        greaterThan(0),
+        reason:
+            'Order, not merely presence: had the rect been filled after the '
+            'text, every pixel inside it would be the backdrop and the title '
+            'would have vanished. SVGTooltipText.tsx:174-183 emits the rect '
+            'before the Tooltip that wraps the <text>, so the text is on top.',
       );
     });
   });
