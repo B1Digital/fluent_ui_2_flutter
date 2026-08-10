@@ -4,6 +4,8 @@ import 'package:fluent_2_web/src/charts/internal/d3/scale_linear.dart' as d3;
 import 'package:fluent_2_web/src/charts/internal/marker_geometry.dart';
 import 'package:fluent_2_web/src/charts/scatter_chart.dart';
 import 'package:fluent_2_web/src/charts/scatter_chart_style.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -607,7 +609,213 @@ void main() {
       );
     });
   });
+
+  group('FluentScatterChart', () {
+    Future<void> pump(WidgetTester tester, Widget chart) => tester.pumpWidget(
+      FluentApp(
+        theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+        home: Center(child: SizedBox(width: 700, height: 350, child: chart)),
+      ),
+    );
+
+    FluentScatterChartDelegate delegateOf(WidgetTester tester) =>
+        tester
+                .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+                .delegate
+            as FluentScatterChartDelegate;
+
+    testWidgets('renders one circle per plottable point', (tester) async {
+      await pump(tester, FluentScatterChart(data: _fixtureData()));
+      final delegate = delegateOf(tester);
+      expect(
+        delegate.data.scatterChartData!.first.data.length,
+        6,
+        reason: 'the fixture holds six points in series 0',
+      );
+    });
+
+    testWidgets('keyboard focus never opens the popover', (tester) async {
+      await pump(tester, FluentScatterChart(data: _fixtureData()));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason:
+            'parity: ScatterChart.tsx:543-552 gates on _refArray, which is '
+            'never pushed to (:81), so focus only sets activePoint',
+      );
+    });
+
+    testWidgets('focus still grows the marker to the active radius', (
+      tester,
+    ) async {
+      await pump(tester, FluentScatterChart(data: _fixtureData()));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(
+        delegateOf(tester).activePointId,
+        '0_0',
+        reason: 'ScatterChart.tsx:553 sets activePoint on focus regardless',
+      );
+    });
+
+    testWidgets('hover opens the stack popover', (tester) async {
+      await pump(tester, FluentScatterChart(data: _fixtureData()));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(tester.getCenter(find.byType(FluentCartesianChart)));
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(FluentChartPopover),
+        findsOneWidget,
+        reason: 'ScatterChart.tsx:558-590 opens the popover on hover',
+      );
+      expect(
+        delegateOf(tester).activePointId,
+        isNotNull,
+        reason:
+            '`_onMouseOverCircle` (ScatterChart.tsx:558-566) sets activePoint '
+            'as well as the callout, which is what grows the hovered marker',
+      );
+    });
+
+    testWidgets('an empty data set renders the alert node, not a chart', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const FluentScatterChart(data: FluentChartData(chartTitle: 'Sales')),
+      );
+      expect(
+        find.byType(FluentCartesianChart),
+        findsNothing,
+        reason:
+            '`_isChartEmpty` (ScatterChart.tsx:658-665) gates the whole render '
+            'at :719',
+      );
+      expect(
+        tester.getSemantics(find.byType(FluentScatterChart)).label,
+        'Graph has no data to display',
+        reason: 'ScatterChart.tsx:768 renders an invisible alert node instead',
+      );
+    });
+
+    testWidgets('the chart title is passed through unadorned', (tester) async {
+      await pump(
+        tester,
+        FluentScatterChart(
+          data: FluentChartData(
+            chartTitle: 'Sales',
+            scatterChartData: _fixtureData().scatterChartData,
+          ),
+        ),
+      );
+      expect(
+        tester
+            .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+            .props
+            .chartTitleForSemantics,
+        'Sales',
+        reason:
+            'parity: ScatterChart.tsx:722 adds no "Scatter chart with N '
+            'series" suffix, unlike Area and Line',
+      );
+    });
+
+    testWidgets('Oracle B: the string story renders its captured circle count', (
+      tester,
+    ) async {
+      final story = loadOracleStory(
+        'charts-scatterchart--scatter-chart-string',
+      );
+      final circles = story.byTag('circle');
+      expect(
+        circles,
+        hasLength(10),
+        reason: 'ScatterChartString captures two series of five points',
+      );
+      const categories = <String>[
+        'Electronics',
+        'Furniture',
+        'Clothing',
+        'Toys',
+        'Books',
+      ];
+      await pump(
+        tester,
+        FluentScatterChart(
+          data: FluentChartData(
+            scatterChartData: <FluentScatterChartSeries>[
+              _series(
+                'Store B',
+                categories,
+                <Object>[50000, 30000, 20000, 15000, 10000],
+                markerSizes: <double>[10.5, 8, 5.5, 3, 2],
+              ),
+              _series(
+                'Store A',
+                categories,
+                <Object>[60000, 25000, 22000, 12000, 8000],
+                markerSizes: <double>[13, 7, 6, 4, 1],
+              ),
+            ],
+          ),
+        ),
+      );
+      final chart = tester.widget<FluentCartesianChart>(
+        find.byType(FluentCartesianChart),
+      );
+      expect(
+        (chart.delegate as FluentScatterChartDelegate)
+            .marksFor(_bandXContext(categories))
+            .length,
+        circles.length,
+        reason: 'the widget must hand the shell every captured point',
+      );
+      expect(
+        chart.legends.map((item) => item.title),
+        <String>['Store B', 'Store A'],
+        reason:
+            'ScatterChart.tsx:661-678 builds one legend per series, in series '
+            'order — the capture shows Store B first',
+      );
+    });
+  });
 }
+
+/// Six points in series 0 and three in series 1.
+///
+/// `markerSize` is set so the continuous branch of `calculateMarkerRadius`
+/// (`utilities.ts:2349`) produces circles large enough for a pointer test to
+/// land on one without pixel-hunting; the bare 4/6 radii are asserted against
+/// the source in the style group above.
+///
+/// Point `0_2` is at (34, 25) rather than on the round grid the other five sit
+/// on: both axis domains run 10..60 either way, so the scales are unchanged,
+/// but that point lands at chart-local (349.4, 176.2) — 1.3px from the centre
+/// of a 700x350 chart, which is what the hover test aims at.
+FluentChartData _fixtureData() => FluentChartData(
+  scatterChartData: <FluentScatterChartSeries>[
+    _series(
+      'S0',
+      <Object>[10, 20, 34, 40, 50, 60],
+      <Object>[10, 20, 25, 40, 50, 60],
+      colour: const Color(0xFF2AA0A4),
+      markerSizes: <double>[8, 8, 20, 20, 8, 8],
+    ),
+    _series(
+      'S1',
+      <Object>[15, 35, 55],
+      <Object>[55, 15, 35],
+      colour: const Color(0xFF9373C0),
+      markerSizes: <double>[8, 8, 8],
+    ),
+  ],
+);
 
 FluentScatterChartSeries _series(
   String legend,

@@ -1,11 +1,15 @@
+import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
 import 'axis/axis_builders.dart' as builders;
 import 'axis/axis_types.dart';
 import 'axis/domain_range.dart';
+import 'cartesian/cartesian_chart.dart';
+import 'cartesian/cartesian_chart_props.dart';
 import 'cartesian/cartesian_layout.dart';
 import 'cartesian/cartesian_series_delegate.dart';
 import 'chrome/chart_popover.dart';
+import 'chrome/legend.dart';
 import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
 import 'internal/chart_text_styles.dart';
@@ -17,6 +21,262 @@ import 'model/cartesian_series.dart';
 import 'model/chart_common.dart';
 import 'model/chart_value.dart';
 import 'scatter_chart_style.dart';
+
+/// A Fluent 2 scatter chart.
+///
+/// Ports `ScatterChart.tsx`. Renders through [FluentCartesianChart], which owns
+/// the margins, axes, legend row, popover host and annotation layer; this
+/// widget owns only the marker geometry, the legend selection state and the
+/// hover/focus model.
+class FluentScatterChart extends StatefulWidget {
+  /// Creates a scatter chart over [data].
+  const FluentScatterChart({
+    super.key,
+    required this.data,
+    this.props = const FluentCartesianChartProps(),
+    this.culture,
+    this.style,
+    this.legendSelectionMode = FluentChartLegendSelectionMode.single,
+    this.focusNode,
+  });
+
+  /// The data bundle. Only `scatterChartData` and `chartTitle` are read.
+  final FluentChartData data;
+
+  /// Shell configuration shared by every cartesian chart.
+  final FluentCartesianChartProps props;
+
+  /// BCP-47 locale used to format popover values.
+  ///
+  /// ponytail: declared, not yet consumed. Upstream spends it in exactly one
+  /// place — `formatDateToLocaleString(x, props.culture, …)` at
+  /// `ScatterChart.tsx:568` and `:534`, which formats a *date* x value for the
+  /// popover header. [FluentScatterChartDelegate.popoverFor] prints the raw x,
+  /// so wiring this means teaching that method to format, which is the same
+  /// change every cartesian chart needs and is better made once.
+  final String? culture;
+
+  /// Style override, highest precedence.
+  final FluentScatterChartStyle? style;
+
+  /// Whether the legend allows more than one selection at a time.
+  final FluentChartLegendSelectionMode legendSelectionMode;
+
+  /// The chart's single focus node. One node roves over the markers, per
+  /// spec section 5.7.
+  final FocusNode? focusNode;
+
+  @override
+  State<FluentScatterChart> createState() => _FluentScatterChartState();
+}
+
+class _FluentScatterChartState extends State<FluentScatterChart> {
+  /// The legend selection the shell's legend row reports back.
+  ///
+  /// [FluentCartesianChartProps] has NO `selectedLegends` field — the frozen
+  /// props bag never carried one (contract 7.1) — so there is nothing to seed
+  /// from and no `didUpdateWidget` sync to write. The selection enters through
+  /// [FluentCartesianChart.onLegendChange] and is handed to the delegate for
+  /// dimming, which is all `ScatterChart.tsx:106-114`'s effect does once the
+  /// legend row lives in the shell.
+  List<String> _selectedLegends = const <String>[];
+  String? _activeLegend;
+  String? _activePointId;
+  FluentChartPopoverData? _popoverData;
+  Offset? _popoverAnchor;
+  FocusNode? _internalFocusNode;
+  FluentScatterChartDelegate? _delegate;
+  late FluentChartTextMeasurer _measurer;
+
+  FocusNode get _focusNode =>
+      widget.focusNode ?? (_internalFocusNode ??= FocusNode());
+
+  @override
+  void initState() {
+    super.initState();
+    _measurer = FluentChartTextMeasurer();
+    _focusNode.addListener(_handleFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(FluentScatterChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.focusNode != oldWidget.focusNode) {
+      (oldWidget.focusNode ?? _internalFocusNode)?.removeListener(
+        _handleFocusChange,
+      );
+      _focusNode.addListener(_handleFocusChange);
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_handleFocusChange);
+    _internalFocusNode?.dispose();
+    _measurer.invalidate();
+    super.dispose();
+  }
+
+  /// `_handleFocus` (`ScatterChart.tsx:519-556`).
+  ///
+  /// Upstream's every-circle `onFocus` runs the callout branch at `:543-552`
+  /// under `_refArray.forEach`, and `_refArray` is declared at `:81` and never
+  /// pushed to — so the loop body is dead and focus reaches only the
+  /// `setActivePoint(circleId)` at `:554`. The popover therefore never opens on
+  /// focus, which the widget reproduces by suppressing the shell's popover
+  /// layer outright and rendering its own on hover instead.
+  ///
+  /// ponytail: the active point pins to the first marker rather than following
+  /// the roving index, because the shell's index is private and it reports no
+  /// focus-change callback. Upgrade path: add one to
+  /// [FluentCartesianChart] — plan 05 owns that file — and set the id from it.
+  void _handleFocusChange() {
+    final hasFocus = _focusNode.hasFocus;
+    setState(() => _activePointId = hasFocus ? '0_0' : null);
+  }
+
+  /// `_handleHover` (`ScatterChart.tsx:558-590`), bound to the circle's own
+  /// `onMouseMove`/`onMouseOver` (`:465-466`) rather than to the plot, so it
+  /// resolves the marker under the pointer first and does nothing in the gaps.
+  ///
+  /// Leaving a marker is deliberately not a reset: `_handleMouseOut` (`:606`)
+  /// only hides the vertical rule, so the callout stays where the last marker
+  /// put it until the pointer leaves the chart entirely (`:610-616`).
+  void _handlePointerMove(Offset local, FluentCartesianChildContext context) {
+    final delegate = _delegate;
+    if (delegate == null) {
+      return;
+    }
+    // `marksFor` walks the series backwards so series 0 paints last; the
+    // topmost circle is therefore the last one, so the hit test runs in
+    // reverse.
+    for (final mark in delegate.marksFor(context).reversed) {
+      if ((mark.centre - local).distance > mark.radius) {
+        continue;
+      }
+      final id = '${mark.seriesIndex}_${mark.pointIndex}';
+      // `if (_uniqueCallOutID !== circleId)` (`:577`) — re-entering the same
+      // circle changes nothing.
+      if (id == _activePointId && _popoverData != null) {
+        return;
+      }
+      setState(() {
+        _activePointId = id;
+        _popoverAnchor = local;
+        _popoverData = delegate.popoverFor(mark);
+      });
+      return;
+    }
+  }
+
+  /// `_handleChartMouseLeave` (`ScatterChart.tsx:610-616`).
+  void _handleChartMouseLeave() => setState(() {
+    _activePointId = null;
+    _popoverData = null;
+    _popoverAnchor = null;
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final style = resolveFluentScatterChartStyle(
+      theme,
+    ).merge(FluentScatterChartTheme.maybeOf(context)).merge(widget.style);
+    final series =
+        widget.data.scatterChartData ?? const <FluentScatterChartSeries>[];
+    // `_isChartEmpty` (`ScatterChart.tsx:658-665`), gating the whole render at
+    // `:719`: a chart with no series, or with none that holds a point, renders
+    // the bare alert node at `:768` instead of a shell. Without the gate the
+    // band scale is handed an empty domain and the axis painter draws a NaN.
+    if (!series.any((series) => series.data.isNotEmpty)) {
+      return Semantics(
+        container: true,
+        liveRegion: true,
+        label: 'Graph has no data to display',
+        child: const SizedBox.shrink(),
+      );
+    }
+    _delegate = FluentScatterChartDelegate(
+      data: widget.data,
+      style: style,
+      colors: FluentChartColors.of(theme),
+      textStyles: FluentChartTextStyles.of(theme),
+      measurer: _measurer,
+      selectedLegends: _selectedLegends,
+      activeLegend: _activeLegend,
+      activePointId: _activePointId,
+      xScaleType: widget.props.xScaleType,
+      yScaleType: widget.props.yScaleType,
+      xMinValue: widget.props.xMinValue,
+      xMaxValue: widget.props.xMaxValue,
+      yAxisCategoryOrder: widget.props.yAxisCategoryOrder,
+    );
+    return FluentCartesianChart(
+      focusNode: _focusNode,
+      // parity: ScatterChart.tsx:722 passes the title through UNADORNED — no
+      // 'Scatter chart with N series' suffix, unlike Area (`:1012`) and Line
+      // (`:1843-1846`). It still has to be handed over explicitly: neither this
+      // widget's props nor FluentScatterChartDelegate sets a title otherwise,
+      // so the shell would fall all the way through to the generic 'Chart. '
+      // prefix in buildFluentCartesianChartDescription.
+      props: widget.props.copyWith(
+        chartTitleForSemantics: widget.data.chartTitle,
+        // The shell opens its popover for the focused region as readily as for
+        // the hovered one, and upstream's focus path cannot open one at all
+        // (see [_handleFocusChange]). Replacing the shell's layer with an empty
+        // one leaves this widget the only thing that can raise a popover, which
+        // it does from [_handlePointerMove] through `overlayBuilder`.
+        popoverBuilder: (context) => const SizedBox.shrink(),
+      ),
+      legendSelectionMode: widget.legendSelectionMode,
+      selectedLegends: null,
+      onLegendChange: (selected) => setState(() => _selectedLegends = selected),
+      // parity: ScatterChart.tsx:680 hides the legend entirely in text mode.
+      legends: isTextMode(series)
+          ? const <FluentChartLegendItem>[]
+          : <FluentChartLegendItem>[
+              for (var i = 0; i < series.length; i++)
+                FluentChartLegendItem(
+                  title: series[i].legend,
+                  color: series[i].color ?? FluentDataVizPalette.next(i),
+                  shape: series[i].legendShape,
+                  // `hoverAction` runs `_handleChartMouseLeave()` first
+                  // (`ScatterChart.tsx:273-275`), so hovering a legend closes
+                  // whatever callout a marker had open.
+                  onHoverAction: () {
+                    _handleChartMouseLeave();
+                    setState(() => _activeLegend = series[i].legend);
+                  },
+                  onMouseOutAction: ({required bool isLegendFocused}) =>
+                      setState(() => _activeLegend = null),
+                ),
+            ],
+      delegate: _delegate!,
+      overlayBuilder: _buildPopoverLayer,
+      onPointerMoveInPlot: _handlePointerMove,
+      onChartMouseLeave: _handleChartMouseLeave,
+    );
+  }
+
+  Widget _buildPopoverLayer(
+    BuildContext context,
+    FluentCartesianChildContext childContext,
+    FluentCartesianLayout layout,
+  ) {
+    final data = _popoverData;
+    final anchor = _popoverAnchor;
+    if (data == null || anchor == null || widget.props.hideTooltip) {
+      return const SizedBox.shrink();
+    }
+    // The shell narrates the focused hit region on its own Semantics node, so
+    // the popover's text would be read a second time if it were not excluded.
+    return IgnorePointer(
+      child: ExcludeSemantics(
+        child: FluentChartPopover(data: data, anchor: anchor),
+      ),
+    );
+  }
+}
 
 /// One painted scatter marker, resolved against the live scales.
 ///
