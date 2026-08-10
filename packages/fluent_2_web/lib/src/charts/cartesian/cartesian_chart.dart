@@ -1,4 +1,5 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../axis/axis_builders.dart';
@@ -126,6 +127,12 @@ class _CartesianGeometry {
 class _FluentCartesianChartState extends State<FluentCartesianChart> {
   final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
   List<String> _selectedLegends = const <String>[];
+  FocusNode? _internalFocusNode;
+  List<FluentChartHitRegion> _regions = const <FluentChartHitRegion>[];
+  int _focusedIndex = -1;
+
+  FocusNode get _focusNode =>
+      widget.focusNode ?? (_internalFocusNode ??= FocusNode());
 
   @override
   void didUpdateWidget(FluentCartesianChart oldWidget) {
@@ -133,6 +140,46 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
     // The measurer's cache key includes the resolved style, so a theme swap
     // does not poison it; a font-scale change still can.
     _measurer.invalidate();
+  }
+
+  @override
+  void dispose() {
+    _internalFocusNode?.dispose();
+    super.dispose();
+  }
+
+  /// Circular left/right traversal over the delegate's hit regions.
+  ///
+  /// `useArrowNavigationGroup({ circular: true, axis: 'horizontal' })`
+  /// (`CartesianChart.tsx:87`). Only the horizontal pair is bound: the source
+  /// tree does not contain `@fluentui/react-tabster`, so whether Up and Down
+  /// are swallowed there is unknown, and letting them fall through to an
+  /// enclosing scroller is the behaviour that cannot trap a keyboard user.
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent || _regions.isEmpty) {
+      return KeyEventResult.ignored;
+    }
+    final step = switch (event.logicalKey) {
+      LogicalKeyboardKey.arrowRight => 1,
+      LogicalKeyboardKey.arrowLeft => -1,
+      _ => 0,
+    };
+    if (step == 0) {
+      return KeyEventResult.ignored;
+    }
+    final count = _regions.length;
+    setState(() {
+      _focusedIndex = _focusedIndex < 0
+          ? (step > 0 ? 0 : count - 1)
+          : (_focusedIndex + step + count) % count;
+    });
+    return KeyEventResult.handled;
+  }
+
+  void _onFocusChange({required bool hasFocus}) {
+    if (!hasFocus && _focusedIndex != -1) {
+      setState(() => _focusedIndex = -1);
+    }
   }
 
   @override
@@ -256,9 +303,17 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
     required FluentChartColors colors,
     required FluentChartTextStyles textStyles,
     required double crispOffset,
-  }) => Semantics(
-    container: true,
-    label: buildFluentCartesianChartDescription(
+  }) {
+    final context = FluentCartesianChildContext(
+      xScale: geometry.xAxis.scale,
+      yScalePrimary: geometry.yAxisPrimary.scale,
+      yScaleSecondary: geometry.yAxisSecondary?.scale,
+      containerWidth: geometry.layout.size.width,
+      containerHeight: geometry.layout.size.height,
+    );
+    _regions = widget.delegate.buildHitRegions(context, geometry.layout);
+
+    final description = buildFluentCartesianChartDescription(
       chartTitle: widget.delegate.chartTitle,
       xAxisTitle: widget.props.xAxisTitle,
       xAxisType: widget.delegate.xAxisType,
@@ -266,25 +321,38 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       yAxisType: widget.delegate.yAxisType,
       secondaryYAxisTitle: widget.props.secondaryYAxisTitle,
       hasSecondaryScale: widget.props.secondaryYScaleOptions != null,
-    ),
-    child: CustomPaint(
-      size: size,
-      painter: FluentCartesianChartPainter(
-        layout: geometry.layout,
-        delegate: widget.delegate,
-        xAxis: geometry.xAxis,
-        yAxisPrimary: geometry.yAxisPrimary,
-        yAxisSecondary: geometry.yAxisSecondary,
-        xLabelLayout: geometry.xLabelLayout,
-        style: style,
-        colors: colors,
-        textStyles: textStyles,
-        measurer: _measurer,
-        crispOffset: crispOffset,
-        props: widget.props,
+    );
+    final focused = _focusedIndex >= 0 && _focusedIndex < _regions.length
+        ? _regions[_focusedIndex]
+        : null;
+
+    return Focus(
+      focusNode: _focusNode,
+      onKeyEvent: _onKey,
+      onFocusChange: (hasFocus) => _onFocusChange(hasFocus: hasFocus),
+      child: Semantics(
+        container: true,
+        label: focused?.semanticsLabel ?? description,
+        child: CustomPaint(
+          size: size,
+          painter: FluentCartesianChartPainter(
+            layout: geometry.layout,
+            delegate: widget.delegate,
+            xAxis: geometry.xAxis,
+            yAxisPrimary: geometry.yAxisPrimary,
+            yAxisSecondary: geometry.yAxisSecondary,
+            xLabelLayout: geometry.xLabelLayout,
+            style: style,
+            colors: colors,
+            textStyles: textStyles,
+            measurer: _measurer,
+            crispOffset: crispOffset,
+            props: widget.props,
+          ),
+        ),
       ),
-    ),
-  );
+    );
+  }
 
   /// `_calculateChartMinWidth` (`CartesianChart.tsx:534-550`).
   ///

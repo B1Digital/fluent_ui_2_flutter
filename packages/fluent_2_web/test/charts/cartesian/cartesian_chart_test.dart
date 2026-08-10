@@ -12,6 +12,7 @@ import 'package:fluent_2_web/src/charts/cartesian/cartesian_painter.dart';
 import 'package:fluent_2_web/src/charts/chrome/legend.dart';
 import 'package:fluent_2_web/src/charts/model/chart_value.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -378,6 +379,137 @@ void main() {
         700,
         reason: 'Math.max(rect.width, minWidth) at CartesianChart.tsx:513-515',
       );
+    });
+  });
+
+  group('keyboard traversal', () {
+    Widget focusable(FocusNode node) => SizedBox(
+      width: 400,
+      height: 260,
+      child: FluentCartesianChart(
+        delegate: StubCartesianDelegate(),
+        props: const FluentCartesianChartProps(hideLegend: true),
+        legends: const <FluentChartLegendItem>[],
+        focusNode: node,
+      ),
+    );
+
+    testWidgets('the whole plot is one focus stop', (tester) async {
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(tester, focusable(node));
+      // Scoped to the chart: FluentApp's own shell already mounts eight Focus
+      // widgets of its own, so the plan's unscoped `lessThan(4)` could never
+      // pass — what section 5.7 constrains is the chart's contribution.
+      expect(
+        find
+            .descendant(
+              of: find.byType(FluentCartesianChart),
+              matching: find.byType(Focus),
+            )
+            .evaluate()
+            .length,
+        1,
+        reason:
+            'design spec section 5.7 — one node for the plot, not 500 invisible '
+            'focusable boxes for a 500-point series',
+      );
+    });
+
+    testWidgets('right arrow moves the label onto the first mark', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(tester, focusable(node));
+      node.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(
+        find.bySemanticsLabel('Point 0'),
+        findsOneWidget,
+        reason:
+            'the single Semantics node tracks the focused mark, because canvas '
+            'text produces no node of its own',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('arrow traversal is circular in both directions', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(tester, focusable(node));
+      node.requestFocus();
+      await tester.pump();
+      for (var i = 0; i < 4; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      }
+      await tester.pump();
+      expect(
+        find.bySemanticsLabel('Point 0'),
+        findsOneWidget,
+        reason:
+            'useArrowNavigationGroup({ circular: true }) at '
+            'CartesianChart.tsx:87 — four steps over three marks wraps to the '
+            'first',
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      expect(
+        find.bySemanticsLabel('Point 2'),
+        findsOneWidget,
+        reason: 'stepping left off the start wraps to the last',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('the vertical arrows are left for the scroller', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(tester, focusable(node));
+      node.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(
+        find.bySemanticsLabel(RegExp('The X axis displays')),
+        findsOneWidget,
+        reason:
+            "axis: 'horizontal' at CartesianChart.tsx:87 — Down changes "
+            'nothing, so the description still stands',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('losing focus clears the roving index', (tester) async {
+      final handle = tester.ensureSemantics();
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(tester, focusable(node));
+      node.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      node.unfocus();
+      // Two frames, not the plan's one: FocusManager applies a blur in a
+      // microtask, so the first pump only delivers the notification and the
+      // setState it triggers builds on the second.
+      await tester.pump();
+      await tester.pump();
+      expect(
+        find.bySemanticsLabel(RegExp('The X axis displays')),
+        findsOneWidget,
+        reason: 'the label falls back to the chart description on blur',
+      );
+      handle.dispose();
     });
   });
 
