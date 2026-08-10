@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import '../axis/axis_builders.dart';
 import '../axis/axis_label_layout.dart';
 import '../axis/axis_types.dart';
+import '../chrome/annotation_layer.dart';
 import '../chrome/chart_popover.dart';
 import '../chrome/legend.dart';
 import '../internal/chart_colors.dart';
@@ -398,6 +399,22 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
                 ),
               ),
             ),
+            if (widget.props.annotations.isNotEmpty)
+              // The layer is pointer-transparent by default
+              // (`useCartesianChartStyles.styles.ts:109-111`).
+              Positioned.fill(
+                child: FluentChartAnnotationLayer(
+                  annotations: widget.props.annotations,
+                  context: FluentChartAnnotationContext(
+                    plotRect: geometry.layout.plotRect,
+                    chartSize: geometry.layout.size,
+                    isRtl: geometry.layout.isRtl,
+                    xScale: geometry.xAxis.scale,
+                    yScalePrimary: geometry.yAxisPrimary.scale,
+                    yScaleSecondary: geometry.yAxisSecondary?.scale,
+                  ),
+                ),
+              ),
             if (active != null && !widget.props.hideTooltip)
               // The popover anchors to a zero-size virtual point at the cursor,
               // exactly as `ChartPopover.tsx:23-40` builds a

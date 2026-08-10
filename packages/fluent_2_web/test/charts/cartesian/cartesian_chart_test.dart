@@ -9,8 +9,10 @@ import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart_props.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart_style.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_painter.dart';
+import 'package:fluent_2_web/src/charts/chrome/annotation_layer.dart';
 import 'package:fluent_2_web/src/charts/chrome/chart_popover.dart';
 import 'package:fluent_2_web/src/charts/chrome/legend.dart';
+import 'package:fluent_2_web/src/charts/model/chart_annotation.dart';
 import 'package:fluent_2_web/src/charts/model/chart_value.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/services.dart';
@@ -755,6 +757,97 @@ void main() {
         '$storyId yAxisGElementSecondary translate x',
         story.absoluteTranslate(secondary).dx,
         layout.secondaryYAxisTranslateX,
+      );
+    });
+  });
+
+  group('annotation layer', () {
+    Widget plot(List<FluentChartAnnotation> annotations) => SizedBox(
+      width: 400,
+      height: 260,
+      child: FluentCartesianChart(
+        delegate: StubCartesianDelegate(),
+        props: FluentCartesianChartProps(
+          hideLegend: true,
+          annotations: annotations,
+        ),
+        legends: const <FluentChartLegendItem>[],
+      ),
+    );
+
+    FluentChartAnnotationLayer layerOf(WidgetTester tester) =>
+        tester.widget<FluentChartAnnotationLayer>(
+          find.byType(FluentChartAnnotationLayer),
+        );
+
+    // The plan writes `FluentChartAnnotation(text: 'Peak')`; `coordinates` is
+    // required (`chart_annotation.dart:387`), so the anchor is spelled out.
+    const peak = FluentChartAnnotation(
+      text: 'Peak',
+      coordinates: FluentRelativeCoordinate(x: 0.5, y: 0.5),
+    );
+
+    testWidgets('no annotations means no layer', (tester) async {
+      await pump(tester, plot(const <FluentChartAnnotation>[]));
+      expect(
+        find.byType(FluentChartAnnotationLayer),
+        findsNothing,
+        reason:
+            '`hasAnnotations && annotationContext` at CartesianChart.tsx:903 '
+            'builds the context only when the list is non-empty (:463-474)',
+      );
+    });
+
+    testWidgets('one annotation mounts the layer over the marks', (
+      tester,
+    ) async {
+      await pump(tester, plot(const <FluentChartAnnotation>[peak]));
+      expect(
+        find.byType(FluentChartAnnotationLayer),
+        findsOneWidget,
+        reason: 'CartesianChart.tsx:903-909, outside the svg and above it',
+      );
+    });
+
+    testWidgets('the context carries the plot rect and the chart size', (
+      tester,
+    ) async {
+      await pump(tester, plot(const <FluentChartAnnotation>[peak]));
+      final context = layerOf(tester).context;
+      expect(
+        context.plotRect,
+        const Rect.fromLTWH(40, 20, 340, 205),
+        reason: 'plotRect at CartesianChart.tsx:456-461',
+      );
+      expect(
+        context.plotRect,
+        painterOf(tester).layout.plotRect,
+        reason: 'the layer resolves against the very box the marks paint in',
+      );
+      expect(
+        context.chartSize,
+        const Size(400, 260),
+        reason: 'svgRect at CartesianChart.tsx:468',
+      );
+      expect(context.isRtl, isFalse, reason: 'CartesianChart.tsx:469');
+    });
+
+    testWidgets('the context carries the same scales the painter has', (
+      tester,
+    ) async {
+      await pump(tester, plot(const <FluentChartAnnotation>[peak]));
+      final painter = painterOf(tester);
+      expect(
+        layerOf(tester).context.xScale,
+        same(painter.xAxis.scale),
+        reason:
+            'annotations position against the same scales the marks do '
+            '(CartesianChart.tsx:470-472)',
+      );
+      expect(
+        layerOf(tester).context.yScalePrimary,
+        same(painter.yAxisPrimary.scale),
+        reason: 'the primary y scale is the same object too (:471)',
       );
     });
   });
