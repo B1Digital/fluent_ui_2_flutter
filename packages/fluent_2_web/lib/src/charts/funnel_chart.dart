@@ -1,6 +1,10 @@
 import 'dart:math' as math;
 
+import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
+
+import 'internal/chart_colors.dart';
+import 'internal/chart_text_measurer.dart';
 
 /// The direction a funnel's stages run in.
 ///
@@ -491,4 +495,172 @@ class FluentFunnelSegmentGeometry {
   // parity: funnelGeometry.ts:165,172.
   static double _share(double nextVal, double nextTotal) =>
       nextTotal == 0 ? 0.0 : nextVal / nextTotal;
+}
+
+/// One painted funnel segment.
+@immutable
+class FluentFunnelSegment {
+  /// Creates a segment.
+  const FluentFunnelSegment({
+    required this.key,
+    required this.geometry,
+    required this.fill,
+    required this.opacity,
+    this.label,
+  });
+
+  /// Upstream's segment key — the stage index for a plain funnel, or
+  /// `'stage-sub'` for a stacked one (`FunnelChart.tsx:392-401`).
+  final String key;
+
+  /// Resolved geometry.
+  final FluentFunnelSegmentGeometry geometry;
+
+  /// Fill colour, before high contrast flattens it.
+  final Color fill;
+
+  /// 1 when highlighted, the style's dimmed value otherwise
+  /// (`FunnelChart.tsx:302`, `:363-364`).
+  final double opacity;
+
+  /// The value label, or null when the text gate rejected it.
+  final String? label;
+}
+
+/// Paints a funnel: every fill inside one layer, then every label.
+///
+/// The single `saveLayer` is not decoration. Adjacent trapezia share an exact
+/// edge with no stroke and no overlap (`FunnelChart.tsx:229-273`); painting
+/// them one at a time blends two half-covered edge pixels against the ground
+/// and leaves a visible hairline that SVG's compositing does not produce. The
+/// fills are therefore added into a transparent layer with [BlendMode.plus] and
+/// the layer composited once, so two coverages either side of a shared edge sum
+/// to one instead of the 0.76 source-over leaves behind. The layer is what
+/// makes that safe: `plus` against the real ground would blow out every colour
+/// beneath the chart.
+///
+/// Adding coverage is sound only because funnel segments abut and never
+/// overlap — every generator on [FluentFunnelSegmentGeometry] emits edge-shared
+/// trapezia. Overlapping paths would saturate towards white instead.
+class FluentFunnelChartPainter extends CustomPainter {
+  /// Creates a funnel painter.
+  FluentFunnelChartPainter({
+    required this.segments,
+    required this.labelStyle,
+    required this.colors,
+    required this.chartColors,
+    required this.textDirection,
+    required this.funnelWidth,
+  });
+
+  /// Segments in paint order — stage-major, sub-value-minor.
+  final List<FluentFunnelSegment> segments;
+
+  /// Label type. 14px regular, inherited from `.root`, because
+  /// `_renderSegmentText` applies no class (`FunnelChart.tsx:191-227`).
+  final TextStyle labelStyle;
+
+  /// Theme colours, used to pick a label colour that clears a contrast of 3
+  /// against its own fill.
+  final FluentColors colors;
+
+  /// The chart's resolved slots, used to flatten every fill to a system colour
+  /// under high contrast.
+  final FluentChartColors chartColors;
+
+  /// Ambient text direction. Glyphs are never mirrored: upstream un-mirrors
+  /// them with a nested `scale(-1,1)` group (`FunnelChart.tsx:210`, `:224`).
+  final TextDirection textDirection;
+
+  /// Width of the plotted funnel, used to mirror the label anchor under
+  /// right-to-left.
+  final double funnelWidth;
+
+  /// Every label is laid out through the one measurer, so the glyphs land at
+  /// the width `FluentFunnelSegmentGeometry.showText` reserved room for.
+  final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
+
+  /// The colour [segment]'s fill is painted in.
+  ///
+  /// Spec section 5.3 — the fill is flattened before anything else reads it,
+  /// so the label colour below is chosen against what is actually on screen.
+  Color fillColorFor(FluentFunnelSegment segment) =>
+      chartColors.flattenMark(segment.fill).withValues(alpha: segment.opacity);
+
+  /// The colour [segment]'s label is painted in.
+  ///
+  /// `utilities/colors.ts:175-182` — threshold 3, foreground1 by default and
+  /// background1 when the fill is too close to it. `FunnelChart.tsx:216` puts
+  /// the segment's own `opacity` on the `<text>` as well as on the `<path>`.
+  Color labelColorFor(FluentFunnelSegment segment) => fluentContrastTextColor(
+    chartColors.flattenMark(segment.fill),
+    colors,
+  ).withValues(alpha: segment.opacity);
+
+  /// The topmost segment containing [point], or null.
+  FluentFunnelSegment? segmentAt(Offset point) {
+    for (var i = segments.length - 1; i >= 0; i--) {
+      final path = segments[i].geometry.path;
+      if (path != null && path.contains(point)) {
+        return segments[i];
+      }
+    }
+    return null;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.saveLayer(Offset.zero & size, Paint());
+    for (final segment in segments) {
+      final path = segment.geometry.path;
+      if (path == null) {
+        continue;
+      }
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = fillColorFor(segment)
+          ..blendMode = BlendMode.plus,
+      );
+    }
+    canvas.restore();
+
+    for (final segment in segments) {
+      final label = segment.label;
+      if (label == null) {
+        continue;
+      }
+      final painter = _measurer.layoutPainter(
+        label,
+        labelStyle.copyWith(color: labelColorFor(segment)),
+      );
+      final anchorX = textDirection == TextDirection.rtl
+          // FunnelChart.tsx:210 — the anchor is mirrored, then the glyphs are
+          // un-mirrored by the nested scale(-1,1) at :224.
+          ? funnelWidth - segment.geometry.textX
+          : segment.geometry.textX;
+      painter.paint(
+        canvas,
+        Offset(
+          anchorX - painter.width / 2,
+          // The capture settles the baseline: `FunnelChart.tsx:215` sets
+          // alignment-baseline="middle", which no browser honours on a <text>
+          // element, so `charts-funnelchart--funnel-chart-basic` resolves every
+          // label to dominant-baseline "auto" and its `y` sits an ascent below
+          // the glyph box top. `textY` is therefore an alphabetic baseline, not
+          // a line-box centre.
+          segment.geometry.textY -
+              painter.computeDistanceToActualBaseline(TextBaseline.alphabetic),
+        ),
+      );
+      painter.dispose();
+    }
+  }
+
+  @override
+  bool shouldRepaint(FluentFunnelChartPainter oldDelegate) =>
+      oldDelegate.segments != segments ||
+      oldDelegate.labelStyle != labelStyle ||
+      oldDelegate.textDirection != textDirection ||
+      oldDelegate.funnelWidth != funnelWidth;
 }
