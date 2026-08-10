@@ -9,6 +9,7 @@ import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart_props.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart_style.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_painter.dart';
+import 'package:fluent_2_web/src/charts/chrome/chart_popover.dart';
 import 'package:fluent_2_web/src/charts/chrome/legend.dart';
 import 'package:fluent_2_web/src/charts/model/chart_value.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
@@ -510,6 +511,143 @@ void main() {
         reason: 'the label falls back to the chart description on blur',
       );
       handle.dispose();
+    });
+  });
+
+  group('popover', () {
+    Widget plot({bool hideTooltip = false}) => SizedBox(
+      width: 400,
+      height: 260,
+      child: FluentCartesianChart(
+        delegate: StubCartesianDelegate(),
+        props: FluentCartesianChartProps(
+          hideLegend: true,
+          hideTooltip: hideTooltip,
+        ),
+        legends: const <FluentChartLegendItem>[],
+      ),
+    );
+
+    // The plan's `find.byType(CustomPaint).first` matches the app shell's own
+    // 800x260 painterless CustomPaint, whose top-left is the screen origin, so
+    // every offset below it landed outside the chart. Filter by painter, as
+    // `painterOf` above already does.
+    final plotPaint = find.byWidgetPredicate(
+      (widget) =>
+          widget is CustomPaint &&
+          widget.painter is FluentCartesianChartPainter,
+    );
+
+    Future<TestGesture> hoverFirstRegion(WidgetTester tester) async {
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      // The stub's first region starts at the plot's left edge, which the
+      // default margins put at x = 40, and spans 20px.
+      await gesture.moveTo(
+        tester.getTopLeft(plotPaint) + const Offset(50, 100),
+      );
+      await tester.pump();
+      return gesture;
+    }
+
+    testWidgets('hovering a region opens the popover', (tester) async {
+      await pump(tester, plot());
+      await hoverFirstRegion(tester);
+      expect(
+        find.byType(FluentChartPopover),
+        findsOneWidget,
+        reason:
+            '`!hideTooltip && calloutProps.isPopoverOpen` at '
+            'CartesianChart.tsx:444-446',
+      );
+    });
+
+    testWidgets('hideTooltip suppresses it', (tester) async {
+      await pump(tester, plot(hideTooltip: true));
+      await hoverFirstRegion(tester);
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason: 'the first operand at CartesianChart.tsx:444',
+      );
+    });
+
+    testWidgets('leaving the plot closes it', (tester) async {
+      await pump(tester, plot());
+      final gesture = await hoverFirstRegion(tester);
+      await gesture.moveTo(Offset.zero);
+      await tester.pump();
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason: 'the popover follows the pointer, not the last mark touched',
+      );
+    });
+
+    testWidgets('hovering the gap between regions closes it', (tester) async {
+      await pump(tester, plot());
+      final gesture = await hoverFirstRegion(tester);
+      await gesture.moveTo(
+        tester.getTopLeft(plotPaint) + const Offset(350, 100),
+      );
+      await tester.pump();
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason: 'past the third region there is nothing to describe',
+      );
+    });
+
+    // NOTE: Task 14 retargets exactly this expectation. Upstream's per-mark
+    // leave handler is an empty stub in every chart but one
+    // (`VerticalBarChart.tsx:496-498`), so the callout in fact stays on the
+    // last mark until the pointer leaves the chart; only
+    // `HorizontalBarChartWithAxis.tsx:266-268` closes it on the way out. Task
+    // 11 lands the simple rule and Task 14 replaces this test with the two
+    // that `closePopoverOnRegionExit` needs. Do not "fix" it here.
+
+    testWidgets('a tap opens it, for touch and pen', (tester) async {
+      await pump(tester, plot());
+      await tester.tapAt(tester.getTopLeft(plotPaint) + const Offset(50, 100));
+      await tester.pump();
+      expect(
+        find.byType(FluentChartPopover),
+        findsOneWidget,
+        reason:
+            'the React charts open the callout on click as well as hover; '
+            'without it a touch user has no route to the values',
+      );
+    });
+
+    testWidgets('keyboard focus opens it too', (tester) async {
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        SizedBox(
+          width: 400,
+          height: 260,
+          child: FluentCartesianChart(
+            delegate: StubCartesianDelegate(),
+            props: const FluentCartesianChartProps(hideLegend: true),
+            legends: const <FluentChartLegendItem>[],
+            focusNode: node,
+          ),
+        ),
+      );
+      node.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(
+        find.byType(FluentChartPopover),
+        findsOneWidget,
+        reason:
+            'upstream keeps the callout mounted "for narration" '
+            '(CartesianChart.tsx:922); a keyboard user must reach the same '
+            'values a mouse user does',
+      );
     });
   });
 

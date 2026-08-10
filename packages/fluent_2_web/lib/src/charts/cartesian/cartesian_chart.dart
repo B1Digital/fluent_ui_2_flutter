@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import '../axis/axis_builders.dart';
 import '../axis/axis_label_layout.dart';
 import '../axis/axis_types.dart';
+import '../chrome/chart_popover.dart';
 import '../chrome/legend.dart';
 import '../internal/chart_colors.dart';
 import '../internal/chart_semantics.dart';
@@ -130,6 +131,8 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
   FocusNode? _internalFocusNode;
   List<FluentChartHitRegion> _regions = const <FluentChartHitRegion>[];
   int _focusedIndex = -1;
+  int _hoveredIndex = -1;
+  Offset _pointer = Offset.zero;
 
   FocusNode get _focusNode =>
       widget.focusNode ?? (_internalFocusNode ??= FocusNode());
@@ -174,6 +177,31 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
           : (_focusedIndex + step + count) % count;
     });
     return KeyEventResult.handled;
+  }
+
+  /// The region under [position], or -1.
+  ///
+  /// Walks backwards so a region painted later wins an overlap, matching the
+  /// SVG hit-testing upstream relies on.
+  int _regionAt(Offset position) {
+    for (var i = _regions.length - 1; i >= 0; i--) {
+      if (_regions[i].bounds.contains(position)) return i;
+    }
+    return -1;
+  }
+
+  void _onPointer(Offset position) {
+    final index = _regionAt(position);
+    if (index == _hoveredIndex && position == _pointer) return;
+    setState(() {
+      _hoveredIndex = index;
+      _pointer = position;
+    });
+  }
+
+  void _clearHover() {
+    if (_hoveredIndex == -1) return;
+    setState(() => _hoveredIndex = -1);
   }
 
   void _onFocusChange({required bool hasFocus}) {
@@ -312,6 +340,9 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       containerHeight: geometry.layout.size.height,
     );
     _regions = widget.delegate.buildHitRegions(context, geometry.layout);
+    if (_hoveredIndex >= _regions.length) {
+      _hoveredIndex = -1;
+    }
 
     final description = buildFluentCartesianChartDescription(
       chartTitle: widget.delegate.chartTitle,
@@ -325,6 +356,13 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
     final focused = _focusedIndex >= 0 && _focusedIndex < _regions.length
         ? _regions[_focusedIndex]
         : null;
+    // Keyboard focus and pointer hover feed the same popover; focus wins,
+    // because a keyboard user cannot also be hovering.
+    final hovered = _hoveredIndex >= 0 && _hoveredIndex < _regions.length
+        ? _regions[_hoveredIndex]
+        : null;
+    final active = focused ?? hovered;
+    final activeAnchor = focused != null ? focused.bounds.center : _pointer;
 
     return Focus(
       focusNode: _focusNode,
@@ -333,22 +371,53 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       child: Semantics(
         container: true,
         label: focused?.semanticsLabel ?? description,
-        child: CustomPaint(
-          size: size,
-          painter: FluentCartesianChartPainter(
-            layout: geometry.layout,
-            delegate: widget.delegate,
-            xAxis: geometry.xAxis,
-            yAxisPrimary: geometry.yAxisPrimary,
-            yAxisSecondary: geometry.yAxisSecondary,
-            xLabelLayout: geometry.xLabelLayout,
-            style: style,
-            colors: colors,
-            textStyles: textStyles,
-            measurer: _measurer,
-            crispOffset: crispOffset,
-            props: widget.props,
-          ),
+        child: Stack(
+          children: <Widget>[
+            MouseRegion(
+              onHover: (event) => _onPointer(event.localPosition),
+              onExit: (_) => _clearHover(),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapDown: (details) => _onPointer(details.localPosition),
+                child: CustomPaint(
+                  size: size,
+                  painter: FluentCartesianChartPainter(
+                    layout: geometry.layout,
+                    delegate: widget.delegate,
+                    xAxis: geometry.xAxis,
+                    yAxisPrimary: geometry.yAxisPrimary,
+                    yAxisSecondary: geometry.yAxisSecondary,
+                    xLabelLayout: geometry.xLabelLayout,
+                    style: style,
+                    colors: colors,
+                    textStyles: textStyles,
+                    measurer: _measurer,
+                    crispOffset: crispOffset,
+                    props: widget.props,
+                  ),
+                ),
+              ),
+            ),
+            if (active != null && !widget.props.hideTooltip)
+              // The popover anchors to a zero-size virtual point at the cursor,
+              // exactly as `ChartPopover.tsx:23-40` builds a
+              // `PositioningVirtualElement` from `props.clickPosition`. It is
+              // given the whole plot to place itself in.
+              Positioned.fill(
+                child: IgnorePointer(
+                  // The container Semantics above has no explicit child nodes,
+                  // so the popover's own text would be absorbed into its label
+                  // and narrate the focused mark's values a second time. The
+                  // hit region's `semanticsLabel` is the one narration.
+                  child: ExcludeSemantics(
+                    child: FluentChartPopover(
+                      data: active.popoverData,
+                      anchor: activeAnchor,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
