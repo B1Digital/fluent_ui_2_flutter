@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:ui' show PathMetric;
+import 'dart:ui' show PathMetric, Shader;
 
 import 'package:fluent_2_web/fluent_2_web.dart';
 // The d3 kernel is deliberately never barrel-exported, so this one stays deep.
@@ -719,6 +719,393 @@ void main() {
       );
     });
   });
+
+  group('high contrast flattening (spec 5.3)', () {
+    final light = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+    final highContrast = FluentThemeData.highContrast(
+      fontPlatform: FluentFontPlatform.web,
+    );
+    // `FluentChartColors.flattenMark` sends a mark fill to `axisText`, which is
+    // `colorNeutralForeground1`; `flattenMarkStroke` sends a stroke to
+    // `surface`, which is `colorNeutralBackground1`. Under the high-contrast
+    // palette those are the system CanvasText and Canvas.
+    final canvasText = highContrast.colors.neutralForeground1;
+    final canvas = highContrast.colors.neutralBackground1;
+
+    /// A → B and A → C, the second link carrying its own colour so the
+    /// selected-stream fill arm (`SankeyChart.tsx:947-949`) is reachable.
+    const coloured = FluentSankeyChartData(
+      nodes: <FluentSankeyNode>[
+        FluentSankeyNode(nodeId: 0, name: 'A'),
+        FluentSankeyNode(nodeId: 1, name: 'B'),
+        FluentSankeyNode(nodeId: 2, name: 'C'),
+      ],
+      links: <FluentSankeyLink>[
+        FluentSankeyLink(source: 0, target: 1, value: 5),
+        FluentSankeyLink(
+          source: 0,
+          target: 2,
+          value: 5,
+          color: Color(0xFFE3008C),
+        ),
+      ],
+    );
+
+    /// Pumps [graph] under [themeData] and replays the painter it built onto a
+    /// recording canvas, which is the only way to read a resolved paint back.
+    Future<_RecordingCanvas> paint(
+      WidgetTester tester,
+      FluentThemeData themeData, {
+      FluentSankeyChartData graph = data,
+    }) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: themeData,
+          home: Center(
+            child: SizedBox(
+              // 560x300 is the golden's cell, which fits the 800x600 test
+              // surface so a hover lands on screen.
+              width: 560,
+              height: 300,
+              child: FluentSankeyChart(data: graph),
+            ),
+          ),
+        ),
+      );
+      return _replay(tester);
+    }
+
+    /// Moves a mouse onto the midline of link [index] and replays the painter
+    /// the resulting selection built.
+    Future<_RecordingCanvas> hoverLink(WidgetTester tester, int index) async {
+      final state = tester.state<FluentSankeyChartState>(
+        find.byType(FluentSankeyChart),
+      );
+      final link = state.layout.links[index];
+      final origin = tester.getTopLeft(find.byType(FluentSankeyChart));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer();
+      addTearDown(gesture.removePointer);
+      // 2 averages the ribbon's two ends onto its midline, which
+      // `sankeyLinkPath` covers for any curve of the bump-x family.
+      await gesture.moveTo(
+        origin +
+            Offset(
+              (link.source.x1 + link.target.x0) / 2,
+              (link.y0 + link.y1) / 2,
+            ),
+      );
+      await tester.pump();
+      expect(
+        state.selection.linkUsesGradient(index),
+        isTrue,
+        reason:
+            'the hover must have landed on the ribbon, or the gradient arm '
+            'below is never exercised (SankeyChart.tsx:957)',
+      );
+      return _replay(tester);
+    }
+
+    testWidgets('an ordinary theme keeps every node in its palette colour', (
+      tester,
+    ) async {
+      final recorded = await paint(tester, light);
+      final state = tester.state<FluentSankeyChartState>(
+        find.byType(FluentSankeyChart),
+      );
+      expect(
+        recorded.fills(recorded.rects),
+        hasLength(state.layout.nodes.length),
+        reason: 'one filled rect per node, or the sets below prove nothing',
+      );
+      expect(
+        recorded.fills(recorded.rects).map((c) => c.toARGB32()).toSet(),
+        <int>{for (final c in state.layout.nodeColors) c.toARGB32()},
+        reason:
+            'flattenMark is the identity outside high contrast, so the ten '
+            'pairs of SankeyChart.tsx:41-52 must survive untouched',
+      );
+      expect(
+        recorded.strokes(recorded.rects).map((c) => c.toARGB32()).toSet(),
+        <int>{for (final c in state.layout.nodeBorderColors) c.toARGB32()},
+        reason: 'and so must every node border',
+      );
+      expect(
+        recorded.strokes(recorded.paths).map((c) => c.toARGB32()).toSet(),
+        <int>{kSankeyNonSelectedColor.toARGB32()},
+        reason:
+            'SankeyChart.tsx:953-954 strokes an unselected stream in '
+            'NON_SELECTED_NODE_AND_STREAM_COLOR',
+      );
+    });
+
+    testWidgets('high contrast flattens every node fill and border', (
+      tester,
+    ) async {
+      final recorded = await paint(tester, highContrast);
+      expect(
+        recorded.fills(recorded.rects),
+        isNotEmpty,
+        reason: 'a chart that painted no node rect would pass vacuously',
+      );
+      expect(
+        recorded.fills(recorded.rects).map((c) => c.toARGB32()).toSet(),
+        <int>{canvasText.toARGB32()},
+        reason:
+            'spec 5.3: the rect at SankeyChart.tsx:811 carries its own fill '
+            'attribute, so a forced-colours browser rewrites it to CanvasText '
+            'and the forty-colour palette disappears — FluentChartColors.'
+            'flattenMark is what does that here',
+      );
+      expect(
+        recorded.strokes(recorded.rects).map((c) => c.toARGB32()).toSet(),
+        <int>{canvas.toARGB32()},
+        reason:
+            'flattenMarkStroke sends a mark border to Canvas instead, which is '
+            'the documented deviation that keeps two touching nodes apart '
+            '(chart_colors.dart, spec 5.2)',
+      );
+    });
+
+    testWidgets('high contrast keeps the stream hollow and inks its border', (
+      tester,
+    ) async {
+      final recorded = await paint(tester, highContrast);
+      expect(
+        recorded.fills(recorded.paths),
+        isNotEmpty,
+        reason: 'a chart that painted no ribbon would pass vacuously',
+      );
+      expect(
+        recorded.fills(recorded.paths).map((c) => c.toARGB32()).toSet(),
+        <int>{canvas.toARGB32()},
+        reason:
+            'useSankeyChartStyles.styles.ts:34-36 forces the stream fill to '
+            'Canvas under high contrast, which colorNeutralBackground1 already '
+            'resolves to — running it through flattenMark would paint every '
+            'ribbon solid CanvasText and swallow the diagram',
+      );
+      expect(
+        recorded.strokes(recorded.paths).map((c) => c.toARGB32()).toSet(),
+        <int>{canvasText.toARGB32()},
+        reason:
+            'the ribbon is hollow, so its stroke (SankeyChart.tsx:763) is the '
+            'only ink it has: it flattens to CanvasText like a fill, not to '
+            'the Canvas flattenMarkStroke would give',
+      );
+    });
+
+    testWidgets('an ordinary theme still strokes the hovered stream with a '
+        'gradient', (tester) async {
+      await paint(tester, light);
+      final recorded = await hoverLink(tester, 1);
+      final state = tester.state<FluentSankeyChartState>(
+        find.byType(FluentSankeyChart),
+      );
+      final gradientLinks = <int>[
+        for (var i = 0; i < state.layout.links.length; i++)
+          if (state.selection.linkUsesGradient(i)) i,
+      ];
+      expect(
+        gradientLinks,
+        isNotEmpty,
+        reason: 'the hover must select at least one stream to stroke',
+      );
+      expect(
+        recorded.shaders(recorded.paths),
+        hasLength(gradientLinks.length),
+        reason:
+            'SankeyChart.tsx:754-757 builds one linearGradient per selected '
+            'stream, from the source node colour to the target node colour',
+      );
+    });
+
+    testWidgets('high contrast collapses the gradient stroke to a flat one', (
+      tester,
+    ) async {
+      await paint(tester, highContrast);
+      final recorded = await hoverLink(tester, 1);
+      expect(
+        recorded.shaders(recorded.paths),
+        isEmpty,
+        reason:
+            'both stops of SankeyChart.tsx:755-756 are node fills, so both '
+            'flatten to CanvasText and the gradient is a flat stroke; painting '
+            'a shader with two identical stops would only cost an allocation',
+      );
+      expect(
+        recorded
+            .strokes(recorded.paths)
+            // The alpha is the selection's own dimming — 0.5 on the stream
+            // outside the hovered path (`SankeyChart.tsx:986-988`) — and is
+            // orthogonal to which colour the flattening chose.
+            .map((c) => c.withValues(alpha: 1).toARGB32())
+            .toSet(),
+        <int>{canvasText.toARGB32()},
+        reason: 'and the flat stroke is that same CanvasText',
+      );
+    });
+
+    /// A painter over the shared [layout], with [textMeasurer] spying on the
+    /// styles it lays out. The visuals get their own measurer so the spy sees
+    /// only what the painter draws.
+    FluentSankeyChartPainter painterFor(
+      FluentThemeData themeData,
+      FluentChartTextMeasurer textMeasurer,
+    ) {
+      const states = <WidgetState>{};
+      final style = resolveFluentSankeyChartStyle(themeData);
+      return FluentSankeyChartPainter(
+        layout: layout,
+        visuals: computeSankeyNodeVisuals(
+          layout: layout,
+          measurer: FluentChartTextMeasurer(),
+          nameStyle: style.nameTextStyle!.resolve(states)!,
+          weightMeasurementStyle: style.weightMeasurementTextStyle!.resolve(
+            states,
+          )!,
+          formatNumber: (value) => '$value',
+          nodeSemanticLabel: (name, weight) => '$name $weight',
+        ),
+        order: sankeyDomOrder(layout),
+        selection: FluentSankeySelection.none,
+        style: style,
+        states: states,
+        measurer: textMeasurer,
+        colors: FluentChartColors.of(themeData),
+        isRtl: false,
+      );
+    }
+
+    test('an ordinary theme draws the node text white', () {
+      final spy = _SpyMeasurer();
+      painterFor(light, spy).paint(_RecordingCanvas(), layout.size);
+      expect(
+        spy.colours,
+        isNotEmpty,
+        reason:
+            'every node must clear MIN_HEIGHT_FOR_TYPE, or no text is laid out '
+            'and the set below is vacuous (SankeyChart.tsx:823)',
+      );
+      expect(
+        spy.colours.toSet(),
+        <int>{kSankeyNonSelectedTextColor.toARGB32()},
+        reason:
+            'SankeyChart.tsx:524-530 draws the idle node text in white, and '
+            'flattenMarkStroke is the identity outside high contrast',
+      );
+    });
+
+    test('high contrast flattens the node text off the flattened fill', () {
+      final spy = _SpyMeasurer();
+      painterFor(highContrast, spy).paint(_RecordingCanvas(), layout.size);
+      expect(
+        spy.colours,
+        isNotEmpty,
+        reason: 'as above — no text laid out would pass vacuously',
+      );
+      expect(
+        canvas.toARGB32(),
+        isNot(canvasText.toARGB32()),
+        reason:
+            'the assertion below only means anything while the two system '
+            'colours differ',
+      );
+      expect(
+        spy.colours.toSet(),
+        <int>{canvas.toARGB32()},
+        reason:
+            'the fill under it is now CanvasText, so the CanvasText of '
+            'useSankeyChartStyles.styles.ts:46-50 would be invisible; spec 5.2 '
+            'exempts an accessibility defect from bug fidelity, so the text '
+            'takes Canvas — the other half of the pair :40-42 was after',
+      );
+    });
+
+    testWidgets('high contrast flattens a selected stream fill', (
+      tester,
+    ) async {
+      await paint(tester, highContrast, graph: coloured);
+      final recorded = await hoverLink(tester, 1);
+      expect(
+        recorded.fills(recorded.paths).map((c) => c.toARGB32()),
+        contains(
+          canvasText
+              .withValues(alpha: canvasText.a * kSankeySelectedStreamOpacity)
+              .toARGB32(),
+        ),
+        reason:
+            'SankeyChart.tsx:947-949 gives a selected stream the link colour as '
+            'a real fill attribute, which forced colours rewrites to CanvasText '
+            'at the 0.3 of :979',
+      );
+    });
+  });
+}
+
+/// Records the colour, the paint style and the shader of every mark the sankey
+/// painter draws, so a test can read a resolved paint without a raster.
+///
+/// [noSuchMethod] absorbs the rest of [Canvas] — the text goes through
+/// `drawParagraph`, which none of these tests asserts on.
+class _RecordingCanvas implements Canvas {
+  /// One entry per `drawRect`, in paint order: the node rectangles.
+  final List<(Color, PaintingStyle, Shader?)> rects =
+      <(Color, PaintingStyle, Shader?)>[];
+
+  /// One entry per `drawPath`, in paint order: the stream ribbons.
+  final List<(Color, PaintingStyle, Shader?)> paths =
+      <(Color, PaintingStyle, Shader?)>[];
+
+  /// The colour of every filled draw among [recorded].
+  Iterable<Color> fills(List<(Color, PaintingStyle, Shader?)> recorded) =>
+      recorded.where((r) => r.$2 == PaintingStyle.fill).map((r) => r.$1);
+
+  /// The colour of every stroked draw among [recorded].
+  Iterable<Color> strokes(List<(Color, PaintingStyle, Shader?)> recorded) =>
+      recorded.where((r) => r.$2 == PaintingStyle.stroke).map((r) => r.$1);
+
+  /// The shader of every draw among [recorded] that carried one.
+  Iterable<Shader> shaders(List<(Color, PaintingStyle, Shader?)> recorded) =>
+      recorded.map((r) => r.$3).whereType<Shader>();
+
+  @override
+  void drawRect(Rect rect, Paint paint) =>
+      rects.add((paint.color, paint.style, paint.shader));
+
+  @override
+  void drawPath(Path path, Paint paint) =>
+      paths.add((paint.color, paint.style, paint.shader));
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+/// Records the colour of every string the sankey painter lays out.
+///
+/// A `ui.Paragraph` exposes no colour, so the style handed to [layoutPainter]
+/// is the only place a text colour can be read back without a raster.
+class _SpyMeasurer extends FluentChartTextMeasurer {
+  /// The packed ARGB of every style laid out, in paint order.
+  final List<int> colours = <int>[];
+
+  @override
+  TextPainter layoutPainter(String text, TextStyle style) {
+    colours.add(style.color!.toARGB32());
+    return super.layoutPainter(text, style);
+  }
+}
+
+/// Replays the sankey painter currently in the tree onto a recording canvas.
+_RecordingCanvas _replay(WidgetTester tester) {
+  final painter = tester
+      .widgetList<CustomPaint>(find.byType(CustomPaint))
+      .map((c) => c.painter)
+      .whereType<FluentSankeyChartPainter>()
+      .single;
+  final recorded = _RecordingCanvas();
+  painter.paint(recorded, painter.layout.size);
+  return recorded;
 }
 
 /// The point [distance] along [metric], which

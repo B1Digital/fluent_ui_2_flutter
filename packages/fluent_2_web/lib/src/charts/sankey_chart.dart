@@ -9,6 +9,7 @@ import 'chrome/axis_label_tooltip.dart';
 import 'chrome/chart_popover.dart';
 import 'chrome/chart_title.dart';
 import 'chrome/legend.dart';
+import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
 import 'internal/d3/axis_geometry.dart';
 import 'internal/d3/curves.dart';
@@ -336,6 +337,38 @@ Path sankeyLinkPath(SankeyLayoutLink link) {
 
 /// Paints the whole sankey diagram: streams, node rectangles, node text and the
 /// title.
+///
+/// **Forced colours.** Every mark colour goes through [colors], because a
+/// sankey's ink is the ten hard-coded pairs of `SankeyChart.tsx:41-52` rather
+/// than anything the theme resolves, and spec §5.3 flattens series marks under
+/// high contrast. Which slot each mark takes is decided per mark:
+///
+/// * A node rectangle is a solid mark, so its fill takes
+///   [FluentChartColors.flattenMark] and its border
+///   [FluentChartColors.flattenMarkStroke] — the same pairing as every other
+///   chart in the package. Upstream renders the same CanvasText fill: the
+///   `<rect>` at `SankeyChart.tsx:811` carries its own `fill`, so the
+///   `fill: 'Canvas'` of `useSankeyChartStyles.styles.ts:40-42` never reaches
+///   it — that rule sits on the ancestor `<g>` at `SankeyChart.tsx:1172` and an
+///   inherited value loses to a presentation attribute.
+/// * A node's text takes [FluentChartColors.flattenMarkStroke] too, so it reads
+///   against that flattened fill. `useSankeyChartStyles.styles.ts:46-50` forces
+///   it to `CanvasText` instead — a rule that does reach the `<text>`
+///   elements — which would paint white on white; spec §5.2 exempts
+///   accessibility defects from bug fidelity, and Canvas is the other half of
+///   the pair upstream's own `:40-42` was reaching for.
+/// * A stream ribbon is hollow: its fill is `colorNeutralBackground1`
+///   (`useSankeyChartStyles.styles.ts:31-37`), which the high-contrast palette
+///   already resolves to Canvas — exactly what that rule's `:34-36` arm forces.
+///   It is chrome, not ink, and is **not** flattened; `flattenMark` there would
+///   paint every ribbon solid CanvasText and swallow the diagram. Only the fill
+///   a selected stream takes from its own `color` (`SankeyChart.tsx:947-949`)
+///   is ink, and that one flattens.
+/// * A ribbon's border is therefore the only ink it has, so it takes
+///   [FluentChartColors.flattenMark] and not the halo slot
+///   [FluentChartColors.flattenMarkStroke]: Canvas would erase the streams
+///   outright. Forced colours agrees — the `stroke` at `SankeyChart.tsx:763`
+///   is a presentation attribute and is rewritten to CanvasText.
 class FluentSankeyChartPainter extends CustomPainter {
   /// Creates a sankey painter.
   FluentSankeyChartPainter({
@@ -346,6 +379,7 @@ class FluentSankeyChartPainter extends CustomPainter {
     required this.style,
     required this.states,
     required this.measurer,
+    required this.colors,
     required this.isRtl,
     this.chartTitle,
   });
@@ -371,6 +405,10 @@ class FluentSankeyChartPainter extends CustomPainter {
   /// Text measurer, shared with the truncation pass.
   final FluentChartTextMeasurer measurer;
 
+  /// The theme's resolved chart colours, which is what flattens every mark
+  /// under high contrast. See the class doc for the slot each mark takes.
+  final FluentChartColors colors;
+
   /// Whether the node text is right-aligned (`SankeyChart.tsx:787`).
   final bool isRtl;
 
@@ -380,9 +418,12 @@ class FluentSankeyChartPainter extends CustomPainter {
   void _paintLink(Canvas canvas, int index) {
     final link = layout.links[index];
     final path = sankeyLinkPath(link);
-    final fill =
-        selection.linkFill(index, layout) ??
-        style.linkFillColor!.resolve(states)!;
+    final selected = selection.linkFill(index, layout);
+    // The selected stream's own colour is ink and flattens; the default fill is
+    // the surface the ribbon is cut out of and does not. See the class doc.
+    final fill = selected != null
+        ? colors.flattenMark(selected)
+        : style.linkFillColor!.resolve(states)!;
     final fillOpacity = selection.linkFillOpacity(index);
     canvas.drawPath(
       path,
@@ -397,21 +438,29 @@ class FluentSankeyChartPainter extends CustomPainter {
     if (selection.linkUsesGradient(index)) {
       // `SankeyChart.tsx:753-758` — a per-link horizontal gradient from the
       // source node's colour to the target node's, which only ever reaches the
-      // stroke.
-      strokePaint.shader = LinearGradient(
-        colors: <Color>[
-          layout.nodeColors[link.source.index],
-          layout.nodeColors[link.target.index],
-        ],
-      ).createShader(path.getBounds());
-      // 0xFFFFFFFF is an opaque white the shader replaces outright; only the
-      // alpha survives, and `_getOpacityStreamBorder` returns 1 on every arm
-      // this branch is reachable from.
-      strokePaint.color = const Color(
-        0xFFFFFFFF,
-      ).withValues(alpha: borderOpacity);
+      // stroke. Both stops are node ink (`:755-756`), so both flatten.
+      final start = colors.flattenMark(layout.nodeColors[link.source.index]);
+      final end = colors.flattenMark(layout.nodeColors[link.target.index]);
+      if (start == end) {
+        // Under high contrast the two stops land on one system colour, so the
+        // gradient IS a flat stroke; a shader here would allocate a ramp to
+        // interpolate a colour with itself. Two nodes that happen to share a
+        // palette entry take the same short cut, and paint the same pixels.
+        strokePaint.color = start.withValues(alpha: start.a * borderOpacity);
+      } else {
+        strokePaint.shader = LinearGradient(
+          colors: <Color>[start, end],
+        ).createShader(path.getBounds());
+        // 0xFFFFFFFF is an opaque white the shader replaces outright; only the
+        // alpha survives, and `_getOpacityStreamBorder` returns 1 on every arm
+        // this branch is reachable from.
+        strokePaint.color = const Color(
+          0xFFFFFFFF,
+        ).withValues(alpha: borderOpacity);
+      }
     } else {
-      final border = selection.linkBorder(index, layout);
+      // A ribbon's border is its only ink, so it takes the fill slot.
+      final border = colors.flattenMark(selection.linkBorder(index, layout));
       strokePaint.color = border.withValues(alpha: border.a * borderOpacity);
     }
     canvas.drawPath(path, strokePaint);
@@ -430,21 +479,22 @@ class FluentSankeyChartPainter extends CustomPainter {
       rect,
       Paint()
         ..style = PaintingStyle.fill
-        ..color = selection.nodeFill(index, layout),
+        ..color = colors.flattenMark(selection.nodeFill(index, layout)),
     );
     canvas.drawRect(
       rect,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = style.nodeStrokeWidth!.resolve(states)!
-        ..color = selection.nodeBorder(index, layout),
+        ..color = colors.flattenMarkStroke(selection.nodeBorder(index, layout)),
     );
     // `:823` — nothing is drawn below MIN_HEIGHT_FOR_TYPE.
     if (visual.height <= kSankeyMinHeightForType) {
       return;
     }
 
-    final textColor = selection.nodeTextColor(index);
+    // The stroke slot, so the text keeps its contrast against the fill above.
+    final textColor = colors.flattenMarkStroke(selection.nodeTextColor(index));
     final nameStyle = style.nameTextStyle!
         .resolve(states)!
         .copyWith(color: textColor);
@@ -527,6 +577,7 @@ class FluentSankeyChartPainter extends CustomPainter {
       oldDelegate.layout != layout ||
       oldDelegate.selection != selection ||
       oldDelegate.style != style ||
+      oldDelegate.colors != colors ||
       oldDelegate.isRtl != isRtl ||
       oldDelegate.chartTitle != chartTitle ||
       !identical(oldDelegate.visuals, visuals);
@@ -863,6 +914,7 @@ class FluentSankeyChartState extends State<FluentSankeyChart> {
                     style: style,
                     states: states,
                     measurer: _measurer,
+                    colors: FluentChartColors.of(theme),
                     isRtl: isRtl,
                     chartTitle: widget.hideTitle ? null : widget.chartTitle,
                   ),
