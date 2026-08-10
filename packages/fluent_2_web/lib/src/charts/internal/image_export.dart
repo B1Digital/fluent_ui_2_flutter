@@ -1,9 +1,13 @@
+import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../chrome/legend.dart';
 import '../chrome/legend_style.dart';
+import '../model/chart_common.dart';
 import 'chart_text_measurer.dart';
 import 'chart_utils.dart';
 
@@ -267,4 +271,188 @@ class FluentSynthesisedLegendPainter extends CustomPainter {
   @override
   bool shouldRepaint(FluentSynthesisedLegendPainter oldDelegate) =>
       oldDelegate.layout != layout || oldDelegate.textStyle != textStyle;
+}
+
+/// Renders a chart and its synthesised legend into a PNG data URL.
+///
+/// Ports `exportChartsAsImage` + `svgToPng`
+/// (`image-export-utils.ts:32-80, 400-459`) against a [RepaintBoundary]
+/// instead of a cloned SVG. The grid is always one column: the chart on row 0
+/// and, when there are legends, the strip on row 1 — which is exactly what
+/// `:75` pushes.
+///
+/// There is no `RenderRepaintBoundary.toImage` precedent elsewhere in this
+/// package; this class is the pattern every future chart export should follow.
+/// Both `toImage` and [ui.Image.toByteData] are serviced by the engine, so a
+/// widget test must call [toImage] inside `WidgetTester.runAsync`.
+class FluentChartImageExporter {
+  /// Creates an exporter over the boundary at [boundaryKey].
+  FluentChartImageExporter({
+    required this.boundaryKey,
+    required this.legends,
+    FluentChartTextMeasurer? measurer,
+    this.legendTextStyle = const TextStyle(fontSize: 12),
+    this.selectedLegends = const <String>{},
+    this.centerLegends = false,
+    this.isRtl = false,
+  }) : measurer = measurer ?? FluentChartTextMeasurer();
+
+  /// Key of the [RepaintBoundary] wrapping the painted chart.
+  final GlobalKey boundaryKey;
+
+  /// Legends to synthesise. Empty means no strip is drawn at all, which is
+  /// what `hideLegends` does at `hooks.ts:32`.
+  final List<FluentChartLegendItem> legends;
+
+  /// Measurer for the legend labels.
+  final FluentChartTextMeasurer measurer;
+
+  /// Text style for the legend labels.
+  final TextStyle legendTextStyle;
+
+  /// Legends currently selected; empty means every legend is drawn active.
+  final Set<String> selectedLegends;
+
+  /// Whether the strip is centred under the chart.
+  final bool centerLegends;
+
+  /// Whether the strip lays out right to left.
+  final bool isRtl;
+
+  /// Renders the chart to a `data:image/png;base64,…` string.
+  Future<String> toImage([
+    FluentChartImageExportOptions options =
+        const FluentChartImageExportOptions(),
+  ]) async {
+    final object = boundaryKey.currentContext?.findRenderObject();
+    if (object is! RenderRepaintBoundary) {
+      // `image-export-utils.ts:152-154`.
+      throw StateError('Chart container is not defined');
+    }
+    // Capture at 1:1, matching upstream's `getBoundingClientRect()` CSS pixels.
+    final chartImage = await object.toImage();
+    final chartSize = Size(
+      chartImage.width.toDouble(),
+      chartImage.height.toDouble(),
+    );
+
+    ui.Image? legendImage;
+    var legendSize = Size.zero;
+    if (legends.isNotEmpty) {
+      // `:72` passes the widest row, which for a single chart is the chart
+      // width.
+      final layout = FluentSynthesisedLegendLayout.compute(
+        legends: legends,
+        svgWidth: chartSize.width,
+        measurer: measurer,
+        textStyle: legendTextStyle,
+        selectedLegends: selectedLegends,
+        centerLegends: centerLegends,
+        isRtl: isRtl,
+      );
+      legendSize = layout.size;
+      legendImage = await _renderLegend(layout);
+    }
+
+    var totalWidth = math.max(chartSize.width, legendSize.width);
+    var totalHeight = chartSize.height + legendSize.height;
+    // `:423-429` — scaleX and scaleY are computed INDEPENDENTLY, so a target
+    // with a different aspect ratio distorts. Parity, spec §5.4.
+    final scaleX = options.scale * (options.width ?? totalWidth) / totalWidth;
+    final scaleY =
+        options.scale * (options.height ?? totalHeight) / totalHeight;
+    totalWidth *= scaleX;
+    totalHeight *= scaleY;
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, totalWidth, totalHeight),
+      Paint()..color = options.background,
+    );
+    canvas.drawImageRect(
+      chartImage,
+      Offset.zero & chartSize,
+      Rect.fromLTWH(0, 0, scaleX * chartSize.width, scaleY * chartSize.height),
+      Paint(),
+    );
+    if (legendImage != null) {
+      canvas.drawImageRect(
+        legendImage,
+        Offset.zero & legendSize,
+        Rect.fromLTWH(
+          0,
+          scaleY * chartSize.height,
+          scaleX * legendSize.width,
+          scaleY * legendSize.height,
+        ),
+        Paint(),
+      );
+    }
+    // `:432-433` — assigning to `canvas.width` truncates towards zero rather
+    // than rounding, and a zero-sized canvas is not representable here.
+    final image = await recorder.endRecording().toImage(
+      math.max(1, totalWidth.toInt()),
+      math.max(1, totalHeight.toInt()),
+    );
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    chartImage.dispose();
+    legendImage?.dispose();
+    image.dispose();
+    if (bytes == null) {
+      // `toByteData` only returns null when the engine failed to encode.
+      throw StateError('Chart image could not be encoded');
+    }
+    return 'data:image/png;base64,${base64Encode(bytes.buffer.asUint8List())}';
+  }
+
+  Future<ui.Image> _renderLegend(FluentSynthesisedLegendLayout layout) {
+    final recorder = ui.PictureRecorder();
+    FluentSynthesisedLegendPainter(
+      layout: layout,
+      textStyle: legendTextStyle,
+      measurer: measurer,
+    ).paint(Canvas(recorder), layout.size);
+    return recorder.endRecording().toImage(
+      math.max(1, layout.size.width.toInt()),
+      math.max(1, layout.size.height.toInt()),
+    );
+  }
+}
+
+/// The imperative handle a chart hands its caller.
+///
+/// Replaces upstream's `componentRef: Ref<Chart>` (`hooks.ts:23-41`). Attach it
+/// to a chart with the widget's `controller` parameter, then call [toImage].
+class FluentChartController implements FluentChartHandle {
+  /// Creates a detached controller.
+  FluentChartController();
+
+  FluentChartImageExporter? _exporter;
+
+  /// Whether a mounted chart has claimed this controller.
+  bool get isAttached => _exporter != null;
+
+  /// Called by a chart when it mounts or its export configuration changes.
+  void attach(FluentChartImageExporter exporter) => _exporter = exporter;
+
+  /// Called by a chart when it unmounts.
+  void detach() => _exporter = null;
+
+  // `async` rather than a plain `Future` return so an unattached controller
+  // reports through the future like every other `toImage` failure does,
+  // instead of throwing at the call site.
+  @override
+  Future<String> toImage([
+    FluentChartImageExportOptions options =
+        const FluentChartImageExportOptions(),
+  ]) async {
+    final exporter = _exporter;
+    if (exporter == null) {
+      throw StateError(
+        'FluentChartController is not attached to a mounted chart',
+      );
+    }
+    return exporter.toImage(options);
+  }
 }

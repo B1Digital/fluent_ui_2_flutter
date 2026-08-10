@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:fluent_2_web/fluent_2_web.dart';
 import 'package:fluent_2_web/src/charts/internal/image_export.dart';
 import 'package:flutter/widgets.dart';
@@ -230,5 +232,196 @@ void main() {
       reason: 'image-export-utils.ts:295-301 returns a null node',
     );
     expect(layout.items, isEmpty, reason: 'nothing to draw');
+  });
+
+  group('FluentChartImageExporter', () {
+    final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+
+    Future<GlobalKey> pumpBoundary(
+      WidgetTester tester, {
+      Size size = const Size(200, 100),
+    }) async {
+      final key = GlobalKey();
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Center(
+            child: RepaintBoundary(
+              key: key,
+              child: Container(
+                width: size.width,
+                height: size.height,
+                color: const Color(0xFF3366CC),
+              ),
+            ),
+          ),
+        ),
+      );
+      return key;
+    }
+
+    /// Runs [exporter] outside the fake-async zone.
+    ///
+    /// `RenderRepaintBoundary.toImage` and `Image.toByteData` are serviced by
+    /// the engine's task runner, which the widget tester's fake clock never
+    /// pumps, so the returned future only completes inside
+    /// [WidgetTester.runAsync].
+    Future<String> exportOf(
+      WidgetTester tester,
+      FluentChartImageExporter exporter, [
+      FluentChartImageExportOptions options =
+          const FluentChartImageExportOptions(),
+    ]) async {
+      final url = await tester.runAsync(() => exporter.toImage(options));
+      expect(url, isNotNull, reason: 'runAsync only returns null on failure');
+      return url!;
+    }
+
+    /// Decodes the base64 payload and reads the PNG IHDR width and height.
+    (int width, int height) pngSize(String dataUrl) {
+      expect(
+        dataUrl.startsWith('data:image/png;base64,'),
+        isTrue,
+        reason: 'image-export-utils.ts:458 returns a png data url',
+      );
+      final bytes = base64Decode(dataUrl.split(',').last);
+      int be32(int at) =>
+          (bytes[at] << 24) |
+          (bytes[at + 1] << 16) |
+          (bytes[at + 2] << 8) |
+          bytes[at + 3];
+      // An 8-byte signature and an 8-byte chunk header precede the IHDR
+      // payload, whose first two big-endian 32-bit fields are the dimensions.
+      return (be32(16), be32(20));
+    }
+
+    testWidgets('a chart with no legends exports at its own size', (
+      tester,
+    ) async {
+      final key = await pumpBoundary(tester);
+      final url = await exportOf(
+        tester,
+        FluentChartImageExporter(
+          boundaryKey: key,
+          legends: const <FluentChartLegendItem>[],
+        ),
+      );
+      expect(
+        pngSize(url),
+        (200, 100),
+        reason:
+            'image-export-utils.ts:424-429 — with no options the scale factors '
+            'are both 1',
+      );
+    });
+
+    testWidgets('the legend strip is stacked under the chart', (tester) async {
+      final key = await pumpBoundary(tester);
+      final url = await exportOf(
+        tester,
+        FluentChartImageExporter(
+          boundaryKey: key,
+          legends: const <FluentChartLegendItem>[
+            FluentChartLegendItem(title: 'A', color: Color(0xFFFF0000)),
+          ],
+        ),
+      );
+      final (width, height) = pngSize(url);
+      expect(
+        width,
+        200,
+        reason: 'image-export-utils.ts:416 — the row widths are both 200',
+      );
+      expect(
+        height,
+        100 + (kLegendContainerMarginTop + kLegendHeight).toInt(),
+        reason:
+            'image-export-utils.ts:417 stacks the legend row under the chart row',
+      );
+    });
+
+    testWidgets('scaleX and scaleY are independent, so a target distorts', (
+      tester,
+    ) async {
+      final key = await pumpBoundary(tester);
+      final url = await exportOf(
+        tester,
+        FluentChartImageExporter(
+          boundaryKey: key,
+          legends: const <FluentChartLegendItem>[],
+        ),
+        const FluentChartImageExportOptions(width: 400, height: 100),
+      );
+      expect(
+        pngSize(url),
+        (400, 100),
+        reason:
+            'image-export-utils.ts:426-427 computes scaleX and scaleY separately, '
+            'so a non-square target stretches the chart rather than letterboxing '
+            'it — parity, spec section 5.4',
+      );
+    });
+
+    testWidgets('scale multiplies both axes', (tester) async {
+      final key = await pumpBoundary(tester);
+      final url = await exportOf(
+        tester,
+        FluentChartImageExporter(
+          boundaryKey: key,
+          legends: const <FluentChartLegendItem>[],
+        ),
+        const FluentChartImageExportOptions(scale: 2),
+      );
+      expect(pngSize(url), (
+        400,
+        200,
+      ), reason: 'image-export-utils.ts:423, 428-429');
+    });
+
+    testWidgets('an unmounted boundary throws the upstream error', (
+      tester,
+    ) async {
+      await expectLater(
+        FluentChartImageExporter(
+          boundaryKey: GlobalKey(),
+          legends: const <FluentChartLegendItem>[],
+        ).toImage(),
+        throwsStateError,
+        reason:
+            'image-export-utils.ts:152-154 throws when there is no container',
+      );
+    });
+
+    testWidgets('a controller forwards to its attached exporter', (
+      tester,
+    ) async {
+      final key = await pumpBoundary(tester);
+      final controller = FluentChartController();
+      expect(
+        controller.isAttached,
+        isFalse,
+        reason: 'a fresh controller has no chart',
+      );
+      await expectLater(
+        controller.toImage(),
+        throwsStateError,
+        reason:
+            'calling toImage before the chart mounts is a programming error',
+      );
+      controller.attach(
+        FluentChartImageExporter(
+          boundaryKey: key,
+          legends: const <FluentChartLegendItem>[],
+        ),
+      );
+      final url = await tester.runAsync(controller.toImage);
+      expect(
+        url!.startsWith('data:image/png;base64,'),
+        isTrue,
+        reason: "the controller is upstream's componentRef (hooks.ts:23-41)",
+      );
+      controller.detach();
+      expect(controller.isAttached, isFalse, reason: 'detach clears it');
+    });
   });
 }
