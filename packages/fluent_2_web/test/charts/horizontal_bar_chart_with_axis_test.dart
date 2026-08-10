@@ -1,7 +1,9 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:fluent_2_web/src/charts/axis/axis_types.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
+import 'package:fluent_2_web/src/charts/chrome/chart_popover.dart';
 import 'package:fluent_2_web/src/charts/horizontal_bar_chart_with_axis.dart';
 import 'package:fluent_2_web/src/charts/horizontal_bar_chart_with_axis_style.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_colors.dart';
@@ -13,6 +15,7 @@ import 'package:fluent_2_web/src/charts/internal/d3/scale_linear.dart';
 import 'package:fluent_2_web/src/charts/internal/data_viz_palette.dart';
 import 'package:fluent_2_web/src/charts/model/bar_data.dart';
 import 'package:fluent_2_web/src/charts/model/chart_common.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -35,6 +38,7 @@ FluentHorizontalBarChartWithAxisDelegate _hbwaDelegate({
   List<double>? xValues,
   FluentAxisCategoryOrder yAxisCategoryOrder =
       FluentAxisCategoryOrder.defaultOrder,
+  bool hideLabels = false,
 }) {
   final theme = FluentThemeData.light();
   return FluentHorizontalBarChartWithAxisDelegate(
@@ -53,6 +57,7 @@ FluentHorizontalBarChartWithAxisDelegate _hbwaDelegate({
     selectedLegends: const <String>[],
     yAxisPadding: yAxisPadding,
     yAxisCategoryOrder: yAxisCategoryOrder,
+    hideLabels: hideLabels,
   );
 }
 
@@ -899,4 +904,221 @@ void main() {
       );
     });
   });
+
+  group('FluentHorizontalBarChartWithAxis', () {
+    Future<void> pump(WidgetTester tester, Widget chart) => tester.pumpWidget(
+      FluentApp(
+        theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+        home: Center(child: SizedBox(width: 800, height: 350, child: chart)),
+      ),
+    );
+
+    testWidgets('leaving a bar DOES close the popover here', (tester) async {
+      await pump(tester, FluentHorizontalBarChartWithAxis(data: _hbwaPoints()));
+      final g = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await g.addPointer(location: Offset.zero);
+      addTearDown(g.removePointer);
+      await g.moveTo(tester.getCenter(find.byType(FluentCartesianChart)));
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(FluentChartPopover),
+        findsOneWidget,
+        reason: 'hover opens it',
+      );
+      await g.moveTo(
+        tester.getTopLeft(find.byType(FluentCartesianChart)) +
+            const Offset(1, 1),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason:
+            'HBWA is the only shell chart whose _onBarLeave actually '
+            'closes the popover, HorizontalBarChartWithAxis.tsx:266-268',
+      );
+    });
+
+    testWidgets('the popover swaps the axes: X shows the category', (
+      tester,
+    ) async {
+      await pump(tester, FluentHorizontalBarChartWithAxis(data: _hbwaPoints()));
+      final g = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await g.addPointer(location: Offset.zero);
+      addTearDown(g.removePointer);
+      await g.moveTo(tester.getCenter(find.byType(FluentCartesianChart)));
+      await tester.pumpAndSettle();
+      final popover = tester.widget<FluentChartPopover>(
+        find.byType(FluentChartPopover),
+      );
+      expect(
+        popover.data.xValue,
+        'beta',
+        reason:
+            'xCalloutValue = yAxisCalloutData || String(point.y), '
+            'HorizontalBarChartWithAxis.tsx:255',
+      );
+    });
+
+    testWidgets('the legend swatch matches the bar it stands for', (
+      tester,
+    ) async {
+      await pump(tester, FluentHorizontalBarChartWithAxis(data: _hbwaPoints()));
+      final legends = tester
+          .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+          .legends;
+      expect(
+        legends.first.color.toARGB32(),
+        FluentDataVizPalette.next(0).toARGB32(),
+        reason:
+            'ponytail: upstream leaves the swatch undefined when '
+            'useSingleColor is false and the point has no colour '
+            '(HorizontalBarChartWithAxis.tsx:693-731); the port derives it '
+            'from the same getNextColor(index, 0) the bar uses',
+      );
+    });
+
+    testWidgets('a group label is suppressed below a 16px bar', (tester) async {
+      await pump(
+        tester,
+        FluentHorizontalBarChartWithAxis(data: _hbwaPoints(), barHeight: 10),
+      );
+      final d =
+          tester
+                  .widget<FluentCartesianChart>(
+                    find.byType(FluentCartesianChart),
+                  )
+                  .delegate
+              as FluentHorizontalBarChartWithAxisDelegate;
+      expect(
+        d.shouldPaintGroupLabel(10),
+        isFalse,
+        reason:
+            '_renderBarLabel suppresses below _barHeight 16, '
+            'HorizontalBarChartWithAxis.tsx:790',
+      );
+    });
+
+    testWidgets('an all-zero dataset is NOT empty here', (tester) async {
+      await pump(
+        tester,
+        const FluentHorizontalBarChartWithAxis(
+          data: <FluentHorizontalBarChartWithAxisDataPoint>[
+            FluentHorizontalBarChartWithAxisDataPoint(x: 0, y: 'a'),
+          ],
+        ),
+      );
+      expect(
+        find.byType(FluentCartesianChart),
+        findsOneWidget,
+        reason:
+            'emptiness is `!(data && data.length > 0)` only, '
+            'HorizontalBarChartWithAxis.tsx:842-844 — unlike VerticalBarChart',
+      );
+    });
+
+    testWidgets('an empty dataset renders the alert node instead of a shell', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const FluentHorizontalBarChartWithAxis(
+          data: <FluentHorizontalBarChartWithAxisDataPoint>[],
+        ),
+      );
+      expect(
+        find.byType(FluentCartesianChart),
+        findsNothing,
+        reason: '`!(data && data.length > 0)` is true for the empty list',
+      );
+    });
+
+    testWidgets('the accessible description counts POINTS, not groups', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentHorizontalBarChartWithAxis(
+          data: _hbwaPoints(),
+          chartTitle: 'Sales',
+        ),
+      );
+      final props = tester
+          .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+          .props;
+      expect(
+        props.chartTitleForSemantics,
+        'Sales. Horizontal bar chart with 2 bars. ',
+        reason:
+            'the two points share one category yet count twice, '
+            'HorizontalBarChartWithAxis.tsx:814-817',
+      );
+      expect(
+        props.closePopoverOnRegionExit,
+        isTrue,
+        reason: '_onBarLeave closes it, HorizontalBarChartWithAxis.tsx:266-268',
+      );
+    });
+  });
+
+  group('HBWA group total label', () {
+    test('hideLabels suppresses the label at any height', () {
+      final d = _hbwaDelegate(yValues: <Object>['a'], hideLabels: true);
+      expect(
+        d.shouldPaintGroupLabel(32),
+        isFalse,
+        reason:
+            '`props.hideLabels ||` is the first arm of the same guard, '
+            'HorizontalBarChartWithAxis.tsx:790',
+      );
+      expect(
+        _hbwaDelegate(yValues: <Object>['a']).shouldPaintGroupLabel(16),
+        isTrue,
+        reason: 'the guard is `< 16`, so 16 itself is labelled',
+      );
+    });
+
+    test('the negative story pins the label baseline to the bar centre', () {
+      final story = loadOracleStory(
+        'charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-negative',
+      );
+      final rects = story.byTag('rect');
+      final labels = story
+          .byTag('text')
+          .where((element) => element.x != null && element.text == '0')
+          .toList();
+      expect(
+        labels.length,
+        5,
+        reason: 'one group total label per category, each reading 0',
+      );
+      // `y={yPosition + _barHeight / 2}` (`.tsx:801`) with
+      // `dominantBaseline="central"`, so the label's own y is the bar's
+      // vertical centre — which is what
+      // `FluentHorizontalBarChartWithAxisDelegate.paintSeries` centres the
+      // measured label on. The string variant leaves the rect's `y` attribute
+      // at the raw band top and carries the `0.5 * (bandwidth - _barHeight)`
+      // centring in the rect's own transform (`.tsx:649`), so the painted top
+      // is the attribute plus that translate. It is negative in this story,
+      // the 31px bar being taller than its 25.36px band. Every bar of a group
+      // shares the centre, so the first rect of each group recovers it.
+      final perGroup = rects.length ~/ labels.length;
+      for (var i = 0; i < labels.length; i++) {
+        final rect = rects[i * perGroup];
+        expectOracleNumber(
+          'group $i label centre',
+          labels[i].y!,
+          rect.y! + (rect.translate?.dy ?? 0) + rect.height! / 2,
+        );
+      }
+    });
+  });
 }
+
+/// Two points sharing the category `beta`, so the middle of an 800x350 chart
+/// lands inside the group's first segment.
+List<FluentHorizontalBarChartWithAxisDataPoint>
+_hbwaPoints() => const <FluentHorizontalBarChartWithAxisDataPoint>[
+  FluentHorizontalBarChartWithAxisDataPoint(x: 100, y: 'beta', legend: 'first'),
+  FluentHorizontalBarChartWithAxisDataPoint(x: 50, y: 'beta', legend: 'second'),
+];

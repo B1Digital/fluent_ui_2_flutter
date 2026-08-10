@@ -1,13 +1,18 @@
 import 'dart:math' as math;
 
+import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
 import 'axis/axis_builders.dart';
 import 'axis/axis_types.dart';
 import 'axis/domain_range.dart';
+import 'axis/tick_format.dart';
+import 'cartesian/cartesian_chart.dart';
+import 'cartesian/cartesian_chart_props.dart';
 import 'cartesian/cartesian_layout.dart';
 import 'cartesian/cartesian_series_delegate.dart';
 import 'chrome/chart_popover.dart';
+import 'chrome/legend.dart';
 import 'horizontal_bar_chart_with_axis_style.dart';
 import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
@@ -19,6 +24,175 @@ import 'internal/data_viz_palette.dart';
 import 'model/bar_data.dart';
 import 'model/chart_common.dart';
 import 'model/chart_value.dart';
+
+/// A Fluent 2 horizontal bar chart with a numeric value axis.
+///
+/// Ports `HorizontalBarChartWithAxis.tsx`. Points sharing a y value stack into
+/// one bar, separated by a 2px gap.
+class FluentHorizontalBarChartWithAxis extends StatefulWidget {
+  /// Creates the chart over [data].
+  const FluentHorizontalBarChartWithAxis({
+    super.key,
+    required this.data,
+    this.props = const FluentCartesianChartProps(),
+    this.barHeight,
+    this.maxBarHeight,
+    this.colors,
+    this.chartTitle,
+    this.useSingleColor = false,
+    this.culture,
+    this.yAxisPadding = 0.5,
+    this.roundCorners = false,
+    this.hideLabels = false,
+    this.yAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
+    this.style,
+    this.legendSelectionMode = FluentChartLegendSelectionMode.single,
+    this.focusNode,
+  });
+
+  /// The data points, in author order.
+  final List<FluentHorizontalBarChartWithAxisDataPoint> data;
+
+  /// Shell configuration.
+  final FluentCartesianChartProps props;
+
+  /// Explicit bar height, overriding the auto solve.
+  final double? barHeight;
+
+  /// Ceiling on the auto bar height.
+  final double? maxBarHeight;
+
+  /// A caller-supplied ramp.
+  final List<Color>? colors;
+
+  /// Human title, folded into the accessible description.
+  final String? chartTitle;
+
+  /// Whether every bar takes a single colour.
+  final bool useSingleColor;
+
+  /// BCP-47 locale for popover formatting.
+  final String? culture;
+
+  /// Band padding, default 0.5 (`HorizontalBarChartWithAxis.tsx:77`).
+  final double yAxisPadding;
+
+  /// Whether bars get a 3px corner radius.
+  final bool roundCorners;
+
+  /// Whether group total labels are suppressed.
+  final bool hideLabels;
+
+  /// Ordering applied to a category y axis.
+  final FluentAxisCategoryOrder yAxisCategoryOrder;
+
+  /// Style override, highest precedence.
+  final FluentHorizontalBarChartWithAxisStyle? style;
+
+  /// Whether the legend allows more than one selection.
+  final FluentChartLegendSelectionMode legendSelectionMode;
+
+  /// The chart's single focus node.
+  final FocusNode? focusNode;
+
+  @override
+  State<FluentHorizontalBarChartWithAxis> createState() =>
+      _FluentHorizontalBarChartWithAxisState();
+}
+
+class _FluentHorizontalBarChartWithAxisState
+    extends State<FluentHorizontalBarChartWithAxis> {
+  List<String> _selectedLegends = const <String>[];
+  String? _selectedLegendTitle;
+  late final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
+
+  @override
+  void dispose() {
+    _measurer.invalidate();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Emptiness is data length only (`.tsx:842-844`); an all-zero dataset
+    // still renders, unlike VerticalBarChart.
+    if (widget.data.isEmpty) {
+      return Semantics(
+        container: true,
+        liveRegion: true,
+        label: 'Graph has no data to display',
+        child: const SizedBox.shrink(),
+      );
+    }
+    final theme = FluentTheme.of(context);
+    final style = resolveFluentHorizontalBarChartWithAxisStyle(theme)
+        .merge(FluentHorizontalBarChartWithAxisTheme.maybeOf(context))
+        .merge(widget.style);
+    return FluentCartesianChart(
+      focusNode: widget.focusNode,
+      legendSelectionMode: widget.legendSelectionMode,
+      onLegendChange: (selected) => setState(() => _selectedLegends = selected),
+      props: widget.props.copyWith(
+        // `${chartTitle}. Horizontal bar chart with ${n} bars. ` counts DATA
+        // POINTS, not groups (`.tsx:814-817`).
+        chartTitleForSemantics: widget.chartTitle == null
+            ? null
+            : '${widget.chartTitle}. Horizontal bar chart with '
+                  '${widget.data.length} bars. ',
+        // HBWA is the only shell chart whose bar-leave handler closes the
+        // popover (`.tsx:266-268`).
+        closePopoverOnRegionExit: true,
+      ),
+      legends: _legends(),
+      delegate: FluentHorizontalBarChartWithAxisDelegate(
+        points: widget.data,
+        style: style,
+        colors: FluentChartColors.of(theme),
+        measurer: _measurer,
+        textStyles: FluentChartTextStyles.of(theme),
+        selectedLegends: _selectedLegends,
+        selectedLegendTitle: _selectedLegendTitle,
+        barHeightProp: widget.barHeight,
+        maxBarHeight: widget.maxBarHeight,
+        yAxisPadding: widget.yAxisPadding,
+        useSingleColor: widget.useSingleColor,
+        hideLabels: widget.hideLabels,
+        roundCorners: widget.roundCorners,
+        colorsOverride: widget.colors,
+        yAxisCategoryOrder: widget.yAxisCategoryOrder,
+        xMaxValue: widget.props.xMaxValue,
+      ),
+      onChartMouseLeave: () => setState(() => _selectedLegendTitle = null),
+    );
+  }
+
+  List<FluentChartLegendItem> _legends() {
+    final out = <FluentChartLegendItem>[];
+    final seen = <String>{};
+    for (var i = 0; i < widget.data.length; i++) {
+      final legend = widget.data[i].legend;
+      if (legend == null || !seen.add(legend)) {
+        continue;
+      }
+      out.add(
+        FluentChartLegendItem(
+          title: legend,
+          // ponytail: `.tsx:693-731` leaves this undefined when useSingleColor
+          // is false and the point carries no colour, so the swatch renders
+          // blank while the bar is coloured. Deriving it from the same
+          // getNextColor the bar uses is the smaller, correct diff.
+          color:
+              widget.data[i].color ??
+              FluentDataVizPalette.next(widget.useSingleColor ? 1 : i),
+          onHoverAction: () => setState(() => _selectedLegendTitle = legend),
+          onMouseOutAction: ({required bool isLegendFocused}) =>
+              setState(() => _selectedLegendTitle = null),
+        ),
+      );
+    }
+    return out;
+  }
+}
 
 /// One placed segment inside a horizontal bar group.
 @immutable
@@ -572,6 +746,14 @@ class FluentHorizontalBarChartWithAxisDelegate
     return point.color ?? FluentDataVizPalette.next(useSingleColor ? 1 : index);
   }
 
+  /// Ports the guard of `_renderBarLabel` (`.tsx:789-791`).
+  ///
+  /// Both arms are the whole of it: `props.hideLabels || _barHeight < 16`, so
+  /// a bar exactly 16px tall is still labelled.
+  bool shouldPaintGroupLabel(double barHeight) =>
+      !hideLabels &&
+      barHeight >= style.minBarLabelHeight!.resolve(const <WidgetState>{})!;
+
   /// The narration for one bar.
   ///
   /// Ports `_getAriaLabel` (`.tsx:776-781`), whose `||` chain means an empty
@@ -600,7 +782,15 @@ class FluentHorizontalBarChartWithAxisDelegate
     final radius = roundCorners
         ? (style.barCornerRadius?.resolve(states) ?? 0)
         : 0.0;
-    for (final bar in placeBars(context, layout)) {
+    final placed = placeBars(context, layout);
+    // `totalBarValue` is the group's own sum (`.tsx:492`, `:671`), keyed by the
+    // y value the group shares.
+    final totals = <Object, double>{
+      for (final group in groups) group.yValue: group.total,
+    };
+    final labelStyle = style.barLabelStyle?.resolve(states);
+    final labelInset = style.barLabelInset?.resolve(states) ?? 0;
+    for (final bar in placed) {
       final highlighted =
           selectedLegends.isEmpty ||
           isLegendHighlightedMulti(
@@ -622,6 +812,31 @@ class FluentHorizontalBarChartWithAxisDelegate
       } else {
         canvas.drawRect(bar.rect, paint);
       }
+      if (labelStyle == null ||
+          !bar.segment.showLabel ||
+          !shouldPaintGroupLabel(bar.rect.height)) {
+        continue;
+      }
+      final text = formatScientificLimitWidth(totals[bar.point.y] ?? 0);
+      final metrics = measurer.measure(text, labelStyle);
+      final painter = measurer.layoutPainter(text, labelStyle);
+      // `.tsx:800-804`: `textAnchor` is `start` past a positive bar's end and
+      // `end` before a negative one's, and the `translate(±4)` pushes the label
+      // that far clear of the bar. `dominantBaseline="central"` puts the
+      // label's own centre on the bar's, whose height the 2 halves.
+      final leading = layout.isRtl
+          ? !bar.segment.isPositive
+          : bar.segment.isPositive;
+      painter.paint(
+        canvas,
+        Offset(
+          leading
+              ? bar.segment.endX + labelInset
+              : bar.segment.endX - labelInset - metrics.width,
+          bar.rect.center.dy - metrics.height / 2,
+        ),
+      );
+      painter.dispose();
     }
   }
 
