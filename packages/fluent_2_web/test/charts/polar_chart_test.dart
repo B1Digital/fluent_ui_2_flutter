@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fluent_2_web/fluent_2_web.dart';
 // `polar_chart.dart` is not barrel-exported yet — the integration task owns
 // `lib/fluent_2_web.dart`, so the test reaches for the library directly, exactly
@@ -303,5 +305,218 @@ void main() {
       -1,
       reason: 'zero fails the first comparison, so the sign flips',
     );
+  });
+
+  group('grid geometry', () {
+    test('a numeric axis whose domain end is already a tick adds nothing', () {
+      final layout = FluentPolarLayout.compute(
+        size: const Size(400, 400),
+        data: <FluentPolarSeries>[
+          const FluentScatterPolarSeries(
+            legend: 'A',
+            data: <FluentPolarDataPoint>[
+              FluentPolarDataPoint(r: 0, theta: 0),
+              FluentPolarDataPoint(r: 100, theta: 90),
+            ],
+          ),
+        ],
+        margins: const FluentChartMargins(),
+        hole: 0,
+        direction: FluentPolarDirection.counterclockwise,
+      );
+      expect(
+        layout.gridRingValues(),
+        layout.radial.tickValues,
+        reason:
+            'PolarChart.tsx:280-286 — with innerRadius 0 and a niced domain whose '
+            'ends coincide with the first and last tick, nothing is appended',
+      );
+    });
+
+    test('a hole adds the domain start as an extra inner ring', () {
+      final layout = FluentPolarLayout.compute(
+        size: const Size(400, 400),
+        data: <FluentPolarSeries>[
+          const FluentScatterPolarSeries(
+            legend: 'A',
+            data: <FluentPolarDataPoint>[
+              FluentPolarDataPoint(r: 3, theta: 0),
+              FluentPolarDataPoint(r: 97, theta: 90),
+            ],
+          ),
+        ],
+        margins: const FluentChartMargins(),
+        hole: 0.4,
+        direction: FluentPolarDirection.counterclockwise,
+      );
+      expect(
+        layout.gridRingValues().length,
+        greaterThanOrEqualTo(layout.radial.tickValues.length),
+        reason: 'PolarChart.tsx:280-282 pushes rDomain[0] when innerRadius > 0',
+      );
+      // A niced numeric domain starts exactly on its first tick, so the branch
+      // above never fires for one. A date domain is compared by reference, so
+      // it always does, and the hole is then the only thing that can add the
+      // ring.
+      FluentPolarLayout dated({required double hole}) =>
+          FluentPolarLayout.compute(
+            size: const Size(400, 400),
+            data: <FluentPolarSeries>[
+              FluentScatterPolarSeries(
+                legend: 'A',
+                data: <FluentPolarDataPoint>[
+                  FluentPolarDataPoint(r: DateTime.utc(2020), theta: 0),
+                  FluentPolarDataPoint(r: DateTime.utc(2024), theta: 90),
+                ],
+              ),
+            ],
+            margins: const FluentChartMargins(),
+            hole: hole,
+            direction: FluentPolarDirection.counterclockwise,
+            useUtc: true,
+          );
+      expect(
+        dated(hole: 0.4).gridRingValues().length,
+        dated(hole: 0).gridRingValues().length + 1,
+        reason:
+            'PolarChart.tsx:280 gates the leading ring on innerRadius > 0, so '
+            'the same axis gains exactly one ring once it has a hole',
+      );
+    });
+
+    test('a date axis always appends the domain end', () {
+      final layout = FluentPolarLayout.compute(
+        size: const Size(400, 400),
+        data: <FluentPolarSeries>[
+          FluentScatterPolarSeries(
+            legend: 'A',
+            data: <FluentPolarDataPoint>[
+              FluentPolarDataPoint(r: DateTime.utc(2020), theta: 0),
+              FluentPolarDataPoint(r: DateTime.utc(2024), theta: 90),
+            ],
+          ),
+        ],
+        margins: const FluentChartMargins(),
+        hole: 0,
+        direction: FluentPolarDirection.counterclockwise,
+        useUtc: true,
+      );
+      expect(
+        layout.gridRingValues().length,
+        layout.radial.tickValues.length + 1,
+        reason:
+            'PolarChart.tsx:284 compares with !==, which is reference identity for '
+            'a Date, so a date axis always gains one extra outer ring',
+      );
+    });
+
+    test('a circle ring is a full turn at the scaled radius', () {
+      final layout = FluentPolarLayout.compute(
+        size: const Size(400, 400),
+        data: <FluentPolarSeries>[
+          const FluentScatterPolarSeries(
+            legend: 'A',
+            data: <FluentPolarDataPoint>[
+              FluentPolarDataPoint(r: 0, theta: 0),
+              FluentPolarDataPoint(r: 100, theta: 90),
+            ],
+          ),
+        ],
+        margins: const FluentChartMargins(),
+        hole: 0,
+        direction: FluentPolarDirection.counterclockwise,
+      );
+      final path = layout.ringPath(50, FluentPolarShape.circle);
+      expect(
+        path.getBounds(),
+        const Rect.fromLTRB(-50, -50, 50, 50),
+        reason: 'PolarChart.tsx:307 centres the circle on the origin',
+      );
+    });
+
+    test('a polygon ring has one vertex per angular tick', () {
+      final layout = FluentPolarLayout.compute(
+        size: const Size(400, 400),
+        data: <FluentPolarSeries>[
+          const FluentScatterPolarSeries(
+            legend: 'A',
+            data: <FluentPolarDataPoint>[
+              FluentPolarDataPoint(r: 0, theta: 0),
+              FluentPolarDataPoint(r: 100, theta: 90),
+            ],
+          ),
+        ],
+        margins: const FluentChartMargins(),
+        hole: 0,
+        direction: FluentPolarDirection.counterclockwise,
+      );
+      final path = layout.ringPath(50, FluentPolarShape.polygon);
+      expect(
+        path.computeMetrics().first.isClosed,
+        isTrue,
+        reason: 'PolarChart.tsx:301 appends Z',
+      );
+      expect(
+        path.contains(const Offset(0, 0)),
+        isTrue,
+        reason: 'the octagon encloses the origin',
+      );
+      expect(
+        path.contains(const Offset(49.9, 0)),
+        isTrue,
+        reason:
+            'the tick at datum 0 normalises to 90 degrees, which pointRadial '
+            'puts at three o\'clock, so the ray to that vertex stays inside all '
+            'the way out to the radius',
+      );
+      // Halfway between the ticks at datum 0 and datum 45 the ring is a straight
+      // chord, whose distance from the centre is 50 * cos(pi / 8) = 46.194.
+      const bisector = math.pi / 8;
+      expect(
+        path.contains(
+          Offset(49.9 * math.cos(bisector), 49.9 * math.sin(bisector)),
+        ),
+        isFalse,
+        reason:
+            'with eight vertices the flat between two ticks cuts the corner, so a '
+            'point at the full radius is outside',
+      );
+    });
+
+    test('spokes run from the hole to the outer ring at every angular tick', () {
+      final layout = FluentPolarLayout.compute(
+        size: const Size(400, 400),
+        data: <FluentPolarSeries>[
+          const FluentScatterPolarSeries(
+            legend: 'A',
+            data: <FluentPolarDataPoint>[
+              FluentPolarDataPoint(r: 0, theta: 0),
+              FluentPolarDataPoint(r: 100, theta: 90),
+            ],
+          ),
+        ],
+        margins: const FluentChartMargins(),
+        hole: 0,
+        direction: FluentPolarDirection.counterclockwise,
+      );
+      final spokes = layout.spokes();
+      expect(
+        spokes.length,
+        8,
+        reason: 'the default angular tick count is 8 (PolarChart.utils.ts:239)',
+      );
+      expect(
+        spokes.first.$1,
+        const Offset(0, 0),
+        reason: 'PolarChart.tsx:312 starts every spoke at the inner radius',
+      );
+      expect(
+        spokes.first.$2.dx,
+        closeTo(layout.outerRadius, 1e-9),
+        reason:
+            'datum 0 counter-clockwise maps to 90 degrees, which pointRadial puts '
+            'at three o\'clock',
+      );
+    });
   });
 }

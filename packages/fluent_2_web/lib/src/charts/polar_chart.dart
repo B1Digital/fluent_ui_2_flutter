@@ -392,6 +392,79 @@ class FluentPolarLayout {
     );
   }
 
+  /// JavaScript `===` for the value space a polar domain can hold.
+  ///
+  /// `PolarChart.tsx:280` and `:284` compare with `!==`, which is *value*
+  /// equality for a number or a string but *reference* equality for a `Date`.
+  /// That asymmetry is why a date radial axis always grows an extra outer ring,
+  /// and it must be preserved.
+  static bool _strictEquals(Object? a, Object? b) {
+    if (a is num && b is num) {
+      return a == b;
+    }
+    if (a is String && b is String) {
+      return a == b;
+    }
+    return identical(a, b);
+  }
+
+  /// The values the grid rings are drawn at, outermost last.
+  ///
+  /// Ports `PolarChart.tsx:278-286`. The domain start is prepended only when
+  /// there is a hole, and the domain end is appended whenever it is not already
+  /// the final tick.
+  List<Object> gridRingValues() {
+    final domain = radial.scale.domain;
+    final ticks = radial.tickValues;
+    final result = <Object>[];
+    if (domain.isEmpty) {
+      return ticks;
+    }
+    if (innerRadius > 0 &&
+        (ticks.isEmpty || !_strictEquals(domain.first, ticks.first))) {
+      result.add(domain.first);
+    }
+    result.addAll(ticks);
+    if (ticks.isEmpty || !_strictEquals(domain.last, ticks.last)) {
+      result.add(domain.last);
+    }
+    return result;
+  }
+
+  /// The path of one grid ring at [radius], centred on the origin.
+  ///
+  /// A polygon ring has one vertex per angular tick and is closed
+  /// (`PolarChart.tsx:294-303`); a circular ring is a plain circle (`:307`).
+  Path ringPath(double radius, FluentPolarShape shape) {
+    final path = Path();
+    if (shape == FluentPolarShape.polygon) {
+      for (var i = 0; i < angular.tickValues.length; i++) {
+        final p = d3.pointRadial(
+          angular.radiansOf(angular.tickValues[i]),
+          radius,
+        );
+        if (i == 0) {
+          path.moveTo(p.dx, p.dy);
+        } else {
+          path.lineTo(p.dx, p.dy);
+        }
+      }
+      path.close();
+      return path;
+    }
+    path.addOval(Rect.fromCircle(center: Offset.zero, radius: radius));
+    return path;
+  }
+
+  /// The spokes, one per angular tick (`PolarChart.tsx:311-321`).
+  List<(Offset, Offset)> spokes() => <(Offset, Offset)>[
+    for (final a in angular.tickValues)
+      (
+        d3.pointRadial(angular.radiansOf(a), innerRadius),
+        d3.pointRadial(angular.radiansOf(a), outerRadius),
+      ),
+  ];
+
   /// Builds the `categoryToValues` map [sortAxisCategories] consumes.
   ///
   /// Ports `mapCategoryToValues` (`PolarChart.tsx:144-161`): the key is the
@@ -414,4 +487,78 @@ class FluentPolarLayout {
     }
     return result;
   }
+}
+
+/// Paints the polar grid: the rings and the spokes.
+///
+/// Kept apart from the series layer because the grid is static across every
+/// hover and legend change, so it repaints only when the layout itself changes.
+class FluentPolarGridPainter extends CustomPainter {
+  /// Creates a grid painter.
+  FluentPolarGridPainter({
+    required this.layout,
+    required this.shape,
+    required this.gridColor,
+    required this.gridWidth,
+    required this.innerOpacity,
+    required this.outerOpacity,
+  });
+
+  /// The solved layout.
+  final FluentPolarLayout layout;
+
+  /// Whether the rings are circles or polygons.
+  final FluentPolarShape shape;
+
+  /// Stroke colour of every grid line.
+  final Color gridColor;
+
+  /// Stroke width of every grid line.
+  final double gridWidth;
+
+  /// Opacity of an inner ring and of every spoke.
+  final double innerOpacity;
+
+  /// Opacity of the outermost ring.
+  final double outerOpacity;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas
+      ..save()
+      ..translate(layout.centre.dx, layout.centre.dy);
+    final rings = layout.gridRingValues();
+    for (var i = 0; i < rings.length; i++) {
+      final radius = layout.radial.radiusOf(rings[i]);
+      if (radius == null || !radius.isFinite) {
+        continue;
+      }
+      // `:292` — only the last ring takes the opaque outer style.
+      final opacity = i == rings.length - 1 ? outerOpacity : innerOpacity;
+      canvas.drawPath(
+        layout.ringPath(radius, shape),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = gridWidth
+          ..color = gridColor.withValues(alpha: gridColor.a * opacity),
+      );
+    }
+    final spokePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = gridWidth
+      ..color = gridColor.withValues(alpha: gridColor.a * innerOpacity);
+    for (final (start, end) in layout.spokes()) {
+      canvas.drawLine(start, end, spokePaint);
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(FluentPolarGridPainter oldDelegate) =>
+      oldDelegate.layout != layout ||
+      oldDelegate.shape != shape ||
+      oldDelegate.gridColor != gridColor ||
+      oldDelegate.gridWidth != gridWidth ||
+      oldDelegate.innerOpacity != innerOpacity ||
+      oldDelegate.outerOpacity != outerOpacity;
 }
