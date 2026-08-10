@@ -1,10 +1,17 @@
+import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'axis/tick_format.dart';
+import 'chrome/chart_popover.dart';
+import 'chrome/legend.dart';
+import 'horizontal_bar_chart_style.dart';
 import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
+import 'internal/chart_utils.dart';
 import 'internal/d3/js_math.dart' as d3;
 import 'model/bar_data.dart';
+import 'model/cartesian_series.dart';
 
 /// One bar of one horizontal-bar row, in percentage units of the row width.
 @immutable
@@ -420,4 +427,602 @@ class FluentBenchmarkTrianglePainter extends CustomPainter {
       oldDelegate.colour != colour ||
       oldDelegate.triangleWidth != triangleWidth ||
       oldDelegate.triangleHeight != triangleHeight;
+}
+
+/// Applies a [FluentHorizontalBarChartStyle] to every
+/// [FluentHorizontalBarChart] below it.
+class FluentHorizontalBarChartTheme extends InheritedTheme {
+  /// Applies [style] to every [FluentHorizontalBarChart] in [child].
+  const FluentHorizontalBarChartTheme({
+    super.key,
+    required this.style,
+    required super.child,
+  });
+
+  /// The style layered over the derived defaults.
+  final FluentHorizontalBarChartStyle style;
+
+  /// The nearest horizontal-bar-chart style, or null.
+  static FluentHorizontalBarChartStyle? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<FluentHorizontalBarChartTheme>()
+      ?.style;
+
+  @override
+  bool updateShouldNotify(FluentHorizontalBarChartTheme oldWidget) =>
+      style != oldWidget.style;
+
+  @override
+  Widget wrap(BuildContext context, Widget child) =>
+      FluentHorizontalBarChartTheme(style: style, child: child);
+}
+
+/// A Fluent 2 horizontal bar chart: one titled strip per data entry, with an
+/// optional benchmark marker and a shared legend below.
+///
+/// There is no d3 here — every position is percentage arithmetic over the row
+/// width. See [FluentHorizontalBarRowLayout] for the two upstream defects that
+/// arithmetic reproduces.
+class FluentHorizontalBarChart extends StatefulWidget {
+  /// Creates a horizontal bar chart.
+  const FluentHorizontalBarChart({
+    super.key,
+    required this.data,
+    this.barHeight,
+    this.hideTooltip = false,
+    this.chartDataMode = FluentChartDataMode.byDefault,
+    this.variant = FluentHorizontalBarChartVariant.partToWhole,
+    this.hideLabels = false,
+    this.showTriangle = false,
+    this.showLegendForSinglePointBar = false,
+    this.culture,
+    this.legendsOverflowText = 'more',
+    this.style,
+  });
+
+  /// One entry per row.
+  final List<FluentChartData> data;
+
+  /// Bar height override. Null resolves to 12
+  /// (`HorizontalBarChart.tsx:106`).
+  final double? barHeight;
+
+  /// Suppresses the hover popover (`HorizontalBarChart.tsx:318-321`).
+  final bool hideTooltip;
+
+  /// How the number beside a row is rendered.
+  final FluentChartDataMode chartDataMode;
+
+  /// Which scale the row draws against.
+  final FluentHorizontalBarChartVariant variant;
+
+  /// Hides the absolute-scale in-bar label (`HorizontalBarChart.tsx:285`).
+  final bool hideLabels;
+
+  /// Widens the row spacing to make room for a benchmark marker
+  /// (`useHorizontalBarChartStyles.styles.ts:119-125`).
+  final bool showTriangle;
+
+  /// Keeps the legend and skips the placeholder synthesis for a single-point
+  /// row (`HorizontalBarChart.tsx:400`).
+  final bool showLegendForSinglePointBar;
+
+  /// Locale tag for number formatting.
+  final String? culture;
+
+  /// Label on the legend overflow control.
+  final String legendsOverflowText;
+
+  /// Style layered over the derived defaults and the nearest
+  /// [FluentHorizontalBarChartTheme].
+  final FluentHorizontalBarChartStyle? style;
+
+  @override
+  State<FluentHorizontalBarChart> createState() =>
+      _FluentHorizontalBarChartState();
+}
+
+class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
+  /// Single-select, toggling (`HorizontalBarChart.tsx:127`). Upstream models
+  /// "nothing selected" as the empty string, and the predicate compares
+  /// against it literally, so the empty string is kept rather than null.
+  String _selectedLegend = '';
+  String _activeLegend = '';
+  FluentChartDataPoint? _hovered;
+  Offset? _anchor;
+
+  /// The chart's own box, so a hover reported in a bar's coordinate space can
+  /// be re-expressed in the space the popover is laid out in. Upstream reads
+  /// `event.pageX/pageY` (`HorizontalBarChart.tsx:71-72`), which is already
+  /// one shared space; Flutter reports per-listener local offsets, so the
+  /// conversion is explicit.
+  final GlobalKey _plotKey = GlobalKey();
+
+  bool _highlighted(String? legend) => isLegendHighlightedSingleGuarded(
+    legend,
+    selectedLegend: _selectedLegend,
+    activeLegend: _activeLegend,
+  );
+
+  bool get _noneHighlighted => _selectedLegend.isEmpty && _activeLegend.isEmpty;
+
+  Offset _toPlot(Offset global) {
+    final box = _plotKey.currentContext?.findRenderObject() as RenderBox?;
+    return box == null ? global : box.globalToLocal(global);
+  }
+
+  /// `HorizontalBarChart.tsx:400-413`. Upstream mutates `props.chartData[1]`
+  /// in place; this port returns a new list, which is the same rendering
+  /// without writing through the caller's data.
+  // ponytail: no prop mutation — the upstream in-place write at :404 is a
+  // React escape hatch, not a rendering rule.
+  (List<FluentChartDataPoint>, bool) _pointsFor(
+    FluentChartData row,
+    Color placeholderColour,
+  ) {
+    final points = row.chartData ?? const <FluentChartDataPoint>[];
+    final isSingleBar = widget.showLegendForSinglePointBar
+        ? false
+        : points.length == 1 || (points.length > 1 && points[1].legend == '');
+    if (!isSingleBar || points.isEmpty) return (points, isSingleBar);
+    final first = points.first;
+    final total = first.horizontalBarChartData?.total ?? 0;
+    final value = first.horizontalBarChartData?.x ?? 0;
+    return (
+      <FluentChartDataPoint>[
+        first,
+        FluentChartDataPoint(
+          placeHolder: true,
+          legend: '',
+          color: placeholderColour,
+          horizontalBarChartData: FluentHorizontalDataPoint(
+            x: total - value,
+            total: total,
+          ),
+        ),
+        ...points.skip(2),
+      ],
+      true,
+    );
+  }
+
+  /// `_getAriaLabel` (`HorizontalBarChart.tsx:335-343`).
+  String _ariaLabel(FluentChartDataPoint point) {
+    final legend = point.xAxisCalloutData ?? point.legend;
+    final bar = point.horizontalBarChartData;
+    // :340 is a template literal over raw numbers, not formatToLocaleString:
+    // a JavaScript 30 prints as `30`, which is what jsNumberToString gives and
+    // what Dart's own `toString` would render as `30.0`.
+    final value =
+        point.yAxisCalloutData ??
+        (bar == null
+            ? '0'
+            : '${d3.jsNumberToString(bar.x)}/'
+                  '${bar.total == null ? '' : d3.jsNumberToString(bar.total!)}');
+    return '${legend == null || legend.isEmpty ? '' : '$legend, '}$value.';
+  }
+
+  /// `_getDefaultTextData` (`HorizontalBarChart.tsx:142-190`).
+  Widget? _valueText(
+    FluentChartData row,
+    bool isSingleBar,
+    FluentHorizontalBarChartStyle resolved,
+  ) {
+    if (widget.variant == FluentHorizontalBarChartVariant.absoluteScale) {
+      // HorizontalBarChart.tsx:416-417.
+      return null;
+    }
+    // HorizontalBarChart.tsx:145-147.
+    if (widget.chartDataMode == FluentChartDataMode.hidden) return null;
+    const states = <WidgetState>{};
+    final valueStyle = resolved.valueTextStyle!.resolve(states);
+    final points = row.chartData ?? const <FluentChartDataPoint>[];
+    if (points.isEmpty) return null;
+    final bar = points.first.horizontalBarChartData;
+    final x = bar?.x ?? 0;
+    final total = bar?.total;
+    if (!isSingleBar) {
+      // HorizontalBarChart.tsx:151-161 — a multi-segment row ignores the mode
+      // and always shows the summed value.
+      final sum = points.fold<double>(
+        0,
+        (acc, p) => acc + (p.horizontalBarChartData?.x ?? 0),
+      );
+      return Text(
+        formatToLocaleString(sum, culture: widget.culture),
+        style: valueStyle,
+      );
+    }
+    return switch (widget.chartDataMode) {
+      FluentChartDataMode.hidden => null,
+      FluentChartDataMode.byDefault => Text(
+        formatToLocaleString(x, culture: widget.culture),
+        style: valueStyle,
+      ),
+      // HorizontalBarChart.tsx:176-181 — the spaces round the slash are
+      // literal, and the two spans carry different type.
+      FluentChartDataMode.fraction => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(
+            formatToLocaleString(x, culture: widget.culture),
+            style: valueStyle,
+          ),
+          Text(
+            ' / ${formatToLocaleString(total, culture: widget.culture)}',
+            style: resolved.denominatorTextStyle!.resolve(states),
+          ),
+        ],
+      ),
+      // HorizontalBarChart.tsx:183. A zero total is Infinity in JavaScript and
+      // `Math.round(Infinity)` stays Infinity, which renders as the string
+      // "∞%"; the guard shows 0% instead rather than feeding a non-finite
+      // number to a formatter.
+      FluentChartDataMode.percentage => Text(
+        '${formatToLocaleString(total == null || total == 0 ? 0 : d3.jsRound(x / total * 100), culture: widget.culture)}%',
+        style: valueStyle,
+      ),
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.data.isEmpty) {
+      // HorizontalBarChart.tsx:497 — a hidden role="alert".
+      return Semantics(
+        container: true,
+        liveRegion: true,
+        label: 'Graph has no data to display',
+        child: const SizedBox.shrink(),
+      );
+    }
+
+    final theme = FluentTheme.of(context);
+    final resolved = resolveFluentHorizontalBarChartStyle(
+      theme,
+    ).merge(FluentHorizontalBarChartTheme.maybeOf(context)).merge(widget.style);
+    const states = <WidgetState>{};
+    final chartColours = FluentChartColors.of(theme);
+    final direction = Directionality.of(context);
+    final barHeight = widget.barHeight ?? resolved.barHeight!.resolve(states)!;
+    final palette = resolved.defaultPalette!.resolve(states)!;
+    final placeholderColour = resolved.placeholderColor!.resolve(states)!;
+
+    var lastRowWasSingleBar = false;
+    final rows = <Widget>[];
+    for (final row in widget.data) {
+      final (points, isSingleBar) = _pointsFor(row, placeholderColour);
+      // Design spec §5.7 bounded-cardinality exemption: this chart mints one
+      // `Focus` per bar (see `_buildRow`) instead of holding a roving index,
+      // because a row's mark count is bounded by its category count — the row
+      // is a handful of legends, and `HorizontalBarChart.tsx:219-221` sizes the
+      // whole row off that same count. The exemption is only sound inside that
+      // bound, so it is asserted rather than assumed. 32 is the ceiling: an
+      // order of magnitude above any realistic row and an order of magnitude
+      // below the 500-mark series §5.7 names as the reason the roving model
+      // exists at all.
+      assert(
+        points.length <= 32,
+        'FluentHorizontalBarChart mints one Focus per bar under design spec '
+        '§5.7\'s bounded-cardinality exemption; ${points.length} bars in one '
+        'row exceeds the 32-mark bound that exemption depends on. Use a '
+        'cartesian bar chart for a series this long.',
+      );
+      lastRowWasSingleBar = isSingleBar;
+      rows.add(
+        _buildRow(
+          row: row,
+          points: points,
+          isSingleBar: isSingleBar,
+          resolved: resolved,
+          chartColours: chartColours,
+          palette: palette,
+          barHeight: barHeight,
+          direction: direction,
+        ),
+      );
+    }
+
+    final legendItems = <FluentChartLegendItem>[
+      for (final row in widget.data)
+        for (final point in row.chartData ?? const <FluentChartDataPoint>[])
+          FluentChartLegendItem(
+            title: point.legend ?? '',
+            color: point.color ?? const Color(0x00000000),
+            onAction: () => setState(() {
+              // HorizontalBarChart.tsx:127 — toggle.
+              _selectedLegend = _selectedLegend == point.legend
+                  ? ''
+                  : point.legend ?? '';
+            }),
+            onHoverAction: () => setState(() {
+              // HorizontalBarChart.tsx:128-131 — the hover action closes the
+              // popover first, then records the active legend.
+              _hovered = null;
+              _anchor = null;
+              _activeLegend = point.legend ?? '';
+            }),
+            onMouseOutAction: ({required bool isLegendFocused}) =>
+                setState(() => _activeLegend = ''),
+          ),
+    ];
+
+    return Semantics(
+      container: true,
+      child: MouseRegion(
+        // HorizontalBarChart.tsx:95-103, wired at :393 — the popover only
+        // closes when the pointer leaves the whole chart. Leaving one bar for
+        // another does nothing, because _hoverOff at :91-93 is an empty
+        // function marked "ToDo. To fix".
+        // parity: HorizontalBarChart.tsx:91-93.
+        onExit: (_) => setState(() {
+          _hovered = null;
+          _anchor = null;
+        }),
+        child: Stack(
+          key: _plotKey,
+          children: <Widget>[
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                ...rows,
+                if (!lastRowWasSingleBar)
+                  // HorizontalBarChart.tsx:485 — the legend strip is gated on
+                  // the value isSingleBar holds AFTER the last row was mapped,
+                  // so a mixed data set is decided by its final row.
+                  // parity: HorizontalBarChart.tsx:485.
+                  Padding(
+                    padding: EdgeInsets.only(
+                      top: resolved.legendTopPadding!.resolve(states)!,
+                    ),
+                    child: FluentChartLegend(
+                      legends: legendItems,
+                      centerLegends: true,
+                      overflowText: widget.legendsOverflowText,
+                    ),
+                  ),
+              ],
+            ),
+            if (!widget.hideTooltip && _hovered != null && _anchor != null)
+              Positioned.fill(
+                child: FluentChartPopover(
+                  data: FluentChartPopoverData(
+                    // HorizontalBarChart.tsx:465-484 never passes XValue, so
+                    // the popover's top row is empty upstream too.
+                    // parity: HorizontalBarChart.tsx:465-484.
+                    legend: _hovered!.xAxisCalloutData ?? _hovered!.legend,
+                    yValue:
+                        _hovered!.yAxisCalloutData ??
+                        formatToLocaleString(
+                          _hovered!.horizontalBarChartData?.x ?? 0,
+                          culture: widget.culture,
+                        ),
+                    color: _hovered!.color,
+                  ),
+                  anchor: _anchor!,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRow({
+    required FluentChartData row,
+    required List<FluentChartDataPoint> points,
+    required bool isSingleBar,
+    required FluentHorizontalBarChartStyle resolved,
+    required FluentChartColors chartColours,
+    required List<Color> palette,
+    required double barHeight,
+    required TextDirection direction,
+  }) {
+    const states = <WidgetState>{};
+    final isAbsolute =
+        widget.variant == FluentHorizontalBarChartVariant.absoluteScale;
+    final benchmark = points.isEmpty ? null : points.first.data;
+    final total = points.isEmpty
+        ? null
+        : points.first.horizontalBarChartData?.total;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: widget.showTriangle || isAbsolute
+            ? resolved.rowSpacingWithTriangle!.resolve(states)!
+            : resolved.rowSpacing!.resolve(states)!,
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final layout = FluentHorizontalBarRowLayout.compute(
+            points: points,
+            rowWidth: constraints.maxWidth,
+            barGap: resolved.barGap!.resolve(states)!,
+            isRtl: direction == TextDirection.rtl,
+          );
+          final dimmed = resolved.dimmedOpacity!.resolve(states)!;
+          // HorizontalBarChart.tsx:284 — only the absolute-scale variant swaps
+          // the placeholder rect for a text.
+          final placeholderIndex = isAbsolute
+              ? points.indexWhere((p) => p.placeHolder)
+              : -1;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Padding(
+                padding: EdgeInsets.only(
+                  bottom: isAbsolute
+                      ? resolved.titleBottomSpacingAbsolute!.resolve(states)!
+                      : resolved.titleBottomSpacing!.resolve(states)!,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Flexible(
+                      child: Text(
+                        row.chartTitle ?? '',
+                        style: resolved.titleTextStyle!.resolve(states),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ),
+                    _valueText(row, isSingleBar, resolved) ??
+                        const SizedBox.shrink(),
+                  ],
+                ),
+              ),
+              if (benchmark != null && benchmark > 0 && total != null)
+                SizedBox(
+                  // useHorizontalBarChartStyles.styles.ts:78-83 — the
+                  // container is 7 tall with -3 top and -1 bottom margins, so
+                  // it consumes 3 of vertical flow and overlaps its
+                  // neighbours.
+                  // parity: useHorizontalBarChartStyles.styles.ts:80-82.
+                  height: 3,
+                  child: OverflowBox(
+                    maxHeight: resolved.benchmarkHeight!.resolve(states),
+                    alignment: Alignment.topCenter,
+                    child: CustomPaint(
+                      painter: FluentBenchmarkTrianglePainter(
+                        ratio: FluentBenchmarkTrianglePainter.ratioFor(
+                          benchmark: benchmark,
+                          total: total,
+                        ),
+                        colour: resolved.benchmarkColor!.resolve(states)!,
+                        triangleWidth: resolved.benchmarkWidth!.resolve(
+                          states,
+                        )!,
+                        triangleHeight: resolved.benchmarkHeight!.resolve(
+                          states,
+                        )!,
+                      ),
+                    ),
+                  ),
+                ),
+              SizedBox(
+                height: barHeight,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: <Widget>[
+                    CustomPaint(
+                      size: Size(constraints.maxWidth, barHeight),
+                      painter: FluentHorizontalBarStripPainter(
+                        layout: layout,
+                        fills: <Color>[
+                          for (var i = 0; i < points.length; i++)
+                            chartColours.flattenMark(
+                              points[i].color ??
+                                  // parity: HorizontalBarChart.tsx:265 picks
+                                  // defaultColors[floor(random() * 4 + 1)] — a
+                                  // random index in 1..4 that never selects
+                                  // entry 0. Randomness is one of the two
+                                  // exceptions in design spec section 5.2, so
+                                  // this is the same range made deterministic.
+                                  palette[i % 4 + 1],
+                            ),
+                        ],
+                        opacities: <double>[
+                          for (final point in points)
+                            _highlighted(point.legend) || _noneHighlighted
+                                ? 1.0
+                                : dimmed,
+                        ],
+                        barHeight: barHeight,
+                        textDirection: direction,
+                        absoluteLabelIndex: placeholderIndex == -1
+                            ? null
+                            : placeholderIndex,
+                        absoluteLabel:
+                            placeholderIndex == -1 || widget.hideLabels
+                            ? null
+                            : formatScientificLimitWidth(
+                                points.first.horizontalBarChartData?.x ?? 0,
+                              ),
+                        absoluteLabelStyle: resolved.barLabelTextStyle!.resolve(
+                          states,
+                        ),
+                        absoluteLabelOffset: resolved.barLabelOffset!.resolve(
+                          states,
+                        )!,
+                      ),
+                    ),
+                    // One Focus per bar, not a roving index — design spec §5.7
+                    // bounded-cardinality exemption, bound asserted in `build`
+                    // at 32 marks per row.
+                    for (var i = 0; i < points.length; i++)
+                      if (!points[i].placeHolder)
+                        Positioned.fromRect(
+                          rect: layout.rectOf(i, barHeight),
+                          child: Builder(
+                            builder: (barContext) => Focus(
+                              // HorizontalBarChart.tsx:322 gives every bar
+                              // role="option"; the label is what a test and a
+                              // debug dump identify the bar's own focus node
+                              // by, against the legend's below it.
+                              debugLabel: 'FluentHorizontalBarChart bar',
+                              canRequestFocus:
+                                  _highlighted(points[i].legend) ||
+                                  _noneHighlighted,
+                              onFocusChange: (hasFocus) {
+                                // HorizontalBarChart.tsx:321 — onFocus is the
+                                // same handler as onMouseOver.
+                                if (!hasFocus ||
+                                    widget.hideTooltip ||
+                                    points[i].legend == '') {
+                                  return;
+                                }
+                                final box =
+                                    barContext.findRenderObject() as RenderBox?;
+                                if (box == null) return;
+                                setState(() {
+                                  _hovered = points[i];
+                                  _anchor = _toPlot(
+                                    box.localToGlobal(
+                                      box.size.center(Offset.zero),
+                                    ),
+                                  );
+                                });
+                              },
+                              child: MouseRegion(
+                                onHover: (event) {
+                                  // HorizontalBarChart.tsx:318-320 — a bar
+                                  // whose legend is the empty string, which is
+                                  // every synthesised placeholder, has no
+                                  // handler at all.
+                                  if (widget.hideTooltip ||
+                                      points[i].legend == '') {
+                                    return;
+                                  }
+                                  // HorizontalBarChart.tsx:349-360 — the
+                                  // popover only moves when the pointer
+                                  // travels more than one pixel.
+                                  final next = _toPlot(event.position);
+                                  if (_anchor != null &&
+                                      (_anchor! - next).distance <= 1) {
+                                    return;
+                                  }
+                                  setState(() {
+                                    _hovered = points[i];
+                                    _anchor = next;
+                                  });
+                                },
+                                child: Semantics(
+                                  label: _ariaLabel(points[i]),
+                                  button: points[i].onClick != null,
+                                  onTap: points[i].onClick,
+                                  child: const SizedBox.expand(),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 }
