@@ -1,6 +1,8 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../overlays/popover.dart';
+import '../../overlays/popover_style.dart';
 import '../axis/tick_format.dart';
 import '../model/callout_data.dart';
 import 'chart_popover_style.dart';
@@ -446,3 +448,153 @@ Widget _popoverRow(
 /// prints `42`, not `42.0`, for an integral value.
 String _trimTrailingZero(double value) =>
     value == value.roundToDouble() ? value.toInt().toString() : '$value';
+
+/// Places a chart popover against a zero-size virtual target at the cursor.
+///
+/// `ChartPopover.tsx:23-34` builds a `getBoundingClientRect` returning a
+/// zero-width, zero-height rect at `clickPosition` (`:31-32`), then positions
+/// against it with `autoSize: 'always'`, `offset: 20` and `coverTarget: false`
+/// (`:48`).
+///
+/// ponytail: flip-then-shift, below first. `@fluentui/react-positioning` is not
+/// in the extracted source, so only its *configuration* is knowable — the flip
+/// and shift policy is derived from `coverTarget: false` plus
+/// `autoSize: 'always'`, not ported. Probe that settles it: capture
+/// `charts-linechart--line-chart-basic` under Oracle B with the cursor near
+/// each edge of the plot and record the surface's resolved position.
+class FluentChartPopoverLayoutDelegate extends SingleChildLayoutDelegate {
+  /// Creates a delegate anchored at [anchor], clearing it by [offset].
+  const FluentChartPopoverLayoutDelegate({
+    required this.anchor,
+    required this.offset,
+  });
+
+  /// The cursor position, in the coordinate space of the box being laid out.
+  final Offset anchor;
+
+  /// Clearance between the anchor and the surface.
+  final double offset;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      // `autoSize: 'always'` caps the surface at the available box instead of
+      // letting it overflow.
+      BoxConstraints.loose(constraints.biggest);
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    // Below the cursor first, because `coverTarget: false` forbids overlapping
+    // the target and the default placement is the block-end side.
+    var dy = anchor.dy + offset;
+    if (dy + childSize.height > size.height) {
+      final flipped = anchor.dy - offset - childSize.height;
+      dy = flipped >= 0 ? flipped : size.height - childSize.height;
+    }
+    var dx = anchor.dx;
+    if (dx + childSize.width > size.width) dx = size.width - childSize.width;
+    if (dx < 0) dx = 0;
+    if (dy < 0) dy = 0;
+    return Offset(dx, dy);
+  }
+
+  @override
+  bool shouldRelayout(FluentChartPopoverLayoutDelegate oldDelegate) =>
+      oldDelegate.anchor != anchor || oldDelegate.offset != offset;
+}
+
+/// The hover popover a chart shows for the datum under the cursor.
+///
+/// Ports `ChartPopover` (`ChartPopover.tsx`). It reuses
+/// [buildFluentPopover] for the surface but **not** `FluentPopover` itself:
+/// that widget creates a `FocusScopeNode` and requests focus a frame after
+/// showing (`overlays/popover.dart:697-708`), is anchored to a child widget
+/// through a `LayerLink`, and disables itself entirely without an
+/// `onOpenChanged` (`:637`). The chart popover is the opposite on every count —
+/// it never takes focus, has no dismiss, anchors to a point, and stays mounted
+/// while open so a screen reader can narrate it
+/// (`CartesianChart.tsx:923`).
+///
+/// Visibility is the chart's business, not this widget's: upstream is a pure
+/// function of `isPopoverOpen` and `clickPosition`, both driven by hit-testing
+/// (`CartesianChart.tsx:444-446`).
+class FluentChartPopover extends StatelessWidget {
+  /// Creates a popover for [data], anchored at [anchor].
+  const FluentChartPopover({
+    super.key,
+    required this.data,
+    required this.anchor,
+    this.style,
+  });
+
+  /// The reading to display.
+  final FluentChartPopoverData data;
+
+  /// The cursor position, in the coordinate space of the box this fills.
+  final Offset anchor;
+
+  /// The highest-precedence style layer.
+  final FluentChartPopoverStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final resolved = resolveFluentChartPopoverStyle(
+      theme,
+    ).merge(FluentChartPopoverTheme.maybeOf(context)).merge(style);
+    const states = <WidgetState>{};
+
+    // ChartPopover.tsx:54-60 — the custom body wins outright, because both
+    // default branches are gated on its absence.
+    final Widget body;
+    if (data.customContentBuilder != null) {
+      body = Builder(builder: data.customContentBuilder!);
+    } else if (data.isCalloutForStack) {
+      body = buildFluentChartPopoverMultiValue(
+        data,
+        resolved,
+        theme.colors.neutralForeground1,
+      );
+    } else {
+      body = buildFluentChartPopoverSingleValue(
+        data,
+        resolved,
+        theme.colors.neutralForeground1,
+      );
+    }
+
+    // ChartPopover.tsx:52 renders a bare `<PopoverSurface>`, so the package's
+    // own renderer draws it — the chart style's surface fields are the popover
+    // style's, flattened by resolveFluentChartPopoverStyle so they stay
+    // overridable.
+    final surface = buildFluentPopover(
+      FluentPopoverBaseState(
+        // `coverTarget: false` with the default block-end placement.
+        position: FluentPopoverPosition.below,
+        align: FluentPopoverAlign.start,
+        // ChartPopover.tsx:52 passes no `withArrow`.
+        withArrow: false,
+        content: body,
+      ),
+      FluentPopoverStyle(
+        backgroundColor: resolved.surfaceColor,
+        borderColor: resolved.surfaceBorderColor,
+        borderWidth: resolved.surfaceBorderWidth,
+        borderRadius: resolved.surfaceRadius,
+        shadow: resolved.surfaceShadow,
+        padding: resolved.surfacePadding,
+      ),
+      states,
+    );
+
+    return CustomSingleChildLayout(
+      delegate: FluentChartPopoverLayoutDelegate(
+        anchor: anchor,
+        offset: resolved.anchorOffset!.resolve(states)!,
+      ),
+      // The popover is announced but never focusable — it is narration for a
+      // hover, and stealing focus from the chart would break its own keyboard
+      // traversal.
+      child: ExcludeFocus(child: surface),
+    );
+  }
+}

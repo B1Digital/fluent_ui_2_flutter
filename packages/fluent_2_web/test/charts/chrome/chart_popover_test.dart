@@ -670,4 +670,200 @@ void main() {
       );
     });
   });
+
+  group('FluentChartPopoverLayoutDelegate', () {
+    const size = Size(400, 300);
+    const child = Size(120, 80);
+
+    test('sits below the cursor at the 20px offset', () {
+      const delegate = FluentChartPopoverLayoutDelegate(
+        anchor: Offset(100, 50),
+        offset: kChartPopoverAnchorOffset,
+      );
+      expect(
+        delegate.getPositionForChild(size, child).dy,
+        50 + kChartPopoverAnchorOffset,
+        reason:
+            'ChartPopover.tsx:48 sets `coverTarget: false` with `offset: 20`, '
+            'so the surface clears the zero-size virtual target by 20.',
+      );
+      expect(
+        delegate.getPositionForChild(size, child).dx,
+        100,
+        reason:
+            'The virtual element is zero-width (ChartPopover.tsx:31-32), so the '
+            'surface starts at the cursor.',
+      );
+    });
+
+    test('flips above when there is no room below', () {
+      const delegate = FluentChartPopoverLayoutDelegate(
+        anchor: Offset(100, 280),
+        offset: kChartPopoverAnchorOffset,
+      );
+      expect(
+        delegate.getPositionForChild(size, child).dy,
+        280 - kChartPopoverAnchorOffset - 80,
+        reason:
+            'Below the cursor there are only 20 pixels, so the surface flips '
+            'above and keeps the same 20px clearance.',
+      );
+    });
+
+    test('shifts inside the box rather than overflowing it', () {
+      const delegate = FluentChartPopoverLayoutDelegate(
+        anchor: Offset(390, 50),
+        offset: kChartPopoverAnchorOffset,
+      );
+      expect(
+        delegate.getPositionForChild(size, child).dx,
+        400 - 120,
+        reason:
+            'A surface that would leave the plot is shifted back to its edge, '
+            'never clipped.',
+      );
+    });
+
+    test('autoSize always caps the surface at the available box', () {
+      const delegate = FluentChartPopoverLayoutDelegate(
+        anchor: Offset(10, 10),
+        offset: kChartPopoverAnchorOffset,
+      );
+      expect(
+        delegate.getConstraintsForChild(BoxConstraints.tight(size)).maxWidth,
+        size.width,
+        reason:
+            "ChartPopover.tsx:48 passes `autoSize: 'always'`, which caps the "
+            'surface at the viewport rather than letting it overflow.',
+      );
+    });
+
+    test('relayouts when the cursor moves', () {
+      const a = FluentChartPopoverLayoutDelegate(
+        anchor: Offset(10, 10),
+        offset: kChartPopoverAnchorOffset,
+      );
+      expect(
+        a.shouldRelayout(
+          const FluentChartPopoverLayoutDelegate(
+            anchor: Offset(11, 10),
+            offset: kChartPopoverAnchorOffset,
+          ),
+        ),
+        isTrue,
+        reason:
+            'The popover follows the hovered datum, so a moved anchor must '
+            'relayout.',
+      );
+    });
+  });
+
+  group('FluentChartPopover', () {
+    testWidgets('a custom body replaces both default branches', (tester) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: FluentChartPopover(
+            anchor: const Offset(10, 10),
+            data: FluentChartPopoverData(
+              xValue: 'Jan',
+              yValue: '42',
+              customContentBuilder: (context) => const Text('bespoke'),
+            ),
+          ),
+        ),
+      );
+      expect(
+        find.text('bespoke'),
+        findsOneWidget,
+        reason: 'ChartPopover.tsx:54.',
+      );
+      expect(
+        find.text('42'),
+        findsNothing,
+        reason:
+            'ChartPopover.tsx:56 and :60 both gate the default branches on the '
+            'custom body being absent.',
+      );
+    });
+
+    testWidgets('isCalloutForStack selects the multi-value body', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: const FluentChartPopover(
+            anchor: Offset(10, 10),
+            data: FluentChartPopoverData(
+              isCalloutForStack: true,
+              xValue: 'Jan',
+              yValues: <FluentYValueHover>[
+                FluentYValueHover(legend: 'a', y: 1, index: 0),
+              ],
+            ),
+          ),
+        ),
+      );
+      expect(
+        find.text('a'),
+        findsOneWidget,
+        reason: 'ChartPopover.tsx:57 routes to _multiValueCallout.',
+      );
+    });
+
+    testWidgets('anchors the surface below the cursor', (tester) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: const FluentChartPopover(
+            anchor: Offset(10, 10),
+            data: FluentChartPopoverData(xValue: 'Jan', yValue: '42'),
+          ),
+        ),
+      );
+      expect(
+        tester
+            .getTopLeft(
+              find.descendant(
+                of: find.byType(FluentChartPopover),
+                matching: find.byType(ExcludeFocus),
+              ),
+            )
+            .dy,
+        moreOrLessEquals(10 + kChartPopoverAnchorOffset, epsilon: 0.01),
+        reason:
+            'The surface is laid out by the delegate against the anchor, so the '
+            'widget carries the same 20px clearance the delegate computes.',
+      );
+    });
+
+    testWidgets('takes no focus', (tester) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: const FluentChartPopover(
+            anchor: Offset(10, 10),
+            data: FluentChartPopoverData(xValue: 'Jan', yValue: '42'),
+          ),
+        ),
+      );
+      final node = Focus.of(tester.element(find.text('42')));
+      expect(
+        node.canRequestFocus,
+        isFalse,
+        reason:
+            'ChartPopover has no focus trap, no dismiss and no onOpenChange — '
+            'CartesianChart.tsx:923 mounts it purely for narration, which is '
+            'why FluentPopover cannot be reused wholesale.',
+      );
+      expect(
+        node.descendantsAreFocusable,
+        isFalse,
+        reason:
+            'Stealing focus from the chart would break the chart\'s own '
+            'keyboard traversal, so nothing inside the surface is reachable.',
+      );
+    });
+  });
 }
