@@ -160,7 +160,16 @@ abstract class FluentCartesianSeriesDelegate {
 
   /// Adjusted margins for the x domain solve, or null to use the shell's
   /// (`CartesianChart.tsx:195`).
-  FluentChartMargins? domainMargins(double containerWidth) => null;
+  ///
+  /// [margins] is what the shell has just solved. Upstream reads it off a
+  /// closure the chart filled from the `getmargins` callback one statement
+  /// earlier (`CartesianChart.tsx:180`, `VerticalBarChart.tsx:326-328`), so a
+  /// domain-margin solve that ignored it would drop the y-tick allowance out of
+  /// the left margin it is supposed to widen.
+  FluentChartMargins? domainMargins(
+    double containerWidth,
+    FluentChartMargins margins,
+  ) => null;
 
   /// Adjusted margins for the primary y solve, or null to use the shell's
   /// (`CartesianChart.tsx:296`). The **secondary** axis never gets these

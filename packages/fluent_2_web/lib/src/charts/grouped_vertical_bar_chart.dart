@@ -521,7 +521,39 @@ class FluentGroupedVerticalBarChartDelegate
   );
 
   @override
-  FluentChartMargins? domainMargins(double containerWidth) => null;
+  FluentChartMargins? domainMargins(
+    double containerWidth,
+    FluentChartMargins margins,
+  ) {
+    final categories = datasetForXAxisDomain ?? const <String>[];
+    final margin = FluentGroupedVerticalBarChartGeometry.solveDomainMargin(
+      categoryCount: categories.length,
+      legendCount: barLegends.length,
+      containerWidth: containerWidth,
+      margins: margins,
+      barWidthProp: barWidthProp,
+      maxBarWidth: maxBarWidth,
+      innerPadding: xAxisInnerPadding!,
+      // `GroupedVerticalBarChart.tsx:736`, one of upstream's four
+      // `isScalePaddingDefined` sites. Note the single argument: GVBC passes no
+      // shorthand, unlike VerticalBarChart.tsx:993.
+      isOuterPaddingDefined: isScalePaddingDefined(xAxisOuterPadding),
+      mode: mode,
+      hideTickOverlap: hideTickOverlap,
+      // `calculateLongestLabelWidth(_xAxisLabels)` (`.tsx:764`) sits inside the
+      // `!props.hideTickOverlap` guard at `:763`, so the measure is skipped
+      // rather than paid on every solve when overlap hiding is on.
+      longestLabelWidth: hideTickOverlap
+          ? 0
+          : measurer.longestWidth(categories, textStyles.axisTick),
+    ).domainMargin;
+    // `{..._margins, left: …, right: …}` (`.tsx:773-777`) — top and bottom
+    // pass through untouched.
+    return margins.copyWith(
+      left: (margins.left ?? 0) + margin,
+      right: (margins.right ?? 0) + margin,
+    );
+  }
 
   /// The bar width every group is laid out on
   /// (`GroupedVerticalBarChart.tsx:468-471`).

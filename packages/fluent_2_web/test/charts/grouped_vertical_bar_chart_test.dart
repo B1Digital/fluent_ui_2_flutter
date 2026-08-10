@@ -89,6 +89,7 @@ FluentGroupedVerticalBarChartDelegate _delegateFor(
   bool roundCorners = false,
   List<String> selectedLegends = const <String>[],
   String? activeLegend,
+  double? xAxisOuterPadding,
 }) => FluentGroupedVerticalBarChartDelegate(
   data: data,
   style: _style,
@@ -101,6 +102,7 @@ FluentGroupedVerticalBarChartDelegate _delegateFor(
   barWidthProp: barWidthProp,
   hideLabels: hideLabels,
   roundCorners: roundCorners,
+  xAxisOuterPadding: xAxisOuterPadding,
 );
 
 /// One category, one legend per entry of [values], so every bar starts from the
@@ -587,6 +589,202 @@ void main() {
     // load-bearing: the local band scale keys on it, not on the text.
     const legends = <String>['s1', 's2', 's3', 's4'];
     const barWidth = 16.0;
+
+    /// The shell margins the story was captured with.
+    ///
+    /// Left is read straight off the capture — the y-axis group carries
+    /// `translate(40, 0)` — and top and bottom off its domain path
+    /// `M-6,275.5H0.5V20.5H-6` against the 310px height. Right then falls out
+    /// of the x-axis domain path below: `rangeStart` fixes the domain margin at
+    /// `148.3333 - 40`, and `650 - 521.6667 - 108.3333` is 20, which is also
+    /// `DEFAULT_MARGIN_NO_TICKS` (`CartesianChart.tsx:676`) for a chart with no
+    /// secondary y scale.
+    const margins = FluentChartMargins(
+      top: 20,
+      bottom: 35,
+      left: 40,
+      right: 20,
+    );
+
+    /// The `[rangeStart, rangeEnd]` of [story]'s x axis, read off the domain
+    /// path `M<x0+crisp>,6V<crisp>H<x1+crisp>V6` (`d3-axis/src/axis.js:80`).
+    (double, double) xRangeOf(OracleStory story) {
+      final domainPath = story.soleElement(
+        'path',
+        where: (element) =>
+            (element.d ?? '').contains('V${story.crispOffset}H'),
+      );
+      final numbers = svgPathNumbers(domainPath.d!);
+      // The path emits x0, 6, crisp, x1, 6, so index 3 is the far end.
+      return (numbers[0] - story.crispOffset, numbers[3] - story.crispOffset);
+    }
+
+    // The gate on `_getDomainMargins` reaching the shell at all
+    // (`CartesianChart.tsx:195`). Every other assertion in this group feeds the
+    // captured range back in by hand, so all of them pass while
+    // `FluentGroupedVerticalBarChartGeometry.solveDomainMargin` has no `lib/`
+    // caller — which it had none of for four waves.
+    test('the delegate widens the shell margins by the solved margin', () {
+      final story = loadOracleStory(storyId);
+      final (rangeStart, rangeEnd) = xRangeOf(story);
+      final solved = _delegateFor(<FluentGroupedVerticalBarChartData>[
+        for (final category in categories)
+          FluentGroupedVerticalBarChartData(
+            name: category,
+            series: <FluentGroupedBarSeriesPoint>[
+              for (final legend in legends)
+                // Only the legend count reaches the solve; the value does not.
+                FluentGroupedBarSeriesPoint(
+                  key: '$category/$legend',
+                  data: 1,
+                  legend: legend,
+                ),
+            ],
+          ),
+      ]).domainMargins(story.width, margins);
+      expect(
+        solved,
+        isNotNull,
+        reason:
+            'CartesianChart.tsx:195 falls back to the plain margins when '
+            'getDomainMargins is absent, so a null here is the shell laying '
+            'every group out with no domain margin at all',
+      );
+      expectOracleNumber('gvbc x range start', rangeStart, solved!.left!);
+      expectOracleNumber(
+        'gvbc x range end',
+        rangeEnd,
+        story.width - solved.right!,
+      );
+      expect(
+        solved.top,
+        margins.top,
+        reason:
+            'GroupedVerticalBarChart.tsx:774-777 spreads the incoming margins '
+            'and replaces only left and right',
+      );
+      expect(
+        solved.bottom,
+        margins.bottom,
+        reason: 'the same spread at GroupedVerticalBarChart.tsx:774',
+      );
+    });
+
+    // The delegate must DERIVE `isOuterPaddingDefined` from its own prop.
+    // `solveDomainMargin(isOuterPaddingDefined: true)` returning 0 — which the
+    // unit group above asserts — is satisfied by a delegate that hard-codes
+    // false and ignores the caller entirely.
+    test('a defined outer padding leaves the shell margins alone', () {
+      final data = <FluentGroupedVerticalBarChartData>[
+        for (final category in categories)
+          FluentGroupedVerticalBarChartData(
+            name: category,
+            series: <FluentGroupedBarSeriesPoint>[
+              for (final legend in legends)
+                FluentGroupedBarSeriesPoint(
+                  key: '$category/$legend',
+                  data: 1,
+                  legend: legend,
+                ),
+            ],
+          ),
+      ];
+      final withPadding = _delegateFor(
+        data,
+        xAxisOuterPadding: 0.1,
+      ).domainMargins(650, margins);
+      expect(
+        withPadding!.left,
+        margins.left,
+        reason:
+            'GroupedVerticalBarChart.tsx:736-739 zeroes _domainMargin outright '
+            'once xAxisOuterPadding is defined',
+      );
+      expect(
+        withPadding.right,
+        margins.right,
+        reason: 'the same zero on the other end',
+      );
+      expect(
+        _delegateFor(data).domainMargins(650, margins)!.left,
+        greaterThan(margins.left!),
+        reason:
+            'a control: the same four groups DO widen the margins without the '
+            'padding, so the assertion above is about the prop',
+      );
+    });
+
+    // `calculateLongestLabelWidth(_xAxisLabels)` (`.tsx:764`) is read only in
+    // the plotly arm and only when overlap hiding is off, and no captured GVBC
+    // story sets `mode: 'plotly'`. Asserted relatively, because `flutter test`
+    // resolves a different font from the capture browser and a hard-coded
+    // width would pin the harness rather than the port.
+    test('the plotly margin reads the x labels only when tick overlap is '
+        'allowed', () {
+      FluentGroupedVerticalBarChartDelegate delegateOver(
+        List<String> names, {
+        required bool hideTickOverlap,
+      }) => FluentGroupedVerticalBarChartDelegate(
+        data: <FluentGroupedVerticalBarChartData>[
+          for (final name in names)
+            FluentGroupedVerticalBarChartData(
+              name: name,
+              series: <FluentGroupedBarSeriesPoint>[
+                for (final legend in legends)
+                  FluentGroupedBarSeriesPoint(
+                    key: '$name/$legend',
+                    data: 1,
+                    legend: legend,
+                  ),
+              ],
+            ),
+        ],
+        style: _style,
+        colors: _colours(),
+        measurer: _measurer,
+        textStyles: _textStyles,
+        selectedLegends: const <String>[],
+        legendColours: const <String, Color>{},
+        // `.tsx:740` claims every barWidth that is not `auto` for the centring
+        // arm above, so the plotly arm is unreachable without it.
+        barWidthProp: 'auto',
+        mode: 'plotly',
+        hideTickOverlap: hideTickOverlap,
+      );
+
+      const short = <String>['a', 'b', 'c', 'd'];
+      final long = <String>[for (final name in short) name * 30];
+      expect(
+        delegateOver(
+          long,
+          hideTickOverlap: false,
+        ).domainMargins(650, margins)!.left,
+        lessThan(
+          delegateOver(
+            short,
+            hideTickOverlap: false,
+          ).domainMargins(650, margins)!.left!,
+        ),
+        reason:
+            'margin2 is `(totalWidth - (n - innerPadding) * (longest + 20)) / 2` '
+            '(.tsx:764-766) and the min at :769 takes it, so a wider label '
+            'leaves less room. A delegate passing 0 makes these two equal.',
+      );
+      expect(
+        delegateOver(
+          long,
+          hideTickOverlap: true,
+        ).domainMargins(650, margins)!.left,
+        delegateOver(
+          short,
+          hideTickOverlap: true,
+        ).domainMargins(650, margins)!.left,
+        reason:
+            'margin2 stays +infinity when overlap hiding is on (.tsx:763), so '
+            'the label width drops out of the min entirely — a delegate that '
+            'hard-coded hideTickOverlap would not reproduce both halves',
+      );
+    });
 
     test('the captured bar grid reproduces the ported band maths', () {
       final story = loadOracleStory(storyId);

@@ -703,7 +703,7 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
 
     final xParams = FluentXAxisParams(
       domainNRangeValues: delegate.resolveXDomainRange(
-        margins: delegate.domainMargins(size.width) ?? margins,
+        margins: delegate.domainMargins(size.width, margins) ?? margins,
         containerWidth: size.width,
         isRtl: isRtl,
         barWidth: delegate.barWidth,

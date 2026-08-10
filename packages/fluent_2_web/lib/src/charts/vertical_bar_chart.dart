@@ -174,7 +174,24 @@ class _FluentVerticalBarChartState extends State<FluentVerticalBarChart> {
       // state below exists only to dim the delegate's marks.
       selectedLegends: null,
       onLegendChange: (selected) => setState(() => _selectedLegends = selected),
-      props: widget.props.copyWith(chartTitleForSemantics: _semanticTitle()),
+      props: widget.props.copyWith(
+        chartTitleForSemantics: _semanticTitle(),
+        // `VerticalBarChart.tsx:1181-1184`. The explicit JSX prop sits after
+        // the `{...props}` spread at `:1157`, so the chart always wins and a
+        // caller cannot set this on a vertical bar chart.
+        //
+        // This one flag stands in for two upstream `isScalePaddingDefined`
+        // sites: `:1183` here, and `:595`, which guards `.nice()` on
+        // VerticalBarChart's own numeric `xBarScale`. The port has no private
+        // x scale — the delegate reads the shell's — and the shell nices on
+        // exactly this flag (`axis_builders.dart:89`), so the two collapse.
+        showRoundOffXTickValues:
+            !isScalePaddingDefined(
+              widget.xAxisInnerPadding,
+              widget.xAxisPadding,
+            ) &&
+            widget.mode != 'histogram',
+      ),
       legends: _legends(style),
       delegate: FluentVerticalBarChartDelegate(
         points: widget.data,
@@ -716,6 +733,86 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
   List<String>? get datasetForXAxisDomain =>
       xAxisType == FluentChartAxisType.category ? orderedCategories : null;
 
+  /// Every distinct x value, in first-appearance order.
+  ///
+  /// Ports the `mapX` walk at `VerticalBarChart.tsx:979-987`, which keys a
+  /// [DateTime] by `getTime()` and everything else by the JS object-key
+  /// coercion of the value itself. That coercion is reproduced with string
+  /// interpolation rather than corrected, so — as upstream — a chart mixing
+  /// `1` and `'1'` counts one unique x, not two.
+  List<Object> get uniqueXValues {
+    final seen = <Object>{};
+    final unique = <Object>[];
+    for (final point in points) {
+      final key = point.x is DateTime
+          ? (point.x as DateTime).millisecondsSinceEpoch
+          : '${point.x}';
+      if (seen.add(key)) {
+        unique.add(point.x);
+      }
+    }
+    return unique;
+  }
+
+  /// `_getDomainMargins(containerWidth)` bound to this delegate's own props
+  /// (`VerticalBarChart.tsx:976-1064`).
+  ///
+  /// [margins] are the shell's, which upstream reads off the closure the
+  /// `getmargins` callback filled (`CartesianChart.tsx:180`).
+  ///
+  /// Returns the bar width too, because upstream's `_domainMargin` and
+  /// `_barWidth` are written together and [barsFor] needs the second for a
+  /// numeric or date axis — `_createNumericBars` and `_createDateBars` read
+  /// `_barWidth` at `:656` and `:778` without recomputing it, unlike
+  /// `_createStringBars` at `:722`.
+  ({double barWidth, double domainMargin}) solveDomainMargin(
+    double containerWidth,
+    FluentChartMargins margins,
+  ) {
+    final unique = uniqueXValues;
+    return FluentVerticalBarChartGeometry.solveDomainMargin(
+      xAxisType: xAxisType,
+      uniqueXCount: unique.length,
+      containerWidth: containerWidth,
+      margins: margins,
+      barWidthProp: barWidthProp,
+      maxBarWidth: maxBarWidth,
+      innerPadding: innerPadding,
+      outerPadding: outerPadding,
+      // `VerticalBarChart.tsx:993`, one of upstream's four
+      // `isScalePaddingDefined` sites.
+      isOuterPaddingDefined: isScalePaddingDefined(
+        xAxisOuterPadding,
+        xAxisPadding,
+      ),
+      mode: mode,
+      // `calculateLongestLabelWidth(uniqueX)` (`:1020`) is read only inside the
+      // string-axis arm, so the measure is skipped on the other two rather than
+      // paid on every solve.
+      longestLabelWidth: xAxisType == FluentChartAxisType.category
+          ? measurer.longestWidth(
+              unique.map((value) => '$value'),
+              textStyles.axisTick,
+            )
+          : 0,
+      sortedXValues: unique,
+    );
+  }
+
+  @override
+  FluentChartMargins? domainMargins(
+    double containerWidth,
+    FluentChartMargins margins,
+  ) {
+    final margin = solveDomainMargin(containerWidth, margins).domainMargin;
+    // `{...margins, left: …, right: …}` (`VerticalBarChart.tsx:1059-1064`) —
+    // top and bottom pass through untouched.
+    return margins.copyWith(
+      left: (margins.left ?? 0) + margin,
+      right: (margins.right ?? 0) + margin,
+    );
+  }
+
   /// The band domain, ordered per [xAxisCategoryOrder]
   /// (`VerticalBarChart.tsx:1128-1140`).
   List<String> get orderedCategories {
@@ -753,8 +850,11 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
         (layout.margins.bottom ?? 0) -
         yBarScale(yReference)!;
     final isBand = xAxisType == FluentChartAxisType.category;
-    // VerticalBarChart.tsx:716 re-derives the width from the live bandwidth;
-    // the numeric and date creators keep the one `_getDomainMargins` solved.
+    // VerticalBarChart.tsx:722 re-derives the width from the live bandwidth;
+    // the numeric and date creators keep the one `_getDomainMargins` solved at
+    // `:1045-1053`, which is the only place `calculateAppropriateBarWidth`
+    // runs. [layout] carries the shell's own margins, so the solve here sees
+    // exactly what the shell handed `domainMargins`.
     final barWidth = isBand
         ? getBarWidth(
             barWidthProp,
@@ -762,7 +862,7 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
             adjustedValue: context.xScale.bandwidth,
             mode: mode,
           )
-        : getBarWidth(barWidthProp, maxBarWidth, mode: mode);
+        : solveDomainMargin(layout.size.width, layout.margins).barWidth;
     final dim = style.barOpacity!.resolve(<WidgetState>{WidgetState.disabled})!;
     final full = style.barOpacity!.resolve(<WidgetState>{})!;
     final gapAbove = style.barLabelGapAbove!.resolve(<WidgetState>{})!;

@@ -1,6 +1,7 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:fluent_2_web/src/charts/axis/axis_types.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart_props.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
 import 'package:fluent_2_web/src/charts/chrome/chart_popover.dart';
@@ -1242,6 +1243,315 @@ void main() {
       }
     });
   });
+
+  // The gate on `_getDomainMargins` reaching the shell at all
+  // (`CartesianChart.tsx:195`). Every assertion above this group builds its own
+  // child context by hand, so all of them pass with
+  // `FluentVerticalBarChartGeometry.solveDomainMargin` uncalled from `lib/`,
+  // which is what it was for four waves.
+  group('FluentVerticalBarChartDelegate domain-margin wiring', () {
+    // `charts-verticalbarchart--vertical-bar-dynamic` is the only captured
+    // VerticalBarChart story whose numeric bar width is NOT the 16px default:
+    // it is 4, which only `calculateAppropriateBarWidth` produces
+    // (`VerticalBarChart.tsx:1045-1053`). Recovered below from the capture,
+    // whose x scale is `[0, 80] -> [52, 618]` — eight ticks of 10 at
+    // `translate(52.5,0)` … `translate(618.5,0)`.
+    const dynamicXs = <double>[35, 4, 1, 71, 72];
+    // The y values only order the bars; the story sets `yMaxValue: 100`, which
+    // the delegate has no hook for, so bar HEIGHTS are deliberately not
+    // asserted here — [barsFor]'s heights are pinned by the default-story test
+    // above.
+    const dynamicYs = <double>[51, 9, 10, 8, 72];
+
+    /// The `[rangeStart, rangeEnd]` of [story]'s x axis, read off the domain
+    /// path `M<x0+crisp>,6V<crisp>H<x1+crisp>V6` (`d3-axis/src/axis.js:80`).
+    (double, double) xRangeOf(OracleStory story) {
+      final domainPath = story.soleElement(
+        'path',
+        where: (element) =>
+            (element.d ?? '').contains('V${story.crispOffset}H'),
+      );
+      final numbers = svgPathNumbers(domainPath.d!);
+      // The path emits x0, 6, crisp, x1, 6, so index 3 is the far end.
+      return (numbers[0] - story.crispOffset, numbers[3] - story.crispOffset);
+    }
+
+    test('a numeric axis widens the shell margins by the solved margin', () {
+      final story = loadOracleStory(
+        'charts-verticalbarchart--vertical-bar-dynamic',
+      );
+      final (rangeStart, rangeEnd) = xRangeOf(story);
+      final solved = _numericDelegate(
+        xs: dynamicXs,
+        ys: dynamicYs,
+      ).domainMargins(story.width, _margins);
+      expect(
+        solved,
+        isNotNull,
+        reason:
+            'CartesianChart.tsx:195 uses the plain margins when getDomainMargins '
+            'is absent, so a null here is the shell laying the bars out with no '
+            'domain margin at all',
+      );
+      expectOracleNumber('dynamic x range start', rangeStart, solved!.left!);
+      expectOracleNumber(
+        'dynamic x range end',
+        rangeEnd,
+        story.width - solved.right!,
+      );
+      expect(
+        solved.top,
+        _margins.top,
+        reason:
+            'VerticalBarChart.tsx:1060-1063 spreads the incoming margins and '
+            'replaces only left and right',
+      );
+      expect(
+        solved.bottom,
+        _margins.bottom,
+        reason: 'the same spread at VerticalBarChart.tsx:1060',
+      );
+    });
+
+    test('a numeric bar takes the width the domain-margin solve wrote', () {
+      final story = loadOracleStory(
+        'charts-verticalbarchart--vertical-bar-dynamic',
+      );
+      final (rangeStart, rangeEnd) = xRangeOf(story);
+      final captured = story.byTag('rect');
+      expect(captured.length, 5, reason: 'the story draws five bars');
+      final bars = _numericDelegate(xs: dynamicXs, ys: dynamicYs).barsFor(
+        FluentCartesianChildContext(
+          // The captured ticks run 0..80 in steps of 10, which is the data
+          // extent 1..72 after `.nice()` (VerticalBarChart.tsx:594-596).
+          xScale: ScaleLinear()
+            ..domainOf(<double>[0, 80])
+            ..rangeOf(<double>[rangeStart, rangeEnd]),
+          yScalePrimary: _positionScale(containerHeight: story.height),
+          containerWidth: story.width,
+          containerHeight: story.height,
+        ),
+        _layout(width: story.width, height: story.height),
+      );
+      expect(bars.length, 5, reason: 'a count guard');
+      for (var i = 0; i < bars.length; i++) {
+        expectOracleNumber(
+          'dynamic bar $i width',
+          captured[i].width!,
+          bars[i].rect.width,
+        );
+        expectOracleNumber(
+          'dynamic bar $i left',
+          captured[i].x!,
+          bars[i].rect.left,
+        );
+      }
+    });
+
+    test('a category axis widens the shell margins by the solved margin', () {
+      final story = loadOracleStory(
+        'charts-verticalbarchart--vertical-bar-rotate-labels',
+      );
+      final bars = story.byTag('rect');
+      expect(bars.length, 4, reason: 'a filtered count guard');
+      final solved = _stringDelegate(
+        // Four single-character categories, so the band count is what the
+        // solver reads and the labels are what it would measure.
+        categories: const <String>['a', 'b', 'c', 'd'],
+        ys: const <double>[10, 20, 30, 40],
+      ).domainMargins(story.width, _margins);
+      expect(
+        solved,
+        isNotNull,
+        reason: 'the same null-means-unwired check as the numeric test above',
+      );
+      // Every bar sits in a `g` at `translate(0, 0)`, so rect.x IS the band
+      // start — `margins.left + _domainMargin` (VerticalBarChart.tsx:614).
+      expectOracleNumber(
+        'rotate-labels band start',
+        bars.first.x!,
+        solved!.left!,
+      );
+      expectOracleNumber(
+        'rotate-labels band end',
+        bars.last.x! + bars.last.width!,
+        story.width - solved.right!,
+      );
+    });
+
+    // The delegate must DERIVE `isOuterPaddingDefined` from its own props.
+    // Asserting `solveDomainMargin(isOuterPaddingDefined: true)` returns 0 —
+    // which the unit group above already does — proves nothing about the
+    // wiring: a delegate that hard-coded `false` passes that and still ignores
+    // the caller's padding, which is how `isScalePaddingDefined` spent four
+    // waves on the orphan allowlist.
+    test('a defined outer padding leaves the shell margins alone', () {
+      const categories = <String>['a', 'b', 'c', 'd'];
+      const ys = <double>[10, 20, 30, 40];
+      final withPadding = _delegateOver(<FluentVerticalBarChartDataPoint>[
+        for (var i = 0; i < categories.length; i++)
+          FluentVerticalBarChartDataPoint(x: categories[i], y: ys[i]),
+      ], xAxisOuterPadding: 0.1).domainMargins(650, _margins);
+      expect(
+        withPadding!.left,
+        _margins.left,
+        reason:
+            'VerticalBarChart.tsx:993-996 zeroes _domainMargin outright once '
+            'xAxisOuterPadding is defined, because the band scale now owns the '
+            'space before the first bar',
+      );
+      expect(
+        withPadding.right,
+        _margins.right,
+        reason: 'the same zero on the other end',
+      );
+      expect(
+        _stringDelegate(
+          categories: categories,
+          ys: ys,
+        ).domainMargins(650, _margins)!.left,
+        greaterThan(_margins.left!),
+        reason:
+            'a control: without the padding the same data DOES widen the '
+            'margins, so the assertion above is about the prop and not about '
+            'these four categories',
+      );
+    });
+
+    // The plotly arm (`VerticalBarChart.tsx:1010-1025`) is the only one that
+    // reads `calculateLongestLabelWidth(uniqueX)`, and no captured story sets
+    // `mode: 'plotly'`, so this is asserted relatively rather than against a
+    // number: `flutter test` resolves a different font from the capture
+    // browser, and a hard-coded width would pin the harness, not the port.
+    test('a longer category label narrows the plotly domain margin', () {
+      FluentChartMargins marginsFor(List<String> categories) => _delegateOver(
+        <FluentVerticalBarChartDataPoint>[
+          for (final category in categories)
+            FluentVerticalBarChartDataPoint(x: category, y: 10),
+        ],
+        // `:1000` claims every barWidth that is not `auto`, so the plotly arm
+        // is unreachable without it.
+        barWidthProp: 'auto',
+        mode: 'plotly',
+      ).domainMargins(650, _margins)!;
+
+      final short = marginsFor(const <String>['a', 'b', 'c', 'd']);
+      final long = marginsFor(const <String>[
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        'cccccccccccccccccccccccccccccc',
+        'dddddddddddddddddddddddddddddd',
+      ]);
+      expect(
+        long.left,
+        lessThan(short.left!),
+        reason:
+            'margin2 is `(totalWidth - (n - innerPadding) * (longest + 20)) / 2` '
+            '(VerticalBarChart.tsx:1020-1022) and the min at :1025 takes it, so '
+            'a wider label leaves less room before the first bar. A delegate '
+            'that passed 0 for the measured width makes these two equal.',
+      );
+      expect(
+        long.left,
+        greaterThanOrEqualTo(_margins.left! + kMinDomainMargin),
+        reason:
+            'the max(0, …) at :1025 floors the added margin, so even labels '
+            'wide enough to make margin2 negative keep MIN_DOMAIN_MARGIN',
+      );
+    });
+
+    test('an explicit zero outer padding still zeroes the margin', () {
+      expect(
+        _delegateOver(const <FluentVerticalBarChartDataPoint>[
+          FluentVerticalBarChartDataPoint(x: 'a', y: 10),
+          FluentVerticalBarChartDataPoint(x: 'b', y: 20),
+        ], xAxisOuterPadding: 0).domainMargins(650, _margins)!.left,
+        _margins.left,
+        reason:
+            'isScalePaddingDefined is `typeof prop === "number"` '
+            '(utilities.ts:1922), so an explicit 0 is defined — which is the '
+            'whole reason the flag exists beside getScalePadding',
+      );
+    });
+  });
+
+  group('FluentVerticalBarChart showRoundOffXTickValues', () {
+    /// The props the widget hands the shell, which is where
+    /// `VerticalBarChart.tsx:1181-1184` lands.
+    Future<FluentCartesianChartProps> propsOf(
+      WidgetTester tester,
+      FluentVerticalBarChart chart,
+    ) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+          home: Center(child: SizedBox(width: 400, height: 300, child: chart)),
+        ),
+      );
+      return tester
+          .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+          .props;
+    }
+
+    testWidgets('is on by default', (tester) async {
+      final props = await propsOf(
+        tester,
+        FluentVerticalBarChart(data: _points()),
+      );
+      expect(
+        props.showRoundOffXTickValues,
+        isTrue,
+        reason:
+            'neither padding is defined and the mode is not histogram, so '
+            'VerticalBarChart.tsx:1182-1183 is true and the numeric x scale '
+            'still nices',
+      );
+    });
+
+    testWidgets('a defined inner padding turns it off', (tester) async {
+      final props = await propsOf(
+        tester,
+        FluentVerticalBarChart(data: _points(), xAxisInnerPadding: 0.2),
+      );
+      expect(
+        props.showRoundOffXTickValues,
+        isFalse,
+        reason:
+            'isScalePaddingDefined(props.xAxisInnerPadding, props.xAxisPadding) '
+            'is true, so VerticalBarChart.tsx:1183 negates to false',
+      );
+    });
+
+    testWidgets('the xAxisPadding shorthand turns it off too', (tester) async {
+      final props = await propsOf(
+        tester,
+        FluentVerticalBarChart(data: _points(), xAxisPadding: 0.2),
+      );
+      expect(
+        props.showRoundOffXTickValues,
+        isFalse,
+        reason:
+            'the shorthand is the second argument of isScalePaddingDefined '
+            '(utilities.ts:1921-1922), so it defines the padding on its own',
+      );
+    });
+
+    testWidgets('histogram mode turns it off with no padding at all', (
+      tester,
+    ) async {
+      final props = await propsOf(
+        tester,
+        FluentVerticalBarChart(data: _points(), mode: 'histogram'),
+      );
+      expect(
+        props.showRoundOffXTickValues,
+        isFalse,
+        reason:
+            "the `&& props.mode !== 'histogram'` half of "
+            'VerticalBarChart.tsx:1183',
+      );
+    });
+  });
 }
 
 /// Three bars, one legend each, no overlaid line.
@@ -1345,6 +1655,8 @@ FluentVerticalBarChartDelegate _delegateOver(
   Object? activeXDataPoint,
   bool isHighContrast = false,
   bool hideLabels = false,
+  double? xAxisOuterPadding,
+  String? mode,
 }) => FluentVerticalBarChartDelegate(
   points: points,
   style: resolveFluentVerticalBarChartStyle(_delegateTheme),
@@ -1357,6 +1669,8 @@ FluentVerticalBarChartDelegate _delegateOver(
   barWidthProp: barWidthProp,
   hideLabels: hideLabels,
   lineLegendText: lineLegendText,
+  xAxisOuterPadding: xAxisOuterPadding,
+  mode: mode,
 );
 
 FluentVerticalBarChartDelegate _stringDelegate({

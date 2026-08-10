@@ -50,7 +50,7 @@ void main() {
   test('the optional pull-hooks default to upstream absence', () {
     final delegate = StubCartesianDelegate();
     expect(
-      delegate.domainMargins(400),
+      delegate.domainMargins(400, const FluentChartMargins()),
       isNull,
       reason:
           'null means "use the shell margins", which is the `? :` at '

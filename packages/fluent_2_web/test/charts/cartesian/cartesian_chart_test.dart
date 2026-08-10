@@ -15,6 +15,7 @@ import 'package:fluent_2_web/src/charts/chrome/annotation_layer.dart';
 import 'package:fluent_2_web/src/charts/chrome/chart_popover.dart';
 import 'package:fluent_2_web/src/charts/chrome/legend.dart';
 import 'package:fluent_2_web/src/charts/model/chart_annotation.dart';
+import 'package:fluent_2_web/src/charts/model/chart_common.dart';
 import 'package:fluent_2_web/src/charts/model/chart_value.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/services.dart';
@@ -1359,7 +1360,92 @@ void main() {
             "LineChart's event labels overlap the top of the plot",
       );
     });
+
+    testWidgets('the x domain solve is given the delegate domain margins', (
+      tester,
+    ) async {
+      final delegate = _DomainMarginStubDelegate();
+      await pump(tester, chart(delegate: delegate));
+      expect(
+        delegate.receivedMargins,
+        isNotNull,
+        reason: 'a guard: the solve must have run at least once',
+      );
+      expect(
+        delegate.receivedMargins!.left,
+        // 40 is `_getDefaultMargins`' DEFAULT_MARGIN_WITH_TICKS
+        // (`CartesianChart.tsx:677`) with no y tick labels measured, and 7 is
+        // this stub's own marker.
+        47,
+        reason:
+            'CartesianChart.tsx:195 passes getDomainMargins(containerWidth) to '
+            'getDomainNRangeValues instead of the plain margins. Reverting that '
+            'to `margins` is what left both bar charts solving a domain margin '
+            'nothing read.',
+      );
+      expect(
+        delegate.receivedMargins!.right,
+        // 20 is DEFAULT_MARGIN_NO_TICKS (`CartesianChart.tsx:680`) plus the
+        // same 7.
+        27,
+        reason: 'the same call site, on the other end of the range',
+      );
+      expect(
+        delegate.leftMarginsSeen,
+        everyElement(47),
+        reason:
+            'the shell solves twice per build when the y tick labels move the '
+            'left margin (`_solve`), and a build that hands the plain margins '
+            'to either pass is a frame of bars in the wrong place',
+      );
+    });
   });
+}
+
+/// A stub that widens the margins it is handed by a marker amount and records
+/// what the x domain solve was actually given.
+///
+/// The shell's `?? margins` fallback (`CartesianChart.tsx:195`) means a
+/// delegate returning null is indistinguishable from a shell that never calls
+/// the hook, so this returns a value no default margin can produce.
+class _DomainMarginStubDelegate extends StubCartesianDelegate {
+  /// Distinct from every margin constant in the solve, so a reading of 47
+  /// cannot be a coincidence of the defaults.
+  static const double marker = 7;
+
+  /// The margins the last `resolveXDomainRange` call was given.
+  FluentChartMargins? receivedMargins;
+
+  /// The left margin of every `resolveXDomainRange` call, in order.
+  final List<double?> leftMarginsSeen = <double?>[];
+
+  @override
+  FluentChartMargins? domainMargins(
+    double containerWidth,
+    FluentChartMargins margins,
+  ) => margins.copyWith(
+    left: (margins.left ?? 0) + marker,
+    right: (margins.right ?? 0) + marker,
+  );
+
+  @override
+  FluentChartDomainRange resolveXDomainRange({
+    required FluentChartMargins margins,
+    required double containerWidth,
+    required bool isRtl,
+    required double? barWidth,
+    required List<Object>? tickValues,
+  }) {
+    receivedMargins = margins;
+    leftMarginsSeen.add(margins.left);
+    return super.resolveXDomainRange(
+      margins: margins,
+      containerWidth: containerWidth,
+      isRtl: isRtl,
+      barWidth: barWidth,
+      tickValues: tickValues,
+    );
+  }
 }
 
 /// A stub whose two stacks each contribute two segment regions sharing one
