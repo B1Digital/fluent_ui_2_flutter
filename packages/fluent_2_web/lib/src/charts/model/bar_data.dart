@@ -117,6 +117,45 @@ class FluentChartDataPoint {
 
   /// Accessible naming for the callout.
   final FluentChartSemantics? callOutSemantics;
+
+  /// This datum with [color] replaced.
+  ///
+  /// `DonutChart.tsx:265` is `{ ...item, defaultColor }`, an object spread that
+  /// leaves the original untouched. Upstream writes the resolved colour to
+  /// `defaultColor`, which nothing downstream reads (`Pie.tsx:61` reads
+  /// `d.data.color`); this writes the field the renderer uses.
+  FluentChartDataPoint copyWithColor(Color color) => FluentChartDataPoint(
+    legend: legend,
+    data: data,
+    horizontalBarChartData: horizontalBarChartData,
+    onClick: onClick,
+    color: color,
+    placeHolder: placeHolder,
+    xAxisCalloutData: xAxisCalloutData,
+    yAxisCalloutData: yAxisCalloutData,
+    callOutSemantics: callOutSemantics,
+  );
+
+  /// This datum with [data] raised to [elevated] and the original value
+  /// recorded as [yAxisCalloutData].
+  ///
+  /// `DonutChart.tsx:94-99` — the spread sets `data` to the one-percent floor
+  /// and `yAxisCalloutData` to `item.data.toLocaleString()`, but only when the
+  /// caller supplied none, so the popover keeps showing the true value.
+  FluentChartDataPoint copyWithElevatedData(
+    double elevated,
+    String calloutData,
+  ) => FluentChartDataPoint(
+    legend: legend,
+    data: elevated,
+    horizontalBarChartData: horizontalBarChartData,
+    onClick: onClick,
+    color: color,
+    placeHolder: placeHolder,
+    xAxisCalloutData: xAxisCalloutData,
+    yAxisCalloutData: calloutData,
+    callOutSemantics: callOutSemantics,
+  );
 }
 
 /// The line overlaid on a vertical bar chart, at one x.
