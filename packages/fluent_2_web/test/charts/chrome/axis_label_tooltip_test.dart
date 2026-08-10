@@ -1,5 +1,7 @@
+// The deep import this file used to carry became redundant the moment the
+// barrel started exporting `src/charts/chrome/axis_label_tooltip.dart`, and
+// `unnecessary_import` is fatal here.
 import 'package:fluent_2_web/fluent_2_web.dart';
-import 'package:fluent_2_web/src/charts/chrome/axis_label_tooltip.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 

@@ -63,20 +63,21 @@ Never commit a `--update-goldens` run you have not looked at. The whole point is
 that the diff is reviewable, and an unexamined regeneration converts a caught
 regression into a committed one.
 
-39 images, ~256 KB total. Keep it that way: coarsen a grid rather than adding a
-megabyte of PNG.
+216 images, ~5 MB total. Keep the growth per component small: coarsen a grid
+rather than adding a megabyte of PNG.
 
 ## Known ceiling
 
 Flutter goldens are only stable for a given engine build. A Flutter upgrade that
 changes rasterisation or text layout will fail every image at once; that is a
-regeneration, not a regression. A wholesale failure across all 39 is the signal.
+regeneration, not a regression. A wholesale failure across every image at once
+is the signal.
 
 ## What the first run caught
 
-Both of these are in `lib/`, not in the tests, and both are recorded here rather
-than silently baked in — the goldens currently pin the broken rendering, so
-fixing either one will (correctly) fail its image.
+These are in `lib/`, not in the tests, and each is recorded here rather than
+silently baked in — the goldens currently pin the broken rendering, so fixing
+any of them will (correctly) fail its image.
 
 - **`FluentTooltipAppearance.inverted` is unreadable in high contrast.** Both
   `neutralBackgroundInverted` and `neutralForegroundInverted` resolve to
@@ -87,3 +88,14 @@ fixing either one will (correctly) fail its image.
   `outline` and `ghost` appearances: no fill, no border, no visible label. The
   last row of `badge.high_contrast.png` has two cells where the other six
   colours have four.
+- **A striped legend swatch has no border**, so a dimmed one is invisible.
+  Upstream puts `border: 1px solid` on the shared `fui-legend__rect` class
+  (`useLegendsStyles.styles.ts:82`) and colours it from `legend.color`, which is
+  never dimmed (`Legends.tsx:298`, `:378`); only the *fill* is blanked for a
+  stripe pattern (`:298`, `:379`). The Dart port returns a bare
+  `FluentChartStripePainter` with no surrounding border
+  (`lib/src/charts/chrome/legend.dart:437-440`), and because a dimmed stripe is
+  painted in `dimmedSwatchColor` — the background — the whole swatch disappears.
+  Row 1 of `chart_chrome.light.png` is the symptom: `gamma` has a label and no
+  swatch. Row 2 is the same strip undimmed, which is the only cell in the net
+  that proves the stripe painter runs at all.
