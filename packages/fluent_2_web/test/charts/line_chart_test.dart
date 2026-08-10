@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:fluent_2_core/fluent_2_core.dart';
@@ -680,6 +681,73 @@ void main() {
         0.01,
         reason: 'engine A still dims to 0.01, LineChart.tsx:909',
       );
+    });
+  });
+
+  group('LineChart engine B against Oracle B', () {
+    // `line-chart-large-data` is the one story that sets optimizeLargeData, so
+    // it is the only capture of the single-path engine in the corpus. Each of
+    // its two series is captured twice — the 8px halo and the 4px line share
+    // one `d`, which is exactly what a port emitting one Path per series must
+    // reproduce.
+    test('line-chart-large-data reproduces the captured single path', () {
+      final story = loadOracleStory('charts-linechart--line-chart-large-data');
+      final paths = story
+          .byTag('path')
+          .where((e) => e.d != null && e.strokeWidth == 4 && e.d!.length > 200)
+          .toList();
+      expect(
+        paths.length,
+        2,
+        reason:
+            'the story draws two optimizeLargeData series; with none the '
+            'loop below asserts nothing',
+      );
+      for (final captured in paths) {
+        final numbers = svgPathNumbers(captured.d!);
+        expect(
+          numbers.length.isEven && numbers.length >= 4,
+          isTrue,
+          reason: 'an M followed by Ls is two numbers per point',
+        );
+        final points = <Offset>[
+          for (var i = 0; i < numbers.length; i += 2)
+            Offset(numbers[i], numbers[i + 1]),
+        ];
+        final path = _delegateFromPoints(
+          points,
+        ).singlePathFor(0, _identityCtx())!;
+        final metrics = path.computeMetrics().toList();
+        expect(
+          metrics.length,
+          1,
+          reason:
+              'every captured point is plottable, so defined() never breaks '
+              'the path — LineChart.tsx:678 emits one sub-path',
+        );
+        var polyline = 0.0;
+        for (var i = 1; i < points.length; i++) {
+          polyline += (points[i] - points[i - 1]).distance;
+        }
+        expect(
+          metrics.single.length,
+          closeTo(polyline, points.length * kOracleGeometryTolerance),
+          reason:
+              'the ported path must walk all ${points.length} captured '
+              'points in order under the linear curve',
+        );
+        expectOracleRect(
+          'large-data path bounds',
+          Rect.fromLTRB(
+            points.map((p) => p.dx).reduce(min),
+            points.map((p) => p.dy).reduce(min),
+            points.map((p) => p.dx).reduce(max),
+            points.map((p) => p.dy).reduce(max),
+          ),
+          path.getBounds(),
+          tolerance: kOracleMeasuredTolerance,
+        );
+      }
     });
   });
 
