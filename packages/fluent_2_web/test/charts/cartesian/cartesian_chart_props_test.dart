@@ -190,4 +190,91 @@ void main() {
       );
     });
   });
+
+  group('the six hooks the shell charts set', () {
+    test('every hook defaults to upstream absence', () {
+      const props = FluentCartesianChartProps();
+      expect(
+        props.chartTitleForSemantics,
+        isNull,
+        reason:
+            "`props.chartTitle || 'Chart. '` at CartesianChart.tsx:553 — absent "
+            'means the generic prefix',
+      );
+      expect(
+        props.eventLabelHeight,
+        isNull,
+        reason:
+            'no caller ever populates eventAnnotationProps on IYAxisParams, so '
+            'the reserve at utilities.ts:848 never runs',
+      );
+      expect(
+        props.popoverBuilder,
+        isNull,
+        reason:
+            'customizedCallout is undefined unless a chart renders one, '
+            'ChartPopover.tsx:54',
+      );
+      expect(
+        props.hitRegionGranularity,
+        FluentChartHitGranularity.mark,
+        reason:
+            '`isCalloutForStack` defaults to false, '
+            'CartesianChart.types.ts:666-670',
+      );
+      expect(
+        props.closePopoverOnRegionExit,
+        isFalse,
+        reason:
+            'every per-mark leave handler except the one in '
+            'HorizontalBarChartWithAxis is an empty stub, e.g. '
+            'VerticalBarChart.tsx:496-498',
+      );
+      expect(
+        props.popoverAnchorsToRegion,
+        isFalse,
+        reason:
+            'ChartPopover.tsx:23-40 anchors to a zero-size virtual element at '
+            'the pointer unless a chart supplies a target',
+      );
+    });
+
+    test('copyWith replaces one field and carries the rest through', () {
+      const base = FluentCartesianChartProps(
+        hideLegend: true,
+        xAxisTitle: 'Time',
+        tickPadding: 12,
+      );
+      final copy = base.copyWith(
+        chartTitleForSemantics: 'Line chart with 2 lines. ',
+      );
+      expect(
+        copy.chartTitleForSemantics,
+        'Line chart with 2 lines. ',
+        reason: 'the sentence LineChart.tsx:1843-1846 composes',
+      );
+      expect(
+        copy.hideLegend,
+        isTrue,
+        reason:
+            'the caller-supplied bag survives, or every chart would silently '
+            'reset the props its own caller passed in',
+      );
+      expect(
+        copy.xAxisTitle,
+        'Time',
+        reason: 'the same, for a nullable field that was set',
+      );
+      expect(
+        copy.tickPadding,
+        12,
+        reason: 'and for the one GroupedVerticalBarChart.tsx:1006 rebrands',
+      );
+      expect(
+        copy.eventLabelHeight,
+        isNull,
+        reason: 'an omitted parameter is not a null assignment',
+      );
+    });
+  });
 }

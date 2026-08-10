@@ -72,6 +72,8 @@ class FluentCartesianChart extends StatefulWidget {
     this.legendSelectionMode = FluentChartLegendSelectionMode.single,
     this.focusNode,
     this.onChartMouseLeave,
+    this.overlayBuilder,
+    this.onPointerMoveInPlot,
     this.style,
   });
 
@@ -99,6 +101,36 @@ class FluentCartesianChart extends StatefulWidget {
   /// Called when the pointer leaves the chart, legend included
   /// (`CartesianChart.tsx:749`).
   final VoidCallback? onChartMouseLeave;
+
+  /// A widget layer mounted over the painted marks and under the popover.
+  ///
+  /// `EventsAnnotation` renders inside the series `<g>` as dashed lines plus
+  /// label boxes that wrap their text against a measured width
+  /// (`LineChart.tsx:1954-1961`, `eventAnnotation/Textbox.tsx:21-49`). Wrapping
+  /// and laying out text is what a widget already does, so the band is a widget
+  /// layer here rather than more painting; the paint order is unchanged. The
+  /// builder is handed the same [FluentCartesianChildContext] and
+  /// [FluentCartesianLayout] the delegate painted with, because
+  /// `chartYTop = margins.top + eventLabelHeight` and `scale={props.xScale}`
+  /// both come from them (`:1957-1959`).
+  final Widget Function(
+    BuildContext context,
+    FluentCartesianChildContext childContext,
+    FluentCartesianLayout layout,
+  )?
+  overlayBuilder;
+
+  /// Called for every pointer move inside the plot, with the position local to
+  /// the chart and the resolved scales.
+  ///
+  /// Hit regions serve the charts that hover a mark. AreaChart instead inverts
+  /// the pointer's x through the scale and bisects its first series to find the
+  /// nearest x (`AreaChart.tsx:185-192`), which no region can express, so the
+  /// shell reports the raw position and leaves the resolution to the chart.
+  /// Bound to pointer movement only, like upstream's `onMouseMove` and
+  /// `onMouseOver` pair (`:703-705`).
+  final void Function(Offset local, FluentCartesianChildContext childContext)?
+  onPointerMoveInPlot;
 
   /// Style overrides layered over the theme-derived defaults.
   final FluentCartesianChartStyle? style;
@@ -193,11 +225,72 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
 
   void _onPointer(Offset position) {
     final index = _regionAt(position);
+    // Only HorizontalBarChartWithAxis closes the callout when the pointer
+    // leaves a mark (`HorizontalBarChartWithAxis.tsx:266-268`). Every other
+    // per-mark leave handler is an empty stub — `VerticalBarChart.tsx:496-498`,
+    // `VerticalStackedBarChart.tsx:802-804`, `HeatMapChart.tsx:166-168` — so
+    // nothing fires in the gaps and the callout stays exactly where the last
+    // mark left it, anchor included.
+    if (index == -1 && !widget.props.closePopoverOnRegionExit) {
+      return;
+    }
     if (index == _hoveredIndex && position == _pointer) return;
     setState(() {
       _hoveredIndex = index;
       _pointer = position;
     });
+  }
+
+  /// Merges regions that share an index into one, in first-seen order.
+  ///
+  /// `isCalloutForStack` moves `tabIndex`, `aria-label` and every pointer
+  /// handler off each rect and onto the stack's `<g>`
+  /// (`VerticalStackedBarChart.tsx:1141-1153`), so the group is one stop over
+  /// the union of its segments. The first region of each index wins the popover
+  /// data and the narration, which is where a group-mode chart puts its
+  /// stack-wide values (`:1146`, `:281-292`).
+  static List<FluentChartHitRegion> _coalesceRegionsByIndex(
+    List<FluentChartHitRegion> regions,
+  ) {
+    final merged = <int, FluentChartHitRegion>{};
+    for (final region in regions) {
+      final existing = merged[region.index];
+      merged[region.index] = existing == null
+          ? region
+          : FluentChartHitRegion(
+              bounds: existing.bounds.expandToInclude(region.bounds),
+              index: existing.index,
+              legend: existing.legend,
+              popoverData: existing.popoverData,
+              semanticsLabel: existing.semanticsLabel,
+            );
+    }
+    return merged.values.toList(growable: false);
+  }
+
+  /// The popover layer: the built-in body, or the caller's.
+  Widget _popoverLayer(FluentChartHitRegion active, Offset anchor) {
+    final builder = widget.props.popoverBuilder;
+    if (builder == null) {
+      return FluentChartPopover(data: active.popoverData, anchor: anchor);
+    }
+    // `ChartPopover.tsx:54` renders `customizedCallout` in place of both
+    // default bodies, inside a `PopoverSurface` that also supplies the 20px
+    // offset at `:48`.
+    // ponytail: the offset is reproduced but the surface's edge flipping is
+    // not, because `FluentChartPopover`'s constructor is `{data, anchor, style}`
+    // with no content slot to hand a custom body to. If a caller's body
+    // overflows the right edge, replace this `Positioned` with a
+    // `CustomSingleChildLayout` that measures the child first.
+    return Stack(
+      children: <Widget>[
+        Positioned(
+          left: anchor.dx + 20,
+          top: anchor.dy + 20,
+          child: builder(context),
+        ),
+      ],
+    );
   }
 
   void _clearHover() {
@@ -333,20 +426,31 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
     required FluentChartTextStyles textStyles,
     required double crispOffset,
   }) {
-    final context = FluentCartesianChildContext(
+    final childContext = FluentCartesianChildContext(
       xScale: geometry.xAxis.scale,
       yScalePrimary: geometry.yAxisPrimary.scale,
       yScaleSecondary: geometry.yAxisSecondary?.scale,
       containerWidth: geometry.layout.size.width,
       containerHeight: geometry.layout.size.height,
     );
-    _regions = widget.delegate.buildHitRegions(context, geometry.layout);
+    final regions = widget.delegate.buildHitRegions(
+      childContext,
+      geometry.layout,
+    );
+    _regions =
+        widget.props.hitRegionGranularity == FluentChartHitGranularity.group
+        ? _coalesceRegionsByIndex(regions)
+        : regions;
     if (_hoveredIndex >= _regions.length) {
       _hoveredIndex = -1;
     }
 
     final description = buildFluentCartesianChartDescription(
-      chartTitle: widget.delegate.chartTitle,
+      // `props.chartTitle || 'Chart. '` (`CartesianChart.tsx:553`). Each chart
+      // composes its own count sentence and passes it down, so the prop wins
+      // over the delegate's own title.
+      chartTitle:
+          widget.props.chartTitleForSemantics ?? widget.delegate.chartTitle,
       xAxisTitle: widget.props.xAxisTitle,
       xAxisType: widget.delegate.xAxisType,
       yAxisTitle: widget.props.yAxisTitle,
@@ -363,7 +467,12 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
         ? _regions[_hoveredIndex]
         : null;
     final active = focused ?? hovered;
-    final activeAnchor = focused != null ? focused.bounds.center : _pointer;
+    // A keyboard stop has no pointer, and GroupedVerticalBarChart hands
+    // `Popover` the hovered bar element itself (`.tsx:437`, `:970`) where every
+    // other chart builds a virtual element at the cursor
+    // (`ChartPopover.tsx:23-40`).
+    final anchorsToRegion =
+        focused != null || widget.props.popoverAnchorsToRegion;
 
     return Focus(
       focusNode: _focusNode,
@@ -375,7 +484,13 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
         child: Stack(
           children: <Widget>[
             MouseRegion(
-              onHover: (event) => _onPointer(event.localPosition),
+              onHover: (event) {
+                widget.onPointerMoveInPlot?.call(
+                  event.localPosition,
+                  childContext,
+                );
+                _onPointer(event.localPosition);
+              },
               onExit: (_) => _clearHover(),
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
@@ -399,6 +514,16 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
                 ),
               ),
             ),
+            // Inside the series `<g>` upstream (`LineChart.tsx:1954`), so above
+            // the marks and below both the annotation layer and the callout.
+            if (widget.overlayBuilder != null)
+              Positioned.fill(
+                child: widget.overlayBuilder!(
+                  context,
+                  childContext,
+                  geometry.layout,
+                ),
+              ),
             if (widget.props.annotations.isNotEmpty)
               // The layer is pointer-transparent by default
               // (`useCartesianChartStyles.styles.ts:109-111`).
@@ -427,9 +552,9 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
                   // and narrate the focused mark's values a second time. The
                   // hit region's `semanticsLabel` is the one narration.
                   child: ExcludeSemantics(
-                    child: FluentChartPopover(
-                      data: active.popoverData,
-                      anchor: activeAnchor,
+                    child: _popoverLayer(
+                      active,
+                      anchorsToRegion ? active.bounds.center : _pointer,
                     ),
                   ),
                 ),
@@ -628,6 +753,12 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       yMaxValue: props.yMaxValue,
       // Hard-coded 10 at `CartesianChart.tsx:304`, overriding the 12 the
       // builder destructures at `utilities.ts:808`.
+      //
+      // parity: eventLabelHeight is deliberately NOT passed. `YAxisParams` at
+      // `CartesianChart.tsx:295-312` omits both `eventAnnotationProps` and
+      // `eventLabelHeight`, and no other caller sets them, so the reserve at
+      // `utilities.ts:848` is dead upstream and the event labels overlap the
+      // plot. `FluentCartesianChartProps.eventLabelHeight` documents it.
       tickPadding: 10,
       maxOfYVal: delegate.maxOfYVal ?? 0,
       yMinMaxValues: delegate.resolveYMinMax(),

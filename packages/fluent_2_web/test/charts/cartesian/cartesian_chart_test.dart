@@ -8,7 +8,9 @@ import 'package:fluent_2_web/src/charts/axis/axis_types.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart_props.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart_style.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_painter.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
 import 'package:fluent_2_web/src/charts/chrome/annotation_layer.dart';
 import 'package:fluent_2_web/src/charts/chrome/chart_popover.dart';
 import 'package:fluent_2_web/src/charts/chrome/legend.dart';
@@ -60,6 +62,51 @@ void main() {
       .map((c) => c.painter)
       .whereType<FluentCartesianChartPainter>()
       .single;
+
+  Widget stacked({
+    FocusNode? node,
+    FluentChartHitGranularity granularity = FluentChartHitGranularity.mark,
+  }) => SizedBox(
+    width: 400,
+    height: 260,
+    child: FluentCartesianChart(
+      delegate: _StackedStubDelegate(),
+      props: FluentCartesianChartProps(
+        hideLegend: true,
+        hitRegionGranularity: granularity,
+      ),
+      legends: const <FluentChartLegendItem>[],
+      focusNode: node,
+    ),
+  );
+
+  Widget anchored({required bool anchorsToRegion}) => SizedBox(
+    width: 400,
+    height: 260,
+    child: FluentCartesianChart(
+      delegate: StubCartesianDelegate(),
+      props: FluentCartesianChartProps(
+        hideLegend: true,
+        popoverAnchorsToRegion: anchorsToRegion,
+      ),
+      legends: const <FluentChartLegendItem>[],
+    ),
+  );
+
+  /// Hovers the centre-left of the stub's first region: 50 across and 100 down
+  /// from the chart's top-left corner, which the default margins put inside
+  /// LTWH(40, 20, 20, 205).
+  Future<TestGesture> hoverFirstStubRegion(WidgetTester tester) async {
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: Offset.zero);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(
+      tester.getTopLeft(find.byType(FluentCartesianChart)) +
+          const Offset(50, 100),
+    );
+    await tester.pump();
+    return gesture;
+  }
 
   testWidgets('solves a layout from the incoming constraints', (tester) async {
     await pump(tester, chart());
@@ -587,7 +634,9 @@ void main() {
       );
     });
 
-    testWidgets('hovering the gap between regions closes it', (tester) async {
+    testWidgets('hovering the gap between regions keeps the popover put', (
+      tester,
+    ) async {
       await pump(tester, plot());
       final gesture = await hoverFirstRegion(tester);
       await gesture.moveTo(
@@ -596,18 +645,46 @@ void main() {
       await tester.pump();
       expect(
         find.byType(FluentChartPopover),
-        findsNothing,
-        reason: 'past the third region there is nothing to describe',
+        findsOneWidget,
+        reason:
+            'the per-mark leave handler is an empty stub in every chart but '
+            'one — VerticalBarChart.tsx:496-498, '
+            'VerticalStackedBarChart.tsx:802-804 — so nothing fires in the gap '
+            'and the callout stays on the last mark',
       );
     });
 
-    // NOTE: Task 14 retargets exactly this expectation. Upstream's per-mark
-    // leave handler is an empty stub in every chart but one
-    // (`VerticalBarChart.tsx:496-498`), so the callout in fact stays on the
-    // last mark until the pointer leaves the chart; only
-    // `HorizontalBarChartWithAxis.tsx:266-268` closes it on the way out. Task
-    // 11 lands the simple rule and Task 14 replaces this test with the two
-    // that `closePopoverOnRegionExit` needs. Do not "fix" it here.
+    testWidgets('closePopoverOnRegionExit closes it in the gap', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        SizedBox(
+          width: 400,
+          height: 260,
+          child: FluentCartesianChart(
+            delegate: StubCartesianDelegate(),
+            props: const FluentCartesianChartProps(
+              hideLegend: true,
+              closePopoverOnRegionExit: true,
+            ),
+            legends: const <FluentChartLegendItem>[],
+          ),
+        ),
+      );
+      final gesture = await hoverFirstRegion(tester);
+      await gesture.moveTo(
+        tester.getTopLeft(plotPaint) + const Offset(350, 100),
+      );
+      await tester.pump();
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason:
+            'HorizontalBarChartWithAxis alone closes the callout on bar leave, '
+            '.tsx:266-268',
+      );
+    });
 
     testWidgets('a tap opens it, for touch and pen', (tester) async {
       await pump(tester, plot());
@@ -851,4 +928,376 @@ void main() {
       );
     });
   });
+
+  group('the plan-07 shell hooks', () {
+    testWidgets(
+      'overlayBuilder mounts a widget layer with context and layout',
+      (tester) async {
+        FluentCartesianLayout? seenLayout;
+        FluentCartesianChildContext? seenContext;
+        await pump(
+          tester,
+          SizedBox(
+            width: 400,
+            height: 260,
+            child: FluentCartesianChart(
+              delegate: StubCartesianDelegate(),
+              props: const FluentCartesianChartProps(hideLegend: true),
+              legends: const <FluentChartLegendItem>[],
+              overlayBuilder: (context, childContext, layout) {
+                seenLayout = layout;
+                seenContext = childContext;
+                return const SizedBox.expand(key: ValueKey<String>('overlay'));
+              },
+            ),
+          ),
+        );
+        expect(
+          find.byKey(const ValueKey<String>('overlay')),
+          findsOneWidget,
+          reason:
+              'the event-annotation band is a widget layer over the marks — '
+              'LineChart.tsx:1954-1961',
+        );
+        expect(
+          seenLayout?.margins.top,
+          20,
+          reason:
+              'chartYTop is `margins.top + eventLabelHeight` '
+              '(LineChart.tsx:1958), so the builder needs the resolved margins',
+        );
+        expect(
+          seenContext?.xScale,
+          isNotNull,
+          reason:
+              'and `scale={props.xScale}` (:1957), so it needs the same scale '
+              'the marks were painted with',
+        );
+      },
+    );
+
+    testWidgets('onPointerMoveInPlot reports the raw position and the scales', (
+      tester,
+    ) async {
+      Offset? seen;
+      FluentCartesianChildContext? seenContext;
+      await pump(
+        tester,
+        SizedBox(
+          width: 400,
+          height: 260,
+          child: FluentCartesianChart(
+            delegate: StubCartesianDelegate(),
+            props: const FluentCartesianChartProps(hideLegend: true),
+            legends: const <FluentChartLegendItem>[],
+            onPointerMoveInPlot: (local, childContext) {
+              seen = local;
+              seenContext = childContext;
+            },
+          ),
+        ),
+      );
+      await hoverFirstStubRegion(tester);
+      expect(
+        seen,
+        const Offset(50, 100),
+        reason:
+            'AreaChart.tsx:191 needs the analogue of `pointer(mouseEvent)[0]` '
+            'to invert through the x scale. Here that is `event.localPosition` '
+            '— CHART-local, origin at the chart top-left, not plot-relative — '
+            'because the shell xScale range is built from '
+            'FluentChartDomainRange.rStartValue/rEndValue, which are '
+            'chart-space pixels. The left margin must NOT be subtracted',
+      );
+      expect(
+        seenContext?.xScale.invert(seen!.dx),
+        isNotNull,
+        reason:
+            'and it inverts that x through the scale before bisecting the '
+            'series (:191-192)',
+      );
+    });
+
+    testWidgets('chartTitleForSemantics wins over the delegate title', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pump(
+        tester,
+        SizedBox(
+          width: 400,
+          height: 260,
+          child: FluentCartesianChart(
+            delegate: StubCartesianDelegate(),
+            props: const FluentCartesianChartProps(
+              hideLegend: true,
+              chartTitleForSemantics: 'Line chart with 2 lines. ',
+            ),
+            legends: const <FluentChartLegendItem>[],
+          ),
+        ),
+      );
+      expect(
+        find.bySemanticsLabel(RegExp('^Line chart with 2 lines[.] ')),
+        findsOneWidget,
+        reason:
+            'the chart composes the prefix and the shell prepends it, '
+            'CartesianChart.tsx:553 with LineChart.tsx:1843-1846',
+      );
+      expect(
+        find.bySemanticsLabel(RegExp('Stub chart')),
+        findsNothing,
+        reason: "the delegate's own title is the fallback, not an addition",
+      );
+      handle.dispose();
+    });
+
+    testWidgets('mark granularity gives every segment its own stop', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(tester, stacked(node: node));
+      node.requestFocus();
+      await tester.pump();
+      for (var i = 0; i < 4; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      }
+      await tester.pump();
+      expect(
+        find.bySemanticsLabel('Segment 1 of stack 1'),
+        findsOneWidget,
+        reason:
+            'four steps over four segment regions land on the last, which is '
+            'the per-rect focus of VerticalStackedBarChart.tsx:1030-1042',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('group granularity roves whole stacks', (tester) async {
+      final handle = tester.ensureSemantics();
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        stacked(node: node, granularity: FluentChartHitGranularity.group),
+      );
+      node.requestFocus();
+      await tester.pump();
+      for (var i = 0; i < 4; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      }
+      await tester.pump();
+      expect(
+        find.bySemanticsLabel('Stack 1'),
+        findsOneWidget,
+        reason:
+            'the two segments of a stack merge into one stop, so four circular '
+            'steps over two stops land on the second — '
+            'VerticalStackedBarChart.tsx:1141-1153',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('a merged group hovers over the union of its segments', (
+      tester,
+    ) async {
+      await pump(tester, stacked(granularity: FluentChartHitGranularity.group));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      // 45 logical pixels below the plot's top edge, which is inside the
+      // SECOND segment of the first stack — LTWH(40, 50, 40, 30) — and outside
+      // the first, so only the merged bounds can contain it.
+      await gesture.moveTo(
+        tester.getTopLeft(find.byType(FluentCartesianChart)) +
+            const Offset(60, 65),
+      );
+      await tester.pump();
+      expect(
+        tester
+            .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+            .data
+            .xValue,
+        'Stack 0',
+        reason:
+            'the first region of a group carries the group-wide callout, which '
+            'is what `_getAriaLabel(singleChartData)` and the stack-wide '
+            'YValueHover give it (VerticalStackedBarChart.tsx:1146, :281-292)',
+      );
+    });
+
+    testWidgets('the popover anchors to the pointer by default', (
+      tester,
+    ) async {
+      await pump(tester, anchored(anchorsToRegion: false));
+      await hoverFirstStubRegion(tester);
+      expect(
+        tester
+            .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+            .anchor,
+        const Offset(50, 100),
+        reason:
+            'the zero-size virtual element at the cursor, '
+            'ChartPopover.tsx:23-40',
+      );
+    });
+
+    testWidgets('popoverAnchorsToRegion anchors to the region centre', (
+      tester,
+    ) async {
+      await pump(tester, anchored(anchorsToRegion: true));
+      await hoverFirstStubRegion(tester);
+      expect(
+        tester
+            .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+            .anchor,
+        // The first stub region is 20 logical pixels wide at the plot's left
+        // edge and as tall as the plot: LTWH(40, 20, 20, 205), so its centre is
+        // (50, 122.5).
+        const Offset(50, 122.5),
+        reason:
+            'GroupedVerticalBarChart hands Popover the bar element itself, '
+            '.tsx:437 and :970',
+      );
+    });
+
+    testWidgets('popoverBuilder replaces the popover body', (tester) async {
+      await pump(
+        tester,
+        SizedBox(
+          width: 400,
+          height: 260,
+          child: FluentCartesianChart(
+            delegate: StubCartesianDelegate(),
+            props: FluentCartesianChartProps(
+              hideLegend: true,
+              popoverBuilder: (context) => const Text('custom'),
+            ),
+            legends: const <FluentChartLegendItem>[],
+          ),
+        ),
+      );
+      await hoverFirstStubRegion(tester);
+      expect(
+        find.text('custom'),
+        findsOneWidget,
+        reason:
+            'customizedCallout is rendered in place of the default body, '
+            'ChartPopover.tsx:54',
+      );
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason:
+            'and the two default bodies are both suppressed by it (:56, :60)',
+      );
+    });
+
+    testWidgets('hideTooltip suppresses a custom body too', (tester) async {
+      await pump(
+        tester,
+        SizedBox(
+          width: 400,
+          height: 260,
+          child: FluentCartesianChart(
+            delegate: StubCartesianDelegate(),
+            props: FluentCartesianChartProps(
+              hideLegend: true,
+              hideTooltip: true,
+              popoverBuilder: (context) => const Text('custom'),
+            ),
+            legends: const <FluentChartLegendItem>[],
+          ),
+        ),
+      );
+      await hoverFirstStubRegion(tester);
+      expect(
+        find.text('custom'),
+        findsNothing,
+        reason:
+            'the first operand of CartesianChart.tsx:444 gates the whole '
+            'callout, custom body included',
+      );
+    });
+
+    testWidgets('eventLabelHeight reserves no plot space', (tester) async {
+      await pump(
+        tester,
+        SizedBox(
+          width: 400,
+          height: 260,
+          child: FluentCartesianChart(
+            delegate: StubCartesianDelegate(),
+            props: const FluentCartesianChartProps(hideLegend: true),
+            legends: const <FluentChartLegendItem>[],
+          ),
+        ),
+      );
+      final plain = painterOf(tester).layout.plotRect;
+      await pump(
+        tester,
+        SizedBox(
+          width: 400,
+          height: 260,
+          child: FluentCartesianChart(
+            delegate: StubCartesianDelegate(),
+            props: const FluentCartesianChartProps(
+              hideLegend: true,
+              eventLabelHeight: 36,
+            ),
+            legends: const <FluentChartLegendItem>[],
+          ),
+        ),
+      );
+      expect(
+        painterOf(tester).layout.plotRect,
+        plain,
+        reason:
+            'parity: CartesianChart.tsx:295-312 never puts eventLabelHeight '
+            'into YAxisParams, so the reserve at utilities.ts:848 is dead and '
+            "LineChart's event labels overlap the top of the plot",
+      );
+    });
+  });
+}
+
+/// A stub whose two stacks each contribute two segment regions sharing one
+/// index — the shape `VerticalStackedBarChart` emits when `isCalloutForStack`
+/// moves the focus props from each rect onto the stack group
+/// (`VerticalStackedBarChart.tsx:1141-1153`). The lower segment comes first and
+/// carries the stack-wide callout and narration, exactly as
+/// `_getAriaLabel(singleChartData)` does at `:1146`.
+class _StackedStubDelegate extends StubCartesianDelegate {
+  _StackedStubDelegate() : super(hitRegionCount: 0);
+
+  @override
+  List<FluentChartHitRegion> buildHitRegions(
+    FluentCartesianChildContext context,
+    FluentCartesianLayout layout,
+  ) => <FluentChartHitRegion>[
+    for (var stack = 0; stack < 2; stack++)
+      for (var segment = 0; segment < 2; segment++)
+        FluentChartHitRegion(
+          // Two 40x30 segments stacked at the top of the plot, the first stack
+          // at the plot's left edge and the second 40px to its right.
+          bounds: Rect.fromLTWH(
+            layout.plotRect.left + stack * 40,
+            layout.plotRect.top + segment * 30,
+            40,
+            30,
+          ),
+          index: stack,
+          legend: 'Segment $segment',
+          popoverData: FluentChartPopoverData(
+            xValue: segment == 0 ? 'Stack $stack' : 'Segment $segment',
+            legend: 'Segment $segment',
+            yValue: '10',
+          ),
+          semanticsLabel: segment == 0
+              ? 'Stack $stack'
+              : 'Segment $segment of stack $stack',
+        ),
+  ];
 }
