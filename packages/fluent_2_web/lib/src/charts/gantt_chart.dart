@@ -1,14 +1,18 @@
 import 'dart:math' as math;
 
+import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
 import 'axis/axis_builders.dart';
 import 'axis/axis_types.dart';
 import 'axis/domain_range.dart';
 import 'axis/tick_format.dart';
+import 'cartesian/cartesian_chart.dart';
+import 'cartesian/cartesian_chart_props.dart';
 import 'cartesian/cartesian_layout.dart';
 import 'cartesian/cartesian_series_delegate.dart';
 import 'chrome/chart_popover.dart';
+import 'chrome/legend.dart';
 import 'gantt_chart_style.dart';
 import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
@@ -25,6 +29,227 @@ import 'model/chart_value.dart';
 /// render path (`:570`) and used as the numeric-y-axis bar height, where there
 /// is no bandwidth to measure.
 const double kGanttDefaultBarHeight = 24;
+
+/// A Fluent 2 Gantt chart.
+///
+/// Ports `GanttChart.tsx`. Each data point is a span on a numeric or date x
+/// axis at a category or numeric y position.
+class FluentGanttChart extends StatefulWidget {
+  /// Creates a Gantt chart over [data].
+  const FluentGanttChart({
+    super.key,
+    required this.data,
+    this.props = const FluentCartesianChartProps(),
+    this.barHeight,
+    this.maxBarHeight = kGanttDefaultBarHeight,
+    this.chartTitle,
+    this.culture,
+    this.yAxisPadding = 0.5,
+    this.enableGradient = false,
+    this.roundCorners = false,
+    this.useUtc = true,
+    this.yAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
+    this.popoverBuilder,
+    this.style,
+    this.legendSelectionMode = FluentChartLegendSelectionMode.single,
+    this.focusNode,
+  });
+
+  /// The spans, in author order.
+  final List<FluentGanttChartDataPoint> data;
+
+  /// Shell configuration.
+  final FluentCartesianChartProps props;
+
+  /// Explicit bar height, overriding the auto solve.
+  final double? barHeight;
+
+  /// Bar height ceiling — 24 (`GanttChart.tsx:45`).
+  final double maxBarHeight;
+
+  /// Human title, folded into the accessible description.
+  final String? chartTitle;
+
+  /// BCP-47 locale for date formatting.
+  final String? culture;
+
+  /// Band padding, default 0.5 (`GanttChart.tsx:44`).
+  final double yAxisPadding;
+
+  /// Whether each legend paints a left-to-right gradient.
+  final bool enableGradient;
+
+  /// Whether bars get a 3px corner radius.
+  final bool roundCorners;
+
+  /// Whether dates are formatted in UTC — default true.
+  final bool useUtc;
+
+  /// Ordering applied to a category y axis.
+  final FluentAxisCategoryOrder yAxisCategoryOrder;
+
+  /// Replaces the popover body.
+  ///
+  /// ponytail: upstream declares `onRenderCalloutPerDataPoint` and hands the
+  /// result to `CartesianChart` as a top-level `customizedCallout` prop
+  /// (`GanttChart.tsx:604`) that `CartesianChart.tsx` never reads — every other
+  /// chart puts it in `calloutProps.customCallout.customizedCallout`. Wiring it
+  /// correctly is a smaller change than reproducing a prop that does nothing,
+  /// and the divergence is recorded here.
+  final WidgetBuilder? popoverBuilder;
+
+  /// Style override, highest precedence.
+  final FluentGanttChartStyle? style;
+
+  /// Whether the legend allows more than one selection.
+  final FluentChartLegendSelectionMode legendSelectionMode;
+
+  /// The chart's single focus node.
+  final FocusNode? focusNode;
+
+  @override
+  State<FluentGanttChart> createState() => _FluentGanttChartState();
+}
+
+class _FluentGanttChartState extends State<FluentGanttChart> {
+  List<String> _selectedLegends = const <String>[];
+  String? _hoveredLegend;
+  final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
+
+  @override
+  void dispose() {
+    _measurer.invalidate();
+    super.dispose();
+  }
+
+  /// One entry per unique legend string, in first-appearance order, with the
+  /// colour assigned by `getNextColor(colorIndex, 0)` (`GanttChart.tsx:72-100`).
+  ///
+  /// A null legend becomes the literal `"undefined"` upstream; this port keeps
+  /// the same grouping by interpolating the same way. Recomputed per build
+  /// rather than memoised, because the memo upstream is keyed on `props.data`
+  /// and `props.enableGradient` and every other pass over the points — the
+  /// bars, the hit regions — already runs per frame.
+  Map<String, (Color, Color)> _legendColours() {
+    final map = <String, (Color, Color)>{};
+    for (final point in widget.data) {
+      final key = '${point.legend}';
+      if (map.containsKey(key)) {
+        continue;
+      }
+      final start = point.color ?? FluentDataVizPalette.next(map.length);
+      map[key] = widget.enableGradient && point.gradient != null
+          ? point.gradient!
+          : (start, start);
+    }
+    return map;
+  }
+
+  /// `props.data` rewritten with the legend's colour, as the `_points` memo
+  /// does at `GanttChart.tsx:94-99` before anything reads a point.
+  List<FluentGanttChartDataPoint> _resolvedPoints(
+    Map<String, (Color, Color)> legendColours,
+  ) => <FluentGanttChartDataPoint>[
+    for (final point in widget.data)
+      if (legendColours['${point.legend}'] case final (Color, Color) colours)
+        FluentGanttChartDataPoint(
+          x: point.x,
+          y: point.y,
+          legend: point.legend,
+          color: colours.$1,
+          gradient: widget.enableGradient ? colours : point.gradient,
+          xAxisCalloutData: point.xAxisCalloutData,
+          yAxisCalloutData: point.yAxisCalloutData,
+          onClick: point.onClick,
+          callOutSemantics: point.callOutSemantics,
+        ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.data.isEmpty) {
+      // `GanttChart.tsx:612-615` — an empty `role="alert"` div carrying only
+      // the label.
+      return Semantics(
+        container: true,
+        liveRegion: true,
+        label: 'Graph has no data to display',
+        child: const SizedBox.shrink(),
+      );
+    }
+    final theme = FluentTheme.of(context);
+    final style = resolveFluentGanttChartStyle(
+      theme,
+    ).merge(FluentGanttChartTheme.maybeOf(context)).merge(widget.style);
+    final legendColours = _legendColours();
+    return FluentCartesianChart(
+      focusNode: widget.focusNode,
+      legendSelectionMode: widget.legendSelectionMode,
+      selectedLegends: _selectedLegends,
+      onLegendChange: (selected) => setState(() => _selectedLegends = selected),
+      props: widget.props.copyWith(
+        // `Gantt chart with ${n} data points. ` (`GanttChart.tsx:517-519`).
+        chartTitleForSemantics:
+            '${widget.chartTitle == null ? '' : '${widget.chartTitle}. '}'
+            'Gantt chart with ${widget.data.length} data points. ',
+        popoverBuilder: widget.popoverBuilder,
+      ),
+      legends: <FluentChartLegendItem>[
+        for (final e in legendColours.entries)
+          FluentChartLegendItem(
+            title: e.key,
+            color: e.value.$1,
+            onHoverAction: () => setState(() => _hoveredLegend = e.key),
+            onMouseOutAction: ({required bool isLegendFocused}) =>
+                setState(() => _hoveredLegend = null),
+          ),
+      ],
+      delegate: FluentGanttChartDelegate(
+        points: _resolvedPoints(legendColours),
+        style: style,
+        colors: FluentChartColors.of(theme),
+        measurer: _measurer,
+        selectedLegends: _selectedLegends,
+        hoveredLegend: _hoveredLegend,
+        barHeightProp: widget.barHeight,
+        maxBarHeight: widget.maxBarHeight,
+        yAxisPadding: widget.yAxisPadding,
+        enableGradient: widget.enableGradient,
+        roundCorners: widget.roundCorners,
+        useUtc: widget.useUtc,
+        culture: widget.culture,
+        yAxisCategoryOrder: widget.yAxisCategoryOrder,
+      ),
+      onChartMouseLeave: () => setState(() => _hoveredLegend = null),
+    );
+  }
+}
+
+/// Applies a [FluentGanttChartStyle] to every Gantt chart below it.
+class FluentGanttChartTheme extends InheritedTheme {
+  /// Applies [style] to every Gantt chart in `child`.
+  const FluentGanttChartTheme({
+    super.key,
+    required this.style,
+    required super.child,
+  });
+
+  /// The style layered over the derived defaults.
+  final FluentGanttChartStyle style;
+
+  /// The nearest Gantt chart style, or null.
+  static FluentGanttChartStyle? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<FluentGanttChartTheme>()
+      ?.style;
+
+  @override
+  bool updateShouldNotify(FluentGanttChartTheme oldWidget) =>
+      style != oldWidget.style;
+
+  @override
+  Widget wrap(BuildContext context, Widget child) =>
+      FluentGanttChartTheme(style: style, child: child);
+}
 
 /// One resolved Gantt bar.
 @immutable

@@ -994,4 +994,167 @@ void main() {
       );
     });
   });
+
+  group('FluentGanttChart', () {
+    /// Four spans on one row, tiling `[0, 100]` end to end, with the first
+    /// legend reused so the colour map has to collapse two points onto one
+    /// entry (`GanttChart.tsx:72-100`). One row and a full tiling is what makes
+    /// the pointer tests below deterministic: every x inside the plot is over a
+    /// bar, and every bar shares the row the popover names.
+    const ganttPoints = <FluentGanttChartDataPoint>[
+      FluentGanttChartDataPoint(
+        x: FluentGanttSpan(start: 0, end: 25),
+        y: 'Design',
+        legend: 'Planned',
+      ),
+      FluentGanttChartDataPoint(
+        x: FluentGanttSpan(start: 25, end: 50),
+        y: 'Design',
+        legend: 'Active',
+      ),
+      FluentGanttChartDataPoint(
+        x: FluentGanttSpan(start: 50, end: 75),
+        y: 'Design',
+        legend: 'Planned',
+      ),
+      FluentGanttChartDataPoint(
+        x: FluentGanttSpan(start: 75, end: 100),
+        y: 'Design',
+        legend: 'Done',
+      ),
+    ];
+
+    /// The bar is grown to 240px, well past the 24px default, because the
+    /// pointer tests hover the chart's own centre and the row's band centre
+    /// sits above it by however tall the legend row turns out to be. 240 is a
+    /// test constant, not a ported one.
+    Widget ganttChart({WidgetBuilder? popoverBuilder, String? chartTitle}) =>
+        FluentGanttChart(
+          data: ganttPoints,
+          chartTitle: chartTitle,
+          popoverBuilder: popoverBuilder,
+          barHeight: 240,
+          maxBarHeight: 240,
+        );
+
+    Future<void> pump(WidgetTester tester, Widget chart) => tester.pumpWidget(
+      FluentApp(
+        theme: theme,
+        home: Center(child: SizedBox(width: 800, height: 400, child: chart)),
+      ),
+    );
+
+    Future<void> hoverCentre(WidgetTester tester) async {
+      final g = await tester.createGesture(kind: ui.PointerDeviceKind.mouse);
+      await g.addPointer(location: Offset.zero);
+      addTearDown(g.removePointer);
+      await g.moveTo(tester.getCenter(find.byType(FluentCartesianChart)));
+      await tester.pumpAndSettle();
+    }
+
+    FluentGanttChartDelegate mountedDelegate(WidgetTester tester) =>
+        tester
+                .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+                .delegate
+            as FluentGanttChartDelegate;
+
+    testWidgets('popoverBuilder IS wired, unlike upstream', (tester) async {
+      await pump(
+        tester,
+        ganttChart(popoverBuilder: (BuildContext c) => const Text('custom')),
+      );
+      await hoverCentre(tester);
+      expect(
+        find.text('custom'),
+        findsOneWidget,
+        reason:
+            'ponytail: upstream passes customizedCallout as a top-level '
+            'CartesianChart prop (GanttChart.tsx:604) which CartesianChart.tsx '
+            'never reads, so onRenderCalloutPerDataPoint is dead there. Wiring '
+            'it is the smaller diff than reproducing a prop that does nothing.',
+      );
+    });
+
+    testWidgets('the popover carries the category on top and the span below', (
+      tester,
+    ) async {
+      await pump(tester, ganttChart());
+      await hoverCentre(tester);
+      final popover = tester.widget<FluentChartPopover>(
+        find.byType(FluentChartPopover),
+      );
+      expect(
+        popover.data.xValue,
+        'Design',
+        reason:
+            'XValue = yAxisCalloutData || String(point.y), '
+            'GanttChart.tsx:572-580',
+      );
+      expect(
+        popover.data.isCalloutForStack,
+        isFalse,
+        reason:
+            'parity: Gantt never sets isCartesian, so the popover uses the '
+            'non-cartesian 28px typography, GanttChart.tsx:572-580',
+      );
+    });
+
+    testWidgets('one palette colour per legend, not per data point', (
+      tester,
+    ) async {
+      await pump(tester, ganttChart());
+      expect(
+        mountedDelegate(
+          tester,
+        ).points.map((FluentGanttChartDataPoint p) => p.color).toList(),
+        <Color>[
+          FluentDataVizPalette.next(0),
+          FluentDataVizPalette.next(1),
+          FluentDataVizPalette.next(0),
+          FluentDataVizPalette.next(2),
+        ],
+        reason:
+            'the `_points` memo mints one getNextColor(colorIndex, 0) per '
+            'unique legend and rewrites every point with it, so the two '
+            'Planned bars share a colour, GanttChart.tsx:72-100',
+      );
+    });
+
+    testWidgets('selecting a legend reaches the delegate', (tester) async {
+      await pump(tester, ganttChart());
+      await tester.tap(find.text('Active'));
+      await tester.pumpAndSettle();
+      expect(
+        mountedDelegate(tester).selectedLegends,
+        <String>['Active'],
+        reason:
+            '_onLegendSelectionChange stores the selection and :410 dims every '
+            'bar outside it, GanttChart.tsx:463-475',
+      );
+    });
+
+    testWidgets('the semantic title counts data points', (tester) async {
+      await pump(tester, ganttChart(chartTitle: 'Roadmap'));
+      expect(
+        tester
+            .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+            .props
+            .chartTitleForSemantics,
+        'Roadmap. Gantt chart with 4 data points. ',
+        reason: 'GanttChart.tsx:517-519',
+      );
+    });
+
+    testWidgets('an empty chart is an alert, not a plot', (tester) async {
+      await pump(
+        tester,
+        const FluentGanttChart(data: <FluentGanttChartDataPoint>[]),
+      );
+      expect(
+        find.byType(FluentCartesianChart),
+        findsNothing,
+        reason: 'GanttChart.tsx:612-615 renders an aria-label alert instead',
+      );
+    });
+  });
 }
