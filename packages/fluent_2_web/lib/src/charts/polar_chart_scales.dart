@@ -1,9 +1,19 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
+
 import 'axis/domain_range.dart';
+import 'axis/tick_format.dart';
 import 'axis/tick_values.dart';
 import 'internal/d3/array_stats.dart' as d3;
+import 'internal/d3/format.dart' as d3;
 import 'internal/d3/js_math.dart' as d3;
+import 'internal/d3/scale.dart';
+import 'internal/d3/scale_band.dart' as d3;
+import 'internal/d3/scale_linear.dart' as d3;
+import 'internal/d3/scale_log.dart' as d3;
+import 'internal/d3/scale_time.dart' as d3;
+import 'internal/d3/time_format.dart' as d3;
 import 'model/chart_common.dart';
 import 'model/chart_value.dart';
 
@@ -154,4 +164,217 @@ String formatPolarAngle(Object value, FluentPolarAngularUnit unit) {
     return '${d3.jsNumberToString(precisionRoundValue(v / 180, 6))}π';
   }
   return '${d3.jsNumberToString(precisionRoundValue(v, 6))}°';
+}
+
+/// Default number of radial ticks (`PolarChart.utils.ts:76`).
+const int kPolarRadialTickCount = 4;
+
+/// A resolved radial axis: the scale plus its tick values and rendered labels.
+@immutable
+class FluentPolarRadialScale {
+  /// Creates a resolved radial axis.
+  const FluentPolarRadialScale({
+    required this.kind,
+    required this.scale,
+    required this.tickValues,
+    required this.tickLabels,
+  });
+
+  /// Which scale family [scale] belongs to.
+  final FluentPolarScaleKind kind;
+
+  /// The underlying d3 scale, mapping a datum to a radius in device pixels.
+  final Scale scale;
+
+  /// Values the radial grid rings and tick marks are drawn at.
+  final List<Object> tickValues;
+
+  /// Rendered label per entry of [tickValues], same length and order.
+  final List<String> tickLabels;
+
+  /// Radius of [value], or `null` when it is outside a band domain.
+  double? radiusOf(Object value) => scale(value);
+}
+
+/// Builds the radial axis.
+///
+/// Ports `createRadialScale` (`PolarChart.utils.ts:30-134`). A categorical axis is
+/// a [d3.ScaleBand] with `paddingInner(1)` (`:51-54`), which gives zero bandwidth
+/// and puts category *i* at `inner + i * step`. Every other kind is a continuous
+/// scale that is `nice()`d in place (`:72-74`) before its ticks are read.
+///
+/// [tickStep] is the `number | string` union at `:41` and [tick0] the
+/// `number | Date` union at `:42`, so both arrive as [Object].
+FluentPolarRadialScale createPolarRadialScale(
+  FluentPolarScaleKind kind,
+  List<Object> domain,
+  List<double> range, {
+  bool useUtc = false,
+  int? tickCount,
+  List<Object>? tickValues,
+  List<String>? tickText,
+  String? tickFormat,
+  String? culture,
+  Object? tickStep,
+  Object? tick0,
+  FluentDateTimeFormatOptions? dateLocalizeOptions,
+}) {
+  // `:57-59` — a custom label is used only when BOTH `tickValues` and `tickText`
+  // were supplied and the entry at that index is usable.
+  String? customLabel(int index) {
+    if (tickValues == null || tickText == null) {
+      return null;
+    }
+    // JavaScript reads a past-the-end index as `undefined`, which
+    // `isInvalidValue` rejects; Dart would throw, so the bound is explicit.
+    if (index >= tickText.length) {
+      return null;
+    }
+    if (isInvalidChartValue(tickText[index])) {
+      return null;
+    }
+    return tickText[index];
+  }
+
+  if (kind == FluentPolarScaleKind.category) {
+    final band = d3.scaleBand()
+      ..domainOf(domain)
+      ..rangeOf(range)
+      // 1 is the literal `paddingInner(1)` of `:54`.
+      ..paddingInner(1);
+    final values = tickValues ?? domain;
+    return FluentPolarRadialScale(
+      kind: kind,
+      scale: band,
+      tickValues: values,
+      tickLabels: <String>[
+        for (var i = 0; i < values.length; i++)
+          customLabel(i) ?? values[i].toString(),
+      ],
+    );
+  }
+
+  // `:65-74` — pick the scale, then domain, then range, then nice(), in that
+  // order. The three families are separated here rather than behind a `dynamic`
+  // call because `domainOf` is typed per family.
+  final Scale scale;
+  if (kind == FluentPolarScaleKind.date) {
+    final timeScale = useUtc ? d3.scaleUtc() : d3.scaleTime();
+    timeScale
+      ..domainOfDates(domain.cast<DateTime>())
+      ..rangeOf(range)
+      ..nice();
+    scale = timeScale;
+  } else {
+    final numericDomain = <double>[
+      for (final value in domain) (value as num).toDouble(),
+    ];
+    if (kind == FluentPolarScaleKind.log) {
+      final logScale = d3.scaleLog();
+      logScale
+        ..domainOf(numericDomain)
+        ..rangeOf(range)
+        ..nice();
+      scale = logScale;
+    } else {
+      final linearScale = d3.scaleLinear();
+      linearScale
+        ..domainOf(numericDomain)
+        ..rangeOf(range)
+        ..nice();
+      scale = linearScale;
+    }
+  }
+
+  final count = tickCount ?? kPolarRadialTickCount;
+  // `:78` — an explicit tick list seeds the custom values and a tick step then
+  // overwrites it.
+  var customTickValues = tickValues;
+  final String Function(Object value, int index) format;
+
+  if (kind == FluentPolarScaleKind.date) {
+    // `:80-91` — scan the *unparameterised* ticks to find the format level span.
+    // 100 and -1 are the sentinels of `:80-81`, chosen to lie outside the 0-7
+    // level range so an empty tick list leaves them untouched.
+    var lowest = 100;
+    var highest = -1;
+    for (final tick in scale.ticks()) {
+      final level = getDateFormatLevel(tick as DateTime, useUtc: useUtc);
+      if (level > highest) {
+        highest = level;
+      }
+      if (level < lowest) {
+        lowest = level;
+      }
+    }
+    final options =
+        dateLocalizeOptions ?? multiLevelDateTimeFormatOptions(lowest, highest);
+    final strftime = tickFormat == null
+        ? null
+        : (useUtc ? d3.utcFormat(tickFormat) : d3.timeFormat(tickFormat));
+    format = (Object value, int index) {
+      final custom = customLabel(index);
+      if (custom != null) {
+        return custom;
+      }
+      // `:98` — a d3 strftime string only applies when no culture was given.
+      if (isInvalidChartValue(culture) && strftime != null) {
+        return strftime(value as DateTime);
+      }
+      return formatDateToLocaleString(
+        value as DateTime,
+        culture: culture,
+        useUtc: useUtc,
+        showTZname: false,
+        options: options,
+      );
+    };
+    if (tickStep != null) {
+      customTickValues = generateDateTicks(
+        tickStep,
+        tick0,
+        scale.domain.cast<DateTime>(),
+        useUtc: useUtc,
+      )?.cast<Object>();
+    }
+  } else {
+    // `:111` captures the scale's own formatter ONCE, before any custom values.
+    final defaultFormat = scale.tickFormat(count);
+    final numberFormat = tickFormat == null ? null : d3.format(tickFormat);
+    format = (Object value, int index) {
+      final custom = customLabel(index);
+      if (custom != null) {
+        return custom;
+      }
+      if (numberFormat != null) {
+        return numberFormat(value as num);
+      }
+      // `:120` — a blanked tick (a log sub-tick) stays blank; everything else
+      // goes through the locale formatter rather than the d3 one.
+      return defaultFormat(value) == ''
+          ? ''
+          : formatToLocaleString(value, culture: culture);
+    };
+    if (tickStep != null) {
+      customTickValues = generateNumericTicks(
+        // `:124` casts the raw scale type across, so only `log` is ever
+        // recognised by the tick generator.
+        kind == FluentPolarScaleKind.log ? FluentAxisScaleType.log : null,
+        tickStep,
+        tick0,
+        <double>[for (final v in scale.domain) (v as num).toDouble()],
+      )?.cast<Object>();
+    }
+  }
+
+  // `:131` — the generated values only apply when a custom list is absent.
+  final values = customTickValues ?? scale.ticks(count);
+  return FluentPolarRadialScale(
+    kind: kind,
+    scale: scale,
+    tickValues: values,
+    tickLabels: <String>[
+      for (var i = 0; i < values.length; i++) format(values[i], i),
+    ],
+  );
 }
