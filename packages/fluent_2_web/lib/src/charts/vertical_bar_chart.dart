@@ -1,14 +1,18 @@
 import 'dart:math' as math;
 
+import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
 import 'axis/axis_builders.dart' as builders;
 import 'axis/axis_types.dart';
 import 'axis/domain_range.dart';
 import 'axis/tick_format.dart';
+import 'cartesian/cartesian_chart.dart';
+import 'cartesian/cartesian_chart_props.dart';
 import 'cartesian/cartesian_layout.dart';
 import 'cartesian/cartesian_series_delegate.dart';
 import 'chrome/chart_popover.dart';
+import 'chrome/legend.dart';
 import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
 import 'internal/chart_text_styles.dart';
@@ -21,6 +25,247 @@ import 'model/bar_data.dart';
 import 'model/chart_common.dart';
 import 'model/chart_value.dart';
 import 'vertical_bar_chart_style.dart';
+
+/// A Fluent 2 vertical bar chart, optionally overlaid with a single line.
+///
+/// Ports `VerticalBarChart.tsx`. Rendering, axis and legend chrome come from
+/// [FluentCartesianChart]; this widget owns the data points, the legend
+/// selection state and the hover/focus model.
+class FluentVerticalBarChart extends StatefulWidget {
+  /// Creates a vertical bar chart over [data].
+  const FluentVerticalBarChart({
+    super.key,
+    required this.data,
+    this.props = const FluentCartesianChartProps(),
+    this.barWidth,
+    this.maxBarWidth = 24,
+    this.colors,
+    this.chartTitle,
+    this.lineLegendText,
+    this.lineLegendColor,
+    this.useSingleColor = false,
+    this.culture,
+    this.xAxisPadding,
+    this.hideLabels = false,
+    this.xAxisInnerPadding,
+    this.xAxisOuterPadding,
+    this.roundCorners = false,
+    this.mode,
+    this.xAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
+    this.style,
+    this.legendSelectionMode = FluentChartLegendSelectionMode.single,
+    this.focusNode,
+  });
+
+  /// The bars, in author order.
+  final List<FluentVerticalBarChartDataPoint> data;
+
+  /// Shell configuration.
+  final FluentCartesianChartProps props;
+
+  /// `number | 'default' | 'auto'`; null resolves to 16.
+  final Object? barWidth;
+
+  /// Bar width ceiling — 24 (`VerticalBarChart.tsx:69`).
+  final double maxBarWidth;
+
+  /// Replaces the five default palette tokens.
+  final List<Color>? colors;
+
+  /// Human title, folded into the accessible description.
+  final String? chartTitle;
+
+  /// Legend title for the overlaid line.
+  final String? lineLegendText;
+
+  /// Overrides the line colour. Note that upstream's default legend swatch and
+  /// drawn line resolve from different tokens; see
+  /// [FluentVerticalBarChartStyle.lineLegendSwatchColor].
+  final Color? lineLegendColor;
+
+  /// Whether every bar takes a single colour.
+  final bool useSingleColor;
+
+  /// BCP-47 locale for popover formatting.
+  ///
+  /// ponytail: declared, not yet consumed. Upstream spends it only on
+  /// `formatDateToLocaleString` for a *date* x value in the callout
+  /// (`VerticalBarChart.tsx:466`), and the popover text is composed by
+  /// [FluentVerticalBarChartDelegate.buildHitRegions], which prints the raw x.
+  /// Wiring it is the same change every cartesian chart needs and is better
+  /// made once.
+  final String? culture;
+
+  /// Legacy shorthand feeding both band paddings.
+  final double? xAxisPadding;
+
+  /// Whether bar labels are suppressed.
+  final bool hideLabels;
+
+  /// Band inner padding override.
+  final double? xAxisInnerPadding;
+
+  /// Band outer padding override.
+  final double? xAxisOuterPadding;
+
+  /// Whether bars get a 3px corner radius.
+  final bool roundCorners;
+
+  /// `'plotly'`, `'histogram'` or null.
+  final String? mode;
+
+  /// Ordering applied to a category x axis.
+  final FluentAxisCategoryOrder xAxisCategoryOrder;
+
+  /// Style override, highest precedence.
+  final FluentVerticalBarChartStyle? style;
+
+  /// Whether the legend allows more than one selection.
+  final FluentChartLegendSelectionMode legendSelectionMode;
+
+  /// The chart's single focus node.
+  final FocusNode? focusNode;
+
+  @override
+  State<FluentVerticalBarChart> createState() => _FluentVerticalBarChartState();
+}
+
+class _FluentVerticalBarChartState extends State<FluentVerticalBarChart> {
+  List<String> _selectedLegends = const <String>[];
+  String? _activeLegend;
+  Object? _activeXDataPoint;
+  late final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
+
+  bool get _hasLine => widget.data.any(
+    (FluentVerticalBarChartDataPoint p) => p.lineData != null,
+  );
+
+  /// Ports the emptiness test at `VerticalBarChart.tsx:1076-1078`.
+  bool get _isEmpty =>
+      widget.data.isEmpty ||
+      (widget.data.every((FluentVerticalBarChartDataPoint p) => p.y == 0) &&
+          !_hasLine);
+
+  @override
+  void dispose() {
+    _measurer.invalidate();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isEmpty) {
+      // `Semantics` has no const constructor, so the child carries the const.
+      return Semantics(
+        container: true,
+        liveRegion: true,
+        label: 'Graph has no data to display',
+        child: const SizedBox.shrink(),
+      );
+    }
+    final theme = FluentTheme.of(context);
+    final style = resolveFluentVerticalBarChartStyle(
+      theme,
+    ).merge(FluentVerticalBarChartTheme.maybeOf(context)).merge(widget.style);
+    return FluentCartesianChart(
+      focusNode: widget.focusNode,
+      legendSelectionMode: widget.legendSelectionMode,
+      // The shell owns the selection, so nothing is seeded back into it; the
+      // state below exists only to dim the delegate's marks.
+      selectedLegends: null,
+      onLegendChange: (selected) => setState(() => _selectedLegends = selected),
+      props: widget.props.copyWith(chartTitleForSemantics: _semanticTitle()),
+      legends: _legends(style),
+      delegate: FluentVerticalBarChartDelegate(
+        points: widget.data,
+        style: style,
+        colors: FluentChartColors.of(theme),
+        measurer: _measurer,
+        textStyles: FluentChartTextStyles.of(theme),
+        selectedLegends: _selectedLegends,
+        activeLegend: _activeLegend,
+        activeXDataPoint: _activeXDataPoint,
+        barWidthProp: widget.barWidth,
+        maxBarWidth: widget.maxBarWidth,
+        useSingleColor: widget.useSingleColor,
+        hideLabels: widget.hideLabels,
+        roundCorners: widget.roundCorners,
+        mode: widget.mode,
+        colorsOverride: widget.colors,
+        lineLegendText: widget.lineLegendText,
+        xAxisInnerPadding: widget.xAxisInnerPadding,
+        xAxisOuterPadding: widget.xAxisOuterPadding,
+        xAxisPadding: widget.xAxisPadding,
+        xAxisCategoryOrder: widget.xAxisCategoryOrder,
+      ),
+      onChartMouseLeave: () => setState(() => _activeXDataPoint = null),
+    );
+  }
+
+  /// `_getChartTitle` (`VerticalBarChart.tsx:1066-1074`).
+  String _semanticTitle() {
+    final prefix = widget.chartTitle == null ? '' : '${widget.chartTitle}. ';
+    return '${prefix}Vertical bar chart with ${widget.data.length} bars'
+        '${_hasLine ? ' and 1 line' : ''}. ';
+  }
+
+  /// `_getLegendData` (`VerticalBarChart.tsx:824-863`).
+  List<FluentChartLegendItem> _legends(FluentVerticalBarChartStyle style) {
+    final bars = <FluentChartLegendItem>[];
+    final seen = <String>{};
+    final yMax = widget.data
+        .map((FluentVerticalBarChartDataPoint p) => p.y)
+        .reduce(math.max);
+    for (var i = 0; i < widget.data.length; i++) {
+      final legend = widget.data[i].legend;
+      if (legend == null || !seen.add(legend)) {
+        continue;
+      }
+      bars.add(
+        FluentChartLegendItem(
+          title: legend,
+          color:
+              widget.data[i].color ??
+              FluentVerticalBarChartGeometry.colourFor(
+                widget.data[i].y,
+                palette:
+                    widget.colors ?? style.palette!.resolve(<WidgetState>{})!,
+                yMax: yMax,
+              ),
+          // `hoverAction` runs `_handleChartMouseLeave()` before
+          // `_onLegendHover` (`VerticalBarChart.tsx:838-841`), which is what
+          // drops the active x point.
+          onHoverAction: () => setState(() {
+            _activeXDataPoint = null;
+            _activeLegend = legend;
+          }),
+          onMouseOutAction: ({required bool isLegendFocused}) =>
+              setState(() => _activeLegend = null),
+        ),
+      );
+    }
+    if (_hasLine && widget.lineLegendText != null) {
+      // `unshift` at VerticalBarChart.tsx:862 — the line legend leads.
+      bars.insert(
+        0,
+        FluentChartLegendItem(
+          title: widget.lineLegendText!,
+          color:
+              widget.lineLegendColor ??
+              style.lineLegendSwatchColor!.resolve(<WidgetState>{})!,
+          isLineLegendInBarChart: true,
+          onHoverAction: () => setState(() {
+            _activeXDataPoint = null;
+            _activeLegend = widget.lineLegendText;
+          }),
+          onMouseOutAction: ({required bool isLegendFocused}) =>
+              setState(() => _activeLegend = null),
+        ),
+      );
+    }
+    return bars;
+  }
+}
 
 /// One resolved vertical bar.
 @immutable

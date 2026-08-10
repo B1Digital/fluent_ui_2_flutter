@@ -1,7 +1,9 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:fluent_2_web/src/charts/axis/axis_types.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
+import 'package:fluent_2_web/src/charts/chrome/chart_popover.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_colors.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_text_measurer.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_text_styles.dart';
@@ -14,6 +16,7 @@ import 'package:fluent_2_web/src/charts/model/chart_common.dart';
 import 'package:fluent_2_web/src/charts/model/chart_value.dart';
 import 'package:fluent_2_web/src/charts/vertical_bar_chart.dart';
 import 'package:fluent_2_web/src/charts/vertical_bar_chart_style.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -1084,7 +1087,194 @@ void main() {
       }
     });
   });
+
+  group('FluentVerticalBarChart', () {
+    Future<void> pump(WidgetTester tester, Widget chart) => tester.pumpWidget(
+      FluentApp(
+        theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+        home: Center(child: SizedBox(width: 800, height: 350, child: chart)),
+      ),
+    );
+
+    testWidgets('the line legend is unshifted to the front of the legend row', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentVerticalBarChart(
+          data: _pointsWithLine(),
+          lineLegendText: 'Trend',
+        ),
+      );
+      final legends = tester
+          .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+          .legends;
+      expect(
+        legends.first.title,
+        'Trend',
+        reason: 'VerticalBarChart.tsx:862 unshifts the line legend',
+      );
+      expect(
+        legends.first.isLineLegendInBarChart,
+        isTrue,
+        reason: 'a line legend swatch is 4px tall, Legends.tsx:296',
+      );
+    });
+
+    testWidgets('leaving a bar does not close the popover', (tester) async {
+      await pump(tester, FluentVerticalBarChart(data: _points(), barWidth: 60));
+      final g = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await g.addPointer(location: Offset.zero);
+      addTearDown(g.removePointer);
+      await g.moveTo(tester.getCenter(find.byType(FluentCartesianChart)));
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(FluentChartPopover),
+        findsOneWidget,
+        reason: 'a count guard: the hover must have landed on a bar first',
+      );
+      await g.moveTo(
+        tester.getTopLeft(find.byType(FluentCartesianChart)) +
+            const Offset(2, 2),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(FluentChartPopover),
+        findsOneWidget,
+        reason:
+            'parity: _onBarLeave is a no-op at VerticalBarChart.tsx:496-498; '
+            'only leaving the whole chart closes the popover',
+      );
+    });
+
+    testWidgets('an all-zero dataset renders the empty state', (tester) async {
+      await pump(
+        tester,
+        const FluentVerticalBarChart(
+          data: <FluentVerticalBarChartDataPoint>[
+            FluentVerticalBarChartDataPoint(x: 'a', y: 0),
+            FluentVerticalBarChartDataPoint(x: 'b', y: 0),
+          ],
+        ),
+      );
+      expect(
+        find.byType(FluentCartesianChart),
+        findsNothing,
+        reason:
+            'VerticalBarChart.tsx:1076-1078 treats an all-zero, lineless '
+            'dataset as empty',
+      );
+    });
+
+    testWidgets('the semantic title names the bars and the line', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentVerticalBarChart(
+          data: _pointsWithLine(),
+          chartTitle: 'Revenue',
+          lineLegendText: 'Trend',
+        ),
+      );
+      expect(
+        tester
+            .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+            .props
+            .chartTitleForSemantics,
+        'Revenue. Vertical bar chart with 3 bars and 1 line. ',
+        reason: 'VerticalBarChart.tsx:1066-1074',
+      );
+    });
+  });
+
+  group('FluentVerticalBarChart against Oracle B', () {
+    // The only captured VerticalBarChart story that carries an overlaid line
+    // AND a `lineLegendText`, so it is the only one whose legend row can show
+    // where the line legend landed.
+    final story = loadOracleStory(
+      'charts-verticalbarchart--vertical-bar-secondary-y-axis',
+    );
+    // The last two rows of this capture sit at (-16, -16) with a 0x0 box: they
+    // are the overflow-menu items the legend row could not fit, which the
+    // overflow container parks off screen. Only the laid-out rows carry
+    // geometry worth asserting.
+    final swatches = story
+        .boxes('fui-legend__rect')
+        .where((box) => box.rect.width > 0)
+        .toList(growable: false);
+    final labels = story
+        .boxes('fui-legend__text')
+        .where((box) => box.rect.width > 0)
+        .toList(growable: false);
+
+    test('the captured legend row leads with the line legend', () {
+      expect(
+        swatches.length,
+        greaterThan(1),
+        reason:
+            'a count guard: without at least two swatches the ordering below '
+            'is vacuous',
+      );
+      expect(
+        labels.first.text,
+        'just line',
+        reason:
+            'the story names its line legend `just line` and upstream '
+            'unshifts it (VerticalBarChart.tsx:862), so it is captured first '
+            'in DOM order — which is what '
+            'FluentVerticalBarChart._legends reproduces with insert(0, …)',
+      );
+    });
+
+    test('the captured line swatch is short and the bar swatches square', () {
+      expectOracleNumber('line swatch width', 14, swatches.first.rect.width);
+      expectOracleNumber(
+        'line swatch height',
+        // 4px of `isLineLegendInBarChart` content plus the 1px border on each
+        // edge that also widens the 12px square to 14 (`Legends.tsx:296`,
+        // `useLegendsStyles.styles.ts`).
+        6,
+        swatches.first.rect.height,
+      );
+      for (final swatch in swatches.skip(1)) {
+        expectOracleNumber('bar swatch height', 14, swatch.rect.height);
+      }
+    });
+  });
 }
+
+/// Three bars, one legend each, no overlaid line.
+List<FluentVerticalBarChartDataPoint> _points() =>
+    const <FluentVerticalBarChartDataPoint>[
+      FluentVerticalBarChartDataPoint(x: 'a', y: 10, legend: 'Alpha'),
+      FluentVerticalBarChartDataPoint(x: 'b', y: 40, legend: 'Beta'),
+      FluentVerticalBarChartDataPoint(x: 'c', y: 25, legend: 'Gamma'),
+    ];
+
+/// [_points] with a line value on every bar, which is what makes
+/// `_isHavingLine` true upstream (`VerticalBarChart.tsx:1091`).
+List<FluentVerticalBarChartDataPoint> _pointsWithLine() =>
+    const <FluentVerticalBarChartDataPoint>[
+      FluentVerticalBarChartDataPoint(
+        x: 'a',
+        y: 10,
+        legend: 'Alpha',
+        lineData: FluentBarLineDatum(y: 8),
+      ),
+      FluentVerticalBarChartDataPoint(
+        x: 'b',
+        y: 40,
+        legend: 'Beta',
+        lineData: FluentBarLineDatum(y: 30),
+      ),
+      FluentVerticalBarChartDataPoint(
+        x: 'c',
+        y: 25,
+        legend: 'Gamma',
+        lineData: FluentBarLineDatum(y: 20),
+      ),
+    ];
 
 // ---------------------------------------------------------------------------
 // The delegate.
