@@ -1,8 +1,11 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
+import '../axis/tick_format.dart';
 import '../model/callout_data.dart';
 import 'chart_popover_style.dart';
+import 'legend_shape.dart';
+import 'legend_style.dart';
 
 /// The reading a chart popover displays.
 ///
@@ -203,6 +206,237 @@ Widget buildFluentChartPopoverSingleValue(
           ),
         ),
     ],
+  );
+}
+
+/// Whether any reading carries a subcount breakdown rather than a plain string.
+///
+/// `_yValueHoverSubCountsExists` (`ChartPopover.tsx:167-179`). The upstream
+/// test is `yAxisCalloutData && typeof yAxisCalloutData !== 'string'`
+/// (`:176`); the contract splits that union into `yAxisCalloutText` and
+/// `yAxisCalloutBreakdown`, so the test is simply whether the latter is set.
+bool fluentChartPopoverHasSubCounts(List<FluentYValueHover>? values) =>
+    values?.any((value) => value.yAxisCalloutBreakdown != null) ?? false;
+
+/// The marker for a series at [index] in the multi-value popover.
+///
+/// `ChartPopover.tsx:216` is `Points[index % Object.keys(pointTypes).length]`.
+/// `pointTypes` has exactly eight keys (`utilities.ts:1747-1772`), so the
+/// modulus is 8 and `dottedLine` — a `CustomPoints` member (`utilities.ts:1724`)
+/// with no `pointTypes` entry — is unreachable from here.
+FluentChartLegendShape fluentChartPopoverShapeForIndex(int index) =>
+    // The eight Points members, in their declared ordinal order
+    // (utilities.ts:1714-1721).
+    const <FluentChartLegendShape>[
+      FluentChartLegendShape.circle,
+      FluentChartLegendShape.square,
+      FluentChartLegendShape.triangle,
+      FluentChartLegendShape.diamond,
+      FluentChartLegendShape.pyramid,
+      FluentChartLegendShape.hexagon,
+      FluentChartLegendShape.pentagon,
+      FluentChartLegendShape.octagon,
+    ][index % 8];
+
+/// Builds the stacked popover body. `ChartPopover.tsx:116-165`.
+///
+/// [fallbackForeground] is `colorNeutralForeground1`, the false arm of
+/// `ChartPopover.tsx:257`.
+Widget buildFluentChartPopoverMultiValue(
+  FluentChartPopoverData data,
+  FluentChartPopoverStyle style,
+  Color fallbackForeground,
+) {
+  const states = <WidgetState>{};
+  final values = data.yValues ?? const <FluentYValueHover>[];
+  final hasSubCounts = fluentChartPopoverHasSubCounts(values);
+
+  final rows = <Widget>[
+    for (var index = 0; index < values.length; index++)
+      _popoverRow(
+        values[index],
+        style,
+        fallbackForeground,
+        hasSubCounts: hasSubCounts,
+        // ChartPopover.tsx:187 — every column but the last carries a 16px
+        // trailing margin.
+        isLast: index == values.length - 1,
+      ),
+  ];
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: <Widget>[
+      Padding(
+        // ChartPopover.tsx:122 — 11px below the date container, but only when
+        // subcounts exist. The same 11 as the single-value accent bar margin.
+        padding: EdgeInsets.only(
+          bottom: hasSubCounts ? kChartPopoverAccentBarMarginTop : 0,
+        ),
+        child: Text(
+          data.xValue ?? '',
+          style: style.xTextStyle!.resolve(states),
+        ),
+      ),
+      // ChartPopover.tsx:131 — subcounts lay the rows out as a flex row;
+      // otherwise they stack.
+      if (hasSubCounts)
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: rows,
+        )
+      else
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: rows,
+        ),
+      // ChartPopover.tsx:161 renders the description INSIDE the row wrapper
+      // here, unlike the single-value path where it is a sibling at :106.
+      if (data.descriptionMessage != null)
+        Text(
+          data.descriptionMessage!,
+          style: style.descriptionTextStyle!.resolve(states),
+        ),
+    ],
+  );
+}
+
+Widget _popoverRow(
+  FluentYValueHover value,
+  FluentChartPopoverStyle style,
+  Color fallbackForeground, {
+  required bool hasSubCounts,
+  required bool isLast,
+}) {
+  const states = <WidgetState>{};
+  // ChartPopover.tsx:188.
+  final toDrawShape = value.index != null && value.index != -1;
+  final colour = value.color ?? fallbackForeground;
+  final reading = value.yAxisCalloutText ?? formatToLocaleString(value.y);
+  // ChartPopover.tsx:196 and :246 both render `{legend} ({y})`.
+  final header = Text(
+    '${value.legend ?? ''} (${formatToLocaleString(value.y)})',
+    style: style.valueTextStyle!
+        .resolve(states)!
+        .copyWith(
+          fontSize: kChartPopoverSubHeaderFontSize,
+          // ChartPopover.tsx:195 and :245 pair the size with
+          // `ms-fontWeight-semibold`, a v8 class name that has no v9 rule, so the
+          // weight never lands. // parity: not applied.
+        ),
+  );
+
+  final body = Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: <Widget>[
+      Text(value.legend ?? '', style: style.legendTextStyle!.resolve(states)),
+      // ChartPopover.tsx:229 — `direction: ltr; unicode-bidi: isolate` keeps
+      // numbers left-to-right under an RTL chart. The multi-value path does NOT
+      // apply the 28px inline size the single-value path does.
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Text(reading, style: style.valueTextStyle!.resolve(states)),
+      ),
+    ],
+  );
+
+  final inner = Padding(
+    // ChartPopover.tsx:226 — `marginTop: xValue ? 13px : unset`, and the row is
+    // the truthiness test's own subject, so it is always 13.
+    padding: EdgeInsets.only(top: style.rowMarginTop!.resolve(states)!),
+    child: body,
+  );
+
+  final marker = Row(
+    // The accent bar is a border on the container itself (ChartPopover.tsx:205),
+    // so it spans however tall the block makes the row — which in Flutter needs
+    // stretch over an IntrinsicHeight, exactly as the single-value path does.
+    crossAxisAlignment: toDrawShape
+        ? CrossAxisAlignment.start
+        : CrossAxisAlignment.stretch,
+    mainAxisSize: MainAxisSize.min,
+    children: <Widget>[
+      if (toDrawShape)
+        SizedBox(
+          width: kLegendSwatchBoxSize,
+          height: kLegendSwatchBoxSize,
+          child: CustomPaint(
+            painter: FluentChartLegendShapePainter(
+              // ChartPopover.tsx:216 derives the marker from the index alone
+              // and never consults `yValue.shape`.
+              shape: fluentChartPopoverShapeForIndex(value.index!),
+              fill: colour,
+              stroke: colour,
+              // ChartPopover.tsx:215 passes fill only — no stroke, unlike the
+              // legend swatch at Legends.tsx:365.
+              strokeWidth: 0,
+            ),
+          ),
+        )
+      else
+        // ChartPopover.tsx:205 — no marker means a 4px accent bar instead.
+        Container(
+          key: const ValueKey<String>('popover-row-accent-bar'),
+          width: style.accentBarWidth!.resolve(states),
+          decoration: BoxDecoration(color: colour),
+        ),
+      // useChartPopoverStyles.styles.ts:68 on the shape and :63 on the barred
+      // block — spacingHorizontalS is 8 either way.
+      const SizedBox(width: FluentSpacing.s),
+      inner,
+    ],
+  );
+
+  final withMarker = toDrawShape ? marker : IntrinsicHeight(child: marker);
+
+  final subcounts = value.yAxisCalloutBreakdown;
+  final content = subcounts == null
+      ? Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            // ChartPopover.tsx:194-198 — the string arm still gets the header
+            // when any OTHER row carries subcounts.
+            if (hasSubCounts) header,
+            withMarker,
+          ],
+        )
+      : Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            header,
+            for (final entry in subcounts.entries)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    entry.key,
+                    style: style.legendTextStyle!.resolve(states),
+                  ),
+                  Text(
+                    formatToLocaleString(entry.value),
+                    style: style.valueTextStyle!
+                        .resolve(states)!
+                        .copyWith(color: colour),
+                  ),
+                ],
+              ),
+          ],
+        );
+
+  return Padding(
+    // ChartPopover.tsx:193 applies marginStyle only under subcounts; the
+    // subcount arm at :244 always does, and reaching it implies subcounts.
+    padding: EdgeInsetsDirectional.only(
+      end: hasSubCounts && !isLast ? style.columnGap!.resolve(states)! : 0,
+    ),
+    child: content,
   );
 }
 

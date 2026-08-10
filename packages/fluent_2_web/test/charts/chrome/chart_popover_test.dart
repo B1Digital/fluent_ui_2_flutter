@@ -1,6 +1,8 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:fluent_2_web/src/charts/chrome/chart_popover.dart';
 import 'package:fluent_2_web/src/charts/chrome/chart_popover_style.dart';
+import 'package:fluent_2_web/src/charts/chrome/legend_shape.dart';
+import 'package:fluent_2_web/src/charts/model/callout_data.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -377,6 +379,294 @@ void main() {
         findsNothing,
         reason:
             'ChartPopover.tsx:106 gates the whole block on descriptionMessage.',
+      );
+    });
+  });
+
+  Future<void> pumpMulti(WidgetTester tester, FluentChartPopoverData data) =>
+      tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Center(
+            child: buildFluentChartPopoverMultiValue(
+              data,
+              resolveFluentChartPopoverStyle(theme),
+              theme.colors.neutralForeground1,
+            ),
+          ),
+        ),
+      );
+
+  group('fluentChartPopoverShapeForIndex', () {
+    test('the modulus is 8, so dottedLine is unreachable', () {
+      expect(
+        fluentChartPopoverShapeForIndex(8),
+        FluentChartLegendShape.circle,
+        reason:
+            'ChartPopover.tsx:216 is `Points[index % Object.keys(pointTypes).length]` '
+            'and pointTypes has eight keys (utilities.ts:1747-1772), so index 8 '
+            'wraps to the first Points member.',
+      );
+      expect(
+        List<FluentChartLegendShape>.generate(
+          32,
+          fluentChartPopoverShapeForIndex,
+        ).contains(FluentChartLegendShape.dottedLine),
+        isFalse,
+        reason:
+            'dottedLine is a CustomPoints member with no pointTypes entry, so '
+            'the popover can never index onto it.',
+      );
+    });
+  });
+
+  group('fluentChartPopoverHasSubCounts', () {
+    test('is true only for a non-string breakdown', () {
+      expect(
+        fluentChartPopoverHasSubCounts(const <FluentYValueHover>[
+          FluentYValueHover(legend: 'a', y: 1, yAxisCalloutText: 'one'),
+        ]),
+        isFalse,
+        reason:
+            'ChartPopover.tsx:176 requires `typeof yAxisCalloutData !== '
+            '"string"`, and the contract splits that union into '
+            'yAxisCalloutText for the string arm.',
+      );
+      expect(
+        fluentChartPopoverHasSubCounts(const <FluentYValueHover>[
+          FluentYValueHover(
+            legend: 'a',
+            y: 1,
+            yAxisCalloutBreakdown: <String, double>{'x': 1},
+          ),
+        ]),
+        isTrue,
+        reason: 'ChartPopover.tsx:176, the record arm.',
+      );
+    });
+  });
+
+  group('the multi-value body', () {
+    testWidgets('a shape is drawn only when the index is set and not -1', (
+      tester,
+    ) async {
+      await pumpMulti(
+        tester,
+        const FluentChartPopoverData(
+          isCalloutForStack: true,
+          xValue: 'Jan',
+          yValues: <FluentYValueHover>[
+            FluentYValueHover(legend: 'a', y: 1, index: 0),
+            FluentYValueHover(legend: 'b', y: 2, index: -1),
+          ],
+        ),
+      );
+      expect(
+        tester
+            .widgetList<CustomPaint>(find.byType(CustomPaint))
+            .where((p) => p.painter is FluentChartLegendShapePainter)
+            .length,
+        1,
+        reason:
+            'ChartPopover.tsx:188 — `toDrawShape = index !== undefined && '
+            'index !== -1`, so the -1 row falls back to the accent bar.',
+      );
+    });
+
+    testWidgets('the popover swatch has no stroke, unlike the legend', (
+      tester,
+    ) async {
+      await pumpMulti(
+        tester,
+        const FluentChartPopoverData(
+          isCalloutForStack: true,
+          xValue: 'Jan',
+          yValues: <FluentYValueHover>[
+            FluentYValueHover(
+              legend: 'a',
+              y: 1,
+              index: 0,
+              color: Color(0xFF0078D4),
+            ),
+          ],
+        ),
+      );
+      expect(
+        tester
+            .widgetList<CustomPaint>(find.byType(CustomPaint))
+            .map((p) => p.painter)
+            .whereType<FluentChartLegendShapePainter>()
+            .first
+            .strokeWidth,
+        0,
+        reason:
+            'ChartPopover.tsx:215 passes only `fill`, where the legend at '
+            'Legends.tsx:365 also sets strokeWidth: 2.',
+      );
+    });
+
+    testWidgets('the last row never draws its bottom rule', (tester) async {
+      await pumpMulti(
+        tester,
+        const FluentChartPopoverData(
+          isCalloutForStack: true,
+          xValue: 'Jan',
+          yValues: <FluentYValueHover>[
+            FluentYValueHover(legend: 'a', y: 1, index: 0),
+            FluentYValueHover(legend: 'b', y: 2, index: 1),
+          ],
+        ),
+      );
+      expect(
+        find.byKey(const ValueKey<String>('popover-row-rule')),
+        findsNothing,
+        reason:
+            'ChartPopover.tsx:135 forces shouldDrawBorderBottom to false on the '
+            'last row, and the contract carries no per-row flag, so no row in '
+            'a two-row popover draws one.',
+      );
+    });
+
+    testWidgets('a subcount group gets a 16px header', (tester) async {
+      await pumpMulti(
+        tester,
+        const FluentChartPopoverData(
+          isCalloutForStack: true,
+          xValue: 'Jan',
+          yValues: <FluentYValueHover>[
+            FluentYValueHover(
+              legend: 'alpha',
+              y: 3,
+              index: 0,
+              yAxisCalloutBreakdown: <String, double>{'north': 1, 'south': 2},
+            ),
+          ],
+        ),
+      );
+      expect(
+        tester.widget<Text>(find.text('alpha (3)')).style!.fontSize,
+        kChartPopoverSubHeaderFontSize,
+        reason:
+            'ChartPopover.tsx:245-247 renders `{legend} ({y})` at an inline '
+            '12pt, which is 16 logical pixels.',
+      );
+      expect(
+        find.text('north'),
+        findsOneWidget,
+        reason: 'ChartPopover.tsx:251-254 renders one block per subcount key.',
+      );
+    });
+
+    testWidgets('the accent bar spans exactly the block it borders', (
+      tester,
+    ) async {
+      await pumpMulti(
+        tester,
+        const FluentChartPopoverData(
+          isCalloutForStack: true,
+          xValue: 'Jan',
+          yValues: <FluentYValueHover>[
+            FluentYValueHover(legend: 'a', y: 1, color: Color(0xFF0078D4)),
+          ],
+        ),
+      );
+      final bar = find.byKey(const ValueKey<String>('popover-row-accent-bar'));
+      expect(
+        tester.getSize(bar).width,
+        kChartPopoverAccentBarWidth,
+        reason: 'ChartPopover.tsx:205 — `borderInlineStart: 4px solid`.',
+      );
+      expect(
+        tester.getSize(bar).height,
+        tester.getSize(find.text('a')).height +
+            tester.getSize(find.text('1')).height +
+            kChartPopoverRowMarginTop,
+        reason:
+            'ChartPopover.tsx:205 puts the border on the outer '
+            'calloutBlockContainer, so it spans the inner block — the legend '
+            'plus the reading, offset by the 13px marginTop at :226 — and '
+            'nothing taller.',
+      );
+    });
+
+    testWidgets('a subcount row reads its own value, not the shared y', (
+      tester,
+    ) async {
+      await pumpMulti(
+        tester,
+        const FluentChartPopoverData(
+          isCalloutForStack: true,
+          xValue: 'Jan',
+          yValues: <FluentYValueHover>[
+            FluentYValueHover(
+              legend: 'alpha',
+              y: 3,
+              index: 0,
+              yAxisCalloutBreakdown: <String, double>{'north': 1, 'south': 2},
+            ),
+          ],
+        ),
+      );
+      expect(
+        find.text('2'),
+        findsOneWidget,
+        reason:
+            'ChartPopover.tsx:259 formats subcounts[subcountName], so the south '
+            'block reads 2 while the header reads the row total of 3.',
+      );
+      expect(
+        tester
+            .widgetList<CustomPaint>(find.byType(CustomPaint))
+            .where((p) => p.painter is FluentChartLegendShapePainter),
+        isEmpty,
+        reason:
+            'ChartPopover.tsx:243-265, the subcount arm, renders neither a '
+            'Shape nor an accent bar — only the header and the blocks.',
+      );
+    });
+
+    testWidgets('the x reading only clears 11px when subcounts exist', (
+      tester,
+    ) async {
+      const plain = FluentChartPopoverData(
+        isCalloutForStack: true,
+        xValue: 'Jan',
+        yValues: <FluentYValueHover>[
+          FluentYValueHover(legend: 'a', y: 1, index: 0),
+        ],
+      );
+      await pumpMulti(tester, plain);
+      expect(
+        tester.getTopLeft(find.text('a')).dy -
+            tester.getBottomLeft(find.text('Jan')).dy,
+        moreOrLessEquals(kChartPopoverRowMarginTop, epsilon: 0.01),
+        reason:
+            'ChartPopover.tsx:122 leaves the date container marginless without '
+            'subcounts, so the only gap is the 13px block marginTop at :226.',
+      );
+      await pumpMulti(
+        tester,
+        const FluentChartPopoverData(
+          isCalloutForStack: true,
+          xValue: 'Jan',
+          yValues: <FluentYValueHover>[
+            FluentYValueHover(
+              legend: 'a',
+              y: 1,
+              index: 0,
+              yAxisCalloutBreakdown: <String, double>{'north': 1},
+            ),
+          ],
+        ),
+      );
+      expect(
+        tester.getTopLeft(find.text('a (1)')).dy -
+            tester.getBottomLeft(find.text('Jan')).dy,
+        moreOrLessEquals(kChartPopoverAccentBarMarginTop, epsilon: 0.01),
+        reason:
+            'ChartPopover.tsx:122 — `marginBottom: 11px` on the date container '
+            'once yValueHoverSubCountsExists, and the subcount arm at :244-247 '
+            'starts with the header, carrying no marginTop of its own.',
       );
     });
   });
