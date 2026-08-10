@@ -259,6 +259,7 @@ Widget buildFluentChartPopoverMultiValue(
         values[index],
         style,
         fallbackForeground,
+        popoverColour: data.color,
         hasSubCounts: hasSubCounts,
         // ChartPopover.tsx:187 — every column but the last carries a 16px
         // trailing margin.
@@ -310,6 +311,7 @@ Widget _popoverRow(
   FluentYValueHover value,
   FluentChartPopoverStyle style,
   Color fallbackForeground, {
+  required Color? popoverColour,
   required bool hasSubCounts,
   required bool isLast,
 }) {
@@ -421,16 +423,19 @@ Widget _popoverRow(
                     entry.key,
                     style: style.legendTextStyle!.resolve(states),
                   ),
-                  // ChartPopover.tsx:257 colours this from `props.color` — the
-                  // popover-level colour — falling back to
-                  // colorNeutralForeground1. The plan specifies the ROW's
-                  // colour instead, which is the same fallback but a different
-                  // truthy arm; following the plan.
+                  // ChartPopover.tsx:257 —
+                  // `props.color ? props.color : tokens.colorNeutralForeground1`.
+                  // That is the POPOVER-level colour, not the row's: in a
+                  // stacked popover every subcount reading takes one colour,
+                  // rather than each row's own. The plan specified the row's,
+                  // which agrees only when there is a single row or the popover
+                  // carries no colour; upstream wins under the bug-fidelity
+                  // rule (spec §5.2).
                   Text(
                     formatToLocaleString(entry.value),
                     style: style.valueTextStyle!
                         .resolve(states)!
-                        .copyWith(color: colour),
+                        .copyWith(color: popoverColour ?? fallbackForeground),
                   ),
                 ],
               ),
