@@ -848,7 +848,326 @@ List<Story> get chartsStories => [
       ],
     ),
   ),
+  Story(
+    name: 'Charts/FluentPolarChart',
+    description:
+        'Plots r against theta on a radial grid, with a circular or polygonal '
+        'shape and either rotation direction.',
+    builder: (context) {
+      return const DemoColumn(
+        children: [
+          // charts-polarchart--polar-chart-basic: two areapolar series over six
+          // subjects, 600x350, polygonal grid, clockwise
+          // (PolarChartDefault.stories.tsx).
+          DemoRail(
+            title: 'PolarChartBasic',
+            children: [
+              FluentPolarChart(
+                data: _polarSubjectScores,
+                width: 600,
+                height: 350,
+                shape: FluentPolarShape.polygon,
+                direction: FluentPolarDirection.clockwise,
+              ),
+            ],
+          ),
+        ],
+      );
+    },
+  ),
+  Story(
+    name: 'Charts/FluentSankeyChart',
+    description:
+        'Flow diagram of nodes and weighted streams, with hover selection and '
+        'min-width reflow.',
+    builder: (context) {
+      return DemoColumn(
+        children: [
+          // charts-sankeychart--sankey-chart-basic: 820x412 with min-width
+          // reflow (SankeyChartBasic.stories.tsx).
+          DemoRail(
+            title: 'SankeyChartBasic',
+            children: [
+              SizedBox(
+                width: 820,
+                height: 412,
+                child: FluentSankeyChart(
+                  data: _sankeyBasic,
+                  chartTitle: 'Sankey Chart',
+                  reflowMode: FluentSankeyReflowMode.minWidth,
+                ),
+              ),
+            ],
+          ),
+          // charts-sankeychart--sankey-chart-inbox: 820x400 and the only story
+          // that overrides the semantic templates
+          // (SankeyChartInbox.stories.tsx `strings` and `accessibility`).
+          DemoRail(
+            title: 'SankeyChartInbox',
+            children: [
+              SizedBox(
+                width: 820,
+                height: 400,
+                child: FluentSankeyChart(
+                  data: _sankeyInbox,
+                  chartTitle: 'Sankey Chart',
+                  linkFromLabel: 'from category {0}',
+                  emptySemanticLabel: 'Graph has no data to display',
+                  nodeSemanticLabel: 'Category {0} with email count {1}',
+                  linkSemanticLabel: '{2} items moved from category {0} to {1}',
+                ),
+              ),
+            ],
+          ),
+          // charts-sankeychart--sankey-chart-rebalance: the simple dataset only.
+          // 10000 against 1 is what drives the one-percent normalisation
+          // (SankeyChart.tsx:695); upstream's 43-node complex dataset behind the
+          // Switch adds no behaviour and is not ported.
+          DemoRail(
+            title: 'SankeyChartRebalance',
+            children: [
+              SizedBox(
+                width: 820,
+                height: 412,
+                child: FluentSankeyChart(
+                  data: _sankeyRebalance,
+                  chartTitle: 'Sankey Chart',
+                ),
+              ),
+            ],
+          ),
+          // charts-sankeychart--sankey-chart-responsive: upstream wraps this in
+          // ResponsiveContainer. The Flutter chart honours its BoxConstraints
+          // (spec section 2.2), so a narrow box is the equivalent — and 480 is
+          // below kSankeyDefaultWidth, which is what exercises minWidth reflow.
+          DemoRail(
+            title: 'SankeyChartResponsive',
+            children: [
+              SizedBox(
+                width: 480,
+                height: 320,
+                child: FluentSankeyChart(
+                  data: _sankeyResponsive,
+                  chartTitle: 'Sankey Chart',
+                  reflowMode: FluentSankeyReflowMode.minWidth,
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    },
+  ),
 ];
+
+/// The six-subject radar data of `charts-polarchart--polar-chart-basic`
+/// (PolarChartDefault.stories.tsx). The two hex colours are the story's own
+/// literals, not palette tokens.
+const _polarSubjectScores = <FluentPolarSeries>[
+  FluentAreaPolarSeries(
+    legend: 'Mike',
+    color: Color(0xFF8884D8),
+    data: [
+      FluentPolarDataPoint(r: 120, theta: 'Math'),
+      FluentPolarDataPoint(r: 98, theta: 'Chinese'),
+      FluentPolarDataPoint(r: 86, theta: 'English'),
+      FluentPolarDataPoint(r: 99, theta: 'Geography'),
+      FluentPolarDataPoint(r: 85, theta: 'Physics'),
+      FluentPolarDataPoint(r: 65, theta: 'History'),
+    ],
+  ),
+  FluentAreaPolarSeries(
+    legend: 'Lily',
+    color: Color(0xFF82CA9D),
+    data: [
+      FluentPolarDataPoint(r: 110, theta: 'Math'),
+      FluentPolarDataPoint(r: 130, theta: 'Chinese'),
+      FluentPolarDataPoint(r: 130, theta: 'English'),
+      FluentPolarDataPoint(r: 100, theta: 'Geography'),
+      FluentPolarDataPoint(r: 90, theta: 'Physics'),
+      FluentPolarDataPoint(r: 85, theta: 'History'),
+    ],
+  ),
+];
+
+/// Every sankey story calls `getColorFromToken(DataVizPalette.colorN)`, which is
+/// [FluentDataVizPalette.resolve] here. Not const, so the fixtures below are
+/// lazily initialised top-level finals.
+FluentSankeyNode _node(
+  int id,
+  String name,
+  FluentDataVizToken fill,
+  FluentDataVizToken border,
+) => FluentSankeyNode(
+  nodeId: id,
+  name: name,
+  color: FluentDataVizPalette.resolve(fill),
+  borderColor: FluentDataVizPalette.resolve(border),
+);
+
+/// A weighted stream from [source] to [target].
+FluentSankeyLink _link(int source, int target, double value) =>
+    FluentSankeyLink(source: source, target: target, value: value);
+
+/// `charts-sankeychart--sankey-chart-basic` (SankeyChartBasic.stories.tsx).
+final _sankeyBasic = FluentSankeyChartData(
+  nodes: [
+    _node(0, 'node0', FluentDataVizToken.color2, FluentDataVizToken.color22),
+    _node(1, 'node1', FluentDataVizToken.color7, FluentDataVizToken.color27),
+    _node(2, 'node2', FluentDataVizToken.color8, FluentDataVizToken.color28),
+    _node(3, 'node3', FluentDataVizToken.color9, FluentDataVizToken.color29),
+    // node4's border is color8, not color24 — the story is inconsistent here.
+    _node(4, 'node4', FluentDataVizToken.color11, FluentDataVizToken.color8),
+    _node(5, 'node5', FluentDataVizToken.color12, FluentDataVizToken.color24),
+  ],
+  links: [
+    _link(0, 2, 2),
+    _link(1, 2, 2),
+    _link(1, 3, 2),
+    _link(0, 4, 2),
+    _link(2, 3, 2),
+    _link(2, 4, 2),
+    _link(3, 4, 4),
+    _link(3, 5, 4),
+  ],
+);
+
+/// `charts-sankeychart--sankey-chart-inbox` (SankeyChartInbox.stories.tsx).
+///
+/// Node 11's name keeps the story's leading and doubled spaces verbatim,
+/// because it is what exercises the truncation of task 15.
+final _sankeyInbox = FluentSankeyChartData(
+  nodes: [
+    _node(
+      0,
+      '192.168.42.72',
+      FluentDataVizToken.color2,
+      FluentDataVizToken.color22,
+    ),
+    _node(
+      1,
+      '172.152.48.13',
+      FluentDataVizToken.color2,
+      FluentDataVizToken.color22,
+    ),
+    _node(
+      2,
+      '124.360.55.1',
+      FluentDataVizToken.color2,
+      FluentDataVizToken.color22,
+    ),
+    _node(
+      3,
+      '192.564.10.2',
+      FluentDataVizToken.color2,
+      FluentDataVizToken.color22,
+    ),
+    _node(
+      4,
+      '124.124.50.1',
+      FluentDataVizToken.color2,
+      FluentDataVizToken.color22,
+    ),
+    _node(
+      5,
+      '172.630.89.4',
+      FluentDataVizToken.color2,
+      FluentDataVizToken.color22,
+    ),
+    _node(6, 'inbox', FluentDataVizToken.color7, FluentDataVizToken.color27),
+    _node(
+      7,
+      'Junk Folder',
+      FluentDataVizToken.color7,
+      FluentDataVizToken.color27,
+    ),
+    _node(
+      8,
+      'Deleted Folder',
+      FluentDataVizToken.color7,
+      FluentDataVizToken.color27,
+    ),
+    _node(9, 'Clicked', FluentDataVizToken.color8, FluentDataVizToken.color28),
+    _node(10, 'Opened', FluentDataVizToken.color8, FluentDataVizToken.color28),
+    _node(
+      11,
+      ' No further action  required',
+      FluentDataVizToken.color8,
+      FluentDataVizToken.color28,
+    ),
+  ],
+  links: [
+    _link(0, 6, 80),
+    _link(1, 6, 50),
+    _link(1, 7, 28),
+    _link(2, 7, 14),
+    _link(3, 7, 7),
+    _link(3, 8, 20),
+    _link(4, 7, 10),
+    _link(5, 7, 10),
+    _link(6, 9, 30),
+    _link(6, 10, 55),
+    _link(7, 11, 60),
+    _link(8, 11, 2),
+  ],
+);
+
+/// The simple dataset of `charts-sankeychart--sankey-chart-rebalance`
+/// (SankeyChartRebalance.stories.tsx). The 10 000-to-1 spread is the point: the
+/// one-percent nodes are the ones task 13 renormalises.
+final _sankeyRebalance = FluentSankeyChartData(
+  nodes: [
+    _node(
+      0,
+      'Large Source',
+      FluentDataVizToken.color11,
+      FluentDataVizToken.color21,
+    ),
+    _node(
+      1,
+      'Tiny Source',
+      FluentDataVizToken.color12,
+      FluentDataVizToken.color22,
+    ),
+    _node(
+      2,
+      'Large Target',
+      FluentDataVizToken.color13,
+      FluentDataVizToken.color23,
+    ),
+    _node(
+      3,
+      'Tiny Target',
+      FluentDataVizToken.color14,
+      FluentDataVizToken.color24,
+    ),
+  ],
+  links: [_link(0, 2, 10000), _link(1, 2, 1), _link(0, 3, 1), _link(1, 3, 1)],
+);
+
+/// `charts-sankeychart--sankey-chart-responsive`
+/// (SankeyChartResponsive.stories.tsx) — the basic topology under a different
+/// palette.
+final _sankeyResponsive = FluentSankeyChartData(
+  nodes: [
+    _node(0, 'node0', FluentDataVizToken.color11, FluentDataVizToken.color21),
+    _node(1, 'node1', FluentDataVizToken.color12, FluentDataVizToken.color22),
+    _node(2, 'node2', FluentDataVizToken.color13, FluentDataVizToken.color23),
+    _node(3, 'node3', FluentDataVizToken.color14, FluentDataVizToken.color24),
+    _node(4, 'node4', FluentDataVizToken.color2, FluentDataVizToken.color22),
+    _node(5, 'node5', FluentDataVizToken.color15, FluentDataVizToken.color25),
+  ],
+  links: [
+    _link(0, 2, 2),
+    _link(1, 2, 2),
+    _link(1, 3, 2),
+    _link(0, 4, 2),
+    _link(2, 3, 2),
+    _link(2, 4, 2),
+    _link(3, 4, 4),
+    _link(3, 5, 4),
+  ],
+);
 
 /// Shared with `test/goldens/charts_shell_free_golden_test.dart`, so a story
 /// and its golden cell always show the same thing.
