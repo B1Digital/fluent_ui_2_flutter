@@ -304,17 +304,19 @@ class FluentGroupedVerticalBarChartDelegate
     this.roundCorners = false,
     this.mode,
     double? xAxisInnerPadding,
-    this.xAxisOuterPadding,
+    double? xAxisOuterPadding,
     this.hideTickOverlap = true,
     this.xAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
     this.yAxisTickFormat,
     this.culture,
     this.isCalloutForStack = false,
-    // The inner padding is stored raw and resolved by [xAxisInnerPadding],
-    // which needs a legend count the caller does not have. A named parameter
-    // cannot be a private initialising formal, hence the explicit assignment.
+    // Both paddings are stored raw and resolved by the overrides below, which
+    // is what the shell's band scale reads. A named parameter cannot be a
+    // private initialising formal, hence the explicit assignment.
     // ignore: prefer_initializing_formals
-  }) : _xAxisInnerPadding = xAxisInnerPadding;
+  }) : _xAxisInnerPadding = xAxisInnerPadding,
+       // ignore: prefer_initializing_formals
+       _xAxisOuterPadding = xAxisOuterPadding;
 
   /// The categories, in author order.
   final List<FluentGroupedVerticalBarChartData> data;
@@ -362,9 +364,22 @@ class FluentGroupedVerticalBarChartDelegate
   /// `'plotly'` or null.
   final String? mode;
 
-  /// Category-scale outer padding override.
+  /// Category-scale outer padding as the caller gave it, before
+  /// [xAxisOuterPadding] resolves it. Raw because an explicit 0 and an absent
+  /// value make different charts — see [isScalePaddingDefined].
+  final double? _xAxisOuterPadding;
+
+  /// The outer padding the **shell's** band scale is built with.
+  ///
+  /// Resolved, not raw. `.tsx:1013-1016` spreads `_xAxisOuterPadding` into
+  /// `CartesianChart`, and `_adjustProps` sets it to
+  /// `getScalePadding(props.xAxisOuterPadding)` — 0 by default (`.tsx:137`).
+  /// Handing the raw null instead lets `createStringXAxis` fall back to its own
+  /// `xAxisPadding = 0.1` (`utilities.ts:576`, ported at
+  /// `axis_builders.dart:401`), which makes the band scale disagree with the
+  /// domain-margin solve about how much room each group has.
   @override
-  final double? xAxisOuterPadding;
+  double? get xAxisOuterPadding => getScalePadding(_xAxisOuterPadding);
 
   /// Whether the shell prunes overlapping x ticks — default true.
   final bool hideTickOverlap;
@@ -537,7 +552,10 @@ class FluentGroupedVerticalBarChartDelegate
       // `GroupedVerticalBarChart.tsx:736`, one of upstream's four
       // `isScalePaddingDefined` sites. Note the single argument: GVBC passes no
       // shorthand, unlike VerticalBarChart.tsx:993.
-      isOuterPaddingDefined: isScalePaddingDefined(xAxisOuterPadding),
+      // Reads the RAW padding: the resolved [xAxisOuterPadding] is 0 whether
+      // the caller named 0 or named nothing, and telling those apart is the
+      // whole point of the helper.
+      isOuterPaddingDefined: isScalePaddingDefined(_xAxisOuterPadding),
       mode: mode,
       hideTickOverlap: hideTickOverlap,
       // `calculateLongestLabelWidth(_xAxisLabels)` (`.tsx:764`) sits inside the

@@ -3,6 +3,7 @@ import 'package:fluent_2_web/src/charts/axis/axis_types.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart_props.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_painter.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
 import 'package:fluent_2_web/src/charts/chrome/chart_popover.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_colors.dart';
@@ -1457,6 +1458,67 @@ void main() {
         reason:
             'the max(0, …) at :1025 floors the added margin, so even labels '
             'wide enough to make margin2 negative keep MIN_DOMAIN_MARGIN',
+      );
+    });
+
+    // The solve sizes the band range to `reqWidth` at the resolved paddings
+    // (`VerticalBarChart.tsx:1002-1006`); the shell then pads the band scale
+    // from the delegate's own hooks. If those two disagree the centring is
+    // wrong by construction — the bars no longer fill the range they were
+    // centred in — so the hand-off is asserted through a mounted chart rather
+    // than through the getters alone.
+    testWidgets('the shell band scale is padded with the resolved values', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+          home: Center(
+            // 260x180 is a box, not a ported constant: it is the golden grid's
+            // own cell size, so this pins what the goldens capture.
+            child: SizedBox(
+              width: 260,
+              height: 180,
+              child: FluentVerticalBarChart(data: _points()),
+            ),
+          ),
+        ),
+      );
+      final painter = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((widget) => widget.painter)
+          .whereType<FluentCartesianChartPainter>()
+          .first;
+      final delegate = painter.delegate as FluentVerticalBarChartDelegate;
+      final scale = painter.xAxis.scale;
+      final rangeStart = delegate
+          .domainMargins(painter.layout.size.width, painter.layout.margins)!
+          .left!;
+      expect(
+        scale('a'),
+        closeTo(rangeStart, 1e-9),
+        reason:
+            'the resolved outer padding is 0 (`VerticalBarChart.tsx:1122`), so '
+            'the first band starts exactly where the domain margin put the '
+            'range. Handing createStringXAxis a null lets it fall back to its '
+            'own xAxisPadding of 0.1 (utilities.ts:576) and inset the band.',
+      );
+      // The band step, which the styled story pins at 58.702703 against a
+      // bandwidth of 19.567568 — a ratio of exactly 1 - 2/3.
+      final step = scale('b')! - scale('a')!;
+      expect(
+        scale.bandwidth / step,
+        closeTo(1 - _defaultInnerPadding, 1e-9),
+        reason:
+            'the resolved inner padding is 2/3 (`:1114-1121`), and d3 defines '
+            'paddingInner as gap / step, so this ratio IS 1 - innerPadding',
+      );
+      expect(
+        scale.bandwidth,
+        closeTo(kDefaultBarWidth, 1e-9),
+        reason:
+            'the solve sized the range so three 16px bars at 2/3 inner padding '
+            'exactly fill it (:1002-1006), so a band is one bar wide',
       );
     });
 

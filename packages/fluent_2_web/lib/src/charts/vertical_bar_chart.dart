@@ -538,12 +538,19 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
     this.mode,
     this.colorsOverride,
     this.lineLegendText,
-    this.xAxisInnerPadding,
-    this.xAxisOuterPadding,
+    // The two band paddings are stored raw and resolved by [innerPadding] and
+    // [outerPadding]; the shell reads the resolved overrides below. A named
+    // parameter cannot be a private initialising formal, hence the explicit
+    // assignment — the same shape GroupedVerticalBarChart uses.
+    double? xAxisInnerPadding,
+    double? xAxisOuterPadding,
     this.xAxisPadding,
     this.xAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
     this.yAxisTickFormat,
-  });
+    // ignore: prefer_initializing_formals
+  }) : _xAxisInnerPadding = xAxisInnerPadding,
+       // ignore: prefer_initializing_formals
+       _xAxisOuterPadding = xAxisOuterPadding;
 
   /// The data points, in author order.
   final List<FluentVerticalBarChartDataPoint> points;
@@ -593,17 +600,39 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
   /// Legend title for the overlaid line, if any.
   final String? lineLegendText;
 
-  /// Band inner padding override.
-  @override
-  final double? xAxisInnerPadding;
-
-  /// Band outer padding override.
-  @override
-  final double? xAxisOuterPadding;
-
   /// Legacy shorthand feeding both paddings.
   @override
   final double? xAxisPadding;
+
+  /// Band inner padding as the caller gave it, before [innerPadding] resolves
+  /// it. Kept raw because an explicit 0 and an absent value make different
+  /// charts — see [isScalePaddingDefined].
+  final double? _xAxisInnerPadding;
+
+  /// Band outer padding as the caller gave it. Raw for the same reason.
+  final double? _xAxisOuterPadding;
+
+  /// The inner padding the **shell's** band scale is built with.
+  ///
+  /// Resolved, not raw. `VerticalBarChart.tsx:1176-1179` spreads
+  /// `_xAxisInnerPadding` and `_xAxisOuterPadding` into `CartesianChart` — and
+  /// only for a string axis, hence the guard — so the band scale is padded with
+  /// the same numbers `_getDomainMargins` sized the range against. Handing the
+  /// raw null instead lets `createStringXAxis` fall back to its own
+  /// `xAxisPadding = 0.1` (`utilities.ts:575-576`, ported at
+  /// `axis_builders.dart:400-401`), and the bars then no longer fill the range
+  /// the domain margin centred them in.
+  @override
+  double? get xAxisInnerPadding => xAxisType == FluentChartAxisType.category
+      ? innerPadding
+      : _xAxisInnerPadding;
+
+  /// The outer padding the shell's band scale is built with. See
+  /// [xAxisInnerPadding].
+  @override
+  double? get xAxisOuterPadding => xAxisType == FluentChartAxisType.category
+      ? outerPadding
+      : _xAxisOuterPadding;
 
   /// Ordering applied to a category x axis.
   final FluentAxisCategoryOrder xAxisCategoryOrder;
@@ -628,14 +657,14 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
   double get innerPadding => mode == 'histogram'
       ? 0
       : getScalePadding(
-          xAxisInnerPadding,
+          _xAxisInnerPadding,
           xAxisPadding,
           xAxisType == FluentChartAxisType.category ? 2 / 3 : 1 / 2,
         );
 
   /// Resolved outer padding, default 0 (`:1122`).
   double get outerPadding =>
-      getScalePadding(xAxisOuterPadding, xAxisPadding, 0);
+      getScalePadding(_xAxisOuterPadding, xAxisPadding, 0);
 
   List<Color> get _palette =>
       colorsOverride ?? style.palette!.resolve(<WidgetState>{})!;
@@ -780,9 +809,11 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
       innerPadding: innerPadding,
       outerPadding: outerPadding,
       // `VerticalBarChart.tsx:993`, one of upstream's four
-      // `isScalePaddingDefined` sites.
+      // `isScalePaddingDefined` sites. Reads the RAW padding: the resolved
+      // [outerPadding] is 0 whether the caller named 0 or named nothing, and
+      // telling those apart is the whole point of the helper.
       isOuterPaddingDefined: isScalePaddingDefined(
-        xAxisOuterPadding,
+        _xAxisOuterPadding,
         xAxisPadding,
       ),
       mode: mode,

@@ -714,6 +714,78 @@ void main() {
       );
     });
 
+    // The solve sizes the band range to `reqWidth` at the resolved paddings
+    // (`.tsx:744-750`); the shell then pads the band scale from the delegate's
+    // own hooks. If those disagree, the groups no longer fill the range they
+    // were centred in — which is what silently narrowed the bars past the
+    // `ceil(_barWidth) >= 16` label gate at `.tsx:620`.
+    testWidgets('the shell band scale is padded with the resolved values', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+          home: Center(
+            // 260x180 is the golden grid's own cell size, so this pins what
+            // the goldens capture.
+            child: SizedBox(
+              width: 260,
+              height: 180,
+              // Two groups of two, because four groups of four need 373px of
+              // required width and this box has 184 — `.tsx:749` then never
+              // fires and there is no centring to check.
+              child: FluentGroupedVerticalBarChart(
+                data: <FluentGroupedVerticalBarChartData>[
+                  for (final category in categories.take(2))
+                    FluentGroupedVerticalBarChartData(
+                      name: category,
+                      series: <FluentGroupedBarSeriesPoint>[
+                        for (final legend in legends.take(2))
+                          FluentGroupedBarSeriesPoint(
+                            key: '$category/$legend',
+                            data: 10,
+                            legend: legend,
+                          ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      final painter = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((widget) => widget.painter)
+          .whereType<FluentCartesianChartPainter>()
+          .first;
+      final delegate =
+          painter.delegate as FluentGroupedVerticalBarChartDelegate;
+      final scale = painter.xAxis.scale;
+      expect(
+        scale(categories.first),
+        closeTo(
+          delegate
+              .domainMargins(painter.layout.size.width, painter.layout.margins)!
+              .left!,
+          1e-9,
+        ),
+        reason:
+            '_xAxisOuterPadding is getScalePadding(props.xAxisOuterPadding), 0 '
+            'by default (.tsx:137), and .tsx:1015 hands that to the shell. A '
+            'null there lets createStringXAxis fall back to its own '
+            'xAxisPadding of 0.1 (utilities.ts:576) and inset the first group.',
+      );
+      expect(
+        delegate.barWidthFor(scale),
+        closeTo(kDefaultBarWidth, 1e-9),
+        reason:
+            'the solve sized the range so the groups exactly fill it at a 16px '
+            'bar (.tsx:744-750), so the live bandwidth must give 16 back — the '
+            'number the whole centring was computed from',
+      );
+    });
+
     // `calculateLongestLabelWidth(_xAxisLabels)` (`.tsx:764`) is read only in
     // the plotly arm and only when overlap hiding is off, and no captured GVBC
     // story sets `mode: 'plotly'`. Asserted relatively, because `flutter test`
