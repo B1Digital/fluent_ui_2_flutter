@@ -4,6 +4,8 @@ import 'package:fluent_2_web/fluent_2_web.dart';
 import 'package:fluent_2_web/src/charts/polar_chart_scales.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../support/oracle_fixture.dart';
+
 /// `getScaleType` (`PolarChart.utils.ts:136-154`) inspects only `values[0]`, and
 /// `getContinuousScaleDomain` (`:156-179`) forces 0 into every linear domain.
 void main() {
@@ -469,6 +471,61 @@ void main() {
 
     test('the default angular tick count is eight', () {
       expect(kPolarAngularTickCount, 8, reason: 'PolarChart.utils.ts:239');
+    });
+
+    test('the captured spokes sit at the angles a category axis computes', () {
+      final story = loadOracleStory('charts-polarchart--polar-chart-basic');
+      // The only captured PolarChart story: six subjects on the angular axis,
+      // drawn counter-clockwise, which is the upstream default.
+      const subjects = <Object>[
+        'Math',
+        'Chinese',
+        'English',
+        'Geography',
+        'Physics',
+        'History',
+      ];
+
+      // A spoke is `M0,0 L<x>,<y>` — four numbers, the first pair at the pole.
+      // The six of them share one `<g>`, which is what separates them from the
+      // radial axis line, drawn identically under a different parent. SVG y
+      // grows downward, so a spoke at screen angle theta ends at
+      // (r cos theta, -r sin theta); atan2 returns (-pi, pi] and the folding
+      // below brings that into the [0, 2pi) the scale produces.
+      final byParent = <int, List<double>>{};
+      for (final path in story.byTag('path')) {
+        final numbers = svgPathNumbers(path.d ?? '');
+        if (numbers.length != 4 || numbers[0] != 0 || numbers[1] != 0) {
+          continue;
+        }
+        final theta = math.atan2(-numbers[3], numbers[2]);
+        (byParent[path.parent] ??= <double>[]).add(
+          (theta % (2 * math.pi) + 2 * math.pi) % (2 * math.pi),
+        );
+      }
+      final spokes = byParent.values
+          .where((group) => group.length == subjects.length)
+          .toList();
+      expect(
+        spokes,
+        hasLength(1),
+        reason:
+            'exactly one <g> of the capture holds one spoke per category; a '
+            'different count means the selection above matched the wrong nodes',
+      );
+
+      final angular = createPolarAngularScale(
+        FluentPolarScaleKind.category,
+        subjects,
+      );
+      for (var i = 0; i < subjects.length; i++) {
+        expectOracleNumber(
+          'spoke ${subjects[i]}',
+          spokes.single[i],
+          angular.radiansOf(subjects[i]),
+          tolerance: kOracleGeometryTolerance,
+        );
+      }
     });
   });
 }
