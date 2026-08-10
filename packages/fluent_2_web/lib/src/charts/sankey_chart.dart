@@ -8,6 +8,7 @@ import 'package:intl/intl.dart' show NumberFormat;
 import 'chrome/axis_label_tooltip.dart';
 import 'chrome/chart_popover.dart';
 import 'chrome/chart_title.dart';
+import 'chrome/legend.dart';
 import 'internal/chart_text_measurer.dart';
 import 'internal/d3/axis_geometry.dart';
 import 'internal/d3/curves.dart';
@@ -16,6 +17,7 @@ import 'internal/d3/path_sink.dart';
 import 'internal/d3/sankey.dart';
 import 'internal/d3/shape_line_area.dart';
 import 'internal/d3/stable_sort.dart' as d3;
+import 'internal/image_export.dart';
 import 'model/sankey_data.dart';
 import 'sankey_chart_layout.dart';
 import 'sankey_chart_style.dart';
@@ -570,6 +572,7 @@ class FluentSankeyChart extends StatefulWidget {
     this.nodeSemanticLabel = 'node {0} with weight {1}',
     this.linkSemanticLabel = 'link from {0} to {1} with weight {2}',
     this.reflowMode = FluentSankeyReflowMode.none,
+    this.controller,
     this.style,
   });
 
@@ -611,6 +614,10 @@ class FluentSankeyChart extends StatefulWidget {
   /// Behaviour when the container is narrower than the diagram's minimum width.
   final FluentSankeyReflowMode reflowMode;
 
+  /// Imperative handle exposing `toImage`. Ports `componentRef`
+  /// (`SankeyChart.tsx:548`).
+  final FluentChartController? controller;
+
   /// Style override, layered over the theme's.
   final FluentSankeyChartStyle? style;
 
@@ -625,6 +632,7 @@ class FluentSankeyChart extends StatefulWidget {
 /// (`SankeyChart.tsx:548`) exposes.
 class FluentSankeyChartState extends State<FluentSankeyChart> {
   final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
+  final GlobalKey _boundaryKey = GlobalKey();
   FluentSankeySelection _selection = FluentSankeySelection.none;
   FluentSankeyLayoutResult? _layout;
   List<FluentSankeyNodeVisual> _visuals = const <FluentSankeyNodeVisual>[];
@@ -644,6 +652,7 @@ class FluentSankeyChartState extends State<FluentSankeyChart> {
 
   @override
   void dispose() {
+    widget.controller?.detach();
     _measurer.invalidate();
     super.dispose();
   }
@@ -814,6 +823,17 @@ class FluentSankeyChartState extends State<FluentSankeyChart> {
           ),
         );
         _order = sankeyDomOrder(solved);
+        // `hooks.ts:23-41`, but `SankeyChart.tsx:548` calls
+        // `useImageExport(props.componentRef, true, false)`, hard-coding
+        // `hideLegends: true` — the chart has no legend to synthesise, so the
+        // export is the bare diagram.
+        widget.controller?.attach(
+          FluentChartImageExporter(
+            boundaryKey: _boundaryKey,
+            legends: const <FluentChartLegendItem>[],
+            measurer: _measurer,
+          ),
+        );
 
         final canvas = Semantics(
           container: true,
@@ -868,12 +888,18 @@ class FluentSankeyChartState extends State<FluentSankeyChart> {
           ),
         );
 
+        // Inside the scroller, not around it, so the export is the whole
+        // diagram rather than the slice the viewport happens to show.
+        final boundary = RepaintBoundary(
+          key: _boundaryKey,
+          child: SizedBox.fromSize(size: size, child: canvas),
+        );
         return widget.reflowMode == FluentSankeyReflowMode.minWidth
             ? SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                child: SizedBox.fromSize(size: size, child: canvas),
+                child: boundary,
               )
-            : SizedBox.fromSize(size: size, child: canvas);
+            : boundary;
       },
     );
   }

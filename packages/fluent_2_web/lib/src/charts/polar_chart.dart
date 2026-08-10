@@ -11,6 +11,7 @@ import 'chrome/chart_title.dart';
 import 'chrome/legend.dart';
 import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
+import 'internal/chart_text_styles.dart';
 import 'internal/chart_utils.dart';
 import 'internal/d3/array_stats.dart' as d3;
 import 'internal/d3/curves.dart' as d3;
@@ -18,6 +19,7 @@ import 'internal/d3/path_sink.dart' as d3;
 import 'internal/d3/shape_radial.dart' as d3;
 import 'internal/d3/stable_sort.dart' as d3;
 import 'internal/data_viz_palette.dart';
+import 'internal/image_export.dart';
 import 'model/chart_common.dart';
 import 'model/chart_value.dart';
 import 'model/line_options.dart';
@@ -1033,6 +1035,7 @@ class FluentPolarChart extends StatefulWidget {
     this.canSelectMultipleLegends = false,
     this.selectedLegends,
     this.onLegendChange,
+    this.controller,
     this.style,
   });
 
@@ -1092,6 +1095,10 @@ class FluentPolarChart extends StatefulWidget {
   /// Called with the new selection when a legend is toggled.
   final void Function(List<String> selected)? onLegendChange;
 
+  /// Imperative handle exposing `toImage`. Ports `componentRef`
+  /// (`PolarChart.tsx:49`).
+  final FluentChartController? controller;
+
   /// Style override, layered over the theme's.
   final FluentPolarChartStyle? style;
 
@@ -1106,6 +1113,7 @@ class FluentPolarChart extends StatefulWidget {
 /// (`PolarChart.tsx:49`).
 class FluentPolarChartState extends State<FluentPolarChart> {
   final FocusNode _focusNode = FocusNode(debugLabel: 'FluentPolarChart');
+  final GlobalKey _boundaryKey = GlobalKey();
   final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
   late List<String> _selectedLegends =
       widget.selectedLegends ?? const <String>[];
@@ -1134,6 +1142,7 @@ class FluentPolarChartState extends State<FluentPolarChart> {
 
   @override
   void dispose() {
+    widget.controller?.detach();
     _focusNode.dispose();
     _measurer.invalidate();
     super.dispose();
@@ -1262,13 +1271,41 @@ class FluentPolarChartState extends State<FluentPolarChart> {
               );
               final l = _solve(size);
               _layout = l;
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  _buildPlot(l, size, style, states, chartColors),
-                  if (!widget.hideLegend)
-                    SizedBox(height: legendHeight, child: _buildLegend(l)),
-                ],
+              // `hooks.ts:23-41` — the handle is rebuilt whenever the legend
+              // set or the selection changes, because `cloneLegendsToSVG` reads
+              // both. Attached here rather than in `build` because the legend
+              // colours only exist once the layout has been solved, and the
+              // solve needs the constraints.
+              widget.controller?.attach(
+                FluentChartImageExporter(
+                  boundaryKey: _boundaryKey,
+                  legends: widget.hideLegend
+                      ? const <FluentChartLegendItem>[]
+                      : <FluentChartLegendItem>[
+                          for (final entry in l.legendColors.entries)
+                            FluentChartLegendItem(
+                              title: entry.key,
+                              color: entry.value,
+                            ),
+                        ],
+                  measurer: _measurer,
+                  legendTextStyle: FluentChartTextStyles.of(theme).legendLabel,
+                  selectedLegends: _selectedLegends.toSet(),
+                  // `PolarChart.tsx:629` passes centerLegends unconditionally.
+                  centerLegends: true,
+                  isRtl: Directionality.of(context) == TextDirection.rtl,
+                ),
+              );
+              return RepaintBoundary(
+                key: _boundaryKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    _buildPlot(l, size, style, states, chartColors),
+                    if (!widget.hideLegend)
+                      SizedBox(height: legendHeight, child: _buildLegend(l)),
+                  ],
+                ),
               );
             },
           ),

@@ -1,8 +1,12 @@
+import 'dart:convert';
 import 'dart:ui' show PathMetric;
 
 import 'package:fluent_2_web/fluent_2_web.dart';
 // The d3 kernel is deliberately never barrel-exported, so this one stays deep.
 import 'package:fluent_2_web/src/charts/internal/d3/sankey.dart';
+// The image exporter is not barrel-exported either: `lib/fluent_2_web.dart` is
+// owned by the integration task.
+import 'package:fluent_2_web/src/charts/internal/image_export.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -675,6 +679,44 @@ void main() {
         kSankeyDefaultHeight,
         reason:
             'SankeyChart.tsx:571-572 initialises the container to 912 x 468',
+      );
+    });
+
+    testWidgets('the controller exports the diagram with no legend strip', (
+      tester,
+    ) async {
+      final controller = FluentChartController();
+      await pump(
+        tester,
+        FluentSankeyChart(data: graph, controller: controller),
+      );
+      // `RenderRepaintBoundary.toImage` and `Image.toByteData` are serviced by
+      // the engine, which a fake-async widget test never pumps.
+      final bytes = base64Decode(
+        (await tester.runAsync(controller.toImage))!.split(',').last,
+      );
+
+      /// The PNG IHDR chunk starts at byte 8; its width and height are the two
+      /// big-endian 32-bit words at 16 and 20 (PNG spec, 11.2.2).
+      int be32(int at) =>
+          (bytes[at] << 24) |
+          (bytes[at + 1] << 16) |
+          (bytes[at + 2] << 8) |
+          bytes[at + 3];
+      expect(
+        be32(16),
+        tester.getSize(find.byType(FluentSankeyChart)).width.toInt(),
+        reason:
+            'the export is the full chart width — 800 here rather than the '
+            '912 of SankeyChart.tsx:571, because the 800x600 test surface '
+            'constrains the box `pump` asks for',
+      );
+      expect(
+        be32(20),
+        468,
+        reason:
+            'SankeyChart.tsx:548 calls useImageExport with hideLegends true, so '
+            'the sankey export never gains a legend strip',
       );
     });
   });

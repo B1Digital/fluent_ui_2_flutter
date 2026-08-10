@@ -1,6 +1,11 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:fluent_2_web/fluent_2_web.dart';
+// The image exporter is not barrel-exported: `lib/fluent_2_web.dart` is owned
+// by the integration task, so the handle is reached the same deep way
+// `image_export_test.dart` reaches it.
+import 'package:fluent_2_web/src/charts/internal/image_export.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -1323,6 +1328,72 @@ void main() {
         reason:
             'PolarChart.tsx:55 initialises the container height to 200 and only '
             'replaces it once the DOM can be measured',
+      );
+    });
+
+    /// The PNG IHDR chunk starts at byte 8; its width and height are the two
+    /// big-endian 32-bit words at 16 and 20 (PNG spec, 11.2.2).
+    int be32(List<int> bytes, int at) =>
+        (bytes[at] << 24) |
+        (bytes[at + 1] << 16) |
+        (bytes[at + 2] << 8) |
+        bytes[at + 3];
+
+    testWidgets('the controller exports the chart plus its legend', (
+      tester,
+    ) async {
+      final controller = FluentChartController();
+      await pump(
+        tester,
+        FluentPolarChart(data: twoSeries, controller: controller),
+      );
+      // `RenderRepaintBoundary.toImage` and `Image.toByteData` are serviced by
+      // the engine, which a fake-async widget test never pumps.
+      final url = await tester.runAsync(controller.toImage);
+      expect(
+        url!.startsWith('data:image/png;base64,'),
+        isTrue,
+        reason: 'hooks.ts:30-38 returns a png data url',
+      );
+      final bytes = base64Decode(url.split(',').last);
+      expect(
+        be32(bytes, 20),
+        greaterThan(be32(bytes, 16) ~/ 4),
+        reason:
+            'the exported image is the chart plus the synthesised legend strip, '
+            'so it is taller than a bare capture',
+      );
+    });
+
+    testWidgets('hideLegend removes the strip from the export too', (
+      tester,
+    ) async {
+      final withLegend = FluentChartController();
+      final without = FluentChartController();
+      await pump(
+        tester,
+        FluentPolarChart(data: twoSeries, controller: withLegend),
+      );
+      final tall = base64Decode(
+        (await tester.runAsync(withLegend.toImage))!.split(',').last,
+      );
+      await pump(
+        tester,
+        FluentPolarChart(
+          data: twoSeries,
+          hideLegend: true,
+          controller: without,
+        ),
+      );
+      final short = base64Decode(
+        (await tester.runAsync(without.toImage))!.split(',').last,
+      );
+      expect(
+        be32(short, 20),
+        lessThan(be32(tall, 20)),
+        reason:
+            'hooks.ts:33 passes undefined for the legend callback when the legend '
+            'is hidden, so no strip is appended',
       );
     });
   });
