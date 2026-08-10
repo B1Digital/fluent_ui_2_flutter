@@ -1,6 +1,6 @@
 // Guards `lib/src/charts/internal/` against a symbol that is written, tested,
 // and then never called — a helper whose whole cost is paid and whose value is
-// zero, and which reads as shipped work in a wave report. It has happened three
+// zero, and which reads as shipped work in a wave report. It has happened four
 // times, and every time it was found by hand rather than by CI:
 //
 //   * wave 5 — `FluentLineMarkerPainter` was complete and green, and LineChart
@@ -9,8 +9,11 @@
 //     green, and `fill: 'toself'` never painted.
 //   * wave 6 fixes — `scatterPolarCategoryLabels` survived the first fix,
 //     because the fix wired its neighbours and nobody re-ran the sweep.
+//   * after wave 6 — `FluentLineChartDelegate.singlePathFor` was complete and
+//     mutation-proven, and engine B painted no lines at all. That one is the
+//     ceiling below, not this gate: `singlePathFor` lives one directory up.
 //
-// A green suite is not evidence against this defect: every one of those three
+// A green suite is not evidence against this defect: every one of those four
 // shipped green. Only a caller is.
 //
 // TWO REFINEMENTS make the signal usable, and both are load-bearing:
@@ -25,7 +28,7 @@
 //     which `FluentChartImageExporter._renderLegend` uses correctly one screen
 //     below its own declaration.
 //
-// With both, the scan reports 129 declarations and six orphans.
+// With both, the scan reports 129 declarations and four orphans.
 //
 // KNOWN CEILINGS, so a later reader does not mistake silence for proof:
 //   * This is a name-level scan, not a resolver. A member sharing a name with
@@ -38,9 +41,12 @@
 //     are never named, so scanning them produced 35 false positives that buried
 //     the six real ones. Named here rather than dropped silently.
 //   * The scan stops at `internal/`, so an orphan one directory up is invisible
-//     to it. Three exist today — `FluentLineChartDelegate.singlePathFor` and
-//     both `solveDomainMargin` declarations — and they are why two of the six
-//     entries below are blocked.
+//     to it. None is known today, and the two that were — both
+//     `solveDomainMargin` declarations, and
+//     `FluentLineChartDelegate.singlePathFor` — are what retired this map's
+//     `isScalePaddingDefined` and `lineModeDrawsLines` entries. Neither was
+//     reported by anything; both were found by reading. Nothing here proves a
+//     third does not exist.
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -54,10 +60,9 @@ import 'package:flutter_test/flutter_test.dart';
 /// and the second test below fails if this map drifts from the scan in either
 /// direction, so an excuse cannot outlive the gap it excuses.
 ///
-/// Six of 129 on 2026-08-10: four blocked on a consumer that is not ported or
-/// not wired, and two deliberate non-`lib/` API. Every upstream line cited here
-/// was read from
-/// `crawlers/fluentui-react-charts/out/charts/src` while writing it.
+/// Four of 129 on 2026-08-10: two blocked on a consumer that is not ported,
+/// and two deliberate non-`lib/` API. Every upstream line cited here was read
+/// from `crawlers/fluentui-react-charts/out/charts/src` while writing it.
 const Map<String, String> kChartInternalOrphanAllowlist = <String, String>{
   // --- Deliberate: the caller is not in lib/ and never will be -------------
   'cachedCount':
@@ -99,32 +104,6 @@ const Map<String, String> kChartInternalOrphanAllowlist = <String, String>{
       'FluentDataVizToken and calls `FluentDataVizPalette.resolve`. A raw '
       'upstream token string only ever arrives from untyped JSON, i.e. in the '
       'same two unported declarative adapters. Unblocks with them.',
-
-  // --- Blocked: the consumer is ported but itself unwired -----------------
-  'isScalePaddingDefined':
-      'Ports `isScalePaddingDefined` (utilities.ts:1921-1923). Upstream calls '
-      'it at four sites and the port has wired none: VerticalBarChart.tsx:993 '
-      'and GroupedVerticalBarChart.tsx:736 reach the port only as the '
-      '`isOuterPaddingDefined` argument of '
-      'FluentVerticalBarChartGeometry.solveDomainMargin '
-      '(vertical_bar_chart.dart:348) and '
-      'FluentGroupedVerticalBarChartGeometry.solveDomainMargin '
-      '(grouped_vertical_bar_chart.dart:128), and neither solver has a lib/ '
-      'caller either — only tests call them. The inner-padding sites, '
-      'VerticalBarChart.tsx:595 and :1183, have no ported counterpart at all. '
-      'Blocked on the domain-margin solvers being wired into layout, which is '
-      'a bar-geometry change needing Oracle B verification, not on this '
-      'helper.',
-  'lineModeDrawsLines':
-      'Ports `shouldDrawLines` (LineChart.tsx:698), which gates engine B — '
-      "the single-path renderer — at :699 and :736. Engine B's lines are not "
-      'painted in the port: FluentLineChartDelegate.singlePathFor '
-      '(line_chart.dart:816) builds the path and nothing calls it, because '
-      'FluentLineChartDelegate.paintSeries (:1425) draws only segmentsFor '
-      '(engine A, gated inline on upstream :1213), scatterPolarFillsFor and '
-      'markersFor. Markers are deliberately not gated on this — '
-      'line_chart.dart:1122-1126 records why — so paint has nothing for this '
-      'gate to gate until singlePathFor is painted.',
 };
 
 /// Files scanned for declarations: `lib/src/charts/internal/*.dart`, with the
@@ -139,12 +118,13 @@ List<File> internalSources() =>
 
 /// [source] with `//`, `///` and `/* */` comments replaced by blank space.
 ///
-/// Stripping is the whole point of the gate rather than a tidy-up. Three of the
-/// six orphans below — `fluentChartIsDarkTheme`, `isScalePaddingDefined` and
-/// `lineModeDrawsLines` — are named from a `///` comment and from nowhere else,
-/// and `comment_references` is an error in this workspace, so every one of
-/// those names *resolves*. A scan over raw text therefore reports them as
-/// called. They are not called; they are described.
+/// Stripping is the whole point of the gate rather than a tidy-up. One of the
+/// four orphans below — `fluentChartIsDarkTheme`, named from the `///` at
+/// `data_viz_palette.dart:262` and from nowhere else — resolves, because
+/// `comment_references` is an error in this workspace. A scan over raw text
+/// therefore reports it as called. It is not called; it is described. Two
+/// entries that were retired, `isScalePaddingDefined` and `lineModeDrawsLines`,
+/// were the same shape.
 ///
 /// String literals are not tracked, so a `//` inside one would truncate the
 /// rest of that line. Verified inapplicable: `lib/` contains no such literal,
@@ -329,7 +309,7 @@ void main() {
           'comment naming one is not a caller:\n${unexcused.join('\n')}\n'
           'Wire it, delete it, or add it to kChartInternalOrphanAllowlist '
           'with the reason it stays. A tested helper nothing calls is the '
-          'defect this gate exists to stop, and it has shipped three times '
+          'defect this gate exists to stop, and it has shipped four times '
           'under a green suite.',
     );
   });

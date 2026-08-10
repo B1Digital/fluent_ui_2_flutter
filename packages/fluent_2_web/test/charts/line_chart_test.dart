@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui' as ui;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
 // The barrel is owned by the integration task, so these files are imported
@@ -13,6 +14,7 @@ import 'package:fluent_2_web/src/charts/internal/chart_text_measurer.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_text_styles.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/scale_linear.dart' as d3;
 import 'package:fluent_2_web/src/charts/internal/data_viz_palette.dart';
+import 'package:fluent_2_web/src/charts/internal/marker_geometry.dart';
 import 'package:fluent_2_web/src/charts/line_chart.dart';
 import 'package:fluent_2_web/src/charts/line_chart_style.dart';
 import 'package:fluent_2_web/src/charts/model/cartesian_series.dart';
@@ -1264,6 +1266,180 @@ void main() {
         reason: 'engine A still dims to 0.01, LineChart.tsx:909',
       );
     });
+
+    test('engine A contributes no single path', () {
+      expect(
+        _lineDelegate().singlePathsFor(_ctx()),
+        isEmpty,
+        reason:
+            'LineChart.tsx:816 is an else-if on the same condition, so the '
+            'segment engine and the path engine never both run',
+      );
+      expect(
+        _lineDelegate(curve: FluentLineCurve.linear).segmentsFor(_ctx()),
+        isEmpty,
+        reason: 'and the exclusion holds in the other direction too',
+      );
+    });
+
+    test('shouldDrawLines suppresses the stroke only for bare markers', () {
+      expect(
+        _lineDelegate(
+          curve: FluentLineCurve.linear,
+          mode: const FluentLineMode(lines: false, markers: true),
+        ).singlePathsFor(_ctx()),
+        isEmpty,
+        reason:
+            'shouldDrawLines (LineChart.tsx:698) gates both arms, :699 and '
+            ':736, so a markers-only series strokes nothing',
+      );
+      expect(
+        _lineDelegate(
+          curve: FluentLineCurve.linear,
+          mode: const FluentLineMode(markers: true, text: true),
+        ).singlePathsFor(_ctx()),
+        hasLength(1),
+        reason:
+            "only the bare 'markers' literal loses its line — 'markers+text' "
+            'keeps one (LineChart.tsx:698)',
+      );
+    });
+
+    test('the deselected arm dims the line and drops its halo', () {
+      final singles = _lineDelegate(
+        curve: FluentLineCurve.linear,
+        legends: const <String>['a', 'b'],
+        selectedLegend: 'a',
+        lineBorderWidth: 4,
+      ).singlePathsFor(_ctx());
+      final selected = singles.firstWhere((s) => s.seriesIndex == 0);
+      final dimmed = singles.firstWhere((s) => s.seriesIndex == 1);
+      expect(
+        selected.opacity,
+        1,
+        reason: 'LineChart.tsx:729 — the selected arm is opaque',
+      );
+      expect(
+        selected.borderWidth,
+        8,
+        reason:
+            'LineChart.tsx:711 strokes the halo at strokeWidth + '
+            'lineBorderWidth, i.e. the 4px default plus 4',
+      );
+      expect(
+        dimmed.opacity,
+        0.1,
+        reason:
+            'LineChart.tsx:750 — engine B dims a line to 0.1, the same as '
+            'engine A at :1306 and not the 0.01 it dims a marker to',
+      );
+      expect(
+        dimmed.borderWidth,
+        isNull,
+        reason:
+            'the else-if at LineChart.tsx:736 pushes the line alone, so a '
+            'dimmed series shows no halo even having asked for one',
+      );
+    });
+
+    test('the engine B line and its halo flatten apart', () {
+      final theme = FluentThemeData.highContrast(
+        fontPlatform: FluentFontPlatform.web,
+      );
+      final colours = FluentChartColors.of(theme);
+      final single = _lineDelegate(
+        curve: FluentLineCurve.linear,
+        lineBorderWidth: 2,
+        withTheme: theme,
+      ).singlePathsFor(_ctx()).single;
+      expect(
+        single.colour,
+        colours.flattenMark(FluentDataVizPalette.next(0)),
+        reason:
+            'LineChart.tsx:723 strokes the same `lineColor` engine A does at '
+            ':1282, so spec §5.3 must flatten it the same way',
+      );
+      expect(
+        single.borderColour,
+        colours.flattenMarkStroke(theme.colors.neutralBackground1),
+        reason:
+            'the halo at LineChart.tsx:713 flattens to the CANVAS colour, or '
+            'it merges with the line it sits behind',
+      );
+    });
+
+    test('paintSeries strokes the engine B halo before its line', () {
+      final recorder = _LineRecorder();
+      _lineDelegate(
+        curve: FluentLineCurve.linear,
+        lineBorderWidth: 4,
+      ).paintSeries(
+        recorder,
+        _ctx(),
+        _layout(),
+        FluentChartColors.of(_theme()),
+      );
+      expect(
+        recorder.pathPaints.map((entry) => entry.strokeWidth).toList(),
+        const <double>[8, 4],
+        reason:
+            'LineChart.tsx:1362-1363 renders bordersForLine before '
+            'linesForLine, so the halo never covers a neighbouring series',
+      );
+    });
+
+    test('paintSeries cuts a dashed engine B path into its runs', () {
+      ({double length, int contours}) stroke({String? dash}) {
+        final recorder = _LineRecorder();
+        _lineDelegate(
+          curve: FluentLineCurve.linear,
+          strokeDasharray: dash,
+        ).paintSeries(
+          recorder,
+          _ctx(),
+          _layout(),
+          FluentChartColors.of(_theme()),
+        );
+        final only = recorder.pathPaints.single;
+        return (length: only.length, contours: only.contours);
+      }
+
+      // `Path.computeMetrics` measures in float32 and `extractPath` re-rounds
+      // every contour it cuts, so the error accumulates with the run count.
+      // Four orders below the 2-unit dash this test is about.
+      const float32Slack = 1e-4;
+      // ys 1,2,3 at x 0,1,2 under `_ctx` is two 10x10 steps.
+      final solid = stroke();
+      expect(
+        solid.length,
+        closeTo(2 * sqrt(200), float32Slack),
+        reason: 'the undashed path walks both steps of the polyline',
+      );
+      expect(
+        solid.contours,
+        1,
+        reason: 'and it walks them without lifting the pen',
+      );
+      // `strokeDasharray='2'` parses to [2, 2] — on and off by two.
+      const on = 2.0;
+      final cycles = (solid.length / (on * 2)).floor();
+      final tail = solid.length - cycles * on * 2;
+      final dashed = stroke(dash: '2');
+      expect(
+        dashed.length,
+        closeTo(cycles * on + (tail < on ? tail : on), float32Slack),
+        reason:
+            'LineChart.tsx:730 dashes the line, and Canvas has no dash '
+            'support, so the path itself must be cut into its on runs',
+      );
+      expect(
+        dashed.contours,
+        cycles + 1,
+        reason:
+            'one contour per surviving run plus the tail that starts on a '
+            'dash; a single contour means the pattern was ignored',
+      );
+    });
   });
 
   group('LineChart engine B against Oracle B', () {
@@ -1474,6 +1650,225 @@ void main() {
     });
   });
 
+  // `LineChart.tsx:645-660`, `:916-935` and `:1082-1100` are the only three
+  // places a point's own `text` is drawn. All three gate on
+  // `!_isScatterPolar && supportsTextMode && text`, where `supportsTextMode` is
+  // `lineOptions.mode?.includes('text')` (`:571`, `:842`, `:1008`) — a
+  // per-series substring test, and NOT `isTextMode` (`utilities.ts:2216-2221`),
+  // which compares the whole literal across every series and is what
+  // ScatterChart reads instead.
+  group('FluentLineChartDelegate point text labels', () {
+    FluentLineMode textMode() => FluentLineMode.parse(_kTextMode);
+
+    /// `calculateMarkerRadius`'s own `defaultRadius` (`utilities.ts:2324`), the
+    /// radius of a point that names no `markerSize`.
+    const defaultRadius = 3.5;
+
+    /// `markerLabelGap`, the `+ 12` at `LineChart.tsx:652`, `:929` and `:1095`.
+    const gap = 12.0;
+
+    test('a point in text mode carries its own text below its marker', () {
+      final marks = _lineDelegate(
+        ys: const <double>[1, 2, 3],
+        mode: textMode(),
+        texts: const <String?>['a', 'b', 'c'],
+      ).markersFor(_ctx());
+      expect(
+        marks.map((mark) => mark.label).toList(),
+        // parity: the LAST point is labelled from `data[j - 1]`. `:1099`
+        // renders `text`, the binding made at `:843` for the point *before* j,
+        // while the gate at `:1082` reads `lastText` = `data[j].text` from
+        // `:1009`. Reproduced, not repaired: the two bindings are one line
+        // apart upstream and the gate is what decides whether anything is
+        // drawn at all.
+        <String?>['a', 'b', 'b'],
+        reason:
+            'LineChart.tsx:843 labels each point from its own text; :1009 and '
+            ':1099 disagree about which point the last label belongs to',
+      );
+      expect(
+        marks.map((mark) => mark.labelBaselineOffset).toList(),
+        everyElement(closeTo(defaultRadius + gap, 1e-9)),
+        reason:
+            'LineChart.tsx:919-929 adds calculateMarkerRadius(...) to 12, and '
+            'no point here names a markerSize',
+      );
+    });
+
+    test('hovering a point grows its marker but never moves its label', () {
+      final marks = _lineDelegate(
+        ys: const <double>[1, 2, 3],
+        mode: textMode(),
+        texts: const <String?>['a', 'b', 'c'],
+        activePointId: '0_1',
+      ).markersFor(_ctx());
+      expect(
+        marks[1].size,
+        closeTo(5.5, 1e-9),
+        reason:
+            'the circle at LineChart.tsx:860-866 passes isActive, so it grows '
+            'to activeRadius (utilities.ts:2325)',
+      );
+      expect(
+        marks[1].labelBaselineOffset,
+        closeTo(defaultRadius + gap, 1e-9),
+        reason:
+            'the label at LineChart.tsx:920-926 passes NO isActive, so it '
+            'keeps the inactive radius while the marker under it grows',
+      );
+    });
+
+    test('a dimmed series still paints its last label fully opaque', () {
+      final marks = _lineDelegate(
+        ys: const <double>[1, 2, 3],
+        mode: textMode(),
+        texts: const <String?>['a', 'b', 'c'],
+        selectedLegend: 'another legend',
+      ).markersFor(_ctx());
+      expect(
+        marks.map((mark) => mark.opacity).toList(),
+        everyElement(closeTo(0.01, 1e-9)),
+        reason:
+            'LineChart.tsx:909 dims every marker of an unselected legend to '
+            '0.01',
+      );
+      expect(
+        marks.map((mark) => mark.labelOpacity).toList(),
+        <Matcher>[closeTo(0.01, 1e-9), closeTo(0.01, 1e-9), closeTo(1, 1e-9)],
+        reason:
+            'parity: :933 carries the same opacity as its circle, but the '
+            'last-point label at :1085-1097 carries no opacity attribute at '
+            'all, so SVG leaves it at 1 while its own circle is at 0.01',
+      );
+    });
+
+    test('a one-point series floors its label offset where the marker does '
+        'not', () {
+      final marks = _lineDelegate(
+        ys: const <double>[1],
+        mode: textMode(),
+        texts: const <String?>['solo'],
+      ).markersFor(_ctx());
+      expect(
+        marks.single.label,
+        'solo',
+        reason: 'LineChart.tsx:572 reads data[0].text and :659 renders it',
+      );
+      expect(
+        marks.single.size,
+        closeTo(defaultRadius, 1e-9),
+        reason:
+            'the circle at LineChart.tsx:578-585 is calculateMarkerRadius, '
+            'which returns defaultRadius unclamped',
+      );
+      expect(
+        marks.single.labelBaselineOffset,
+        closeTo(kMarkerMinPixel + gap, 1e-9),
+        reason:
+            'parity: LineChart.tsx:650 inlines its own radius — '
+            'Math.max(size ? ... : 3.5, 4) — instead of calling '
+            'calculateMarkerRadius, so the label is floored at 4 while the '
+            'marker it hangs from is 3.5',
+      );
+    });
+
+    test('a series that names no text mode paints no labels', () {
+      expect(
+        _lineDelegate(
+          ys: const <double>[1, 2, 3],
+          texts: const <String?>['a', 'b', 'c'],
+        ).markersFor(_ctx()).map((mark) => mark.label),
+        everyElement(isNull),
+        reason:
+            'supportsTextMode is false without a mode, so the && at '
+            'LineChart.tsx:645 short-circuits before the text is read',
+      );
+    });
+
+    test('a point with no text of its own is not labelled', () {
+      expect(
+        _lineDelegate(
+          ys: const <double>[1, 2, 3],
+          mode: textMode(),
+          texts: const <String?>['a', null, 'c'],
+        ).markersFor(_ctx()).map((mark) => mark.label).toList(),
+        // Index 2 reads index 1's text, which is the null.
+        <String?>['a', null, null],
+        reason: 'the `&& text` conjunct of LineChart.tsx:916 rejects it',
+      );
+    });
+
+    test('one scatterpolar trace suppresses every other series labels', () {
+      final marks = _delegate(
+        <FluentLineChartSeries>[
+          FluentLineChartSeries(
+            legend: 'labelled',
+            lineOptions: FluentLineOptions(mode: textMode()),
+            data: <FluentLineChartDataPoint>[
+              for (var i = 0; i < 3; i++)
+                FluentLineChartDataPoint(x: i, y: i + 1, text: 'p$i'),
+            ],
+          ),
+          FluentLineChartSeries(
+            legend: 'radar',
+            lineOptions: FluentLineOptions(
+              mode: FluentLineMode.parse('scatterpolar'),
+            ),
+            data: <FluentLineChartDataPoint>[
+              for (var i = 0; i < 3; i++)
+                FluentLineChartDataPoint(x: i, y: i + 1),
+            ],
+          ),
+        ],
+        theme: _theme(),
+        selectedLegend: '',
+      ).markersFor(_ctx());
+      expect(
+        marks.map((mark) => mark.label),
+        everyElement(isNull),
+        reason:
+            '_isScatterPolar is isScatterPolarSeries(_points), a `.some` over '
+            'the WHOLE chart (utilities.ts:2205), and the !_isScatterPolar at '
+            'LineChart.tsx:916 is read for every series — one radar trace '
+            'silences a text trace beside it',
+      );
+    });
+
+    test('paintSeries centres each label on its marker at the baseline', () {
+      final delegate = _lineDelegate(
+        ys: const <double>[1, 2, 3],
+        mode: textMode(),
+        texts: const <String?>['a', 'b', 'c'],
+      );
+      final recorder = _LineRecorder();
+      delegate.paintSeries(
+        recorder,
+        _ctx(),
+        _layout(),
+        FluentChartColors.of(_theme()),
+      );
+      final marks = delegate.markersFor(_ctx());
+      final style = FluentChartTextStyles.of(_theme()).markerLabel;
+      final measurer = FluentChartTextMeasurer();
+      expect(
+        recorder.paragraphs,
+        <Offset>[
+          for (final mark in marks)
+            Offset(
+              mark.centre.dx - measurer.measure(mark.label!, style).width / 2,
+              mark.centre.dy +
+                  mark.labelBaselineOffset -
+                  measurer.measure(mark.label!, style).ascent,
+            ),
+        ],
+        reason:
+            'text-anchor: middle on the alphabetic baseline of an SVG <text> '
+            '(Common.styles.ts:72-81), the same reading ScatterChart.tsx:'
+            '481-488 already settled',
+      );
+    });
+  });
+
   group('FluentLineChart', () {
     Future<void> pump(
       WidgetTester tester,
@@ -1490,6 +1885,43 @@ void main() {
 
     FluentCartesianChart shellOf(WidgetTester tester) =>
         tester.widget<FluentCartesianChart>(find.byType(FluentCartesianChart));
+
+    testWidgets('the mounted chart really paints its point labels', (
+      tester,
+    ) async {
+      // `markersFor` can resolve a label and `paintSeries` can still drop it,
+      // which is exactly how four helpers before this one shipped green and
+      // uncalled. Only the paragraph count the widget's OWN painter emits is
+      // evidence, and it is read as a delta so the axis tick labels — which
+      // are identical between the two mounts — cancel out.
+      Future<int> paragraphsFor(List<String?> texts) async {
+        await pump(tester, FluentLineChart(data: _textModeLineData(texts)));
+        final plot = find
+            .descendant(
+              of: find.byType(FluentCartesianChart),
+              matching: find.byType(CustomPaint),
+            )
+            .first;
+        final recorder = _LineRecorder();
+        tester
+            .widget<CustomPaint>(plot)
+            .painter!
+            .paint(recorder, tester.getSize(plot));
+        return recorder.paragraphs.length;
+      }
+
+      final labelled = await paragraphsFor(const <String?>['a', 'b', 'c', 'd']);
+      final bare = await paragraphsFor(const <String?>[null, null, null, null]);
+      expect(
+        labelled - bare,
+        4,
+        reason:
+            'LineChart.tsx:916 labels points 0..2 from their own text and '
+            ':1082 labels point 3 from point 2 — four <text> nodes for a '
+            'four-point line. A delta of 0 means paintSeries never reaches '
+            'them from FluentLineChart.build',
+      );
+    });
 
     testWidgets('the mounted chart really paints its markers', (tester) async {
       // Every other marker test drives a hand-built delegate. This one takes
@@ -1546,6 +1978,70 @@ void main() {
             'both series of _lineData share the same four x values, so the '
             'sixteen paths stand on four columns; one column would mean every '
             'marker collapsed onto the same point',
+      );
+    });
+
+    testWidgets('the mounted chart really paints its engine B lines', (
+      tester,
+    ) async {
+      // The engine-B counterpart of the marker test above: it takes the
+      // painter the widget mounted, so it fails if the single-path renderer
+      // stops being reached from `FluentLineChart.build`. `_lineData` names no
+      // mode, so engine B draws no markers (`LineChart.tsx:773`) and every
+      // path the plot emits is a series line.
+      await pump(
+        tester,
+        FluentLineChart(data: _lineData(), optimizeLargeData: true),
+      );
+      final plot = find
+          .descendant(
+            of: find.byType(FluentCartesianChart),
+            matching: find.byType(CustomPaint),
+          )
+          .first;
+      final recorder = _LineRecorder();
+      tester
+          .widget<CustomPaint>(plot)
+          .painter!
+          .paint(recorder, tester.getSize(plot));
+      expect(
+        recorder.paths.map((entry) => entry.$2).toList(),
+        const <PaintingStyle>[PaintingStyle.stroke, PaintingStyle.stroke],
+        reason:
+            'LineChart.tsx:718 pushes one stroked path per optimizeLargeData '
+            'series and _lineData carries two; an empty list means engine B '
+            'paints nothing',
+      );
+      expect(
+        recorder.pathPaints.map((entry) => entry.strokeWidth).toList(),
+        const <double>[4, 4],
+        reason:
+            'DEFAULT_LINE_STROKE_SIZE (LineChart.tsx:71) is what :682 falls '
+            'back to when neither the series nor the chart names a width',
+      );
+      final plotRect = Offset.zero & tester.getSize(plot);
+      for (var i = 0; i < recorder.paths.length; i++) {
+        final bounds = recorder.paths[i].$1;
+        expect(
+          plotRect.contains(bounds.center),
+          isTrue,
+          reason: 'a line painted outside $plotRect is not on the plot',
+        );
+        expect(
+          recorder.pathPaints[i].length,
+          greaterThan(bounds.width),
+          reason:
+              'the four points of _lineData rise or fall monotonically, so a '
+              'polyline through all four is longer than its own bounding '
+              'width; a path holding one point would measure 0',
+        );
+      }
+      expect(
+        recorder.paths[0].$1.center.dy,
+        isNot(closeTo(recorder.paths[1].$1.center.dy, 1)),
+        reason:
+            'alpha rises and beta falls, so the two series paths must not '
+            'land on top of each other',
       );
     });
 
@@ -1737,6 +2233,27 @@ void main() {
   });
 }
 
+/// One four-point line in `'lines+markers+text'` mode.
+///
+/// [texts] is per point; a null entry is a point with no `text`, which is what
+/// the `&& text` conjunct of `LineChart.tsx:645` rejects.
+FluentChartData _textModeLineData(List<String?> texts) => FluentChartData(
+  lineChartData: <FluentLineChartSeries>[
+    FluentLineChartSeries(
+      legend: 'alpha',
+      lineOptions: FluentLineOptions(mode: FluentLineMode.parse(_kTextMode)),
+      data: <Object>[
+        for (var i = 0; i < texts.length; i++)
+          FluentLineChartDataPoint(x: i, y: i * 10.0, text: texts[i]),
+      ],
+    ),
+  ],
+);
+
+/// A mode literal whose `includes('text')` is true — `supportsTextMode`
+/// (`LineChart.tsx:571`, `:842`, `:1008`).
+const String _kTextMode = 'lines+markers+text';
+
 /// Two four-point lines sharing the x values 1..4.
 FluentChartData _lineData({String? chartTitle}) => FluentChartData(
   chartTitle: chartTitle,
@@ -1827,6 +2344,7 @@ FluentLineChartDelegate _lineDelegate({
   String? activePointId,
   Color? markerColor,
   double? markerSize,
+  List<String?>? texts,
 }) => _delegate(
   <FluentLineChartSeries>[
     for (final legend in legends)
@@ -1846,6 +2364,7 @@ FluentLineChartDelegate _lineDelegate({
             FluentLineChartDataPoint(
               x: i,
               y: ys[i],
+              text: texts?[i],
               markerColor: markerColor,
               markerSize: markerSize,
             ),
@@ -2077,6 +2596,28 @@ class _LineRecorder implements Canvas {
   final List<(Offset, Offset)> drawn = <(Offset, Offset)>[];
   final List<(Rect, PaintingStyle)> paths = <(Rect, PaintingStyle)>[];
 
+  /// The width, colour and contour metrics behind each entry of [paths].
+  ///
+  /// Kept beside [paths] rather than folded into it because two tests
+  /// destructure that record positionally. Length and contour count come from
+  /// [Path.computeMetrics] because an engine-B stroke is judged by how far it
+  /// travels and where it lifts, neither of which its bounding box can say.
+  final List<({double strokeWidth, Color colour, double length, int contours})>
+  pathPaints =
+      <({double strokeWidth, Color colour, double length, int contours})>[];
+
+  /// The origin every [Canvas.drawParagraph] was handed, in order.
+  ///
+  /// A point's `text` label (`LineChart.tsx:646-659`) is the only paragraph
+  /// [FluentLineChartDelegate.paintSeries] emits, so a recorder driven by
+  /// `paintSeries` alone sees labels and nothing else; one driven by the
+  /// mounted plot painter also sees the axis tick labels.
+  final List<Offset> paragraphs = <Offset>[];
+
+  @override
+  void drawParagraph(ui.Paragraph paragraph, Offset offset) =>
+      paragraphs.add(offset);
+
   @override
   void drawLine(Offset p1, Offset p2, Paint paint) {
     strokeWidths.add(paint.strokeWidth);
@@ -2086,6 +2627,13 @@ class _LineRecorder implements Canvas {
   @override
   void drawPath(Path path, Paint paint) {
     paths.add((path.getBounds(), paint.style));
+    final metrics = path.computeMetrics().toList();
+    pathPaints.add((
+      strokeWidth: paint.strokeWidth,
+      colour: paint.color,
+      length: metrics.fold(0, (sum, metric) => sum + metric.length),
+      contours: metrics.length,
+    ));
   }
 
   @override

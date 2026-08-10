@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
@@ -171,6 +173,34 @@ class FluentLineChartState extends State<FluentLineChart> {
     final eventLabelHeight = widget.eventAnnotations.isEmpty
         ? 0.0
         : style.eventLabelHeight!.resolve(<WidgetState>{})!;
+    // Built ahead of the shell so `props` can read `isScatterPolar` off it,
+    // which is the only thing `:1922` needs that lives on the delegate.
+    final delegate = FluentLineChartDelegate(
+      series: _series,
+      style: style,
+      colors: FluentChartColors.of(theme),
+      measurer: _measurer,
+      textStyles: FluentChartTextStyles.of(theme),
+      selectedLegend: _selectedLegend,
+      activeLegend: _activeLegend,
+      activePointId: _activePointId,
+      nearestPoint: _nearestPoint,
+      optimizeLargeData: widget.optimizeLargeData,
+      allowMultipleShapesForPoints: widget.allowMultipleShapesForPoints,
+      colorFillBars: widget.colorFillBars,
+      // The plan reads `props.strokeWidth` here, but plan 05 dropped that
+      // field from the props bag (`cartesian_chart_props.dart:75`), so the
+      // override comes from `lineOptions.strokeWidth` or the style alone.
+      xScaleType: widget.props.xScaleType,
+      yScaleType: widget.props.yScaleType,
+      xMinValue: widget.props.xMinValue,
+      xMaxValue: widget.props.xMaxValue,
+      // parity: the caller's own floor, NOT the scatterpolar pin below. `:1406`
+      // reads `props.yMinValue` — the LineChart's props — while `:1922` spreads
+      // its literal onto the CartesianChart element, so a colour-fill bar keeps
+      // resting on the floor the caller named.
+      yMinValue: widget.props.yMinValue,
+    );
     return FluentCartesianChart(
       focusNode: widget.focusNode,
       legendSelectionMode: widget.legendSelectionMode,
@@ -181,6 +211,13 @@ class FluentLineChartState extends State<FluentLineChart> {
             // `${chartTitle}. Line chart with ${n} lines. ` (`:1843-1846`).
             : '${widget.data.chartTitle}. Line chart with '
                   '${_series.length} lines. ',
+        // `{...(_isScatterPolar ? { yMaxValue: 1, yMinValue: -1 } : {})}`
+        // (`:1922`), spread after `{...props}` at `:1910` so it overrides a
+        // caller's own bounds. The polar transform writes onto the unit circle
+        // (`scatterpolar-utils.tsx:41-42`), so without this the ring and the
+        // data are scaled by whatever extent the data happens to have.
+        yMinValue: delegate.isScatterPolar ? -1 : null,
+        yMaxValue: delegate.isScatterPolar ? 1 : null,
       ),
       legends: <FluentChartLegendItem>[
         for (var i = 0; i < _series.length; i++)
@@ -208,28 +245,7 @@ class FluentLineChartState extends State<FluentLineChart> {
                 setState(() => _activeLegend = null),
           ),
       ],
-      delegate: FluentLineChartDelegate(
-        series: _series,
-        style: style,
-        colors: FluentChartColors.of(theme),
-        measurer: _measurer,
-        textStyles: FluentChartTextStyles.of(theme),
-        selectedLegend: _selectedLegend,
-        activeLegend: _activeLegend,
-        activePointId: _activePointId,
-        nearestPoint: _nearestPoint,
-        optimizeLargeData: widget.optimizeLargeData,
-        allowMultipleShapesForPoints: widget.allowMultipleShapesForPoints,
-        colorFillBars: widget.colorFillBars,
-        // The plan reads `props.strokeWidth` here, but plan 05 dropped that
-        // field from the props bag (`cartesian_chart_props.dart:75`), so the
-        // override comes from `lineOptions.strokeWidth` or the style alone.
-        xScaleType: widget.props.xScaleType,
-        yScaleType: widget.props.yScaleType,
-        xMinValue: widget.props.xMinValue,
-        xMaxValue: widget.props.xMaxValue,
-        yMinValue: widget.props.yMinValue,
-      ),
+      delegate: delegate,
       overlayBuilder: widget.eventAnnotations.isEmpty
           ? null
           : (context, child, layout) => FluentEventAnnotationLayer(
@@ -514,6 +530,9 @@ class FluentLineMark {
     required this.opacity,
     required this.seriesIndex,
     required this.pointIndex,
+    this.label,
+    this.labelBaselineOffset = 0,
+    this.labelOpacity = 1,
   });
 
   /// Marker centre in plot coordinates.
@@ -561,6 +580,36 @@ class FluentLineMark {
 
   /// Index of the point inside its series.
   final int pointIndex;
+
+  /// The point's own `text`, drawn under the marker, or null for no label.
+  ///
+  /// Upstream draws it at three sites — `LineChart.tsx:645-660` for a one-point
+  /// series, `:916-935` for every point of engine A and `:1082-1100` for its
+  /// last one — all gated on `!_isScatterPolar && supportsTextMode && text`,
+  /// where `supportsTextMode` is `lineOptions.mode?.includes('text')` (`:571`,
+  /// `:842`, `:1008`). Engine B has no label site at all.
+  ///
+  /// The colour is neutral chrome, not series ink: `classes.markerLabel`
+  /// resolves to `getMarkerLabelStyle`, whose `fill` is
+  /// `tokens.colorNeutralForeground1` (`Common.styles.ts:72-81`). It therefore
+  /// does **not** flatten through [FluentChartColors.flattenMark] — spec
+  /// section 5.3 flattens marks, and a label is not one.
+  final String? label;
+
+  /// Distance from [centre] down to the label's baseline.
+  ///
+  /// Carried rather than derived from [size] because the two disagree: the
+  /// label's radius term omits `isActive` (`LineChart.tsx:920-926` against the
+  /// circle at `:860-866`), so hovering grows the marker while the label stays
+  /// put, and a one-point series inlines a different radius entirely (`:650`).
+  final double labelBaselineOffset;
+
+  /// The label's own alpha, which is not always [opacity].
+  ///
+  /// `:933` repeats the circle's opacity, but the last point's label at
+  /// `:1085-1097` carries no `opacity` attribute, so SVG leaves it at 1 even
+  /// while the circle beneath it is dimmed to 0.01.
+  final double labelOpacity;
 
   /// The outline this mark paints, in plot coordinates.
   Path get path => shapeIndex == null
@@ -835,6 +884,98 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
       curve: getCurveFactory(line.lineOptions?.curve, d3.curveLinear),
     )(data, sink);
     return sink.path;
+  }
+
+  /// Every engine-B whole-series stroke for [context], last series first.
+  ///
+  /// Ports `LineChart.tsx:697-753`, the pair of arms that push [singlePathFor]'s
+  /// path onto `linesForLine`. `shouldDrawLines` (`:698`) is
+  /// [lineModeDrawsLines], and it gates *both* arms, so a `'markers'`-only
+  /// series contributes no stroke at all while still drawing its markers
+  /// (`:773`) — the asymmetry [markersFor] records.
+  ///
+  /// The two arms differ in more than opacity: the selected one (`:699`) may
+  /// lay a halo behind the line (`:703-716`), the deselected one (`:736`)
+  /// pushes the line alone, so a dimmed engine-B series shows no border even
+  /// when it asks for one.
+  ///
+  /// Series are walked last to first so series 0 lands on top, exactly as
+  /// [segmentsFor] and [markersFor] do (`:535`).
+  List<
+    ({
+      int seriesIndex,
+      Path path,
+      Color colour,
+      double opacity,
+      double strokeWidth,
+      double? borderWidth,
+      Color? borderColour,
+    })
+  >
+  singlePathsFor(FluentCartesianChildContext context) {
+    final out =
+        <
+          ({
+            int seriesIndex,
+            Path path,
+            Color colour,
+            double opacity,
+            double strokeWidth,
+            double? borderWidth,
+            Color? borderColour,
+          })
+        >[];
+    if (!usesSinglePathEngine) {
+      return out;
+    }
+    // `:750` — the deselected arm dims the whole path, the same 0.1 engine A
+    // dims a segment to (`:1306`) and not the 0.01 it dims a marker to.
+    final dim = style.lineOpacity!.resolve(<WidgetState>{
+      WidgetState.disabled,
+    })!;
+    for (var i = series.length - 1; i >= 0; i--) {
+      final line = series[i];
+      if (!lineModeDrawsLines(line.lineOptions?.mode)) {
+        continue;
+      }
+      // Null is upstream's `data.length > 1` at `:670` refusing the branch.
+      final path = singlePathFor(i, context);
+      if (path == null) {
+        continue;
+      }
+      final selected = highlighted(line.legend) || _noneHighlighted;
+      // `:682` — the series' width, then the chart's, then 4.
+      final strokeWidth =
+          line.lineOptions?.strokeWidth ??
+          strokeWidthOverride ??
+          style.strokeWidth!.resolve(<WidgetState>{})!;
+      // `:703` — a zero border is no border at all, not a hairline.
+      final drawsBorder =
+          selected && (line.lineOptions?.lineBorderWidth ?? 0) > 0;
+      out.add((
+        seriesIndex: i,
+        path: path,
+        // `:723` spells `lineColor`, exactly as engine A's `:1282` does, so
+        // the two engines must flatten the series ink the same way — through
+        // `flattenMark`, leaving `flattenMarkStroke` for the halo below
+        // (spec section 5.3).
+        colour: colors.flattenMark(line.color ?? FluentDataVizPalette.next(i)),
+        opacity: selected ? 1.0 : dim,
+        strokeWidth: strokeWidth,
+        borderWidth: drawsBorder
+            ? strokeWidth + line.lineOptions!.lineBorderWidth!
+            : null,
+        // `:713` — the halo flattens to the canvas colour so it stays distinct
+        // from the line it sits behind.
+        borderColour: drawsBorder
+            ? colors.flattenMarkStroke(
+                line.lineOptions?.lineBorderColor ??
+                    style.lineBorderColor!.resolve(<WidgetState>{})!,
+              )
+            : null,
+      ));
+    }
+    return out;
   }
 
   /// The closed `fill: 'toself'` areas, one per qualifying series.
@@ -1139,6 +1280,8 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     final dimPoint = style.pointOpacity!.resolve(<WidgetState>{
       WidgetState.disabled,
     })!;
+    // The `+ 12` under every label (`:652`, `:929`, `:1095`).
+    final labelGap = style.markerLabelGap!.resolve(<WidgetState>{})!;
     for (var i = series.length - 1; i >= 0; i--) {
       final line = series[i];
       final data = line.data.cast<FluentLineChartDataPoint>();
@@ -1186,6 +1329,21 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
             isActive: isActive,
           );
 
+      // `supportsTextMode` (`:571`, `:842`, `:1008`) is a per-series substring
+      // test, but `!_isScatterPolar` beside it is chart-wide (`:1318`), so one
+      // radar trace silences the labels of every series in the chart.
+      final labelsThisSeries =
+          !isScatterPolar && (line.lineOptions?.mode?.text ?? false);
+
+      /// The point's own `text`, or null when the `&& text` conjunct rejects
+      /// it — JavaScript falsiness, so an empty string is no label.
+      String? textOf(int index) {
+        final text = data[index].text;
+        return labelsThisSeries && text != null && text.isNotEmpty
+            ? text
+            : null;
+      }
+
       // `:556` — a one-point series is a bare circle, drawn ahead of the
       // engine branch. Neither engine can add to it: engine B is gated on
       // `data.length > 1` (`:670`) and engine A's loop starts at 1.
@@ -1195,6 +1353,7 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
           continue;
         }
         final isActive = activePointId == '${i}_0';
+        final markerSize = data[0].markerSize;
         out.add(
           FluentLineMark(
             centre: centre,
@@ -1212,6 +1371,25 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
             opacity: markerOpacityForEngineB(line.legend),
             seriesIndex: i,
             pointIndex: 0,
+            label: textOf(0),
+            // parity: `:650` inlines its own radius rather than calling
+            // [calculateMarkerRadius] like the circle one line above it does,
+            // and the two disagree twice — it clamps the no-size case up to
+            // [kMarkerMinPixel] where the function returns 3.5 unclamped, and
+            // it always divides where the function returns `pointMarkerSize`
+            // unscaled once the budget already fits. 3.5 is the function's own
+            // `defaultRadius` (`utilities.ts:2324`), spelt out here because
+            // this expression never calls it. Reproduced, not repaired.
+            labelBaselineOffset:
+                math.max(
+                  markerSize == null || markerSize == 0
+                      ? 3.5
+                      : (markerSize * extraMaxPixels) / largestMarker,
+                  kMarkerMinPixel,
+                ) +
+                labelGap,
+            // `:657` — the same `isLegendSelected ? 1 : 0.1` as its circle.
+            labelOpacity: markerOpacityForEngineB(line.legend),
           ),
         );
         continue;
@@ -1285,6 +1463,17 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
           isFirstOrLast: j == 0 || isLast,
           strokeWidth: strokeWidth,
         );
+        // `currentPointHidden` (`:841`) dims a marker of a series that hides
+        // its inactive dots, on top of the legend dimming.
+        final opacity = line.hideInactiveDots && !isActive
+            ? dimPoint
+            : markerOpacityFor(line.legend);
+        // parity: both label sites gate on the point's OWN text — `:842` for
+        // `:916`, and `:1009` for `:1082` — but the last one renders `text`,
+        // the binding `:843` made for the point *before* j, so the final label
+        // reads its neighbour's text. Reproduced, not repaired: the gate is
+        // what decides whether a label appears at all, and it is correct.
+        final labelled = textOf(j) != null;
         out.add(
           FluentLineMark(
             centre: centre,
@@ -1301,13 +1490,16 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
                 : (isActive ? activeFill : colour),
             stroke: colors.flattenMarkStroke(markerColour ?? rawColour),
             strokeWidth: strokeWidth,
-            // `currentPointHidden` (`:841`) dims a marker of a series that
-            // hides its inactive dots, on top of the legend dimming.
-            opacity: line.hideInactiveDots && !isActive
-                ? dimPoint
-                : markerOpacityFor(line.legend),
+            opacity: opacity,
             seriesIndex: i,
             pointIndex: j,
+            label: labelled ? (isLast ? textOf(j - 1) : textOf(j)) : null,
+            // `:920-926` passes no `isActive`, so the label keeps the
+            // inactive radius while the circle above it grows on hover.
+            labelBaselineOffset: radiusOf(j, isActive: false) + labelGap,
+            // `:933` repeats the circle's opacity; `:1085-1097` sets none, so
+            // the last label stays opaque while its own circle is dimmed.
+            labelOpacity: isLast ? 1 : opacity,
           ),
         );
       }
@@ -1435,6 +1627,10 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     for (final segment in segmentsFor(context)) {
       (grouped[segment.seriesIndex] ??= <FluentLineSegment>[]).add(segment);
     }
+    // Engine B's one path per series. Not grouped into a map because the loop
+    // below scans it per series: at most one entry exists per series index and
+    // `series` is a handful long, so the scan is cheaper than the map.
+    final singles = singlePathsFor(context);
     final marks = <int, List<FluentLineMark>>{};
     for (final mark in markersFor(context)) {
       (marks[mark.seriesIndex] ??= <FluentLineMark>[]).add(mark);
@@ -1454,7 +1650,12 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
         placed.label,
       );
     }
-    final ringStyle = style.markerLabelStyle!.resolve(<WidgetState>{})!;
+    // One style for both kinds of label: upstream hands `classes.markerLabel`
+    // to the ring at `:1351` and to a point's own text at `:654`, `:931` and
+    // `:1097`. It is neutral chrome — `getMarkerLabelStyle` fills with
+    // `tokens.colorNeutralForeground1` (`Common.styles.ts:72-81`) — so unlike a
+    // mark it does not flatten (spec section 5.3).
+    final labelStyle = style.markerLabelStyle!.resolve(<WidgetState>{})!;
     // `:535` pushes the groups last series first, so series 0's `<g>` is last
     // in the document and lands on top.
     for (var i = series.length - 1; i >= 0; i--) {
@@ -1491,6 +1692,36 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
           dashed: true,
         );
       }
+      for (final single in singles.where((single) => single.seriesIndex == i)) {
+        // `:704` pushes the halo onto `bordersForLine` and `:718` the line
+        // onto `linesForLine`, which `:1362-1363` renders in that order.
+        if (single.borderWidth != null) {
+          canvas.drawPath(
+            single.path,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeCap = cap
+              ..strokeWidth = single.borderWidth!
+              // `:715` — the halo is opaque, and only the selected arm has one.
+              ..color = single.borderColour!,
+          );
+        }
+        final dashPattern = _parseDashArray(
+          series[i].lineOptions?.strokeDasharray,
+        );
+        canvas.drawPath(
+          dashPattern == null
+              ? single.path
+              // `:730` puts `strokeDasharray` on the line only, so the halo
+              // above shows through the gaps exactly as engine A's does.
+              : _dashedPath(single.path, dashPattern),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeCap = cap
+            ..strokeWidth = single.strokeWidth
+            ..color = single.colour.withValues(alpha: single.opacity),
+        );
+      }
       for (final area
           in fills[i] ?? const <({Path path, Color fill, Color stroke})>[]) {
         canvas
@@ -1522,23 +1753,49 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
         );
         // `:624` strokes an inactive one-point marker at width 0, which is
         // SVG for "no outline"; Flutter would draw a hairline instead.
-        if (mark.strokeWidth == 0) {
+        if (mark.strokeWidth != 0) {
+          canvas.drawPath(
+            path,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = mark.strokeWidth
+              ..color = mark.stroke.withValues(alpha: mark.opacity),
+          );
+        }
+        final text = mark.label;
+        if (text == null) {
           continue;
         }
-        canvas.drawPath(
-          path,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = mark.strokeWidth
-            ..color = mark.stroke.withValues(alpha: mark.opacity),
+        // The `<text>` is the marker's own sibling (`:646`, `:917`, `:1083`),
+        // so it lands directly on top of the circle it belongs to.
+        final resolved = mark.labelOpacity == 1
+            ? labelStyle
+            // SVG `opacity` multiplies whatever alpha the fill already has.
+            : labelStyle.copyWith(
+                color: labelStyle.color!.withValues(
+                  alpha: labelStyle.color!.a * mark.labelOpacity,
+                ),
+              );
+        final painter = measurer.layoutPainter(text, resolved);
+        final metrics = measurer.measure(text, resolved);
+        painter.paint(
+          canvas,
+          // `text-anchor: middle` on an alphabetic baseline
+          // (`Common.styles.ts:72-81`), the reading ScatterChart already
+          // settled at `scatter_chart.dart`.
+          Offset(
+            mark.centre.dx - metrics.width / 2,
+            mark.centre.dy + mark.labelBaselineOffset - metrics.ascent,
+          ),
         );
+        painter.dispose();
       }
       for (final label in rings[i] ?? const <FluentScatterPolarLabel>[]) {
         paintScatterPolarLabel(
           canvas,
           label,
           measurer: measurer,
-          style: ringStyle,
+          style: labelStyle,
         );
       }
     }
@@ -1582,6 +1839,33 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
       travelled += length;
       index++;
     }
+  }
+
+  /// [path] cut into the on/off runs of [pattern].
+  ///
+  /// The engine-B counterpart of the hand-walk in [_stroke]. A whole-series
+  /// path may be curved (`:677`), so it cannot be walked as a straight line the
+  /// way a segment can; `PathMetric.extractPath` walks it instead. A pattern
+  /// whose runs sum to zero would never advance the cursor, so it draws solid.
+  static Path _dashedPath(Path path, List<double> pattern) {
+    if (pattern.fold<double>(0, (sum, run) => sum + run) <= 0) {
+      return path;
+    }
+    final out = Path();
+    for (final metric in path.computeMetrics()) {
+      var travelled = 0.0;
+      var index = 0;
+      while (travelled < metric.length) {
+        final run = travelled + pattern[index % pattern.length];
+        final end = run < metric.length ? run : metric.length;
+        if (index.isEven) {
+          out.addPath(metric.extractPath(travelled, end), Offset.zero);
+        }
+        travelled = end;
+        index++;
+      }
+    }
+    return out;
   }
 
   /// LineChart declares no hit regions.
