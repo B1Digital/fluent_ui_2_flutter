@@ -1,11 +1,16 @@
+import 'dart:ui' show PathMetric;
+
 import 'package:fluent_2_web/fluent_2_web.dart';
 // `sankey_chart.dart` and `sankey_chart_layout.dart` are not barrel-exported yet
 // — the integration task owns `lib/fluent_2_web.dart`, so the test reaches for
 // the libraries directly, exactly as `sankey_chart_layout_test.dart` does.
+import 'package:fluent_2_web/src/charts/internal/d3/sankey.dart';
 import 'package:fluent_2_web/src/charts/sankey_chart.dart';
 import 'package:fluent_2_web/src/charts/sankey_chart_layout.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../support/oracle_fixture.dart';
 
 /// `SankeyChart.tsx:65-158` builds the selection sets and `:933-991` turns them into
 /// colours and opacities. The matrix is small and every arm is reachable.
@@ -204,4 +209,215 @@ void main() {
       reason: 'SankeyChart.tsx:967 — an in-path node takes the hovered border',
     );
   });
+
+  test('two selections built from the same node compare equal', () {
+    expect(
+      FluentSankeySelection.forNode(layout.nodes[0]),
+      FluentSankeySelection.forNode(layout.nodes[0]),
+      reason:
+          'FluentSankeyChartPainter.shouldRepaint compares selections by value, '
+          'so a rebuild that reproduces the same hover must not repaint',
+    );
+    expect(
+      FluentSankeySelection.forNode(layout.nodes[0]),
+      isNot(FluentSankeySelection.forNode(layout.nodes[3])),
+      reason: 'a different hovered node is a different selection',
+    );
+  });
+
+  group('dom order and link geometry', () {
+    /// A → B → C, one stream per hop, so both links share a width and a y.
+    const data = FluentSankeyChartData(
+      nodes: <FluentSankeyNode>[
+        FluentSankeyNode(nodeId: 0, name: 'A'),
+        FluentSankeyNode(nodeId: 1, name: 'B'),
+        FluentSankeyNode(nodeId: 2, name: 'C'),
+      ],
+      links: <FluentSankeyLink>[
+        FluentSankeyLink(source: 0, target: 1, value: 5),
+        FluentSankeyLink(source: 1, target: 2, value: 5),
+      ],
+    );
+    final layout = computeFluentSankeyLayout(
+      data: data,
+      // 912x468 are the upstream container defaults (`SankeyChart.tsx:571-572`).
+      size: const Size(912, 468),
+      titleHeight: kSankeyMinTitleHeight,
+      isRtl: false,
+    );
+
+    test('every node and link appears exactly once', () {
+      final order = sankeyDomOrder(layout);
+      expect(
+        order.where((item) => item.isNode).length,
+        3,
+        reason: 'SankeyChart.tsx:1101-1103 pushes one entry per node',
+      );
+      expect(
+        order.where((item) => !item.isNode).length,
+        2,
+        reason: 'SankeyChart.tsx:1112-1114 pushes one entry per link',
+      );
+    });
+
+    test('layers ascend and nodes precede links within a layer', () {
+      final order = sankeyDomOrder(layout);
+      for (var i = 1; i < order.length; i++) {
+        expect(
+          order[i].layer,
+          greaterThanOrEqualTo(order[i - 1].layer),
+          reason: 'SankeyChart.tsx:1116-1118 sorts by layer ascending',
+        );
+        if (order[i].layer == order[i - 1].layer) {
+          expect(
+            order[i - 1].isNode || !order[i].isNode,
+            isTrue,
+            reason:
+                'SankeyChart.tsx:1120-1123 — "node" > "link" returns -1, so nodes '
+                'come first within a layer and links never paint under them',
+          );
+        }
+      }
+    });
+
+    test('a link path is the two-point bump-x area, closed', () {
+      final path = sankeyLinkPath(layout.links.first);
+      final link = layout.links.first;
+      final metrics = path.computeMetrics().toList();
+      expect(
+        metrics.length,
+        1,
+        reason: 'SankeyChart.tsx:514-518 emits a single closed area',
+      );
+      expect(metrics.first.isClosed, isTrue, reason: 'd3 area appends Z');
+      final bounds = path.getBounds();
+      expect(
+        bounds.left,
+        // 1e-6 is float noise on a coordinate the layout computed exactly.
+        closeTo(link.source.x1, 1e-6),
+        reason: 'SankeyChart.tsx:509 anchors the left edge at source.x1',
+      );
+      expect(
+        bounds.right,
+        closeTo(link.target.x0, 1e-6),
+        reason: 'SankeyChart.tsx:510 anchors the right edge at target.x0',
+      );
+      expect(
+        bounds.height,
+        closeTo(link.width, 1e-6),
+        reason:
+            'SankeyChart.tsx:505 — the band is link.width, half above and half '
+            'below link.y0 / link.y1',
+      );
+    });
+
+    test('the control points sit on the horizontal midpoint', () {
+      final link = layout.links.first;
+      final path = sankeyLinkPath(link);
+      // 2 averages the two anchored edges.
+      final mid = (link.source.x1 + link.target.x0) / 2;
+      // curveBumpX pins both control points to the midpoint x, so the path
+      // crosses that x at exactly the average of the two endpoints' y.
+      expect(
+        path.contains(Offset(mid, (link.y0 + link.y1) / 2)),
+        isTrue,
+        reason: 'the ribbon covers its own midline',
+      );
+      expect(
+        path.contains(Offset(mid, (link.y0 + link.y1) / 2 - link.width)),
+        isFalse,
+        reason: 'a point a full band above the midline is outside',
+      );
+    });
+  });
+
+  group('Oracle B: every captured stream path', () {
+    // The two Sankey stories whose streams are not all horizontal, so a wrong
+    // curve family cannot hide in a straight line.
+    for (final id in <String>[
+      'charts-sankeychart--sankey-chart-basic',
+      'charts-sankeychart--sankey-chart-inbox',
+    ]) {
+      test('$id reproduces the shipped ribbon geometry', () {
+        final story = loadOracleStory(id);
+        final paths = story.byTag('path');
+        expect(
+          paths.length,
+          greaterThan(0),
+          reason: '$id must capture at least one stream path to assert against',
+        );
+        for (final element in paths) {
+          final numbers = svgPathNumbers(element.d!);
+          expect(
+            numbers.length,
+            16,
+            reason:
+                'SankeyChart.tsx:514-518 emits M, one cubic, L, one cubic, Z — '
+                'two coordinates for the move, six for each cubic and two for '
+                'the line',
+          );
+          // Index map of the emitted `d`: 0-1 the source top corner, 6-7 the
+          // target top corner, 8-9 the target bottom corner, 14-15 the source
+          // bottom corner. The control points at 2-5 and 10-13 are the curve
+          // itself and are deliberately NOT read back — they are what this test
+          // is checking.
+          final source = SankeyLayoutNode()..x1 = numbers[0];
+          final target = SankeyLayoutNode()..x0 = numbers[6];
+          // 2 averages the band's two edges back onto its centre line.
+          final link =
+              SankeyLayoutLink(source: source, target: target, value: 0)
+                ..y0 = (numbers[1] + numbers[15]) / 2
+                ..y1 = (numbers[7] + numbers[9]) / 2
+                ..width = numbers[15] - numbers[1];
+          final expected = Path()
+            ..moveTo(numbers[0], numbers[1])
+            ..cubicTo(
+              numbers[2],
+              numbers[3],
+              numbers[4],
+              numbers[5],
+              numbers[6],
+              numbers[7],
+            )
+            ..lineTo(numbers[8], numbers[9])
+            ..cubicTo(
+              numbers[10],
+              numbers[11],
+              numbers[12],
+              numbers[13],
+              numbers[14],
+              numbers[15],
+            )
+            ..close();
+          final actual = sankeyLinkPath(link);
+          final wanted = expected.computeMetrics().single;
+          final got = actual.computeMetrics().single;
+          expect(
+            got.length,
+            closeTo(wanted.length, kOracleGeometryTolerance),
+            reason:
+                'the ported ribbon must have the same perimeter as the captured '
+                'one — a different curve family would not (${element.d})',
+          );
+          // 16 samples per perimeter: dense enough that a curve that agreed
+          // only at the ends and the middle would still be caught, cheap enough
+          // to run over all twenty captured streams.
+          const samples = 16;
+          for (var i = 0; i <= samples; i++) {
+            final t = wanted.length * i / samples;
+            expectOracleOffset(
+              'sample $i of ${element.d}',
+              _pointAt(wanted, t),
+              _pointAt(got, got.length * i / samples),
+            );
+          }
+        }
+      });
+    }
+  });
 }
+
+/// The point [distance] along [metric], which
+/// [PathMetric.getTangentForOffset] returns as a tangent.
+Offset _pointAt(PathMetric metric, double distance) =>
+    metric.getTangentForOffset(distance)!.position;
