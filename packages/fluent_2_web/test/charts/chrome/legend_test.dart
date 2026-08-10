@@ -1,3 +1,5 @@
+import 'dart:ui' show Tristate;
+
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:fluent_2_web/src/charts/chrome/legend.dart';
 import 'package:fluent_2_web/src/charts/chrome/legend_shape.dart';
@@ -544,6 +546,234 @@ void main() {
         'rendered swatch centre against the row centre',
         tester.getRect(row).center.dy,
         tester.getRect(swatch).center.dy,
+      );
+    });
+  });
+
+  group('FluentChartLegend selection', () {
+    Future<void> pumpStrip(WidgetTester tester, Widget child) =>
+        tester.pumpWidget(
+          FluentApp(
+            theme: theme,
+            home: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(width: 800, child: child),
+            ),
+          ),
+        );
+
+    const legends = <FluentChartLegendItem>[
+      FluentChartLegendItem(title: 'alpha', color: Color(0xFF0078D4)),
+      FluentChartLegendItem(title: 'beta', color: Color(0xFF107C10)),
+      FluentChartLegendItem(title: 'gamma', color: Color(0xFFD13438)),
+    ];
+
+    testWidgets('single select reports one title and replaces on the next tap', (
+      tester,
+    ) async {
+      final reported = <List<String>>[];
+      await pumpStrip(
+        tester,
+        FluentChartLegend(
+          legends: legends,
+          onChange: (selected, current) => reported.add(selected),
+        ),
+      );
+      await tester.tap(find.text('Alpha'));
+      await tester.pump();
+      await tester.tap(find.text('Beta'));
+      await tester.pump();
+      expect(
+        reported,
+        <List<String>>[
+          <String>['alpha'],
+          <String>['beta'],
+        ],
+        reason:
+            'Legends.tsx:238 replaces the whole map in single-select mode and '
+            ':250 reports Object.keys of the result.',
+      );
+    });
+
+    testWidgets('multi select clears once every legend is chosen', (
+      tester,
+    ) async {
+      final reported = <List<String>>[];
+      await pumpStrip(
+        tester,
+        FluentChartLegend(
+          legends: legends,
+          selectionMode: FluentChartLegendSelectionMode.multiple,
+          onChange: (selected, current) => reported.add(selected),
+        ),
+      );
+      for (final label in <String>['Alpha', 'Beta', 'Gamma']) {
+        await tester.tap(find.text(label));
+        await tester.pump();
+      }
+      expect(
+        reported,
+        hasLength(3),
+        reason:
+            'Count guard: one onChange per tap, so reported.last below is the '
+            'third tap and not a vacuous read of an empty list.',
+      );
+      expect(
+        reported.last,
+        isEmpty,
+        reason:
+            'Legends.tsx:225-227 empties the map the moment its size reaches '
+            'props.legends.length.',
+      );
+    });
+
+    testWidgets('a controlled legend does not move its own state', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpStrip(
+        tester,
+        FluentChartLegend(
+          legends: legends,
+          selectedLegends: const <String>['alpha'],
+          onChange: (selected, current) {},
+        ),
+      );
+      await tester.tap(find.text('Beta'));
+      await tester.pump();
+      expect(
+        tester.getSemantics(find.text('Alpha')).flagsCollection.isSelected,
+        Tristate.isTrue,
+        reason:
+            'Legends.tsx:207-209 and :247 — when selectedLegends is supplied '
+            'the component is controlled and never calls setSelectedLegends, '
+            'so the parent owns the selection.',
+      );
+      expect(
+        tester.getSemantics(find.text('Beta')).flagsCollection.isSelected,
+        Tristate.isFalse,
+        reason:
+            'The tapped row must not select itself, which is the whole point '
+            'of controlled mode.',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('defaultSelectedLegends seeds the uncontrolled state', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpStrip(
+        tester,
+        const FluentChartLegend(
+          legends: legends,
+          defaultSelectedLegends: <String>['beta'],
+        ),
+      );
+      expect(
+        tester.getSemantics(find.text('Beta')).flagsCollection.isSelected,
+        Tristate.isTrue,
+        reason:
+            'Legends.tsx:76-89 seeds the internal map from '
+            'selectedLegends ?? defaultSelectedLegends.',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('onAction fires after onChange', (tester) async {
+      final order = <String>[];
+      await pumpStrip(
+        tester,
+        FluentChartLegend(
+          legends: <FluentChartLegendItem>[
+            FluentChartLegendItem(
+              title: 'alpha',
+              color: const Color(0xFF0078D4),
+              onAction: () => order.add('action'),
+            ),
+          ],
+          onChange: (selected, current) => order.add('change'),
+        ),
+      );
+      await tester.tap(find.text('Alpha'));
+      await tester.pump();
+      expect(
+        order,
+        <String>['change', 'action'],
+        reason:
+            'Legends.tsx:250-251 calls props.onChange first and legend.action '
+            'second, and a chart that repaints in onChange depends on that.',
+      );
+    });
+
+    testWidgets('the strip abuts its rows, per charts-legends--legends-basic', (
+      tester,
+    ) async {
+      // The only geometry this task adds over Task 6's row is the strip that
+      // holds the rows, so the one thing to pin is that it inserts no spacing
+      // of its own: upstream's flex row has no gap, and the whole distance
+      // between one label and the next swatch is the two rows' own 8px
+      // paddings.
+      final story = loadOracleStory('charts-legends--legends-basic');
+      final rects = story.boxes('fui-legend__rect');
+      final texts = story.boxes('fui-legend__text');
+      expect(
+        rects,
+        hasLength(2),
+        reason:
+            'Count guard: the two default-shaped swatches. Without them the '
+            'captured gap below would be read off an empty list.',
+      );
+      expect(texts, hasLength(4), reason: 'Count guard: one label per legend.');
+      final capturedGap = rects[1].rect.left - texts.first.rect.right;
+      expectOracleNumber(
+        'captured inter-row gap is exactly two row paddings',
+        2 * kLegendPadding,
+        capturedGap,
+      );
+
+      await pumpStrip(tester, const FluentChartLegend(legends: legends));
+      final swatches = find.byKey(const ValueKey<String>('legend-swatch'));
+      expect(
+        swatches,
+        findsNWidgets(3),
+        reason: 'Count guard: one swatch per legend, in order.',
+      );
+      expectOracleNumber(
+        'rendered inter-row gap',
+        capturedGap,
+        tester.getTopLeft(swatches.at(1)).dx -
+            tester.getTopRight(find.text('Alpha')).dx,
+      );
+      expectOracleNumber(
+        'rendered strip height against the captured strip root',
+        story.boxes('fui-legend__root').single.rect.height,
+        tester.getSize(find.byType(FluentChartLegendRow).first).height,
+      );
+    });
+
+    testWidgets('a legend theme restyles the strip', (tester) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: FluentChartLegendTheme(
+            style: FluentChartLegendStyle.from(dimmedLabelOpacity: 0.25),
+            child: const FluentChartLegend(
+              legends: legends,
+              defaultSelectedLegends: <String>['alpha'],
+            ),
+          ),
+        ),
+      );
+      expect(
+        tester
+            .widgetList<Opacity>(find.byType(Opacity))
+            .map((o) => o.opacity)
+            .contains(0.25),
+        isTrue,
+        reason:
+            'The nearest FluentChartLegendTheme sits between the derived '
+            'defaults and the widget style, which is the package-wide order.',
       );
     });
   });

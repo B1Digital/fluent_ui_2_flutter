@@ -1,3 +1,7 @@
+import 'package:fluent_2_core/fluent_2_core.dart';
+// `listEquals` is not in the `show` list `widgets.dart` re-exports foundation
+// with, so it has to be imported directly.
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../internal/focus_ring.dart';
@@ -322,6 +326,244 @@ class FluentChartLegendRow extends StatelessWidget {
         fill: fill,
         // Legends.tsx:366 — never dimmed.
         stroke: item.color,
+      ),
+    );
+  }
+}
+
+/// Applies a [FluentChartLegendStyle] to every [FluentChartLegend] below it.
+class FluentChartLegendTheme extends InheritedTheme {
+  /// Applies [style] to every legend in [child].
+  const FluentChartLegendTheme({
+    super.key,
+    required this.style,
+    required super.child,
+  });
+
+  /// The style layered over the theme-derived defaults.
+  final FluentChartLegendStyle style;
+
+  /// The nearest legend style, or null.
+  static FluentChartLegendStyle? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<FluentChartLegendTheme>()
+      ?.style;
+
+  @override
+  bool updateShouldNotify(FluentChartLegendTheme oldWidget) =>
+      style != oldWidget.style;
+
+  @override
+  Widget wrap(BuildContext context, Widget child) =>
+      FluentChartLegendTheme(style: style, child: child);
+}
+
+/// The Fluent 2 chart legend: a horizontal strip of selectable series markers.
+///
+/// Ports `Legends` (`Legends.tsx`). It is one of the twenty user-facing chart
+/// components and is also rendered by the cartesian shell for the nine charts
+/// that use it.
+///
+/// Two upstream behaviours are worth naming because they surprise readers:
+/// selecting *every* legend in multi-select mode clears the selection
+/// (`Legends.tsx:225-227`), and hovering a legend highlights the series exactly
+/// as focusing it does (`:316-319`).
+class FluentChartLegend extends StatefulWidget {
+  /// Creates a legend strip.
+  const FluentChartLegend({
+    super.key,
+    required this.legends,
+    // Legends.tsx:101 — canSelectMultipleLegends defaults to false.
+    this.selectionMode = FluentChartLegendSelectionMode.single,
+    // Legends.tsx:101 — allowFocusOnLegends defaults to true.
+    this.allowFocusOnLegends = true,
+    this.centerLegends = false,
+    this.enabledWrapLines = false,
+    // Legends.tsx:108 — `props.overflowText ? props.overflowText : 'more'`.
+    this.overflowText = 'more',
+    this.selectedLegends,
+    this.defaultSelectedLegends,
+    this.onChange,
+    this.shape,
+    this.style,
+  });
+
+  /// The rows, in order.
+  final List<FluentChartLegendItem> legends;
+
+  /// Whether one legend or several may be selected at once.
+  final FluentChartLegendSelectionMode selectionMode;
+
+  /// Whether the rows are reachable by keyboard and carry listbox semantics.
+  /// `Legends.tsx:270`.
+  final bool allowFocusOnLegends;
+
+  /// Whether each line of legends is centred in the strip. `Legends.tsx:115`.
+  final bool centerLegends;
+
+  /// Whether rows wrap onto further lines instead of collapsing into an
+  /// overflow menu. `Legends.tsx:109`.
+  final bool enabledWrapLines;
+
+  /// The word in the overflow trigger's `+{n} {overflowText}` label.
+  /// `OverflowMenu.tsx:16`.
+  final String overflowText;
+
+  /// Controlled selection. Supplying it makes the widget controlled
+  /// (`Legends.tsx:207-209`) and the parent owns every change.
+  final List<String>? selectedLegends;
+
+  /// Initial selection for the uncontrolled case. `Legends.tsx:76`.
+  final List<String>? defaultSelectedLegends;
+
+  /// Fired with the new selection and the row that caused it.
+  /// `Legends.tsx:250`.
+  final void Function(List<String> selected, FluentChartLegendItem? current)?
+  onChange;
+
+  /// Overrides every per-item shape when set. `Legends.tsx:192`.
+  final FluentChartLegendShape? shape;
+
+  /// The highest-precedence style layer.
+  final FluentChartLegendStyle? style;
+
+  @override
+  State<FluentChartLegend> createState() => _FluentChartLegendState();
+}
+
+class _FluentChartLegendState extends State<FluentChartLegend> {
+  Set<String> _selected = <String>{};
+
+  /// The hovered or focused legend, or the empty string when there is none —
+  /// the same sentinel `Legends.tsx:49` uses, which `:407` then tests for.
+  String _activeLegend = '';
+
+  final List<FocusNode> _nodes = <FocusNode>[];
+  int _focusedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _seedSelection();
+    _syncNodes();
+  }
+
+  @override
+  void didUpdateWidget(FluentChartLegend oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Legends.tsx:91-97 re-runs the seeding effect whenever any of the
+    // selection props changes, so a controlled parent swapping the array resets
+    // the internal state. `// parity:` — reproduced, including the reset.
+    if (!listEquals(widget.selectedLegends, oldWidget.selectedLegends) ||
+        !listEquals(
+          widget.defaultSelectedLegends,
+          oldWidget.defaultSelectedLegends,
+        ) ||
+        widget.selectionMode != oldWidget.selectionMode) {
+      _seedSelection();
+    }
+    _syncNodes();
+  }
+
+  @override
+  void dispose() {
+    for (final node in _nodes) {
+      node.dispose();
+    }
+    super.dispose();
+  }
+
+  void _seedSelection() {
+    final initial = widget.selectedLegends ?? widget.defaultSelectedLegends;
+    _selected = initial == null ? <String>{} : Set<String>.of(initial);
+  }
+
+  void _syncNodes() {
+    while (_nodes.length < widget.legends.length) {
+      _nodes.add(FocusNode(debugLabel: 'FluentChartLegend'));
+    }
+    while (_nodes.length > widget.legends.length) {
+      _nodes.removeLast().dispose();
+    }
+    if (_focusedIndex >= _nodes.length) _focusedIndex = 0;
+  }
+
+  bool get _isControlled => widget.selectedLegends != null;
+
+  void _handlePressed(int index) {
+    final item = widget.legends[index];
+    final next = nextFluentChartLegendSelection(
+      _selected,
+      item.title,
+      mode: widget.selectionMode,
+      legendCount: widget.legends.length,
+    );
+    // Legends.tsx:247-249 — only the uncontrolled case updates itself.
+    if (!_isControlled) setState(() => _selected = next);
+    widget.onChange?.call(next.toList(growable: false), item);
+    // Legends.tsx:251 — the row's own action runs last.
+    item.onAction?.call();
+  }
+
+  void _handleHighlight(int index, {required bool highlighted}) {
+    final item = widget.legends[index];
+    if (highlighted) {
+      // Legends.tsx:254-259 — the active legend is only recorded when the item
+      // actually supplies a hover action.
+      if (item.onHoverAction == null) return;
+      setState(() => _activeLegend = item.title);
+      item.onHoverAction!.call();
+    } else {
+      if (item.onMouseOutAction == null) return;
+      setState(() => _activeLegend = '');
+      item.onMouseOutAction!.call(isLegendFocused: false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final style = resolveFluentChartLegendStyle(
+      theme,
+    ).merge(FluentChartLegendTheme.maybeOf(context)).merge(widget.style);
+
+    final rows = <Widget>[
+      for (var index = 0; index < widget.legends.length; index++)
+        FluentChartLegendRow(
+          key: ValueKey<String>(widget.legends[index].title),
+          item: widget.legends[index],
+          shapeOverride: widget.shape,
+          dimmed: fluentChartLegendIsDimmed(
+            widget.legends[index].title,
+            selectedLegends: _selected,
+            activeLegend: _activeLegend,
+          ),
+          selected: _selected.contains(widget.legends[index].title),
+          indexInList: index,
+          listLength: widget.legends.length,
+          style: style,
+          focusNode: _nodes[index],
+          skipTraversal: !widget.allowFocusOnLegends || index != _focusedIndex,
+          onPressed: () => _handlePressed(index),
+          onHighlightChanged: (highlighted) =>
+              _handleHighlight(index, highlighted: highlighted),
+        ),
+    ];
+
+    return Padding(
+      padding: style.containerMargin!.resolve(<WidgetState>{})!,
+      child: Semantics(
+        container: true,
+        explicitChildNodes: true,
+        // Legends.tsx:124 — the listbox is labelled 'Legends', and only when
+        // allowFocusOnLegends is set does the role appear at all (:122).
+        label: widget.allowFocusOnLegends ? 'Legends' : null,
+        child: Wrap(
+          alignment: widget.centerLegends
+              ? WrapAlignment.center
+              : WrapAlignment.start,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: rows,
+        ),
       ),
     );
   }
