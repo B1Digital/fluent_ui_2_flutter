@@ -1,8 +1,15 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:fluent_2_web/src/charts/area_chart.dart';
 import 'package:fluent_2_web/src/charts/area_chart_style.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
+import 'package:fluent_2_web/src/charts/internal/chart_colors.dart';
+import 'package:fluent_2_web/src/charts/internal/chart_text_measurer.dart';
+import 'package:fluent_2_web/src/charts/internal/d3/curves.dart' as d3;
+import 'package:fluent_2_web/src/charts/internal/d3/scale_linear.dart' as d3;
 import 'package:fluent_2_web/src/charts/internal/data_viz_palette.dart';
 import 'package:fluent_2_web/src/charts/model/cartesian_series.dart';
+import 'package:fluent_2_web/src/charts/model/chart_common.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -134,6 +141,205 @@ List<FluentLineChartSeries> _recoverSeries(
       ]);
     }(),
 ];
+
+/// The on-path vertices of the top edge of one captured area path, with their
+/// x pixels kept — [_edges] throws the x away because the dataset tests only
+/// need the heights, but the delegate tests need the x scale the capture was
+/// drawn with.
+List<Offset> _topVertices(String d) {
+  final all = _vertices(d);
+  expect(
+    all.length.isEven && all.isNotEmpty,
+    isTrue,
+    reason: 'an area path is a top edge and a bottom edge of equal length',
+  );
+  return all.take(all.length ~/ 2).toList(growable: false);
+}
+
+/// Rebuilds a captured `d` attribute as a `dart:ui` [Path], so the delegate's
+/// own path can be compared against it geometrically.
+Path _pathOf(String d) {
+  final tokens = tokeniseSvgPath(d);
+  final path = Path();
+  var i = 0;
+  double next() => double.parse(tokens[i++]);
+  while (i < tokens.length) {
+    switch (tokens[i++]) {
+      case 'M':
+        path.moveTo(next(), next());
+      case 'L':
+        path.lineTo(next(), next());
+      case 'C':
+        path.cubicTo(next(), next(), next(), next(), next(), next());
+      case 'Z':
+        path.close();
+      case final String command:
+        fail('unexpected path command "$command" in $d');
+    }
+  }
+  return path;
+}
+
+/// [count] + 1 points along [path], evenly spaced by arc length.
+///
+/// Two paths built from the same commands sample identically, so this compares
+/// the cubics themselves — bounds alone would not tell curveMonotoneX from
+/// curveLinear.
+List<Offset> _samplePath(Path path, int count) {
+  final metric = path.computeMetrics().first;
+  return <Offset>[
+    for (var i = 0; i <= count; i++)
+      metric.getTangentForOffset(metric.length * i / count)!.position,
+  ];
+}
+
+/// A layout big enough to hold [_linearContext]; the delegate reads nothing off
+/// it, but the shell hands one to every call.
+FluentCartesianLayout _layout() => FluentCartesianLayout.resolve(
+  size: const Size(700, 300),
+  margins: const FluentChartMargins(left: 0, right: 0, top: 0, bottom: 0),
+  xAxisLabelReserve: 0,
+  isRtl: false,
+  startFromX: 0,
+);
+
+/// Records the fills and strokes [FluentAreaChartDelegate.paintSeries] issues.
+///
+/// High-contrast flattening is a paint property; no geometry proves it, so the
+/// only way to assert it is to capture the paints themselves.
+class _RecordingCanvas implements Canvas {
+  final List<Color> pathFills = <Color>[];
+  final List<Color> pathStrokes = <Color>[];
+  final List<Color> circleFills = <Color>[];
+  final List<Color> circleStrokes = <Color>[];
+  final List<double> circleRadii = <double>[];
+
+  @override
+  void drawPath(Path path, Paint paint) {
+    (paint.style == PaintingStyle.stroke ? pathStrokes : pathFills).add(
+      paint.color,
+    );
+  }
+
+  @override
+  void drawCircle(Offset c, double radius, Paint paint) {
+    circleRadii.add(radius);
+    (paint.style == PaintingStyle.stroke ? circleStrokes : circleFills).add(
+      paint.color,
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+final _delegateTheme = FluentThemeData.light(
+  fontPlatform: FluentFontPlatform.web,
+);
+
+const _placeholder = Color(0xFF010203);
+const _canvasText = Color(0xFFFFFFFF);
+const _canvas = Color(0xFF000000);
+
+/// The eleven-field colour set, so `isHighContrast` can be flipped without a
+/// second [FluentThemeData].
+FluentChartColors _colours({bool isHighContrast = false}) => FluentChartColors(
+  axisText: _canvasText,
+  axisTick: _placeholder,
+  axisTitle: _placeholder,
+  gridLine: _placeholder,
+  markStroke: _placeholder,
+  surface: _canvas,
+  popoverSurface: _placeholder,
+  tooltipSurface: _placeholder,
+  legendDimmed: _placeholder,
+  isHighContrast: isHighContrast,
+);
+
+/// A child context whose x scale maps `1..points` onto `0..width` and whose y
+/// scale maps `0..yMax` onto `height..0`, so every assertion below is in the
+/// pixel space the delegate actually paints in.
+FluentCartesianChildContext _linearContext({
+  required double width,
+  int points = 3,
+  double yMax = 100,
+  double height = 300,
+}) {
+  final xScale = d3.scaleLinear()
+    ..domainOf(<double>[1, points.toDouble()])
+    ..rangeOf(<double>[0, width]);
+  final yScale = d3.scaleLinear()
+    ..domainOf(<double>[0, yMax])
+    ..rangeOf(<double>[height, 0]);
+  return FluentCartesianChildContext(
+    xScale: xScale,
+    yScalePrimary: yScale,
+    containerWidth: width,
+    containerHeight: height,
+  );
+}
+
+FluentAreaChartDelegate _delegateFor(
+  List<FluentLineChartSeries> series, {
+  FluentAreaChartMode mode = FluentAreaChartMode.toNextY,
+  List<String> selectedLegends = const <String>[],
+  String? activeLegend,
+  Object? nearestX,
+  bool isCircleClicked = false,
+  bool isPopoverOpen = false,
+  bool isHighContrast = false,
+}) => FluentAreaChartDelegate(
+  series: series,
+  dataSet: buildFluentAreaChartDataSet(
+    series: series,
+    mode: mode,
+    hasSecondaryYScale: false,
+    hasSelectedLegends: selectedLegends.isNotEmpty,
+  ),
+  style: resolveFluentAreaChartStyle(_delegateTheme),
+  colors: _colours(isHighContrast: isHighContrast),
+  measurer: FluentChartTextMeasurer(),
+  selectedLegends: selectedLegends,
+  activeLegend: activeLegend,
+  nearestX: nearestX,
+  isCircleClicked: isCircleClicked,
+  isPopoverOpen: isPopoverOpen,
+  mode: mode,
+);
+
+/// One series at x = 1, 2, 3, so the chart is a single stack.
+FluentAreaChartDelegate _areaDelegate({
+  FluentAreaChartMode mode = FluentAreaChartMode.toNextY,
+  Object? nearestX,
+  bool isCircleClicked = false,
+  bool isHighContrast = false,
+}) => _delegateFor(
+  <FluentLineChartSeries>[
+    _series('a', <double>[10, 20, 30]),
+  ],
+  mode: mode,
+  nearestX: nearestX,
+  isCircleClicked: isCircleClicked,
+  isHighContrast: isHighContrast,
+);
+
+/// Two stacked series, which is what makes `_isMultiStackChart` true.
+FluentAreaChartDelegate _multiStackDelegate({
+  List<String> selectedLegends = const <String>[],
+  String? activeLegend,
+  bool isPopoverOpen = false,
+}) => _delegateFor(
+  _twoSeries(a: <double>[10, 20, 30], b: <double>[5, 15, 25]),
+  selectedLegends: selectedLegends,
+  activeLegend: activeLegend,
+  isPopoverOpen: isPopoverOpen,
+);
+
+/// One series carrying exactly one datum.
+FluentAreaChartDelegate _singlePointAreaDelegate() =>
+    _delegateFor(<FluentLineChartSeries>[
+      _series('a', <double>[10]),
+    ]);
 
 void main() {
   final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
@@ -562,6 +768,291 @@ void main() {
         3.0,
         reason: 'maybeOf must read the nearest theme',
       );
+    });
+  });
+
+  group('FluentAreaChartDelegate', () {
+    test('the default curve is monotone-X, not linear', () {
+      final delegate = _areaDelegate();
+      expect(
+        delegate.curveFactory,
+        same(d3.curveMonotoneX),
+        reason:
+            'parity: AreaChart.tsx:7 imports curveMonotoneX under the '
+            'misleading alias d3CurveBasis',
+      );
+    });
+
+    test('the area top edge and the line share control points', () {
+      final delegate = _areaDelegate();
+      final layer = delegate.layersFor(_linearContext(width: 700)).single;
+      final areaTop = layer.areaPath.getBounds();
+      final lineBounds = layer.linePath.getBounds();
+      expect(
+        areaTop.left,
+        closeTo(lineBounds.left, 1e-9),
+        reason: 'the fill must sit exactly under the stroke',
+      );
+      expect(
+        areaTop.top,
+        closeTo(lineBounds.top, 1e-9),
+        reason: 'both use the same y1 accessor and the same curve',
+      );
+    });
+
+    test('a single-datum layer resolves a circle, not an area', () {
+      final delegate = _singlePointAreaDelegate();
+      expect(
+        delegate.layersFor(_linearContext(width: 700)).single.singlePointCentre,
+        isNotNull,
+        reason: 'AreaChart.tsx:711-725 swaps the path for an r=6 circle',
+      );
+    });
+
+    test('a single-stack chart holds fill 0.7 and line 1', () {
+      final delegate = _areaDelegate();
+      final layer = delegate.layersFor(_linearContext(width: 700)).single;
+      expect(
+        layer.fillOpacity,
+        0.7,
+        reason: 'AreaChart.tsx:620 returns 0.7 when not multi-stack',
+      );
+      expect(
+        layer.lineOpacity,
+        1,
+        reason: 'AreaChart.tsx:630 returns 1 when not multi-stack',
+      );
+    });
+
+    test('a highlighted line in a multi-stack chart goes to opacity ZERO', () {
+      final delegate = _multiStackDelegate(selectedLegends: <String>['a']);
+      expect(
+        delegate.layersFor(_linearContext(width: 700))[0].lineOpacity,
+        0,
+        reason:
+            'parity: AreaChart.tsx:637 sets the highlighted line to 0 and '
+            'lets the fill carry it',
+      );
+      expect(
+        delegate.layersFor(_linearContext(width: 700))[1].lineOpacity,
+        0.1,
+        reason: 'the non-highlighted line drops to 0.1',
+      );
+    });
+
+    test('an open popover lifts every multi-stack line to 1', () {
+      final delegate = _multiStackDelegate(isPopoverOpen: true);
+      expect(
+        delegate.layersFor(_linearContext(width: 700))[0].lineOpacity,
+        1,
+        reason: 'AreaChart.tsx:634 overwrites the 0.3 rest value',
+      );
+    });
+
+    test('tozeroy pins every layer opacity to 0.8', () {
+      final delegate = _areaDelegate(mode: FluentAreaChartMode.toZeroY);
+      expect(
+        delegate.layersFor(_linearContext(width: 700)).single.layerOpacity,
+        0.8,
+        reason: 'AreaChart.tsx:685',
+      );
+    });
+
+    test('circles are invisible until hovered or focused', () {
+      final delegate = _areaDelegate();
+      expect(
+        delegate.circleRadiusFor(0, 2),
+        0,
+        reason: 'AreaChart.tsx:855-868 returns 0 for an unhighlighted point',
+      );
+      expect(
+        _areaDelegate(nearestX: 3).circleRadiusFor(0, 2),
+        8,
+        reason: 'the nearest circle grows to pointOptions.r ?? 8, :749',
+      );
+      expect(
+        _areaDelegate(nearestX: 3, isCircleClicked: true).circleRadiusFor(0, 2),
+        1,
+        reason: 'a clicked circle shrinks to 1, :861',
+      );
+    });
+
+    test('a dimmed legend hides its circles outright', () {
+      final delegate = _multiStackDelegate(selectedLegends: <String>['a']);
+      expect(
+        delegate.circleRadiusFor(1, 2),
+        0,
+        reason:
+            'AreaChart.tsx:857-859 returns 0 before the nearest-point checks '
+            'once another legend owns the highlight',
+      );
+    });
+
+    test('the stack hit region carries every series reading', () {
+      final delegate = _multiStackDelegate();
+      final regions = delegate.buildHitRegions(
+        _linearContext(width: 700),
+        _layout(),
+      );
+      expect(regions, hasLength(3), reason: 'one region per distinct x value');
+      expect(
+        regions[1].popoverData.isCalloutForStack,
+        isTrue,
+        reason: 'AreaChart.tsx:1105 opens the stacked popover body',
+      );
+      expect(
+        regions[1].popoverData.yValues!.map((v) => v.y).toList(),
+        <double>[20, 15],
+        reason: 'the popover lists the raw y of every series at that x',
+      );
+    });
+  });
+
+  group('FluentAreaChartDelegate under forced colours', () {
+    _RecordingCanvas paint({required bool isHighContrast}) {
+      final delegate = _areaDelegate(
+        nearestX: 3,
+        isHighContrast: isHighContrast,
+      );
+      final canvas = _RecordingCanvas();
+      delegate.paintSeries(
+        canvas,
+        _linearContext(width: 700),
+        _layout(),
+        delegate.colors,
+      );
+      return canvas;
+    }
+
+    // The alpha channel carries `layerOpacity * fillOpacity`, which the
+    // opacity tests above already pin, so the flattening assertions compare
+    // the RGB triple only.
+    int rgb(Color colour) => colour.toARGB32() & 0x00FFFFFF;
+
+    test('an ordinary theme keeps the series colour on fill and stroke', () {
+      final canvas = paint(isHighContrast: false);
+      final palette = rgb(FluentDataVizPalette.next(0));
+      expect(
+        rgb(canvas.pathFills.single),
+        palette,
+        reason: 'flattenMark is the identity outside high contrast',
+      );
+      expect(
+        rgb(canvas.pathStrokes.single),
+        palette,
+        reason: 'and so is flattenMarkStroke',
+      );
+    });
+
+    test('high contrast flattens the fill and keeps the line a hairline', () {
+      final canvas = paint(isHighContrast: true);
+      expect(
+        rgb(canvas.pathFills.single),
+        rgb(_canvasText),
+        reason:
+            'design spec section 5.3: a forced-colours browser rewrites every '
+            'series fill to CanvasText, so FluentChartColors.flattenMark must '
+            "be on the area body's fill",
+      );
+      expect(
+        rgb(canvas.pathStrokes.single),
+        rgb(_canvas),
+        reason:
+            'FluentChartColors.flattenMarkStroke sends the top edge to Canvas '
+            'instead, which is the only thing keeping two stacked areas from '
+            'merging into one indistinguishable CanvasText block',
+      );
+    });
+
+    test('high contrast leaves the marker ring readable', () {
+      final canvas = paint(isHighContrast: true);
+      expect(
+        rgb(canvas.circleFills.single),
+        rgb(
+          resolveFluentAreaChartStyle(
+            _delegateTheme,
+          ).activePointFillColor!.resolve(<WidgetState>{})!,
+        ),
+        reason:
+            'AreaChart.tsx:647 inverts the nearest marker to '
+            'colorNeutralBackground1, which is a theme token rather than a '
+            'flattened series colour',
+      );
+      expect(
+        rgb(canvas.circleStrokes.single),
+        rgb(_canvasText),
+        reason:
+            'the ring keeps the flattenMark colour, so the inverted marker is '
+            'still visible against the flattened area',
+      );
+    });
+  });
+
+  group('FluentAreaChartDelegate against the oracle corpus', () {
+    test('regenerates every curve of charts-areachart--area-chart-basic', () {
+      final story = loadOracleStory('charts-areachart--area-chart-basic');
+      final areas = _areaPaths(story, 3);
+      final lines = story
+          .byTag('path')
+          .where((element) => element.stroke != null && element.fill != null)
+          .toList(growable: false);
+      expect(
+        lines,
+        hasLength(3),
+        reason:
+            'one stroked top edge per area, each with a transparent fill '
+            '(AreaChart.tsx:696-701); without this guard the loop below would '
+            'assert nothing',
+      );
+      final tops = <List<Offset>>[
+        for (final area in areas) _topVertices(area.d!),
+      ];
+      expect(
+        tops.first,
+        hasLength(15),
+        reason: 'the story plots fifteen x values per layer',
+      );
+      final baseline = _edges(areas.first.d!).bottoms.first;
+      final recovered = _recoverSeries(areas, baseline);
+      // The recovered values are pixel heights above the captured baseline, so
+      // the y scale that reproduces the capture is simply `baseline - value`
+      // and the x scale is the even 44px step the capture was laid out on.
+      final xScale = d3.scaleLinear()
+        ..domainOf(<double>[1, tops.first.length.toDouble()])
+        ..rangeOf(<double>[tops.first.first.dx, tops.first.last.dx]);
+      final yScale = d3.scaleLinear()
+        ..domainOf(<double>[0, 1])
+        ..rangeOf(<double>[baseline, baseline - 1]);
+      final context = FluentCartesianChildContext(
+        xScale: xScale,
+        yScalePrimary: yScale,
+        containerWidth: story.width,
+        containerHeight: story.height,
+      );
+      final layers = _delegateFor(recovered).layersFor(context);
+      expect(layers, hasLength(3), reason: 'one layer per captured area path');
+      for (var i = 0; i < layers.length; i++) {
+        final capturedLine = _samplePath(_pathOf(lines[i].d!), 60);
+        final ourLine = _samplePath(layers[i].linePath, 60);
+        for (var k = 0; k < capturedLine.length; k++) {
+          expectOracleOffset(
+            'layer $i top edge sample $k — d3Line with curveMonotoneX, '
+            'AreaChart.tsx:690-695',
+            capturedLine[k],
+            ourLine[k],
+          );
+        }
+        final capturedArea = _samplePath(_pathOf(areas[i].d!), 60);
+        final ourArea = _samplePath(layers[i].areaPath, 60);
+        for (var k = 0; k < capturedArea.length; k++) {
+          expectOracleOffset(
+            'layer $i body sample $k — d3Area with the same curve instance, '
+            'AreaChart.tsx:670-681',
+            capturedArea[k],
+            ourArea[k],
+          );
+        }
+      }
     });
   });
 }
