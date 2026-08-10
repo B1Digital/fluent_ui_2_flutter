@@ -3,8 +3,16 @@ import 'dart:math' as math;
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
+import 'axis/axis_types.dart';
+import 'axis/tick_format.dart';
+import 'chrome/chart_popover.dart';
+import 'chrome/chart_title.dart';
+import 'chrome/legend.dart';
+import 'funnel_chart_style.dart';
 import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
+import 'internal/chart_text_styles.dart';
+import 'internal/data_viz_palette.dart';
 
 /// The direction a funnel's stages run in.
 ///
@@ -663,4 +671,513 @@ class FluentFunnelChartPainter extends CustomPainter {
       oldDelegate.labelStyle != labelStyle ||
       oldDelegate.textDirection != textDirection ||
       oldDelegate.funnelWidth != funnelWidth;
+}
+
+/// Applies one [FluentFunnelChartStyle] to every [FluentFunnelChart] below it.
+class FluentFunnelChartTheme extends InheritedTheme {
+  /// Applies [style] to every [FluentFunnelChart] in [child].
+  const FluentFunnelChartTheme({
+    super.key,
+    required this.style,
+    required super.child,
+  });
+
+  /// The style layered over the resolved defaults.
+  final FluentFunnelChartStyle style;
+
+  /// The nearest funnel chart style, or null.
+  static FluentFunnelChartStyle? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<FluentFunnelChartTheme>()
+      ?.style;
+
+  @override
+  bool updateShouldNotify(FluentFunnelChartTheme oldWidget) =>
+      style != oldWidget.style;
+
+  @override
+  Widget wrap(BuildContext context, Widget child) =>
+      FluentFunnelChartTheme(style: style, child: child);
+}
+
+/// A Fluent 2 funnel chart: stacked trapezia narrowing stage by stage.
+///
+/// Ports `FunnelChart.tsx`. The default orientation is vertical: the types file
+/// documents `'horizontal'` (`FunnelChart.types.ts:98`) but the destructured
+/// default at `FunnelChart.tsx:28` is `'vertical'`, and the code wins.
+class FluentFunnelChart extends StatefulWidget {
+  /// Creates a funnel chart.
+  const FluentFunnelChart({
+    super.key,
+    required this.data,
+    this.chartTitle,
+    this.width,
+    this.height,
+    this.hideLegend = false,
+    this.canSelectMultipleLegends = false,
+    this.culture,
+    this.orientation = FluentFunnelOrientation.vertical,
+    this.style,
+  });
+
+  /// The stages, widest first. When every entry carries `subValues` the chart
+  /// renders stacked (`FunnelChart.tsx:308-310`).
+  final List<FluentFunnelDataPoint> data;
+
+  /// The visible title, painted above the funnel (`FunnelChart.tsx:489-497`).
+  final String? chartTitle;
+
+  /// An explicit width, overriding the incoming constraints.
+  final double? width;
+
+  /// An explicit height, overriding the incoming constraints.
+  final double? height;
+
+  /// Hides the legend strip, and with it the title (`FunnelChart.tsx:490`).
+  final bool hideLegend;
+
+  /// Allows more than one legend to stay selected.
+  final bool canSelectMultipleLegends;
+
+  /// The locale tag passed to [formatToLocaleString].
+  final String? culture;
+
+  /// Vertical or horizontal (`FunnelChart.tsx:28`).
+  final FluentFunnelOrientation orientation;
+
+  /// The style layered over [FluentFunnelChartTheme] and the resolved defaults.
+  final FluentFunnelChartStyle? style;
+
+  @override
+  State<FluentFunnelChart> createState() => _FluentFunnelChartState();
+}
+
+class _FluentFunnelChartState extends State<FluentFunnelChart> {
+  String? _hoveredStage;
+  List<String> _selectedLegends = const <String>[];
+  FluentFunnelDataPoint? _callout;
+  Offset? _anchor;
+
+  List<String> get _highlighted => _selectedLegends.isNotEmpty
+      ? _selectedLegends
+      : (_hoveredStage == null ? const <String>[] : <String>[_hoveredStage!]);
+
+  /// `FunnelChart.tsx:363-364` — selection beats hover, and nothing highlighted
+  /// means everything is at full opacity.
+  double _opacityOf(String legend, double dimmed) =>
+      _highlighted.isEmpty || _highlighted.contains(legend) ? 1.0 : dimmed;
+
+  /// [path] reflected about `x = funnelWidth`.
+  ///
+  /// `FunnelChart.tsx:503-505` wraps the whole plot in
+  /// `translate(funnelOffsetX + funnelWidth) scale(-1,1)` under right-to-left,
+  /// which is exactly `x -> funnelWidth - x` inside the funnel's own space.
+  /// Baking it into the paths rather than into a `Transform` keeps one
+  /// coordinate space for the painter, the hit test and the per-segment focus
+  /// rectangles; the glyphs are un-mirrored by
+  /// [FluentFunnelChartPainter.textDirection], which is upstream's nested
+  /// `scale(-1,1)` at `:224`.
+  static Path _mirror(Path path, double funnelWidth) => path.transform(
+    (Matrix4.identity()
+          ..setEntry(0, 0, -1)
+          ..setEntry(0, 3, funnelWidth))
+        .storage,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    // FunnelChart.tsx:531 — an empty data set renders a bare alert node.
+    if (widget.data.isEmpty) {
+      return Semantics(
+        container: true,
+        liveRegion: true,
+        label: 'Graph has no data to display',
+        child: const SizedBox.shrink(),
+      );
+    }
+
+    final theme = FluentTheme.of(context);
+    final resolved = resolveFluentFunnelChartStyle(
+      theme,
+    ).merge(FluentFunnelChartTheme.maybeOf(context)).merge(widget.style);
+    const states = <WidgetState>{};
+    final textStyles = FluentChartTextStyles.of(theme);
+    final chartColors = FluentChartColors.of(theme);
+    final isDark = theme.brightness == Brightness.dark;
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    final isStacked = isFluentStackedFunnelData(widget.data);
+    final minTextWidth = resolved.minTextWidth!.resolve(states)!;
+    final dimmed = resolved.dimmedOpacity!.resolve(states)!;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width =
+            widget.width ??
+            (constraints.hasBoundedWidth
+                ? constraints.maxWidth
+                : resolved.intrinsicWidth!.resolve(states)!);
+        final height =
+            widget.height ??
+            (constraints.hasBoundedHeight
+                ? constraints.maxHeight
+                : resolved.intrinsicHeight!.resolve(states)!);
+        // FunnelChart.tsx:465-470 — the title band is reserved whether or not
+        // there is a title, so a titled and an untitled funnel are the same
+        // height unless the title font is larger than the floor.
+        final titleHeight = widget.chartTitle == null
+            ? resolved.titleHeightMin!.resolve(states)!
+            : math.max(
+                resolved.titleFontFallbackSize!.resolve(states)! +
+                    resolved.titlePadding!.resolve(states)!,
+                resolved.titleHeightMin!.resolve(states)!,
+              );
+        // FunnelChart.tsx:472-473 — the funnel is 80% of the width, centred.
+        final funnelWidth =
+            width * resolved.funnelWidthFactor!.resolve(states)!;
+        final funnelOffsetX = (width - funnelWidth) / 2;
+        // FunnelChart.tsx:277-278 — and 80% of what is left after the title.
+        final funnelHeight =
+            (height - titleHeight) *
+            resolved.funnelHeightFactor!.resolve(states)!;
+
+        final segments = <FluentFunnelSegment>[];
+        final ariaLabels = <String>[];
+        final stageOf = <FluentFunnelDataPoint>[];
+
+        FluentFunnelSegmentGeometry oriented(FluentFunnelSegmentGeometry raw) =>
+            isRtl
+            ? FluentFunnelSegmentGeometry(
+                path: _mirror(raw.path!, funnelWidth),
+                textX: raw.textX,
+                textY: raw.textY,
+                availableWidth: raw.availableWidth,
+              )
+            : raw;
+
+        if (isStacked) {
+          // FunnelChart.tsx:378-380 — one total per stage, and the largest of
+          // them scales every stage's width.
+          final totals = <double>[
+            for (final stage in widget.data)
+              stage.subValues == null
+                  ? 0
+                  : stage.subValues!.fold<double>(
+                      0,
+                      (sum, sub) => sum + sub.value,
+                    ),
+          ];
+          final maxTotal = totals.reduce(math.max);
+          for (var i = 0; i < widget.data.length; i++) {
+            final subValues =
+                widget.data[i].subValues ?? const <FluentFunnelSubValue>[];
+            for (var k = 0; k < subValues.length; k++) {
+              final geometry = oriented(
+                widget.orientation == FluentFunnelOrientation.vertical
+                    ? FluentFunnelSegmentGeometry.stackedVertical(
+                        stageIndex: i,
+                        subIndex: k,
+                        stages: widget.data,
+                        totals: totals,
+                        maxTotal: maxTotal,
+                        funnelWidth: funnelWidth,
+                        funnelHeight: funnelHeight,
+                      )
+                    : FluentFunnelSegmentGeometry.stackedHorizontal(
+                        stageIndex: i,
+                        subIndex: k,
+                        stages: widget.data,
+                        totals: totals,
+                        maxTotal: maxTotal,
+                        funnelWidth: funnelWidth,
+                        funnelHeight: funnelHeight,
+                      ),
+              );
+              segments.add(
+                FluentFunnelSegment(
+                  key: '$i-$k',
+                  geometry: geometry,
+                  fill:
+                      subValues[k].color ??
+                      FluentDataVizPalette.next(k, isDark: isDark),
+                  opacity: _opacityOf(subValues[k].category, dimmed),
+                  label: geometry.showText(minTextWidth)
+                      // FunnelChart.tsx:211 — the value, localised.
+                      ? formatToLocaleString(
+                          subValues[k].value,
+                          culture: widget.culture,
+                        )
+                      : null,
+                ),
+              );
+              // FunnelChart.tsx:143-145 — stage, category, value.
+              ariaLabels.add(
+                '${widget.data[i].stage}, ${subValues[k].category}, '
+                '${formatToLocaleString(subValues[k].value, culture: widget.culture)}.',
+              );
+              stageOf.add(widget.data[i]);
+            }
+          }
+        } else {
+          for (var i = 0; i < widget.data.length; i++) {
+            final point = widget.data[i];
+            final geometry = oriented(
+              widget.orientation == FluentFunnelOrientation.vertical
+                  ? FluentFunnelSegmentGeometry.vertical(
+                      index: i,
+                      data: widget.data,
+                      funnelWidth: funnelWidth,
+                      funnelHeight: funnelHeight,
+                      isRtl: isRtl,
+                    )
+                  : FluentFunnelSegmentGeometry.horizontal(
+                      index: i,
+                      data: widget.data,
+                      funnelWidth: funnelWidth,
+                      funnelHeight: funnelHeight,
+                      isRtl: isRtl,
+                    ),
+            );
+            segments.add(
+              FluentFunnelSegment(
+                key: '$i',
+                geometry: geometry,
+                fill:
+                    point.color ?? FluentDataVizPalette.next(i, isDark: isDark),
+                opacity: _opacityOf('${point.stage}', dimmed),
+                label: geometry.showText(minTextWidth)
+                    ? formatToLocaleString(
+                        point.value ?? 0,
+                        culture: widget.culture,
+                      )
+                    : null,
+              ),
+            );
+            // FunnelChart.tsx:148-149 — stage then value, with a full stop.
+            ariaLabels.add(
+              '${point.stage}, '
+              '${formatToLocaleString(point.value ?? 0, culture: widget.culture)}.',
+            );
+            stageOf.add(point);
+          }
+        }
+
+        // Design spec §5.7 bounded-cardinality exemption: this chart mints one
+        // `Focus` plus one `Semantics` per segment below instead of holding a
+        // roving index, because the segment count is bounded by the category
+        // count — one per stage, or one per sub-value of a stage, and a
+        // realistic funnel is four to seven stages. The exemption is only sound
+        // inside that bound, so it is asserted rather than assumed. 32 is the
+        // ceiling: an order of magnitude above any realistic funnel, and an
+        // order of magnitude below the 500-mark series §5.7 names as the reason
+        // the roving model exists at all. It is also well past the point where
+        // `FluentFunnelSegmentGeometry`'s own minimum heights stop producing a
+        // visible segment.
+        assert(
+          segments.length <= 32,
+          'FluentFunnelChart mints one Focus per segment under design spec '
+          '§5.7\'s bounded-cardinality exemption; ${segments.length} segments '
+          'exceeds the 32-mark bound that exemption depends on.',
+        );
+
+        final painter = FluentFunnelChartPainter(
+          segments: segments,
+          labelStyle:
+              resolved.segmentLabelTextStyle!.resolve(states) ??
+              textStyles.axisTick,
+          colors: theme.colors,
+          chartColors: chartColors,
+          textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+          funnelWidth: funnelWidth,
+        );
+
+        return Semantics(
+          container: true,
+          // FunnelChart.tsx:476-478 and :512 — the count sums the sub-values
+          // when stacked and is the stage count otherwise.
+          label: 'Funnel chart with ${segments.length} segments',
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              SizedBox(
+                height: titleHeight,
+                // FunnelChart.tsx:490 — hideLegend suppresses the TITLE too,
+                // which is upstream's bug and is reproduced here.
+                // parity: FunnelChart.tsx:490.
+                child: widget.chartTitle == null || widget.hideLegend
+                    ? null
+                    : Center(
+                        child: FluentChartTitle(
+                          title: widget.chartTitle!,
+                          textStyle:
+                              resolved.titleTextStyle!.resolve(states) ??
+                              textStyles.chartTitle,
+                          // FunnelChart.tsx:493 — the trigger width is the
+                          // chart width less 20.
+                          maxWidth: width - 20,
+                        ),
+                      ),
+              ),
+              Expanded(
+                child: MouseRegion(
+                  onExit: (_) => setState(() {
+                    _anchor = null;
+                    _callout = null;
+                  }),
+                  child: Stack(
+                    children: <Widget>[
+                      Positioned(
+                        left: funnelOffsetX,
+                        width: funnelWidth,
+                        top: 0,
+                        bottom: 0,
+                        child: Listener(
+                          // The plot's own paths are the only opaque things in
+                          // this box, and a `CustomPaint` without a hit-testing
+                          // painter reports nothing, so the listener has to
+                          // claim the box itself.
+                          behavior: HitTestBehavior.translucent,
+                          onPointerHover: (event) {
+                            final hit = painter.segmentAt(event.localPosition);
+                            if (hit == null) {
+                              return;
+                            }
+                            final index = segments.indexOf(hit);
+                            setState(() {
+                              // FunnelChart.tsx:163-170 — the hover handlers
+                              // are attached only at full opacity.
+                              if (hit.opacity == 1) {
+                                _callout = stageOf[index];
+                                _anchor = event.localPosition.translate(
+                                  funnelOffsetX,
+                                  0,
+                                );
+                              }
+                            });
+                          },
+                          child: Stack(
+                            children: <Widget>[
+                              Positioned.fill(
+                                child: CustomPaint(painter: painter),
+                              ),
+                              // One Focus per segment, not a roving index —
+                              // design spec §5.7 bounded-cardinality
+                              // exemption, bound asserted above at 32 marks.
+                              for (var i = 0; i < segments.length; i++)
+                                Positioned.fromRect(
+                                  rect: segments[i].geometry.path!.getBounds(),
+                                  child: Focus(
+                                    key: ValueKey<String>(
+                                      'funnel-segment-${segments[i].key}',
+                                    ),
+                                    // FunnelChart.tsx:305 — a dimmed segment
+                                    // leaves the tab order, but :233 keeps
+                                    // its focus handler live.
+                                    canRequestFocus: segments[i].opacity == 1,
+                                    onFocusChange: (hasFocus) => setState(() {
+                                      _callout = hasFocus ? stageOf[i] : null;
+                                      _anchor = hasFocus
+                                          ? segments[i].geometry.path!
+                                                .getBounds()
+                                                .center
+                                                .translate(funnelOffsetX, 0)
+                                          : null;
+                                    }),
+                                    child: Semantics(
+                                      label: ariaLabels[i],
+                                      child: const SizedBox.expand(),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (_anchor != null && _callout != null)
+                        Positioned(
+                          left: _anchor!.dx,
+                          top: _anchor!.dy,
+                          child: FluentChartPopover(
+                            anchor: _anchor!,
+                            // FunnelChart.tsx:514-527 — the popover carries the
+                            // stage and the value and NO legend, which is why
+                            // upstream's legend row renders empty.
+                            // parity: FunnelChart.tsx:520-521.
+                            data: FluentChartPopoverData(
+                              xValue: '${_callout!.stage}',
+                              yValue: formatToLocaleString(
+                                _callout!.value ?? 0,
+                                culture: widget.culture,
+                              ),
+                              color: _callout!.color,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              if (!widget.hideLegend)
+                SizedBox(
+                  height: kMinLegendContainerHeight,
+                  child: FluentChartLegend(
+                    centerLegends: true,
+                    selectionMode: widget.canSelectMultipleLegends
+                        ? FluentChartLegendSelectionMode.multiple
+                        : FluentChartLegendSelectionMode.single,
+                    selectedLegends: _selectedLegends,
+                    legends: _legendItems(isStacked: isStacked, isDark: isDark),
+                    onChange: (selected, current) =>
+                        setState(() => _selectedLegends = selected),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// One entry per stage, or — when stacked — one per unique category taking
+  /// the colour of its first occurrence (`FunnelChart.tsx:405-420`).
+  List<FluentChartLegendItem> _legendItems({
+    required bool isStacked,
+    required bool isDark,
+  }) {
+    final items = <FluentChartLegendItem>[];
+    if (isStacked) {
+      final seen = <String, Color>{};
+      var index = 0;
+      for (final stage in widget.data) {
+        for (final sub in stage.subValues ?? const <FluentFunnelSubValue>[]) {
+          seen.putIfAbsent(
+            sub.category,
+            () => sub.color ?? FluentDataVizPalette.next(index, isDark: isDark),
+          );
+          index++;
+        }
+      }
+      seen.forEach((category, colour) {
+        items.add(_legendItem(category, colour));
+      });
+    } else {
+      for (var i = 0; i < widget.data.length; i++) {
+        items.add(
+          _legendItem(
+            '${widget.data[i].stage}',
+            widget.data[i].color ??
+                FluentDataVizPalette.next(i, isDark: isDark),
+          ),
+        );
+      }
+    }
+    return items;
+  }
+
+  FluentChartLegendItem _legendItem(String title, Color colour) =>
+      FluentChartLegendItem(
+        title: title,
+        color: colour,
+        onHoverAction: () => setState(() => _hoveredStage = title),
+        onMouseOutAction: ({required bool isLegendFocused}) =>
+            setState(() => _hoveredStage = null),
+      );
 }
