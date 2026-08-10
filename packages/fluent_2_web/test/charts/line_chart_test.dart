@@ -623,6 +623,206 @@ void main() {
       }
     });
   });
+
+  group('LineChart engine B', () {
+    test('the path is broken at every non-plottable point', () {
+      final d = _lineDelegate(
+        ys: const <double>[1, 2, double.nan, 3, 4],
+        curve: FluentLineCurve.linear,
+      );
+      final path = d.singlePathFor(0, _ctx());
+      expect(
+        path!.computeMetrics().length,
+        2,
+        reason:
+            'defined(isPlottable) makes d3.line emit two sub-paths, '
+            'LineChart.tsx:678',
+      );
+    });
+
+    test('a series shorter than two points has no path at all', () {
+      expect(
+        _lineDelegate(
+          ys: const <double>[1],
+          curve: FluentLineCurve.linear,
+        ).singlePathFor(0, _ctx()),
+        isNull,
+        reason:
+            'LineChart.tsx:670 gates the whole path branch on '
+            'data.length > 1',
+      );
+    });
+
+    test('engine B markers pin the stroke width to 1', () {
+      final d = _lineDelegate(curve: FluentLineCurve.linear);
+      expect(
+        d.markerStrokeWidthForEngineB,
+        1,
+        reason:
+            'parity: LineChart.tsx:803 uses 1 regardless of the series '
+            'stroke width, unlike engine A',
+      );
+    });
+
+    test('engine B dims markers to 0.1, not 0.01', () {
+      final d = _lineDelegate(
+        curve: FluentLineCurve.linear,
+        legends: const <String>['a', 'b'],
+        selectedLegend: 'a',
+      );
+      expect(
+        d.markerOpacityForEngineB('b'),
+        0.1,
+        reason: 'LineChart.tsx:804 — the two engines dim markers differently',
+      );
+      expect(
+        d.markerOpacityFor('b'),
+        0.01,
+        reason: 'engine A still dims to 0.01, LineChart.tsx:909',
+      );
+    });
+  });
+
+  group('LineChart colour fill bars', () {
+    test('the rect is padded 3px above and 3px taller', () {
+      final d = _lineDelegateWithFillBar(startX: 2, endX: 5);
+      final bar = d.colorFillBarRectsFor(_ctx(), _layout()).single;
+      expect(
+        bar.rect.top,
+        closeTo(_ctx().yScalePrimary(_yMax)! - 3, 1e-9),
+        reason: 'FILL_Y_PADDING == 3, LineChart.tsx:1381 and :1404',
+      );
+      expect(
+        bar.rect.height,
+        closeTo(
+          _ctx().yScalePrimary(0)! - _ctx().yScalePrimary(_yMax)! + 3,
+          1e-9,
+        ),
+        reason:
+            'height = yScale(yMinValue || 0) - yScale(yMax) + 3, '
+            'LineChart.tsx:1406',
+      );
+      expect(
+        bar.rect.left,
+        closeTo(_ctx().xScale(2)!, 1e-9),
+        reason: 'left-to-right takes x from startX, LineChart.tsx:1403',
+      );
+      expect(
+        bar.rect.width,
+        closeTo((_ctx().xScale(5)! - _ctx().xScale(2)!).abs(), 1e-9),
+        reason: 'width is the absolute span, LineChart.tsx:1405',
+      );
+    });
+
+    test('an unpatterned bar is 0.4 and a patterned one is 1', () {
+      expect(
+        _lineDelegateWithFillBar(
+          startX: 2,
+          endX: 5,
+        ).colorFillBarRectsFor(_ctx(), _layout()).single.opacity,
+        0.4,
+        reason: 'LineChart.tsx:1828-1830',
+      );
+      expect(
+        _lineDelegateWithFillBar(
+          startX: 2,
+          endX: 5,
+          applyPattern: true,
+        ).colorFillBarRectsFor(_ctx(), _layout()).single.opacity,
+        1,
+        reason: 'applyPattern lifts the opacity to 1',
+      );
+    });
+
+    test('a bar the highlighted legend is not dims to 0.1', () {
+      expect(
+        _lineDelegateWithFillBar(
+          startX: 2,
+          endX: 5,
+          selectedLegend: 'a',
+        ).colorFillBarRectsFor(_ctx(), _layout()).single.opacity,
+        0.1,
+        reason:
+            'LineChart.tsx:1396-1398 dims a bar whose legend is not the '
+            'selected one, patterned or not',
+      );
+    });
+
+    test('high contrast flattens the fill colour', () {
+      final theme = FluentThemeData.highContrast(
+        fontPlatform: FluentFontPlatform.web,
+      );
+      const authored = Color(0xFF884422);
+      expect(
+        _lineDelegateWithFillBar(
+          startX: 2,
+          endX: 5,
+          color: authored,
+          withTheme: theme,
+        ).colorFillBarRectsFor(_ctx(), _layout()).single.colour,
+        FluentChartColors.of(theme).flattenMark(authored),
+        reason: 'spec §5.3: a series mark flattens to the system colour',
+      );
+    });
+  });
+
+  group('FluentChartStripeTilePainter', () {
+    test('paints three diagonals inside a 16px tile', () {
+      final recorder = _LineRecorder();
+      FluentChartStripeTilePainter(
+        color: const Color(0xFF112233),
+        strokeWidth: 1.25,
+      ).paint(recorder, const Size(16, 16));
+      expect(
+        recorder.drawn.length,
+        3,
+        reason:
+            'the tile path is M-4,4 l8,-8 M0,16 l16,-16 M12,20 l8,-8, '
+            'LineChart.tsx:1418',
+      );
+      expect(
+        recorder.drawn,
+        const <(Offset, Offset)>[
+          (Offset(-4, 4), Offset(4, -4)),
+          (Offset(0, 16), Offset(16, 0)),
+          (Offset(12, 20), Offset(20, 12)),
+        ],
+        reason: 'each l8,-8 / l16,-16 is a 45° diagonal up and to the right',
+      );
+      expect(recorder.strokeWidths, const <double>[
+        1.25,
+        1.25,
+        1.25,
+      ], reason: 'strokeWidth={1.25}, LineChart.tsx:1427');
+    });
+
+    test('a tile repaints only when its colour or width changes', () {
+      final tile = FluentChartStripeTilePainter(
+        color: const Color(0xFF112233),
+        strokeWidth: 1.25,
+      );
+      expect(
+        tile.shouldRepaint(
+          FluentChartStripeTilePainter(
+            color: const Color(0xFF112233),
+            strokeWidth: 1.25,
+          ),
+        ),
+        isFalse,
+        reason: 'an identical tile is the same picture',
+      );
+      expect(
+        tile.shouldRepaint(
+          FluentChartStripeTilePainter(
+            color: const Color(0xFF112233),
+            strokeWidth: 2,
+          ),
+        ),
+        isTrue,
+        reason: 'a different stroke width is a different picture',
+      );
+    });
+  });
 }
 
 FluentThemeData _theme() =>
@@ -695,6 +895,41 @@ FluentLineChartDelegate _lineDelegate({
   selectedLegend: selectedLegend,
 );
 
+/// The y-domain ceiling of [_ctx]. The fill-bar rect is pinned to it, so the
+/// two must agree or the padding assertions say nothing.
+const double _yMax = 10;
+
+FluentLineChartDelegate _lineDelegateWithFillBar({
+  required num startX,
+  required num endX,
+  bool applyPattern = false,
+  Color color = const Color(0xFF0078D4),
+  String selectedLegend = '',
+  FluentThemeData? withTheme,
+}) => _delegate(
+  <FluentLineChartSeries>[
+    const FluentLineChartSeries(
+      legend: 'a',
+      data: <FluentLineChartDataPoint>[
+        FluentLineChartDataPoint(x: 0, y: 1),
+        FluentLineChartDataPoint(x: 1, y: 2),
+      ],
+    ),
+  ],
+  theme: withTheme ?? _theme(),
+  selectedLegend: selectedLegend,
+  colorFillBars: <FluentColorFillBar>[
+    FluentColorFillBar(
+      legend: 'band',
+      color: color,
+      applyPattern: applyPattern,
+      data: <FluentColorFillBarRange>[
+        FluentColorFillBarRange(startX: startX, endX: endX),
+      ],
+    ),
+  ],
+);
+
 FluentLineChartDelegate _delegateFromPoints(
   List<Offset> points, {
   List<FluentLineChartGap>? gaps,
@@ -723,6 +958,7 @@ FluentLineChartDelegate _delegate(
   List<FluentLineChartSeries> series, {
   required FluentThemeData theme,
   required String selectedLegend,
+  List<FluentColorFillBar> colorFillBars = const <FluentColorFillBar>[],
 }) => FluentLineChartDelegate(
   series: series,
   style: resolveFluentLineChartStyle(theme),
@@ -730,6 +966,7 @@ FluentLineChartDelegate _delegate(
   measurer: FluentChartTextMeasurer(),
   textStyles: FluentChartTextStyles.of(theme),
   selectedLegend: selectedLegend,
+  colorFillBars: colorFillBars,
 );
 
 /// The captured `<line>` elements of one series group: the halo strokes first,

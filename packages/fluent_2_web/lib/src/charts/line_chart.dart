@@ -9,6 +9,9 @@ import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
 import 'internal/chart_text_styles.dart';
 import 'internal/chart_utils.dart';
+import 'internal/d3/curves.dart' as d3;
+import 'internal/d3/path_sink.dart' as d3;
+import 'internal/d3/shape_line_area.dart' as d3;
 import 'internal/d3/stable_sort.dart';
 import 'internal/data_viz_palette.dart';
 import 'line_chart_style.dart';
@@ -230,6 +233,86 @@ class FluentLineSegment {
   final Color? borderColour;
 }
 
+/// One x range of a colour-fill bar.
+@immutable
+class FluentColorFillBarRange {
+  /// Creates a range.
+  const FluentColorFillBarRange({required this.startX, required this.endX});
+
+  /// Range start on the x axis, `num` or `DateTime`.
+  final Object startX;
+
+  /// Range end on the x axis, `num` or `DateTime`.
+  final Object endX;
+}
+
+/// A shaded band drawn behind the lines.
+///
+/// Ports `ColorFillBarsProps` (`LineChart.types.ts`). Each bar contributes its
+/// own legend entry, which participates in the same single-select highlight
+/// model as the lines.
+@immutable
+class FluentColorFillBar {
+  /// Creates a colour-fill bar.
+  const FluentColorFillBar({
+    required this.legend,
+    required this.color,
+    required this.data,
+    this.applyPattern = false,
+  });
+
+  /// Legend title.
+  final String legend;
+
+  /// Fill colour.
+  final Color color;
+
+  /// One or more x ranges.
+  final List<FluentColorFillBarRange> data;
+
+  /// Whether the fill is a diagonal stripe pattern instead of a flat colour.
+  final bool applyPattern;
+}
+
+/// Paints one 16×16 tile of the colour-fill-bar stripe pattern.
+///
+/// Ports `_getStripePattern` (`LineChart.tsx:1415-1430`): three diagonals at
+/// 45°, drawn in `userSpaceOnUse` units so the pattern does not scale with the
+/// rect it fills. The first and last diagonals overhang the tile so that the
+/// stripes meet across a tile boundary; a caller therefore clips to the rect it
+/// is tiling.
+class FluentChartStripeTilePainter extends CustomPainter {
+  /// Creates a tile painter.
+  FluentChartStripeTilePainter({
+    required this.color,
+    required this.strokeWidth,
+  });
+
+  /// Stripe colour.
+  final Color color;
+
+  /// Stripe width — 1.25 (`LineChart.tsx:1427`).
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+    // `M-4,4 l8,-8 M0,16 l16,-16 M12,20 l8,-8` (`LineChart.tsx:1418`), which is
+    // three `moveTo` plus relative `lineTo` pairs.
+    canvas
+      ..drawLine(const Offset(-4, 4), const Offset(4, -4), paint)
+      ..drawLine(const Offset(0, 16), const Offset(16, 0), paint)
+      ..drawLine(const Offset(12, 20), const Offset(20, 12), paint);
+  }
+
+  @override
+  bool shouldRepaint(FluentChartStripeTilePainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.strokeWidth != strokeWidth;
+}
+
 /// Renders line series into the shared cartesian shell.
 ///
 /// Ports `LineChart.tsx` (1972 lines). Two engines share this class:
@@ -259,6 +342,7 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     this.xMinValue,
     this.xMaxValue,
     this.yMinValue = 0,
+    this.colorFillBars = const <FluentColorFillBar>[],
   });
 
   /// The input series.
@@ -318,6 +402,9 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
   /// User-supplied y floor, used as the colour-fill-bar baseline.
   final double yMinValue;
 
+  /// The shaded bands drawn behind the lines (`props.colorFillBars`).
+  final List<FluentColorFillBar> colorFillBars;
+
   @override
   FluentChartType get chartType => FluentChartType.lineChart;
 
@@ -359,6 +446,97 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
       highlighted(legend) || _noneHighlighted
       ? 1
       : style.pointOpacity!.resolve(<WidgetState>{WidgetState.disabled})!;
+
+  /// Marker stroke width under engine B — a flat 1 (`LineChart.tsx:803`).
+  double get markerStrokeWidthForEngineB =>
+      style.markerStrokeWidthEngineB!.resolve(<WidgetState>{})!;
+
+  /// Marker opacity under engine B — 0.1, unlike engine A's 0.01
+  /// (`LineChart.tsx:804`).
+  ///
+  /// Engine B has no marker opacity of its own: it reuses the line's, which is
+  /// why [FluentLineChartStyle.lineOpacity] and not `pointOpacity` is read
+  /// here.
+  double markerOpacityForEngineB(String legend) =>
+      highlighted(legend) || _noneHighlighted
+      ? 1
+      : style.lineOpacity!.resolve(<WidgetState>{WidgetState.disabled})!;
+
+  /// The engine-B path for [seriesIndex], or null when the series is too short.
+  ///
+  /// `defined` is a live parameter here: `isPlottable` breaks the path into
+  /// sub-paths at every NaN rather than drawing straight through the gap
+  /// (`LineChart.tsx:678`).
+  Path? singlePathFor(int seriesIndex, FluentCartesianChildContext context) {
+    final line = series[seriesIndex];
+    final data = line.data.cast<FluentLineChartDataPoint>();
+    // `:670` — the path branch is gated on data.length > 1.
+    if (data.length <= 1) {
+      return null;
+    }
+    final yScale = line.useSecondaryYScale && context.yScaleSecondary != null
+        ? context.yScaleSecondary!
+        : context.yScalePrimary;
+    final sink = d3.UiPathSink();
+    d3.Line<FluentLineChartDataPoint>(
+      // A non-plottable coordinate is dropped by `defined` before it is ever
+      // drawn, so the NaN these fall back to never reaches the sink.
+      x: (FluentLineChartDataPoint d, _, _) =>
+          context.xScale(d.x) ?? double.nan,
+      y: (FluentLineChartDataPoint d, _, _) => yScale(d.y) ?? double.nan,
+      defined: (FluentLineChartDataPoint d, _, _) =>
+          isPlottable(context.xScale(d.x), yScale(d.y)),
+      curve: getCurveFactory(line.lineOptions?.curve, d3.curveLinear),
+    )(data, sink);
+    return sink.path;
+  }
+
+  /// Resolves the colour-fill bar rects.
+  ///
+  /// Ports `_createColorFillBars` (`LineChart.tsx:1372-1413`).
+  List<({Rect rect, Color colour, double opacity, bool patterned})>
+  colorFillBarRectsFor(
+    FluentCartesianChildContext context,
+    FluentCartesianLayout layout,
+  ) {
+    // FILL_Y_PADDING (`LineChart.tsx:1381`).
+    final pad = style.fillBarYPadding!.resolve(<WidgetState>{})!;
+    final domainTop = context.yScalePrimary.domain.last;
+    final yMax = domainTop is num ? domainTop.toDouble() : 0.0;
+    // `:1404` — the band starts one padding above the top of the y extent.
+    final top = context.yScalePrimary(yMax)! - pad;
+    // `:1406` — and runs down to `props.yMinValue || 0`.
+    final bottom = context.yScalePrimary(yMinValue)!;
+    final out = <({Rect rect, Color colour, double opacity, bool patterned})>[];
+    for (final bar in colorFillBars) {
+      // `:1828-1830` — a patterned bar is opaque, a plain one 0.4; `:1396-1398`
+      // overrides both with 0.1 once another legend is highlighted.
+      final opacity = highlighted(bar.legend) || _noneHighlighted
+          ? (bar.applyPattern
+                ? kFluentLineFillBarPatternedOpacity
+                : style.fillBarOpacity!.resolve(<WidgetState>{
+                    WidgetState.selected,
+                  })!)
+          : style.fillBarOpacity!.resolve(<WidgetState>{WidgetState.disabled})!;
+      for (final range in bar.data) {
+        final x1 = context.xScale(range.startX)!;
+        final x2 = context.xScale(range.endX)!;
+        out.add((
+          // `:1403` — RTL anchors the rect on endX instead.
+          rect: Rect.fromLTWH(
+            layout.isRtl ? x2 : x1,
+            top,
+            (x2 - x1).abs(),
+            bottom - top,
+          ),
+          colour: colors.flattenMark(bar.color),
+          opacity: opacity,
+          patterned: bar.applyPattern,
+        ));
+      }
+    }
+    return out;
+  }
 
   /// Whether point [pointIndex] of [seriesIndex] falls inside a declared gap.
   ///
