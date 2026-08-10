@@ -1,8 +1,11 @@
 import 'dart:math' as math;
 
+import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../internal/focus_ring.dart';
+import '../internal/chart_text_measurer.dart';
 import '../internal/d3/scale.dart';
 import '../model/chart_annotation.dart';
 import 'annotation_layer_style.dart';
@@ -878,4 +881,308 @@ class FluentChartAnnotationConnectorPainter extends CustomPainter {
   @override
   bool shouldRepaint(FluentChartAnnotationConnectorPainter oldDelegate) =>
       !listEquals(oldDelegate.connectors, connectors);
+}
+
+/// Applies a [FluentChartAnnotationLayerStyle] to every layer below it.
+class FluentChartAnnotationLayerTheme extends InheritedTheme {
+  /// Applies [style] to every annotation layer in [child].
+  const FluentChartAnnotationLayerTheme({
+    super.key,
+    required this.style,
+    required super.child,
+  });
+
+  /// The style layered over the theme-derived defaults.
+  final FluentChartAnnotationLayerStyle style;
+
+  /// The nearest annotation layer style, or null.
+  static FluentChartAnnotationLayerStyle? maybeOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<FluentChartAnnotationLayerTheme>()
+          ?.style;
+
+  @override
+  bool updateShouldNotify(FluentChartAnnotationLayerTheme oldWidget) =>
+      style != oldWidget.style;
+
+  @override
+  Widget wrap(BuildContext context, Widget child) =>
+      FluentChartAnnotationLayerTheme(style: style, child: child);
+}
+
+/// Positioned callouts over a chart, each optionally linked to its datum.
+///
+/// Ports `ChartAnnotationLayer` (`ChartAnnotationLayer.tsx:402-800`). Also
+/// `AnnotationOnlyChart`'s entire body (`AnnotationOnlyChart.tsx:196`), which
+/// is why it cannot wait for the cartesian shell.
+///
+/// Upstream hosts each annotation as HTML inside a `<foreignObject>` and
+/// measures it out of band with a hidden `div`
+/// (`ChartAnnotationLayer.tsx:596-632`), waiting a frame for the answer. Flutter
+/// lays text out synchronously, so the boxes are measured through
+/// [FluentChartTextMeasurer] in the same frame and the `180 × 60` first-paint
+/// fallback at `:534-535` never appears.
+class FluentChartAnnotationLayer extends StatelessWidget {
+  /// Creates an annotation layer.
+  const FluentChartAnnotationLayer({
+    super.key,
+    required this.annotations,
+    required this.context,
+    // ChartAnnotationLayer.types.ts:42 — `@default false`.
+    this.hideDefaultStyles = false,
+    this.style,
+  });
+
+  /// The annotations to place.
+  final List<FluentChartAnnotation> annotations;
+
+  /// The geometry to resolve them against.
+  final FluentChartAnnotationContext context;
+
+  /// Whether the border, shadow and default background are dropped.
+  /// `useChartAnnotationLayer.styles.ts:129-131`.
+  final bool hideDefaultStyles;
+
+  /// The highest-precedence style layer.
+  final FluentChartAnnotationLayerStyle? style;
+
+  @override
+  Widget build(BuildContext buildContext) {
+    final theme = FluentTheme.of(buildContext);
+    final resolved = resolveFluentChartAnnotationLayerStyle(
+      theme,
+    ).merge(FluentChartAnnotationLayerTheme.maybeOf(buildContext)).merge(style);
+    const states = <WidgetState>{};
+    final baseTextStyle = resolved.textStyle!.resolve(states)!;
+    // useChartAnnotationLayer.styles.ts:102-105 sets the four sides
+    // individually, so the padding is direction-independent and is resolved
+    // left-to-right like the rest of the chart geometry, which is mirrored
+    // afterwards rather than computed mirrored.
+    final layerPadding = resolved.padding!
+        .resolve(states)!
+        .resolve(TextDirection.ltr);
+    // Built here rather than held by the widget because nothing is cached: the
+    // rich, wrapping spans below are laid out through
+    // [FluentChartTextMeasurer.layoutPainter] and never through the
+    // string-keyed [FluentChartTextMeasurer.measure]. The factory is still the
+    // only place a TextPainter is constructed, so the box is measured with the
+    // configuration every other chart painter draws with.
+    final measurer = FluentChartTextMeasurer();
+
+    final boxes = <Widget>[];
+    final connectors = <FluentChartAnnotationConnectorGeometry>[];
+
+    for (final annotation in annotations) {
+      final position = resolveFluentAnnotationCoordinates(annotation, context);
+      // ChartAnnotationLayer.tsx:474-477.
+      if (position == null) {
+        continue;
+      }
+
+      // ChartAnnotationLayer.tsx:512-517 — the content style, which the
+      // measurement div carries too (`:602`).
+      final spans = parseFluentAnnotationMarkup(
+        annotation.text,
+        baseTextStyle.copyWith(
+          color: annotation.style?.textColor,
+          fontSize: annotation.style?.fontSize,
+          fontWeight: annotation.style?.fontWeight,
+        ),
+      );
+      final boxPadding = annotation.style?.padding ?? layerPadding;
+      final span = TextSpan(children: spans);
+      // ChartAnnotationLayer.tsx:492 — `maxWidth` is a container rule, so the
+      // text wraps at the width left inside the padding.
+      final painter = measurer.layoutPainter('', baseTextStyle)
+        ..text = span
+        // useChartAnnotationLayer.styles.ts:98 — `text-align: center`.
+        ..textAlign = TextAlign.center
+        // The factory is a single-line one; an annotation wraps and honours
+        // `<br />` (`:230-232`).
+        ..maxLines = null
+        ..layout(
+          maxWidth:
+              (annotation.layout?.maxWidth ?? double.infinity) -
+              boxPadding.horizontal,
+        );
+      final measured = Size(
+        painter.width + boxPadding.horizontal,
+        painter.height + boxPadding.vertical,
+      );
+      // Read off the painter rather than restated, so the box is painted at
+      // exactly the size it was measured at. Restating them is how the box ends
+      // up one line-height short of its own text.
+      final textHeightBehavior = painter.textHeightBehavior;
+      final textScaler = painter.textScaler;
+      painter.dispose();
+
+      var box = fluentLayoutAnnotationBox(
+        resolved: position,
+        measured: measured,
+        layout: annotation.layout,
+        context: context,
+      );
+      final connector = annotation.connector;
+      if (connector != null) {
+        box = fluentPushOffAnnotationBox(
+          box,
+          connector,
+          layout: annotation.layout,
+          context: context,
+        );
+        connectors.add(
+          fluentAnnotationConnector(
+            box: box,
+            connector: connector,
+            defaultStrokeColor: resolved.connectorStrokeColor!.resolve(states)!,
+          ),
+        );
+      }
+
+      // ChartAnnotationLayer.tsx:489-503 — a custom background or a custom
+      // opacity switches off the default entirely, and hideDefaultStyles
+      // removes it without substituting anything.
+      //
+      // Upstream tests `annotation.style?.opacity !== undefined`, which a
+      // non-nullable [FluentChartAnnotationStyle.opacity] cannot report. A value
+      // differing from the default is read as the author's, which parts from
+      // upstream only for an author who passes exactly 0.8 and no colour: there
+      // the fill survives here and is dropped upstream.
+      final annotationStyle = annotation.style;
+      final hasExplicitOpacity =
+          annotationStyle != null &&
+          annotationStyle.opacity != kAnnotationBackgroundOpacity;
+      final hasCustomBackground =
+          annotationStyle?.backgroundColor != null || hasExplicitOpacity;
+      final Color? background;
+      if (hasCustomBackground) {
+        background = fluentApplyOpacityToColor(
+          annotationStyle?.backgroundColor,
+          annotationStyle?.opacity ?? kAnnotationBackgroundOpacity,
+          // :497.
+          preserveOriginalOpacity: !hasExplicitOpacity,
+        );
+      } else if (hideDefaultStyles) {
+        // :500-501 — the arm spreads nothing at all.
+        background = null;
+      } else {
+        background = resolved.backgroundColor!.resolve(states);
+      }
+
+      // ChartAnnotationLayer.tsx:504-505, against
+      // useChartAnnotationLayer.styles.ts:127 — the 1px neutralStroke1 border
+      // lives on the `annotation` class, which annotationNoDefaults drops.
+      final borderColour =
+          annotationStyle?.borderColor ??
+          (hideDefaultStyles ? null : resolved.borderColor!.resolve(states));
+
+      Widget content = DecoratedBox(
+        decoration: BoxDecoration(
+          color: background,
+          // useChartAnnotationLayer.styles.ts:105 — borderRadiusMedium, in the
+          // base rule, so annotationNoDefaults keeps it. :507 overrides it with
+          // a single radius in pixels.
+          borderRadius: annotationStyle?.borderRadius == null
+              ? resolved.borderRadius!.resolve(states)
+              : BorderRadius.circular(annotationStyle!.borderRadius!),
+          border: borderColour == null
+              ? null
+              : Border.all(
+                  color: borderColour,
+                  width:
+                      annotationStyle?.borderWidth ??
+                      resolved.borderWidth!.resolve(states)!,
+                ),
+          boxShadow:
+              annotationStyle?.boxShadow ??
+              (hideDefaultStyles ? null : resolved.boxShadow!.resolve(states)),
+        ),
+        child: Padding(
+          padding: boxPadding,
+          // useChartAnnotationLayer.styles.ts:96-97 — `align-items: center` and
+          // `justify-content: center` on the flex container.
+          child: Center(
+            child: Text.rich(
+              span,
+              textAlign: TextAlign.center,
+              textHeightBehavior: textHeightBehavior,
+              textScaler: textScaler,
+            ),
+          ),
+        ),
+      );
+
+      final rotation = annotationStyle?.rotation;
+      if (rotation != null && !rotation.isNaN) {
+        // ChartAnnotationLayer.tsx:520-522 — degrees, about the box centre,
+        // which is Transform.rotate's own default origin.
+        content = Transform.rotate(
+          angle: rotation * math.pi / 180,
+          child: content,
+        );
+      }
+
+      final plainText = fluentAnnotationPlainText(annotation.text);
+      boxes.add(
+        Positioned.fromRect(
+          rect: box.rect,
+          child: Focus(
+            // ChartAnnotationLayer.tsx:660 — tabIndex 0.
+            child: Builder(
+              builder: (context) {
+                final node = Focus.of(context);
+                return Semantics(
+                  container: true,
+                  // The aria-label is on the element the text lives in
+                  // (`:657-664`), where it replaces that text for a screen
+                  // reader rather than prefixing it.
+                  excludeSemantics: true,
+                  // ChartAnnotationLayer.tsx:657-658 — the aria-label falls
+                  // back to the plain-text projection, and to nothing when that
+                  // is empty. `role="note"` and `aria-describedby` (`:657`,
+                  // `:659`) have no Flutter analogue and are not ported.
+                  label:
+                      annotation.semantics?.label ??
+                      (plainText.isEmpty ? null : plainText),
+                  // The tabIndex again: a node a keyboard can reach must say so.
+                  focusable: node.canRequestFocus,
+                  focused: node.hasFocus,
+                  child: FluentFocusRing(
+                    visible: node.hasFocus,
+                    borderRadius: resolved.focusBorderRadius!.resolve(states)!,
+                    child: content,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+    }
+
+    // ChartAnnotationLayer.tsx:716-718.
+    if (boxes.isEmpty && connectors.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Stack(
+      // useChartAnnotationLayer.styles.ts:120 — `overflow: visible`.
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        if (connectors.isNotEmpty)
+          Positioned.fill(
+            // useChartAnnotationLayer.styles.ts:139 — the connector layer is
+            // `pointer-events: none`.
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: FluentChartAnnotationConnectorPainter(
+                  connectors: connectors,
+                ),
+              ),
+            ),
+          ),
+        ...boxes,
+      ],
+    );
+  }
 }

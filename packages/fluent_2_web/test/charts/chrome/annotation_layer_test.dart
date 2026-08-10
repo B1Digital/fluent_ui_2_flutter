@@ -430,6 +430,7 @@ void main() {
   mainCoordinates();
   mainSizing();
   mainConnector();
+  mainLayerWidget();
 }
 
 /// The coordinate-resolution half of the suite (`ChartAnnotationLayer.tsx`
@@ -1429,5 +1430,292 @@ void mainConnector() {
             'chart frame would repaint the whole annotation layer.',
       );
     });
+  });
+}
+
+/// The widget half of the suite (`ChartAnnotationLayer.tsx:402-800`), called
+/// from [main].
+void mainLayerWidget() {
+  final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+  const context = FluentChartAnnotationContext(
+    plotRect: Rect.fromLTWH(0, 0, 300, 200),
+    chartSize: Size(300, 200),
+    isRtl: false,
+  );
+
+  Future<void> pump(
+    WidgetTester tester,
+    List<FluentChartAnnotation> annotations, {
+    bool hideDefaultStyles = false,
+  }) => tester.pumpWidget(
+    FluentApp(
+      theme: theme,
+      home: Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: 300,
+          height: 200,
+          child: FluentChartAnnotationLayer(
+            annotations: annotations,
+            context: context,
+            hideDefaultStyles: hideDefaultStyles,
+          ),
+        ),
+      ),
+    ),
+  );
+
+  testWidgets('an empty list renders nothing', (tester) async {
+    await pump(tester, const <FluentChartAnnotation>[]);
+    expect(
+      find.descendant(
+        of: find.byType(FluentChartAnnotationLayer),
+        matching: find.byType(Stack),
+      ),
+      findsNothing,
+      reason:
+          'ChartAnnotationLayer.tsx:717-719 returns null when there are no '
+          'foreign objects and no connectors.',
+    );
+  });
+
+  testWidgets('an annotation whose coordinates do not resolve is skipped', (
+    tester,
+  ) async {
+    await pump(tester, const <FluentChartAnnotation>[
+      FluentChartAnnotation(
+        text: 'orphan',
+        coordinates: FluentDataCoordinate(x: 1, y: 1),
+      ),
+    ]);
+    expect(
+      find.text('orphan'),
+      findsNothing,
+      reason:
+          'ChartAnnotationLayer.tsx:474-477 returns early with no x or y scale '
+          'in the context.',
+    );
+  });
+
+  testWidgets('the default box carries a border and a shadow', (tester) async {
+    await pump(tester, const <FluentChartAnnotation>[
+      FluentChartAnnotation(
+        text: 'Peak',
+        coordinates: FluentPixelCoordinate(x: 100, y: 100),
+      ),
+    ]);
+    final decoration = tester
+        .widgetList<DecoratedBox>(find.byType(DecoratedBox))
+        .map((d) => d.decoration)
+        .whereType<BoxDecoration>()
+        .firstWhere((d) => d.boxShadow != null);
+    expect(
+      decoration.border,
+      isNotNull,
+      reason:
+          'useChartAnnotationLayer.styles.ts:124-128 — the default annotation '
+          'class adds shadow16 and a 1px neutralStroke1 border to the base.',
+    );
+  });
+
+  testWidgets('hideDefaultStyles drops the border, the shadow and the fill', (
+    tester,
+  ) async {
+    await pump(tester, const <FluentChartAnnotation>[
+      FluentChartAnnotation(
+        text: 'Peak',
+        coordinates: FluentPixelCoordinate(x: 100, y: 100),
+      ),
+    ], hideDefaultStyles: true);
+    final decorations = tester
+        .widgetList<DecoratedBox>(find.byType(DecoratedBox))
+        .map((d) => d.decoration)
+        .whereType<BoxDecoration>()
+        .toList();
+    expect(
+      decorations.any((d) => d.boxShadow != null),
+      isFalse,
+      reason:
+          'useChartAnnotationLayer.styles.ts:129-131 selects annotationNoDefaults, '
+          'the base rule alone, and ChartAnnotationLayer.tsx:500-501 also skips '
+          'the default background. AnnotationOnlyChart.tsx:196 always passes it.',
+    );
+    expect(
+      decorations.any((d) => d.border != null),
+      isFalse,
+      reason:
+          'useChartAnnotationLayer.styles.ts:129-131 — annotationNoDefaults is '
+          'annotationBaseStyles verbatim, with no border rule at all.',
+    );
+    expect(
+      decorations.any((d) => d.color != null),
+      isFalse,
+      reason:
+          'ChartAnnotationLayer.tsx:500-501 — the hideDefaultStyles arm spreads '
+          'nothing, so no backgroundColor reaches the container style.',
+    );
+    expect(
+      decorations.any((d) => d.borderRadius != null),
+      isTrue,
+      reason:
+          'useChartAnnotationLayer.styles.ts:105 puts borderRadiusMedium in the '
+          'base, which annotationNoDefaults keeps.',
+    );
+  });
+
+  testWidgets('markup renders as styled spans', (tester) async {
+    await pump(tester, const <FluentChartAnnotation>[
+      FluentChartAnnotation(
+        text: '<b>Peak</b> Q3',
+        coordinates: FluentPixelCoordinate(x: 100, y: 100),
+      ),
+    ]);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is RichText && w.text.toPlainText() == 'Peak Q3',
+      ),
+      findsOneWidget,
+      reason: 'ChartAnnotationLayer.tsx:664 renders the parsed markup.',
+    );
+  });
+
+  testWidgets('an annotation is focusable and labelled', (tester) async {
+    final handle = tester.ensureSemantics();
+    await pump(tester, const <FluentChartAnnotation>[
+      FluentChartAnnotation(
+        text: 'Peak',
+        coordinates: FluentPixelCoordinate(x: 100, y: 100),
+      ),
+    ]);
+    expect(
+      tester.getSemantics(find.byType(RichText).first).label,
+      'Peak',
+      reason:
+          'ChartAnnotationLayer.tsx:657-660 sets role note, tabIndex 0 and an '
+          'aria-label defaulting to the plain-text projection.',
+    );
+    handle.dispose();
+  });
+
+  testWidgets('a rotation is applied about the box centre', (tester) async {
+    await pump(tester, const <FluentChartAnnotation>[
+      FluentChartAnnotation(
+        text: 'Peak',
+        coordinates: FluentPixelCoordinate(x: 100, y: 100),
+        style: FluentChartAnnotationStyle(rotation: 45),
+      ),
+    ]);
+    expect(
+      find.descendant(
+        of: find.byType(FluentChartAnnotationLayer),
+        matching: find.byType(Transform),
+      ),
+      findsWidgets,
+      reason:
+          'ChartAnnotationLayer.tsx:521-522 — `rotate(Ndeg)` with '
+          '`transform-origin: 50% 50%`.',
+    );
+  });
+
+  testWidgets('a connector is drawn when one is configured', (tester) async {
+    await pump(tester, const <FluentChartAnnotation>[
+      FluentChartAnnotation(
+        text: 'Peak',
+        coordinates: FluentPixelCoordinate(x: 100, y: 100),
+        layout: FluentChartAnnotationLayout(offsetY: -60),
+        connector: FluentChartAnnotationConnector(),
+      ),
+    ]);
+    final painters = tester
+        .widgetList<CustomPaint>(find.byType(CustomPaint))
+        .map((p) => p.painter)
+        .whereType<FluentChartAnnotationConnectorPainter>()
+        .toList();
+    expect(
+      painters,
+      hasLength(1),
+      reason:
+          'ChartAnnotationLayer.tsx:703-713 pushes a connector per annotation.',
+    );
+    // Hand-derived, and independent of how wide the measured box turns out to
+    // be: the anchor is the pixel coordinate (100, 100), offsetY -60 puts the
+    // box's reference point at (100, 40) (:382-383), the default centre/middle
+    // alignment then places the box's top-left at (100 - w/2, 40 - h/2) — which
+    // the 300x200 viewport does not clamp for any box under 200x120 — so
+    // undoing the alignment at :556-559 recovers (100, 40) exactly. The 60px
+    // separation clears the 12 + 0 + 6 push-off minimum at :564-565, so the box
+    // is not moved. The unit vector from box to anchor is (0, 1), so the line
+    // starts startPadding = 12 below the box (:693-696) and ends at the anchor
+    // itself, endPadding being 0 (:698-701).
+    final connector = painters.single.connectors.single;
+    expect(
+      connector.start,
+      const Offset(100, 52),
+      reason:
+          'ChartAnnotationLayer.tsx:693-696 — displayPoint + unit * '
+          'startPadding, with the default 12 from '
+          'useChartAnnotationLayer.styles.ts:29.',
+    );
+    expect(
+      connector.end,
+      const Offset(100, 100),
+      reason:
+          'ChartAnnotationLayer.tsx:698-701 — the anchor itself, endPadding '
+          'being 0 (useChartAnnotationLayer.styles.ts:30).',
+    );
+  });
+
+  testWidgets('a nearer theme style loses to the widget style', (tester) async {
+    const nearer = Color(0xFF102030);
+    const own = Color(0xFF405060);
+    await tester.pumpWidget(
+      FluentApp(
+        theme: theme,
+        home: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 300,
+            height: 200,
+            child: FluentChartAnnotationLayerTheme(
+              style: FluentChartAnnotationLayerStyle.from(
+                backgroundColor: nearer,
+                borderColor: nearer,
+              ),
+              child: FluentChartAnnotationLayer(
+                annotations: const <FluentChartAnnotation>[
+                  FluentChartAnnotation(
+                    text: 'Peak',
+                    coordinates: FluentPixelCoordinate(x: 100, y: 100),
+                  ),
+                ],
+                context: context,
+                style: FluentChartAnnotationLayerStyle.from(
+                  backgroundColor: own,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final decoration = tester
+        .widgetList<DecoratedBox>(find.byType(DecoratedBox))
+        .map((d) => d.decoration)
+        .whereType<BoxDecoration>()
+        .firstWhere((d) => d.boxShadow != null);
+    expect(
+      decoration.color!.toARGB32(),
+      own.toARGB32(),
+      reason:
+          'Precedence is derived defaults, then the nearest theme, then the '
+          "widget's own style.",
+    );
+    expect(
+      (decoration.border! as Border).top.color.toARGB32(),
+      nearer.toARGB32(),
+      reason:
+          'The nearest theme still wins over the derived default for a property '
+          'the widget style leaves unset.',
+    );
   });
 }
