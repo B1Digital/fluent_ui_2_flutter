@@ -375,8 +375,8 @@ class FluentGroupedVerticalBarChartDelegate
   /// `CartesianChart`, and `_adjustProps` sets it to
   /// `getScalePadding(props.xAxisOuterPadding)` — 0 by default (`.tsx:137`).
   /// Handing the raw null instead lets `createStringXAxis` fall back to its own
-  /// `xAxisPadding = 0.1` (`utilities.ts:576`, ported at
-  /// `axis_builders.dart:401`), which makes the band scale disagree with the
+  /// `xAxisPadding = 0.1` (`utilities.ts:574`, spent at `:586` and ported at
+  /// `axis_builders.dart:396-401`), which makes the band scale disagree with the
   /// domain-margin solve about how much room each group has.
   @override
   double? get xAxisOuterPadding => getScalePadding(_xAxisOuterPadding);

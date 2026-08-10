@@ -1462,7 +1462,7 @@ void main() {
     });
 
     // The solve sizes the band range to `reqWidth` at the resolved paddings
-    // (`VerticalBarChart.tsx:1002-1006`); the shell then pads the band scale
+    // (`VerticalBarChart.tsx:1000-1006`); the shell then pads the band scale
     // from the delegate's own hooks. If those two disagree the centring is
     // wrong by construction — the bars no longer fill the range they were
     // centred in — so the hand-off is asserted through a mounted chart rather
@@ -1498,10 +1498,11 @@ void main() {
         scale('a'),
         closeTo(rangeStart, 1e-9),
         reason:
-            'the resolved outer padding is 0 (`VerticalBarChart.tsx:1122`), so '
+            'the resolved outer padding is 0 (`VerticalBarChart.tsx:323`), so '
             'the first band starts exactly where the domain margin put the '
             'range. Handing createStringXAxis a null lets it fall back to its '
-            'own xAxisPadding of 0.1 (utilities.ts:576) and inset the band.',
+            'own xAxisPadding of 0.1 (utilities.ts:574, spent at :586) and inset '
+            'the band.',
       );
       // The band step, which the styled story pins at 58.702703 against a
       // bandwidth of 19.567568 — a ratio of exactly 1 - 2/3.
@@ -1510,7 +1511,7 @@ void main() {
         scale.bandwidth / step,
         closeTo(1 - _defaultInnerPadding, 1e-9),
         reason:
-            'the resolved inner padding is 2/3 (`:1114-1121`), and d3 defines '
+            'the resolved inner padding is 2/3 (`:315-322`), and d3 defines '
             'paddingInner as gap / step, so this ratio IS 1 - innerPadding',
       );
       expect(
@@ -1518,7 +1519,7 @@ void main() {
         closeTo(kDefaultBarWidth, 1e-9),
         reason:
             'the solve sized the range so three 16px bars at 2/3 inner padding '
-            'exactly fill it (:1002-1006), so a band is one bar wide',
+            'exactly fill it (:1000-1006), so a band is one bar wide',
       );
     });
 

@@ -774,7 +774,8 @@ void main() {
             '_xAxisOuterPadding is getScalePadding(props.xAxisOuterPadding), 0 '
             'by default (.tsx:137), and .tsx:1015 hands that to the shell. A '
             'null there lets createStringXAxis fall back to its own '
-            'xAxisPadding of 0.1 (utilities.ts:576) and inset the first group.',
+            'xAxisPadding of 0.1 (utilities.ts:574, spent at :586) and inset the '
+            'first group.',
       );
       expect(
         delegate.barWidthFor(scale),

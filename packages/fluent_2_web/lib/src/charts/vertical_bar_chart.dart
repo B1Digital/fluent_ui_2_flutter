@@ -399,7 +399,7 @@ abstract final class FluentVerticalBarChartGeometry {
           uniqueXCount,
           innerPadding,
         );
-        // VerticalBarChart.tsx:1005-1006.
+        // VerticalBarChart.tsx:1004-1006.
         if (totalWidth >= requiredWidth) {
           domainMargin = kMinDomainMargin + (totalWidth - requiredWidth) / 2;
         }
@@ -614,13 +614,13 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
 
   /// The inner padding the **shell's** band scale is built with.
   ///
-  /// Resolved, not raw. `VerticalBarChart.tsx:1176-1179` spreads
+  /// Resolved, not raw. `VerticalBarChart.tsx:1177-1180` spreads
   /// `_xAxisInnerPadding` and `_xAxisOuterPadding` into `CartesianChart` — and
   /// only for a string axis, hence the guard — so the band scale is padded with
   /// the same numbers `_getDomainMargins` sized the range against. Handing the
   /// raw null instead lets `createStringXAxis` fall back to its own
-  /// `xAxisPadding = 0.1` (`utilities.ts:575-576`, ported at
-  /// `axis_builders.dart:400-401`), and the bars then no longer fill the range
+  /// `xAxisPadding = 0.1` (`utilities.ts:574`, spent at `:585-586` and ported at
+  /// `axis_builders.dart:396-401`), and the bars then no longer fill the range
   /// the domain margin centred them in.
   @override
   double? get xAxisInnerPadding => xAxisType == FluentChartAxisType.category
@@ -653,7 +653,7 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
   FluentChartAxisType get yAxisType => FluentChartAxisType.numeric;
 
   /// Resolved inner padding: 2/3 on a category axis, 1/2 otherwise, 0 in
-  /// histogram mode (`VerticalBarChart.tsx:1114-1121`).
+  /// histogram mode (`VerticalBarChart.tsx:315-322`).
   double get innerPadding => mode == 'histogram'
       ? 0
       : getScalePadding(
@@ -662,7 +662,7 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
           xAxisType == FluentChartAxisType.category ? 2 / 3 : 1 / 2,
         );
 
-  /// Resolved outer padding, default 0 (`:1122`).
+  /// Resolved outer padding, default 0 (`:323`).
   double get outerPadding =>
       getScalePadding(_xAxisOuterPadding, xAxisPadding, 0);
 
