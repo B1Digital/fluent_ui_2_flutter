@@ -213,3 +213,178 @@ FluentXAxisLabelLayout? solveFluentCartesianXAxisLabels({
 
   return layout;
 }
+
+/// Everything the shell knows about where things go, solved once per build.
+///
+/// Held by the cartesian painter and handed to every series delegate, which is
+/// strictly more information than upstream's render prop supplies: React charts
+/// recover the margins through a `getmargins` callback stashed in a closure
+/// (`HorizontalBarChartWithAxis.tsx:121-123`), and passing the layout removes
+/// that mutation channel entirely.
+@immutable
+class FluentCartesianLayout {
+  /// Creates a layout from already-solved numbers. Prefer
+  /// [FluentCartesianLayout.resolve], which derives the ten dependent values
+  /// from the three independent ones.
+  const FluentCartesianLayout({
+    required this.size,
+    required this.margins,
+    required this.plotRect,
+    required this.xAxisReferenceHeight,
+    required this.plotContentHeight,
+    required this.xAxisLabelReserve,
+    required this.isRtl,
+    required this.startFromX,
+    required this.xAxisTitleMaxWidth,
+    required this.yAxisTitleMaxHeight,
+    required this.yAxisTitleCenterX,
+    required this.yAxisTitleCenterY,
+    required this.secondaryYAxisTitleCenterX,
+  });
+
+  /// Derives a layout from the measured [size], the solved [margins] and the
+  /// x label reserve.
+  ///
+  /// Every expression here is transcribed from `CartesianChart.tsx:453-485`.
+  factory FluentCartesianLayout.resolve({
+    required Size size,
+    required FluentChartMargins margins,
+    required double xAxisLabelReserve,
+    required bool isRtl,
+    required double startFromX,
+  }) {
+    final left = margins.left ?? 0;
+    final right = margins.right ?? 0;
+    final top = margins.top ?? 0;
+    final bottom = margins.bottom ?? 0;
+    // `AXIS_TITLE_PADDING` is subtracted at both ends, hence the doubling
+    // (`CartesianChart.tsx:476-477`).
+    final titleMaxWidth = size.width - left - right - kAxisTitlePadding * 2;
+    final titleMaxHeight =
+        size.height - bottom - top - xAxisLabelReserve - kAxisTitlePadding * 2;
+    return FluentCartesianLayout(
+      size: size,
+      margins: margins,
+      plotRect: Rect.fromLTWH(
+        left,
+        top,
+        math.max(0, size.width - left - right),
+        math.max(0, size.height - top - bottom - xAxisLabelReserve),
+      ),
+      // parity: CartesianChart.tsx:209 computes this before the reserve is
+      // known, so the subtraction is always of zero. The FIXME at :203-208
+      // documents that HBWA and Gantt gridlines are therefore a render stale.
+      xAxisReferenceHeight: size.height,
+      plotContentHeight: size.height - xAxisLabelReserve,
+      xAxisLabelReserve: xAxisLabelReserve,
+      isRtl: isRtl,
+      startFromX: startFromX,
+      xAxisTitleMaxWidth: titleMaxWidth,
+      yAxisTitleMaxHeight: titleMaxHeight,
+      yAxisTitleCenterX: isRtl
+          ? size.width - kAxisTitlePadding
+          : kHorizontalMarginForYAxisTitle - kAxisTitlePadding,
+      yAxisTitleCenterY: top + kAxisTitlePadding + titleMaxHeight / 2,
+      secondaryYAxisTitleCenterX: isRtl
+          ? kHorizontalMarginForYAxisTitle - kAxisTitlePadding
+          : size.width - kAxisTitlePadding,
+    );
+  }
+
+  /// The plot box, excluding the legend row.
+  final Size size;
+
+  /// The solved margins, already right-to-left swapped and already carrying the
+  /// caller's override.
+  final FluentChartMargins margins;
+
+  /// The drawable area inside the margins and above the label reserve.
+  final Rect plotRect;
+
+  /// `XAxisParams.containerHeight` — the full height, because the reserve is
+  /// still zero when upstream computes it (`CartesianChart.tsx:209`). This is
+  /// what sizes HorizontalBarChartWithAxis and Gantt vertical gridlines.
+  final double xAxisReferenceHeight;
+
+  /// `YAxisParams.containerHeight` — the height with the real reserve removed
+  /// (`CartesianChart.tsx:298`). Deliberately distinct from
+  /// [xAxisReferenceHeight]; see design spec section 3.3.
+  final double plotContentHeight;
+
+  /// `_removalValueForTextTuncate` — the space the x tick labels take.
+  final double xAxisLabelReserve;
+
+  /// Whether the chart reads right to left.
+  final bool isRtl;
+
+  /// The width of the longest y tick label, or zero when
+  /// [FluentCartesianChartProps.showYAxisLables] is off
+  /// (`CartesianChart.tsx:96-97`).
+  final double startFromX;
+
+  /// Maximum width an x-axis title may occupy (`CartesianChart.tsx:476`).
+  final double xAxisTitleMaxWidth;
+
+  /// Maximum length a rotated y-axis title may occupy
+  /// (`CartesianChart.tsx:477`).
+  final double yAxisTitleMaxHeight;
+
+  /// Horizontal anchor of the primary y-axis title (`CartesianChart.tsx:480`).
+  final double yAxisTitleCenterX;
+
+  /// Vertical anchor shared by all three rotated titles
+  /// (`CartesianChart.tsx:479`).
+  final double yAxisTitleCenterY;
+
+  /// Horizontal anchor of the secondary y-axis title and of the y-axis
+  /// annotation (`CartesianChart.tsx:483`).
+  final double secondaryYAxisTitleCenterX;
+
+  /// Vertical offset of the x-axis group (`CartesianChart.tsx:768`).
+  double get xAxisTranslateY =>
+      size.height - (margins.bottom ?? 0) - xAxisLabelReserve;
+
+  /// Horizontal offset of the primary y-axis group
+  /// (`CartesianChart.tsx:841`).
+  double get yAxisTranslateX =>
+      isRtl ? size.width - (margins.right ?? 0) : margins.left ?? 0;
+
+  /// Horizontal offset of the secondary y-axis group — the exact mirror of
+  /// [yAxisTranslateX] (`CartesianChart.tsx:851`).
+  double get secondaryYAxisTranslateX =>
+      isRtl ? margins.left ?? 0 : size.width - (margins.right ?? 0);
+
+  @override
+  bool operator ==(Object other) =>
+      other is FluentCartesianLayout &&
+      other.size == size &&
+      other.margins == margins &&
+      other.plotRect == plotRect &&
+      other.xAxisReferenceHeight == xAxisReferenceHeight &&
+      other.plotContentHeight == plotContentHeight &&
+      other.xAxisLabelReserve == xAxisLabelReserve &&
+      other.isRtl == isRtl &&
+      other.startFromX == startFromX &&
+      other.xAxisTitleMaxWidth == xAxisTitleMaxWidth &&
+      other.yAxisTitleMaxHeight == yAxisTitleMaxHeight &&
+      other.yAxisTitleCenterX == yAxisTitleCenterX &&
+      other.yAxisTitleCenterY == yAxisTitleCenterY &&
+      other.secondaryYAxisTitleCenterX == secondaryYAxisTitleCenterX;
+
+  @override
+  int get hashCode => Object.hash(
+    size,
+    margins,
+    plotRect,
+    xAxisReferenceHeight,
+    plotContentHeight,
+    xAxisLabelReserve,
+    isRtl,
+    startFromX,
+    xAxisTitleMaxWidth,
+    yAxisTitleMaxHeight,
+    yAxisTitleCenterX,
+    yAxisTitleCenterY,
+    secondaryYAxisTitleCenterX,
+  );
+}
