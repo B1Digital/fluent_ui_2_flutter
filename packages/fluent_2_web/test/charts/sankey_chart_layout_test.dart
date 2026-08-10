@@ -626,4 +626,165 @@ void main() {
       }
     });
   });
+
+  group('node visuals', () {
+    final measurer = FluentChartTextMeasurer();
+    const nameStyle = TextStyle(fontSize: 10);
+    const weightStyle = TextStyle(fontSize: 14);
+
+    test('a name that fits is returned unchanged', () {
+      expect(
+        truncateSankeyText('Hi', 1000, measurer: measurer, style: nameStyle),
+        'Hi',
+        reason: 'SankeyChart.tsx:395-397 returns early when it fits',
+      );
+    });
+
+    test('a name that overflows gains an ellipsis', () {
+      final result = truncateSankeyText(
+        'A very long node name indeed',
+        40,
+        measurer: measurer,
+        style: nameStyle,
+      );
+      expect(
+        result.endsWith(kSankeyEllipsis),
+        isTrue,
+        reason: 'SankeyChart.tsx:411-412 drops the last char and appends "..."',
+      );
+      expect(
+        result.length,
+        lessThan('A very long node name indeed'.length),
+        reason: 'the result is shorter than the input',
+      );
+      expect(
+        measurer.width(result, nameStyle),
+        lessThanOrEqualTo(40),
+        reason: 'the truncated string fits the budget',
+      );
+    });
+
+    test('a tall node budgets 108px and reports no weight offset', () {
+      const data = FluentSankeyChartData(
+        nodes: <FluentSankeyNode>[
+          FluentSankeyNode(nodeId: 0, name: 'Source'),
+          FluentSankeyNode(nodeId: 1, name: 'Target'),
+        ],
+        links: <FluentSankeyLink>[
+          FluentSankeyLink(source: 0, target: 1, value: 500),
+        ],
+      );
+      final layout = computeFluentSankeyLayout(
+        data: data,
+        size: const Size(912, 468),
+        titleHeight: 36,
+        isRtl: false,
+      );
+      final visuals = computeSankeyNodeVisuals(
+        layout: layout,
+        measurer: measurer,
+        nameStyle: nameStyle,
+        weightMeasurementStyle: weightStyle,
+        formatNumber: (v) => v.toStringAsFixed(0),
+        nodeSemanticLabel: (name, weight) => 'node $name with weight $weight',
+      );
+      expect(
+        visuals.first.height,
+        greaterThan(kSankeyMinHeightForDoubleLine),
+        reason: 'a single 500-weight link fills the column',
+      );
+      expect(
+        visuals.first.weightOffset,
+        0,
+        reason:
+            'SankeyChart.tsx:637 only measures the weight when the node is short, '
+            'so a tall node leaves textLengthForNodeWeight at 0',
+      );
+      expect(
+        visuals.first.semanticLabel,
+        'node Source with weight 500',
+        reason: 'SankeyChart.tsx:1055 formats the node aria template',
+      );
+      expect(
+        visuals.first.weightText,
+        '500',
+        reason: 'SankeyChart.tsx:855 formats the actual value',
+      );
+    });
+
+    test('a short node subtracts the measured weight from the name budget', () {
+      const data = FluentSankeyChartData(
+        nodes: <FluentSankeyNode>[
+          FluentSankeyNode(nodeId: 0, name: 'Wide'),
+          FluentSankeyNode(nodeId: 1, name: 'Narrow node name'),
+          FluentSankeyNode(nodeId: 2, name: 'Sink'),
+        ],
+        links: <FluentSankeyLink>[
+          FluentSankeyLink(source: 0, target: 2, value: 10000),
+          FluentSankeyLink(source: 1, target: 2, value: 1),
+        ],
+      );
+      final layout = computeFluentSankeyLayout(
+        data: data,
+        size: const Size(912, 468),
+        titleHeight: 36,
+        isRtl: false,
+      );
+      final visuals = computeSankeyNodeVisuals(
+        layout: layout,
+        measurer: measurer,
+        nameStyle: nameStyle,
+        weightMeasurementStyle: weightStyle,
+        formatNumber: (v) => v.toStringAsFixed(0),
+        nodeSemanticLabel: (name, weight) => 'node $name with weight $weight',
+      );
+      final narrow = visuals[1];
+      expect(
+        narrow.height,
+        lessThan(kSankeyMinHeightForDoubleLine),
+        reason: 'the one-percent node stays short',
+      );
+      expect(
+        narrow.weightOffset,
+        measurer.width('1', weightStyle),
+        reason:
+            'SankeyChart.tsx:641-644 measures the weight with NO font-size '
+            'override, so it inherits body1 at 14px REGULAR even though the '
+            'painted weight is bold — parity, SankeyChart.tsx:849',
+      );
+    });
+
+    test('a zero weight renders the raw zero, not a formatted string', () {
+      const data = FluentSankeyChartData(
+        nodes: <FluentSankeyNode>[
+          FluentSankeyNode(nodeId: 0, name: 'A'),
+          FluentSankeyNode(nodeId: 1, name: 'B'),
+        ],
+        links: <FluentSankeyLink>[
+          FluentSankeyLink(source: 0, target: 1, value: 0),
+        ],
+      );
+      final layout = computeFluentSankeyLayout(
+        data: data,
+        size: const Size(912, 468),
+        titleHeight: 36,
+        isRtl: false,
+      );
+      final visuals = computeSankeyNodeVisuals(
+        layout: layout,
+        measurer: measurer,
+        nameStyle: nameStyle,
+        weightMeasurementStyle: weightStyle,
+        formatNumber: (v) => 'FORMATTED',
+        nodeSemanticLabel: (name, weight) => weight,
+      );
+      expect(
+        visuals.first.weightText,
+        '0',
+        reason:
+            'SankeyChart.tsx:855 — `actualValue ? format(actualValue) : actualValue`, '
+            'and a falsy 0 renders as the raw 0',
+      );
+    });
+  });
 }

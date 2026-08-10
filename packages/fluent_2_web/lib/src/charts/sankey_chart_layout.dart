@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
+import 'internal/chart_text_measurer.dart';
 import 'internal/chart_text_styles.dart';
 import 'internal/d3/array_stats.dart' as d3;
 import 'internal/d3/sankey.dart';
@@ -443,3 +444,130 @@ String formatSankeyTemplate(
   }
   return values[index]?.toString() ?? '';
 });
+
+/// The ellipsis appended to a truncated node name (`SankeyChart.tsx:347`).
+const String kSankeyEllipsis = '...';
+
+/// Truncates [text] so that it fits [budget], appending [kSankeyEllipsis].
+///
+/// Ports `truncateText` (`SankeyChart.tsx:389-419`): characters are appended one at
+/// a time and the loop stops as soon as the accumulated width reaches
+/// `budget - ellipsisWidth`, at which point the last character is dropped and the
+/// ellipsis appended. Linear, like upstream — the TODO at `:403` about a binary
+/// search is not taken, because matching the exact stop index matters more than the
+/// constant factor.
+///
+/// `// ponytail:` upstream's first render finds no `.nodeName` element, so
+/// `getComputedTextLength` returns undefined, `fitsWithinNode` returns false
+/// (`:439-445`) and the truncation loop never breaks — the untruncated name ships on
+/// pass one (`SankeyChart.tsx:395, 404-416`). That is an artefact of injecting a
+/// measurement node into a live DOM; a `TextPainter` measures synchronously and has
+/// no equivalent state, so reproducing it would mean deliberately flashing an
+/// overlong name on first paint. Fixed, not reproduced.
+String truncateSankeyText(
+  String text,
+  double budget, {
+  required FluentChartTextMeasurer measurer,
+  required TextStyle style,
+}) {
+  if (measurer.width(text, style) <= budget) {
+    return text;
+  }
+  final ellipsisWidth = measurer.width(kSankeyEllipsis, style);
+  final buffer = StringBuffer();
+  var line = '';
+  for (var i = 0; i < text.length; i++) {
+    buffer.write(text[i]);
+    line = buffer.toString();
+    if (measurer.width(line, style) >= budget - ellipsisWidth) {
+      // `:411-412` — the character that crossed the budget is dropped again.
+      return line.substring(0, line.length - 1) + kSankeyEllipsis;
+    }
+  }
+  return line;
+}
+
+/// The text a node draws, plus the derived offsets the painter needs.
+@immutable
+class FluentSankeyNodeVisual {
+  /// Creates a node's text visuals.
+  const FluentSankeyNodeVisual({
+    required this.name,
+    required this.trimmed,
+    required this.height,
+    required this.weightOffset,
+    required this.weightText,
+    required this.semanticLabel,
+  });
+
+  /// The possibly truncated node name.
+  final String name;
+
+  /// Whether [name] ends in an ellipsis, which is what gates the hover tooltip
+  /// (`SankeyChart.tsx:650`).
+  final bool trimmed;
+
+  /// Height of the node rectangle, floored at zero (`SankeyChart.tsx:630`).
+  final double height;
+
+  /// Measured width of the weight string, which positions it on a short node
+  /// (`SankeyChart.tsx:658, 844`). Zero on a tall node.
+  final double weightOffset;
+
+  /// The weight as drawn (`SankeyChart.tsx:855`).
+  final String weightText;
+
+  /// Screen-reader label for the node rectangle (`SankeyChart.tsx:1055`).
+  final String semanticLabel;
+}
+
+/// Computes the text visuals for every node.
+///
+/// Ports `_computeNodeAttributes` (`SankeyChart.tsx:619-665`). The name budget is
+/// `NODE_WIDTH - 8` less the padding: 8 on a tall node, and `8 + 6 + weightWidth` on
+/// a short one, where the weight is measured at [weightMeasurementStyle].
+List<FluentSankeyNodeVisual> computeSankeyNodeVisuals({
+  required FluentSankeyLayoutResult layout,
+  required FluentChartTextMeasurer measurer,
+  required TextStyle nameStyle,
+  required TextStyle weightMeasurementStyle,
+  required String Function(double value) formatNumber,
+  required String Function(String name, String weight) nodeSemanticLabel,
+}) {
+  final result = <FluentSankeyNodeVisual>[];
+  for (var i = 0; i < layout.nodes.length; i++) {
+    final node = layout.nodes[i];
+    final height = math.max(node.y1 - node.y0, 0.0);
+    final actualValue = layout.nodeActualValues[i];
+    final formatted = formatNumber(actualValue);
+    // `:631` — 8px of left margin inside the rectangle.
+    var padding = 8.0;
+    var weightOffset = 0.0;
+    if (height < kSankeyMinHeightForDoubleLine) {
+      // `:638` — 6px of breathing room between the name and the weight.
+      padding += 6;
+      weightOffset = measurer.width(formatted, weightMeasurementStyle);
+      padding += weightOffset;
+    }
+    // `:647-649` — 124 - 8 = 116 is the rectangle width the truncation works
+    // against, and `truncateText` subtracts the padding from it (`:391`).
+    final name = truncateSankeyText(
+      layout.data.nodes[i].name,
+      kSankeyNodeWidth - 8 - padding,
+      measurer: measurer,
+      style: nameStyle,
+    );
+    result.add(
+      FluentSankeyNodeVisual(
+        name: name,
+        trimmed: name.endsWith(kSankeyEllipsis),
+        height: height,
+        weightOffset: weightOffset,
+        // `:855` — a falsy 0 bypasses the formatter entirely.
+        weightText: actualValue != 0 ? formatted : '0',
+        semanticLabel: nodeSemanticLabel(layout.data.nodes[i].name, formatted),
+      ),
+    );
+  }
+  return result;
+}
