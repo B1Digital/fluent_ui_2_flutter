@@ -6,6 +6,7 @@ import 'package:fluent_2_web/fluent_2_web.dart';
 // as `polar_chart_scales_test.dart` does for the scales.
 import 'package:fluent_2_web/src/charts/polar_chart.dart';
 import 'package:fluent_2_web/src/charts/polar_chart_scales.dart';
+import 'package:fluent_2_web/src/charts/polar_chart_style.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -519,4 +520,245 @@ void main() {
       );
     });
   });
+
+  group('series paths', () {
+    FluentPolarLayout ringLayout(
+      List<FluentPolarSeries> data, {
+      double hole = 0,
+    }) => FluentPolarLayout.compute(
+      size: const Size(400, 400),
+      data: data,
+      margins: const FluentChartMargins(),
+      hole: hole,
+      direction: FluentPolarDirection.counterclockwise,
+    );
+
+    const square = <FluentPolarDataPoint>[
+      FluentPolarDataPoint(r: 100, theta: 0),
+      FluentPolarDataPoint(r: 100, theta: 90),
+      FluentPolarDataPoint(r: 100, theta: 180),
+      FluentPolarDataPoint(r: 100, theta: 270),
+    ];
+
+    test('an area with no curve set closes both rings', () {
+      final layout = ringLayout(<FluentPolarSeries>[
+        const FluentAreaPolarSeries(legend: 'A', data: square),
+      ], hole: 0.5);
+      final metrics = layout.areaPath(layout.series.first).computeMetrics();
+      expect(
+        metrics.map((m) => m.isClosed).toList(),
+        <bool>[true, true],
+        reason:
+            'PolarChart.tsx:448 falls back to d3CurveLinearClosed, whose lineEnd '
+            'closes on BOTH passes (d3-shape/src/curve/linearClosed.js:14), so '
+            'the outer ring and the reversed inner ring are two closed contours',
+      );
+    });
+
+    test('curve linear joins the two rings into a single contour', () {
+      final layout = ringLayout(<FluentPolarSeries>[
+        const FluentAreaPolarSeries(
+          legend: 'A',
+          data: square,
+          lineOptions: FluentLineOptions(curve: FluentLineCurve.linear),
+        ),
+      ], hole: 0.5);
+      expect(
+        layout.areaPath(layout.series.first).computeMetrics().length,
+        1,
+        reason:
+            'getCurveFactory (utilities.ts:2017) maps the explicit "linear" to '
+            'the OPEN curveLinear, whose lineEnd closes only on the baseline '
+            'pass (d3-shape/src/curve/linear.js:16), so the outer edge runs '
+            'straight into the reversed inner edge as one sub-path — one '
+            'contour where the omitted-curve fallback makes two',
+      );
+    });
+
+    test('a gap breaks the area on the reverse baseline replay too', () {
+      final layout = ringLayout(<FluentPolarSeries>[
+        const FluentAreaPolarSeries(
+          legend: 'A',
+          data: <FluentPolarDataPoint>[
+            FluentPolarDataPoint(r: 100, theta: 0),
+            FluentPolarDataPoint(r: 100, theta: 45),
+            FluentPolarDataPoint(r: double.nan, theta: 90),
+            FluentPolarDataPoint(r: 100, theta: 180),
+            FluentPolarDataPoint(r: 100, theta: 225),
+          ],
+        ),
+      ], hole: 0.5);
+      expect(
+        layout.areaPath(layout.series.first).computeMetrics().length,
+        4,
+        reason:
+            'PolarChart.tsx:450 sets .defined(isPlottable) on the areaRadial, and '
+            'd3-shape/src/area.js:39-47 replays the baseline of each defined run '
+            'in reverse, so two runs times two closed rings is four contours',
+      );
+    });
+
+    test('the area inner edge follows the hole radius, not the data', () {
+      final layout = ringLayout(<FluentPolarSeries>[
+        const FluentAreaPolarSeries(legend: 'A', data: square),
+      ], hole: 0.5);
+      final bounds = layout.areaPath(layout.series.first).getBounds();
+      expect(
+        bounds.width,
+        closeTo(2 * layout.outerRadius, 1e-6),
+        reason:
+            'PolarChart.tsx:445 pins innerRadius to the constant hole radius, so '
+            'the outer ring still reaches the full radius',
+      );
+    });
+
+    test('a non-plottable point splits the line into two sub-paths', () {
+      final layout = ringLayout(<FluentPolarSeries>[
+        const FluentLinePolarSeries(
+          legend: 'L',
+          data: <FluentPolarDataPoint>[
+            FluentPolarDataPoint(r: 100, theta: 0),
+            FluentPolarDataPoint(r: 100, theta: 90),
+            FluentPolarDataPoint(r: double.nan, theta: 180),
+            FluentPolarDataPoint(r: 100, theta: 225),
+            FluentPolarDataPoint(r: 100, theta: 270),
+          ],
+        ),
+      ]);
+      expect(
+        layout.linePath(layout.series.first).computeMetrics().length,
+        2,
+        reason:
+            'PolarChart.tsx:473 sets .defined(isPlottable), which is live and must '
+            'break the path rather than draw through the gap',
+      );
+    });
+
+    test('an empty series yields an empty path rather than throwing', () {
+      final layout = ringLayout(<FluentPolarSeries>[
+        const FluentLinePolarSeries(
+          legend: 'L',
+          data: <FluentPolarDataPoint>[],
+        ),
+      ]);
+      expect(
+        layout.linePath(layout.series.first).computeMetrics().isEmpty,
+        isTrue,
+        reason: 'd3 emits null for an empty dataset; the port emits nothing',
+      );
+    });
+  });
+
+  group('FluentPolarSeriesPainter forced colours', () {
+    // Two differently coloured series, one of each drawn kind, so a flattening
+    // that only fires on one of them still shows up.
+    const data = <FluentPolarSeries>[
+      FluentAreaPolarSeries(
+        legend: 'Area',
+        color: Color(0xFF4F6BED),
+        data: <FluentPolarDataPoint>[
+          FluentPolarDataPoint(r: 100, theta: 0),
+          FluentPolarDataPoint(r: 100, theta: 120),
+          FluentPolarDataPoint(r: 100, theta: 240),
+        ],
+      ),
+      FluentLinePolarSeries(
+        legend: 'Line',
+        color: Color(0xFFE3008C),
+        data: <FluentPolarDataPoint>[
+          FluentPolarDataPoint(r: 50, theta: 0),
+          FluentPolarDataPoint(r: 80, theta: 120),
+        ],
+      ),
+    ];
+
+    _Recording paint(FluentThemeData theme) {
+      final canvas = _Recording();
+      FluentPolarSeriesPainter(
+        layout: FluentPolarLayout.compute(
+          size: const Size(400, 400),
+          data: data,
+          margins: const FluentChartMargins(),
+          hole: 0,
+          direction: FluentPolarDirection.counterclockwise,
+        ),
+        activeLegends: const <String>{},
+        activePointId: '',
+        style: resolveFluentPolarChartStyle(theme),
+        states: const <WidgetState>{},
+        colors: FluentChartColors.of(theme),
+      ).paint(canvas, const Size(400, 400));
+      return canvas;
+    }
+
+    test('the palette survives outside forced colours', () {
+      final recorded = paint(
+        FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+      );
+      expect(
+        recorded.paths.map((c) => c.withValues(alpha: 1).toARGB32()).toList(),
+        <int>[0xFF4F6BED, 0xFF4F6BED, 0xFFE3008C],
+        reason:
+            'PolarChart.tsx:456 and :479 paint the series colour untouched, so '
+            'the area fill, its outline and the line all keep it',
+      );
+      expect(
+        recorded.circles.every(
+          (c) =>
+              c.withValues(alpha: 1).toARGB32() == 0xFF4F6BED ||
+              c.withValues(alpha: 1).toARGB32() == 0xFFE3008C,
+        ),
+        isTrue,
+        reason: 'PolarChart.tsx:563 fills an inactive marker with point.color',
+      );
+    });
+
+    test('every mark flattens under forced colours', () {
+      final theme = FluentThemeData.highContrast(
+        fontPlatform: FluentFontPlatform.web,
+      );
+      final recorded = paint(theme);
+      expect(
+        recorded.paths.map((c) => c.withValues(alpha: 1).toARGB32()).toList(),
+        <int>[
+          theme.colors.neutralForeground1.toARGB32(),
+          theme.colors.neutralBackground1.toARGB32(),
+          theme.colors.neutralForeground1.toARGB32(),
+        ],
+        reason:
+            'Spec 5.3 — the area fill and the standalone line flatten through '
+            'flattenMark, while the area OUTLINE takes flattenMarkStroke so it '
+            'stays visible against its own flattened fill',
+      );
+      expect(
+        recorded.circles.map((c) => c.withValues(alpha: 1).toARGB32()).toSet(),
+        <int>{theme.colors.neutralForeground1.toARGB32()},
+        reason:
+            'Spec 5.3 — every marker fill flattens to the one system colour, '
+            'whatever palette slot its series drew',
+      );
+    });
+  });
+}
+
+/// Records the colour of every mark the polar series painter draws.
+///
+/// [noSuchMethod] absorbs the rest of [Canvas]; the painter calls nothing else
+/// these tests read.
+class _Recording implements Canvas {
+  /// The colour of every `drawPath`, in paint order.
+  final List<Color> paths = <Color>[];
+
+  /// The colour of every `drawCircle`, in paint order.
+  final List<Color> circles = <Color>[];
+
+  @override
+  void drawPath(Path path, Paint paint) => paths.add(paint.color);
+
+  @override
+  void drawCircle(Offset c, double radius, Paint paint) =>
+      circles.add(paint.color);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }

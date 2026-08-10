@@ -1,15 +1,20 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'axis/tick_format.dart';
+import 'internal/chart_colors.dart';
 import 'internal/chart_utils.dart';
 import 'internal/d3/array_stats.dart' as d3;
+import 'internal/d3/curves.dart' as d3;
+import 'internal/d3/path_sink.dart' as d3;
 import 'internal/d3/shape_radial.dart' as d3;
 import 'internal/d3/stable_sort.dart' as d3;
 import 'internal/data_viz_palette.dart';
 import 'model/chart_common.dart';
 import 'model/chart_value.dart';
+import 'model/line_options.dart';
 import 'model/polar_data.dart';
 import 'polar_chart_scales.dart';
 import 'polar_chart_style.dart';
@@ -465,6 +470,58 @@ class FluentPolarLayout {
       ),
   ];
 
+  /// The filled ring of an area series (`PolarChart.tsx:443-450`).
+  ///
+  /// The inner radius is the constant hole radius, not a data value
+  /// (`:445`), and the fallback curve is `curveLinearClosed` (`:448`) — an
+  /// omitted `curve` therefore closes both rings while an explicit `'linear'`
+  /// leaves them open (`utilities.ts:2017`).
+  ///
+  /// `:450` sets `.defined(isPlottable)`, and the reverse-baseline replay
+  /// inside `Area` honours it, so a gap breaks the ring on both edges.
+  Path areaPath(FluentPolarResolvedSeries series) {
+    final options = _lineOptionsOf(series.series);
+    final sink = d3.UiPathSink();
+    d3.AreaRadial<FluentPolarResolvedPoint>(
+      angle: (d, i, data) => angular.radiansOf(d.point.theta),
+      innerRadius: (d, i, data) => innerRadius,
+      outerRadius: (d, i, data) => radial.radiusOf(d.point.r) ?? double.nan,
+      defined: (d, i, data) => isPlottable(
+        angular.radiansOf(d.point.theta),
+        radial.radiusOf(d.point.r),
+      ),
+      curve: getCurveFactory(options?.curve, d3.curveLinearClosed),
+    )(series.points, sink);
+    return sink.path;
+  }
+
+  /// The stroked outline of an area or line series (`PolarChart.tsx:467-473`).
+  ///
+  /// The fallback here is the OPEN `curveLinear` (`:471`), which is why an
+  /// area's outline does not close even though its fill does.
+  Path linePath(FluentPolarResolvedSeries series) {
+    final options = _lineOptionsOf(series.series);
+    final sink = d3.UiPathSink();
+    d3.LineRadial<FluentPolarResolvedPoint>(
+      angle: (d, i, data) => angular.radiansOf(d.point.theta),
+      radius: (d, i, data) => radial.radiusOf(d.point.r) ?? double.nan,
+      defined: (d, i, data) => isPlottable(
+        angular.radiansOf(d.point.theta),
+        radial.radiusOf(d.point.r),
+      ),
+      curve: getCurveFactory(options?.curve),
+    )(series.points, sink);
+    return sink.path;
+  }
+
+  /// The line options of the two series kinds that carry them.
+  static FluentLineOptions? _lineOptionsOf(FluentPolarSeries series) =>
+      switch (series) {
+        FluentAreaPolarSeries(:final lineOptions) => lineOptions,
+        FluentLinePolarSeries(:final lineOptions) => lineOptions,
+        _ => null,
+      };
+
   /// Builds the `categoryToValues` map [sortAxisCategories] consumes.
   ///
   /// Ports `mapCategoryToValues` (`PolarChart.tsx:144-161`): the key is the
@@ -561,4 +618,141 @@ class FluentPolarGridPainter extends CustomPainter {
       oldDelegate.gridWidth != gridWidth ||
       oldDelegate.innerOpacity != innerOpacity ||
       oldDelegate.outerOpacity != outerOpacity;
+}
+
+/// Paints the areas, lines and markers.
+///
+/// Its own painter because this is the only layer that repaints on a hover or a
+/// legend change; the grid and the ticks stay put.
+class FluentPolarSeriesPainter extends CustomPainter {
+  /// Creates a series painter.
+  FluentPolarSeriesPainter({
+    required this.layout,
+    required this.activeLegends,
+    required this.activePointId,
+    required this.style,
+    required this.states,
+    required this.colors,
+  });
+
+  /// The solved layout.
+  final FluentPolarLayout layout;
+
+  /// Legends currently selected or hovered; empty means everything is
+  /// highlighted.
+  final Set<String> activeLegends;
+
+  /// Identity of the marker under the cursor, or the empty string.
+  final String activePointId;
+
+  /// The resolved style.
+  final FluentPolarChartStyle style;
+
+  /// States the style properties resolve against.
+  final Set<WidgetState> states;
+
+  /// The theme's resolved chart colours, which is where the forced-colours
+  /// flattening comes from (spec section 5.3).
+  final FluentChartColors colors;
+
+  /// `legendHighlighted` (`PolarChart.tsx:433-439`) — note that an empty active
+  /// set highlights everything, which is also what keeps the popover open on a
+  /// cold chart.
+  bool _highlighted(String legend) =>
+      activeLegends.isEmpty || activeLegends.contains(legend);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas
+      ..save()
+      ..translate(layout.centre.dx, layout.centre.dy);
+    final dimmed = style.dimmedOpacity!.resolve(states)!;
+    final areaOpacity = style.areaFillOpacity!.resolve(states)!;
+    final defaultStroke = style.lineStrokeWidth!.resolve(states)!;
+
+    for (final series in layout.series) {
+      final highlighted = _highlighted(series.series.legend);
+      final isArea = series.series is FluentAreaPolarSeries;
+      if (isArea) {
+        // `:457` — 0.7 highlighted, 0.1 dimmed.
+        final opacity = highlighted ? areaOpacity : dimmed;
+        final fill = colors.flattenMark(series.color);
+        canvas.drawPath(
+          layout.areaPath(series),
+          Paint()
+            ..style = PaintingStyle.fill
+            ..color = fill.withValues(alpha: fill.a * opacity),
+        );
+      }
+      if (isArea || series.series is FluentLinePolarSeries) {
+        final options = FluentPolarLayout._lineOptionsOf(series.series);
+        // `:480` — the stroke dims to 0.1 as well, but from a full 1.
+        final opacity = highlighted ? 1.0 : dimmed;
+        // An area's outline sits on its own flattened fill, so under forced
+        // colours it takes the canvas colour to stay distinct — the reasoning
+        // `area_chart.dart` records for its top edge. A standalone line has no
+        // fill beneath it and IS the mark, so it flattens like one
+        // (`line_chart.dart:923`).
+        final stroke = isArea
+            ? colors.flattenMarkStroke(series.color)
+            : colors.flattenMark(series.color);
+        canvas.drawPath(
+          layout.linePath(series),
+          Paint()
+            ..style = PaintingStyle.stroke
+            // `:481` — the series width, else the chart-level 3.
+            ..strokeWidth = options?.strokeWidth ?? defaultStroke
+            ..strokeCap = options?.strokeLinecap ?? StrokeCap.butt
+            ..color = stroke.withValues(alpha: stroke.a * opacity),
+        );
+      }
+    }
+
+    // `:563` inverts the active marker to the canvas colour. Deliberately not
+    // flattened: under forced colours `flattenMark` would send it to the same
+    // system foreground as the marker it is meant to invert, which is the
+    // reasoning `line_chart.dart:1015-1019` records (spec section 5.3).
+    final activeFill = style.activeMarkerFill!.resolve(states)!;
+    final activeStroke = style.activeMarkerStrokeWidth!.resolve(states)!;
+    for (final marker in layout.markers) {
+      // `:566` — the whole marker, fill and stroke together, drops to 0.1.
+      final opacity = _highlighted(marker.legend) ? 1.0 : dimmed;
+      final isActive = marker.id == activePointId;
+      final fill = isActive ? activeFill : colors.flattenMark(marker.color);
+      canvas.drawCircle(
+        marker.position,
+        marker.radius,
+        Paint()
+          ..style = PaintingStyle.fill
+          ..color = fill.withValues(alpha: fill.a * opacity),
+      );
+      if (isActive) {
+        // `:564-565` — a 2px ring in the point colour replaces the fill.
+        final ring = colors.flattenMarkStroke(marker.color);
+        canvas.drawCircle(
+          marker.position,
+          marker.radius,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = activeStroke
+            ..color = ring.withValues(alpha: ring.a * opacity),
+        );
+      }
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(FluentPolarSeriesPainter oldDelegate) =>
+      oldDelegate.layout != layout ||
+      oldDelegate.activePointId != activePointId ||
+      oldDelegate.style != style ||
+      // `FluentChartColors` carries no `==`, so compare the three slots the
+      // flattening actually reads; comparing the identity would repaint on
+      // every rebuild and defeat this layer's repaint boundary.
+      oldDelegate.colors.isHighContrast != colors.isHighContrast ||
+      oldDelegate.colors.axisText != colors.axisText ||
+      oldDelegate.colors.surface != colors.surface ||
+      !setEquals(oldDelegate.states, states) ||
+      !setEquals(oldDelegate.activeLegends, activeLegends);
 }
