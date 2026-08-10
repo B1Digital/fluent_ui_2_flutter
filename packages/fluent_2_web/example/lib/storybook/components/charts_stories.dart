@@ -5,13 +5,6 @@
 // seven lines for the barrel once the exports land.
 // ignore_for_file: implementation_imports
 import 'package:fluent_2_web/fluent_2_web.dart';
-import 'package:fluent_2_web/src/charts/annotation_only_chart.dart';
-import 'package:fluent_2_web/src/charts/chart_table.dart';
-import 'package:fluent_2_web/src/charts/donut_chart.dart';
-import 'package:fluent_2_web/src/charts/funnel_chart.dart';
-import 'package:fluent_2_web/src/charts/gauge_chart.dart';
-import 'package:fluent_2_web/src/charts/horizontal_bar_chart.dart';
-import 'package:fluent_2_web/src/charts/sparkline.dart';
 import 'package:flutter/widgets.dart';
 import 'package:storybook_flutter/storybook_flutter.dart';
 

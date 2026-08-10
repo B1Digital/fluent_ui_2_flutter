@@ -1,5 +1,4 @@
 import 'package:fluent_2_web/fluent_2_web.dart';
-import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart_props.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The shell's config bag. Two of its members are *resolvers*, not fields,

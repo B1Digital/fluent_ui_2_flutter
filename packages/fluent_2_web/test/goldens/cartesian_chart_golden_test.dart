@@ -3,8 +3,6 @@ import 'package:fluent_2_web/fluent_2_web.dart';
 // `lib/fluent_2_web.dart` yet — that file is owned by the integration tasks —
 // so this test deep-imports the shell exactly as
 // `test/charts/cartesian/support/stub_cartesian_delegate.dart` already does.
-import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart.dart';
-import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart_props.dart';
 import 'package:flutter/widgets.dart';
 
 import '../charts/cartesian/support/stub_cartesian_delegate.dart';

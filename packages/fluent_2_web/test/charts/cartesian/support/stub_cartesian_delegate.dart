@@ -1,6 +1,4 @@
 import 'package:fluent_2_web/fluent_2_web.dart';
-import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
-import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/axis_geometry.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/scale_linear.dart' as d3;
 import 'package:flutter/widgets.dart';

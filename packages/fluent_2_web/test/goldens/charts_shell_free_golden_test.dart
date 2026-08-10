@@ -2,13 +2,6 @@ import 'package:fluent_2_web/fluent_2_web.dart';
 // The seven shell-free chart widgets are not in `lib/fluent_2_web.dart` yet —
 // that file is owned by the integration tasks — so this test deep-imports them,
 // exactly as `cartesian_chart_golden_test.dart` already does for the shell.
-import 'package:fluent_2_web/src/charts/annotation_only_chart.dart';
-import 'package:fluent_2_web/src/charts/chart_table.dart';
-import 'package:fluent_2_web/src/charts/donut_chart.dart';
-import 'package:fluent_2_web/src/charts/funnel_chart.dart';
-import 'package:fluent_2_web/src/charts/gauge_chart.dart';
-import 'package:fluent_2_web/src/charts/horizontal_bar_chart.dart';
-import 'package:fluent_2_web/src/charts/sparkline.dart';
 import 'package:flutter/widgets.dart';
 
 import '../support/golden.dart';

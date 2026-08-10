@@ -1,8 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:fluent_2_web/fluent_2_web.dart';
-import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart_props.dart';
-import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/axis_geometry.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/scale_band.dart' as d3;
 import 'package:flutter/widgets.dart';

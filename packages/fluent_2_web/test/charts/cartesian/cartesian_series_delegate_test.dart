@@ -1,8 +1,6 @@
 import 'dart:ui' show PictureRecorder;
 
 import 'package:fluent_2_web/fluent_2_web.dart';
-import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
-import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 

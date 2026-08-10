@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:fluent_2_web/fluent_2_web.dart';
-import 'package:fluent_2_web/src/charts/gauge_chart.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/path_sink.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/shape_arc.dart' as d3;
 import 'package:flutter/widgets.dart';
