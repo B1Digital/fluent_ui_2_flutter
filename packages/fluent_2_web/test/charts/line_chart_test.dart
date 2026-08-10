@@ -1,8 +1,20 @@
 import 'dart:ui';
 
-// The barrel is owned by the integration task, so this file is imported
+import 'package:fluent_2_core/fluent_2_core.dart';
+// The barrel is owned by the integration task, so these files are imported
 // directly until `line_chart.dart` is exported from it.
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
+import 'package:fluent_2_web/src/charts/internal/chart_colors.dart';
+import 'package:fluent_2_web/src/charts/internal/chart_text_measurer.dart';
+import 'package:fluent_2_web/src/charts/internal/chart_text_styles.dart';
+import 'package:fluent_2_web/src/charts/internal/d3/scale_linear.dart' as d3;
+import 'package:fluent_2_web/src/charts/internal/data_viz_palette.dart';
 import 'package:fluent_2_web/src/charts/line_chart.dart';
+import 'package:fluent_2_web/src/charts/line_chart_style.dart';
+import 'package:fluent_2_web/src/charts/model/cartesian_series.dart';
+import 'package:fluent_2_web/src/charts/model/chart_common.dart';
+import 'package:fluent_2_web/src/charts/model/line_options.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/oracle_fixture.dart';
@@ -243,4 +255,547 @@ void main() {
       );
     });
   });
+
+  group('LineChart engine A', () {
+    test(
+      'engine A is chosen when there is no curve and no large-data flag',
+      () {
+        expect(
+          _lineDelegate().usesSinglePathEngine,
+          isFalse,
+          reason:
+              'LineChart.tsx:671 switches only on optimizeLargeData || curve',
+        );
+        expect(
+          _lineDelegate(curve: FluentLineCurve.natural).usesSinglePathEngine,
+          isTrue,
+          reason: 'a set curve forces the single-path engine',
+        );
+      },
+    );
+
+    test('n points yield n-1 segments', () {
+      expect(
+        _lineDelegate(
+          ys: const <double>[1, 2, 3, 4],
+        ).segmentsFor(_ctx()).length,
+        3,
+        reason: 'LineChart.tsx:836 iterates j from 1 to n-1',
+      );
+    });
+
+    test('a gap removes exactly the segments inside it', () {
+      final d = _lineDelegate(
+        ys: const <double>[1, 2, 3, 4, 5],
+        gaps: const <FluentLineChartGap>[
+          FluentLineChartGap(startIndex: 1, endIndex: 3),
+        ],
+      );
+      expect(
+        d.segmentsFor(_ctx()).map((segment) => segment.pointIndex).toList(),
+        <int>[1, 4],
+        reason:
+            'a point is in a gap when index > startIndex && index <= '
+            'endIndex, LineChart.tsx:1432-1444',
+      );
+    });
+
+    test('gaps are honoured whatever order they arrive in', () {
+      final d = _lineDelegate(
+        ys: const <double>[1, 2, 3, 4, 5],
+        gaps: const <FluentLineChartGap>[
+          FluentLineChartGap(startIndex: 3, endIndex: 4),
+          FluentLineChartGap(startIndex: 0, endIndex: 1),
+        ],
+      );
+      expect(
+        d.isInGap(0, 1),
+        isTrue,
+        reason:
+            'LineChart.tsx:667 sorts gaps ascending by startIndex before '
+            '_checkInGap walks them with a monotonic cursor',
+      );
+      expect(
+        d.isInGap(0, 4),
+        isTrue,
+        reason:
+            'the second gap must be found too: the port scans the whole '
+            'sorted list, so no cursor can run past it',
+      );
+    });
+
+    test('a non-plottable endpoint drops the whole segment', () {
+      expect(
+        _lineDelegate(
+          ys: const <double>[1, double.nan, 3],
+        ).segmentsFor(_ctx()).length,
+        0,
+        reason: 'both endpoints must be plottable, LineChart.tsx:1210-1214',
+      );
+    });
+
+    test('a dimmed segment carries opacity 0.1 and a dimmed marker 0.01', () {
+      final d = _lineDelegate(
+        legends: const <String>['a', 'b'],
+        selectedLegend: 'a',
+      );
+      expect(
+        d.segmentsFor(_ctx()).first.opacity,
+        0.1,
+        reason:
+            'LineChart.tsx:1293-1307 dims a non-selected line to 0.1. The '
+            'FIRST segment belongs to the LAST series, because :535 walks the '
+            'series backwards so series 0 paints on top',
+      );
+      expect(
+        d.segmentsFor(_ctx()).last.opacity,
+        1,
+        reason: 'the selected legend keeps opacity 1, LineChart.tsx:1293',
+      );
+      expect(
+        d.markerOpacityFor('b'),
+        0.01,
+        reason: 'parity: LineChart.tsx:915 dims a marker to 0.01, not 0.1',
+      );
+    });
+
+    test('mode "markers" suppresses the segments but keeps the markers', () {
+      final d = _lineDelegate(
+        mode: const FluentLineMode(lines: false, markers: true),
+      );
+      expect(
+        d.segmentsFor(_ctx()),
+        isEmpty,
+        reason:
+            'LineChart.tsx:1213 requires mode.includes("lines") once any '
+            'series is in markers mode',
+      );
+      expect(
+        d.markerOpacityFor('a'),
+        1,
+        reason: 'nothing is highlighted, so the marker stays fully opaque',
+      );
+    });
+
+    test('a series with a line border widens the stroke by the border', () {
+      final d = _lineDelegate(lineBorderWidth: 2);
+      final s = d.segmentsFor(_ctx()).first;
+      expect(
+        s.borderWidth,
+        s.strokeWidth + 2,
+        reason: 'LineChart.tsx:1224 sets strokeWidth + lineBorderWidth',
+      );
+      expect(
+        _lineDelegate().segmentsFor(_ctx()).first.borderWidth,
+        isNull,
+        reason: 'LineChart.tsx:1222 draws no border at all when it is zero',
+      );
+    });
+
+    test('a one-number strokeDasharray means on and off by that number', () {
+      expect(
+        _lineDelegate(
+          strokeDasharray: '2',
+        ).segmentsFor(_ctx()).first.dashPattern,
+        <double>[2, 2],
+        reason:
+            'SVG treats an odd dash list as repeated, which Flutter must '
+            'spell out; the gaps story carries strokeDasharray="2"',
+      );
+      expect(
+        _lineDelegate(
+          strokeDasharray: '5, 5',
+        ).segmentsFor(_ctx()).first.dashPattern,
+        <double>[5, 5],
+        reason: 'comma and whitespace are both SVG separators',
+      );
+    });
+
+    test('high contrast flattens the fill and the border differently', () {
+      final theme = FluentThemeData.highContrast(
+        fontPlatform: FluentFontPlatform.web,
+      );
+      final colours = FluentChartColors.of(theme);
+      final s = _lineDelegate(
+        lineBorderWidth: 2,
+        withTheme: theme,
+      ).segmentsFor(_ctx()).first;
+      expect(
+        s.colour,
+        colours.flattenMark(FluentDataVizPalette.next(0)),
+        reason: 'spec §5.3: a series mark flattens to the system colour',
+      );
+      expect(
+        s.borderColour,
+        colours.flattenMarkStroke(theme.colors.neutralBackground1),
+        reason:
+            'the halo stroked behind the line flattens to the CANVAS colour, '
+            'not to CanvasText, or the line and its halo merge',
+      );
+      expect(
+        s.colour,
+        isNot(s.borderColour),
+        reason: 'flattening both the same way would erase the halo',
+      );
+    });
+
+    test('paintSeries strokes every border before any line', () {
+      final recorder = _LineRecorder();
+      _lineDelegate(lineBorderWidth: 4).paintSeries(
+        recorder,
+        _ctx(),
+        _layout(),
+        FluentChartColors.of(_theme()),
+      );
+      expect(
+        recorder.strokeWidths,
+        <double>[8, 8, 4, 4],
+        reason:
+            'LineChart.tsx:1363-1364 renders bordersForLine before '
+            'linesForLine, so the halo never covers a neighbouring segment',
+      );
+    });
+
+    test('paintSeries walks a dashed line by hand', () {
+      final recorder = _LineRecorder();
+      _lineDelegate(strokeDasharray: '2').paintSeries(
+        recorder,
+        _ctx(),
+        _layout(),
+        FluentChartColors.of(_theme()),
+      );
+      expect(
+        recorder.drawn.length,
+        greaterThan(2),
+        reason:
+            'Canvas has no stroke-dasharray, so the two segments must be cut '
+            'into more than one draw each',
+      );
+      expect(
+        (recorder.drawn.first.$2 - recorder.drawn.first.$1).distance,
+        closeTo(2, 1e-9),
+        reason: 'the first dash is as long as the pattern says',
+      );
+    });
+  });
+
+  group('LineChart engine A against Oracle B', () {
+    test('line-chart-basic reproduces every captured segment chain', () {
+      final story = loadOracleStory('charts-linechart--line-chart-basic');
+      final groups = _plotLineGroups(story);
+      expect(
+        groups.length,
+        greaterThanOrEqualTo(2),
+        reason:
+            'the basic story draws two lines; with no group the loop below '
+            'asserts nothing',
+      );
+      for (final group in groups) {
+        final d = _delegateFromCapturedChain(group);
+        final segments = d.segmentsFor(_identityCtx());
+        expect(
+          segments.length,
+          group.lines.length,
+          reason:
+              'engine A emits one <line> per adjacent pair, and the capture '
+              'holds ${group.lines.length} of them',
+        );
+        for (var i = 0; i < group.lines.length; i++) {
+          final line = group.lines[i];
+          expectOracleOffset(
+            'basic segment $i start',
+            Offset(line.x1!, line.y1!),
+            segments[i].start,
+          );
+          expectOracleOffset(
+            'basic segment $i end',
+            Offset(line.x2!, line.y2!),
+            segments[i].end,
+          );
+          expectOracleNumber(
+            'basic segment $i stroke width',
+            line.strokeWidth,
+            segments[i].strokeWidth,
+          );
+          expectOracleNumber(
+            'basic segment $i border width',
+            group.borders[i].strokeWidth,
+            segments[i].borderWidth!,
+          );
+          expectOracleColour(
+            'basic segment $i border colour',
+            group.borders[i].stroke,
+            segments[i].borderColour,
+          );
+        }
+      }
+    });
+
+    test('line-chart-gaps drops exactly the segments the browser dropped', () {
+      final story = loadOracleStory('charts-linechart--line-chart-gaps');
+      final groups = _plotLineGroups(story);
+      // The story draws the gapped series and a second, dashed series that
+      // fills the gaps, so the union of the two tiles the x range. The pair is
+      // found by that property — a dashed group whose first segment starts
+      // exactly where one other group's segment ends — because the story also
+      // carries an unrelated dashed reference line.
+      _CapturedSeries? filler;
+      _CapturedSeries? gapped;
+      for (final candidate in groups) {
+        if (candidate.lines.first.strokeDasharray == 'none') {
+          continue;
+        }
+        final start = Offset(
+          candidate.lines.first.x1!,
+          candidate.lines.first.y1!,
+        );
+        final partners = groups
+            .where(
+              (group) =>
+                  group != candidate &&
+                  group.lines.any(
+                    (line) =>
+                        (Offset(line.x2!, line.y2!) - start).distance <
+                        kOracleGeometryTolerance,
+                  ),
+            )
+            .toList();
+        if (partners.length == 1) {
+          filler = candidate;
+          gapped = partners.single;
+          break;
+        }
+      }
+      expect(
+        filler,
+        isNotNull,
+        reason:
+            'the gaps story must contain a dashed gap-filler abutting one '
+            'other series, or there is no gap to assert against',
+      );
+      final fillerLines = filler!.lines;
+      final gappedLines = gapped!.lines;
+      final union = <OracleElement>[...gappedLines, ...fillerLines]
+        ..sort((a, b) => a.x1!.compareTo(b.x1!));
+      expect(
+        union.length,
+        gappedLines.length + fillerLines.length,
+        reason: 'the union must keep every captured segment',
+      );
+      expect(
+        fillerLines.length,
+        greaterThanOrEqualTo(1),
+        reason: 'without a filler segment the gap assertion is vacuous',
+      );
+
+      final points = <Offset>[
+        Offset(union.first.x1!, union.first.y1!),
+        for (final line in union) Offset(line.x2!, line.y2!),
+      ];
+      final gaps = <FluentLineChartGap>[
+        for (var j = 1; j <= union.length; j++)
+          if (fillerLines.contains(union[j - 1]))
+            FluentLineChartGap(startIndex: j - 1, endIndex: j),
+      ];
+      final segments = _delegateFromPoints(
+        points,
+        gaps: gaps,
+      ).segmentsFor(_identityCtx());
+      expect(
+        segments.length,
+        gappedLines.length,
+        reason:
+            'LineChart.tsx:1432-1444 must drop the ${gaps.length} gap '
+            'segments and keep the rest',
+      );
+      for (var i = 0; i < gappedLines.length; i++) {
+        final line = gappedLines[i];
+        expectOracleOffset(
+          'gapped segment $i start',
+          Offset(line.x1!, line.y1!),
+          segments[i].start,
+        );
+        expectOracleOffset(
+          'gapped segment $i end',
+          Offset(line.x2!, line.y2!),
+          segments[i].end,
+        );
+      }
+    });
+  });
+}
+
+FluentThemeData _theme() =>
+    FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+
+/// A linear x and a linear y over `0..10`, mapped to `0..100`.
+FluentCartesianChildContext _ctx() => FluentCartesianChildContext(
+  xScale: d3.scaleLinear()
+    ..domainOf(<double>[0, 10])
+    ..rangeOf(<double>[0, 100]),
+  yScalePrimary: d3.scaleLinear()
+    ..domainOf(<double>[0, 10])
+    ..rangeOf(<double>[100, 0]),
+  containerWidth: 100,
+  containerHeight: 100,
+);
+
+/// Both scales the identity, so a data value in pixels comes back unchanged.
+///
+/// That is what lets a captured segment endpoint be fed back in as data: the
+/// scales are Oracle A's business, and this test is about the segment loop.
+FluentCartesianChildContext _identityCtx() => FluentCartesianChildContext(
+  xScale: d3.scaleLinear()
+    ..domainOf(<double>[0, 1000])
+    ..rangeOf(<double>[0, 1000]),
+  yScalePrimary: d3.scaleLinear()
+    ..domainOf(<double>[0, 1000])
+    ..rangeOf(<double>[0, 1000]),
+  containerWidth: 1000,
+  containerHeight: 1000,
+);
+
+FluentCartesianLayout _layout() => FluentCartesianLayout.resolve(
+  size: const Size(100, 100),
+  margins: const FluentChartMargins(left: 0, right: 0, top: 0, bottom: 0),
+  xAxisLabelReserve: 0,
+  isRtl: false,
+  startFromX: 0,
+);
+
+FluentLineChartDelegate _lineDelegate({
+  List<double> ys = const <double>[1, 2, 3],
+  List<FluentLineChartGap>? gaps,
+  FluentLineCurve? curve,
+  List<String> legends = const <String>['a'],
+  String selectedLegend = '',
+  FluentLineMode? mode,
+  double? lineBorderWidth,
+  String? strokeDasharray,
+  FluentThemeData? withTheme,
+}) => _delegate(
+  <FluentLineChartSeries>[
+    for (final legend in legends)
+      FluentLineChartSeries(
+        legend: legend,
+        gaps: gaps,
+        lineOptions: FluentLineOptions(
+          curve: curve,
+          mode: mode,
+          lineBorderWidth: lineBorderWidth,
+          strokeDasharray: strokeDasharray,
+        ),
+        data: <FluentLineChartDataPoint>[
+          for (var i = 0; i < ys.length; i++)
+            FluentLineChartDataPoint(x: i, y: ys[i]),
+        ],
+      ),
+  ],
+  theme: withTheme ?? _theme(),
+  selectedLegend: selectedLegend,
+);
+
+FluentLineChartDelegate _delegateFromPoints(
+  List<Offset> points, {
+  List<FluentLineChartGap>? gaps,
+  double? strokeWidth,
+  double? lineBorderWidth,
+}) => _delegate(
+  <FluentLineChartSeries>[
+    FluentLineChartSeries(
+      legend: 'captured',
+      gaps: gaps,
+      lineOptions: FluentLineOptions(
+        strokeWidth: strokeWidth,
+        lineBorderWidth: lineBorderWidth,
+      ),
+      data: <FluentLineChartDataPoint>[
+        for (final point in points)
+          FluentLineChartDataPoint(x: point.dx, y: point.dy),
+      ],
+    ),
+  ],
+  theme: _theme(),
+  selectedLegend: '',
+);
+
+FluentLineChartDelegate _delegate(
+  List<FluentLineChartSeries> series, {
+  required FluentThemeData theme,
+  required String selectedLegend,
+}) => FluentLineChartDelegate(
+  series: series,
+  style: resolveFluentLineChartStyle(theme),
+  colors: FluentChartColors.of(theme),
+  measurer: FluentChartTextMeasurer(),
+  textStyles: FluentChartTextStyles.of(theme),
+  selectedLegend: selectedLegend,
+);
+
+/// The captured `<line>` elements of one series group: the halo strokes first,
+/// then the line strokes (`LineChart.tsx:1363-1364`).
+class _CapturedSeries {
+  const _CapturedSeries(this.borders, this.lines);
+
+  final List<OracleElement> borders;
+  final List<OracleElement> lines;
+}
+
+/// Groups a story's plot `<line>` elements by their parent `<g>`.
+///
+/// Axis ticks, grid lines and the hidden hover rule are all stroked at 1, which
+/// is what separates them from a series stroked at its 4px default.
+List<_CapturedSeries> _plotLineGroups(OracleStory story) {
+  final byParent = <int, List<OracleElement>>{};
+  for (final element in story.byTag('line')) {
+    if (element.x1 == null || element.strokeWidth <= 1) {
+      continue;
+    }
+    (byParent[element.parent] ??= <OracleElement>[]).add(element);
+  }
+  final out = <_CapturedSeries>[];
+  for (final group in byParent.values) {
+    final widest = group
+        .map((element) => element.strokeWidth)
+        .reduce((a, b) => a > b ? a : b);
+    final borders = group
+        .where((element) => element.strokeWidth == widest)
+        .toList();
+    final lines = group
+        .where((element) => element.strokeWidth < widest)
+        .toList();
+    if (lines.isNotEmpty) {
+      out.add(_CapturedSeries(borders, lines));
+    }
+  }
+  return out;
+}
+
+FluentLineChartDelegate _delegateFromCapturedChain(_CapturedSeries group) =>
+    _delegateFromPoints(
+      <Offset>[
+        Offset(group.lines.first.x1!, group.lines.first.y1!),
+        for (final line in group.lines) Offset(line.x2!, line.y2!),
+      ],
+      strokeWidth: group.lines.first.strokeWidth,
+      lineBorderWidth:
+          group.borders.first.strokeWidth - group.lines.first.strokeWidth,
+    );
+
+/// Records the stroke widths [Canvas.drawLine] was called with, in order.
+///
+/// `implements Canvas` plus `noSuchMethod`, the trick `slider_test.dart` uses:
+/// the point is the paint order, not the pixels.
+class _LineRecorder implements Canvas {
+  final List<double> strokeWidths = <double>[];
+  final List<(Offset, Offset)> drawn = <(Offset, Offset)>[];
+
+  @override
+  void drawLine(Offset p1, Offset p2, Paint paint) {
+    strokeWidths.add(paint.strokeWidth);
+    drawn.add((p1, p2));
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }
