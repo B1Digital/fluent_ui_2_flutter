@@ -1,7 +1,16 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:fluent_2_web/src/charts/axis/axis_types.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
 import 'package:fluent_2_web/src/charts/horizontal_bar_chart_with_axis.dart';
 import 'package:fluent_2_web/src/charts/horizontal_bar_chart_with_axis_style.dart';
+import 'package:fluent_2_web/src/charts/internal/chart_colors.dart';
+import 'package:fluent_2_web/src/charts/internal/chart_text_measurer.dart';
+import 'package:fluent_2_web/src/charts/internal/chart_text_styles.dart';
+import 'package:fluent_2_web/src/charts/internal/d3/scale.dart';
+import 'package:fluent_2_web/src/charts/internal/d3/scale_band.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/scale_linear.dart';
+import 'package:fluent_2_web/src/charts/internal/data_viz_palette.dart';
 import 'package:fluent_2_web/src/charts/model/bar_data.dart';
 import 'package:fluent_2_web/src/charts/model/chart_common.dart';
 import 'package:flutter/widgets.dart';
@@ -16,11 +25,128 @@ ScaleLinear _linearScale({
   ..domainOf(domain)
   ..rangeOf(range);
 
+/// A delegate over one point per entry of [yValues].
+///
+/// [xValues] defaults to a flat 10 per point, which is enough for every test
+/// that only asks about the y solve.
+FluentHorizontalBarChartWithAxisDelegate _hbwaDelegate({
+  required List<Object> yValues,
+  double yAxisPadding = 0.5,
+  List<double>? xValues,
+  FluentAxisCategoryOrder yAxisCategoryOrder =
+      FluentAxisCategoryOrder.defaultOrder,
+}) {
+  final theme = FluentThemeData.light();
+  return FluentHorizontalBarChartWithAxisDelegate(
+    points: <FluentHorizontalBarChartWithAxisDataPoint>[
+      for (final (i, y) in yValues.indexed)
+        FluentHorizontalBarChartWithAxisDataPoint(
+          // 10 is an arbitrary non-zero bar length; no y assertion reads it.
+          x: xValues == null ? 10 : xValues[i],
+          y: y,
+        ),
+    ],
+    style: resolveFluentHorizontalBarChartWithAxisStyle(theme),
+    colors: FluentChartColors.of(theme),
+    measurer: FluentChartTextMeasurer(),
+    textStyles: FluentChartTextStyles.of(theme),
+    selectedLegends: const <String>[],
+    yAxisPadding: yAxisPadding,
+    yAxisCategoryOrder: yAxisCategoryOrder,
+  );
+}
+
+/// The layout the shell would hand [FluentHorizontalBarChartWithAxisDelegate]
+/// once the margins are solved.
+FluentCartesianLayout _layout({
+  required double height,
+  double width = 800,
+  FluentChartMargins margins = const FluentChartMargins(
+    left: 40,
+    right: 20,
+    top: 28,
+    bottom: 43,
+  ),
+}) => FluentCartesianLayout.resolve(
+  size: Size(width, height),
+  margins: margins,
+  xAxisLabelReserve: 0,
+  isRtl: false,
+  startFromX: 0,
+);
+
+/// The child context the shell builds for [delegate]: the y scale is the one
+/// [FluentHorizontalBarChartWithAxisDelegate.solveYDomainMargins] implies, and
+/// [rangeTop] overrides its top edge so a test can push a band off the canvas.
+FluentCartesianChildContext _hbwaContext(
+  FluentHorizontalBarChartWithAxisDelegate delegate, {
+  double height = 350,
+  double width = 800,
+  double? rangeTop,
+  Scale? xScale,
+}) {
+  final solved = delegate.solveYDomainMargins(height);
+  final bottom = height - solved.margins.bottom!;
+  final top = rangeTop ?? solved.margins.top!;
+  final labels = delegate.stringDatasetForYAxisDomain;
+  final yScale = labels == null
+      // The floor `createYAxisForHorizontalBarChartWithAxis` clamps to
+      // (`utilities.ts:750`) and the data ceiling, which is what that builder
+      // resolves for every dataset this file feeds it.
+      ? (_linearScale(
+          domain: <double>[
+            0,
+            delegate.points
+                .map((point) => (point.y as num).toDouble())
+                .reduce((a, b) => a > b ? a : b),
+          ],
+          range: <double>[bottom, top],
+        ))
+      : (ScaleBand()
+          ..domainOf(labels.cast<Object>())
+          ..rangeOf(<double>[bottom, top])
+          // The same 1 -> 0.99 clamp `createStringYAxisForHorizontalBarChart
+          // WithAxis` applies (`utilities.ts:920`).
+          ..padding(delegate.yAxisPadding == 1 ? 0.99 : delegate.yAxisPadding));
+  return FluentCartesianChildContext(
+    // 100 spans every x the non-oracle tests feed the delegate.
+    xScale:
+        xScale ??
+        _linearScale(domain: <double>[0, 100], range: <double>[40, width - 20]),
+    yScalePrimary: yScale,
+    containerWidth: width,
+    containerHeight: height,
+  );
+}
+
 List<FluentHorizontalBarChartWithAxisDataPoint> _group(
   List<double> xs,
 ) => <FluentHorizontalBarChartWithAxisDataPoint>[
   for (final x in xs) FluentHorizontalBarChartWithAxisDataPoint(x: x, y: 'a'),
 ];
+
+/// Records the fills
+/// [FluentHorizontalBarChartWithAxisDelegate.paintSeries] draws with, which is
+/// the only way to see a colour that never reaches a widget.
+class _RecordingCanvas implements Canvas {
+  final List<Rect> rects = <Rect>[];
+  final List<Color> fills = <Color>[];
+
+  @override
+  void drawRect(Rect rect, Paint paint) {
+    rects.add(rect);
+    fills.add(paint.color);
+  }
+
+  @override
+  void drawRRect(RRect rrect, Paint paint) {
+    rects.add(rrect.outerRect);
+    fills.add(paint.color);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
 
 /// The x scale of a captured HorizontalBarChartWithAxis story, rebuilt from its
 /// own tick groups: each `<g transform="translate(x,0)">` under the x axis
@@ -328,6 +454,389 @@ void main() {
         expectOracleNumber('lone bar x', rect.x!, segs.single.xStart);
         expectOracleNumber('lone bar width', rect.width!, segs.single.width);
       }
+    });
+  });
+
+  group('HBWA y domain margins', () {
+    test('five string categories at padding 0.5 fill the plot exactly', () {
+      final d = _hbwaDelegate(
+        yValues: <Object>['a', 'b', 'c', 'd', 'e'],
+        yAxisPadding: 0.5,
+      );
+      final solved = d.solveYDomainMargins(350);
+      // totalHeight = 350 - (20 + 8) - (35 + 8) = 279
+      // barGapRate = 0.5 / 0.5 = 1 ; numBars = 5 + 4 * 1 = 9
+      expect(
+        solved.barHeight,
+        closeTo(31, 1e-9),
+        reason: '279 / 9 == 31, HorizontalBarChartWithAxis.tsx:543',
+      );
+      expect(
+        solved.margins.top,
+        closeTo(28, 1e-9),
+        reason: 'reqHeight == totalHeight so the margin stays at 8, :549',
+      );
+    });
+
+    test('a padding of exactly 1 is coerced to 0.99', () {
+      final d = _hbwaDelegate(
+        yValues: <Object>['a', 'b', 'c', 'd', 'e'],
+        yAxisPadding: 1,
+      );
+      // barGapRate = 0.99 / 0.01 = 99 ; numBars = 5 + 4 * 99 = 401
+      expect(
+        d.solveYDomainMargins(350).barHeight,
+        closeTo(279 / 401, 1e-9),
+        reason: 'the 1 -> 0.99 coercion at :531 and again at utilities.ts:920',
+      );
+    });
+
+    test('a numeric y axis grows the margin by half a bar', () {
+      final d = _hbwaDelegate(
+        yValues: <Object>[0, 10, 20, 30],
+        yAxisPadding: 0.5,
+      );
+      final solved = d.solveYDomainMargins(350);
+      expect(
+        solved.margins.top,
+        closeTo(20 + kMinDomainMargin + solved.barHeight / 2, 1e-9),
+        reason: 'HorizontalBarChartWithAxis.tsx:540-541',
+      );
+    });
+
+    test('appropriateBarHeight widens the range by the data max first', () {
+      final d = _hbwaDelegate(
+        yValues: <Object>[0, 10, 20, 30],
+        yAxisPadding: 0.5,
+      );
+      expect(
+        d.appropriateBarHeight(<Object>[0, 10, 20, 30], 279, 0.5),
+        (279 * 10 * 0.5 / (30 + 10 * 0.5)).floorToDouble(),
+        reason: 'the extra `range = max(range, d3Max(y))` step at :508-525',
+      );
+    });
+  });
+
+  group('HBWA the barHeight position guard', () {
+    test('a category whose band position is under 1px is dropped', () {
+      final d = _hbwaDelegate(
+        yValues: <Object>['a', 'b', 'c'],
+        yAxisPadding: 0.5,
+      );
+      // The band start solves to `top + (307 - top) / 7`, so a top edge of -80
+      // puts the first band at -24.7 — the only way to reach the guard, since
+      // an in-plot layout never places a band above the top margin.
+      expect(
+        d.rectsFor(_hbwaContext(d, rangeTop: -80), _layout(height: 350)).length,
+        lessThan(3),
+        reason:
+            'parity: `const barHeight = max(yBarScale(y), 0); if '
+            '(barHeight < 1) return` at :419-422 is a POSITION test, not a '
+            'height test, so it silently drops top-most categories',
+      );
+    });
+
+    test('an ordinary layout keeps every category', () {
+      final d = _hbwaDelegate(
+        yValues: <Object>['a', 'b', 'c'],
+        yAxisPadding: 0.5,
+      );
+      expect(
+        d.rectsFor(_hbwaContext(d), _layout(height: 350)).length,
+        3,
+        reason:
+            'the topmost band position is 67.86, comfortably above 1 — the '
+            'band start is 28 + (307 - 28) / 7',
+      );
+    });
+  });
+
+  group('HBWA label ordering', () {
+    test('the default order reverses the data and keeps duplicates', () {
+      final d = _hbwaDelegate(
+        yValues: <Object>['a', 'b', 'a'],
+        yAxisPadding: 0.5,
+      );
+      expect(
+        d.stringDatasetForYAxisDomain,
+        <String>['a', 'b', 'a'],
+        reason:
+            'parity: the legacy branch at :819-829 does NOT de-duplicate, '
+            'so the band range is sized for every point',
+      );
+    });
+
+    test('a non-default category order accumulates every x per category', () {
+      final d = _hbwaDelegate(
+        yValues: <Object>['a', 'b', 'a'],
+        xValues: <double>[1, 5, 9],
+        yAxisCategoryOrder: FluentAxisCategoryOrder.sumAscending,
+      );
+      expect(
+        d.stringDatasetForYAxisDomain,
+        <String>['b', 'a'],
+        reason:
+            'a sums to 10 and b to 5, so a sorts last; a map literal keyed by '
+            'category would have dropped the first a and put a first, '
+            'HorizontalBarChartWithAxis.tsx:832-838',
+      );
+    });
+  });
+
+  group('Oracle B — HorizontalBarChartWithAxis geometry solve', () {
+    test('the basic story pins the numeric bar height and both margins', () {
+      final story = loadOracleStory(
+        'charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-basic',
+      );
+      final axis = _scaleFromStory(story);
+      final rects = story.byTag('rect');
+      expect(
+        rects.length,
+        4,
+        reason: '${story.id} draws one bar per numeric y, four in all',
+      );
+      // The capture's own y ticks, in tick order: 0 at the plot floor and 50000
+      // at its ceiling. d3-axis offsets a tick by the crisp half pixel, so the
+      // scale's own pixels are the translate minus `crispOffset`.
+      final yTicks = story
+          .byTag('g')
+          .where(
+            (g) =>
+                g.translate != null &&
+                g.translate!.dx == 0 &&
+                g.translate!.dy != 0 &&
+                story.childrenOf(g).any((child) => child.tag == 'text'),
+          )
+          .toList();
+      expect(
+        yTicks.length,
+        6,
+        reason: '${story.id} captures six y ticks, 0 through 50k',
+      );
+      final unit = axis.scale(1)! - axis.scale(0)!;
+      // The four points, recovered from the capture: the bar length is its
+      // width in domain units and the y value is the band centre read back
+      // through the y tick scale.
+      final delegate = _hbwaDelegate(
+        yValues: const <Object>[5000, 13000, 30000, 50000],
+        xValues: <double>[
+          for (final rect in rects) (rect.width! / unit).roundToDouble(),
+        ],
+      );
+      final solved = delegate.solveYDomainMargins(story.primary.height);
+      expectOracleNumber(
+        'numeric bar height',
+        rects.first.height!,
+        solved.barHeight,
+      );
+      final spec = delegate.createYAxis(
+        FluentYAxisParams(
+          margins: FluentChartMargins(
+            left: axis.margins.left,
+            right: axis.margins.right,
+            top: solved.margins.top,
+            bottom: solved.margins.bottom,
+          ),
+          containerWidth: story.primary.width,
+          containerHeight: story.primary.height,
+          yMinMaxValues: delegate.resolveYMinMax(),
+        ),
+        FluentAxisData(),
+        isRtl: false,
+        isIntegralDataset: true,
+      );
+      for (final tick in yTicks) {
+        final label = story
+            .childrenOf(tick)
+            .firstWhere((child) => child.tag == 'text');
+        // "10k" and friends; the domain value is the label with its SI suffix
+        // expanded, and 1000 is what a `k` stands for.
+        final text = label.text!;
+        final value = text.endsWith('k')
+            ? double.parse(text.substring(0, text.length - 1)) * 1000
+            : double.parse(text);
+        expectOracleNumber(
+          'y tick $text',
+          story.absoluteTranslate(tick).dy - story.crispOffset,
+          spec.scale(value)!,
+        );
+      }
+      final placed = delegate.rectsFor(
+        FluentCartesianChildContext(
+          xScale: axis.scale,
+          yScalePrimary: spec.scale,
+          containerWidth: story.primary.width,
+          containerHeight: story.primary.height,
+        ),
+        _layout(
+          height: story.primary.height,
+          width: story.primary.width,
+          margins: FluentChartMargins(
+            left: axis.margins.left,
+            right: axis.margins.right,
+            top: solved.margins.top,
+            bottom: solved.margins.bottom,
+          ),
+        ),
+      );
+      expect(
+        placed.length,
+        rects.length,
+        reason: 'every captured bar must be placed',
+      );
+      for (var i = 0; i < rects.length; i++) {
+        expectOracleNumber('bar $i x', rects[i].x!, placed[i].left);
+        expectOracleNumber('bar $i y', rects[i].y!, placed[i].top);
+        expectOracleNumber('bar $i width', rects[i].width!, placed[i].width);
+        expectOracleNumber('bar $i height', rects[i].height!, placed[i].height);
+      }
+    });
+
+    test('the string-axis story pins the band bar height and placement', () {
+      final story = loadOracleStory(
+        'charts-horizontalbarchartwithaxis--'
+        'horizontal-bar-with-axis-string-axis-tooltip',
+      );
+      final axis = _scaleFromStory(story);
+      final rects = story.byTag('rect');
+      expect(
+        rects.length,
+        4,
+        reason: '${story.id} draws one bar per string category, four in all',
+      );
+      final unit = axis.scale(1)! - axis.scale(0)!;
+      final delegate = _hbwaDelegate(
+        yValues: const <Object>['one', 'two', 'three', 'four'],
+        xValues: <double>[
+          for (final rect in rects) (rect.width! / unit).roundToDouble(),
+        ],
+      );
+      final solved = delegate.solveYDomainMargins(story.primary.height);
+      expectOracleNumber(
+        'band bar height',
+        rects.first.height!,
+        solved.barHeight,
+      );
+      final placed = delegate.rectsFor(
+        _hbwaContext(
+          delegate,
+          height: story.primary.height,
+          width: story.primary.width,
+          xScale: axis.scale,
+        ),
+        _layout(
+          height: story.primary.height,
+          width: story.primary.width,
+          margins: FluentChartMargins(
+            left: axis.margins.left,
+            right: axis.margins.right,
+            top: solved.margins.top,
+            bottom: solved.margins.bottom,
+          ),
+        ),
+      );
+      // The captured rect carries the half-leftover-bandwidth shift as a
+      // `transform`, which this port folds into the rect's own top.
+      final capturedTops = <double>[
+        for (final rect in rects) rect.y! + rect.translate!.dy,
+      ]..sort();
+      // parity: which category lands at which band is the one thing the
+      // capture and `_getOrderedYAxisLabels` disagree about — see the note on
+      // [FluentHorizontalBarChartWithAxisDelegate.stringDatasetForYAxisDomain]
+      // — so the tops are compared as a set, which pins the whole band solve
+      // without asserting an order the fixture contradicts.
+      final actualTops = <double>[for (final rect in placed) rect.top]..sort();
+      for (var i = 0; i < capturedTops.length; i++) {
+        expectOracleNumber('band top $i', capturedTops[i], actualTops[i]);
+      }
+      final capturedWidths = <double>[for (final rect in rects) rect.width!]
+        ..sort();
+      final actualWidths = <double>[for (final rect in placed) rect.width]
+        ..sort();
+      for (var i = 0; i < capturedWidths.length; i++) {
+        expectOracleNumber('band width $i', capturedWidths[i], actualWidths[i]);
+      }
+    });
+
+    test('the negative story pins the bar height of a 40-point dataset', () {
+      final story = loadOracleStory(
+        'charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-negative',
+      );
+      final rects = story.byTag('rect');
+      expect(
+        rects.length,
+        40,
+        reason: '${story.id} draws five groups of eight bars',
+      );
+      // Five categories of eight points each: the solve reads the *unique* y
+      // values, so 40 points still divide the plot into nine bar units.
+      final delegate = _hbwaDelegate(
+        yValues: <Object>[
+          for (final category in <String>['A', 'B', 'C', 'D', 'E'])
+            for (var i = 0; i < 8; i++) category,
+        ],
+      );
+      expectOracleNumber(
+        'stacked bar height',
+        rects.first.height!,
+        delegate.solveYDomainMargins(story.primary.height).barHeight,
+      );
+    });
+  });
+
+  group('HBWA high contrast', () {
+    // The bar fill is the only mark HBWA paints, and upstream's rects carry no
+    // forced-color-adjust, so a forced-colours browser repaints them all in
+    // CanvasText — design spec section 5.3. Nothing else in the slot set is
+    // read here, so the rest are placeholders.
+    const canvasText = Color(0xFFFFFFFF);
+    const placeholder = Color(0xFF010203);
+    FluentChartColors colours({required bool isHighContrast}) =>
+        FluentChartColors(
+          axisText: canvasText,
+          axisTick: placeholder,
+          axisTitle: placeholder,
+          gridLine: placeholder,
+          markStroke: placeholder,
+          surface: placeholder,
+          popoverSurface: placeholder,
+          tooltipSurface: placeholder,
+          legendDimmed: placeholder,
+          isHighContrast: isHighContrast,
+        );
+
+    List<Color> paint({required bool isHighContrast}) {
+      final d = _hbwaDelegate(yValues: <Object>['a', 'b', 'c']);
+      final canvas = _RecordingCanvas();
+      d.paintSeries(
+        canvas,
+        _hbwaContext(d),
+        _layout(height: 350),
+        colours(isHighContrast: isHighContrast),
+      );
+      return canvas.fills;
+    }
+
+    test('the palette survives an ordinary theme', () {
+      expect(
+        paint(isHighContrast: false).map((fill) => fill.toARGB32()),
+        <int>[
+          for (var i = 0; i < 3; i++)
+            // One point per category, so every bar is its group's index 0.
+            FluentDataVizPalette.next(0).toARGB32(),
+        ],
+        reason: 'flattenMark returns the series colour outside high contrast',
+      );
+    });
+
+    test('every bar flattens to the system colour', () {
+      expect(
+        paint(isHighContrast: true).map((fill) => fill.toARGB32()),
+        <int>[for (var i = 0; i < 3; i++) canvasText.toARGB32()],
+        reason:
+            'the series fill must route through FluentChartColors.flattenMark, '
+            'design spec section 5.3',
+      );
     });
   });
 
