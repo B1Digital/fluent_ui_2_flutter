@@ -4,7 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'axis/tick_format.dart';
+import 'chrome/chart_title.dart';
 import 'internal/chart_colors.dart';
+import 'internal/chart_text_measurer.dart';
 import 'internal/chart_utils.dart';
 import 'internal/d3/array_stats.dart' as d3;
 import 'internal/d3/curves.dart' as d3;
@@ -131,6 +133,54 @@ class FluentPolarMarker {
 
   /// The caller's data point, for the popover's accessibility overrides.
   final FluentPolarDataPoint point;
+}
+
+/// One radial tick: its mark, its label position and its anchor.
+@immutable
+class FluentPolarRadialTick {
+  /// Creates a radial tick.
+  const FluentPolarRadialTick({
+    required this.markStart,
+    required this.markEnd,
+    required this.labelAnchor,
+    required this.anchor,
+    required this.label,
+  });
+
+  /// Where the tick mark meets the radial axis.
+  final Offset markStart;
+
+  /// Free end of the tick mark.
+  final Offset markEnd;
+
+  /// Anchor point of the label.
+  final Offset labelAnchor;
+
+  /// How the label is aligned about [labelAnchor].
+  final FluentPolarTextAnchor anchor;
+
+  /// The rendered label.
+  final String label;
+}
+
+/// One angular tick label.
+@immutable
+class FluentPolarAngularTick {
+  /// Creates an angular tick.
+  const FluentPolarAngularTick({
+    required this.labelAnchor,
+    required this.anchor,
+    required this.label,
+  });
+
+  /// Anchor point of the label.
+  final Offset labelAnchor;
+
+  /// How the label is aligned about [labelAnchor].
+  final FluentPolarTextAnchor anchor;
+
+  /// The rendered label.
+  final String label;
 }
 
 /// Everything a polar chart needs to paint, computed once per layout pass.
@@ -470,6 +520,96 @@ class FluentPolarLayout {
       ),
   ];
 
+  /// The radial axis line (`PolarChart.tsx:340-341, :348-351`).
+  (Offset, Offset) radialAxisLine() => (
+    d3.pointRadial(radialAxisAngle, innerRadius),
+    d3.pointRadial(radialAxisAngle, outerRadius),
+  );
+
+  /// The radial ticks (`PolarChart.tsx:352-385`).
+  ///
+  /// The mark direction deliberately uses plain `cos`/`sin` of [radialAxisAngle]
+  /// times [tickSign], while the position uses `pointRadial`'s `(sin, -cos)`.
+  /// The two conventions disagree by a quarter turn and that is what ships: at
+  /// `pi/2` the axis runs right and its ticks run *down*. Do not "fix" it.
+  ///
+  /// [tickSize] is the mark length and [labelOffset] the further gap to the
+  /// label.
+  List<FluentPolarRadialTick> radialTicks({
+    required double tickSize,
+    required double labelOffset,
+  }) {
+    final cos = math.cos(radialAxisAngle) * tickSign;
+    final sin = math.sin(radialAxisAngle) * tickSign;
+    final anchor = _radialLabelAnchor();
+    final result = <FluentPolarRadialTick>[];
+    for (var i = 0; i < radial.tickValues.length; i++) {
+      final radius = radial.radiusOf(radial.tickValues[i]);
+      if (radius == null || !radius.isFinite) {
+        continue;
+      }
+      final p = d3.pointRadial(radialAxisAngle, radius);
+      result.add(
+        FluentPolarRadialTick(
+          markStart: p,
+          markEnd: Offset(p.dx + tickSize * cos, p.dy + tickSize * sin),
+          // `:364-365` — the label sits one further LABEL_OFFSET out.
+          labelAnchor: Offset(
+            p.dx + (tickSize + labelOffset) * cos,
+            p.dy + (tickSize + labelOffset) * sin,
+          ),
+          anchor: anchor,
+          label: i < radial.tickLabels.length ? radial.tickLabels[i] : '',
+        ),
+      );
+    }
+    return result;
+  }
+
+  /// `PolarChart.tsx:366-376` — four epsilon comparisons, evaluated once.
+  FluentPolarTextAnchor _radialLabelAnchor() {
+    if ((radialAxisAngle - math.pi / 2).abs() < kPolarEpsilon ||
+        (radialAxisAngle - 3 * math.pi / 2).abs() < kPolarEpsilon) {
+      return FluentPolarTextAnchor.middle;
+    }
+    if ((radialAxisAngle > kPolarEpsilon &&
+            radialAxisAngle - math.pi / 2 < -kPolarEpsilon) ||
+        (radialAxisAngle - math.pi > kPolarEpsilon &&
+            radialAxisAngle - 3 * math.pi / 2 < -kPolarEpsilon)) {
+      return FluentPolarTextAnchor.start;
+    }
+    return FluentPolarTextAnchor.end;
+  }
+
+  /// The angular tick labels (`PolarChart.tsx:388-411`).
+  ///
+  /// [labelOffset] is the gap between the outer ring and the label anchor.
+  List<FluentPolarAngularTick> angularTicks({required double labelOffset}) {
+    final result = <FluentPolarAngularTick>[];
+    for (var i = 0; i < angular.tickValues.length; i++) {
+      final angle = angular.radiansOf(angular.tickValues[i]);
+      if (!angle.isFinite) {
+        continue;
+      }
+      result.add(
+        FluentPolarAngularTick(
+          labelAnchor: d3.pointRadial(angle, outerRadius + labelOffset),
+          // `:397-403` — top and bottom centre, the right half starts, the left
+          // ends.
+          anchor:
+              angle.abs() < kPolarEpsilon ||
+                  (angle - math.pi).abs() < kPolarEpsilon
+              ? FluentPolarTextAnchor.middle
+              : angle > math.pi
+              ? FluentPolarTextAnchor.end
+              : FluentPolarTextAnchor.start,
+          label: i < angular.tickLabels.length ? angular.tickLabels[i] : '',
+        ),
+      );
+    }
+    return result;
+  }
+
   /// The filled ring of an area series (`PolarChart.tsx:443-450`).
   ///
   /// The inner radius is the constant hole radius, not a data value
@@ -755,4 +895,107 @@ class FluentPolarSeriesPainter extends CustomPainter {
       oldDelegate.colors.surface != colors.surface ||
       !setEquals(oldDelegate.states, states) ||
       !setEquals(oldDelegate.activeLegends, activeLegends);
+}
+
+/// Paints the radial axis, its tick marks and both label sets.
+///
+/// Drawn last, over the data, exactly as `PolarChart.tsx:671` does.
+class FluentPolarTickPainter extends CustomPainter {
+  /// Creates a tick painter.
+  FluentPolarTickPainter({
+    required this.layout,
+    required this.measurer,
+    required this.labelStyle,
+    required this.gridColor,
+    required this.gridWidth,
+    required this.outerOpacity,
+    required this.tickSize,
+    required this.labelOffset,
+  });
+
+  /// The solved layout.
+  final FluentPolarLayout layout;
+
+  /// Text measurer used to place the labels about their anchors.
+  final FluentChartTextMeasurer measurer;
+
+  /// Tick label text style.
+  final TextStyle labelStyle;
+
+  /// Stroke colour of the axis and its marks.
+  final Color gridColor;
+
+  /// Stroke width of the axis and its marks.
+  final double gridWidth;
+
+  /// Opacity of the axis and its marks — these carry the outer style.
+  final double outerOpacity;
+
+  /// Length of a tick mark.
+  final double tickSize;
+
+  /// Gap between the mark and its label.
+  final double labelOffset;
+
+  void _paintLabel(
+    Canvas canvas,
+    String text,
+    Offset anchorPoint,
+    FluentPolarTextAnchor anchor,
+  ) {
+    if (text.isEmpty) {
+      return;
+    }
+    final metrics = measurer.measure(text, labelStyle);
+    // `dominant-baseline="middle"` (`:377`, `:404`) is the midpoint between the
+    // alphabetic baseline and the x-height — not the em-box centre (spec §8).
+    // [fluentChartBaselineOffset] turns that round into the distance below the
+    // requested `y`; subtracting the ascent moves it again to the top of the
+    // line box, which is where a [TextPainter] origin sits.
+    final dy =
+        fluentChartBaselineOffset(FluentChartTitleBaseline.middle, metrics) -
+        metrics.ascent;
+    final dx = switch (anchor) {
+      FluentPolarTextAnchor.start => 0.0,
+      FluentPolarTextAnchor.middle => -metrics.width / 2,
+      FluentPolarTextAnchor.end => -metrics.width,
+    };
+    measurer.layoutPainter(text, labelStyle)
+      ..paint(canvas, Offset(anchorPoint.dx + dx, anchorPoint.dy + dy))
+      ..dispose();
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas
+      ..save()
+      ..translate(layout.centre.dx, layout.centre.dy);
+    final linePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = gridWidth
+      ..color = gridColor.withValues(alpha: gridColor.a * outerOpacity);
+    final (axisStart, axisEnd) = layout.radialAxisLine();
+    canvas.drawLine(axisStart, axisEnd, linePaint);
+    for (final tick in layout.radialTicks(
+      tickSize: tickSize,
+      labelOffset: labelOffset,
+    )) {
+      canvas.drawLine(tick.markStart, tick.markEnd, linePaint);
+      _paintLabel(canvas, tick.label, tick.labelAnchor, tick.anchor);
+    }
+    for (final tick in layout.angularTicks(labelOffset: labelOffset)) {
+      _paintLabel(canvas, tick.label, tick.labelAnchor, tick.anchor);
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(FluentPolarTickPainter oldDelegate) =>
+      oldDelegate.layout != layout ||
+      oldDelegate.labelStyle != labelStyle ||
+      oldDelegate.gridColor != gridColor ||
+      oldDelegate.gridWidth != gridWidth ||
+      oldDelegate.outerOpacity != outerOpacity ||
+      oldDelegate.tickSize != tickSize ||
+      oldDelegate.labelOffset != labelOffset;
 }

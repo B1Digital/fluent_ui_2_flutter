@@ -706,6 +706,49 @@ void main() {
       }
     });
 
+    test('the tick labels land on the captured anchors', () {
+      // The nine `<text>` nodes are in document order: `PolarChart.tsx:352-385`
+      // emits the radial ticks first, then `:388-411` the angular ones.
+      final labels = story.byTag('text');
+      // TICK_SIZE 6 and LABEL_OFFSET 10 (`PolarChart.tsx:41-42`).
+      final radial = layout.radialTicks(tickSize: 6, labelOffset: 10);
+      final angular = layout.angularTicks(labelOffset: 10);
+      expect(
+        labels.length,
+        radial.length + angular.length,
+        reason:
+            'every captured label must be accounted for before the loops below '
+            'mean anything — the story caches three radial and six angular',
+      );
+      for (var i = 0; i < labels.length; i++) {
+        final captured = labels[i];
+        final (anchor, offset, label) = i < radial.length
+            ? (radial[i].anchor, radial[i].labelAnchor, radial[i].label)
+            : (
+                angular[i - radial.length].anchor,
+                angular[i - radial.length].labelAnchor,
+                angular[i - radial.length].label,
+              );
+        expect(
+          label,
+          captured.text,
+          reason: 'label $i must be the string the capture rendered',
+        );
+        expectOracleOffset(
+          'label $i anchor point',
+          Offset(captured.x!, captured.y!),
+          offset,
+        );
+        expect(
+          anchor.name,
+          captured.textAnchor,
+          reason:
+              'PolarChart.tsx:366-376 and :397-403 pick the text-anchor for '
+              'label $i',
+        );
+      }
+    });
+
     test('every area and line path matches the captured bounds', () {
       // `PolarChart.tsx:457` is the only 0.7 fill-opacity in the svg, and
       // `:481` the only 3px stroke.
@@ -842,6 +885,167 @@ void main() {
       );
     });
   });
+
+  group('tick geometry', () {
+    FluentPolarLayout tickLayout(FluentPolarDirection direction) =>
+        FluentPolarLayout.compute(
+          size: const Size(400, 400),
+          data: <FluentPolarSeries>[
+            const FluentScatterPolarSeries(
+              legend: 'A',
+              data: <FluentPolarDataPoint>[
+                FluentPolarDataPoint(r: 0, theta: 0),
+                FluentPolarDataPoint(r: 100, theta: 90),
+              ],
+            ),
+          ],
+          margins: const FluentChartMargins(),
+          hole: 0,
+          direction: direction,
+        );
+
+    test('counter-clockwise runs the axis right and the ticks down', () {
+      final layout = tickLayout(FluentPolarDirection.counterclockwise);
+      final (start, end) = layout.radialAxisLine();
+      expect(
+        start,
+        Offset.zero,
+        reason:
+            'PolarChart.tsx:340 starts at the inner radius, which is 0 here',
+      );
+      expect(
+        end.dx,
+        closeTo(layout.outerRadius, 1e-9),
+        reason: 'pointRadial(pi/2, r) is (r, 0) — three o\'clock',
+      );
+      expect(end.dy, closeTo(0, 1e-9), reason: 'the axis is horizontal');
+
+      final ticks = layout.radialTicks(tickSize: 6, labelOffset: 10);
+      final outermost = ticks.last;
+      expect(
+        outermost.markEnd.dy - outermost.markStart.dy,
+        closeTo(6, 1e-9),
+        reason:
+            'PolarChart.tsx:358-359 uses plain cos/sin of the angle, NOT the '
+            'pointRadial convention, so at pi/2 with sign +1 the mark goes DOWN',
+      );
+      expect(
+        outermost.markEnd.dx - outermost.markStart.dx,
+        closeTo(0, 1e-9),
+        reason: 'cos(pi/2) is zero',
+      );
+      expect(
+        outermost.labelAnchor.dy - outermost.markStart.dy,
+        closeTo(16, 1e-9),
+        reason: 'PolarChart.tsx:364-365 offsets by TICK_SIZE + LABEL_OFFSET',
+      );
+      expect(
+        outermost.anchor,
+        FluentPolarTextAnchor.middle,
+        reason: 'PolarChart.tsx:368 — |pi/2 - pi/2| < EPSILON',
+      );
+    });
+
+    test('clockwise runs the axis up and the ticks left', () {
+      final layout = tickLayout(FluentPolarDirection.clockwise);
+      final (_, end) = layout.radialAxisLine();
+      expect(
+        end.dy,
+        closeTo(-layout.outerRadius, 1e-9),
+        reason: 'pointRadial(0, r) is (0, -r) — twelve o\'clock',
+      );
+
+      final tick = layout.radialTicks(tickSize: 6, labelOffset: 10).last;
+      expect(
+        tick.markEnd.dx - tick.markStart.dx,
+        closeTo(-6, 1e-9),
+        reason:
+            'PolarChart.tsx:343 gives sign -1 at angle 0, so cos(0) * 6 * -1 '
+            'points left',
+      );
+      expect(
+        tick.anchor,
+        FluentPolarTextAnchor.end,
+        reason:
+            'PolarChart.tsx:372-375 — 0 fails both the "middle" and the "start" '
+            'comparisons and falls through to end',
+      );
+    });
+
+    test('angular labels sit one label offset beyond the outer ring', () {
+      final layout = tickLayout(FluentPolarDirection.counterclockwise);
+      final ticks = layout.angularTicks(labelOffset: 10);
+      expect(ticks.length, 8, reason: 'the default angular tick count is 8');
+      expect(
+        ticks.first.labelAnchor.dx,
+        closeTo(layout.outerRadius + 10, 1e-9),
+        reason: 'PolarChart.tsx:390 — pointRadial(angle, outerRadius + 10)',
+      );
+      expect(
+        ticks.first.anchor,
+        FluentPolarTextAnchor.start,
+        reason:
+            'PolarChart.tsx:397-403 — datum 0 maps to angle pi/2, which is '
+            'neither 0 nor pi and is below pi, so the label starts at the anchor',
+      );
+      expect(
+        ticks.map((t) => t.label).toList(),
+        <String>['0°', '45°', '90°', '135°', '180°', '225°', '270°', '315°'],
+        reason: 'the labels are formatted in datum degrees, not screen degrees',
+      );
+    });
+
+    test('the painter strokes the axis and one mark per radial tick', () {
+      final layout = tickLayout(FluentPolarDirection.counterclockwise);
+      const gridColor = Color(0xFF123456);
+      final recorded = _Recording();
+      FluentPolarTickPainter(
+        layout: layout,
+        measurer: FluentChartTextMeasurer(),
+        labelStyle: const TextStyle(fontSize: 10),
+        gridColor: gridColor,
+        gridWidth: 1,
+        // A half-transparent outer style, so the multiply below is observable.
+        outerOpacity: 0.5,
+        tickSize: kPolarTickSize,
+        labelOffset: kPolarLabelOffset,
+      ).paint(recorded, const Size(400, 400));
+      final ticks = layout.radialTicks(
+        tickSize: kPolarTickSize,
+        labelOffset: kPolarLabelOffset,
+      );
+      expect(
+        recorded.lines.length,
+        ticks.length + 1,
+        reason:
+            'PolarChart.tsx:348-351 draws the axis once and :357-361 one mark '
+            'per radial tick',
+      );
+      expect(
+        recorded.lines.first.$2,
+        layout.radialAxisLine().$2,
+        reason: 'the axis is stroked first, in layout-local coordinates',
+      );
+      expect(
+        recorded.lines.last.$3.a,
+        closeTo(0.5, 1e-6),
+        reason:
+            'PolarChart.tsx:361 gives every mark gridLineOuter, so the outer '
+            'opacity multiplies the grid colour',
+      );
+    });
+
+    test('an angular label past half a turn is right-anchored', () {
+      final layout = tickLayout(FluentPolarDirection.counterclockwise);
+      final ticks = layout.angularTicks(labelOffset: 10);
+      // Datum 135 counter-clockwise maps to 315 degrees, which is past pi.
+      expect(
+        ticks[3].anchor,
+        FluentPolarTextAnchor.end,
+        reason: 'PolarChart.tsx:400 — angle > pi selects end',
+      );
+    });
+  });
 }
 
 /// Records the colour of every mark the polar series painter draws.
@@ -855,12 +1059,19 @@ class _Recording implements Canvas {
   /// The colour of every `drawCircle`, in paint order.
   final List<Color> circles = <Color>[];
 
+  /// The two ends and the colour of every `drawLine`, in paint order.
+  final List<(Offset, Offset, Color)> lines = <(Offset, Offset, Color)>[];
+
   @override
   void drawPath(Path path, Paint paint) => paths.add(paint.color);
 
   @override
   void drawCircle(Offset c, double radius, Paint paint) =>
       circles.add(paint.color);
+
+  @override
+  void drawLine(Offset p1, Offset p2, Paint paint) =>
+      lines.add((p1, p2, paint.color));
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
