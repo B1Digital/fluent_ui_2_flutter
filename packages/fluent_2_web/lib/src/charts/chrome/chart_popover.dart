@@ -224,7 +224,7 @@ bool fluentChartPopoverHasSubCounts(List<FluentYValueHover>? values) =>
 ///
 /// `ChartPopover.tsx:216` is `Points[index % Object.keys(pointTypes).length]`.
 /// `pointTypes` has exactly eight keys (`utilities.ts:1747-1772`), so the
-/// modulus is 8 and `dottedLine` — a `CustomPoints` member (`utilities.ts:1724`)
+/// modulus is 8 and `dottedLine` — a `CustomPoints` member (`utilities.ts:1725`)
 /// with no `pointTypes` entry — is unreachable from here.
 FluentChartLegendShape fluentChartPopoverShapeForIndex(int index) =>
     // The eight Points members, in their declared ordinal order
@@ -421,6 +421,11 @@ Widget _popoverRow(
                     entry.key,
                     style: style.legendTextStyle!.resolve(states),
                   ),
+                  // ChartPopover.tsx:257 colours this from `props.color` — the
+                  // popover-level colour — falling back to
+                  // colorNeutralForeground1. The plan specifies the ROW's
+                  // colour instead, which is the same fallback but a different
+                  // truthy arm; following the plan.
                   Text(
                     formatToLocaleString(entry.value),
                     style: style.valueTextStyle!
