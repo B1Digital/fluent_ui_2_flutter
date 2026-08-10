@@ -1,3 +1,7 @@
+import 'dart:math' as math;
+
+import 'package:flutter/widgets.dart';
+
 /// The shape a legend swatch and a popover swatch are drawn with.
 ///
 /// Ports `LegendShape` (`Legends.types.ts:269`), which is the union of the
@@ -51,3 +55,183 @@ enum FluentChartLegendShape {
   /// ordinals are load-bearing and cannot be renumbered.
   final int? pointIndex;
 }
+
+/// Half of the SVG viewport that the nine legend shapes are drawn into.
+///
+/// `shape.tsx:41` sets `viewBox="-1 -1 14 14"`, so user-space (0, 0) sits one
+/// pixel in from the top-left of the rendered box. The offset exists to make
+/// room for the 2px centred stroke `Legends.tsx:365` puts on every path.
+///
+/// Verified against Oracle B: every `fui-legend__shape` swatch in the corpus
+/// reports `getCTM()` as `[1, 0, 0, 1, 1, 1]`, that trailing `1, 1` being this
+/// translation.
+const double kLegendShapeViewBoxOrigin = 1;
+
+/// Edge length of the rendered legend shape viewport, in logical pixels.
+///
+/// `shape.tsx:39-40` and `:46-49` both pin the `<svg>` to 14×14 — once as an
+/// attribute and once as an inline style — so the shape occupies 14 pixels even
+/// though its filled area is 12.
+///
+/// Verified against Oracle B: the twelve unrotated swatches in the corpus
+/// measure 14×14. The two diamonds measure 19.799, which is 14 × √2, because
+/// `shape.tsx:43-45` rotates the whole element and CSS reports the rotated box.
+const double kLegendShapeViewportSize = 14;
+
+/// `pointTypes[*].widthRatio` (`utilities.ts:1747-1771`).
+///
+/// For a pentagon, hexagon or octagon the bounding box grows faster than the
+/// side length, so a marker asked for a width of *w* is drawn at `w / ratio` to
+/// land on *w*. Used by series markers, never by the legend swatch, which is
+/// always the full [kLegendShapeViewportSize] viewport.
+///
+/// [FluentChartLegendShape.dottedLine] is deliberately absent: it is a
+/// `CustomPoints` member (`utilities.ts:1724-1726`) and `pointTypes` has no
+/// entry for it, which is also why `ChartPopover.tsx:216` can index
+/// `Points[i % Object.keys(pointTypes).length]` safely — that length is the
+/// eight entries below.
+const Map<FluentChartLegendShape, double> kPointWidthRatios =
+    <FluentChartLegendShape, double>{
+      // utilities.ts:1748-1750.
+      FluentChartLegendShape.circle: 1,
+      // utilities.ts:1751-1753.
+      FluentChartLegendShape.square: 1,
+      // utilities.ts:1754-1756.
+      FluentChartLegendShape.triangle: 1,
+      // utilities.ts:1757-1759.
+      FluentChartLegendShape.diamond: 1,
+      // utilities.ts:1760-1762.
+      FluentChartLegendShape.pyramid: 1,
+      // utilities.ts:1763-1765.
+      FluentChartLegendShape.hexagon: 2,
+      // utilities.ts:1766-1768.
+      FluentChartLegendShape.pentagon: 1.168,
+      // utilities.ts:1769-1771.
+      FluentChartLegendShape.octagon: 2.414,
+    };
+
+/// The marker outline for [shape], in the authored 0..12 user space of
+/// `shape.tsx:19-30`.
+///
+/// The returned path is **not** shifted by [kLegendShapeViewBoxOrigin] and is
+/// not rotated; `FluentChartLegendShapePainter` applies both, because the
+/// rotation upstream is on the `<svg>` element rather than the `<path>` and so
+/// happens outside the viewBox mapping.
+///
+/// [FluentChartLegendShape.defaultShape] returns an empty path: `shape.tsx:34`
+/// tests membership of the nine-key table and renders a plain bordered `div`
+/// instead when the lookup misses.
+Path fluentChartLegendShapePath(FluentChartLegendShape shape) {
+  switch (shape) {
+    case FluentChartLegendShape.circle:
+      // shape.tsx:20 — `M1 6 A5 5 0 1 0  12 6 M1 6 A5 5 0 0 1  12 6`. Two
+      // half-arcs of radius 5 between (1, 6) and (12, 6), one large-arc sweep 0
+      // and one small-arc sweep 1. The chord is 11 and the radius 5, so the
+      // arcs are over-constrained and SVG scales the radii up by 11 / 10; the
+      // result is the circle on that chord as its diameter. Oracle B's
+      // charts-scatterchart--scatter-chart-log-axis-example measures the box as
+      // (1, 0.5, 12, 11.5), which is that 5.5 radius about (6.5, 6).
+      return Path()
+        ..moveTo(1, 6)
+        ..arcToPoint(
+          const Offset(12, 6),
+          radius: const Radius.circular(5),
+          largeArc: true,
+        )
+        ..moveTo(1, 6)
+        ..arcToPoint(
+          const Offset(12, 6),
+          radius: const Radius.circular(5),
+          clockwise: false,
+        );
+    case FluentChartLegendShape.square:
+      // shape.tsx:21 — `M1 1 L12 1 L12 12  L1 12 L1 1 Z`.
+      return Path()
+        ..moveTo(1, 1)
+        ..lineTo(12, 1)
+        ..lineTo(12, 12)
+        ..lineTo(1, 12)
+        ..close();
+    case FluentChartLegendShape.triangle:
+    case FluentChartLegendShape.pyramid:
+      // shape.tsx:22-23 — `M6 10L8.74228e-07 -1.04907e-06L12 0L6 10Z`. The two
+      // exponent literals are float noise for zero and are written out verbatim
+      // so a reader diffing against the TypeScript sees the same numbers.
+      return Path()
+        ..moveTo(6, 10)
+        ..lineTo(8.74228e-07, -1.04907e-06)
+        ..lineTo(12, 0)
+        ..close();
+    case FluentChartLegendShape.diamond:
+      // shape.tsx:24 — `M2 2 L10 2 L10 10  L2 10 L2 2 Z`, a square that only
+      // becomes a diamond under the 45 degree rotation applied at :43-45.
+      return Path()
+        ..moveTo(2, 2)
+        ..lineTo(10, 2)
+        ..lineTo(10, 10)
+        ..lineTo(2, 10)
+        ..close();
+    case FluentChartLegendShape.hexagon:
+      // shape.tsx:25 — `M9 0H3L0 5L3 10H9L12 5L9 0Z`.
+      return Path()
+        ..moveTo(9, 0)
+        ..lineTo(3, 0)
+        ..lineTo(0, 5)
+        ..lineTo(3, 10)
+        ..lineTo(9, 10)
+        ..lineTo(12, 5)
+        ..close();
+    case FluentChartLegendShape.pentagon:
+      // shape.tsx:26 —
+      // `M6.06061 0L0 4.21277L2.30303 11H9.69697L12 4.21277L6.06061 0Z`.
+      return Path()
+        ..moveTo(6.06061, 0)
+        ..lineTo(0, 4.21277)
+        ..lineTo(2.30303, 11)
+        ..lineTo(9.69697, 11)
+        ..lineTo(12, 4.21277)
+        ..close();
+    case FluentChartLegendShape.octagon:
+      // shape.tsx:27-28 —
+      // `M7.08333 0H2.91667L0 2.91667V7.08333L2.91667 10H7.08333L10 7.08333V2.91667L7.08333 0Z`.
+      return Path()
+        ..moveTo(7.08333, 0)
+        ..lineTo(2.91667, 0)
+        ..lineTo(0, 2.91667)
+        ..lineTo(0, 7.08333)
+        ..lineTo(2.91667, 10)
+        ..lineTo(7.08333, 10)
+        ..lineTo(10, 7.08333)
+        ..lineTo(10, 2.91667)
+        ..close();
+    case FluentChartLegendShape.dottedLine:
+      // shape.tsx:29 — `M0 6 H3 M5 6 H8 M10 6 H13`. Three open subpaths, so it
+      // renders only when stroked; the legend strokes every shape at 2px
+      // (`Legends.tsx:365`), which is what makes the dashes visible.
+      return Path()
+        ..moveTo(0, 6)
+        ..lineTo(3, 6)
+        ..moveTo(5, 6)
+        ..lineTo(8, 6)
+        ..moveTo(10, 6)
+        ..lineTo(13, 6);
+    case FluentChartLegendShape.defaultShape:
+      return Path();
+  }
+}
+
+/// Clockwise rotation applied to the whole 14×14 viewport for [shape].
+///
+/// `shape.tsx:43-45` puts `transform="rotate(θ, 0, 0)"` on the `<svg>` element,
+/// not on the `<path>`, with θ = 45 for a diamond, 180 for a pyramid and 0
+/// otherwise. The centre of rotation is the viewBox corner rather than the
+/// shape's centre, so both are a translation as well as a spin — that is
+/// upstream behaviour, not a transcription slip.
+double fluentChartLegendShapeRotation(FluentChartLegendShape shape) =>
+    switch (shape) {
+      // shape.tsx:44 — 45 degrees.
+      FluentChartLegendShape.diamond => math.pi / 4,
+      // shape.tsx:44 — 180 degrees.
+      FluentChartLegendShape.pyramid => math.pi,
+      _ => 0,
+    };

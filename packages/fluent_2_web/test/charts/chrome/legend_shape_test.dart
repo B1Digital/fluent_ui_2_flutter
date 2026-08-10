@@ -1,5 +1,8 @@
 import 'package:fluent_2_web/src/charts/chrome/legend_shape.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../support/oracle_fixture.dart';
 
 /// `LegendShape` is `'default' | 'triangle' | keyof Points | keyof CustomPoints`
 /// (`Legends.types.ts:269`), which resolves to ten distinct strings once the
@@ -50,4 +53,284 @@ void main() {
       );
     });
   });
+
+  group('fluentChartLegendShapePath', () {
+    test('square is the authored 1..12 box from shape.tsx:21', () {
+      final path = fluentChartLegendShapePath(FluentChartLegendShape.square);
+      expect(
+        path.getBounds(),
+        const Rect.fromLTRB(1, 1, 12, 12),
+        reason:
+            'shape.tsx:21 authors the square as M1 1 L12 1 L12 12 L1 12 L1 1 Z, '
+            'so the bounds are exactly 1..12 on both axes before the viewBox shift.',
+      );
+    });
+
+    test('circle spans the same 1..12 horizontal extent', () {
+      final bounds = fluentChartLegendShapePath(
+        FluentChartLegendShape.circle,
+      ).getBounds();
+      expect(
+        bounds.left,
+        moreOrLessEquals(1, epsilon: 0.001),
+        reason: 'shape.tsx:20 starts the two arcs at x = 1.',
+      );
+      expect(
+        bounds.right,
+        moreOrLessEquals(12, epsilon: 0.001),
+        reason: 'shape.tsx:20 ends the two arcs at x = 12.',
+      );
+    });
+
+    test('triangle and pyramid share one path', () {
+      expect(
+        fluentChartLegendShapePath(FluentChartLegendShape.triangle).getBounds(),
+        fluentChartLegendShapePath(FluentChartLegendShape.pyramid).getBounds(),
+        reason:
+            'shape.tsx:22-23 assigns the identical d string to both; only the '
+            '180 degree rotation separates them.',
+      );
+    });
+
+    test('dottedLine is three open dashes, not a closed figure', () {
+      final path = fluentChartLegendShapePath(
+        FluentChartLegendShape.dottedLine,
+      );
+      final metrics = path.computeMetrics().toList();
+      expect(
+        metrics.length,
+        3,
+        reason:
+            'shape.tsx:29 is M0 6 H3 M5 6 H8 M10 6 H13 — three separate '
+            'subpaths, so three path metrics.',
+      );
+      expect(
+        path.getBounds(),
+        const Rect.fromLTRB(0, 6, 13, 6),
+        reason:
+            'The dashes run from x = 0 to x = 13 on the single line y = 6, so '
+            'the bounds are zero-height.',
+      );
+    });
+
+    test('defaultShape has no path', () {
+      expect(
+        fluentChartLegendShapePath(
+          FluentChartLegendShape.defaultShape,
+        ).computeMetrics().isEmpty,
+        isTrue,
+        reason:
+            'shape.tsx:34-36 falls through to a plain bordered div when the '
+            'shape name is not one of the nine keys, so there is nothing to draw.',
+      );
+    });
+
+    test('width ratios match pointTypes at utilities.ts:1747-1772', () {
+      expect(
+        kPointWidthRatios[FluentChartLegendShape.hexagon],
+        2,
+        reason: 'utilities.ts:1764 gives the hexagon a widthRatio of 2.',
+      );
+      expect(
+        kPointWidthRatios[FluentChartLegendShape.pentagon],
+        1.168,
+        reason: 'utilities.ts:1767 gives the pentagon a widthRatio of 1.168.',
+      );
+      expect(
+        kPointWidthRatios[FluentChartLegendShape.octagon],
+        2.414,
+        reason: 'utilities.ts:1770 gives the octagon a widthRatio of 2.414.',
+      );
+      expect(
+        kPointWidthRatios[FluentChartLegendShape.circle],
+        1,
+        reason: 'utilities.ts:1749 gives the circle a widthRatio of 1.',
+      );
+      expect(
+        kPointWidthRatios.containsKey(FluentChartLegendShape.dottedLine),
+        isFalse,
+        reason:
+            'dottedLine is a CustomPoints member (utilities.ts:1724-1726) and '
+            'has no pointTypes entry, so it must not appear in the table.',
+      );
+    });
+  });
+
+  group('fluentChartLegendShapePath against Oracle B', () {
+    test('the corpus covers four of the nine authored shapes, no more', () {
+      final swatches = legendShapeSvgs();
+      expect(
+        swatches.length,
+        14,
+        reason:
+            'Five stories render a legend swatch as an svg: '
+            'charts-legends--legends-basic and --legends-controlled contribute '
+            'two each, charts-linechart--line-chart-gaps two, '
+            'charts-scatterchart--scatter-chart-log-axis-example two and '
+            'charts-vegadeclarativechart--default six. A drop here means the '
+            'per-shape assertions below went vacuous.',
+      );
+      expect(
+        swatches.map((swatch) => shapeOfCapturedPath(swatch.$2)).toSet(),
+        <FluentChartLegendShape>{
+          FluentChartLegendShape.circle,
+          FluentChartLegendShape.diamond,
+          FluentChartLegendShape.triangle,
+          FluentChartLegendShape.dottedLine,
+        },
+        reason:
+            'Only those four of shape.tsx:20-29 appear in the corpus. The '
+            'square, pyramid, hexagon, pentagon and octagon paths are therefore '
+            'hand-derived from the authored d strings and checked by the '
+            'literal-bounds tests above, not against a capture.',
+      );
+    });
+
+    test('every captured swatch path has the bounds Chromium measured', () {
+      final swatches = legendShapeSvgs();
+      var checked = 0;
+      for (final (storyId, svg) in swatches) {
+        final path = svg.elements.single;
+        final shape = shapeOfCapturedPath(svg);
+        expectOracleRect(
+          '$storyId ${shape.name} getBBox',
+          path.bbox!,
+          fluentChartLegendShapePath(shape).getBounds(),
+        );
+        checked++;
+      }
+      expect(
+        checked,
+        14,
+        reason:
+            'All fourteen captured swatches must be compared; a filtered loop '
+            'that checked none would otherwise pass.',
+      );
+    });
+
+    test('the viewBox shifts user space by kLegendShapeViewBoxOrigin', () {
+      final swatches = legendShapeSvgs();
+      for (final (storyId, svg) in swatches) {
+        expect(
+          svg.viewBox,
+          '-1 -1 14 14',
+          reason:
+              '$storyId: shape.tsx:41 authors viewBox="-1 -1 14 14" on every '
+              'swatch svg.',
+        );
+        final ctm = svg.elements.single.ctm!;
+        // ctm[4] and ctm[5] are the e and f translation components.
+        expectOracleNumber(
+          '$storyId swatch ctm.e',
+          kLegendShapeViewBoxOrigin,
+          ctm[4],
+          tolerance: kOracleMeasuredTolerance,
+        );
+        expectOracleNumber(
+          '$storyId swatch ctm.f',
+          kLegendShapeViewBoxOrigin,
+          ctm[5],
+          tolerance: kOracleMeasuredTolerance,
+        );
+      }
+      expect(swatches.length, 14, reason: 'Count guard for the loop above.');
+    });
+
+    test('an unrotated swatch renders at kLegendShapeViewportSize', () {
+      final unrotated = legendShapeSvgs()
+          .where(
+            (swatch) =>
+                shapeOfCapturedPath(swatch.$2) !=
+                FluentChartLegendShape.diamond,
+          )
+          .toList();
+      expect(
+        unrotated.length,
+        12,
+        reason:
+            'Two of the fourteen swatches are diamonds, whose CSS box is the '
+            'rotated 14x14 square and so measures 14 * sqrt(2).',
+      );
+      for (final (storyId, svg) in unrotated) {
+        expectOracleNumber(
+          '$storyId swatch width',
+          kLegendShapeViewportSize,
+          svg.width,
+          tolerance: kOracleMeasuredTolerance,
+        );
+        expectOracleNumber(
+          '$storyId swatch height',
+          kLegendShapeViewportSize,
+          svg.height,
+          tolerance: kOracleMeasuredTolerance,
+        );
+      }
+    });
+  });
 }
+
+/// Every `fui-legend__shape` svg in the Oracle B corpus, paired with the story
+/// that rendered it.
+///
+/// Reached through [OracleStory.svgs] rather than [OracleStory.primary]: the
+/// swatch svgs are 14 pixels wide and `primary` is the widest svg, so it is
+/// always the chart.
+List<(String, OracleSvg)> legendShapeSvgs() {
+  final found = <(String, OracleSvg)>[];
+  for (final id in oracleStoryIds()) {
+    for (final svg in loadOracleStory(id).svgs) {
+      if (svg.slot == 'fui-legend__shape') {
+        found.add((id, svg));
+      }
+    }
+  }
+  return found;
+}
+
+/// The [FluentChartLegendShape] whose `pointPath` entry (`shape.tsx:19-30`)
+/// [svg] rendered.
+///
+/// Identified by the authored `d` string rather than by the story, so a
+/// re-capture that changes which chart carries which swatch does not silently
+/// compare the wrong shape. Whitespace is collapsed because upstream authors
+/// double spaces inside three of the nine strings (`shape.tsx:20-21`, `:24`).
+FluentChartLegendShape shapeOfCapturedPath(OracleSvg svg) {
+  final d = svg.elements.single.d!.replaceAll(RegExp(r'\s+'), ' ').trim();
+  final shape = kAuthoredLegendShapePaths[d];
+  if (shape == null) {
+    throw StateError(
+      'The captured swatch path "$d" is not one of the nine strings '
+      'shape.tsx:19-30 authors. Either upstream changed a path or the '
+      'transcription in kAuthoredLegendShapePaths drifted.',
+    );
+  }
+  return shape;
+}
+
+/// `pointPath` (`shape.tsx:19-30`) inverted: authored `d` string to the shape
+/// that owns it, whitespace collapsed.
+///
+/// `pyramid` is absent because `shape.tsx:23` gives it the triangle's exact
+/// string, so the mapping is not injective and only one of the two can be
+/// recovered from a capture.
+const Map<String, FluentChartLegendShape>
+kAuthoredLegendShapePaths = <String, FluentChartLegendShape>{
+  // shape.tsx:20.
+  'M1 6 A5 5 0 1 0 12 6 M1 6 A5 5 0 0 1 12 6': FluentChartLegendShape.circle,
+  // shape.tsx:21.
+  'M1 1 L12 1 L12 12 L1 12 L1 1 Z': FluentChartLegendShape.square,
+  // shape.tsx:22-23 — shared with the pyramid.
+  'M6 10L8.74228e-07 -1.04907e-06L12 0L6 10Z': FluentChartLegendShape.triangle,
+  // shape.tsx:24.
+  'M2 2 L10 2 L10 10 L2 10 L2 2 Z': FluentChartLegendShape.diamond,
+  // shape.tsx:25.
+  'M9 0H3L0 5L3 10H9L12 5L9 0Z': FluentChartLegendShape.hexagon,
+  // shape.tsx:26.
+  'M6.06061 0L0 4.21277L2.30303 11H9.69697L12 4.21277L6.06061 0Z':
+      FluentChartLegendShape.pentagon,
+  // shape.tsx:27-28.
+  'M7.08333 0H2.91667L0 2.91667V7.08333L2.91667 10H7.08333L10 7.08333V2.91667L7.08333 0Z':
+      FluentChartLegendShape.octagon,
+  // shape.tsx:29.
+  'M0 6 H3 M5 6 H8 M10 6 H13': FluentChartLegendShape.dottedLine,
+};
