@@ -1,8 +1,10 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:fluent_2_web/src/charts/area_chart.dart';
 import 'package:fluent_2_web/src/charts/area_chart_style.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
+import 'package:fluent_2_web/src/charts/chrome/chart_popover.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_colors.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_text_measurer.dart';
 import 'package:fluent_2_web/src/charts/internal/d3/curves.dart' as d3;
@@ -10,6 +12,7 @@ import 'package:fluent_2_web/src/charts/internal/d3/scale_linear.dart' as d3;
 import 'package:fluent_2_web/src/charts/internal/data_viz_palette.dart';
 import 'package:fluent_2_web/src/charts/model/cartesian_series.dart';
 import 'package:fluent_2_web/src/charts/model/chart_common.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -53,6 +56,80 @@ List<FluentLineChartSeries> _seriesWithDuplicateX() => <FluentLineChartSeries>[
     ],
   ),
 ];
+
+/// Three series that agree on x = 1, 2, 3.
+FluentChartData _threeSeriesData({String? chartTitle}) => FluentChartData(
+  chartTitle: chartTitle,
+  lineChartData: <FluentLineChartSeries>[
+    _series('a', <double>[10, 20, 30]),
+    _series('b', <double>[5, 15, 25]),
+    _series('c', <double>[1, 2, 3]),
+  ],
+);
+
+/// Series 0 carries x = 1, 2, 3; series 1 and 2 also carry the halves between
+/// them, so a bisector run over the wrong series answers 1.5 where series 0
+/// answers 2.
+FluentChartData _seriesZeroIsCoarserData() => FluentChartData(
+  lineChartData: <FluentLineChartSeries>[
+    _series('coarse', <double>[10, 20, 30]),
+    _halfStepSeries('fine1'),
+    _halfStepSeries('fine2'),
+  ],
+);
+
+/// A series at x = 1, 1.5, 2, 2.5, 3.
+FluentLineChartSeries _halfStepSeries(String legend) => FluentLineChartSeries(
+  legend: legend,
+  data: <Object>[
+    for (var i = 0; i < 5; i++)
+      FluentLineChartDataPoint(x: 1 + i * 0.5, y: 10.0 + i),
+  ],
+);
+
+/// One series at x = 1, 2, 3 — the tie-break case.
+FluentChartData _evenlySpacedData() => FluentChartData(
+  lineChartData: <FluentLineChartSeries>[
+    _series('a', <double>[10, 20, 30]),
+  ],
+);
+
+/// A dataset whose only series reports x = 1 twice.
+FluentChartData _duplicateXData() =>
+    FluentChartData(lineChartData: _seriesWithDuplicateX());
+
+/// The delegate the shell is currently rendering.
+FluentAreaChartDelegate _renderedDelegate(WidgetTester tester) =>
+    tester
+            .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+            .delegate
+        as FluentAreaChartDelegate;
+
+/// The captured x-axis domain path of [story].
+///
+/// `d3-axis` writes the bottom axis as `M{r0},{k}V0.5H{r1}V{k}` and the left
+/// axis as `M{-k},{r0}H0.5V{r1}H{-k}` (`d3-axis/src/axis.js:60-70`), so the
+/// horizontal one is the domain path with exactly one `H`.
+OracleElement _xDomainPath(OracleStory story) {
+  final domains = story
+      .byTag('path')
+      .where(
+        (element) =>
+            element.fill == null &&
+            element.d != null &&
+            tokeniseSvgPath(element.d!).where((t) => t == 'H').length == 1,
+      )
+      .toList(growable: false);
+  expect(
+    domains,
+    hasLength(1),
+    reason:
+        '${story.id} must contain exactly one horizontal axis domain path; a '
+        'filtered fixture loop without a count guard asserts nothing when the '
+        'filter goes empty.',
+  );
+  return domains.single;
+}
 
 /// The on-path vertices of [d]: the `M` point and the end point of every
 /// command after it, with the cubic control points dropped.
@@ -1053,6 +1130,204 @@ void main() {
           );
         }
       }
+    });
+  });
+
+  group('FluentAreaChart hover', () {
+    Future<void> pump(WidgetTester tester, Widget chart) => tester.pumpWidget(
+      FluentApp(
+        theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+        // The oracle story `charts-areachart--area-chart-basic` was captured at
+        // exactly 700x260, so the chart-space geometry below is the geometry
+        // that fixture records.
+        home: Center(child: SizedBox(width: 700, height: 260, child: chart)),
+      ),
+    );
+
+    /// Moves a fresh mouse pointer onto the middle of the plot.
+    Future<TestGesture> hoverPlot(WidgetTester tester) async {
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      final chart = tester.getRect(find.byType(FluentCartesianChart));
+      // Above the legend row, inside the plot.
+      await gesture.moveTo(
+        Offset(chart.center.dx, chart.top + chart.height / 3),
+      );
+      await tester.pumpAndSettle();
+      return gesture;
+    }
+
+    testWidgets('the bisector runs on series 0 only', (tester) async {
+      await pump(tester, FluentAreaChart(data: _seriesZeroIsCoarserData()));
+      final state = tester.state<FluentAreaChartState>(
+        find.byType(FluentAreaChart),
+      );
+      expect(
+        state.nearestXValueForInverted(1.6),
+        2,
+        reason:
+            'AreaChart.tsx:194 bisects lineChartData[0] even for stacks; the '
+            'other two series carry x = 1.5, which would win here',
+      );
+    });
+
+    testWidgets('an exact midpoint resolves by absolute distance', (
+      tester,
+    ) async {
+      await pump(tester, FluentAreaChart(data: _evenlySpacedData()));
+      final state = tester.state<FluentAreaChartState>(
+        find.byType(FluentAreaChart),
+      );
+      expect(
+        state.nearestXValueForInverted(1.5),
+        1,
+        reason:
+            'AreaChart.tsx:207-215 compares |x - d0| against |d1 - x| and '
+            'keeps d0 on a tie',
+      );
+    });
+
+    testWidgets('a duplicate-x dataset never opens the popover', (
+      tester,
+    ) async {
+      await pump(tester, FluentAreaChart(data: _duplicateXData()));
+      await hoverPlot(tester);
+      expect(
+        _renderedDelegate(tester).isPopoverOpen,
+        isFalse,
+        reason: 'AreaChart.tsx:1093 forces isPopoverOpen false',
+      );
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason: 'AreaChart.tsx:1093 forces isPopoverOpen false',
+      );
+    });
+
+    testWidgets('a clean dataset does open it', (tester) async {
+      await pump(tester, FluentAreaChart(data: _threeSeriesData()));
+      await hoverPlot(tester);
+      expect(
+        _renderedDelegate(tester).isPopoverOpen,
+        isTrue,
+        reason:
+            'without this the duplicate-x assertion above would hold for a '
+            'chart that never opens the popover at all',
+      );
+    });
+
+    testWidgets('the pointer position is chart-local, not plot-relative', (
+      tester,
+    ) async {
+      await pump(tester, FluentAreaChart(data: _evenlySpacedData()));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      final chart = tester.getRect(find.byType(FluentCartesianChart));
+      final state = tester.state<FluentAreaChartState>(
+        find.byType(FluentAreaChart),
+      );
+
+      /// The chart-local x at which the highlighted value stops being [below].
+      Future<double> flipAfter(Object below, double lo, double hi) async {
+        // 24 halvings of a 700px chart resolve the boundary to well under the
+        // 0.01 oracle tolerance.
+        for (var i = 0; i < 24; i++) {
+          final mid = (lo + hi) / 2;
+          await gesture.moveTo(Offset(chart.left + mid, chart.top + 60));
+          await tester.pump();
+          if (state.nearestX == below) {
+            lo = mid;
+          } else {
+            hi = mid;
+          }
+        }
+        return (lo + hi) / 2;
+      }
+
+      // The domain is 1, 2, 3, so the two boundaries sit a quarter and three
+      // quarters along the x range: solving the pair recovers the range itself.
+      final quarter = await flipAfter(1, 0, 350);
+      final threeQuarters = await flipAfter(2, 350, 690);
+      final span = 2 * (threeQuarters - quarter);
+      final rangeStart = quarter - (threeQuarters - quarter) / 2;
+      final story = loadOracleStory('charts-areachart--area-chart-basic');
+      final numbers = svgPathNumbers(_xDomainPath(story).d!);
+      // `d3-axis` shifts the whole domain path by the crisp offset
+      // (`d3-axis/src/axis.js:38`); the scale range itself is not shifted.
+      final capturedRangeStart = numbers[0] - story.crispOffset;
+      final capturedRangeEnd = numbers[3] - story.crispOffset;
+      expectOracleNumber(
+        'the x range the pointer is inverted through ends at the captured '
+        'domain path — chart space, so no left margin may be subtracted '
+        '(AreaChart.tsx:185-192 inverts the raw event x)',
+        capturedRangeEnd,
+        rangeStart + span,
+      );
+      // Recorded divergence: the capture starts the range at 64, this port at
+      // 40, because the left margin is the width of the y tick labels and the
+      // harness substitutes a placeholder font for upstream's.
+      expect(
+        rangeStart,
+        lessThan(capturedRangeStart),
+        reason:
+            'the placeholder test font measures the y tick labels narrower '
+            'than the captured one, so only the right edge is comparable',
+      );
+    });
+
+    testWidgets(
+      'leaving a shape keeps the state; leaving the chart clears it',
+      (tester) async {
+        await pump(tester, FluentAreaChart(data: _threeSeriesData()));
+        final gesture = await hoverPlot(tester);
+        final state = tester.state<FluentAreaChartState>(
+          find.byType(FluentAreaChart),
+        );
+        expect(
+          state.nearestX,
+          isNotNull,
+          reason: '_onRectMouseOut is a no-op at AreaChart.tsx:263-265',
+        );
+        await gesture.moveTo(const Offset(-50, -50));
+        await tester.pumpAndSettle();
+        expect(
+          state.nearestX,
+          isNull,
+          reason: '_handleChartMouseLeave resets everything, :279-289',
+        );
+      },
+    );
+
+    testWidgets('the semantic title names the series count', (tester) async {
+      await pump(
+        tester,
+        FluentAreaChart(data: _threeSeriesData(chartTitle: 'Traffic')),
+      );
+      expect(
+        tester
+            .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+            .props
+            .chartTitleForSemantics,
+        'Traffic. Area chart with 3 data series. ',
+        reason: 'AreaChart.tsx:1012-1015',
+      );
+    });
+
+    testWidgets('a legend selection reaches the delegate and the dataset', (
+      tester,
+    ) async {
+      await pump(tester, FluentAreaChart(data: _threeSeriesData()));
+      // `capitalizeLegendLabel` titles the rendered text (`utilities.ts`).
+      await tester.tap(find.text('A'));
+      await tester.pumpAndSettle();
+      expect(
+        _renderedDelegate(tester).selectedLegends,
+        <String>['a'],
+        reason:
+            'the selection lives in this State, fed by the shell onLegendChange',
+      );
     });
   });
 }

@@ -1,15 +1,20 @@
+import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
 import 'area_chart_style.dart';
 import 'axis/axis_builders.dart' as axis;
 import 'axis/axis_types.dart';
 import 'axis/domain_range.dart';
+import 'cartesian/cartesian_chart.dart';
+import 'cartesian/cartesian_chart_props.dart';
 import 'cartesian/cartesian_layout.dart';
 import 'cartesian/cartesian_series_delegate.dart';
 import 'chrome/chart_popover.dart';
+import 'chrome/legend.dart';
 import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
 import 'internal/chart_utils.dart';
+import 'internal/d3/array_stats.dart' as d3;
 import 'internal/d3/curves.dart' as d3;
 import 'internal/d3/path_sink.dart' as d3;
 import 'internal/d3/scale.dart' as d3;
@@ -20,6 +25,229 @@ import 'model/callout_data.dart';
 import 'model/cartesian_series.dart';
 import 'model/chart_common.dart';
 import 'model/chart_value.dart';
+
+/// A Fluent 2 stacked area chart.
+///
+/// Ports `AreaChart.tsx`. Hover selection follows upstream exactly: the pointer
+/// x is inverted through the x scale, a bisector runs over **series 0 only**
+/// (`AreaChart.tsx:194`) and the winner is chosen by absolute distance.
+class FluentAreaChart extends StatefulWidget {
+  /// Creates an area chart over [data].
+  const FluentAreaChart({
+    super.key,
+    required this.data,
+    this.props = const FluentCartesianChartProps(),
+    this.mode = FluentAreaChartMode.toNextY,
+    this.enableGradient = false,
+    this.culture,
+    this.style,
+    this.legendSelectionMode = FluentChartLegendSelectionMode.single,
+    this.focusNode,
+  });
+
+  /// The data bundle. Only [FluentChartData.lineChartData],
+  /// [FluentChartData.markerRadius] and [FluentChartData.chartTitle] are read.
+  final FluentChartData data;
+
+  /// Shell configuration.
+  final FluentCartesianChartProps props;
+
+  /// Baseline mode, default `toNextY` (`AreaChart.types.ts:68`).
+  final FluentAreaChartMode mode;
+
+  /// Whether the fill fades to transparent downwards (`AreaChart.types.ts:63`).
+  final bool enableGradient;
+
+  /// BCP-47 locale for popover formatting.
+  final String? culture;
+
+  /// Style override, highest precedence.
+  final FluentAreaChartStyle? style;
+
+  /// Whether the legend allows more than one selection.
+  final FluentChartLegendSelectionMode legendSelectionMode;
+
+  /// The chart's single focus node.
+  final FocusNode? focusNode;
+
+  @override
+  State<FluentAreaChart> createState() => FluentAreaChartState();
+}
+
+/// State for [FluentAreaChart]. Public only so widget tests can reach the
+/// hover helpers, which is the same shape `FluentSliderState` uses.
+class FluentAreaChartState extends State<FluentAreaChart> {
+  List<String> _selectedLegends = const <String>[];
+  String? _activeLegend;
+  String? _activePointId;
+  Object? _nearestX;
+  bool _isCircleClicked = false;
+  bool _isPopoverOpen = false;
+  late final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
+
+  List<FluentLineChartSeries> get _series =>
+      widget.data.lineChartData ?? const <FluentLineChartSeries>[];
+
+  /// The x value nearest the pointer, currently highlighted.
+  Object? get nearestX => _nearestX;
+
+  late FluentAreaChartDataSet _dataSet;
+
+  @override
+  void initState() {
+    super.initState();
+    _rebuildDataSet();
+  }
+
+  @override
+  void didUpdateWidget(FluentAreaChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.data != widget.data || oldWidget.mode != widget.mode) {
+      _rebuildDataSet();
+    }
+  }
+
+  void _rebuildDataSet() {
+    _dataSet = buildFluentAreaChartDataSet(
+      series: _series,
+      mode: widget.mode,
+      hasSecondaryYScale: widget.props.secondaryYScaleOptions != null,
+      // NOT `widget.props.selectedLegends`: contract 7.1's props bag has no such
+      // field. The selection lives in this State, fed by the shell's
+      // `onLegendChange`, so "has a selection" is that list being non-empty --
+      // which is what `AreaChart.tsx:262` tests too.
+      hasSelectedLegends: _selectedLegends.isNotEmpty,
+    );
+  }
+
+  @override
+  void dispose() {
+    _measurer.invalidate();
+    super.dispose();
+  }
+
+  /// The index in series 0 nearest an inverted x value.
+  ///
+  /// Ports the bisect-plus-distance tie-break at `AreaChart.tsx:194-215`.
+  int nearestIndexForInverted(num invertedX) {
+    final data = _series.first.data.cast<FluentLineChartDataPoint>();
+    final i = d3
+        .bisector<FluentLineChartDataPoint>(
+          (d) => _xOrder(d.x) as Comparable<Object>,
+        )
+        .left(data, invertedX);
+    if (i <= 0) {
+      return 0;
+    }
+    if (i >= data.length) {
+      return data.length - 1;
+    }
+    final d0 = _xOrder(data[i - 1].x);
+    final d1 = _xOrder(data[i].x);
+    // `x - d0.x > d1.x - x ? d1 : d0` — the tie keeps d0.
+    return (invertedX - d0) > (d1 - invertedX) ? i : i - 1;
+  }
+
+  /// The x value nearest an inverted pointer position.
+  Object nearestXValueForInverted(num invertedX) =>
+      (_series.first.data[nearestIndexForInverted(invertedX)]
+              as FluentLineChartDataPoint)
+          .x;
+
+  void _handlePointerMove(Offset local, FluentCartesianChildContext context) {
+    final inverted = context.xScale.invert(local.dx);
+    if (inverted == null || _series.isEmpty || _series.first.data.isEmpty) {
+      return;
+    }
+    final candidate = nearestXValueForInverted(_xOrder(inverted));
+    final found = findCalloutPoints(
+      _dataSet.calloutPoints,
+      candidate,
+      isXAxisDate: candidate is DateTime,
+    );
+    setState(() {
+      if (found == null || found.isEmpty) {
+        _isPopoverOpen = false;
+        _nearestX = null;
+        return;
+      }
+      _nearestX = candidate;
+      _isCircleClicked = false;
+      _activePointId = null;
+      // parity: AreaChart.tsx:1093 — duplicate or missing x values suppress
+      // the popover entirely.
+      _isPopoverOpen =
+          !_dataSet.hasDuplicateXValues && !_dataSet.hasMissingXValues;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final style = resolveFluentAreaChartStyle(
+      theme,
+    ).merge(FluentAreaChartTheme.maybeOf(context)).merge(widget.style);
+    return FluentCartesianChart(
+      focusNode: widget.focusNode,
+      legendSelectionMode: widget.legendSelectionMode,
+      props: widget.props.copyWith(
+        chartTitleForSemantics: widget.data.chartTitle == null
+            ? null
+            // `${chartTitle}. Area chart with ${n} data series. ` (`:1012`).
+            : '${widget.data.chartTitle}. Area chart with '
+                  '${_series.length} data series. ',
+      ),
+      legends: <FluentChartLegendItem>[
+        for (var i = 0; i < _series.length; i++)
+          FluentChartLegendItem(
+            title: _series[i].legend,
+            color: _dataSet.colours[i],
+            shape: _series[i].legendShape,
+            onHoverAction: () => setState(() {
+              _nearestX = null;
+              _isPopoverOpen = false;
+              _activeLegend = _series[i].legend;
+            }),
+            onMouseOutAction: ({required bool isLegendFocused}) =>
+                setState(() => _activeLegend = null),
+          ),
+      ],
+      onLegendChange: (selected) => setState(() {
+        _selectedLegends = selected;
+        // `isMultiStack` reads the selection (`AreaChart.tsx:328-330`), so the
+        // dataset is stale until it is rebuilt.
+        _rebuildDataSet();
+      }),
+      delegate: FluentAreaChartDelegate(
+        series: _series,
+        dataSet: _dataSet,
+        style: style,
+        colors: FluentChartColors.of(theme),
+        measurer: _measurer,
+        selectedLegends: _selectedLegends,
+        activeLegend: _activeLegend,
+        activePointId: _activePointId,
+        nearestX: _nearestX,
+        isCircleClicked: _isCircleClicked,
+        isPopoverOpen: _isPopoverOpen,
+        mode: widget.mode,
+        enableGradient: widget.enableGradient,
+        markerRadius: widget.data.markerRadius,
+        xScaleType: widget.props.xScaleType,
+        yScaleType: widget.props.yScaleType,
+        xMinValue: widget.props.xMinValue,
+        xMaxValue: widget.props.xMaxValue,
+      ),
+      onPointerMoveInPlot: _handlePointerMove,
+      onChartMouseLeave: () => setState(() {
+        // `_handleChartMouseLeave` resets everything (`:279-289`).
+        _nearestX = null;
+        _activePointId = null;
+        _isPopoverOpen = false;
+      }),
+    );
+  }
+}
 
 /// How an area layer's baseline is chosen.
 enum FluentAreaChartMode {
