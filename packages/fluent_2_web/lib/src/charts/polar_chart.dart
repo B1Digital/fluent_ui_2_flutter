@@ -1,10 +1,14 @@
 import 'dart:math' as math;
 
+import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import 'axis/tick_format.dart';
+import 'chrome/chart_popover.dart';
 import 'chrome/chart_title.dart';
+import 'chrome/legend.dart';
 import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
 import 'internal/chart_utils.dart';
@@ -998,4 +1002,405 @@ class FluentPolarTickPainter extends CustomPainter {
       oldDelegate.outerOpacity != outerOpacity ||
       oldDelegate.tickSize != tickSize ||
       oldDelegate.labelOffset != labelOffset;
+}
+
+/// A Fluent 2 polar chart: radial area, line and scatter series on a polar grid.
+///
+/// Ports `PolarChart` (`PolarChart.tsx:47-693`). Unlike upstream this widget
+/// honours its [BoxConstraints] instead of measuring a DOM node; [width] and
+/// [height] remain as hard overrides for the declarative adapters, and an
+/// unbounded constraint falls back to [kPolarDefaultSize], which is the size
+/// upstream paints before its first measurement (`PolarChart.tsx:54-55`).
+class FluentPolarChart extends StatefulWidget {
+  /// Creates a polar chart.
+  const FluentPolarChart({
+    required this.data,
+    super.key,
+    this.width,
+    this.height,
+    this.margins = const FluentChartMargins(),
+    this.hideLegend = false,
+    this.hideTooltip = false,
+    this.chartTitle,
+    this.hole = 0,
+    this.shape = FluentPolarShape.circle,
+    this.direction = FluentPolarDirection.counterclockwise,
+    this.radialAxis,
+    this.angularAxis,
+    this.angularUnit = FluentPolarAngularUnit.degrees,
+    this.culture,
+    this.useUtc = false,
+    this.canSelectMultipleLegends = false,
+    this.selectedLegends,
+    this.onLegendChange,
+    this.style,
+  });
+
+  /// The series to draw, discriminated by their runtime type.
+  final List<FluentPolarSeries> data;
+
+  /// Hard width override. Null means the chart takes its constraint.
+  final double? width;
+
+  /// Hard height override, applied before the legend strip is subtracted
+  /// (`PolarChart.tsx:102-104`).
+  final double? height;
+
+  /// Per-side overrides of [kPolarDefaultMargins].
+  final FluentChartMargins margins;
+
+  /// Whether the legend strip is omitted (`PolarChart.tsx:608`).
+  final bool hideLegend;
+
+  /// Whether the hover popover is suppressed (`PolarChart.tsx:676`).
+  final bool hideTooltip;
+
+  /// Accessible title. Upstream never draws it (`PolarChart.tsx:649`).
+  final String? chartTitle;
+
+  /// Hole radius as a fraction of the outer radius (`PolarChart.tsx:110-113`).
+  final double hole;
+
+  /// Whether the grid rings are circles or polygons.
+  final FluentPolarShape shape;
+
+  /// Sweep direction of the angular axis.
+  final FluentPolarDirection direction;
+
+  /// Radial axis configuration.
+  final FluentPolarAxisConfig? radialAxis;
+
+  /// Angular axis configuration.
+  final FluentPolarAxisConfig? angularAxis;
+
+  /// Unit the angular tick labels are formatted in.
+  final FluentPolarAngularUnit angularUnit;
+
+  /// BCP 47 locale used by the number and date formatters.
+  final String? culture;
+
+  /// Whether dates are interpreted and formatted in UTC.
+  final bool useUtc;
+
+  /// Whether more than one legend may be selected at once.
+  final bool canSelectMultipleLegends;
+
+  /// Controlled legend selection. Copied into state on every change
+  /// (`PolarChart.tsx:86-88`, which has no equality guard).
+  final List<String>? selectedLegends;
+
+  /// Called with the new selection when a legend is toggled.
+  final void Function(List<String> selected)? onLegendChange;
+
+  /// Style override, layered over the theme's.
+  final FluentPolarChartStyle? style;
+
+  @override
+  State<FluentPolarChart> createState() => FluentPolarChartState();
+}
+
+/// State of a [FluentPolarChart].
+///
+/// Public so that a `GlobalKey<FluentPolarChartState>` can reach the imperative
+/// image-export handle, which is upstream's `componentRef`
+/// (`PolarChart.tsx:49`).
+class FluentPolarChartState extends State<FluentPolarChart> {
+  final FocusNode _focusNode = FocusNode(debugLabel: 'FluentPolarChart');
+  final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
+  late List<String> _selectedLegends =
+      widget.selectedLegends ?? const <String>[];
+  String _hoveredLegend = '';
+  String _activePointId = '';
+  int _rovingIndex = -1;
+  FluentPolarMarker? _popoverMarker;
+  FluentPolarLayout? _layout;
+
+  /// The layout the chart last painted. Exposed for tests and for the export
+  /// handle.
+  FluentPolarLayout get layout => _layout!;
+
+  /// Identity of the marker under the cursor or the keyboard, or the empty
+  /// string.
+  String get activePointId => _activePointId;
+
+  @override
+  void didUpdateWidget(FluentPolarChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // `:86-88` copies the prop into state on every change, unconditionally.
+    if (widget.selectedLegends != oldWidget.selectedLegends) {
+      _selectedLegends = widget.selectedLegends ?? const <String>[];
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    _measurer.invalidate();
+    super.dispose();
+  }
+
+  /// `getActiveLegends` (`PolarChart.tsx:429-431`).
+  Set<String> get _activeLegends => _selectedLegends.isNotEmpty
+      ? _selectedLegends.toSet()
+      : _hoveredLegend.isNotEmpty
+      ? <String>{_hoveredLegend}
+      : const <String>{};
+
+  void _showPopover(FluentPolarMarker marker) {
+    setState(() {
+      _activePointId = marker.id;
+      // `:505` — the popover only opens when the marker's legend is
+      // highlighted, which an empty active set satisfies (`:435`).
+      final active = _activeLegends;
+      _popoverMarker = active.isEmpty || active.contains(marker.legend)
+          ? marker
+          : null;
+    });
+  }
+
+  void _hidePopover() {
+    if (_activePointId.isEmpty && _popoverMarker == null) {
+      return;
+    }
+    setState(() {
+      _activePointId = '';
+      _popoverMarker = null;
+    });
+  }
+
+  void _onHover(Offset local) {
+    final l = _layout;
+    if (l == null) {
+      return;
+    }
+    final p = local - l.centre;
+    for (final marker in l.markers) {
+      if ((marker.position - p).distance <= marker.radius) {
+        _showPopover(marker);
+        return;
+      }
+    }
+  }
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final markers = _layout?.markers ?? const <FluentPolarMarker>[];
+    if (markers.isEmpty) {
+      return KeyEventResult.ignored;
+    }
+    final delta = switch (event.logicalKey) {
+      LogicalKeyboardKey.arrowRight => 1,
+      LogicalKeyboardKey.arrowLeft => -1,
+      _ => 0,
+    };
+    if (delta == 0) {
+      return KeyEventResult.ignored;
+    }
+    // `:638` — axis 'horizontal' WITHOUT circular, so the traversal clamps.
+    // Entering the group lands on the first marker, so an unroved chart steps
+    // off index 0.
+    final next = ((_rovingIndex < 0 ? 0 : _rovingIndex) + delta).clamp(
+      0,
+      markers.length - 1,
+    );
+    _rovingIndex = next;
+    _showPopover(markers[next]);
+    return KeyEventResult.handled;
+  }
+
+  void _onLegendChange(List<String> selected, FluentChartLegendItem? current) {
+    setState(() {
+      // `:595-599` — single-select keeps only the last entry, `slice(-1)`.
+      _selectedLegends = widget.canSelectMultipleLegends
+          ? selected
+          : selected.isEmpty
+          ? const <String>[]
+          : <String>[selected.last];
+    });
+    widget.onLegendChange?.call(selected);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final style = resolveFluentPolarChartStyle(
+      theme,
+    ).merge(FluentPolarChartTheme.maybeOf(context)).merge(widget.style);
+    const states = <WidgetState>{};
+    final chartColors = FluentChartColors.of(theme);
+
+    return Focus(
+      focusNode: _focusNode,
+      onKeyEvent: _onKey,
+      child: GestureDetector(
+        // A canvas chart has nothing focusable of its own, so a click on the
+        // plot is what hands the roving group its focus.
+        behavior: HitTestBehavior.opaque,
+        onTap: _focusNode.requestFocus,
+        child: MouseRegion(
+          // `:641` — the root div hides the popover on mouse leave.
+          onExit: (_) => _hidePopover(),
+          onHover: (event) => _onHover(event.localPosition),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // `:102-104` — the legend strip is subtracted from the height
+              // before the plot is sized, whether that height came from the
+              // prop or from the measured container.
+              final legendHeight = widget.hideLegend ? 0.0 : kPolarLegendHeight;
+              final size = Size(
+                widget.width ??
+                    (constraints.hasBoundedWidth
+                        ? constraints.maxWidth
+                        : kPolarDefaultSize),
+                (widget.height ??
+                        (constraints.hasBoundedHeight
+                            ? constraints.maxHeight
+                            : kPolarDefaultSize)) -
+                    legendHeight,
+              );
+              final l = _solve(size);
+              _layout = l;
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  _buildPlot(l, size, style, states, chartColors),
+                  if (!widget.hideLegend)
+                    SizedBox(height: legendHeight, child: _buildLegend(l)),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// `renderLegends` (`PolarChart.tsx:607-635`).
+  Widget _buildLegend(FluentPolarLayout l) => FluentChartLegend(
+    legends: <FluentChartLegendItem>[
+      // `:612` — the keys of the colour map, in insertion order.
+      for (final entry in l.legendColors.entries)
+        FluentChartLegendItem(
+          title: entry.key,
+          color: entry.value,
+          onHoverAction: () => setState(() => _hoveredLegend = entry.key),
+          onMouseOutAction: ({required bool isLegendFocused}) =>
+              setState(() => _hoveredLegend = ''),
+        ),
+    ],
+    // `:629` passes `centerLegends` unconditionally.
+    centerLegends: true,
+    selectionMode: widget.canSelectMultipleLegends
+        ? FluentChartLegendSelectionMode.multiple
+        : FluentChartLegendSelectionMode.single,
+    selectedLegends: _selectedLegends,
+    onChange: _onLegendChange,
+  );
+
+  FluentPolarLayout _solve(Size size) => FluentPolarLayout.compute(
+    size: size,
+    data: widget.data,
+    margins: widget.margins,
+    hole: widget.hole,
+    direction: widget.direction,
+    radialAxis: widget.radialAxis,
+    angularAxis: widget.angularAxis,
+    angularUnit: widget.angularUnit,
+    useUtc: widget.useUtc,
+    culture: widget.culture,
+  );
+
+  Widget _buildPlot(
+    FluentPolarLayout l,
+    Size size,
+    FluentPolarChartStyle style,
+    Set<WidgetState> states,
+    FluentChartColors chartColors,
+  ) {
+    final gridColour = chartColors.isHighContrast
+        ? chartColors.gridLine
+        : style.gridLineColor!.resolve(states)!;
+    return Semantics(
+      container: true,
+      label: _semanticsLabel(l),
+      child: SizedBox.fromSize(
+        size: size,
+        child: Stack(
+          children: <Widget>[
+            // `:653` — the grid group, under everything.
+            CustomPaint(
+              size: size,
+              painter: FluentPolarGridPainter(
+                layout: l,
+                shape: widget.shape,
+                gridColor: gridColour,
+                gridWidth: style.gridLineWidth!.resolve(states)!,
+                innerOpacity: style.gridLineInnerOpacity!.resolve(states)!,
+                outerOpacity: style.gridLineOuterOpacity!.resolve(states)!,
+              ),
+            ),
+            // Only this layer repaints on a hover or a legend change.
+            RepaintBoundary(
+              child: CustomPaint(
+                size: size,
+                painter: FluentPolarSeriesPainter(
+                  layout: l,
+                  activeLegends: _activeLegends,
+                  activePointId: _activePointId,
+                  style: style,
+                  states: states,
+                  colors: chartColors,
+                ),
+              ),
+            ),
+            // `:671` — the ticks last, over the data.
+            CustomPaint(
+              size: size,
+              painter: FluentPolarTickPainter(
+                layout: l,
+                measurer: _measurer,
+                labelStyle: style.tickLabelStyle!.resolve(states)!,
+                gridColor: gridColour,
+                gridWidth: style.gridLineWidth!.resolve(states)!,
+                outerOpacity: style.gridLineOuterOpacity!.resolve(states)!,
+                tickSize: style.tickSize!.resolve(states)!,
+                labelOffset: style.labelOffset!.resolve(states)!,
+              ),
+            ),
+            // `:676` gates the whole popover on `!hideTooltip`.
+            if (!widget.hideTooltip && _popoverMarker != null)
+              Positioned.fill(
+                // The popover follows the cursor, so letting it take the
+                // pointer would pull the pointer off the marker that opened it.
+                child: IgnorePointer(
+                  child: FluentChartPopover(
+                    data: FluentChartPopoverData(
+                      xValue: _popoverMarker!.popoverXValue,
+                      legend: _popoverMarker!.legend,
+                      color: _popoverMarker!.color,
+                      yValue: _popoverMarker!.popoverYValue,
+                    ),
+                    anchor: l.centre + _popoverMarker!.position,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// `PolarChart.tsx:647-650`, plus the roved marker's own label so that a
+  /// canvas traversal announces something (spec section 5.7).
+  String _semanticsLabel(FluentPolarLayout l) {
+    final base =
+        '${widget.chartTitle != null ? '${widget.chartTitle}. ' : ''}'
+        'Polar chart with ${l.series.length} data series.';
+    if (_rovingIndex < 0 || _rovingIndex >= l.markers.length) {
+      return base;
+    }
+    return '$base ${l.markers[_rovingIndex].semanticLabel}';
+  }
 }

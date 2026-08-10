@@ -7,6 +7,8 @@ import 'package:fluent_2_web/fluent_2_web.dart';
 import 'package:fluent_2_web/src/charts/polar_chart.dart';
 import 'package:fluent_2_web/src/charts/polar_chart_scales.dart';
 import 'package:fluent_2_web/src/charts/polar_chart_style.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -1043,6 +1045,290 @@ void main() {
         ticks[3].anchor,
         FluentPolarTextAnchor.end,
         reason: 'PolarChart.tsx:400 — angle > pi selects end',
+      );
+    });
+  });
+
+  group('FluentPolarChart', () {
+    final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+
+    Future<void> pump(WidgetTester tester, Widget chart) => tester.pumpWidget(
+      FluentApp(
+        theme: theme,
+        home: Center(child: SizedBox(width: 400, height: 440, child: chart)),
+      ),
+    );
+
+    const twoSeries = <FluentPolarSeries>[
+      FluentAreaPolarSeries(
+        legend: 'Area',
+        data: <FluentPolarDataPoint>[
+          FluentPolarDataPoint(r: 40, theta: 0),
+          FluentPolarDataPoint(r: 80, theta: 120),
+          FluentPolarDataPoint(r: 60, theta: 240),
+        ],
+      ),
+      FluentScatterPolarSeries(
+        legend: 'Scatter',
+        data: <FluentPolarDataPoint>[
+          FluentPolarDataPoint(r: 30, theta: 45),
+          FluentPolarDataPoint(r: 90, theta: 200),
+        ],
+      ),
+    ];
+
+    testWidgets('paints a grid, a series and a tick layer', (tester) async {
+      await pump(tester, const FluentPolarChart(data: twoSeries));
+      final painters = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((c) => c.painter)
+          .toList();
+      expect(
+        painters.whereType<FluentPolarGridPainter>(),
+        hasLength(1),
+        reason: 'PolarChart.tsx:653 renders exactly one grid group',
+      );
+      expect(
+        painters.whereType<FluentPolarSeriesPainter>(),
+        hasLength(1),
+        reason: 'one series layer holds every series in paint order',
+      );
+      expect(
+        painters.whereType<FluentPolarTickPainter>(),
+        hasLength(1),
+        reason: 'PolarChart.tsx:671 renders the ticks last, over the data',
+      );
+    });
+
+    testWidgets('the chart carries the upstream region label', (tester) async {
+      await pump(
+        tester,
+        const FluentPolarChart(data: twoSeries, chartTitle: 'Wind'),
+      );
+      expect(
+        tester
+            .widgetList<Semantics>(find.byType(Semantics))
+            .any(
+              (s) =>
+                  s.properties.label == 'Wind. Polar chart with 2 data series.',
+            ),
+        isTrue,
+        reason:
+            'PolarChart.tsx:648-650 prefixes the title and counts the series',
+      );
+    });
+
+    testWidgets('the legend lists each title once, first colour wins', (
+      tester,
+    ) async {
+      await pump(tester, const FluentPolarChart(data: twoSeries));
+      final legend = tester.widget<FluentChartLegend>(
+        find.byType(FluentChartLegend),
+      );
+      expect(
+        legend.legends.map((l) => l.title).toList(),
+        <String>['Area', 'Scatter'],
+        reason:
+            'PolarChart.tsx:612 builds the legends from the colour map keys, in '
+            'order of first appearance',
+      );
+      expect(
+        legend.centerLegends,
+        isTrue,
+        reason: 'PolarChart.tsx:629 passes centerLegends unconditionally',
+      );
+    });
+
+    testWidgets('hideLegend removes the strip entirely', (tester) async {
+      await pump(
+        tester,
+        const FluentPolarChart(data: twoSeries, hideLegend: true),
+      );
+      expect(
+        find.byType(FluentChartLegend),
+        findsNothing,
+        reason: 'PolarChart.tsx:608-610 returns null when hideLegend is set',
+      );
+    });
+
+    testWidgets('hovering a marker opens the popover with angle on top', (
+      tester,
+    ) async {
+      await pump(tester, const FluentPolarChart(data: twoSeries));
+      final state = tester.state<FluentPolarChartState>(
+        find.byType(FluentPolarChart),
+      );
+      final marker = state.layout.markers.first;
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer();
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(
+        tester.getTopLeft(find.byType(FluentPolarChart)) +
+            state.layout.centre +
+            marker.position,
+      );
+      await tester.pump();
+
+      final popover = tester.widget<FluentChartPopover>(
+        find.byType(FluentChartPopover),
+      );
+      expect(
+        popover.data.xValue,
+        marker.popoverXValue,
+        reason: 'PolarChart.tsx:506 puts the ANGLE in XValue',
+      );
+      expect(
+        popover.data.yValue,
+        marker.popoverYValue,
+        reason: 'PolarChart.tsx:509-511 puts the RADIUS in YValue',
+      );
+      expect(popover.data.legend, marker.legend, reason: 'PolarChart.tsx:507');
+    });
+
+    testWidgets('leaving the chart closes the popover and clears the marker', (
+      tester,
+    ) async {
+      await pump(tester, const FluentPolarChart(data: twoSeries));
+      final state = tester.state<FluentPolarChartState>(
+        find.byType(FluentPolarChart),
+      );
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer();
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(
+        tester.getTopLeft(find.byType(FluentPolarChart)) +
+            state.layout.centre +
+            state.layout.markers.first.position,
+      );
+      await tester.pump();
+      await gesture.moveTo(Offset.zero);
+      await tester.pump();
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason: 'PolarChart.tsx:641 hides on the root div mouse leave',
+      );
+      expect(
+        state.activePointId,
+        '',
+        reason: 'PolarChart.tsx:517-520 clears the active point too',
+      );
+    });
+
+    testWidgets('hideTooltip suppresses the popover altogether', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const FluentPolarChart(data: twoSeries, hideTooltip: true),
+      );
+      final state = tester.state<FluentPolarChartState>(
+        find.byType(FluentPolarChart),
+      );
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer();
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(
+        tester.getTopLeft(find.byType(FluentPolarChart)) +
+            state.layout.centre +
+            state.layout.markers.first.position,
+      );
+      await tester.pump();
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason: 'PolarChart.tsx:676 gates the whole popover on !hideTooltip',
+      );
+    });
+
+    testWidgets('arrow keys rove the markers and update the label', (
+      tester,
+    ) async {
+      await pump(tester, const FluentPolarChart(data: twoSeries));
+      await tester.tap(find.byType(FluentPolarChart));
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      final state = tester.state<FluentPolarChartState>(
+        find.byType(FluentPolarChart),
+      );
+      expect(
+        state.activePointId,
+        state.layout.markers[1].id,
+        reason:
+            'useArrowNavigationGroup({axis: "horizontal"}) at PolarChart.tsx:638 '
+            'moves focus to the next marker',
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      expect(
+        state.activePointId,
+        state.layout.markers[0].id,
+        reason: 'left steps back',
+      );
+    });
+
+    testWidgets('roving stops at the ends because the group is not circular', (
+      tester,
+    ) async {
+      await pump(tester, const FluentPolarChart(data: twoSeries));
+      await tester.tap(find.byType(FluentPolarChart));
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      final state = tester.state<FluentPolarChartState>(
+        find.byType(FluentPolarChart),
+      );
+      expect(
+        state.activePointId,
+        state.layout.markers.first.id,
+        reason:
+            'PolarChart.tsx:638 uses axis: "horizontal" without circular, unlike '
+            'Donut and Gauge, so the traversal clamps instead of wrapping',
+      );
+    });
+
+    testWidgets('selecting a legend dims the other series', (tester) async {
+      await pump(
+        tester,
+        const FluentPolarChart(
+          data: twoSeries,
+          selectedLegends: <String>['Area'],
+        ),
+      );
+      final painter = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((c) => c.painter)
+          .whereType<FluentPolarSeriesPainter>()
+          .single;
+      expect(
+        painter.activeLegends,
+        <String>{'Area'},
+        reason:
+            'PolarChart.tsx:430 prefers selectedLegends over the hovered legend',
+      );
+    });
+
+    testWidgets('an unbounded height falls back to the upstream default', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: const SingleChildScrollView(
+            child: SizedBox(
+              width: 400,
+              child: FluentPolarChart(data: twoSeries, hideLegend: true),
+            ),
+          ),
+        ),
+      );
+      expect(
+        tester.getSize(find.byType(FluentPolarChart)).height,
+        kPolarDefaultSize,
+        reason:
+            'PolarChart.tsx:55 initialises the container height to 200 and only '
+            'replaces it once the DOM can be measured',
       );
     });
   });
