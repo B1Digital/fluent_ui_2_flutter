@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:fluent_2_web/src/charts/chrome/annotation_layer.dart';
 import 'package:fluent_2_web/src/charts/chrome/annotation_layer_style.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +10,11 @@ import '../../support/oracle_fixture.dart';
 
 void main() {
   final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+  // The markup parser is style-agnostic; only the emphasis it layers on top of
+  // this base is under test.
+  const base = TextStyle(fontSize: 12);
+  String flatten(List<InlineSpan> spans) =>
+      spans.map((span) => span.toPlainText()).join();
 
   group('fluentApplyOpacityToColor', () {
     test('null in, null out', () {
@@ -220,6 +226,201 @@ void main() {
         );
       },
     );
+  });
+
+  group('parseFluentAnnotationMarkup', () {
+    test('bold and italic become styled spans', () {
+      final spans = parseFluentAnnotationMarkup('a <b>bold</b> c', base);
+      expect(
+        flatten(spans),
+        'a bold c',
+        reason: 'ChartAnnotationLayer.tsx:235 renders b as strong and i as em.',
+      );
+      expect(
+        spans.whereType<TextSpan>().any(
+          (span) => span.style?.fontWeight == FontWeight.bold,
+        ),
+        isTrue,
+        reason: 'The b tag has to actually embolden its children.',
+      );
+      expect(
+        parseFluentAnnotationMarkup('a <i>lean</i> c', base)
+            .whereType<TextSpan>()
+            .any((span) => span.style?.fontStyle == FontStyle.italic),
+        isTrue,
+        reason: 'ChartAnnotationLayer.tsx:235 — i becomes em.',
+      );
+    });
+
+    test('br becomes a newline', () {
+      expect(
+        flatten(parseFluentAnnotationMarkup('a<br />b', base)),
+        'a\nb',
+        reason:
+            'ChartAnnotationLayer.tsx:232 renders br as a line break, and '
+            ':216 turns it into a newline in the plain-text projection.',
+      );
+    });
+
+    test('entities decode', () {
+      expect(
+        flatten(parseFluentAnnotationMarkup('a &amp; b &nbsp;c', base)),
+        'a & b \u00a0c',
+        reason:
+            'ChartAnnotationLayer.tsx:48-53 decodes amp, quot, apos and nbsp; '
+            ':52 maps nbsp to U+00A0, not to an ordinary space.',
+      );
+      expect(
+        flatten(parseFluentAnnotationMarkup('&quot;&apos;', base)),
+        '"\'',
+        reason: 'ChartAnnotationLayer.tsx:50-51.',
+      );
+    });
+
+    test('numeric references decode', () {
+      expect(
+        flatten(parseFluentAnnotationMarkup('&#65;&#x42;', base)),
+        'AB',
+        reason: 'ChartAnnotationLayer.tsx:60-73 handles decimal and hex refs.',
+      );
+    });
+
+    test('a numeric chevron is re-escaped, never a raw chevron', () {
+      expect(
+        flatten(parseFluentAnnotationMarkup('&#60;script&#62;', base)),
+        '&lt;script&gt;',
+        reason:
+            'ChartAnnotationLayer.tsx:67-72 re-emits a numeric reference that '
+            'resolves to a chevron as &lt; or &gt; rather than as a raw "<", so '
+            'the only route onward is the allowlist at :82-97, whose default '
+            'arm (:95-96) rejects every name outside b, i and br. This is a '
+            'security property and is reproduced exactly.',
+      );
+    });
+
+    test('a numeric chevron around an allowlisted name still revives', () {
+      expect(
+        parseFluentAnnotationMarkup('&#60;b&#62;x&#60;/b&#62;', base)
+            .whereType<TextSpan>()
+            .any((span) => span.style?.fontWeight == FontWeight.bold),
+        isTrue,
+        reason:
+            'The second pass (ChartAnnotationLayer.tsx:78-98) runs over the '
+            "first pass's output, so the &lt;b&gt; that :67-72 produced is "
+            'revived exactly as a literal &lt;b&gt; would be. The re-escape '
+            'bounds the vocabulary; it does not forbid the three safe tags. '
+            "The plan expected literal '<b>x</b>' here, which contradicts both "
+            'upstream and its own neighbouring &lt;b&gt; test.',
+      );
+    });
+
+    test('an escaped tag name IS revived', () {
+      expect(
+        parseFluentAnnotationMarkup('&lt;b&gt;x&lt;/b&gt;', base)
+            .whereType<TextSpan>()
+            .any((span) => span.style?.fontWeight == FontWeight.bold),
+        isTrue,
+        reason:
+            'ChartAnnotationLayer.tsx:78-98 turns &lt;b&gt; back into a real '
+            'tag — but only for the b, i and br names in that switch.',
+      );
+      expect(
+        flatten(parseFluentAnnotationMarkup('&lt;br /&gt;', base)),
+        '\n',
+        reason:
+            'ChartAnnotationLayer.tsx:91-94 accepts three spellings of br, '
+            'including the space before the slash after :79 collapses runs of '
+            'whitespace.',
+      );
+    });
+
+    test('an unknown escaped tag stays literal', () {
+      expect(
+        flatten(parseFluentAnnotationMarkup('&lt;script&gt;', base)),
+        '&lt;script&gt;',
+        reason:
+            'ChartAnnotationLayer.tsx:95-96 falls through to the original '
+            'match for any name outside b, i and br.',
+      );
+    });
+
+    test('an unsupported real tag stays literal', () {
+      expect(
+        flatten(parseFluentAnnotationMarkup('<u>x</u>', base)),
+        '<u>x</u>',
+        reason:
+            'ChartAnnotationLayer.tsx:178 appends any tag outside b, i and br '
+            'as text.',
+      );
+    });
+
+    test('nesting past depth five is emitted literally', () {
+      final deep = '${'<b>' * 6}x${'</b>' * 6}';
+      expect(
+        flatten(parseFluentAnnotationMarkup(deep, base)),
+        contains('<b>'),
+        reason:
+            'ChartAnnotationLayer.tsx:163-166 emits the opening tag as text '
+            'once the stack reaches MAX_SIMPLE_MARKUP_DEPTH '
+            '($kMaxSimpleMarkupDepth).',
+      );
+      expect(
+        flatten(
+          parseFluentAnnotationMarkup('${'<b>' * 5}x${'</b>' * 5}', base),
+        ),
+        'x',
+        reason:
+            'Exactly kMaxSimpleMarkupDepth levels still nest: :163 compares '
+            'stack.length - 1 >= MAX_SIMPLE_MARKUP_DEPTH, so the fifth opener '
+            'is accepted and only the sixth is literalised.',
+      );
+    });
+
+    test('an unmatched closer is literal text', () {
+      expect(
+        flatten(parseFluentAnnotationMarkup('a</b>b', base)),
+        'a</b>b',
+        reason: 'ChartAnnotationLayer.tsx:160.',
+      );
+    });
+
+    test('an unclosed opener is re-serialised', () {
+      expect(
+        flatten(parseFluentAnnotationMarkup('a<b>b', base)),
+        'a<b>b</b>',
+        reason:
+            'ChartAnnotationLayer.tsx:183-205 unwinds the stack and writes the '
+            'element back out as literal text, including a closing tag it '
+            'never saw.',
+      );
+      expect(
+        flatten(parseFluentAnnotationMarkup('<b>a<br />b', base)),
+        '<b>a<br />b</b>',
+        reason:
+            'ChartAnnotationLayer.tsx:114-125 — serializeSimpleMarkup writes a '
+            'br child back as the literal string "<br />".',
+      );
+    });
+
+    test('empty in, empty out', () {
+      expect(
+        parseFluentAnnotationMarkup('', base),
+        isEmpty,
+        reason: 'ChartAnnotationLayer.tsx:128-130.',
+      );
+    });
+  });
+
+  group('fluentAnnotationPlainText', () {
+    test('is the default accessible label', () {
+      expect(
+        fluentAnnotationPlainText('<b>Peak</b><br />Q3'),
+        'Peak\nQ3',
+        reason:
+            'ChartAnnotationLayer.tsx:210-221 and :658 — the plain-text '
+            'projection is the aria-label when none is supplied.',
+      );
+    });
   });
 }
 
