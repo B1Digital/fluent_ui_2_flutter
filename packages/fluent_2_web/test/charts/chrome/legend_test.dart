@@ -7,6 +7,7 @@ import 'package:fluent_2_web/src/charts/chrome/legend_style.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_text_measurer.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_utils.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -1314,6 +1315,141 @@ void main() {
         'rendered gap between two wrapped rows',
         capturedGap,
         tester.getTopLeft(rows.at(1)).dx - tester.getTopRight(rows.first).dx,
+      );
+    });
+  });
+
+  group('horizontal roving focus', () {
+    const legends = <FluentChartLegendItem>[
+      FluentChartLegendItem(title: 'alpha', color: Color(0xFF0078D4)),
+      FluentChartLegendItem(title: 'beta', color: Color(0xFF107C10)),
+      FluentChartLegendItem(title: 'gamma', color: Color(0xFFD13438)),
+    ];
+
+    Future<void> pump(WidgetTester tester, {TextDirection? direction}) =>
+        tester.pumpWidget(
+          FluentApp(
+            theme: theme,
+            home: Directionality(
+              textDirection: direction ?? TextDirection.ltr,
+              child: const Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: 800,
+                  child: FluentChartLegend(legends: legends),
+                ),
+              ),
+            ),
+          ),
+        );
+
+    bool focused(WidgetTester tester, String label) =>
+        Focus.of(tester.element(find.text(label))).hasFocus;
+
+    testWidgets('arrow right moves to the next legend', (tester) async {
+      await pump(tester);
+      Focus.of(tester.element(find.text('Alpha'))).requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(
+        focused(tester, 'Beta'),
+        isTrue,
+        reason:
+            "Legends.tsx:52 installs useArrowNavigationGroup({axis: 'horizontal'}), "
+            'so Right advances along the strip.',
+      );
+    });
+
+    testWidgets('arrow navigation wraps at both ends', (tester) async {
+      await pump(tester);
+      Focus.of(tester.element(find.text('Gamma'))).requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(
+        focused(tester, 'Alpha'),
+        isTrue,
+        reason:
+            "Wrapping is tabster's documented default for a circular arrow "
+            'navigation group. Marked as unverified in the source — the probe is '
+            'named in the widget docstring.',
+      );
+    });
+
+    testWidgets('Home and End jump to the ends', (tester) async {
+      await pump(tester);
+      Focus.of(tester.element(find.text('Beta'))).requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.end);
+      await tester.pump();
+      expect(
+        focused(tester, 'Gamma'),
+        isTrue,
+        reason: 'End moves to the last row of the strip.',
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.home);
+      await tester.pump();
+      expect(
+        focused(tester, 'Alpha'),
+        isTrue,
+        reason: 'Home moves to the first row of the strip.',
+      );
+    });
+
+    testWidgets('the arrows swap under RTL', (tester) async {
+      await pump(tester, direction: TextDirection.rtl);
+      Focus.of(tester.element(find.text('Alpha'))).requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      expect(
+        focused(tester, 'Beta'),
+        isTrue,
+        reason:
+            'Under RTL the visually-leading direction is Left, so Left advances '
+            'through the list, matching every other roving model in this package.',
+      );
+    });
+
+    testWidgets('the last focused row stays the tab stop', (tester) async {
+      await pump(tester);
+      Focus.of(tester.element(find.text('Beta'))).requestFocus();
+      await tester.pump();
+      expect(
+        tester
+            .widgetList<FluentChartLegendRow>(find.byType(FluentChartLegendRow))
+            .map((row) => row.skipTraversal)
+            .toList(),
+        <bool>[true, false, true],
+        reason:
+            'memorizeCurrent: true (Legends.tsx:52) restores the last focused '
+            'item when Tab re-enters the group, which in Flutter means every '
+            'other row is skipped by the traversal policy.',
+      );
+    });
+
+    testWidgets('the strip is one tab stop, not three', (tester) async {
+      await pump(tester);
+      Focus.of(tester.element(find.text('Beta'))).requestFocus();
+      await tester.pump();
+      expect(
+        <bool>[
+          for (final label in <String>['Alpha', 'Beta', 'Gamma'])
+            Focus.of(tester.element(find.text(label))).skipTraversal,
+        ],
+        <bool>[true, false, true],
+        reason:
+            'The memorised index is only a real roving tabindex if the other '
+            "rows' own nodes are out of the Tab order — the row widget's flag "
+            'has to reach the node FluentInteractive focuses.',
+      );
+      expect(
+        primaryFocus,
+        same(Focus.of(tester.element(find.text('Beta')))),
+        reason:
+            'Guard on the assertion above: the flags are only meaningful while '
+            'the memorised row is the one holding focus.',
       );
     });
   });

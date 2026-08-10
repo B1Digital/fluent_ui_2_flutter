@@ -2,6 +2,8 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 // `listEquals` is not in the `show` list `widgets.dart` re-exports foundation
 // with, so it has to be imported directly.
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart'
+    show KeyDownEvent, KeyEvent, KeyRepeatEvent, LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 
 import '../../buttons/button.dart';
@@ -356,6 +358,18 @@ class FluentChartLegendRow extends StatelessWidget {
         : swatchSize;
     final label = capitalizeLegendLabel(item.title);
 
+    // The roving flag has to land on the node [FluentInteractive] actually
+    // focuses: `FocusNode.skipTraversal` is only inherited downwards through an
+    // ancestor's `descendantsAreTraversable`, so setting it on the wrapper below
+    // would leave every row in the Tab order. Written here rather than as
+    // `descendantsAreTraversable: false` on that wrapper because
+    // `FocusableActionDetector` passes no `skipTraversal` of its own, which
+    // makes its `Focus` read the derived value and write it back onto the node
+    // as a hard flag — the latch `FluentNav._unlatch` exists to undo. Assigning
+    // the node directly is idempotent under that write-back, so there is
+    // nothing to undo.
+    focusNode.skipTraversal = skipTraversal;
+
     return IndexedSemantics(
       index: indexInList,
       child: Semantics(
@@ -383,7 +397,6 @@ class FluentChartLegendRow extends StatelessWidget {
             // node still reports descendant focus, which is what carries the
             // row's own focus through to the chart.
             canRequestFocus: false,
-            skipTraversal: skipTraversal,
             onFocusChange: (hasFocus) => onHighlightChanged?.call(hasFocus),
             child: FluentInteractive(
               focusNode: focusNode,
@@ -485,6 +498,15 @@ class FluentChartLegendTheme extends InheritedTheme {
 /// selecting *every* legend in multi-select mode clears the selection
 /// (`Legends.tsx:225-227`), and hovering a legend highlights the series exactly
 /// as focusing it does (`:316-319`).
+///
+/// The strip is one tab stop with a roving index inside it: Left, Right, Home
+/// and End move between rows and the last row reached keeps the stop
+/// (`useArrowNavigationGroup({axis: 'horizontal', memorizeCurrent: true})`,
+/// `Legends.tsx:52`). Wrapping at both ends, and the absence of typeahead or
+/// Escape-to-exit, are `@fluentui/react-tabster` defaults rather than anything
+/// this tree states — that package is not in the extracted source. Probe that
+/// settles it: drive `charts-legends--legends-basic` and record the focus order
+/// for each key.
 class FluentChartLegend extends StatefulWidget {
   /// Creates a legend strip.
   const FluentChartLegend({
@@ -626,7 +648,57 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
     item.onAction?.call();
   }
 
+  void _moveFocus(int delta) {
+    if (_nodes.isEmpty) return;
+    // Wrapping in both directions. tabster's arrow navigation group is
+    // circular by default; the option is not passed at Legends.tsx:52 and
+    // @fluentui/react-tabster is not in the extracted source, so this is
+    // derived from its documented default rather than ported.
+    // Dart's `%` is non-negative for a positive divisor, so one expression
+    // covers both directions — the same modulo walk as FluentToolbar._seek.
+    setState(() => _focusedIndex = (_focusedIndex + delta) % _nodes.length);
+    _nodes[_focusedIndex].requestFocus();
+  }
+
+  void _focusEdge({required bool last}) {
+    if (_nodes.isEmpty) return;
+    setState(() => _focusedIndex = last ? _nodes.length - 1 : 0);
+    _nodes[_focusedIndex].requestFocus();
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    // Arrow keys are physical; the legend list is logical. In an RTL subtree the
+    // two disagree, and it is the arrows that must bend.
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.arrowRight:
+        _moveFocus(rtl ? -1 : 1);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowLeft:
+        _moveFocus(rtl ? 1 : -1);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.home:
+        _focusEdge(last: false);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.end:
+        _focusEdge(last: true);
+        return KeyEventResult.handled;
+      default:
+        return KeyEventResult.ignored;
+    }
+  }
+
   void _handleHighlight(int index, {required bool highlighted}) {
+    // Keeps the memorised stop on whichever row the user actually reached, so a
+    // click, a Tab and an arrow press all leave the strip in the same state.
+    // Guarded on the node because this callback is also the pointer-hover path,
+    // and a hover must not move the tab stop.
+    if (highlighted && _focusedIndex != index && _nodes[index].hasFocus) {
+      setState(() => _focusedIndex = index);
+    }
     final item = widget.legends[index];
     if (highlighted) {
       // Legends.tsx:254-259 — the active legend is only recorded when the item
@@ -797,16 +869,27 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
 
     return Padding(
       padding: style.containerMargin!.resolve(<WidgetState>{})!,
-      child: Semantics(
-        container: true,
-        explicitChildNodes: true,
-        // Legends.tsx:124 — the listbox is labelled 'Legends', and only when
-        // allowFocusOnLegends is set does the role appear at all (:122).
-        label: widget.allowFocusOnLegends ? 'Legends' : null,
-        // Legends.tsx:109 — the two layouts are mutually exclusive.
-        child: widget.enabledWrapLines
-            ? _buildWrapped(rows)
-            : _buildOverflow(rows, style, theme),
+      child: Focus(
+        canRequestFocus: false,
+        // useFocusableGroup() at Legends.tsx:51 is called with no options, so
+        // no tabBehavior is specified; @fluentui/react-tabster is not in the
+        // extracted source and its concrete bindings are UNKNOWN from that
+        // tree. Left, Right, Home and End are what the configuration states.
+        // ponytail: no typeahead, no Escape-to-exit. Probe that settles it —
+        // drive `charts-legends--legends-basic` under Oracle B and record the
+        // focus order for each key.
+        onKeyEvent: _handleKey,
+        child: Semantics(
+          container: true,
+          explicitChildNodes: true,
+          // Legends.tsx:124 — the listbox is labelled 'Legends', and only when
+          // allowFocusOnLegends is set does the role appear at all (:122).
+          label: widget.allowFocusOnLegends ? 'Legends' : null,
+          // Legends.tsx:109 — the two layouts are mutually exclusive.
+          child: widget.enabledWrapLines
+              ? _buildWrapped(rows)
+              : _buildOverflow(rows, style, theme),
+        ),
       ),
     );
   }
