@@ -4,6 +4,7 @@ import '../chrome/legend_shape.dart';
 import 'bar_data.dart';
 import 'chart_common.dart';
 import 'line_options.dart';
+import 'polar_data.dart';
 import 'sankey_data.dart';
 
 /// One point of a line series.
@@ -181,6 +182,7 @@ class FluentLineChartSeries {
     this.color,
     this.opacity,
     this.lineOptions,
+    this.polarLineOptions,
     this.hideInactiveDots = false,
     this.onLegendClick,
     this.onLineClick,
@@ -210,6 +212,15 @@ class FluentLineChartSeries {
   /// How the line is stroked.
   final FluentLineOptions? lineOptions;
 
+  /// The four polar-only members `lineOptions` also carries upstream.
+  ///
+  /// `LineChart.tsx:1352` hands `_points[i].lineOptions` to
+  /// `renderScatterPolarCategoryLabels`, which keeps exactly `direction`,
+  /// `axisLabel`, `rotation` and `originXOffset` (`scatterpolar-utils.tsx:69-87`).
+  /// Spec §5.6 splits them off [lineOptions] because none of them says anything
+  /// about a stroke.
+  final FluentPolarLineOptions? polarLineOptions;
+
   /// Whether markers on unhovered points are hidden.
   final bool hideInactiveDots;
 
@@ -229,9 +240,9 @@ class FluentLineChartSeries {
 
 /// One scatter series.
 ///
-/// Ports `ScatterChartPoints` (`types/DataPoint.ts:1033-1071`) — the line series
-/// without [FluentLineChartSeries.gaps],
-/// [FluentLineChartSeries.lineOptions] or [FluentLineChartSeries.onLineClick].
+/// Ports `ScatterChartPoints` (`types/DataPoint.ts:1033-1075`) — the line series
+/// without [FluentLineChartSeries.gaps] or
+/// [FluentLineChartSeries.onLineClick].
 @immutable
 class FluentScatterChartSeries {
   /// Creates a scatter series.
@@ -241,6 +252,8 @@ class FluentScatterChartSeries {
     this.legendShape,
     this.color,
     this.opacity,
+    this.lineOptions,
+    this.polarLineOptions,
     this.hideInactiveDots = false,
     this.onLegendClick,
     this.useSecondaryYScale = false,
@@ -260,6 +273,23 @@ class FluentScatterChartSeries {
 
   /// Marker fill opacity.
   final double? opacity;
+
+  /// The mode bag ScatterChart reads through a cast.
+  ///
+  /// `ScatterChartPoints` (`types/DataPoint.ts:1033-1075`) declares no such
+  /// member, yet `ScatterChart.tsx:243-244` hands `_points` to `isTextMode`
+  /// (`utilities.ts:2219`) and `isScatterPolarSeries` (`:2207`), both of which
+  /// reach it through `as any`, and `:501` casts to `Partial<LineChartPoints>`
+  /// for the same reason. The one producer that fills it is the Plotly adapter,
+  /// which builds scatter and line traces from the same function and returns
+  /// them `as LineChartPoints` (`PlotlySchemaAdapter.ts:2067-2085`,
+  /// `:1942-1957`). Declaring it is the typed spelling of that cast.
+  final FluentLineOptions? lineOptions;
+
+  /// The four polar-only members, as on [FluentLineChartSeries].
+  ///
+  /// Read at `ScatterChart.tsx:501` off the same casted bag as [lineOptions].
+  final FluentPolarLineOptions? polarLineOptions;
 
   /// Whether markers on unhovered points are hidden.
   final bool hideInactiveDots;

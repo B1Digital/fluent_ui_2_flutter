@@ -387,7 +387,7 @@ void main() {
         reason:
             'ScatterChart.tsx:435 guards the whole push on !_isTextMode, but '
             'utilities.ts:2219 reads lineOptions through an `as any` cast and '
-            'types/DataPoint.ts:1033-1071 declares no lineOptions on '
+            'types/DataPoint.ts:1033-1075 declares no lineOptions on '
             'ScatterChartPoints, so no typed scatter series is in text mode',
       );
       expect(

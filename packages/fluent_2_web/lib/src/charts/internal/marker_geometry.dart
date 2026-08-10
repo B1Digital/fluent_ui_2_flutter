@@ -164,6 +164,10 @@ bool lineModeDrawsLines(FluentLineMode? mode) =>
 FluentLineOptions? _lineOptionsOf(Object series) => switch (series) {
   FluentLineOptions() => series,
   FluentLineChartSeries() => series.lineOptions,
+  // `utilities.ts:2219` and `:2207` both read `lineOptions` off a scatter
+  // series through `as any`; the port declares it instead
+  // (`FluentScatterChartSeries.lineOptions`).
+  FluentScatterChartSeries() => series.lineOptions,
   _ => null,
 };
 

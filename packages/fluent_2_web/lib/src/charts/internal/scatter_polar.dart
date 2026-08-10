@@ -3,8 +3,11 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 
 import '../model/chart_value.dart';
+import '../model/polar_data.dart';
+import 'chart_text_measurer.dart';
 import 'd3/curves.dart';
 import 'd3/path_sink.dart';
+import 'd3/scale.dart';
 import 'd3/shape_line_area.dart';
 
 /// Fill opacity of a `fill: 'toself'` scatterpolar area (`LineChart.tsx:1336`).
@@ -128,4 +131,74 @@ List<FluentScatterPolarLabel> scatterPolarCategoryLabels({
     }
   }
   return result;
+}
+
+/// The ring one series contributes, resolved against the live [xScale] and
+/// [yScale].
+///
+/// The call site is the same in both charts — `LineChart.tsx:1346-1355` pushes
+/// onto `pointsForLine`, `ScatterChart.tsx:495-504` onto `pointsForSeries` —
+/// and both pass that series' own `lineOptions`, so a chart with three traces
+/// draws the ring three times. [options] is the polar half of that bag
+/// (`scatterpolar-utils.tsx:69-87`); a null one, or one with no `axisLabel`,
+/// places nothing, which is `uniqueTexts ?? []` at `:26` reaching the `forEach`
+/// at `:38` empty.
+///
+/// A placed label whose position is not [isPlottable] is dropped afterwards
+/// rather than before, so the packing at `:45-47` is untouched: a band scale
+/// answers a numeric radius with null, and upstream would emit `<text x="NaN">`
+/// — invisible, but still occupying the slot that collapses the rest of the
+/// ring, which is why the filter runs last.
+List<FluentScatterPolarLabel> scatterPolarLabelsForSeries({
+  required FluentPolarLineOptions? options,
+  required Scale xScale,
+  required Scale yScale,
+}) {
+  final labels = options?.axisLabel;
+  if (labels == null || labels.isEmpty) {
+    return const <FluentScatterPolarLabel>[];
+  }
+  return scatterPolarCategoryLabels(
+        labels: labels,
+        xScale: (value) => xScale(value) ?? double.nan,
+        yScale: (value) => yScale(value) ?? double.nan,
+        direction: options!.direction,
+        // `scatterpolar-utils.tsx:36` and `:40` — both default to zero.
+        rotationDegrees: options.rotation ?? 0,
+        originXOffset: options.originXOffset ?? 0,
+      )
+      .where((label) => isPlottable(label.position.dx, label.position.dy))
+      .toList(growable: false);
+}
+
+/// Paints one placed [label] centred on its position.
+///
+/// The colour is whatever [style] carries and is **not** flattened through
+/// `FluentChartColors.flattenMark`: `className={classes.markerLabel}`
+/// (`scatterpolar-utils.tsx:53`) resolves to `getMarkerLabelStyle`
+/// (`Common.styles.ts:72-81`), whose fill is `colorNeutralForeground1` and
+/// whose forced-colours arm is already `CanvasText`. The ring is chart chrome,
+/// not series ink, so spec §5.3 does not apply to it.
+///
+/// `textAnchor="middle"` (`:54`) centres it horizontally. `:55` also sets
+/// `alignmentBaseline="middle"`, which no browser honours on a `<text>`
+/// element — the reading `funnel_chart.dart:654-659` settled against a capture
+/// of the same attribute — so `y` is an alphabetic baseline and the origin sits
+/// one ascent above it.
+void paintScatterPolarLabel(
+  Canvas canvas,
+  FluentScatterPolarLabel label, {
+  required FluentChartTextMeasurer measurer,
+  required TextStyle style,
+}) {
+  final painter = measurer.layoutPainter(label.text, style);
+  final metrics = measurer.measure(label.text, style);
+  painter.paint(
+    canvas,
+    Offset(
+      label.position.dx - metrics.width / 2,
+      label.position.dy - metrics.ascent,
+    ),
+  );
+  painter.dispose();
 }

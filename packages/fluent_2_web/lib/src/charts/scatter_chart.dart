@@ -16,6 +16,7 @@ import 'internal/chart_text_styles.dart';
 import 'internal/chart_utils.dart';
 import 'internal/data_viz_palette.dart';
 import 'internal/marker_geometry.dart';
+import 'internal/scatter_polar.dart';
 import 'model/callout_data.dart';
 import 'model/cartesian_series.dart';
 import 'model/chart_common.dart';
@@ -433,6 +434,42 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
       xAxisType != FluentChartAxisType.category &&
       yAxisType != FluentChartAxisType.category;
 
+  /// Whether this is a scatterpolar chart (`ScatterChart.tsx:244`).
+  ///
+  /// The same `isScatterPolarSeries` (`utilities.ts:2204-2209`) the line chart
+  /// asks, which compares the **whole** mode literal rather than testing for a
+  /// substring, so `FluentLineMode.upstreamName` and not the three flags is
+  /// what carries it.
+  bool get isScatterPolar => _series.any(
+    (series) => series.lineOptions?.mode?.upstreamName == 'scatterpolar',
+  );
+
+  /// The scatterpolar category labels, one ring per series.
+  ///
+  /// Ports the call at `ScatterChart.tsx:495-504`, which sits inside the
+  /// per-series loop opened at `:399` and pushes onto `pointsForSeries`, after
+  /// that series' circles. It differs from the line chart's twin
+  /// (`LineChart.tsx:1346-1355`) in exactly one thing: `:499` passes the
+  /// chart's single `_yAxisScale`, where `:1350` passes the series' own
+  /// `yScale`, which may be the secondary one.
+  List<({int seriesIndex, FluentScatterPolarLabel label})>
+  scatterPolarLabelsFor(FluentCartesianChildContext context) {
+    if (!isScatterPolar) {
+      return const <({int seriesIndex, FluentScatterPolarLabel label})>[];
+    }
+    final out = <({int seriesIndex, FluentScatterPolarLabel label})>[];
+    for (var i = _series.length - 1; i >= 0; i--) {
+      for (final label in scatterPolarLabelsForSeries(
+        options: _series[i].polarLineOptions,
+        xScale: context.xScale,
+        yScale: context.yScalePrimary,
+      )) {
+        out.add((seriesIndex: i, label: label));
+      }
+    }
+    return out;
+  }
+
   @override
   FluentChartDomainRange resolveXDomainRange({
     required FluentChartMargins margins,
@@ -600,7 +637,7 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
     // parity: ScatterChart.tsx:435 suppresses every circle and label in text
     // mode. `isTextMode` reads `lineOptions` through an `as any` cast
     // (`utilities.ts:2219`) and `ScatterChartPoints` declares no such member
-    // (`types/DataPoint.ts:1033-1071`), so this can only fire if the model ever
+    // (`types/DataPoint.ts:1033-1075`), so this can only fire if the model ever
     // grows one. It is kept because the widget's legend is gated on the same
     // predicate (`ScatterChart.tsx:680`).
     if (isTextMode(_series)) {
@@ -731,42 +768,65 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
     final strokeWidth = style.markerStrokeWidth!.resolve(<WidgetState>{})!;
     final activeFill = style.activeMarkerFillColor!.resolve(<WidgetState>{})!;
     final labelStyle = style.markerLabelStyle!.resolve(<WidgetState>{})!;
+    // `marksFor` already walks the series last to first, so grouping and then
+    // counting back down reproduces its order exactly — it only makes the
+    // series boundary visible, which is where `:496` pushes the ring.
+    final marks = <int, List<FluentScatterMark>>{};
     for (final mark in marksFor(context)) {
-      // `_getPointFill` (`ScatterChart.tsx:354-360`) inverts the active marker
-      // to the canvas colour rather than growing a ring.
-      canvas
-        ..drawCircle(
-          mark.centre,
-          mark.radius,
-          Paint()
-            ..color = (mark.isActive ? activeFill : mark.colour).withValues(
-              alpha: mark.opacity,
-            ),
-        )
-        ..drawCircle(
-          mark.centre,
-          mark.radius,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = strokeWidth
-            ..color = mark.strokeColour.withValues(alpha: mark.opacity),
-        );
-      final label = mark.label;
-      if (label == null) {
-        continue;
-      }
-      // `text-anchor: middle` on an alphabetic baseline
-      // (`ScatterChart.tsx:481-488`, `Common.styles.ts:72-81`).
-      final painter = measurer.layoutPainter(label, labelStyle);
-      final metrics = measurer.measure(label, labelStyle);
-      painter.paint(
-        canvas,
-        Offset(
-          mark.centre.dx - metrics.width / 2,
-          mark.centre.dy + mark.labelBaselineOffset - metrics.ascent,
-        ),
+      (marks[mark.seriesIndex] ??= <FluentScatterMark>[]).add(mark);
+    }
+    final rings = <int, List<FluentScatterPolarLabel>>{};
+    for (final placed in scatterPolarLabelsFor(context)) {
+      (rings[placed.seriesIndex] ??= <FluentScatterPolarLabel>[]).add(
+        placed.label,
       );
-      painter.dispose();
+    }
+    for (var i = _series.length - 1; i >= 0; i--) {
+      for (final mark in marks[i] ?? const <FluentScatterMark>[]) {
+        // `_getPointFill` (`ScatterChart.tsx:354-360`) inverts the active
+        // marker to the canvas colour rather than growing a ring.
+        canvas
+          ..drawCircle(
+            mark.centre,
+            mark.radius,
+            Paint()
+              ..color = (mark.isActive ? activeFill : mark.colour).withValues(
+                alpha: mark.opacity,
+              ),
+          )
+          ..drawCircle(
+            mark.centre,
+            mark.radius,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = strokeWidth
+              ..color = mark.strokeColour.withValues(alpha: mark.opacity),
+          );
+        final label = mark.label;
+        if (label == null) {
+          continue;
+        }
+        // `text-anchor: middle` on an alphabetic baseline
+        // (`ScatterChart.tsx:481-488`, `Common.styles.ts:72-81`).
+        final painter = measurer.layoutPainter(label, labelStyle);
+        final metrics = measurer.measure(label, labelStyle);
+        painter.paint(
+          canvas,
+          Offset(
+            mark.centre.dx - metrics.width / 2,
+            mark.centre.dy + mark.labelBaselineOffset - metrics.ascent,
+          ),
+        );
+        painter.dispose();
+      }
+      for (final label in rings[i] ?? const <FluentScatterPolarLabel>[]) {
+        paintScatterPolarLabel(
+          canvas,
+          label,
+          measurer: measurer,
+          style: labelStyle,
+        );
+      }
     }
   }
 

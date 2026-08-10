@@ -1,8 +1,10 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_painter.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_colors.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_text_measurer.dart';
@@ -16,6 +18,8 @@ import 'package:fluent_2_web/src/charts/line_chart_style.dart';
 import 'package:fluent_2_web/src/charts/model/cartesian_series.dart';
 import 'package:fluent_2_web/src/charts/model/chart_common.dart';
 import 'package:fluent_2_web/src/charts/model/line_options.dart';
+import 'package:fluent_2_web/src/charts/model/polar_data.dart';
+import 'package:fluent_2_web/src/charts/scatter_chart.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -411,7 +415,11 @@ void main() {
       final fillIndex = recorder.ops.indexOf(recorder.fills.single);
       expect(
         fillIndex,
-        greaterThan(recorder.ops.lastIndexWhere((op) => op.path == null)),
+        greaterThan(
+          recorder.ops.lastIndexWhere(
+            (op) => op.path == null && op.paragraphOrigin == null,
+          ),
+        ),
         reason:
             'every stroked line — the axes, the gridlines and this series own '
             'segments — is drawn before the fill, because LineChart.tsx:1331 '
@@ -426,24 +434,215 @@ void main() {
       );
     });
   });
+
+  // `renderScatterPolarCategoryLabels` is called from BOTH charts —
+  // `LineChart.tsx:1346-1355` pushes onto `pointsForLine` and
+  // `ScatterChart.tsx:495-504` onto `pointsForSeries` — and both read the four
+  // polar members off the series' own `lineOptions`, so both are per series.
+  group('scatterpolar category labels', () {
+    test('one ring per series, series last first', () {
+      final labels = _polarDelegate(<FluentLineChartSeries>[
+        _polarSeries(),
+        _polarSeries(legend: 'second'),
+      ]).scatterPolarLabelsFor(_polarCtx());
+      expect(
+        labels.map((placed) => placed.seriesIndex).toSet(),
+        <int>{0, 1},
+        reason:
+            'the call at LineChart.tsx:1348 sits inside the per-series loop '
+            'opened at :535, so two traces contribute two rings',
+      );
+      expect(
+        labels.first.seriesIndex,
+        1,
+        reason:
+            ':535 counts down from _points.length - 1, so the last series is '
+            'placed first and series 0 lands on top',
+      );
+      expect(
+        labels
+            .where((placed) => placed.seriesIndex == 0)
+            .map((placed) => placed.label.text),
+        _kRingLabels,
+        reason:
+            'scatterpolar-utils.tsx:26 takes the texts verbatim from '
+            'lineOptions.axisLabel, in order',
+      );
+    });
+
+    test('a chart with no scatterpolar trace places none', () {
+      expect(
+        _polarDelegate(<FluentLineChartSeries>[
+          _polarSeries(mode: 'lines'),
+        ]).scatterPolarLabelsFor(_polarCtx()),
+        isEmpty,
+        reason:
+            'LineChart.tsx:1346 gates the whole call on _isScatterPolar, which '
+            'utilities.ts:2207 answers by comparing the whole mode literal',
+      );
+    });
+
+    test('a trace with no axisLabel places none', () {
+      expect(
+        _polarDelegate(<FluentLineChartSeries>[
+          _polarSeries(ring: null),
+        ]).scatterPolarLabelsFor(_polarCtx()),
+        isEmpty,
+        reason:
+            'scatterpolar-utils.tsx:26 defaults uniqueTexts to [], and :38 '
+            'never enters the loop for an empty array',
+      );
+    });
+
+    test('the ring is placed at equal angles about the scaled origin', () {
+      final labels = _polarDelegate(<FluentLineChartSeries>[
+        _polarSeries(),
+      ]).scatterPolarLabelsFor(_polarCtx());
+      // `_polarCtx` maps -1..1 onto 0..200 on x and 200..0 on y, so the domain
+      // origin is (100, 100) and 0.7 of the domain is 70px. Compared component
+      // by component: cos(pi/2) is 6.1e-17 and not 0, so the quarter turns are
+      // only equal to within rounding.
+      const expected = <Offset>[
+        Offset(170, 100),
+        Offset(100, 30),
+        Offset(30, 100),
+        Offset(100, 170),
+      ];
+      expect(
+        labels,
+        hasLength(expected.length),
+        reason: 'four texts, four equal angular slots',
+      );
+      for (var i = 0; i < expected.length; i++) {
+        expect(
+          labels[i].label.position.dx,
+          closeTo(expected[i].dx, 1e-9),
+          reason:
+              'scatterpolar-utils.tsx:41 — cos(2*pi/n * $i) on a radius of 0.7 '
+              'domain units',
+        );
+        expect(
+          labels[i].label.position.dy,
+          closeTo(expected[i].dy, 1e-9),
+          reason:
+              'scatterpolar-utils.tsx:42 — sin of the same angle, swept '
+              'counter-clockwise in domain space and so downward on screen',
+        );
+      }
+    });
+
+    test('the labels declare no hit region', () {
+      expect(
+        _polarDelegate(<FluentLineChartSeries>[
+          _polarSeries(),
+        ]).buildHitRegions(_polarCtx(), _polarLayout()),
+        isEmpty,
+        reason:
+            'the <text> nodes at scatterpolar-utils.tsx:49-59 carry no handler, '
+            'role or tabIndex, so they are decoration and not a stop',
+      );
+    });
+
+    testWidgets('a mounted FluentLineChart paints the ring', (tester) async {
+      final recorder = await _paintChart(tester, _polarData());
+      final origins = _expectedRingOrigins(tester);
+      expect(
+        origins,
+        hasLength(_kRingLabels.length),
+        reason:
+            'the fixture must not lose a label to the 40px gap of '
+            'scatterpolar-utils.tsx:14, or the assertion below would pass on a '
+            'ring of one',
+      );
+      for (final origin in origins) {
+        expect(
+          recorder.paragraphs,
+          contains(origin),
+          reason:
+              'LineChart.tsx:1347 pushes every label onto pointsForLine, so a '
+              'mounted chart paints all four',
+        );
+      }
+      final bare = await _paintChart(tester, _polarData(ring: null));
+      expect(
+        recorder.paragraphs.length - bare.paragraphs.length,
+        _kRingLabels.length,
+        reason:
+            'the axes are identical between the two charts — axisLabel feeds no '
+            'domain — so the whole difference is the ring',
+      );
+    });
+
+    testWidgets('a mounted FluentScatterChart paints the same ring', (
+      tester,
+    ) async {
+      final recorder = await _paintScatterChart(tester, _polarScatterData());
+      final origins = _expectedRingOrigins(tester);
+      expect(
+        origins,
+        hasLength(_kRingLabels.length),
+        reason: 'the fixture keeps all four, as above',
+      );
+      for (final origin in origins) {
+        expect(
+          recorder.paragraphs,
+          contains(origin),
+          reason:
+              'ScatterChart.tsx:496 pushes the same labels onto pointsForSeries',
+        );
+      }
+      final bare = await _paintScatterChart(
+        tester,
+        _polarScatterData(ring: null),
+      );
+      expect(
+        recorder.paragraphs.length - bare.paragraphs.length,
+        _kRingLabels.length,
+        reason: 'the difference is the ring and nothing else',
+      );
+    });
+
+    testWidgets('the ring is painted above the markers', (tester) async {
+      final recorder = await _paintChart(tester, _polarData());
+      final origins = _expectedRingOrigins(tester);
+      expect(
+        recorder.ops.lastIndexWhere(_isMarker),
+        // The axis tick labels are paragraphs too, and they are painted first,
+        // so the ring has to be found by position rather than by kind.
+        lessThan(
+          recorder.ops.indexWhere(
+            (op) =>
+                op.paragraphOrigin != null &&
+                origins.contains(op.paragraphOrigin),
+          ),
+        ),
+        reason:
+            'LineChart.tsx:1347 appends to pointsForLine AFTER the marker loop '
+            'has filled it, so a label is never hidden under a marker',
+      );
+    });
+  });
 }
 
 /// One recorded canvas operation, reduced to the fields the assertions read.
 ///
 /// [path] is null for a `drawLine`, which is how a stroked segment is told
-/// apart from a filled area without comparing geometry.
+/// apart from a filled area without comparing geometry, and
+/// [paragraphOrigin] is non-null only for a `drawParagraph`, which has neither.
 class _Op {
   const _Op({
     required this.path,
     required this.colour,
     required this.style,
     required this.strokeWidth,
+    this.paragraphOrigin,
   });
 
   final Path? path;
   final Color colour;
   final PaintingStyle style;
   final double strokeWidth;
+  final Offset? paragraphOrigin;
 }
 
 /// Records what the mounted chart's painter draws, in paint order.
@@ -473,8 +672,27 @@ class _PolarRecorder implements Canvas {
     ),
   );
 
+  /// `TextPainter.paint` bottoms out here, so this is what a `<text>` node is.
+  /// The paint fields are unread for a paragraph and carry placeholders.
+  @override
+  void drawParagraph(ui.Paragraph paragraph, Offset offset) => ops.add(
+    _Op(
+      path: null,
+      colour: const Color(0x00000000),
+      style: PaintingStyle.fill,
+      strokeWidth: 0,
+      paragraphOrigin: offset,
+    ),
+  );
+
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
+
+  /// The origin of every painted label, in paint order.
+  List<Offset> get paragraphs => ops
+      .where((op) => op.paragraphOrigin != null)
+      .map((op) => op.paragraphOrigin!)
+      .toList(growable: false);
 
   /// The filled areas: a path whose alpha is `fillOpacity` 0.5
   /// (`LineChart.tsx:1336`). Nothing else under the shell fills at that alpha —
@@ -517,10 +735,18 @@ const List<(double, double)> _kRhombus = <(double, double)>[
 /// Where [_polarCtx] maps the domain origin, which is interior to the rhombus.
 const Offset _kScaledOrigin = Offset(100, 100);
 
+/// The `lineOptions.axisLabel` ring (`scatterpolar-utils.tsx:26`).
+///
+/// Four texts at quarter turns are 99px apart under [_polarCtx] and further
+/// still under a mounted 400px chart, so none is lost to the 40px gap of
+/// `scatterpolar-utils.tsx:14` and every assertion below sees all four.
+const List<String> _kRingLabels = <String>['North', 'East', 'South', 'West'];
+
 /// One `mode: 'scatterpolar'`, `fill: 'toself'` trace over [_kRhombus].
 ///
 /// [points] truncates the ring, [plottable] sends every x to NaN, and a null
-/// [mode], [fill] or [colour] switches off the matching upstream condition.
+/// [mode], [fill], [ring] or [colour] switches off the matching upstream
+/// condition.
 FluentLineChartSeries _polarSeries({
   String legend = 'radar',
   String? fill = 'toself',
@@ -528,6 +754,7 @@ FluentLineChartSeries _polarSeries({
   int points = 4,
   Color? colour = _kSeriesColour,
   bool plottable = true,
+  List<String>? ring = _kRingLabels,
 }) => FluentLineChartSeries(
   legend: legend,
   color: colour,
@@ -537,9 +764,29 @@ FluentLineChartSeries _polarSeries({
     // set is all false and only `upstreamName` carries it.
     mode: mode == null ? null : FluentLineMode.parse(mode),
   ),
+  polarLineOptions: FluentPolarLineOptions(axisLabel: ring),
   data: <FluentLineChartDataPoint>[
     for (final (x, y) in _kRhombus.take(points))
       FluentLineChartDataPoint(x: plottable ? x : double.nan, y: y),
+  ],
+);
+
+/// The scatter twin of [_polarSeries]. `ScatterChart.tsx:501` reads the same
+/// `lineOptions` bag through a cast, because `ScatterChartPoints`
+/// (`types/DataPoint.ts:1033-1075`) declares neither member.
+FluentScatterChartSeries _polarScatterSeries({
+  String legend = 'radar',
+  String? mode = 'scatterpolar',
+  List<String>? ring = _kRingLabels,
+}) => FluentScatterChartSeries(
+  legend: legend,
+  color: _kSeriesColour,
+  lineOptions: FluentLineOptions(
+    mode: mode == null ? null : FluentLineMode.parse(mode),
+  ),
+  polarLineOptions: FluentPolarLineOptions(axisLabel: ring),
+  data: <FluentScatterChartDataPoint>[
+    for (final (x, y) in _kRhombus) FluentScatterChartDataPoint(x: x, y: y),
   ],
 );
 
@@ -586,39 +833,79 @@ FluentCartesianLayout _polarLayout() => FluentCartesianLayout.resolve(
 );
 
 /// One `mode: 'scatterpolar'`, `fill: 'toself'` trace, ready to mount.
-FluentChartData _polarData() =>
-    FluentChartData(lineChartData: <FluentLineChartSeries>[_polarSeries()]);
+FluentChartData _polarData({List<String>? ring = _kRingLabels}) =>
+    FluentChartData(
+      lineChartData: <FluentLineChartSeries>[_polarSeries(ring: ring)],
+    );
 
-/// Mounts [data] in a real [FluentLineChart] and replays its painter into a
-/// recorder.
-Future<_PolarRecorder> _paintChart(
-  WidgetTester tester,
-  FluentChartData data,
-) async {
+/// The same trace as scatter data.
+FluentChartData _polarScatterData({List<String>? ring = _kRingLabels}) =>
+    FluentChartData(
+      scatterChartData: <FluentScatterChartSeries>[
+        _polarScatterSeries(ring: ring),
+      ],
+    );
+
+/// The plot is the first CustomPaint under the shell: the Column puts it ahead
+/// of the legend (`cartesian_chart.dart:370-382`).
+Finder _plotFinder() => find
+    .descendant(
+      of: find.byType(FluentCartesianChart),
+      matching: find.byType(CustomPaint),
+    )
+    .first;
+
+/// Mounts [chart] and replays the plot painter into a recorder.
+Future<_PolarRecorder> _paintMounted(WidgetTester tester, Widget chart) async {
   await tester.pumpWidget(
     FluentApp(
       theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
-      home: Center(
-        child: SizedBox(
-          width: 400,
-          height: 400,
-          child: FluentLineChart(data: data),
-        ),
-      ),
+      home: Center(child: SizedBox(width: 400, height: 400, child: chart)),
     ),
   );
-  // The plot is the first CustomPaint under the shell: the Column puts it ahead
-  // of the legend (`cartesian_chart.dart:370-382`).
-  final plot = find
-      .descendant(
-        of: find.byType(FluentCartesianChart),
-        matching: find.byType(CustomPaint),
-      )
-      .first;
+  final plot = _plotFinder();
   final recorder = _PolarRecorder();
   tester
       .widget<CustomPaint>(plot)
       .painter!
       .paint(recorder, tester.getSize(plot));
   return recorder;
+}
+
+/// Mounts [data] in a real [FluentLineChart].
+Future<_PolarRecorder> _paintChart(WidgetTester tester, FluentChartData data) =>
+    _paintMounted(tester, FluentLineChart(data: data));
+
+/// Mounts [data] in a real [FluentScatterChart].
+Future<_PolarRecorder> _paintScatterChart(
+  WidgetTester tester,
+  FluentChartData data,
+) => _paintMounted(tester, FluentScatterChart(data: data));
+
+/// Where the four ring labels must be painted, derived from the **mounted**
+/// chart's own axis scales rather than from the delegate under test.
+///
+/// The origin is the label centre shifted by half its advance width and up by
+/// its ascent: `textAnchor="middle"` (`scatterpolar-utils.tsx:54`) with the
+/// alphabetic baseline `alignment-baseline="middle"` (`:55`) resolves to on a
+/// `<text>` element — the same reading `funnel_chart.dart:654-659` settled
+/// against a capture.
+List<Offset> _expectedRingOrigins(WidgetTester tester) {
+  final painter =
+      tester.widget<CustomPaint>(_plotFinder()).painter!
+          as FluentCartesianChartPainter;
+  final labels = scatterPolarCategoryLabels(
+    labels: _kRingLabels,
+    xScale: (value) => painter.xAxis.scale(value)!,
+    yScale: (value) => painter.yAxisPrimary.scale(value)!,
+  );
+  final style = painter.textStyles.markerLabel;
+  final measurer = FluentChartTextMeasurer();
+  return <Offset>[
+    for (final label in labels)
+      Offset(
+        label.position.dx - measurer.measure(label.text, style).width / 2,
+        label.position.dy - measurer.measure(label.text, style).ascent,
+      ),
+  ];
 }

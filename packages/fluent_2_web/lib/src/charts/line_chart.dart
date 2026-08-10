@@ -907,6 +907,42 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     return out;
   }
 
+  /// The scatterpolar category labels, one ring per series.
+  ///
+  /// Ports the call at `LineChart.tsx:1346-1355`, which sits inside the
+  /// per-series loop opened at `:535` and, like [scatterPolarFillsFor], outside
+  /// the engine A / B branch that closes at `:1313`. It carries only two of the
+  /// fill's five conditions: `_isScatterPolar` (`:1346`) and a non-empty
+  /// `axisLabel` (`scatterpolar-utils.tsx:26`). In particular it is **not**
+  /// gated on the legend — `:1346` tests nothing but `_isScatterPolar`, so the
+  /// ring stays put while a deselected trace dims around it.
+  ///
+  /// Series are walked last to first, as `:535` does, so series 0's ring is
+  /// placed last and lands on top.
+  List<({int seriesIndex, FluentScatterPolarLabel label})>
+  scatterPolarLabelsFor(FluentCartesianChildContext context) {
+    if (!isScatterPolar) {
+      return const <({int seriesIndex, FluentScatterPolarLabel label})>[];
+    }
+    final out = <({int seriesIndex, FluentScatterPolarLabel label})>[];
+    for (var i = series.length - 1; i >= 0; i--) {
+      final line = series[i];
+      // `:1350` passes the series' own `yScale`, which `:544` resolved to the
+      // secondary scale for a series that asked for one.
+      final yScale = line.useSecondaryYScale && context.yScaleSecondary != null
+          ? context.yScaleSecondary!
+          : context.yScalePrimary;
+      for (final label in scatterPolarLabelsForSeries(
+        options: line.polarLineOptions,
+        xScale: context.xScale,
+        yScale: yScale,
+      )) {
+        out.add((seriesIndex: i, label: label));
+      }
+    }
+    return out;
+  }
+
   /// Resolves the colour-fill bar rects.
   ///
   /// Ports `_createColorFillBars` (`LineChart.tsx:1372-1413`).
@@ -1410,6 +1446,15 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
       (fills[area.seriesIndex] ??= <({Path path, Color fill, Color stroke})>[])
           .add((path: area.path, fill: area.fill, stroke: area.stroke));
     }
+    // `:1347` appends to `pointsForLine` after the marker loop has filled it,
+    // so a ring label sits above its own series' markers.
+    final rings = <int, List<FluentScatterPolarLabel>>{};
+    for (final placed in scatterPolarLabelsFor(context)) {
+      (rings[placed.seriesIndex] ??= <FluentScatterPolarLabel>[]).add(
+        placed.label,
+      );
+    }
+    final ringStyle = style.markerLabelStyle!.resolve(<WidgetState>{})!;
     // `:535` pushes the groups last series first, so series 0's `<g>` is last
     // in the document and lands on top.
     for (var i = series.length - 1; i >= 0; i--) {
@@ -1486,6 +1531,14 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
             ..style = PaintingStyle.stroke
             ..strokeWidth = mark.strokeWidth
             ..color = mark.stroke.withValues(alpha: mark.opacity),
+        );
+      }
+      for (final label in rings[i] ?? const <FluentScatterPolarLabel>[]) {
+        paintScatterPolarLabel(
+          canvas,
+          label,
+          measurer: measurer,
+          style: ringStyle,
         );
       }
     }
