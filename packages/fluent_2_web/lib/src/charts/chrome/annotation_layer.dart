@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../internal/d3/scale.dart';
@@ -562,4 +563,319 @@ FluentAnnotationBox fluentLayoutAnnotationBox({
     displayPoint: Offset(left - offsetX, top - offsetY),
     anchor: resolved.anchor,
   );
+}
+
+/// `clamp` (`ChartAnnotationLayer.tsx:257`).
+///
+/// `Math.max(min, Math.min(max, value))`, which — unlike Dart's `num.clamp` —
+/// does not throw when [max] falls below [min]: the minimum simply wins. The
+/// arrowhead clamp at `:690` depends on that, because a connector shorter than
+/// ten pixels drives its distance bound under `MIN_ARROW_SIZE`.
+double _clamp(double value, double min, double max) =>
+    math.max(min, math.min(max, value));
+
+/// The lengths of an SVG `stroke-dasharray`, or null for a solid line.
+///
+/// `ChartAnnotationLayer.tsx:780` hands the author's string straight to the
+/// attribute; a [Canvas] has no dash support, so the string is parsed here into
+/// the on/off run lengths [FluentChartAnnotationConnectorPainter] walks. SVG
+/// separates the lengths by commas and/or whitespace and ignores an
+/// unparseable list, drawing a solid line — the null below.
+List<double>? _parseDashArray(String? dashArray) {
+  if (dashArray == null) {
+    return null;
+  }
+  final lengths = <double>[];
+  for (final token in dashArray.split(RegExp('[,\\s]+'))) {
+    if (token.isEmpty) {
+      continue;
+    }
+    final length = double.tryParse(token);
+    if (length == null || length < 0) {
+      return null;
+    }
+    lengths.add(length);
+  }
+  return lengths.isEmpty ? null : lengths;
+}
+
+/// A resolved connector line and its arrowheads.
+@immutable
+class FluentChartAnnotationConnectorGeometry {
+  /// Creates a resolved connector.
+  const FluentChartAnnotationConnectorGeometry({
+    required this.start,
+    required this.end,
+    required this.strokeColor,
+    required this.strokeWidth,
+    required this.dashArray,
+    required this.arrow,
+    required this.markerSize,
+    required this.markerStrokeWidth,
+  });
+
+  /// Where the line leaves the annotation box.
+  final Offset start;
+
+  /// Where the line meets the datum.
+  final Offset end;
+
+  /// Line colour.
+  final Color strokeColor;
+
+  /// Line width.
+  final double strokeWidth;
+
+  /// Dash pattern, or null for a solid line.
+  final List<double>? dashArray;
+
+  /// Which ends carry an arrowhead.
+  final FluentChartAnnotationArrowHead arrow;
+
+  /// Arrowhead edge length.
+  final double markerSize;
+
+  /// Arrowhead outline width.
+  final double markerStrokeWidth;
+
+  @override
+  bool operator ==(Object other) =>
+      other is FluentChartAnnotationConnectorGeometry &&
+      other.start == start &&
+      other.end == end &&
+      other.strokeColor == strokeColor &&
+      other.strokeWidth == strokeWidth &&
+      listEquals(other.dashArray, dashArray) &&
+      other.arrow == arrow &&
+      other.markerSize == markerSize &&
+      other.markerStrokeWidth == markerStrokeWidth;
+
+  @override
+  int get hashCode => Object.hash(
+    start,
+    end,
+    strokeColor,
+    strokeWidth,
+    Object.hashAll(dashArray ?? const <double>[]),
+    arrow,
+    markerSize,
+    markerStrokeWidth,
+  );
+}
+
+/// Pass one of the connector geometry: push a box off its own anchor.
+///
+/// `ChartAnnotationLayer.tsx:561-594`, which runs **before** the connector is
+/// emitted, so a box sitting on top of its datum is moved far enough away for
+/// an arrowhead to fit.
+///
+/// Upstream reuses the alignment offsets and the clamped viewport it computed
+/// for the first placement (`:579-592`), which is exactly what
+/// [fluentLayoutAnnotationBox] recomputes from [layout] and [box]'s own size —
+/// so the desired display point is simply re-laid out here.
+FluentAnnotationBox fluentPushOffAnnotationBox(
+  FluentAnnotationBox box,
+  FluentChartAnnotationConnector connector, {
+  required FluentChartAnnotationLayout? layout,
+  required FluentChartAnnotationContext context,
+}) {
+  // ChartAnnotationLayer.tsx:564-565 — the 6 is a local literal, distinct from
+  // MIN_ARROW_SIZE despite sharing its value.
+  const minArrowClearance = 6.0;
+  final minDistance = math.max(
+    connector.startPadding + connector.endPadding + minArrowClearance,
+    connector.startPadding,
+  );
+
+  // ChartAnnotationLayer.tsx:567-569 — measured from the anchor outwards.
+  final delta = box.displayPoint - box.anchor;
+  final distance = delta.distance;
+  // :571.
+  if (distance >= minDistance) {
+    return box;
+  }
+
+  // ChartAnnotationLayer.tsx:572-574 — straight up when the two coincide.
+  final unit = distance == 0
+      ? const Offset(0, -1)
+      : Offset(delta.dx / distance, delta.dy / distance);
+  // :576-577.
+  final desired = box.anchor + unit * minDistance;
+
+  // :579-592 — the desired display point is re-aligned, re-clamped, and the
+  // display point read back off the clamped box.
+  return fluentLayoutAnnotationBox(
+    resolved: FluentResolvedAnnotationPosition(
+      anchor: box.anchor,
+      point: desired,
+    ),
+    measured: box.rect.size,
+    layout: layout,
+    context: context,
+  );
+}
+
+/// Pass two: the line itself. `ChartAnnotationLayer.tsx:670-714`.
+FluentChartAnnotationConnectorGeometry fluentAnnotationConnector({
+  required FluentAnnotationBox box,
+  required FluentChartAnnotationConnector connector,
+  required Color defaultStrokeColor,
+}) {
+  // ChartAnnotationLayer.tsx:680-684.
+  final delta = box.anchor - box.displayPoint;
+  // :682 — `|| 1` guards the unit vector.
+  final distance = delta.distance == 0 ? 1.0 : delta.distance;
+  final unit = Offset(delta.dx / distance, delta.dy / distance);
+
+  // ChartAnnotationLayer.tsx:686-690.
+  final sizeBasis = math.max(1.0, math.min(box.rect.width, box.rect.height));
+  final proportional = sizeBasis * kArrowSizeScale;
+  final maxByPadding = connector.startPadding > 0
+      ? connector.startPadding * 1.25
+      : kMaxArrowSize;
+  final maxByDistance = distance * 0.6;
+  final markerSize = _clamp(
+    proportional,
+    kMinArrowSize,
+    math.min(kMaxArrowSize, math.min(maxByPadding, maxByDistance)),
+  );
+
+  return FluentChartAnnotationConnectorGeometry(
+    // ChartAnnotationLayer.tsx:693-696.
+    start: box.displayPoint + unit * connector.startPadding,
+    // :698-701.
+    end: box.anchor - unit * connector.endPadding,
+    // :674 — `getDefaultConnectorStrokeColor()` is the theme-resolved default.
+    strokeColor: connector.strokeColor ?? defaultStrokeColor,
+    strokeWidth: connector.strokeWidth,
+    dashArray: _parseDashArray(connector.dashArray),
+    arrow: connector.arrow,
+    markerSize: markerSize,
+    // ChartAnnotationLayer.tsx:691.
+    markerStrokeWidth: _clamp(connector.strokeWidth, 1, markerSize / 2),
+  );
+}
+
+/// Draws every annotation connector line and arrowhead.
+///
+/// Replaces the SVG `<marker>` defs at `ChartAnnotationLayer.tsx:726-758`.
+/// Those use `markerUnits="userSpaceOnUse"` with `orient="auto"`, `refY` at
+/// half the size and `refX` at the size for an end marker and zero for a start
+/// one — so in both cases the triangle's *tip* lands on the line's vertex and
+/// the body extends back along the line. That is what the triangle below
+/// reproduces.
+class FluentChartAnnotationConnectorPainter extends CustomPainter {
+  /// Creates a painter for [connectors].
+  const FluentChartAnnotationConnectorPainter({required this.connectors});
+
+  /// The resolved connectors, in annotation order.
+  final List<FluentChartAnnotationConnectorGeometry> connectors;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final connector in connectors) {
+      final paint = Paint()
+        ..color = connector.strokeColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = connector.strokeWidth
+        // ChartAnnotationLayer.tsx:781 — `strokeLinecap="round"`.
+        ..strokeCap = StrokeCap.round;
+
+      final dash = connector.dashArray;
+      if (dash == null || dash.isEmpty) {
+        canvas.drawLine(connector.start, connector.end, paint);
+      } else {
+        _drawDashed(canvas, connector.start, connector.end, dash, paint);
+      }
+
+      final direction = connector.end - connector.start;
+      final length = direction.distance == 0 ? 1.0 : direction.distance;
+      final unit = Offset(direction.dx / length, direction.dy / length);
+
+      // ChartAnnotationLayer.tsx:764-769.
+      if (connector.arrow == FluentChartAnnotationArrowHead.end ||
+          connector.arrow == FluentChartAnnotationArrowHead.both) {
+        _drawArrow(canvas, connector, tip: connector.end, unit: unit);
+      }
+      if (connector.arrow == FluentChartAnnotationArrowHead.start ||
+          connector.arrow == FluentChartAnnotationArrowHead.both) {
+        _drawArrow(canvas, connector, tip: connector.start, unit: -unit);
+      }
+    }
+  }
+
+  void _drawArrow(
+    Canvas canvas,
+    FluentChartAnnotationConnectorGeometry connector, {
+    required Offset tip,
+    required Offset unit,
+  }) {
+    final size = connector.markerSize;
+    // ChartAnnotationLayer.tsx:728-732 — the end marker's path is
+    // `M0 0 L size size/2 L0 size Z` with refX = size and refY = size / 2, so
+    // the tip is at the vertex and the base is one size back along the line,
+    // half a size either side of it. The start marker (`:731`) is the same
+    // triangle mirrored against refX = 0, which is this triangle with the unit
+    // vector negated.
+    final back = tip - unit * size;
+    final normal = Offset(-unit.dy, unit.dx) * (size / 2);
+    final path = Path()
+      ..moveTo(tip.dx, tip.dy)
+      ..lineTo(back.dx + normal.dx, back.dy + normal.dy)
+      ..lineTo(back.dx - normal.dx, back.dy - normal.dy)
+      ..close();
+    canvas
+      ..drawPath(path, Paint()..color = connector.strokeColor)
+      // ChartAnnotationLayer.tsx:746-752 — the marker is filled AND stroked,
+      // with round caps and joins, which visibly rounds the tip.
+      ..drawPath(
+        path,
+        Paint()
+          ..color = connector.strokeColor
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = connector.markerStrokeWidth
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
+      );
+  }
+
+  void _drawDashed(
+    Canvas canvas,
+    Offset start,
+    Offset end,
+    List<double> pattern,
+    Paint paint,
+  ) {
+    final total = (end - start).distance;
+    if (total == 0) {
+      return;
+    }
+    final unit = (end - start) / total;
+    var travelled = 0.0;
+    var index = 0;
+    var drawing = true;
+    while (travelled < total) {
+      final step = math.min(pattern[index % pattern.length], total - travelled);
+      if (drawing) {
+        canvas.drawLine(
+          start + unit * travelled,
+          start + unit * (travelled + step),
+          paint,
+        );
+      }
+      // A zero-length run would otherwise spin here; SVG treats an all-zero
+      // dasharray as a solid line, and a single zero as a gapless one.
+      if (step == 0) {
+        canvas.drawLine(start + unit * travelled, end, paint);
+        return;
+      }
+      travelled += step;
+      index++;
+      drawing = !drawing;
+    }
+  }
+
+  @override
+  bool shouldRepaint(FluentChartAnnotationConnectorPainter oldDelegate) =>
+      !listEquals(oldDelegate.connectors, connectors);
 }

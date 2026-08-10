@@ -429,6 +429,7 @@ void main() {
 
   mainCoordinates();
   mainSizing();
+  mainConnector();
 }
 
 /// The coordinate-resolution half of the suite (`ChartAnnotationLayer.tsx`
@@ -1025,5 +1026,408 @@ void mainSizing() {
         }
       },
     );
+  });
+}
+
+/// The connector half of the suite (`ChartAnnotationLayer.tsx:561-594` for the
+/// push-off pass and `:670-714` for the line), called from [main].
+void mainConnector() {
+  const context = FluentChartAnnotationContext(
+    plotRect: Rect.fromLTWH(0, 0, 400, 400),
+    chartSize: Size(400, 400),
+    isRtl: false,
+  );
+  const stroke = Color(0xFF242424);
+
+  group('fluentPushOffAnnotationBox', () {
+    test('a coincident box is pushed straight up', () {
+      const box = FluentAnnotationBox(
+        rect: Rect.fromLTWH(80, 90, 40, 20),
+        displayPoint: Offset(100, 100),
+        anchor: Offset(100, 100),
+      );
+      final pushed = fluentPushOffAnnotationBox(
+        box,
+        const FluentChartAnnotationConnector(),
+        layout: null,
+        context: context,
+      );
+      expect(
+        pushed.displayPoint,
+        // minDistance = max(12 + 0 + 6, 12) = 18, direction (0, -1).
+        const Offset(100, 82),
+        reason:
+            'ChartAnnotationLayer.tsx:565 sets minDistance to '
+            'max(start + end + 6, start), and :572 uses (0, -1) as the '
+            'fallback direction when the distance is exactly zero.',
+      );
+    });
+
+    test('a box already far enough away is untouched', () {
+      const box = FluentAnnotationBox(
+        rect: Rect.fromLTWH(180, 90, 40, 20),
+        displayPoint: Offset(200, 100),
+        anchor: Offset(100, 100),
+      );
+      expect(
+        fluentPushOffAnnotationBox(
+          box,
+          const FluentChartAnnotationConnector(),
+          layout: null,
+          context: context,
+        ).displayPoint,
+        box.displayPoint,
+        reason: 'ChartAnnotationLayer.tsx:571 only acts below minDistance.',
+      );
+    });
+  });
+
+  group('fluentAnnotationConnector', () {
+    const box = FluentAnnotationBox(
+      rect: Rect.fromLTWH(80, 20, 40, 20),
+      displayPoint: Offset(100, 30),
+      anchor: Offset(100, 130),
+    );
+
+    test('the line is inset by the two paddings', () {
+      final geometry = fluentAnnotationConnector(
+        box: box,
+        connector: const FluentChartAnnotationConnector(),
+        defaultStrokeColor: stroke,
+      );
+      expect(
+        geometry.start,
+        const Offset(100, 42),
+        reason:
+            'ChartAnnotationLayer.tsx:693-696 — the start is the display point '
+            'advanced by startPadding (12) along the unit vector towards the '
+            'anchor, which here points straight down.',
+      );
+      expect(
+        geometry.end,
+        const Offset(100, 130),
+        reason:
+            'ChartAnnotationLayer.tsx:698-701 — endPadding defaults to 0, so '
+            'the line reaches the anchor exactly.',
+      );
+    });
+
+    test('the marker size is clamped by four separate bounds', () {
+      final geometry = fluentAnnotationConnector(
+        box: box,
+        connector: const FluentChartAnnotationConnector(),
+        defaultStrokeColor: stroke,
+      );
+      expect(
+        geometry.markerSize,
+        // sizeBasis = min(40, 20) = 20; proportional = 20 * 0.35 = 7;
+        // maxByPadding = 12 * 1.25 = 15; maxByDistance = 100 * 0.6 = 60;
+        // clamp(7, 6, min(24, 15, 60)) = 7.
+        moreOrLessEquals(7, epsilon: 0.001),
+        reason: 'ChartAnnotationLayer.tsx:686-690.',
+      );
+    });
+
+    test('a zero start padding falls back to the 24px ceiling', () {
+      final geometry = fluentAnnotationConnector(
+        box: box,
+        connector: const FluentChartAnnotationConnector(startPadding: 0),
+        defaultStrokeColor: stroke,
+      );
+      expect(
+        geometry.markerSize,
+        moreOrLessEquals(7, epsilon: 0.001),
+        reason:
+            'ChartAnnotationLayer.tsx:688 — `startPadding > 0 ? startPadding * '
+            '1.25 : MAX_ARROW_SIZE`, so a zero padding lifts the padding bound '
+            'to 24 and the proportional size still wins.',
+      );
+    });
+
+    test('the marker stroke never exceeds half the marker', () {
+      final geometry = fluentAnnotationConnector(
+        box: box,
+        connector: const FluentChartAnnotationConnector(strokeWidth: 40),
+        defaultStrokeColor: stroke,
+      );
+      expect(
+        geometry.markerStrokeWidth,
+        moreOrLessEquals(geometry.markerSize / 2, epsilon: 0.001),
+        reason: 'ChartAnnotationLayer.tsx:691.',
+      );
+    });
+
+    test('a degenerate distance is floored at one', () {
+      final geometry = fluentAnnotationConnector(
+        box: const FluentAnnotationBox(
+          rect: Rect.fromLTWH(80, 20, 40, 20),
+          displayPoint: Offset(100, 30),
+          anchor: Offset(100, 30),
+        ),
+        connector: const FluentChartAnnotationConnector(),
+        defaultStrokeColor: stroke,
+      );
+      expect(
+        geometry.markerSize.isFinite,
+        isTrue,
+        reason:
+            'ChartAnnotationLayer.tsx:682 is `Math.sqrt(...) || 1`, which '
+            'prevents the unit vector dividing by zero.',
+      );
+      expect(
+        geometry.markerSize,
+        moreOrLessEquals(kMinArrowSize, epsilon: 0.001),
+        reason:
+            'ChartAnnotationLayer.tsx:257 defines clamp as '
+            '`Math.max(min, Math.min(max, value))`, so when maxByDistance '
+            '(1 * 0.6) falls below MIN_ARROW_SIZE the minimum wins instead of '
+            'the call throwing, as Dart\'s num.clamp would on an inverted '
+            'range.',
+      );
+    });
+
+    test('the default arrow is at the end', () {
+      expect(
+        fluentAnnotationConnector(
+          box: box,
+          connector: const FluentChartAnnotationConnector(),
+          defaultStrokeColor: stroke,
+        ).arrow,
+        FluentChartAnnotationArrowHead.end,
+        reason: 'useChartAnnotationLayer.styles.ts:32.',
+      );
+    });
+
+    test('an SVG dasharray string becomes a dash list', () {
+      expect(
+        fluentAnnotationConnector(
+          box: box,
+          connector: const FluentChartAnnotationConnector(dashArray: '4, 2 3'),
+          defaultStrokeColor: stroke,
+        ).dashArray,
+        <double>[4, 2, 3],
+        reason:
+            'ChartAnnotationLayer.tsx:780 hands the author\'s string to '
+            'stroke-dasharray, whose grammar separates lengths by commas '
+            'and/or whitespace; a Canvas needs the parsed list.',
+      );
+      expect(
+        fluentAnnotationConnector(
+          box: box,
+          connector: const FluentChartAnnotationConnector(dashArray: 'none'),
+          defaultStrokeColor: stroke,
+        ).dashArray,
+        isNull,
+        reason:
+            'An unparseable stroke-dasharray is ignored by SVG, which draws a '
+            'solid line — the null the painter reads as solid.',
+      );
+    });
+  });
+
+  group('the corpus connectors, rebuilt from their boxes', () {
+    final story = loadOracleStory(
+      'charts-linechart--line-chart-annotations-example',
+    );
+    final layer = _connectorLayer(story);
+    final lines = layer.elements
+        .where((element) => element.tag == 'line')
+        .toList();
+    final markers = layer.elements
+        .where((element) => element.tag == 'path' && element.d != null)
+        .toList();
+    final foreignObjects = layer.elements
+        .where((element) => element.tag == 'foreignObject')
+        .toList();
+
+    // Every plotted datum of the line series, whose point markers are
+    // `M cx-0.5 cy A0.5 0.5 ...` arcs — the same centres the coordinate group
+    // above resolves against.
+    final centres = story
+        .byTag('path')
+        .where((element) => (element.d ?? '').contains('A0.5 0.5'))
+        .map((element) {
+          final numbers = svgPathNumbers(element.d!);
+          return Offset((numbers[0] + numbers[7]) / 2, numbers[1]);
+        })
+        .toList();
+
+    test(
+      'the capture holds two connectors, four boxes and seven data points',
+      () {
+        expect(
+          lines.length,
+          2,
+          reason:
+              'Two of the four annotations carry a connector; a zero count would '
+              'make the loop below vacuous.',
+        );
+        expect(
+          markers.length,
+          2,
+          reason: 'One arrowhead marker per connector.',
+        );
+        expect(
+          foreignObjects.length,
+          4,
+          reason: 'One foreignObject per annotation box.',
+        );
+        expect(
+          centres.length,
+          7,
+          reason: 'The story plots seven points, the connectors\' anchors.',
+        );
+      },
+    );
+
+    // The capture records geometry, not props, so the two authored paddings and
+    // the box corner each connector leaves from are recovered from it, and land
+    // on whole numbers:
+    //
+    // Connector #5 runs (200.503056, 187.862012) -> (191.374236, 226.659497),
+    // so u = (-0.2290393, 0.9734172) and its length is 39.857. Datum
+    // (190, 232.5) is 6.0 beyond the end along u, so endPadding = 6. Walking
+    // back from the datum, x = 206 — the left edge of foreignObject #7 — is
+    // reached at t = 69.857, where y = 164.5, that box's bottom edge; so the
+    // box is start/bottom-aligned, its display point is (206, 164.5), and
+    // startPadding = 69.857 - 39.857 - 6 = 24.
+    //
+    // Connector #6 runs (604.073922, 132.225797) -> (493.983573, 142.234011),
+    // u = (-0.9958932, 0.0905358), length 110.544. Datum (490, 142.596) is 4.0
+    // beyond the end, so endPadding = 4. Walking back, x = 622 — the horizontal
+    // centre of foreignObject #11 — is reached at t = 132.544, where
+    // y = 130.596, that box's vertical centre; so it takes the default
+    // centre/middle alignment and startPadding = 132.544 - 110.544 - 4 = 18.
+    final cases =
+        <
+          ({
+            double alignX,
+            double alignY,
+            double startPadding,
+            double endPadding,
+          })
+        >[
+          (alignX: 0, alignY: 1, startPadding: 24, endPadding: 6),
+          (alignX: 0.5, alignY: 0.5, startPadding: 18, endPadding: 4),
+        ];
+
+    test('each line and arrowhead is reproduced from its box and datum', () {
+      for (var i = 0; i < cases.length; i++) {
+        final line = lines[i];
+        final source = foreignObjects[i];
+        final rect = Rect.fromLTWH(
+          source.x!,
+          source.y!,
+          source.width!,
+          source.height!,
+        );
+        final displayPoint =
+            rect.topLeft +
+            Offset(rect.width * cases[i].alignX, rect.height * cases[i].alignY);
+        final end = Offset(line.x2!, line.y2!);
+        // The anchor is the datum the connector points at: the nearest plotted
+        // point to its end, which the endPadding above then measures.
+        final anchor = centres.reduce(
+          (a, b) => (a - end).distance <= (b - end).distance ? a : b,
+        );
+        final geometry = fluentAnnotationConnector(
+          box: FluentAnnotationBox(
+            rect: rect,
+            displayPoint: displayPoint,
+            anchor: anchor,
+          ),
+          connector: FluentChartAnnotationConnector(
+            startPadding: cases[i].startPadding,
+            endPadding: cases[i].endPadding,
+          ),
+          defaultStrokeColor: stroke,
+        );
+        expectOracleOffset(
+          'ChartAnnotationLayer.tsx:693-696 — connector #${line.index} of '
+          '${story.id} leaves box #${source.index} at $displayPoint, '
+          '${cases[i].startPadding} along the unit vector towards $anchor',
+          Offset(line.x1!, line.y1!),
+          geometry.start,
+        );
+        expectOracleOffset(
+          'ChartAnnotationLayer.tsx:698-701 — connector #${line.index} stops '
+          '${cases[i].endPadding} short of $anchor',
+          end,
+          geometry.end,
+        );
+        final marker = markers.singleWhere(
+          (element) => element.stroke!.toARGB32() == line.stroke!.toARGB32(),
+        );
+        expectOracleNumber(
+          'ChartAnnotationLayer.tsx:686-690 — the arrowhead for connector '
+          '#${line.index} is `M0 0 L s s/2 L0 s Z`, so marker #${marker.index} '
+          'has a square ${marker.bbox!.width}px bbox; the clamp reaches it '
+          'from a ${rect.height}px-tall box, a '
+          '${cases[i].startPadding}px start padding and a '
+          '${(anchor - displayPoint).distance.toStringAsFixed(3)}px distance',
+          marker.bbox!.width,
+          geometry.markerSize,
+        );
+        expectOracleNumber(
+          'ChartAnnotationLayer.tsx:691 — marker #${marker.index} is stroked '
+          'at the connector width, which stays under half the marker',
+          marker.strokeWidth,
+          geometry.markerStrokeWidth,
+        );
+      }
+    });
+
+    test('the two arrowheads land on different bounds of the clamp', () {
+      final sizes = markers.map((marker) => marker.bbox!.width).toList();
+      expectOracleNumber(
+        'ChartAnnotationLayer.tsx:690 — connector #5 is capped by MAX_ARROW_SIZE '
+        '(24) while #6 is capped by its 18px start padding (18 * 1.25 = 22.5), '
+        'so the pair exercises two different bounds rather than one twice',
+        kMaxArrowSize,
+        sizes.reduce(math.max),
+      );
+      expectOracleNumber(
+        'ChartAnnotationLayer.tsx:688 — the smaller of the two is the padding '
+        'bound, 18 * 1.25',
+        22.5,
+        sizes.reduce(math.min),
+      );
+    });
+  });
+
+  group('FluentChartAnnotationConnectorPainter', () {
+    test('repaints when any connector changes', () {
+      final a = FluentChartAnnotationConnectorPainter(
+        connectors: <FluentChartAnnotationConnectorGeometry>[
+          fluentAnnotationConnector(
+            box: const FluentAnnotationBox(
+              rect: Rect.fromLTWH(80, 20, 40, 20),
+              displayPoint: Offset(100, 30),
+              anchor: Offset(100, 130),
+            ),
+            connector: const FluentChartAnnotationConnector(),
+            defaultStrokeColor: stroke,
+          ),
+        ],
+      );
+      expect(
+        a.shouldRepaint(
+          const FluentChartAnnotationConnectorPainter(
+            connectors: <FluentChartAnnotationConnectorGeometry>[],
+          ),
+        ),
+        isTrue,
+        reason: 'Losing a connector must clear it from the canvas.',
+      );
+      expect(
+        a.shouldRepaint(
+          FluentChartAnnotationConnectorPainter(connectors: a.connectors),
+        ),
+        isFalse,
+        reason:
+            'An identical connector list must not force a repaint, or every '
+            'chart frame would repaint the whole annotation layer.',
+      );
+    });
   });
 }
