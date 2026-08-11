@@ -420,13 +420,123 @@ class _VegaExpressionParser {
     return _advance();
   }
 
-  /// `:274-276`.
+  /// `:274-276`. The grammar's entry point, which a bracket index (`:429`) and
+  /// a parenthesised group (`:493`) re-enter through.
+  Object? _parseExpression() => _parseTernary();
+
+  /// `:278-288`.
+  Object? _parseTernary() {
+    final condition = _parseOr();
+    if (_peek().type == '?') {
+      _advance();
+      final trueValue = _parseExpression();
+      _expect(':');
+      final falseValue = _parseExpression();
+      // `:285` selects on JavaScript truthiness, so `'' ? a : b` is b. A Dart
+      // bool cast would have thrown on every non-boolean condition.
+      //
+      // Both branches are evaluated before one is picked, exactly as upstream
+      // does. That is not a transcription choice: this is a single-pass
+      // parser-evaluator, so the untaken branch still has to be walked to
+      // consume its tokens, and walking it is evaluating it. Nothing in the
+      // grammar has a side effect and division by zero yields Infinity rather
+      // than throwing, so the eager result is the lazy one.
+      return jsTruthy(condition) ? trueValue : falseValue;
+    }
+    return condition;
+  }
+
+  /// `:290-298`.
   ///
-  /// The ternary and the four logical levels below it land in the next task;
-  /// until then the grammar's entry point is the additive level, which is what
-  /// a bracket index (`:429`) and a parenthesised group (`:493`) re-enter
-  /// through.
-  Object? _parseExpression() => _parseAdditive();
+  /// JavaScript's `||` returns an OPERAND, not a boolean (`:295`): `0 || 'x'`
+  /// is `'x'`. Dart's `||` is typed bool-to-bool, so the port branches on
+  /// [jsTruthy] and returns the untouched operand.
+  Object? _parseOr() {
+    var left = _parseAnd();
+    while (_peek().type == '||') {
+      _advance();
+      final right = _parseAnd();
+      left = jsTruthy(left) ? left : right;
+    }
+    return left;
+  }
+
+  /// `:300-308`.
+  ///
+  /// The mirror of [_parseOr]: `&&` yields the last operand when the left is
+  /// truthy and the falsy left operand unchanged otherwise (`:305`), so
+  /// `0 && 'x'` is `0` rather than `false`.
+  Object? _parseAnd() {
+    var left = _parseEquality();
+    while (_peek().type == '&&') {
+      _advance();
+      final right = _parseEquality();
+      left = jsTruthy(left) ? right : left;
+    }
+    return left;
+  }
+
+  /// `:310-333`.
+  ///
+  /// The loop is what makes `1 == 1 == 1` parse as `(1 == 1) == 1`, i.e.
+  /// `true == 1`, i.e. true.
+  Object? _parseEquality() {
+    var left = _parseComparison();
+    while (_peek().type == '==' ||
+        _peek().type == '===' ||
+        _peek().type == '!=' ||
+        _peek().type == '!==') {
+      final op = _advance().type;
+      final right = _parseComparison();
+      switch (op) {
+        // `:316-318`.
+        case '==':
+          left = jsLooseEquals(left, right);
+        // `:320-321`.
+        case '===':
+          left = jsStrictEquals(left, right);
+        // `:323-325`.
+        case '!=':
+          left = !jsLooseEquals(left, right);
+        // `:327-328`.
+        default:
+          left = !jsStrictEquals(left, right);
+      }
+    }
+    return left;
+  }
+
+  /// `:335-356`.
+  ///
+  /// Upstream's `as number` casts are erased at runtime, so the four operators
+  /// are JavaScript's own: two strings compare by code unit, anything else
+  /// coerces to number, and every comparison against NaN is false in both
+  /// directions. The four helpers in `js_value.dart` own that algorithm.
+  Object? _parseComparison() {
+    var left = _parseAdditive();
+    while (_peek().type == '<' ||
+        _peek().type == '>' ||
+        _peek().type == '<=' ||
+        _peek().type == '>=') {
+      final op = _advance().type;
+      final right = _parseAdditive();
+      switch (op) {
+        // `:341-343`.
+        case '<':
+          left = jsLess(left, right);
+        // `:344-346`.
+        case '>':
+          left = jsGreater(left, right);
+        // `:347-349`.
+        case '<=':
+          left = jsLessOrEqual(left, right);
+        // `:350-352`.
+        default:
+          left = jsGreaterOrEqual(left, right);
+      }
+    }
+    return left;
+  }
 
   /// `:358-373`.
   Object? _parseAdditive() {

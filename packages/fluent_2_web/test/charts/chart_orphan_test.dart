@@ -537,25 +537,24 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'Task 42 on reads its dataset through it. Goes when Task 40 lands.',
 
   // Task 31's `internal/vega/js_value.dart` — the ECMAScript abstract
-  // operations the expression evaluator is written on top of. Five of its
-  // twelve public functions are here; the other seven are not, because
-  // jsToNumber, jsToString, jsStrictEquals and jsLooseEquals already have real
-  // callers inside the file (jsAdd coerces through the first two, the
-  // abstract-equality algorithm recurses through the last two), JsUndefined is
-  // named by every type test in it, and jsTruthy and jsAdd acquired callers
-  // when Task 33 landed. That asymmetry is the point: what is listed here is
-  // what the file genuinely cannot reach on its own.
+  // operations the expression evaluator is written on top of. Exactly one of
+  // its twelve public functions is still here. The other eleven are not:
+  // jsToNumber, jsToString, jsStrictEquals and jsLooseEquals have real callers
+  // inside the file (jsAdd coerces through the first two, the abstract-equality
+  // algorithm recurses through the last two), JsUndefined is named by every
+  // type test in it, jsTruthy and jsAdd acquired callers when Task 33 landed,
+  // and Task 34 spent the four relational operators.
   //
-  // `jsTruthy` and `jsAdd` were here until Task 33's parser spent them, which
-  // is what their own entries said would remove them: the unary `!` at
-  // expression.dart's `_parseUnary` negates through jsTruthy — upstream's `:398`
-  // is JavaScript truthiness, so `!''` is true where a Dart bool cast would
-  // have thrown — `toBoolean` (`:65`) is jsTruthy outright, and the additive
-  // level calls jsAdd for the `typeof === string` test at `:363-367`. The four
-  // relational operators below are still Task 34's, one per `case` of the
-  // comparison level, and every one is a *statement* in that task's own Step 3
-  // code rather than a speculative consumer. jsTypeof's caller is later still
-  // and in a different direction, which is why it carries its own entry.
+  // Every one of those entries left by the exit its own excuse named. Task 33's
+  // parser took jsTruthy and jsAdd — the unary `!` at expression.dart's
+  // `_parseUnary` negates through jsTruthy, upstream's `:398` being JavaScript
+  // truthiness so that `!''` is true where a Dart bool cast would have thrown;
+  // `toBoolean` (`:65`) is jsTruthy outright; and the additive level calls
+  // jsAdd for the `typeof === string` test at `:363-367`. Task 34's comparison
+  // level then took jsLess, jsGreater, jsLessOrEqual and jsGreaterOrEqual, one
+  // per `case` of `_parseComparison`, and its equality level took the two
+  // equality helpers a second time. jsTypeof's caller is later still and in a
+  // different direction, which is why it is the one that remains.
   'jsTypeof':
       'internal/vega/js_value.dart:48. Its callers are the two `typeof '
       'sampleValue` diagnostics upstream, not the parser: '
@@ -563,22 +562,6 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'ports, and `:3594` in the binning error path, which Task 47 ports. Both '
       "read the result against the string 'string', so a Dart `runtimeType` "
       'would not answer the same question. Goes when Task 40 lands.',
-  'jsLess':
-      "internal/vega/js_value.dart:288, the `case '<'` of Task 34's comparison "
-      'level (VegaLiteExpressionEvaluator.ts:341-343). Goes when Task 34 '
-      'lands.',
-  'jsGreater':
-      "internal/vega/js_value.dart:292, the `case '>'` of the same level "
-      '(VegaLiteExpressionEvaluator.ts:344-346). Separate from jsLess because '
-      'the specification defines it as `b < a` with the operands swapped, '
-      'which is what makes `2 > 2` false rather than the negation of `2 < 2`. '
-      'Goes when Task 34 lands.',
-  'jsLessOrEqual':
-      "internal/vega/js_value.dart:296, the `case '<='` of the same level "
-      '(VegaLiteExpressionEvaluator.ts:347-349). Goes when Task 34 lands.',
-  'jsGreaterOrEqual':
-      "internal/vega/js_value.dart:303, the `case '>='` of the same level "
-      '(VegaLiteExpressionEvaluator.ts:350-352). Goes when Task 34 lands.',
 
   // `internal/vega/expression.dart`. Four of its five public symbols are not
   // here, for the same reason js_value.dart lists five of twelve: `VegaToken`
@@ -590,7 +573,7 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // calls `tokenize` before handing the tokens to the parser at `:522`. That
   // entry's one exit was taken and it went with it.
   'evaluateVegaExpression':
-      'internal/vega/expression.dart:613, the port of `safeEvaluateExpression` '
+      'internal/vega/expression.dart:723, the port of `safeEvaluateExpression` '
       '(VegaLiteExpressionEvaluator.ts:520-524). Its callers are two private '
       "helpers in Task 37's `internal/vega/transforms.dart`, and both are "
       "statements in that task's own Step 3 code (plan 09 lines 12240 and "
