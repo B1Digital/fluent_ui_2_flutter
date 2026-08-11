@@ -113,6 +113,7 @@ class FluentCartesianChartPainter extends CustomPainter {
         layout.size.height - kAxisTitlePadding,
       ),
       style: textStyles.axisTitle,
+      maxExtent: layout.xAxisTitleMaxWidth,
     );
 
     // 3 — the x-axis annotation (`:784-835`). Without a `titleStyles` bag the
@@ -131,6 +132,7 @@ class FluentCartesianChartPainter extends CustomPainter {
         ),
       ),
       style: textStyles.axisAnnotation,
+      maxExtent: layout.xAxisTitleMaxWidth,
     );
 
     // 4 — the primary y-axis group and its horizontal gridlines (`:836-843`).
@@ -159,6 +161,7 @@ class FluentCartesianChartPainter extends CustomPainter {
           layout.yAxisTitleCenterY,
         ),
         style: textStyles.axisTitle,
+        maxExtent: layout.yAxisTitleMaxHeight,
         rotationRadians: -math.pi / 2,
       );
     }
@@ -172,6 +175,7 @@ class FluentCartesianChartPainter extends CustomPainter {
       props.yAxisTitle,
       anchor: Offset(layout.yAxisTitleCenterX, layout.yAxisTitleCenterY),
       style: textStyles.axisTitle,
+      maxExtent: layout.yAxisTitleMaxHeight,
       rotationRadians: -math.pi / 2,
     );
 
@@ -186,6 +190,7 @@ class FluentCartesianChartPainter extends CustomPainter {
           layout.yAxisTitleCenterY,
         ),
         style: textStyles.axisAnnotation,
+        maxExtent: layout.yAxisTitleMaxHeight,
         rotationRadians: -math.pi / 2,
       );
     }
@@ -258,18 +263,33 @@ class FluentCartesianChartPainter extends CustomPainter {
     canvas.restore();
   }
 
+  /// Paints one axis title or annotation, shaved to [maxExtent] first.
+  ///
+  /// Every one of the five `SVGTooltipText`s the shell renders is given a
+  /// `maxWidth` — `xAxisTitleMaxWidth` for the x title and x annotation
+  /// (`CartesianChart.tsx:781`, `:832`), `yAxisTitleMaxHeight` for the
+  /// secondary y title, the y title and the y annotation (`:865`, `:882`,
+  /// `:899`) — and `SVGTooltipText` shortens the content to fit it
+  /// (`SVGTooltipText.tsx:49` calling `wrapContent`, `utilities.ts:1232-1248`).
+  ///
+  /// For a rotated title the extent runs along the text, so the y titles'
+  /// bound is the plot's *height*. Both numbers were already solved by
+  /// [FluentCartesianLayout] and read by nothing: the y-axis title of
+  /// `charts-linechart--line-chart-basic` is 68 characters against a 216px
+  /// bound and ran off both ends of the chart until this passed them in.
   void _paintTitle(
     Canvas canvas,
     String? text, {
     required Offset anchor,
     required TextStyle style,
+    required double maxExtent,
     double rotationRadians = 0,
   }) {
     if (!_isPresent(text)) {
       return;
     }
     FluentChartTitlePainter(
-      text: text!,
+      text: shrinkToFit(text!, style, maxExtent, measurer).text,
       style: style,
       anchor: anchor,
       textAnchor: d3.FluentAxisTextAnchor.middle,

@@ -47,3 +47,8 @@ crawlers/
 
 # Golden-diff output. Written on every failed golden comparison; never an input.
 packages/*/test/goldens/failures/
+
+# React-parity triptychs. Written on every parity run, pass or fail; the
+# reference PNGs they are built from live in test/fixtures/charts/react_png/
+# and ARE committed.
+packages/*/test/parity/out/

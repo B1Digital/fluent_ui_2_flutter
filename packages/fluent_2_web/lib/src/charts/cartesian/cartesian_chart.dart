@@ -8,6 +8,7 @@ import '../axis/axis_types.dart';
 import '../chrome/annotation_layer.dart';
 import '../chrome/chart_popover.dart';
 import '../chrome/legend.dart';
+import '../chrome/legend_style.dart';
 import '../internal/chart_colors.dart';
 import '../internal/chart_semantics.dart';
 import '../internal/chart_text_measurer.dart';
@@ -385,6 +386,29 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
                       style.legendRowPadding?.resolve(const <WidgetState>{}) ??
                       EdgeInsets.zero,
                   child: FluentChartLegend(
+                    // The shell's own `legendContainer` rule already supplies
+                    // upstream's gap — `marginTop: spacingVerticalS`,
+                    // `marginLeft: spacingHorizontalXL`
+                    // (`useCartesianChartStyles.styles.ts:103-104`) — as
+                    // `legendRowPadding` above. The legend's default style adds
+                    // `LEGEND_CONTAINER_MARGIN_TOP` on top of that, and those
+                    // two constants (`useLegendsStyles.styles.ts:10-11`) are
+                    // exported for `image-export-utils.ts` alone: the live
+                    // `fui-legend__root` rule sets only `whiteSpace`, `width`
+                    // and `alignItems`, no margin at all.
+                    //
+                    // Applied twice the strip reserves 8 + 8 + 32 = 48 of the
+                    // chart's height where upstream reserves 40
+                    // (`CartesianChart.tsx:505-508`), and the missing 8px comes
+                    // straight off the plot. Measured against
+                    // `charts-linechart--line-chart-basic`, whose capture puts
+                    // the svg at 700x260 and `fui-legend__root` at 680x32 eight
+                    // pixels below it: the port drew the plot 252 tall, so
+                    // every mark sat progressively higher than upstream's, by
+                    // 8px at the x axis.
+                    style: FluentChartLegendStyle.from(
+                      containerMargin: EdgeInsets.zero,
+                    ),
                     legends: widget.legends,
                     selectionMode: widget.legendSelectionMode,
                     selectedLegends: _effectiveSelectedLegends,

@@ -392,4 +392,58 @@ void main() {
           'stub series, so the title precedes the marks',
     );
   });
+
+  test('a y-axis title longer than the plot is shaved to fit it', () async {
+    // Every one of the shell's five SVGTooltipTexts carries a maxWidth —
+    // `yAxisTitleMaxHeight` for the three rotated ones (`CartesianChart.tsx:865`,
+    // `:882`, `:899`) — and SVGTooltipText shortens the content to it
+    // (`SVGTooltipText.tsx:49` calling `wrapContent`, `utilities.ts:1232-1248`).
+    //
+    // The layout solved that bound from the start and the painter read neither
+    // it nor `xAxisTitleMaxWidth`, so the title was painted at full length and
+    // simply overran the chart. Caught as a pixel difference against the live
+    // render of `charts-linechart--line-chart-basic`, whose 68-character y
+    // title ran off both ends of a 300px-tall chart while upstream showed
+    // "Different categories of mail flow ea...".
+    //
+    // The band: `titleMaxHeight` is height - bottom - top - reserve - 2*pad =
+    // 260 - 35 - 20 - 0 - 16 = 189, centred on top + pad + 189/2 = 122.5, so a
+    // fitted title lives inside y 28..217 and nothing may be painted outside
+    // it. The column is `kHorizontalMarginForYAxisTitle - kAxisTitlePadding`
+    // = 16, and the glyphs of a rotated line straddle it by half their height.
+    //
+    // The probed rows dodge the y tick labels, which share that column: the
+    // stub's scale puts 100 at y 20, 50 at y ~122 and 0 at y ~225, each label
+    // a line box tall, and a row landing on one reports painted whatever the
+    // title does.
+    const longTitle =
+        'Different categories of mail flow each of which are categorized '
+        'into different categories';
+    final bytes = await render(
+      build(
+        StubCartesianDelegate(),
+        props: const FluentCartesianChartProps(yAxisTitle: longTitle),
+      ),
+    );
+    bool painted(int x, int y) => pixelAt(bytes, x, y) & 0xFF000000 != 0;
+
+    for (var x = 10; x <= 22; x++) {
+      for (final y in <int>[1, 4, 8, 246, 250, 254, 258]) {
+        expect(
+          painted(x, y),
+          isFalse,
+          reason:
+              'the title may not paint at ($x, $y) — that is outside the '
+              '28..217 band yAxisTitleMaxHeight allows',
+        );
+      }
+    }
+    // The positive control. Without it a title that stopped rendering at all
+    // would pass every assertion above.
+    expect(
+      <bool>[for (var y = 40; y < 200; y++) painted(16, y)].any((p) => p),
+      isTrue,
+      reason: 'the shaved title is still painted inside the band',
+    );
+  });
 }
