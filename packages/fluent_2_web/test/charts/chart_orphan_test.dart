@@ -94,9 +94,10 @@ import 'package:flutter_test/flutter_test.dart';
 /// and the last test below fails if this map drifts from the scan in either
 /// direction, so an excuse cannot outlive the gap it excuses.
 ///
-/// Nineteen on 2026-08-11, down from twenty-four: VerticalStackedBarChart's
-/// line overlay took five entries with it when `paintSeries` started painting
-/// it. Every upstream line cited here was read from
+/// Twenty on 2026-08-11: nineteen, down from twenty-four when
+/// VerticalStackedBarChart's line overlay took five entries with it as
+/// `paintSeries` started painting it, plus `shouldResize` from the responsive
+/// host. Every upstream line cited here was read from
 /// `crawlers/fluentui-react-charts/out/charts/src` while writing it, and every
 /// `lib/` line was read from the file named.
 const Map<String, String> kChartOrphanAllowlist = <String, String>{
@@ -139,6 +140,21 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'FluentDataVizToken and calls `FluentDataVizPalette.resolve`. A raw '
       'upstream token string only ever arrives from untyped JSON, i.e. in the '
       'same two unported declarative adapters. Unblocks with them.',
+  'shouldResize':
+      'internal/responsive.dart:29, the `(calculatedWidth ?? 0) + '
+      '(calculatedHeight ?? 0)` scalar upstream injects into every child of '
+      'ResponsiveContainer (ResponsiveContainer.tsx:84) for the sole benefit '
+      'of SankeyChart, whose resize effect lists it as a dependency '
+      '(SankeyChart.tsx:608). The host that declares it is mounted only by the '
+      'two unported declarative adapters, so like fluentChartIsDarkTheme it is '
+      'waiting on them — but unlike that entry it may never gain a caller '
+      'even then, and the honest reading is that it already has none: the '
+      'shipped FluentSankeyChart states at sankey_chart.dart:606-609 that '
+      '`parentRef` and `shouldResize` are replaced by the widget\'s own '
+      'BoxConstraints, and it exposes no parameter to pass this to. It is '
+      'kept because plan 09 Task 2 specifies it on FluentResponsiveChartMetrics '
+      'and pins it with a test. The likely resolution when the adapters land '
+      'is deletion with that test, not wiring.',
 
   // --- Ported constants nothing reads --------------------------------------
   'kMinDonutRadius':
