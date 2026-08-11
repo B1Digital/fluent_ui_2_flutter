@@ -428,35 +428,9 @@ void main() {
     );
   });
 
-  test('resolveXAxisPoint converts only strings, and only when told to', () {
-    expect(
-      resolveXAxisPoint(null, isDate: false, isNumeric: false),
-      '',
-      reason: "PlotlySchemaAdapter.ts:375-377 maps a missing point to ''.",
-    );
-    expect(
-      resolveXAxisPoint('2020-01-05', isDate: true, isNumeric: false),
-      DateTime.parse('2020-01-05'),
-      reason: 'PlotlySchemaAdapter.ts:382-385.',
-    );
-    expect(
-      resolveXAxisPoint('42.5', isDate: false, isNumeric: true),
-      42.5,
-      reason: 'PlotlySchemaAdapter.ts:386-388 parseFloat.',
-    );
-    expect(
-      resolveXAxisPoint('Jan', isDate: false, isNumeric: false),
-      'Jan',
-      reason: 'PlotlySchemaAdapter.ts:389 returns the string untouched.',
-    );
-    expect(
-      resolveXAxisPoint(7, isDate: false, isNumeric: true),
-      7,
-      reason:
-          'PlotlySchemaAdapter.ts:391: a non-string point never enters the '
-          'conversion branch.',
-    );
-  });
+  // The five `resolveXAxisPoint` assertions that stood here went with the
+  // function: it had no caller in lib/ and none upstream either, where
+  // `PlotlySchemaAdapter.ts:368` is the only occurrence of the name.
 
   test('flattenObject joins nested keys with dots and stops at arrays and '
       'dates', () {

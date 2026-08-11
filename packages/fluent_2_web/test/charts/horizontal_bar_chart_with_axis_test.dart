@@ -532,7 +532,9 @@ void main() {
       // puts the first band at -24.7 — the only way to reach the guard, since
       // an in-plot layout never places a band above the top margin.
       expect(
-        d.rectsFor(_hbwaContext(d, rangeTop: -80), _layout(height: 350)).length,
+        d
+            .placeBars(_hbwaContext(d, rangeTop: -80), _layout(height: 350))
+            .length,
         lessThan(3),
         reason:
             'parity: `const barHeight = max(yBarScale(y), 0); if '
@@ -547,7 +549,7 @@ void main() {
         yAxisPadding: 0.5,
       );
       expect(
-        d.rectsFor(_hbwaContext(d), _layout(height: 350)).length,
+        d.placeBars(_hbwaContext(d), _layout(height: 350)).length,
         3,
         reason:
             'the topmost band position is 67.86, comfortably above 1 — the '
@@ -666,7 +668,7 @@ void main() {
           spec.scale(value)!,
         );
       }
-      final placed = delegate.rectsFor(
+      final placed = delegate.placeBars(
         FluentCartesianChildContext(
           xScale: axis.scale,
           yScalePrimary: spec.scale,
@@ -690,10 +692,18 @@ void main() {
         reason: 'every captured bar must be placed',
       );
       for (var i = 0; i < rects.length; i++) {
-        expectOracleNumber('bar $i x', rects[i].x!, placed[i].left);
-        expectOracleNumber('bar $i y', rects[i].y!, placed[i].top);
-        expectOracleNumber('bar $i width', rects[i].width!, placed[i].width);
-        expectOracleNumber('bar $i height', rects[i].height!, placed[i].height);
+        expectOracleNumber('bar $i x', rects[i].x!, placed[i].rect.left);
+        expectOracleNumber('bar $i y', rects[i].y!, placed[i].rect.top);
+        expectOracleNumber(
+          'bar $i width',
+          rects[i].width!,
+          placed[i].rect.width,
+        );
+        expectOracleNumber(
+          'bar $i height',
+          rects[i].height!,
+          placed[i].rect.height,
+        );
       }
     });
 
@@ -722,7 +732,7 @@ void main() {
         rects.first.height!,
         solved.barHeight,
       );
-      final placed = delegate.rectsFor(
+      final placed = delegate.placeBars(
         _hbwaContext(
           delegate,
           height: story.primary.height,
@@ -750,13 +760,14 @@ void main() {
       // [FluentHorizontalBarChartWithAxisDelegate.stringDatasetForYAxisDomain]
       // — so the tops are compared as a set, which pins the whole band solve
       // without asserting an order the fixture contradicts.
-      final actualTops = <double>[for (final rect in placed) rect.top]..sort();
+      final actualTops = <double>[for (final bar in placed) bar.rect.top]
+        ..sort();
       for (var i = 0; i < capturedTops.length; i++) {
         expectOracleNumber('band top $i', capturedTops[i], actualTops[i]);
       }
       final capturedWidths = <double>[for (final rect in rects) rect.width!]
         ..sort();
-      final actualWidths = <double>[for (final rect in placed) rect.width]
+      final actualWidths = <double>[for (final bar in placed) bar.rect.width]
         ..sort();
       for (var i = 0; i < capturedWidths.length; i++) {
         expectOracleNumber('band width $i', capturedWidths[i], actualWidths[i]);

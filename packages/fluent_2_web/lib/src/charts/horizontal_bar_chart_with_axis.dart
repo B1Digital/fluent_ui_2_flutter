@@ -651,17 +651,11 @@ class FluentHorizontalBarChartWithAxisDelegate
     isRtl: isRtl,
   );
 
-  /// Every bar rectangle, group by group.
-  List<Rect> rectsFor(
-    FluentCartesianChildContext context,
-    FluentCartesianLayout layout,
-  ) => <Rect>[for (final bar in placeBars(context, layout)) bar.rect];
-
   /// Every bar rectangle with the point and segment it came from.
   ///
-  /// [rectsFor] is the geometry-only view of this; the painter and the hit
-  /// regions need the point as well, and running the layout twice would run
-  /// the running-offset fold twice.
+  /// There is no geometry-only overload beside this one: the painter and the
+  /// hit regions need the point as well, and a second pass for the rects alone
+  /// would run the running-offset fold twice.
   List<
     ({
       Rect rect,

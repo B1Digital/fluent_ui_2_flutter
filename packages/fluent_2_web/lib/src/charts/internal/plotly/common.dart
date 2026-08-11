@@ -330,39 +330,11 @@ List<Object?> correctYearMonth(Object? xValues) {
   ];
 }
 
-/// Coerces one x value to the type its axis was typed as
-/// (`PlotlySchemaAdapter.ts:368-406`).
-///
-/// **Deviation, signature:** upstream takes five arguments —
-/// `isXYearCategory`, `isXString`, `isXDate`, `isXNumber`. This task's contract
-/// declares two, so the port drops the first and folds the second into
-/// `x is String`, which is what the `isXString` branch guards in every call
-/// upstream makes. The consequence is that the year-category arm at `:378-380`
-/// — a numeric year rendered as a category, `x.toString()` — has no switch here
-/// and a caller with a year category must stringify the value itself.
-///
-/// **Deviation, failure:** `parseFloat` and `new Date` return NaN and an
-/// Invalid Date for an unparseable string; Dart has neither, so an unparseable
-/// string comes back unchanged. Both flags are whole-column verdicts, so a
-/// column that reached this has already been checked.
-Object? resolveXAxisPoint(
-  Object? x, {
-  required bool isDate,
-  required bool isNumeric,
-}) {
-  // `:375-377`.
-  if (x == null) return '';
-  if (x is String) {
-    // `:382-385`.
-    if (isDate) return DateTime.tryParse(x) ?? x;
-    // `:386-388`.
-    if (isNumeric) return _parseFloat(x) ?? x;
-    // `:389`.
-    return x;
-  }
-  // `:391`.
-  return x;
-}
+// `resolveXAxisPoint` (`PlotlySchemaAdapter.ts:368-392`) was ported here and is
+// deleted: it is an orphan upstream too — the `export const` at `:368` is the
+// only occurrence of the name in the crawled tree — and every transformer here
+// types its x column as a whole and coerces in bulk, so no per-value helper is
+// reachable. See the retired entry in test/charts/chart_orphan_test.dart.
 
 /// The prefix JavaScript's `parseFloat` would consume: leading space, an
 /// optional sign, digits with an optional fraction, and an optional exponent.
