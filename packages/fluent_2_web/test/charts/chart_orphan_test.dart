@@ -607,13 +607,19 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // so every Vega transformer from Task 43 on reaches its dataset through it.
   // Task 38 appends six more ops to the same loop body and changes none of that.
 
-  // Task 39's `internal/vega/color_adapter.dart`. Two of its seven public
-  // symbols are here. getVegaColor and interpolateHexColor are not, and need no
-  // entry: getVegaColorFromMap calls the first at the
-  // VegaLiteColorAdapter.ts:281 position and getSequentialSchemeColors calls
-  // the second at `:340`, so each is reached from inside its own file whatever
-  // the transformers do. The four `List<FluentDataVizToken>` mappings are
-  // reached the same way, through the private `_schemeMapping` switch.
+  // Task 39's `internal/vega/color_adapter.dart`. One of its seven public
+  // symbols is here. getVegaColor and interpolateHexColor need no entry:
+  // getVegaColorFromMap calls the first at the VegaLiteColorAdapter.ts:281
+  // position and getSequentialSchemeColors calls the second at `:340`, so each
+  // is reached from inside its own file whatever the transformers do. The four
+  // `List<FluentDataVizToken>` mappings are reached the same way, through the
+  // private `_schemeMapping` switch. getVegaColorFromMap itself was written
+  // here and removed in the same hour: Task 42's `internal/vega/context.dart`
+  // landed while this was being written and calls it at :829 —
+  // `declared is String && declared.isNotEmpty ? declared :
+  // getVegaColorFromMap(legend, colorMap, null, null, isDark: isDark)`, the
+  // VegaLiteSchemaAdapter.ts:811-814 position — so the gap the entry would
+  // have excused had already closed.
   //
   // Three symbols Task 39's Produces line listed are NOT here, because writing
   // them would have parked dead code on this list rather than excused a gap.
@@ -628,16 +634,6 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // table at line 134 and nothing in Tasks 40-57, so no unported consumer is
   // coming either. An entry for them could name no exit, which is what makes
   // deletion the resolution rather than an excuse.
-  'getVegaColorFromMap':
-      'internal/vega/color_adapter.dart:164, the legend-to-colour cache '
-      '(VegaLiteColorAdapter.ts:267-285). Task 42 is the caller and the call '
-      "is a statement in that task's own Step 3 code (plan 09 line 15372): "
-      '`declared is String && declared.isNotEmpty ? declared : '
-      'getVegaColorFromMap(legend, colorMap, null, null, isDark: isDark)`, at '
-      'the VegaLiteSchemaAdapter.ts:811-814 position. `grep -rn '
-      'getVegaColorFromMap` over crawlers/fluentui-react-charts/out/charts/src '
-      'returns the declaration, the import at VegaLiteSchemaAdapter.ts:47, '
-      'that call and a second at `:2029`. Goes when Task 42 lands.',
   'getSequentialSchemeColors':
       'internal/vega/color_adapter.dart:255, the sequential and diverging '
       'ramps for a continuous colour scale (VegaLiteColorAdapter.ts:318-344). '
@@ -648,6 +644,54 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       "sort reverses the ramp' (plan 09 lines 18478-18490) drives exactly that "
       "arm with `'scheme': 'blues'`, so the task cannot pass without this "
       'function. Goes when Task 49 lands.',
+
+  // Task 41's `internal/vega/common.dart`. Five of its seventeen public symbols
+  // are here, and the other twelve need no entry: Task 42's
+  // `internal/vega/context.dart` already reads parseVegaValue, getMarkProperties
+  // with its two records, extractYMinMax, createValueFormatter, the two
+  // category-order helpers and the three validators, which is what leaves only
+  // the five below waiting on a transformer. Each call site was read out of
+  // docs/superpowers/plans/2026-08-08-fluent-2-charts-09-declarative.md rather
+  // than assumed, and every one is a statement in that task's own Step 3 code.
+  'getVegaLiteTitles':
+      'internal/vega/common.dart:44, the port of the exported '
+      'VegaLiteSchemaAdapter.ts:2047-2129. Upstream calls it once per '
+      'transformer — `grep -n "getVegaLiteTitles("` over that file returns the '
+      'declaration and nine calls, at :2291, :2657, :2811, :2978, :3177, '
+      ':3298, :3440, :3678 and :3837 — so every transformer from Task 43 on '
+      'is a caller. The first is Task 44 (plan 09 line 16428, `final titles = '
+      'getVegaLiteTitles(spec);` at the :2291 position). Goes when Task 44 '
+      'lands.',
+  'mapInterpolateToCurve':
+      'internal/vega/common.dart:133. Upstream has exactly two callers, '
+      "VegaLiteSchemaAdapter.ts:1843 and :3792, both `mapInterpolateToCurve("
+      "markProps.interpolate)`; the first is the line transformer's curve "
+      'option and the second the same read inside the concat path. Task 43 '
+      'ports the first, and the call is a statement in its own Step 3 code '
+      '(plan 09 line 15655). Goes when Task 43 lands.',
+  'extractTickConfig':
+      'internal/vega/common.dart:239. Upstream calls it at '
+      'VegaLiteSchemaAdapter.ts:2297, :2980 and :3179 — the scatter, '
+      'horizontal-bar and heatmap transformers, the three that spread '
+      '`...tickConfig` onto their chart props. Task 44 is the first (plan 09 '
+      'line 16430, beside its `getVegaLiteTitles` call) and Task 47 the second '
+      '(plan 09 line 17947). Goes when Task 44 lands.',
+  'extractYAxisType':
+      'internal/vega/common.dart:285, the `scale.type === "log"` read '
+      '(VegaLiteSchemaAdapter.ts:1031-1034). Upstream calls it at :1940, '
+      ':2302, :2696, :2816 and :3182, one per two-axis transformer. Task 43 '
+      'ports the first as `final yAxisType = extractYAxisType(encoding);` '
+      '(plan 09 line 15969), and Tasks 44 and 47 repeat it at plan 09 lines '
+      '16433, 17398 and 17742. Goes when Task 43 lands.',
+  'validateVegaXYEncodings':
+      'internal/vega/common.dart:563, the four-step check upstream runs before '
+      'building any two-axis chart (VegaLiteSchemaAdapter.ts:1008-1025, called '
+      "at :1802 for 'LineChart' and :2168 for 'VerticalBarChart'). Its three "
+      'constituent validators are NOT on this list because it calls all three '
+      'itself, which is refinement 1 above doing its job; this is the entry '
+      'point they are reached through and it is the one with no caller yet. '
+      "Task 43 ports the :1802 call as that task's own Step 3 statement (plan "
+      '09 line 15752). Goes when Task 43 lands.',
 };
 
 /// Files scanned for declarations: every `.dart` file under
