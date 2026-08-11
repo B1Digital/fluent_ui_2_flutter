@@ -15,6 +15,7 @@ import '../../axis/tick_format.dart';
 import '../../cartesian/cartesian_chart_props.dart';
 import '../../gantt_chart.dart';
 import '../../grouped_vertical_bar_chart.dart';
+import '../../horizontal_bar_chart_with_axis.dart';
 import '../../model/bar_data.dart';
 import '../../model/chart_common.dart';
 import '../../model/line_options.dart';
@@ -1732,6 +1733,240 @@ FluentVerticalBarChart transformPlotlyToVbc(
       ),
       // `:1904`.
       annotations: annotations,
+    ),
+  );
+}
+
+/// Transforms a Plotly horizontal `bar` figure into a Fluent horizontal bar
+/// chart with an axis (`PlotlySchemaAdapter.ts:2214-2294`).
+///
+/// The only transformer that computes a real pixel geometry: `:2263-2270`
+/// solves a bar height in logical pixels from the declared layout height, and
+/// that number is passed straight through as
+/// [FluentHorizontalBarChartWithAxis.barHeight], which suppresses the chart's
+/// own band solve.
+///
+/// `:2280`'s `height` and `:2281`'s `width` are not set. The nine shell charts
+/// size to their `BoxConstraints` (spec §2.2) and plan 09 Task 28 supplies the
+/// enclosing cell, the same split every transformer above makes — but note that
+/// unlike them this one still *reads* `layout.height`, because the geometry
+/// above needs it whether or not the widget is sized by it.
+FluentHorizontalBarChartWithAxis transformPlotlyToHbwa(
+  Map<String, Object?> input, {
+  required bool isMultiPlot,
+  required PlotlyColorMap colorMap,
+  required FluentPlotlyColorway colorwayType,
+  required bool isDark,
+}) {
+  final rawData = input['data'];
+  final data = rawData is List<Object?> ? rawData : const <Object?>[];
+  final rawLayout = input['layout'];
+  final layout = rawLayout is Map<String, Object?> ? rawLayout : null;
+  // `:2228` and `:2248`'s `input.layout?.template?.layout?.colorway`.
+  final colorway = _colorway(layout);
+
+  // `:2221`.
+  final legend = getLegendProps(data, layout, isMultiPlot: isMultiPlot);
+
+  final chartData = <FluentHorizontalBarChartWithAxisDataPoint>[];
+  // `:2222`: threaded across traces, so a trace without a numeric marker colour
+  // keeps the previous trace's scale.
+  String Function(double)? colorScale;
+
+  for (var index = 0; index < data.length; index++) {
+    final series = data[index];
+    if (series is! Map<String, Object?>) continue;
+    // `:2225`.
+    colorScale = createColorScale(layout, series, colorScale);
+
+    final marker = series['marker'];
+    final markerColor = marker is Map<String, Object?> ? marker['color'] : null;
+    // `:2227-2233`: extracted once per trace.
+    final extractedColors = extractColor(
+      colorway,
+      colorwayType,
+      markerColor,
+      colorMap,
+      isDark: isDark,
+    );
+    // `:2234`.
+    final legendTitle = index < legend.names.length ? legend.names[index] : '';
+
+    final yColumn = series['y'];
+    if (yColumn is! List<Object?>) continue;
+    final xColumn = series['x'];
+    final text = series['text'];
+
+    for (var i = 0; i < yColumn.length; i++) {
+      final yValue = yColumn[i];
+      // `:2237-2239`.
+      if (isInvalidValue(yValue)) continue;
+
+      // `:2242-2248`.
+      final String colour;
+      final scale = colorScale;
+      if (scale != null) {
+        final scaleInput =
+            markerColor is List<Object?> && markerColor.isNotEmpty
+            ? markerColor[i % markerColor.length]
+            : 0;
+        colour = scale(scaleInput is num ? scaleInput.toDouble() : 0);
+      } else {
+        colour = resolveColor(
+          extractedColors,
+          i,
+          legendTitle,
+          colorMap,
+          colorway,
+          isDark: isDark,
+        );
+      }
+      // `:2249`.
+      final opacity = getOpacity(series, i);
+
+      // `:2252`: an invalid x is 0, and so is a non-numeric one — the model's
+      // `x` is the bar LENGTH and is typed `double`
+      // (`model/bar_data.dart:265`), where upstream's is a `Datum` that would
+      // reach the same numeric d3 scale as `NaN`.
+      // // parity: PlotlySchemaAdapter.ts:2252
+      final xRaw = xColumn is List<Object?> && i < xColumn.length
+          ? xColumn[i]
+          : null;
+      final x = isInvalidValue(xRaw) || xRaw is! num ? 0.0 : xRaw.toDouble();
+
+      // `:2256`: only a truthy label is passed, so an empty string and a 0 both
+      // leave the bar unlabelled.
+      final barLabel = text is List<Object?>
+          ? (i < text.length ? text[i] : null)
+          : null;
+
+      chartData.add(
+        FluentHorizontalBarChartWithAxisDataPoint(
+          x: x,
+          // `:2253`.
+          y: yValue is num ? yValue : '$yValue',
+          // `:2254`.
+          legend: legendTitle,
+          // `:2255`.
+          color: parseCssColour(applyOpacityHex8(colour, opacity)),
+          barLabel: barLabel == null || barLabel == '' || barLabel == false
+              ? null
+              : '$barLabel',
+        ),
+      );
+    }
+  }
+
+  // `PlotlySchemaAdapter.ts:2263-2270`, verbatim.
+  final chartHeight = (layout?['height'] as num?)?.toDouble() ?? 450;
+  final marginMap = layout?['margin'];
+  final margin = marginMap is Map<String, Object?>
+      ? (marginMap['l'] as num?)?.toDouble() ?? 0
+      : 0.0;
+  final padding = marginMap is Map<String, Object?>
+      ? (marginMap['pad'] as num?)?.toDouble() ?? 0
+      : 0.0;
+  final availableHeight = chartHeight - margin - padding;
+  // `:2267`: unique rows over the FILTERED points, and `|| 1` for none.
+  final uniqueY = <Object>{for (final point in chartData) point.y};
+  final numberOfRows = uniqueY.isEmpty ? 1 : uniqueY.length;
+  // `:2268`.
+  const scalingFactor = 0.01;
+  // `:2269`.
+  final gapFactor = 1 / (1 + scalingFactor * numberOfRows);
+  // `:2270`.
+  final barHeight = availableHeight / (numberOfRows * (1 + gapFactor));
+
+  // `:2289`. Upstream's `secondaryYAxistitle` at `:2274-2277` is the same
+  // expression `getTitles` already reproduces, save for its `|| ''`: the shell
+  // treats a null title and an empty one alike
+  // (`cartesian_layout.dart:85`), so the nullable form is kept.
+  final titles = getTitles(layout);
+  // `:2288`. Nothing here touches yMinValue / yMaxValue, deliberately: there is
+  // no `getYMinMaxValues` call in this transformer, so the y bounds stay at the
+  // shell's own 0/0 default. // parity: PlotlySchemaAdapter.ts:2288
+  final xRange = getXMinMaxValues(layout);
+  // `:2290`.
+  final categoryOrder = getAxisCategoryOrderProps(data, layout);
+  // `:2291`: the horizontal branch, so this yields `maxBarHeight` and
+  // `yAxisPadding`.
+  final barProps = getBarProps(data, layout, isHorizontal: true);
+  // `:2292`.
+  final tickProps = getAxisTickProps(data, layout);
+  final scaleTypes = getAxisScaleTypeProps(data, layout);
+
+  return FluentHorizontalBarChartWithAxis(
+    data: chartData,
+    // `:2278`.
+    barHeight: barHeight,
+    // `:2291`. Absent, the shell's own defaults stand — no ceiling on the bar
+    // height and the 0.5 band padding at
+    // `horizontal_bar_chart_with_axis.dart:44` — which is what upstream's empty
+    // spread leaves too.
+    maxBarHeight: barProps.maxBarHeight,
+    yAxisPadding: barProps.yAxisPadding ?? 0.5,
+    // `:2286`.
+    roundCorners: true,
+    // `:2289`.
+    chartTitle: titles.chartTitle,
+    // `:2290`. The order lands on the WIDGET field as well as the prop: the
+    // chart hands `widget.yAxisCategoryOrder` to its delegate
+    // (`horizontal_bar_chart_with_axis.dart:162`), so the prop alone would
+    // compute an order no axis applies.
+    yAxisCategoryOrder: categoryOrder.y ?? FluentAxisCategoryOrder.defaultOrder,
+    props: FluentCartesianChartProps(
+      // `:2289`.
+      xAxisTitle: titles.xAxisTitle,
+      yAxisTitle: titles.yAxisTitle,
+      secondaryYAxisTitle: titles.secondaryYAxisTitle,
+      // `:2279`.
+      showYAxisLables: true,
+      // `:2282`.
+      hideTickOverlap: true,
+      // `:2283`: 20 characters before an ellipsis.
+      noOfCharsToTruncate: 20,
+      // `:2284`.
+      showYAxisLablesTooltip: true,
+      // `:2285`.
+      hideLegend: legend.hideLegend,
+      // `:2287`.
+      roundedTicks: true,
+      // `:2288`: the x range brings its own round-off flag.
+      xMinValue: xRange.xMinValue,
+      xMaxValue: xRange.xMaxValue,
+      showRoundOffXTickValues: xRange.showRoundOffXTickValues,
+      // `:2290`.
+      xAxisCategoryOrder:
+          categoryOrder.x ?? FluentAxisCategoryOrder.defaultOrder,
+      yAxisCategoryOrder:
+          categoryOrder.y ?? FluentAxisCategoryOrder.defaultOrder,
+      // Upstream's return block spreads no scale types. Kept for the reason
+      // `axis.dart` states on `getAxisScaleTypeProps` and the gantt and
+      // histogram transformers above repeat: `FluentCartesianChartProps`
+      // carries the field, so dropping it would lose a declared log axis
+      // outright. // parity break: PlotlySchemaAdapter.ts:2288
+      xScaleType: scaleTypes.x ?? FluentAxisScaleType.auto,
+      yScaleType: scaleTypes.y ?? FluentAxisScaleType.auto,
+      secondaryYScaleType: scaleTypes.secondaryY ?? FluentAxisScaleType.auto,
+      // `:2292`. Both counts are non-nullable with the shell's own defaults
+      // (6 and 4, `cartesian_chart_props.dart:95-96`), so an absent `nticks`
+      // keeps them.
+      tickValues: tickProps.xAxisTickValues,
+      yAxisTickValues: tickProps.yAxisTickValues,
+      xAxisTickCount: tickProps.xAxisTickCount ?? 6,
+      yAxisTickCount: tickProps.yAxisTickCount ?? 4,
+      xAxis: FluentAxisConfig(
+        tickStep: tickProps.xAxisTickStep,
+        tick0: tickProps.xAxisTick0,
+        tickText: tickProps.xAxisTickText,
+        tickLayout: tickProps.xAxisTickLayout,
+      ),
+      yAxis: FluentAxisConfig(
+        tickStep: tickProps.yAxisTickStep,
+        tick0: tickProps.yAxisTick0,
+        tickText: tickProps.yAxisTickText,
+        tickLayout: tickProps.yAxisTickLayout,
+      ),
     ),
   );
 }

@@ -259,6 +259,21 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'FluentGanttChart built from a figure and reads the transformed points '
       'back off the delegate it paints from. Whoever lands DeclarativeChart '
       'deletes this entry.',
+  'transformPlotlyToHbwa':
+      'internal/plotly/transform_bar.dart, the Plotly horizontal-bar-with-axis '
+      'transformer (PlotlySchemaAdapter.ts:2214-2294) and plan 09 Task 22 — '
+      'the only transformer that computes a real pixel geometry (:2263-2270). '
+      "Upstream reaches it from the `horizontalbar` entry of DeclarativeChart's "
+      'chartMap (DeclarativeChart.tsx:283-286), dispatched at :607, and the '
+      'router already resolves that kind (internal/plotly/router.dart:572) — '
+      'what is missing is the widget that reads the route, which is plan 09 '
+      'Task 28. So the call site does not exist yet rather than having been '
+      'forgotten, and what this transformer produces is proven consumable by '
+      'the mounted test in '
+      'test/charts/declarative/transform_hbwa_test.dart, which pumps a real '
+      'FluentHorizontalBarChartWithAxis built from a figure and reads both the '
+      'transformed points and the solved bar height back off the delegate it '
+      'paints from. Whoever lands DeclarativeChart deletes this entry.',
   'transformPlotlyToHeatmap':
       'internal/plotly/transform_xy.dart, the Plotly heatmap and histogram2d '
       'transformer (PlotlySchemaAdapter.ts:2397-2621) and plan 09 Task 24. '
