@@ -94,10 +94,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// and the last test below fails if this map drifts from the scan in either
 /// direction, so an excuse cannot outlive the gap it excuses.
 ///
-/// Twenty on 2026-08-11: nineteen, down from twenty-four when
+/// Twenty-one on 2026-08-11: nineteen, down from twenty-four when
 /// VerticalStackedBarChart's line overlay took five entries with it as
 /// `paintSeries` started painting it, plus `shouldResize` from the responsive
-/// host. Every upstream line cited here was read from
+/// host and `getChartAnnotationsFromLayout` from the Plotly annotation
+/// converter. Every upstream line cited here was read from
 /// `crawlers/fluentui-react-charts/out/charts/src` while writing it, and every
 /// `lib/` line was read from the file named.
 const Map<String, String> kChartOrphanAllowlist = <String, String>{
@@ -155,6 +156,19 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'kept because plan 09 Task 2 specifies it on FluentResponsiveChartMetrics '
       'and pins it with a test. The likely resolution when the adapters land '
       'is deletion with that test, not wiring.',
+  'getChartAnnotationsFromLayout':
+      'internal/plotly/annotations.dart, the entry point of the Plotly '
+      'annotation converter (PlotlySchemaAdapter.ts:1076-1161). Its five '
+      'neighbours in that file are reached from convertPlotlyAnnotation and so '
+      'are not reported; this one is the outermost call, and upstream reaches '
+      'it from five trace transformers, the first being '
+      'transformPlotlyJsonToAnnotationChartProps at '
+      'PlotlySchemaAdapter.ts:1252. Those transformers are plan '
+      "09's tasks 17-27 and none has landed, so the caller does not exist yet "
+      'rather than having been forgotten: plan 09 Task 20 writes '
+      '`getChartAnnotationsFromLayout(layout, isMultiPlot: isMultiPlot)` '
+      'verbatim. Whoever lands the first transformer deletes this entry — the '
+      'test below fails until they do.',
 
   // --- Ported constants nothing reads --------------------------------------
   'kMinDonutRadius':
