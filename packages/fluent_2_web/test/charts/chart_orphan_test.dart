@@ -591,6 +591,23 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   'jsGreaterOrEqual':
       "internal/vega/js_value.dart:303, the `case '>='` of the same level "
       '(VegaLiteExpressionEvaluator.ts:350-352). Goes when Task 34 lands.',
+
+  // Task 32's `internal/vega/expression.dart`. One of the three symbols it
+  // adds is here and the other two are not, for the same reason js_value.dart
+  // lists seven of twelve: `VegaToken` is constructed on every arm of the
+  // tokenizer and `VegaExpressionException` is thrown from two of them, so
+  // both are reached from inside the file that declares them. The tokenizer's
+  // own caller is the one thing the file cannot supply.
+  'tokenizeVegaExpression':
+      'internal/vega/expression.dart:87. Its caller is one function in this '
+      'same file, and it is the next task to touch the file: Task 33 appends '
+      "`evaluateVegaExpression`, which is upstream's `safeEvaluateExpression` "
+      '(VegaLiteExpressionEvaluator.ts:520-524), whose first statement at '
+      '`:521` is `const tokens = tokenize(expr)` before it hands them to the '
+      'parser at `:522`. Upstream has exactly one call of `tokenize` — `grep '
+      "-n 'tokenize(' over the file returns :87, the declaration, and :521 — "
+      'so no second consumer is coming and this entry has one exit. Goes when '
+      'Task 33 lands.',
 };
 
 /// Files scanned for declarations: every `.dart` file under
