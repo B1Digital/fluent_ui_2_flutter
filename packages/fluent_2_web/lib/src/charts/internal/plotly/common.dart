@@ -625,3 +625,29 @@ FluentPlotlyBarProps getBarProps(
     xAxisOuterPadding: padding / 2,
   );
 }
+
+/// Strips Plotly's inline pseudo-HTML out of a label
+/// (`PlotlySchemaAdapter.ts:2840-2847`).
+///
+/// Four passes in this exact order: HTML-entity-escaped tags, real tags, the
+/// three spellings of a line break, and TeX spans (`$…$` collapses to a single
+/// `$`, which is upstream's behaviour and not a typo). Because the second pass
+/// has already eaten every real `<br>`, the third pass's live alternative is
+/// the JSON-escaped `<br>` form alone — the escaping is literal
+/// there, a backslash followed by `u003c`, exactly as the upstream regex
+/// literal spells it. // parity: PlotlySchemaAdapter.ts:2844
+///
+/// Plan 09 assigns this to task 10 under this name, for the heatmap
+/// transformer's annotation grid (`:2432`) and the chart table's cells
+/// (`:2924`, `:2928`, `:2955`); task 10 landed without it, so the heatmap —
+/// its first caller — plants it here rather than keeping a private copy that
+/// the chart table would then duplicate.
+String cleanPlotlyText(String text) => text
+    .replaceAll(RegExp(r'&lt;[^&]*?&gt;'), '')
+    .replaceAll(RegExp('<[^>]*>'), '')
+    .replaceAll(
+      RegExp(r'&lt;br&gt;|\\u003cbr\\u003e|<br>', caseSensitive: false),
+      '',
+    )
+    .replaceAll(RegExp(r'\$[^$]*\$'), r'$')
+    .trim();

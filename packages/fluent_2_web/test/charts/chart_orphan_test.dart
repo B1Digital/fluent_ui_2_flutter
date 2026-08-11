@@ -259,6 +259,24 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'FluentGanttChart built from a figure and reads the transformed points '
       'back off the delegate it paints from. Whoever lands DeclarativeChart '
       'deletes this entry.',
+  'transformPlotlyToHeatmap':
+      'internal/plotly/transform_xy.dart, the Plotly heatmap and histogram2d '
+      'transformer (PlotlySchemaAdapter.ts:2397-2621) and plan 09 Task 24. '
+      "Upstream reaches it from the `heatmap` entry of DeclarativeChart's "
+      'chartMap (DeclarativeChart.tsx:295-298), dispatched at :607, and the '
+      'router already resolves both trace types to that kind '
+      '(internal/plotly/router.dart:699-701) — what is missing is the widget '
+      'that reads the route, which is plan 09 Task 28. That widget also '
+      'supplies the enclosing SizedBox this transformer deliberately does not '
+      "build (spec §2.2's constraint-sized shell charts, with the 350 from "
+      'PlotlySchemaAdapter.ts:2613 living in kPlotlyDefaultCellHeight). So the '
+      'call site does not exist yet rather than having been forgotten, and '
+      'what this transformer produces is proven consumable by the mounted '
+      'test in test/charts/declarative/transform_heatmap_test.dart, which '
+      'pumps a real FluentHeatMapChart built from a figure and reads the '
+      'transformed grid and colour domain back off the delegate it paints '
+      'from. Whoever lands DeclarativeChart deletes this entry. '
+      'cleanPlotlyText needs no entry: this function is its only caller.',
   'getAllupLegendsProps':
       'internal/plotly/legends.dart, the all-up legend a multi-plot figure '
       'draws beneath its grid (PlotlySchemaAdapter.ts:3489-3567) and plan 09 '

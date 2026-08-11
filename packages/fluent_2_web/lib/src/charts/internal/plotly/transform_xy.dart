@@ -1,4 +1,4 @@
-/// The Plotly scatter-trace core.
+/// The Plotly scatter-trace core, and the heatmap transformer.
 ///
 /// Ports `PlotlySchemaAdapter.ts:1908-2212`: one shared body (`:1979-2212`)
 /// behind three thin wrappers (`:1908`, `:1925`, `:1942`) plus
@@ -6,6 +6,10 @@
 /// scatter traces from that single body and returns the result `as
 /// LineChartProps` / `as AreaChartProps` / `as ScatterChartProps`; this file is
 /// the typed spelling of those three casts.
+///
+/// It also ports `:2397-2621`, the heatmap and `histogram2d` transformer —
+/// the largest single transformer upstream has, and the only one that builds a
+/// colour-scale domain and range out of its own data.
 ///
 /// It is also the producer of the `scatterpolar` mode literal and of the four
 /// polar members `FluentPolarLineOptions` carries — `line_chart.dart:825` and
@@ -15,6 +19,8 @@
 /// Internal to the package: nothing here is barrel-exported.
 library;
 
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 
 import '../../area_chart.dart';
@@ -23,19 +29,25 @@ import '../../axis/domain_range.dart';
 import '../../axis/tick_format.dart';
 import '../../cartesian/cartesian_chart_props.dart';
 import '../../chrome/legend_shape.dart';
+import '../../heat_map_chart.dart';
 import '../../line_chart.dart';
 import '../../model/cartesian_series.dart';
 import '../../model/chart_common.dart';
+import '../../model/heatmap_data.dart';
 import '../../model/line_options.dart';
 import '../../model/polar_data.dart';
 import '../../scatter_chart.dart';
+import '../d3/bin.dart' as d3;
 import '../d3/format.dart' as d3;
+import '../data_viz_palette.dart';
 import 'annotations.dart';
 import 'axis.dart';
+import 'bins.dart';
 import 'color_adapter.dart';
 import 'common.dart';
 import 'legends.dart';
 import 'predicates.dart';
+import 'transform_bar.dart' show getNumberAtIndexOrDefault;
 
 /// Which of the three wrappers is asking (`PlotlySchemaAdapter.ts:1982`).
 enum _ScatterKind {
@@ -932,6 +944,456 @@ _transformScatterTrace(
       yAxisCategoryOrder: isScatterChart
           ? categoryOrder.y ?? FluentAxisCategoryOrder.defaultOrder
           : FluentAxisCategoryOrder.defaultOrder,
+    ),
+  );
+}
+
+/// One cell coordinate, narrowed to what `FluentHeatMapChartDataPoint` admits.
+///
+/// `types/DataPoint.ts:852-853` types both axes `string | Date | number` and
+/// the Fluent point asserts exactly that; the Plotly schema's `Datum` is wider
+/// and untrusted JSON can put a boolean or an object on an axis. Upstream
+/// carries such a value straight onto a band scale, where it stringifies at
+/// paint time — so stringifying it here is the same rendered result, and it is
+/// the alternative to an assertion failure that takes the whole figure down in
+/// debug. // parity: PlotlySchemaAdapter.ts:2542
+Object _heatmapAxisKey(Object? value) =>
+    value is num || value is String || value is DateTime ? value! : '$value';
+
+/// Transforms a Plotly `heatmap` or `histogram2d` figure into a Fluent heat map
+/// (`PlotlySchemaAdapter.ts:2397-2621`).
+///
+/// The largest single transformer, and the only one that builds a colour scale
+/// domain and range from the data's own z extent.
+///
+/// [isMultiPlot], [colorMap] and [colorwayType] are unused: upstream takes all
+/// three at `:2399-2401` and reads none of them, because a heat map colours
+/// its cells from the z scale rather than from the figure's colourway. They
+/// stay so the parameter list is uniform across every transformer.
+///
+/// `:2612`'s `width` and `:2613`'s `height` are not set here, for the same
+/// reason as every other cartesian transformer in this plan: the nine shell
+/// charts size to their `BoxConstraints` (spec §2.2), so the Plotly layout
+/// dimensions become the grid cell's enclosing `SizedBox` and the 350 lives in
+/// `kPlotlyDefaultCellHeight`.
+FluentHeatMapChart transformPlotlyToHeatmap(
+  Map<String, Object?> input, {
+  required bool isMultiPlot,
+  required PlotlyColorMap colorMap,
+  required FluentPlotlyColorway colorwayType,
+  required bool isDark,
+}) {
+  final rawData = input['data'];
+  final data = rawData is List<Object?> ? rawData : const <Object?>[];
+  final layoutRaw = input['layout'];
+  final layout = layoutRaw is Map<String, Object?> ? layoutRaw : null;
+  // `:2404`: everything below reads trace 0 only.
+  final firstRaw = data.isEmpty ? null : data.first;
+  final firstData = firstRaw is Map<String, Object?>
+      ? firstRaw
+      : const <String, Object?>{};
+
+  final heatmapDataPoints = <FluentHeatMapChartDataPoint>[];
+  // `:2406-2407`: the seeds are the infinities, so a figure with no numeric z
+  // keeps them and the default domain at `:2563` becomes
+  // `[Infinity, NaN, -Infinity]`. Reproduced.
+  // // parity: PlotlySchemaAdapter.ts:2406
+  var zMin = double.infinity;
+  var zMax = double.negativeInfinity;
+
+  // `:2409-2452`: the layout annotations are re-projected onto a grid indexed
+  // by the RANK of each distinct x and y, not by the cell coordinates
+  // themselves.
+  final annotationGrid = <int, Map<int, String>>{};
+  final rawAnnotations = layout?['annotations'];
+  if (rawAnnotations != null) {
+    // `:2414`: a lone object is wrapped.
+    final annotationsArray = rawAnnotations is List<Object?>
+        ? rawAnnotations
+        : <Object?>[rawAnnotations];
+    final xSet = <double>{};
+    final ySet = <double>{};
+    final validAnnotations = <({double x, double y, String text})>[];
+    for (final entry in annotationsArray) {
+      if (entry is! Map<String, Object?>) continue;
+      final ax = entry['x'];
+      final ay = entry['y'];
+      final text = entry['text'];
+      final xref = entry['xref'];
+      final yref = entry['yref'];
+      // `:2422-2429`: numeric coordinates, a string body, and either no ref or
+      // the primary axis.
+      if (ax is! num || ay is! num || text is! String) continue;
+      if (!(xref == 'x' || xref == null)) continue;
+      if (!(yref == 'y' || yref == null)) continue;
+      xSet.add(ax.toDouble());
+      ySet.add(ay.toDouble());
+      validAnnotations.add((
+        x: ax.toDouble(),
+        y: ay.toDouble(),
+        text: cleanPlotlyText(text),
+      ));
+    }
+
+    if (validAnnotations.isNotEmpty) {
+      // `:2438-2439`: an explicit numeric comparator, so this is a real numeric
+      // sort and not JavaScript's lexicographic default.
+      final xValues = xSet.toList()..sort();
+      final yValues = ySet.toList()..sort();
+      for (final annotation in validAnnotations) {
+        final xIdx = xValues.indexOf(annotation.x);
+        final yIdx = yValues.indexOf(annotation.y);
+        // `:2445-2448`.
+        (annotationGrid[yIdx] ??= <int, String>{})[xIdx] = annotation.text;
+      }
+    }
+  }
+
+  // `:2454`.
+  String? getAnnotationByIndex(int xIdx, int yIdx) =>
+      annotationGrid[yIdx]?[xIdx];
+
+  // `:2511` and `:2545`: `||`, so an annotation that cleaned down to the empty
+  // string falls through to the number, and so does a zero-length one.
+  Object? rectTextOf(String? annotationText, Object? zVal) =>
+      annotationText != null && annotationText.isNotEmpty
+      ? annotationText
+      // `types/DataPoint.ts:858` types rectText `string | number`; anything
+      // else on the z grid is dropped rather than asserted against, for the
+      // reason [_heatmapAxisKey] gives.
+      : (zVal is num || zVal is String ? zVal : null);
+
+  if (firstData['type'] == 'histogram2d') {
+    // `:2456-2519`.
+    final xColumn = firstData['x'];
+    final yColumn = firstData['y'];
+    final xValues = <Object>[];
+    final yValues = <Object>[];
+    final zValues = <double>[];
+    if (xColumn is List<Object?>) {
+      for (var index = 0; index < xColumn.length; index++) {
+        final xVal = xColumn[index];
+        final yVal = yColumn is List<Object?> && index < yColumn.length
+            ? yColumn[index]
+            : null;
+        // `:2461`.
+        final zVal = getNumberAtIndexOrDefault(firstData['z'], index) ?? 0;
+        // `:2462-2464`.
+        if (isInvalidValue(xVal) || isInvalidValue(yVal)) continue;
+        xValues.add(xVal!);
+        yValues.add(yVal!);
+        zValues.add(zVal);
+      }
+    }
+
+    final isXString = isStringArray(xValues);
+    final isYString = isStringArray(yValues);
+    final xbins = firstData['xbins'];
+    final ybins = firstData['ybins'];
+    final xbinsMap = xbins is Map<String, Object?>
+        ? xbins
+        : const <String, Object?>{};
+    final ybinsMap = ybins is Map<String, Object?>
+        ? ybins
+        : const <String, Object?>{};
+    // `:2473-2474`.
+    final xBins = createBins(
+      xValues,
+      binStart: xbinsMap['start'],
+      binEnd: xbinsMap['end'],
+      binSize: xbinsMap['size'],
+    );
+    final yBins = createBins(
+      yValues,
+      binStart: ybinsMap['start'],
+      binEnd: ybinsMap['end'],
+      binSize: ybinsMap['size'],
+    );
+
+    // `:2475`: indexed `[y][x]`.
+    final zBins = <List<List<double>>>[
+      for (var yi = 0; yi < yBins.length; yi++)
+        <List<double>>[for (var xi = 0; xi < xBins.length; xi++) <double>[]],
+    ];
+
+    // `:2478-2485`.
+    for (var index = 0; index < xValues.length; index++) {
+      final xBinIdx = findBinIndex(xBins, xValues[index], isString: isXString);
+      final yBinIdx = findBinIndex(yBins, yValues[index], isString: isYString);
+      if (xBinIdx != -1 && yBinIdx != -1) {
+        zBins[yBinIdx][xBinIdx].add(zValues[index]);
+      }
+    }
+
+    // `:2487-2493`: the whole nested map runs first, so `total` is complete
+    // before the render loop below reads it.
+    final histfunc = firstData['histfunc'];
+    var total = 0.0;
+    final z = <List<double>>[];
+    for (final row in zBins) {
+      final resolvedRow = <double>[];
+      for (final bin in row) {
+        final zVal = calculateHistFunc(
+          histfunc is String ? histfunc : null,
+          bin,
+        );
+        total += zVal;
+        resolvedRow.add(zVal);
+      }
+      z.add(resolvedRow);
+    }
+
+    final histnorm = firstData['histnorm'];
+    // `:2495-2519`: x outer, y inner.
+    for (var xIdx = 0; xIdx < xBins.length; xIdx++) {
+      final xBin = xBins[xIdx];
+      for (var yIdx = 0; yIdx < yBins.length; yIdx++) {
+        final yBin = yBins[yIdx];
+        // `:2497-2503`: a two-dimensional normalisation, so `dy` is the y bin's
+        // width rather than the default 1.
+        final zVal = calculateHistNorm(
+          histnorm is String ? histnorm : null,
+          z[yIdx][xIdx],
+          total,
+          isXString
+              ? (xBin as List<Object?>).length.toDouble()
+              : getBinSize(xBin as d3.Bin),
+          isYString
+              ? (yBin as List<Object?>).length.toDouble()
+              : getBinSize(yBin as d3.Bin),
+        );
+        final annotationText = getAnnotationByIndex(xIdx, yIdx);
+
+        heatmapDataPoints.add(
+          FluentHeatMapChartDataPoint(
+            // `:2508-2509`.
+            x: isXString
+                ? (xBin as List<Object?>).map((e) => '$e').join(', ')
+                : getBinCenter(xBin as d3.Bin),
+            y: isYString
+                ? (yBin as List<Object?>).map((e) => '$e').join(', ')
+                : getBinCenter(yBin as d3.Bin),
+            value: zVal,
+            rectText: rectTextOf(annotationText, zVal),
+          ),
+        );
+
+        // `:2514-2517`.
+        zMin = math.min(zMin, zVal);
+        zMax = math.max(zMax, zVal);
+      }
+    }
+  } else {
+    // `:2520-2554`.
+    final zRaw = firstData['z'];
+    final zArray = zRaw is List<Object?> ? zRaw : const <Object?>[];
+    final xColumn = firstData['x'];
+    final yColumn = firstData['y'];
+
+    // `:2527-2528`.
+    final yLength = zArray.length;
+    final firstRow = zArray.isEmpty ? null : zArray.first;
+    final xLength = firstRow is List<Object?> ? firstRow.length : 0;
+
+    // `:2531-2532`: generated y indices count DOWN, because Plotly's z rows are
+    // bottom-origin and the chart's are top-origin.
+    final xData = xColumn is List<Object?>
+        ? xColumn
+        : <Object?>[for (var i = 0; i < xLength; i++) i];
+    final yData = yColumn is List<Object?>
+        ? yColumn
+        : <Object?>[for (var i = 0; i < yLength; i++) yLength - 1 - i];
+
+    for (var xIdx = 0; xIdx < xData.length; xIdx++) {
+      for (var yIdx = 0; yIdx < yData.length; yIdx++) {
+        final row = yIdx < zArray.length ? zArray[yIdx] : null;
+        final zVal = row is List<Object?> && xIdx < row.length
+            ? row[xIdx]
+            : null;
+        final annotationText = getAnnotationByIndex(xIdx, yIdx);
+
+        heatmapDataPoints.add(
+          FluentHeatMapChartDataPoint(
+            // `:2542-2543`: the `as Date` casts erase at runtime, so both arms
+            // pass the raw schema value through; only the `?? 0` differs, and
+            // an absent coordinate renders nothing either way.
+            // // parity: PlotlySchemaAdapter.ts:2542
+            x: _heatmapAxisKey(xData[xIdx] ?? 0),
+            y: _heatmapAxisKey(yData[yIdx] ?? 0),
+            // `:2544`: upstream stores `undefined` for a hole and the chart's
+            // arithmetic then yields NaN. NaN is the faithful stand-in for a
+            // non-nullable double; 0 would paint a real colour.
+            // // parity: PlotlySchemaAdapter.ts:2544
+            value: zVal is num ? zVal.toDouble() : double.nan,
+            rectText: rectTextOf(annotationText, zVal),
+          ),
+        );
+
+        // `:2548-2551`.
+        if (zVal is num) {
+          zMin = math.min(zMin, zVal.toDouble());
+          zMax = math.max(zMax, zVal.toDouble());
+        }
+      }
+    }
+  }
+
+  // `:2556-2560`.
+  final name = firstData['name'];
+  final heatmapData = FluentHeatMapChartData(
+    legend: name is String ? name : '',
+    data: heatmapDataPoints,
+    value: 0,
+  );
+
+  // `:2562-2568`.
+  final defaultDomain = <double>[zMin, (zMax + zMin) / 2, zMax];
+  final defaultRange = <Color>[
+    FluentDataVizPalette.resolve(FluentDataVizToken.color1, isDark: isDark),
+    FluentDataVizPalette.resolve(FluentDataVizToken.color2, isDark: isDark),
+    FluentDataVizPalette.resolve(FluentDataVizToken.color3, isDark: isDark),
+  ];
+
+  // `:2570-2576`: six fallbacks in order. The fifth is guarded on the trace
+  // type and reads `template.data.histogram2d[0]`, the sixth
+  // `template.data.heatmap[0]`.
+  Object? firstTemplateColorscale(String traceType) {
+    final template = layout?['template'];
+    final templateData = template is Map<String, Object?>
+        ? template['data']
+        : null;
+    final traces = templateData is Map<String, Object?>
+        ? templateData[traceType]
+        : null;
+    final first = traces is List<Object?> && traces.isNotEmpty
+        ? traces.first
+        : null;
+    return first is Map<String, Object?> ? first['colorscale'] : null;
+  }
+
+  final template = layout?['template'];
+  final templateLayout = template is Map<String, Object?>
+      ? template['layout']
+      : null;
+  final coloraxis = layout?['coloraxis'];
+  // DEVIATION, plan 09 task 24's Step 3 code over upstream `:2575-2576`: there
+  // the fifth fallback is `(type === 'histogram2d' && …)`, which contributes
+  // the boolean `false` for a heatmap trace, and `false ?? …` keeps the
+  // `false` — so upstream's sixth fallback is dead for every trace that is not
+  // a histogram2d, which is every heatmap. The plan writes the guard as a
+  // conditional yielding null, which revives it. Following the plan.
+  var colorscale =
+      firstData['colorscale'] ??
+      layout?['colorscale'] ??
+      (coloraxis is Map<String, Object?> ? coloraxis['colorscale'] : null) ??
+      (templateLayout is Map<String, Object?>
+          ? templateLayout['colorscale']
+          : null) ??
+      (firstData['type'] == 'histogram2d'
+          ? firstTemplateColorscale('histogram2d')
+          : null) ??
+      firstTemplateColorscale('heatmap');
+
+  // `:2579-2595`: the template form is an object of three named ramps, selected
+  // by the sign span of the data.
+  if (colorscale is Map<String, Object?> &&
+      (colorscale.containsKey('diverging') ||
+          colorscale.containsKey('sequential') ||
+          colorscale.containsKey('sequentialminus'))) {
+    final isDivergent = zMin < 0 && zMax > 0;
+    final isSequential = zMin >= 0;
+    final isSequentialMinus = zMax <= 0;
+    if (isDivergent) {
+      colorscale = colorscale['diverging'];
+    } else if (isSequential) {
+      colorscale = colorscale['sequential'];
+    } else if (isSequentialMinus) {
+      colorscale = colorscale['sequentialminus'];
+    }
+  }
+
+  // `:2597-2603`: each stop is `[position, cssColour]`; the position is
+  // rescaled from 0..1 onto the data's own z extent.
+  final List<double> domainValuesForColorScale;
+  final List<Color> rangeValuesForColorScale;
+  if (colorscale is List<Object?>) {
+    domainValuesForColorScale = <double>[
+      for (final stop in colorscale)
+        if (stop is List<Object?> && stop.isNotEmpty && stop[0] is num)
+          (stop[0]! as num).toDouble() * (zMax - zMin) + zMin,
+    ];
+    rangeValuesForColorScale = <Color>[
+      for (final stop in colorscale)
+        if (stop is List<Object?> && stop.length > 1 && stop[1] is String)
+          parseCssColour(stop[1]! as String),
+    ];
+  } else {
+    domainValuesForColorScale = defaultDomain;
+    rangeValuesForColorScale = defaultRange;
+  }
+
+  final titles = getTitles(layout);
+  // `:2618`: only trace 0, unlike `:2619` which passes the whole list.
+  final categoryOrder = getAxisCategoryOrderProps(<Object?>[firstData], layout);
+  final tickProps = getAxisTickProps(data, layout);
+  // DEVIATION, plan 09 task 24 over upstream: `:2617-2619` spreads getTitles,
+  // getAxisCategoryOrderProps and getAxisTickProps only — it does NOT spread
+  // getAxisScaleTypeProps, so upstream's heat map keeps the shell's automatic
+  // scale types even when the layout declares `xaxis.type`. The plan's Step 3
+  // code reads them; following the plan.
+  final scaleTypes = getAxisScaleTypeProps(data, layout);
+
+  return FluentHeatMapChart(
+    // `:2606`: always exactly one series.
+    data: <FluentHeatMapChartData>[heatmapData],
+    domainValuesForColorScale: domainValuesForColorScale,
+    rangeValuesForColorScale: rangeValuesForColorScale,
+    // `:2611` sends `sortOrder: 'none'` — the chart must not re-sort a grid.
+    // `HeatMapChart.tsx:648` reads that as "leave the order alone", which is
+    // what `sortAlphabetically: false` spells (`heat_map_chart.dart:667`).
+    sortAlphabetically: false,
+    // `:2617`.
+    chartTitle: titles.chartTitle,
+    props: FluentCartesianChartProps(
+      xAxisTitle: titles.xAxisTitle,
+      yAxisTitle: titles.yAxisTitle,
+      // `:2609`: unconditional, so `isMultiPlot` is not consulted here.
+      hideLegend: true,
+      // `:2610`.
+      showYAxisLables: true,
+      // `:2614`.
+      hideTickOverlap: true,
+      // `:2615`: 20 characters before an ellipsis.
+      noOfCharsToTruncate: 20,
+      // `:2616`.
+      showYAxisLablesTooltip: true,
+      xAxisCategoryOrder:
+          categoryOrder.x ?? FluentAxisCategoryOrder.defaultOrder,
+      yAxisCategoryOrder:
+          categoryOrder.y ?? FluentAxisCategoryOrder.defaultOrder,
+      xScaleType: scaleTypes.x ?? FluentAxisScaleType.auto,
+      yScaleType: scaleTypes.y ?? FluentAxisScaleType.auto,
+      secondaryYScaleType: scaleTypes.secondaryY ?? FluentAxisScaleType.auto,
+      // `:2619`. The two tick counts keep the shell's own defaults, 6 and 4
+      // (`cartesian_chart_props.dart:95-96`), when `nticks` is absent.
+      tickValues: tickProps.xAxisTickValues,
+      yAxisTickValues: tickProps.yAxisTickValues,
+      xAxisTickCount: tickProps.xAxisTickCount ?? 6,
+      yAxisTickCount: tickProps.yAxisTickCount ?? 4,
+      xAxis: FluentAxisConfig(
+        tickStep: tickProps.xAxisTickStep,
+        tick0: tickProps.xAxisTick0,
+        tickText: tickProps.xAxisTickText,
+        // The plan's Step 3 code omits the two tick layouts; `:2619` spreads
+        // the whole of getAxisTickProps, which carries them.
+        tickLayout: tickProps.xAxisTickLayout,
+      ),
+      yAxis: FluentAxisConfig(
+        tickStep: tickProps.yAxisTickStep,
+        tick0: tickProps.yAxisTick0,
+        tickText: tickProps.yAxisTickText,
+        tickLayout: tickProps.yAxisTickLayout,
+      ),
     ),
   );
 }
