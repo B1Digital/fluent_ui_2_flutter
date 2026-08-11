@@ -197,6 +197,20 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'call site does not exist yet rather than having been forgotten. Whoever '
       'lands DeclarativeChart deletes this entry — the test below fails until '
       'they do.',
+  'transformPlotlyToVbc':
+      'internal/plotly/transform_bar.dart, the Plotly vertical-bar and '
+      'histogram transformer (PlotlySchemaAdapter.ts:1793-1906) and plan 09 '
+      "Task 20. Upstream reaches it from the `verticalbar` and `histogram` "
+      "entries of DeclarativeChart's chartMap (DeclarativeChart.tsx:268-271), "
+      'dispatched at :607, and the router already resolves both kinds — what '
+      'is missing is the widget that reads the route, which is plan 09 Task '
+      '28, and which also supplies the enclosing SizedBox this transformer '
+      "deliberately does not build (spec §2.2's constraint-sized shell charts, "
+      'with the 350 from PlotlySchemaAdapter.ts:1892 living in '
+      'kPlotlyDefaultCellHeight). So the call site does not exist yet rather '
+      'than having been forgotten. Whoever lands DeclarativeChart deletes this '
+      'entry — the test below fails until they do. `getNumberAtIndexOrDefault` '
+      'needs no entry: this function calls it.',
   'transformPlotlyToLine':
       'internal/plotly/transform_xy.dart, one of the three wrappers over the '
       'Plotly scatter-trace core (PlotlySchemaAdapter.ts:1925-1940, body at '
@@ -226,6 +240,21 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       "Upstream reaches it from the `scatter` entry of DeclarativeChart's "
       'chartMap (DeclarativeChart.tsx:268-271); that widget is plan 09 Task '
       '28. Whoever lands DeclarativeChart deletes this entry.',
+  'transformPlotlyToGantt':
+      'internal/plotly/transform_bar.dart, the Plotly gantt transformer '
+      '(PlotlySchemaAdapter.ts:2296-2395) and plan 09 Task 23. Upstream '
+      "reaches it from the `gantt` entry of DeclarativeChart's chartMap "
+      '(DeclarativeChart.tsx:268-271), dispatched at :607; that widget is plan '
+      '09 Task 28, which also supplies the enclosing SizedBox this transformer '
+      "deliberately does not build (spec §2.2's constraint-sized shell charts, "
+      'with the 350 from PlotlySchemaAdapter.ts:2382 living in '
+      'kPlotlyDefaultCellHeight). So the call site does not exist yet rather '
+      'than having been forgotten, and what this transformer produces is '
+      'proven consumable by the mounted test in '
+      'test/charts/declarative/transform_gantt_test.dart, which pumps a real '
+      'FluentGanttChart built from a figure and reads the transformed points '
+      'back off the delegate it paints from. Whoever lands DeclarativeChart '
+      'deletes this entry.',
 
   // --- Ported constants nothing reads --------------------------------------
   // `kMinDonutRadius` was here until plan 09 Task 17 landed: the Plotly pie

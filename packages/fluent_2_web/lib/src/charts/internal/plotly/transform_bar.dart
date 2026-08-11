@@ -1,8 +1,10 @@
 /// The Plotly bar-family figure transformers.
 ///
 /// Ports `PlotlySchemaAdapter.ts:1390-1608` (vertical stacked bar, which is
-/// also the `fallback` route) and `:1610-1791` with `:1169-1243` (grouped
-/// vertical bar). Internal to the package: nothing here is barrel-exported.
+/// also the `fallback` route), `:1610-1791` with `:1169-1243` (grouped
+/// vertical bar), `:2296-2395` (gantt) and `:1793-1906` (vertical bar, the
+/// only transformer that bins). Internal to the package: nothing here is
+/// barrel-exported.
 library;
 
 import 'dart:math' as math;
@@ -11,17 +13,22 @@ import 'package:flutter/widgets.dart';
 
 import '../../axis/tick_format.dart';
 import '../../cartesian/cartesian_chart_props.dart';
+import '../../gantt_chart.dart';
 import '../../grouped_vertical_bar_chart.dart';
 import '../../model/bar_data.dart';
 import '../../model/chart_common.dart';
 import '../../model/line_options.dart';
 import '../../model/series_v2.dart';
+import '../../vertical_bar_chart.dart';
 import '../../vertical_stacked_bar_chart.dart';
+import '../d3/bin.dart' as d3;
 import '../d3/color.dart' as d3;
 import '../d3/format.dart' as d3;
+import '../d3/js_math.dart' as d3;
 import '../data_viz_palette.dart';
 import 'annotations.dart';
 import 'axis.dart';
+import 'bins.dart';
 import 'color_adapter.dart';
 import 'common.dart';
 import 'legends.dart';
@@ -1021,6 +1028,578 @@ FluentGroupedVerticalBarChart transformPlotlyToGvbc(
         tickLayout: tickProps.yAxisTickLayout,
       ),
       // `:1789`.
+      annotations: annotations,
+    ),
+  );
+}
+
+/// Transforms a Plotly gantt figure into a Fluent gantt chart
+/// (`PlotlySchemaAdapter.ts:2296-2395`).
+///
+/// Two disjoint input shapes reach this transformer. A hand-written figure uses
+/// `type: 'bar'` with a `base` offset per bar (`:2317-2354`). A figure produced
+/// by plotly.py's `create_gantt` instead emits one closed `scatter` path per
+/// task — five points per rectangle, `mode: 'none'`, `fill: 'toself'` — and the
+/// stride-5 walk at `:2356-2375` recovers the row back out of the corners.
+///
+/// `:2382`'s `height` and `:2383`'s `width` are not set here: the layout
+/// dimensions become the enclosing cell's `SizedBox` (spec §2.2's
+/// constraint-sized shell charts, with the 350 living in
+/// `kPlotlyDefaultCellHeight`), which is plan 09 Task 28's to build.
+FluentGanttChart transformPlotlyToGantt(
+  Map<String, Object?> input, {
+  required bool isMultiPlot,
+  required PlotlyColorMap colorMap,
+  required FluentPlotlyColorway colorwayType,
+  required bool isDark,
+}) {
+  final allData = input['data'] is List<Object?>
+      ? input['data']! as List<Object?>
+      : const <Object?>[];
+  final layoutRaw = input['layout'];
+  final layout = layoutRaw is Map<String, Object?> ? layoutRaw : null;
+  // `:2321` and `:2340`'s `input.layout?.template?.layout?.colorway`.
+  final colorway = _colorway(layout);
+
+  // `:2303`: a marker-only scatter trace is the milestone overlay, and it is
+  // dropped before anything else — including before the legend names are built,
+  // so the legend indices below are indices into the FILTERED list.
+  final data = <Object?>[
+    for (final series in allData)
+      if (!(series is Map<String, Object?> &&
+          series['type'] == 'scatter' &&
+          series['mode'] == 'markers'))
+        series,
+  ];
+
+  // `:2304`.
+  final legend = getLegendProps(data, layout, isMultiPlot: isMultiPlot);
+
+  // `:2306-2307`: the ONE call site that passes `parseLocalDate`, so a gantt
+  // date is read as local time while every other transformer reads it as UTC.
+  FluentPlotlyAxisObject? xAxis;
+  for (final ax in getAxisObjects(data, layout)) {
+    if (ax.letter == 'x') xAxis = ax;
+  }
+  final xAxisType = getAxisType(data, xAxis);
+  final resolveXValue = getAxisValueResolver(
+    xAxisType,
+    dateParser: parseLocalDate,
+  );
+
+  // `:2308-2311`: a category value collapses to 0 rather than becoming a label.
+  Object resolveGanttXValue(Object? value) {
+    final resolved = resolveXValue(value);
+    return resolved is String ? 0 : resolved ?? 0;
+  }
+
+  /// JavaScript's unary `+`, applied at `:2342` and `:2343` but **not** at
+  /// `:2361-2362`. On a `DateTime` it is the epoch millisecond count.
+  double numeric(Object? value) {
+    if (value is num) return value.toDouble();
+    if (value is DateTime) return value.millisecondsSinceEpoch.toDouble();
+    return 0;
+  }
+
+  // `:2312`.
+  final isXDate = xAxisType == FluentPlotlyAxisType.date;
+  final ganttData = <FluentGanttChartDataPoint>[];
+  String Function(double)? colorScale;
+
+  for (var index = 0; index < data.length; index++) {
+    final series = data[index];
+    if (series is! Map<String, Object?>) continue;
+    // `:2315`.
+    final legendTitle = index < legend.names.length ? legend.names[index] : '';
+    final yColumn = series['y'];
+
+    if (series['type'] == 'bar') {
+      // `:2318`.
+      colorScale = createColorScale(layout, series, colorScale);
+
+      final marker = series['marker'];
+      final markerColor = marker is Map<String, Object?>
+          ? marker['color']
+          : null;
+      // `:2321-2327`.
+      final extractedColors = extractColor(
+        colorway,
+        colorwayType,
+        markerColor,
+        colorMap,
+        isDark: isDark,
+      );
+
+      if (yColumn is! List<Object?>) continue;
+      final xColumn = series['x'];
+      final base = series['base'];
+      for (var i = 0; i < yColumn.length; i++) {
+        final yVal = yColumn[i];
+        if (isInvalidValue(yVal)) {
+          // `:2330-2332`.
+          continue;
+        }
+
+        // `:2334-2340`.
+        final String colour;
+        final scale = colorScale;
+        if (scale != null) {
+          final scaleInput =
+              markerColor is List<Object?> && markerColor.isNotEmpty
+              ? markerColor[i % markerColor.length]
+              : 0;
+          colour = scale(scaleInput is num ? scaleInput.toDouble() : 0);
+        } else {
+          colour = resolveColor(
+            extractedColors,
+            i,
+            legendTitle,
+            colorMap,
+            colorway,
+            isDark: isDark,
+          );
+        }
+
+        // `:2341`.
+        final opacity = getOpacity(series, i);
+        // `:2342`: a scalar `base` applies to every bar.
+        final baseValue = numeric(
+          resolveGanttXValue(
+            base is List<Object?> ? (i < base.length ? base[i] : null) : base,
+          ),
+        );
+        // `:2343`: `x` is the DURATION, not the end point.
+        final xVal = numeric(
+          resolveGanttXValue(
+            xColumn is List<Object?> && i < xColumn.length ? xColumn[i] : null,
+          ),
+        );
+
+        ganttData.add(
+          FluentGanttChartDataPoint(
+            // `:2346-2349`.
+            x: FluentGanttSpan(
+              start: isXDate
+                  ? DateTime.fromMillisecondsSinceEpoch(baseValue.toInt())
+                  : baseValue,
+              end: isXDate
+                  ? DateTime.fromMillisecondsSinceEpoch(
+                      (baseValue + xVal).toInt(),
+                    )
+                  : baseValue + xVal,
+            ),
+            y: yVal is num ? yVal : '$yVal',
+            legend: legendTitle,
+            // `:2352`.
+            color: parseCssColour(applyOpacityHex8(colour, opacity)),
+          ),
+        );
+      }
+    } else if (series['type'] == 'scatter' &&
+        series['mode'] == 'none' &&
+        series['fill'] == 'toself') {
+      // `:2355-2375`: five points per rectangle — bottom-left, bottom-right,
+      // top-right, top-left, then the repeated first point that closes the path.
+      if (yColumn is! List<Object?>) continue;
+      final xColumn = series['x'];
+      final fillcolor = series['fillcolor'];
+      for (var i = 0; i < yColumn.length; i += 5) {
+        final y0Raw = yColumn[i];
+        final y1Raw = i + 3 < yColumn.length ? yColumn[i + 3] : null;
+        if (isInvalidValue(y0Raw) || isInvalidValue(y1Raw)) {
+          // `:2357-2359`.
+          continue;
+        }
+
+        // `:2361-2362`: NO unary `+` here, so on a date axis both endpoints stay
+        // `DateTime` while the `type: 'bar'` branch above converts to
+        // milliseconds and back. Reproduced.
+        // // parity: PlotlySchemaAdapter.ts:2361
+        final x0 = resolveGanttXValue(
+          xColumn is List<Object?> && i < xColumn.length ? xColumn[i] : null,
+        );
+        final x1 = resolveGanttXValue(
+          xColumn is List<Object?> && i + 1 < xColumn.length
+              ? xColumn[i + 1]
+              : null,
+        );
+        final y0 = y0Raw is num ? y0Raw.toDouble() : 0.0;
+        final y1 = y1Raw is num ? y1Raw.toDouble() : 0.0;
+
+        ganttData.add(
+          FluentGanttChartDataPoint(
+            // `:2367-2370`.
+            x: FluentGanttSpan(start: x0, end: x1),
+            // `:2371`: the row index is the midpoint of the rectangle's two y
+            // edges. `Math.round` is half-up, so `d3.jsRound`, never `.round()`.
+            y: d3.jsRound((y0 + y1) / 2),
+            legend: legendTitle,
+            // `:2373`: upstream assigns `series.fillcolor` and does not resolve a
+            // fallback, so a figure without one renders an unpainted bar. A Dart
+            // `Color` cannot be null, so the qualitative cycle fills in at the
+            // trace index — and, unlike `resolveColor`, it does not touch
+            // `colorMap`, which this branch never seeds upstream either.
+            // // parity: PlotlySchemaAdapter.ts:2373
+            color: fillcolor is String && fillcolor.isNotEmpty
+                ? parseCssColour(fillcolor)
+                : FluentDataVizPalette.next(index, isDark: isDark),
+          ),
+        );
+      }
+    }
+  }
+
+  final titles = getTitles(layout);
+  final categoryOrder = getAxisCategoryOrderProps(data, layout);
+  final tickProps = getAxisTickProps(data, layout);
+  final scaleTypes = getAxisScaleTypeProps(data, layout);
+  // `:2392`: the horizontal branch, so this yields `maxBarHeight` and
+  // `yAxisPadding`.
+  final barProps = getBarProps(data, layout, isHorizontal: true);
+
+  return FluentGanttChart(
+    data: ganttData,
+    // `:2390`.
+    chartTitle: titles.chartTitle,
+    // `:2392`. `FluentCartesianChartProps` carries no bar geometry, so the two
+    // horizontal bar props sit on the chart itself. Absent, the shell's own
+    // defaults stand (`GanttChart.tsx:44-45`), which is what upstream's empty
+    // spread leaves too.
+    maxBarHeight: barProps.maxBarHeight ?? kGanttDefaultBarHeight,
+    yAxisPadding: barProps.yAxisPadding ?? 0.5,
+    // `:2388`. The plan pinned this as droppable; `FluentGanttChart` does carry
+    // the flag (`gantt_chart.dart:82`), so it is set rather than recorded.
+    roundCorners: true,
+    // `:2389`: gantt renders local time, which is why `:2307` is the one call
+    // site that passes `parseLocalDate`. Set twice because the Gantt paints its
+    // own y-axis dates from this field (`gantt_chart.dart:219`) while the
+    // shared cartesian shell reads `props.useUTC` (`cartesian_chart.dart:755`).
+    useUtc: false,
+    // `:2391`. The Gantt sorts its own category axis from this field
+    // (`gantt_chart.dart:414`), so the y order is set here as well as on the
+    // props the shell reads.
+    yAxisCategoryOrder: categoryOrder.y ?? FluentAxisCategoryOrder.defaultOrder,
+    props: FluentCartesianChartProps(
+      xAxisTitle: titles.xAxisTitle,
+      yAxisTitle: titles.yAxisTitle,
+      // `:2380`.
+      showYAxisLables: true,
+      // `:2383`.
+      hideTickOverlap: true,
+      // `:2381`.
+      hideLegend: legend.hideLegend,
+      // `:2384`: 20 characters before an ellipsis.
+      noOfCharsToTruncate: 20,
+      // `:2385`.
+      showYAxisLablesTooltip: true,
+      // `:2387`.
+      useUTC: false,
+      xAxisCategoryOrder:
+          categoryOrder.x ?? FluentAxisCategoryOrder.defaultOrder,
+      yAxisCategoryOrder:
+          categoryOrder.y ?? FluentAxisCategoryOrder.defaultOrder,
+      xScaleType: scaleTypes.x ?? FluentAxisScaleType.auto,
+      yScaleType: scaleTypes.y ?? FluentAxisScaleType.auto,
+      secondaryYScaleType: scaleTypes.secondaryY ?? FluentAxisScaleType.auto,
+      tickValues: tickProps.xAxisTickValues,
+      yAxisTickValues: tickProps.yAxisTickValues,
+      xAxisTickCount: tickProps.xAxisTickCount ?? 6,
+      yAxisTickCount: tickProps.yAxisTickCount ?? 4,
+      xAxis: FluentAxisConfig(
+        tickStep: tickProps.xAxisTickStep,
+        tick0: tickProps.xAxisTick0,
+        tickText: tickProps.xAxisTickText,
+      ),
+      yAxis: FluentAxisConfig(
+        tickStep: tickProps.yAxisTickStep,
+        tick0: tickProps.yAxisTick0,
+        tickText: tickProps.yAxisTickText,
+      ),
+    ),
+  );
+}
+
+/// Reads `z[index]` when it is a finite number
+/// (`PlotlySchemaAdapter.ts:3588-3598`).
+///
+/// Returns null for a non-finite or non-numeric entry and **1** when the whole
+/// field is not an array at all (`:3597`), which is how a scalar marker size
+/// behaves as "one unit" everywhere it is read.
+double? getNumberAtIndexOrDefault(Object? data, int index) {
+  if (data is List<Object?>) {
+    final value = index >= 0 && index < data.length ? data[index] : null;
+    if (value is! num || !value.isFinite) {
+      // `:3590-3592`.
+      return null;
+    }
+    return value.toDouble();
+  }
+  // `:3597`.
+  return 1;
+}
+
+/// Transforms a Plotly `bar` or `histogram` figure into a Fluent vertical bar
+/// chart (`PlotlySchemaAdapter.ts:1793-1906`).
+///
+/// This is the only transformer that bins: `histogram` traces carry raw
+/// observations, so the bins, the aggregation and the normalisation all happen
+/// here rather than in the chart.
+///
+/// `:1891`'s `width` and `:1892`'s `height` are not set: the layout dimensions
+/// become the enclosing cell's `SizedBox` (spec §2.2's constraint-sized shell
+/// charts, with the 350 living in `kPlotlyDefaultCellHeight`), which is plan 09
+/// Task 28's to build — the same split the stacked and grouped transformers
+/// above already make.
+FluentVerticalBarChart transformPlotlyToVbc(
+  Map<String, Object?> input, {
+  required bool isMultiPlot,
+  required PlotlyColorMap colorMap,
+  required FluentPlotlyColorway colorwayType,
+  required bool isDark,
+}) {
+  final rawData = input['data'];
+  final data = rawData is List<Object?> ? rawData : const <Object?>[];
+  final rawLayout = input['layout'];
+  final layout = rawLayout is Map<String, Object?> ? rawLayout : null;
+  final colorway = _colorway(layout);
+
+  // `:1801`.
+  final legend = getLegendProps(data, layout, isMultiPlot: isMultiPlot);
+
+  final vbcData = <FluentVerticalBarChartDataPoint>[];
+  // `:1802`: the scale is threaded across traces, so a later trace with no
+  // numeric marker colour keeps the previous trace's scale.
+  String Function(double)? colorScale;
+
+  for (var seriesIdx = 0; seriesIdx < data.length; seriesIdx++) {
+    final series = data[seriesIdx];
+    if (series is! Map<String, Object?>) continue;
+    final xColumn = series['x'];
+    // `:1805-1807` skips a falsy `x`. An empty array is truthy in JavaScript
+    // and is not skipped there, but it yields no bins at `:1834` and therefore
+    // no points either, so the two agree on the output.
+    if (xColumn is! List<Object?> || xColumn.isEmpty) continue;
+
+    // `:1809`.
+    colorScale = createColorScale(layout, series, colorScale);
+
+    final marker = series['marker'];
+    final markerColor = marker is Map<String, Object?> ? marker['color'] : null;
+    // `:1811-1818`: extracted once per trace.
+    final extractedColors = extractColor(
+      colorway,
+      colorwayType,
+      markerColor,
+      colorMap,
+      isDark: isDark,
+    );
+
+    // `:1819-1829`.
+    final xValues = <Object>[];
+    final yValues = <double>[];
+    for (var index = 0; index < xColumn.length; index++) {
+      final xVal = xColumn[index];
+      // `:1822`: an absent or non-finite y counts as 0, and a scalar y column
+      // counts as 1 per point.
+      final yVal = getNumberAtIndexOrDefault(series['y'], index) ?? 0;
+      if (isInvalidValue(xVal)) continue;
+      xValues.add(xVal!);
+      yValues.add(yVal);
+    }
+
+    final isXString = isStringArray(xValues);
+    final xbins = series['xbins'];
+    final xbinsMap = xbins is Map<String, Object?>
+        ? xbins
+        : const <String, Object?>{};
+    // `:1834`. `:1832-1833` records an upstream TODO: a single bin still uses
+    // the default bar width instead of spanning its range. // parity
+    final xBins = createBins(
+      xValues,
+      binStart: xbinsMap['start'],
+      binEnd: xbinsMap['end'],
+      binSize: xbinsMap['size'],
+    );
+
+    // `:1835-1843`.
+    final yBins = <List<double>>[
+      for (var i = 0; i < xBins.length; i++) <double>[],
+    ];
+    for (var index = 0; index < xValues.length; index++) {
+      final binIdx = findBinIndex(xBins, xValues[index], isString: isXString);
+      if (binIdx != -1) yBins[binIdx].add(yValues[index]);
+    }
+
+    // `:1845-1849`: the whole map runs before the render loop below, so `total`
+    // is already the full sum when `calculateHistNorm` reads it.
+    final histfunc = series['histfunc'];
+    var total = 0.0;
+    final y = <double>[];
+    for (final bin in yBins) {
+      final yVal = calculateHistFunc(histfunc is String ? histfunc : null, bin);
+      total += yVal;
+      y.add(yVal);
+    }
+
+    final histnorm = series['histnorm'];
+    final text = series['text'];
+    final texttemplate = series['texttemplate'];
+
+    for (var index = 0; index < xBins.length; index++) {
+      final bin = xBins[index];
+      // `:1852`: one legend per TRACE, so every bin of a trace shares it.
+      final legendTitle = seriesIdx < legend.names.length
+          ? legend.names[seriesIdx]
+          : '';
+
+      // `:1854-1860`.
+      final String colour;
+      if (colorScale != null) {
+        final scaleInput =
+            markerColor is List<Object?> && markerColor.isNotEmpty
+            ? markerColor[index % markerColor.length]
+            : 0;
+        colour = colorScale(scaleInput is num ? scaleInput.toDouble() : 0);
+      } else {
+        colour = resolveColor(
+          extractedColors,
+          index,
+          legendTitle,
+          colorMap,
+          colorway,
+          isDark: isDark,
+        );
+      }
+
+      // `:1861`.
+      final opacity = getOpacity(series, index);
+
+      // `:1862-1867`: a string bin normalises against its member count, a
+      // numeric bin against its width.
+      final yVal = calculateHistNorm(
+        histnorm is String ? histnorm : null,
+        y[index],
+        total,
+        isXString
+            ? (bin as List<Object?>).length.toDouble()
+            : getBinSize(bin as d3.Bin),
+      );
+
+      // `:1870-1873`.
+      var barLabel = text is List<Object?>
+          ? (index < text.length ? text[index] : null)
+          : text;
+      if (barLabel != null &&
+          barLabel != '' &&
+          barLabel != false &&
+          texttemplate != null) {
+        barLabel = formatTextWithTemplate(barLabel, texttemplate, index);
+      }
+
+      vbcData.add(
+        FluentVerticalBarChartDataPoint(
+          // `:1876`.
+          x: isXString
+              ? (bin as List<Object?>).map((e) => '$e').join(', ')
+              : getBinCenter(bin as d3.Bin),
+          y: yVal,
+          legend: legendTitle,
+          // `:1879`.
+          color: parseCssColour(applyOpacityHex8(colour, opacity)),
+          // `:1880-1882`: a string bin gets no callout at all, and the numeric
+          // form is the half-open interval, printed with JavaScript's number
+          // formatting so an integral bound has no `.0`.
+          xAxisCalloutData: isXString
+              ? null
+              : '[${d3.jsNumberToString((bin as d3.Bin).x0)} - '
+                    '${d3.jsNumberToString(bin.x1)})',
+          // `:1883`: only a truthy label is passed.
+          barLabel: barLabel == null || barLabel == '' || barLabel == false
+              ? null
+              : '$barLabel',
+        ),
+      );
+    }
+  }
+
+  // `:1888`.
+  final annotations = getChartAnnotationsFromLayout(
+    layout,
+    isMultiPlot: isMultiPlot,
+  );
+  // `:1901`.
+  final titles = getTitles(layout);
+  // `:1903`.
+  final categoryOrder = getAxisCategoryOrderProps(data, layout);
+  // Not an upstream spread at `:1889-1904`; see the tick note below.
+  final tickProps = getAxisTickProps(data, layout);
+  // `:1900` and `:1902`.
+  final xRange = getXMinMaxValues(layout);
+  final yRange = getYMinMaxValues(layout);
+
+  return FluentVerticalBarChart(
+    data: vbcData,
+    // `:1893`: the histogram render mode, not a chart type.
+    mode: 'histogram',
+    // `:1895`: 50 logical pixels.
+    maxBarWidth: 50,
+    // `:1897`.
+    roundCorners: true,
+    // `:1901`.
+    chartTitle: titles.chartTitle,
+    // `:1903`. The order lands on the WIDGET field, not the identically named
+    // `FluentCartesianChartProps` one: `vertical_bar_chart.dart:216` hands
+    // `widget.xAxisCategoryOrder` to the delegate and never reads the prop, so
+    // routing it through `props` would compute an order no axis applies. The
+    // chart declares no y order at all — its y axis is numeric.
+    xAxisCategoryOrder: categoryOrder.x ?? FluentAxisCategoryOrder.defaultOrder,
+    props: FluentCartesianChartProps(
+      xAxisTitle: titles.xAxisTitle,
+      yAxisTitle: titles.yAxisTitle,
+      // `:1894`.
+      hideTickOverlap: true,
+      // `:1896`.
+      hideLegend: legend.hideLegend,
+      // `:1898`.
+      showYAxisLables: true,
+      // `:1899`.
+      roundedTicks: true,
+      // `:1900`: the x range brings its own round-off flag.
+      xMinValue: xRange.xMinValue,
+      xMaxValue: xRange.xMaxValue,
+      showRoundOffXTickValues: xRange.showRoundOffXTickValues,
+      // `:1902`. This transformer seeds no bounds, so an absent range leaves
+      // the shell's 0/0 default, which is what upstream's empty spread leaves
+      // too.
+      yMinValue: yRange.yMinValue ?? 0,
+      yMaxValue: yRange.yMaxValue ?? 0,
+      // Upstream spreads `getAxisTickProps` into the stacked (`:1605`) and
+      // grouped (`:1788`) bar props but NOT into this one, which is how a
+      // `tickvals` array or a category x axis's auto tick layout
+      // (`:3976-3979`) reaches every cartesian chart except the histogram.
+      // The plan wires it here deliberately; the whole `props` record is handed
+      // to `FluentCartesianChart` (`vertical_bar_chart.dart:177`), so it is
+      // live rather than inert. // parity break: PlotlySchemaAdapter.ts:1889
+      //
+      // Both counts are non-nullable with the shell's own defaults (6 and 4,
+      // `cartesian_chart_props.dart:95-96`), so an absent `nticks` keeps them.
+      tickValues: tickProps.xAxisTickValues,
+      yAxisTickValues: tickProps.yAxisTickValues,
+      xAxisTickCount: tickProps.xAxisTickCount ?? 6,
+      yAxisTickCount: tickProps.yAxisTickCount ?? 4,
+      xAxis: FluentAxisConfig(
+        tickStep: tickProps.xAxisTickStep,
+        tick0: tickProps.xAxisTick0,
+        tickText: tickProps.xAxisTickText,
+        tickLayout: tickProps.xAxisTickLayout,
+      ),
+      yAxis: FluentAxisConfig(
+        tickStep: tickProps.yAxisTickStep,
+        tick0: tickProps.yAxisTick0,
+        tickText: tickProps.yAxisTickText,
+        tickLayout: tickProps.yAxisTickLayout,
+      ),
+      // `:1904`.
       annotations: annotations,
     ),
   );
