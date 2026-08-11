@@ -486,6 +486,55 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'everything. Re-audited 2026-08-11 — the entry used to call :117-168 '
       '"its negative tests", a range whose second half is that acceptance '
       'test.',
+
+  // --- Vega ports whose consumer is a later task in this same plan ---------
+  // Plan 09's Vega half is being built bottom-up, so this is the Plotly wave's
+  // shape again: eighteen entries stood here until Task 28 landed
+  // `declarative_chart.dart`, and every one of them named it. The five below
+  // name Task 40 (`internal/vega/routing.dart`) and Task 52
+  // (`vega_declarative_chart.dart`), and each call site was read out of
+  // docs/superpowers/plans/2026-08-08-fluent-2-charts-09-declarative.md rather
+  // than assumed. If the named task lands and the entry survives, the symbol is
+  // not foundation work, it is dead code: delete it with its tests.
+  //
+  // Three more symbols in the same file are invisible to this scan because they
+  // name themselves — `kVegaMaxJsonDepth` is read by `validateVegaJsonDepth`,
+  // which recurses, and `VegaSpecException` is thrown inside its own file — and
+  // they are no more wired than these five until Task 52 calls the guard.
+  // Recorded here so the count below is not read as the whole gap.
+  //
+  // Two symbols Task 36's Produces line also listed, `vegaEncoding` and
+  // `vegaChannel`, are NOT here: they would have been exactly the dead code
+  // this list must not park. Task 40 re-derives the first layer's encoding
+  // inline — `layer != null ? first?['encoding'] : spec['encoding']` behind its
+  // own private `_channel` — and `grep -rn 'vegaChannel\|vegaEncoding'` over
+  // docs/superpowers/plans returns only Task 36's own Produces line and its own
+  // test, so the two were deleted rather than written and excused.
+  'deepCloneVegaSpec':
+      'internal/vega/spec.dart:63, the clone that stops a render editing the '
+      "caller's own spec: autoCorrectEncodingTypes mutates in place "
+      '(VegaLiteSchemaAdapter.ts:1553-1627) and rewrites data rows at '
+      ':1606-1610, so a const spec in a widget tree would not survive a '
+      "rebuild. Task 52's build is the caller — `final spec = "
+      'deepCloneVegaSpec(rawSpec);` on the line after `validateVegaJsonDepth('
+      'rawSpec);`. Goes when Task 52 lands.',
+  'getMarkType':
+      "internal/vega/spec.dart:83. Task 40's getVegaChartType reads it for the "
+      'bar-plus-line layer test (VegaLiteSchemaAdapter.ts:1653-1667) and for '
+      "the first layer's mark at `:1670-1671`, and every transformer from Task "
+      '42 on switches on its result. Goes when Task 40 lands.',
+  'isVegaLayerSpec':
+      "internal/vega/spec.dart:101, the layered arm of Task 40's "
+      'normalizeVegaSpec (VegaLiteSchemaAdapter.ts:572-601). Goes when Task 40 '
+      'lands.',
+  'isVegaUnitSpec':
+      "internal/vega/spec.dart:110, the unit arm of Task 40's normalizeVegaSpec "
+      '(VegaLiteSchemaAdapter.ts:590-596). Goes when Task 40 lands.',
+  'extractVegaDataValues':
+      "internal/vega/spec.dart:118. Task 40's autoCorrectEncodingTypes reads "
+      "`extractVegaDataValues(unitSpec['data'] ?? spec['data'])` at the "
+      'VegaLiteSchemaAdapter.ts:1560 position, and every Vega transformer from '
+      'Task 42 on reads its dataset through it. Goes when Task 40 lands.',
 };
 
 /// Files scanned for declarations: every `.dart` file under
