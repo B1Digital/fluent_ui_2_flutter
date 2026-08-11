@@ -1460,8 +1460,8 @@ void main() {
         hasLength(2),
         reason:
             'three line points make two <line> elements '
-            '(VerticalStackedBarChart.tsx:573-620); zero means paintSeries '
-            'never reaches linePathsFor from the mounted widget',
+            '(VerticalStackedBarChart.tsx:575-625); zero means the overlay is '
+            'never reached from FluentVerticalStackedBarChart.build',
       );
       expect(
         ink.map((l) => l.strokeWidth).toList(),
