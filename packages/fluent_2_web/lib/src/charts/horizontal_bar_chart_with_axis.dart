@@ -44,7 +44,7 @@ class FluentHorizontalBarChartWithAxis extends StatefulWidget {
     this.yAxisPadding = 0.5,
     this.roundCorners = false,
     this.hideLabels = false,
-    this.yAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
+    this.yAxisCategoryOrder,
     this.style,
     this.legendSelectionMode = FluentChartLegendSelectionMode.single,
     this.focusNode,
@@ -83,8 +83,15 @@ class FluentHorizontalBarChartWithAxis extends StatefulWidget {
   /// Whether group total labels are suppressed.
   final bool hideLabels;
 
-  /// Ordering applied to a category y axis.
-  final FluentAxisCategoryOrder yAxisCategoryOrder;
+  /// Ordering applied to a category y axis, or null when the caller named none.
+  ///
+  /// `props = { yAxisCategoryOrder: 'default' }`
+  /// (`HorizontalBarChartWithAxis.tsx:52`) is a parameter default that fires
+  /// only when React passes no props object, which it never does, so an absent
+  /// prop stays `undefined`, `undefined !== 'default'` at `:821` is true and
+  /// the labels come back in insertion order — **not** in the reversed-points
+  /// order the explicit [FluentAxisCategoryOrder.defaultOrder] selects.
+  final FluentAxisCategoryOrder? yAxisCategoryOrder;
 
   /// Style override, highest precedence.
   final FluentHorizontalBarChartWithAxisStyle? style;
@@ -416,7 +423,7 @@ class FluentHorizontalBarChartWithAxisDelegate
     this.hideLabels = false,
     this.roundCorners = false,
     this.colorsOverride,
-    this.yAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
+    this.yAxisCategoryOrder,
     this.xMaxValue,
   });
 
@@ -464,8 +471,15 @@ class FluentHorizontalBarChartWithAxisDelegate
   /// A caller-supplied ramp.
   final List<Color>? colorsOverride;
 
-  /// Ordering applied to a category y axis.
-  final FluentAxisCategoryOrder yAxisCategoryOrder;
+  /// Ordering applied to a category y axis, or null when the caller named none.
+  ///
+  /// `props = { yAxisCategoryOrder: 'default' }`
+  /// (`HorizontalBarChartWithAxis.tsx:52`) is a parameter default that fires
+  /// only when React passes no props object, which it never does, so an absent
+  /// prop stays `undefined`, `undefined !== 'default'` at `:821` is true and
+  /// the labels come back in insertion order — **not** in the reversed-points
+  /// order the explicit [FluentAxisCategoryOrder.defaultOrder] selects.
+  final FluentAxisCategoryOrder? yAxisCategoryOrder;
 
   /// User-supplied value-axis ceiling.
   final double? xMaxValue;

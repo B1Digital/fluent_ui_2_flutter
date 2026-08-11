@@ -1554,4 +1554,167 @@ void main() {
       );
     });
   });
+
+  // `classes.resizableArea` (`Legends.tsx:115` and `:156`,
+  // `useLegendsStyles.styles.ts:109-116`): a block-level box capped at 800 and
+  // centred in the strip. It decides where every chart's legend starts and
+  // where the wrapped branch wraps, so all three consequences are pinned
+  // against the capture rather than against the constant.
+  group('the resizable area', () {
+    Future<void> pumpStrip(
+      WidgetTester tester,
+      double width,
+      Widget child,
+    ) async {
+      // The default 800x600 test surface is exactly the cap, so a plain
+      // SizedBox(width: 944) would be clamped straight back to 800 and the
+      // overhang under test would never exist.
+      tester.view.physicalSize = Size(width, 600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(width: width, child: child),
+          ),
+        ),
+      );
+    }
+
+    const legends = <FluentChartLegendItem>[
+      FluentChartLegendItem(title: 'legend 1', color: seriesColour),
+      FluentChartLegendItem(title: 'legend 2', color: seriesColour),
+    ];
+
+    testWidgets('a strip wider than the cap leads by half the overhang', (
+      tester,
+    ) async {
+      // charts-legends--legends-basic is captured in a 944-wide root and puts
+      // its first swatch at 80: (944 - 800) / 2 = 72 of lead plus the row's own
+      // 8 of padding. The same arithmetic holds at every other captured width
+      // over the cap — 70 in the 924 of
+      // charts-declarativechart--declarative-chart-basic-example, 78 in the 940
+      // of charts-linechart--line-chart-annotations-example — so what is being
+      // pinned is the box, not one story's number.
+      final story = loadOracleStory('charts-legends--legends-basic');
+      final root = story.boxes('fui-legend__root').single;
+      final rects = story.boxes('fui-legend__rect');
+      expect(
+        rects,
+        isNotEmpty,
+        reason:
+            'Count guard: the captured swatches. An empty list would make the '
+            'lead below a read off nothing.',
+      );
+      expectOracleNumber('captured root width', 944, root.rect.width);
+      final capturedLead = rects.first.rect.left - root.rect.left;
+
+      await pumpStrip(
+        tester,
+        root.rect.width,
+        const FluentChartLegend(legends: legends),
+      );
+      final swatch = find.byKey(const ValueKey<String>('legend-swatch')).first;
+      expectOracleNumber(
+        'rendered lead to the first swatch',
+        capturedLead,
+        tester.getTopLeft(swatch).dx,
+      );
+      expectOracleNumber(
+        'which is half the overhang plus the row padding',
+        (root.rect.width - kLegendResizableAreaMaxWidth) / 2 + kLegendPadding,
+        tester.getTopLeft(swatch).dx,
+      );
+    });
+
+    testWidgets('a strip narrower than the cap is not indented at all', (
+      tester,
+    ) async {
+      // charts-linechart--line-chart-basic's legend root is 680 wide and its
+      // first swatch sits at 8 — the row padding alone. `left: 50%` and
+      // `translate(-50%)` cancel exactly whenever the box fills its parent, so
+      // the lead is an overhang and never a constant.
+      await pumpStrip(tester, 680, const FluentChartLegend(legends: legends));
+      expectOracleNumber(
+        'rendered lead below the cap',
+        kLegendPadding,
+        tester
+            .getTopLeft(
+              find.byKey(const ValueKey<String>('legend-swatch')).first,
+            )
+            .dx,
+      );
+    });
+
+    testWidgets('wrapped lines wrap at the cap, not at the strip width', (
+      tester,
+    ) async {
+      // charts-legends--legends-wrap-lines is the one story that captured the
+      // box itself: 800 wide at 72 inside a 944-wide root. Its rows are 86.891
+      // wide in a 94.891 container, so eight of them reach 759.1 and a ninth
+      // would reach 854 — which fits 944 and does not fit 800, and the capture
+      // wraps after the eighth. The rendered strip below uses the test font, so
+      // its own row widths differ; what is compared is the box the rows are
+      // confined to.
+      final story = loadOracleStory('charts-legends--legends-wrap-lines');
+      final root = story.boxes('fui-legend__root').single;
+      final area = story.boxes('fui-legend__resizableArea').single;
+      expectOracleNumber(
+        'captured area width',
+        kLegendResizableAreaMaxWidth,
+        area.rect.width,
+      );
+      expectOracleNumber(
+        'captured area lead',
+        (root.rect.width - kLegendResizableAreaMaxWidth) / 2,
+        area.rect.left - root.rect.left,
+      );
+
+      await pumpStrip(
+        tester,
+        root.rect.width,
+        FluentChartLegend(
+          enabledWrapLines: true,
+          legends: <FluentChartLegendItem>[
+            for (var i = 1; i <= 17; i++)
+              FluentChartLegendItem(title: 'legend $i', color: seriesColour),
+          ],
+        ),
+      );
+      final rows = find.byType(FluentChartLegendRow);
+      expect(
+        rows,
+        findsNWidgets(17),
+        reason:
+            'Count guard: the wrapped branch keeps every row on screen '
+            '(Legends.tsx:142-169 has no overflow menu), so the bounds below '
+            'are read off all seventeen.',
+      );
+      final boxes = <Rect>[
+        for (var i = 0; i < 17; i++) tester.getRect(rows.at(i)),
+      ];
+      expect(
+        boxes.map((box) => box.top).toSet(),
+        hasLength(greaterThan(1)),
+        reason:
+            'Guard: the rows must actually have wrapped, or the right edge '
+            'below could pass on a single short line.',
+      );
+      final lead = area.rect.left - root.rect.left;
+      expect(
+        boxes.every(
+          (box) =>
+              box.left >= lead && box.right <= lead + area.rect.width + 0.01,
+        ),
+        isTrue,
+        reason:
+            'Every row lies inside the captured 800-wide area at its captured '
+            'lead. Laid straight into the 944 the strip is given, the ninth row '
+            'would stay on the first line and the whole block would start 72 to '
+            'the left.',
+      );
+    });
+  });
 }

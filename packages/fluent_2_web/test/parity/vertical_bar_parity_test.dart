@@ -135,30 +135,38 @@ void main() {
         culture: 'en-US',
         lineLegendText: 'just line',
         lineLegendColor: _brown,
-        // `lineOptions={{ lineBorderWidth: '2' }}` (:174, :301) has no
-        // equivalent on this widget — see the note on the tolerance below.
+        // `lineOptions={{ lineBorderWidth: '2' }}` (:174, :301) — the only
+        // field `_createLine` reads (`VerticalBarChart.tsx:186-188`), sizing
+        // the 7px halo under the 3px line.
+        lineOptions: FluentLineOptions(lineBorderWidth: 2),
       ),
-      // Measured 2.413% — 5,111 pixels of 211,831. NOT rasteriser noise, and
-      // not a tolerance to absorb: counted off the diff panel, 3,927 of those
-      // pixels are the line overlay and 1,184 are the legend's overflow row.
-      // Every one of the eight bar rects, both axes, every gridline and every
-      // bar label lands on the reference.
+      // Measured 0.580% — 1,229 pixels of 211,831, down from 2.413% (5,111).
+      // Two defects closed, both in `vertical_bar_chart.dart`:
       //
-      //   * The line is stroked with `style.lineColor`
-      //     (colorPaletteYellowBackground1, #FFFEF5 in light theme) rather
-      //     than with `lineLegendColor`. The story asks for brown and the
-      //     capture strokes rgb(165, 42, 42); `lineLegendColor` reaches only
-      //     the legend swatch (`vertical_bar_chart.dart:271`), so the drawn
-      //     polyline is invisible against the surface and shows only as a pale
-      //     streak where it crosses a dark bar.
-      //   * `lineOptions` has no equivalent prop at all, so the 7px white halo
-      //     upstream runs under the line (3 + 2 * lineBorderWidth) is absent.
-      //   * The legend fits one item more than upstream before it collapses to
-      //     the overflow button — "+2 more" against the reference's "+3 more".
+      //   * `lineLegendColor` reached only the legend swatch. `_createLine`
+      //     destructures it once (`VerticalBarChart.tsx:165`) and strokes both
+      //     the polyline (`:214`) and every dot ring (`:244`) with it, so the
+      //     delegate now carries it and falls back to `style.lineColor`
+      //     (colorPaletteYellowBackground1) only when the caller says nothing.
+      //     The story asks for brown and the capture strokes rgb(165, 42, 42);
+      //     the port was painting #FFFEF5, invisible except where it crossed a
+      //     dark bar.
+      //   * There was no `lineOptions` prop, so the 7px `colorNeutralBackground1`
+      //     halo `3 + lineBorderWidth * 2` runs under the line (`:199`) was
+      //     absent. `FluentLineOptions` now reaches the delegate the same way
+      //     VerticalStackedBarChart takes it.
       //
-      // Pinned at the measured figure, not above the defects: the number is
-      // recorded so a fix has to re-pin it deliberately.
-      maxMismatch: 2.66,
+      // What is left, counted off the diff panel: 1,184 of the 1,229 are the
+      // legend's overflow trigger and 45 are antialiasing on the dot rings.
+      // The trigger is a chrome defect and lives outside this widget — the
+      // capture's button is 96px wide (`+3 more` followed by a chevron glyph)
+      // and `chrome/legend.dart:838-841` builds a bare `FluentButton` with no
+      // menu icon, measuring 80px at `:777-782`. Those 16px are exactly the
+      // budget that lets `fluentChartLegendVisibleCount` admit a seventh row,
+      // so the port reads `+2 more` where the capture reads `+3 more`. It is
+      // not a font residual: every visible swatch lands on the reference's to
+      // the pixel (28, 111, 194, 259, 333, 415 in both).
+      maxMismatch: 0.64,
     );
   });
 
@@ -420,27 +428,36 @@ void main() {
           roundedTicks: true,
         ),
       ),
-      // Measured 12.983% — 27,581 pixels of 212,435, of which 27,268 are in
-      // the plot. One cause, and it is a defect rather than noise:
-      // `props.roundedTicks` is never forwarded to `createNumericYAxis`.
+      // Measured 0.175% — 372 pixels of 212,435, down from 11.640% (24,727).
+      // Three defects closed, all in `vertical_stacked_bar_chart.dart`:
       //
-      // The prop is declared (`cartesian_chart_props.dart:232`), carried
-      // through `copyWith` (`:425`), and read by nobody: no delegate's
-      // `createYAxis` passes it on, and the shell deliberately does not
-      // (`cartesian_series_delegate.dart:109-112` says the delegate owns it).
-      // So `prepareDatapoints` takes its unrounded arm and the y axis runs
-      // 0-140 in steps of 35 where upstream's `calculateRoundedTicks(0, 140,
-      // 4)` nices to 0-150 in steps of 50 — exactly the reference's ticks.
-      // Every stack is therefore drawn 150/140 too tall, every gridline sits
-      // at a different height, and the diff is solid red over all six stacks
-      // and both overlay lines while their shapes and colours are right.
+      //   * `_getDomainMargins` (`VerticalStackedBarChart.tsx:913-965`) had no
+      //     port at all, so the x scale ran the whole plot, 60..610, where
+      //     upstream insets it by `MIN_DOMAIN_MARGIN + _barWidth / 2` = 16 to
+      //     76..594 — the exact range Oracle B records for the axis domain
+      //     path (`M76.5,6V0.5H594.5V6`). Every stack sat at the wrong x: the
+      //     port's centres were 60/170/…/610 against the capture's
+      //     76/179.6/…/594.
+      //   * The stacks' own y scale was solved from the raw data extent
+      //     instead of the resolved axis domain. `_getAxisData` (`:400-406`)
+      //     reads `yAxisDomainValues`, which is assigned `yAxisScale.domain()`
+      //     (`utilities.ts:889`), so the two differ by whatever
+      //     `prepareDatapoints` rounds outward — 140 against 150 here, making
+      //     every segment 7% too tall. The delegate now reads the shell's own
+      //     `yScalePrimary.domain`.
+      //   * `hideLabels` and `yAxisTickFormat` were stored and never read:
+      //     `paintSeries` had no label pass, so none of the six stack totals
+      //     (100/90/102/100/140/100) was drawn.
       //
-      // The remaining 313 pixels are the legend row, where Selawik's item
-      // widths move the swatches by a pixel or two.
+      // Bar widths were measured, not assumed: the capture's rects are 16 wide
+      // and so are the port's, before and after. Only their x moved.
       //
-      // Pinned at the measured figure so the number is recorded; fixing the
-      // prop should take this to well under 1% and force a re-pin.
-      maxMismatch: 14.29,
+      // What is left: 313 of the 372 are the legend's overflow trigger and 59
+      // are antialiasing on the two overlay lines. The trigger is the same
+      // chrome defect the VerticalBarChart story above documents — no chevron
+      // glyph, so the button measures 16px narrow — and it lives in
+      // `chrome/legend.dart`, outside this widget.
+      maxMismatch: 0.20,
     );
   });
 }

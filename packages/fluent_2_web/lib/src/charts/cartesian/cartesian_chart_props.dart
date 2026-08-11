@@ -113,8 +113,8 @@ class FluentCartesianChartProps {
     this.hideTickOverlap = true,
     this.xAxisAnnotation,
     this.yAxisAnnotation,
-    this.xAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
-    this.yAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
+    this.xAxisCategoryOrder,
+    this.yAxisCategoryOrder,
     this.xScaleType = FluentAxisScaleType.auto,
     this.yScaleType = FluentAxisScaleType.auto,
     this.secondaryYScaleType = FluentAxisScaleType.auto,
@@ -245,11 +245,29 @@ class FluentCartesianChartProps {
   /// `CartesianChart.tsx:704`.
   final String? yAxisAnnotation;
 
-  /// Ordering applied to x categories.
-  final FluentAxisCategoryOrder xAxisCategoryOrder;
+  /// Ordering applied to x categories, or null when the caller named none.
+  ///
+  /// `xAxisCategoryOrder?: AxisCategoryOrder` (`CartesianChart.types.ts:492`)
+  /// is optional, and null here is that absent prop — **not** a synonym for
+  /// [FluentAxisCategoryOrder.defaultOrder]. The doc comment says
+  /// `@default 'default'`, but only the charts that fill the prop in with a
+  /// spread or a destructuring default (VerticalBarChart.tsx:68,
+  /// GroupedVerticalBarChart.tsx:79, VerticalStackedBarChart.tsx:88,
+  /// GanttChart.tsx:45) actually see the string. HeatMapChart, ScatterChart and
+  /// HorizontalBarChartWithAxis do not — their `props = {...}` parameter
+  /// default only fires when React passes no props object at all, which it
+  /// never does — so `props.xAxisCategoryOrder !== 'default'` is true for them,
+  /// and an unset prop routes to `sortAxisCategories(…, undefined)` and its
+  /// insertion-order arm rather than to the legacy sort.
+  final FluentAxisCategoryOrder? xAxisCategoryOrder;
 
-  /// Ordering applied to y categories.
-  final FluentAxisCategoryOrder yAxisCategoryOrder;
+  /// Ordering applied to y categories, or null when the caller named none.
+  ///
+  /// See [xAxisCategoryOrder]: null is upstream's absent
+  /// `yAxisCategoryOrder?: AxisCategoryOrder`
+  /// (`CartesianChart.types.ts:498`), which several charts distinguish from the
+  /// explicit `'default'`.
+  final FluentAxisCategoryOrder? yAxisCategoryOrder;
 
   /// Linear or logarithmic x scale. `CartesianChart.tsx:244`.
   final FluentAxisScaleType xScaleType;

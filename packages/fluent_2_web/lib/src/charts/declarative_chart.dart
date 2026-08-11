@@ -196,18 +196,30 @@ const Map<FluentPlotlyChartKind, double> kPlotlyDefaultCellHeight =
 /// the chart kinds, groups the traces by axis key, lays the groups out in a
 /// grid and hands each group to its transformer.
 ///
-/// One upstream behaviour is not reproduced, recorded here rather than
+/// One upstream behaviour is only half reproduced, recorded here rather than
 /// silently dropped: `:412-420` builds a `legendProps` bag —
 /// `canSelectMultipleLegends`, the selection and its change handler — and
 /// `:598-603` spreads it into every non-annotation chart, so a **single**-plot
-/// figure round-trips its legend selection through `onSchemaChange` too. Only
-/// `FluentPolarChart` exposes `onLegendChange`, so no other shell can report a
-/// selection back and the outbound half has nowhere to start. `selectedLegends`
-/// is a different matter, and this note used to conflate the two: eight of the
-/// ten shell charts already take it — all but `FluentLineChart` and
-/// `FluentHeatMapChart` — and no transformer in either adapter passes it, so
-/// the inbound half is unwired rather than unavailable. The all-up legend of a
-/// multi-plot figure does round-trip, because this widget owns that legend.
+/// figure both dims from its owner's selection and round-trips a click back
+/// through `onSchemaChange`.
+///
+/// The **inbound** half now reaches the area chart: `transformPlotlyToArea`
+/// takes `selectedLegends` and `_buildChart` hands it `_activeLegends`. It
+/// reaches nothing else yet, and the reason is not that the transformers are
+/// lazy. Measured 2026-08-12, because this note twice claimed the opposite:
+/// exactly ONE shell chart *widget* declares a `selectedLegends` parameter
+/// besides the area chart, `FluentPolarChart` (`polar_chart.dart:1036`). Every
+/// other `selectedLegends` in `lib/src/charts/*.dart` is on a *delegate* —
+/// `vertical_stacked_bar_chart.dart:175`, `scatter_chart.dart:369`,
+/// `vertical_bar_chart.dart:554`, `grouped_vertical_bar_chart.dart:297`,
+/// `horizontal_bar_chart_with_axis.dart:410`, `gantt_chart.dart:300` — fed by
+/// a private `_selectedLegends` that only the shell's own `onLegendChange`
+/// writes. So the remaining charts need the parameter before a transformer has
+/// anywhere to put one.
+///
+/// The **outbound** half has nowhere to start at all: no shell chart widget
+/// exposes an `onLegendChange`, so none can report a click back. The all-up
+/// legend of a multi-plot figure does round-trip, because this widget owns it.
 class FluentDeclarativeChart extends StatefulWidget {
   /// Creates a declarative chart.
   const FluentDeclarativeChart({
@@ -457,6 +469,10 @@ class _FluentDeclarativeChartState extends State<FluentDeclarativeChart> {
           colorMap: colorMap,
           colorwayType: colorwayType,
           isDark: isDark,
+          // `:598-603` spreads `interactiveCommonProps` into every
+          // non-annotation chart, single-plot figures included, so the
+          // selection reaches the marks here and not only the all-up legend.
+          selectedLegends: _activeLegends,
         );
       case FluentPlotlyChartKind.line:
         return transformPlotlyToLine(

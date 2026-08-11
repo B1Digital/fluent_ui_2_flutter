@@ -16,6 +16,7 @@ import 'package:fluent_2_web/src/charts/internal/d3/scale_linear.dart';
 import 'package:fluent_2_web/src/charts/model/bar_data.dart';
 import 'package:fluent_2_web/src/charts/model/chart_common.dart';
 import 'package:fluent_2_web/src/charts/model/chart_value.dart';
+import 'package:fluent_2_web/src/charts/model/line_options.dart';
 import 'package:fluent_2_web/src/charts/vertical_bar_chart.dart';
 import 'package:fluent_2_web/src/charts/vertical_bar_chart_style.dart';
 import 'package:flutter/gestures.dart';
@@ -885,6 +886,102 @@ void main() {
         regions.single.semanticsLabel,
         '1. a, 50.0.',
         reason: 'VerticalBarChart.tsx:936-938 composes `x. legend, y.`',
+      );
+    });
+  });
+
+  // `_createLine` destructures `lineLegendColor = tokens
+  // .colorPaletteYellowBackground1` once (`VerticalBarChart.tsx:165`) and
+  // spends it on BOTH the polyline (`:214`) and every dot ring (`:244`). The
+  // port used to spend `props.lineLegendColor` on the legend swatch alone, so
+  // `charts-verticalbarchart--vertical-bar-default` — which asks for brown —
+  // painted a #FFFEF5 line the capture strokes rgb(165, 42, 42).
+  group('FluentVerticalBarChartDelegate line ink', () {
+    const brown = Color(0xFFA52A2A);
+    final style = resolveFluentVerticalBarChartStyle(_delegateTheme);
+
+    _RecordingCanvas paint({
+      Color? lineLegendColor,
+      FluentLineOptions? lineOptions,
+    }) {
+      final delegate = _stringDelegateWithLine(
+        categories: <String>['a', 'b'],
+        ys: <double>[10, 20],
+        lineYs: <double>[5, 15],
+        lineLegendColor: lineLegendColor,
+        lineOptions: lineOptions,
+      );
+      final canvas = _RecordingCanvas();
+      delegate.paintSeries(
+        canvas,
+        _bandContext(<String>['a', 'b'], width: 800),
+        _layout(width: 800, height: 350),
+        delegate.colors,
+      );
+      return canvas;
+    }
+
+    test('lineLegendColor strokes the polyline and the dot rings', () {
+      final canvas = paint(lineLegendColor: brown);
+      expect(
+        canvas.pathStrokes.map(_argb).toList(),
+        <int>[_argb(brown)],
+        reason:
+            'stroke={lineLegendColor} on the line path, '
+            'VerticalBarChart.tsx:214',
+      );
+      expect(
+        canvas.circleStrokes.map(_argb).toSet(),
+        <int>{_argb(brown)},
+        reason:
+            'and on every dot, VerticalBarChart.tsx:244 — one destructured '
+            'value, two consumers',
+      );
+    });
+
+    test('no lineLegendColor leaves the line on its own yellow token', () {
+      expect(
+        paint().pathStrokes.map(_argb).toList(),
+        <int>[_argb(style.lineColor!.resolve(<WidgetState>{})!)],
+        reason:
+            'the default is colorPaletteYellowBackground1 '
+            '(VerticalBarChart.tsx:165), which is NOT the '
+            'colorPaletteYellowForeground1 the legend swatch falls back to '
+            '(`:826`)',
+      );
+    });
+
+    test('lineOptions.lineBorderWidth runs a halo under the line', () {
+      final canvas = paint(
+        lineLegendColor: brown,
+        lineOptions: const FluentLineOptions(lineBorderWidth: 2),
+      );
+      expect(
+        canvas.pathStrokeWidths,
+        <double>[7, 3],
+        reason:
+            'the halo is `3 + lineBorderWidth * 2` and is pushed FIRST so the '
+            'line draws over it, VerticalBarChart.tsx:190-215. Oracle B '
+            'records exactly this pair on the Default story: a 7px '
+            'rgb(255, 255, 255) path under a 3px rgb(165, 42, 42) one',
+      );
+      expect(
+        _argb(canvas.pathStrokes.first),
+        _argb(style.lineDotFillColor!.resolve(<WidgetState>{})!),
+        reason:
+            'classes.lineBorder is stroke: tokens.colorNeutralBackground1 '
+            '(useVerticalBarChartStyles.styles.ts:36-41), the same token the '
+            'dot fill takes',
+      );
+    });
+
+    test('no lineOptions draws the line alone', () {
+      expect(
+        paint(lineLegendColor: brown).pathStrokeWidths,
+        <double>[3],
+        reason:
+            'the halo is gated on `lineBorderWidth > 0`, '
+            'VerticalBarChart.tsx:190',
       );
     });
   });
@@ -1827,6 +1924,7 @@ List<FluentVerticalBarChartDataPoint> _pointsWithLine() =>
 class _RecordingCanvas implements Canvas {
   final List<Color> rectFills = <Color>[];
   final List<Color> pathStrokes = <Color>[];
+  final List<double> pathStrokeWidths = <double>[];
   final List<Color> circleFills = <Color>[];
   final List<Color> circleStrokes = <Color>[];
   final List<double> circleRadii = <double>[];
@@ -1838,7 +1936,10 @@ class _RecordingCanvas implements Canvas {
   void drawRRect(RRect rrect, Paint paint) => rectFills.add(paint.color);
 
   @override
-  void drawPath(Path path, Paint paint) => pathStrokes.add(paint.color);
+  void drawPath(Path path, Paint paint) {
+    pathStrokes.add(paint.color);
+    pathStrokeWidths.add(paint.strokeWidth);
+  }
 
   @override
   void drawCircle(Offset c, double radius, Paint paint) {
@@ -1859,6 +1960,14 @@ final _measurer = FluentChartTextMeasurer();
 final _delegateTheme = FluentThemeData.light(
   fontPlatform: FluentFontPlatform.web,
 );
+
+/// A colour as one packed int.
+///
+/// `Paint.color` comes back through `Color.withValues`, whose float channels
+/// are not bit-identical to a `Color(0xFF……)` literal's even when both paint
+/// the same pixel, so `==` on the `Color` itself compares storage rather than
+/// ink.
+int _argb(Color colour) => colour.toARGB32();
 
 const _placeholderColour = Color(0xFF010203);
 const _canvasTextColour = Color(0xFFFFFFFF);
@@ -1885,6 +1994,8 @@ FluentVerticalBarChartDelegate _delegateOver(
   List<String> selectedLegends = const <String>[],
   String? activeLegend,
   String? lineLegendText,
+  Color? lineLegendColor,
+  FluentLineOptions? lineOptions,
   Object? activeXDataPoint,
   bool isHighContrast = false,
   bool hideLabels = false,
@@ -1902,6 +2013,8 @@ FluentVerticalBarChartDelegate _delegateOver(
   barWidthProp: barWidthProp,
   hideLabels: hideLabels,
   lineLegendText: lineLegendText,
+  lineLegendColor: lineLegendColor,
+  lineOptions: lineOptions,
   xAxisOuterPadding: xAxisOuterPadding,
   mode: mode,
 );
@@ -1936,6 +2049,8 @@ FluentVerticalBarChartDelegate _stringDelegateWithLine({
   required List<double> ys,
   required List<double> lineYs,
   String? lineLegendText,
+  Color? lineLegendColor,
+  FluentLineOptions? lineOptions,
   bool isHighContrast = false,
 }) => _delegateOver(
   <FluentVerticalBarChartDataPoint>[
@@ -1947,6 +2062,8 @@ FluentVerticalBarChartDelegate _stringDelegateWithLine({
       ),
   ],
   lineLegendText: lineLegendText,
+  lineLegendColor: lineLegendColor,
+  lineOptions: lineOptions,
   isHighContrast: isHighContrast,
 );
 

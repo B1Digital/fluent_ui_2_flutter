@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:fluent_2_web/src/charts/axis/axis_types.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart_props.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
@@ -586,7 +587,14 @@ void main() {
         yMax: 0,
         yMin: -50,
       );
-      final seg = d.segmentsFor(_vsbcContext(), _layout(height: 350)).single;
+      final seg = d
+          .segmentsFor(
+            // The axis this chart would build: `prepareDatapoints` over a
+            // single -50 lands the domain on [-50, 0].
+            _vsbcContext(yDomain: <double>[-50, 0]),
+            _layout(height: 350),
+          )
+          .single;
       expect(
         seg.rect.top,
         closeTo(315 - 295, 1e-9),
@@ -880,6 +888,228 @@ void main() {
       });
     },
   );
+
+  // `_getDomainMargins` (`VerticalStackedBarChart.tsx:913-965`) had no port at
+  // all, so the x scale ran the full plot and every stack of the Default story
+  // sat 16px wide of the capture.
+  group(
+    'Oracle B — charts-verticalstackedbarchart--vertical-stacked-bar-default '
+    'domain margin',
+    () {
+      // `margins={{ top: 20, bottom: 55, right: 40, left: 60 }}` in the story
+      // source, which is the `showAxisTitles` set (`:38-43`).
+      const storyMargins = FluentChartMargins(
+        top: 20,
+        bottom: 55,
+        right: 40,
+        left: 60,
+      );
+
+      test('the numeric x range is inset by MIN_DOMAIN_MARGIN + barWidth/2', () {
+        final story = loadOracleStory(
+          'charts-verticalstackedbarchart--vertical-stacked-bar-default',
+        );
+        final delegate = _vsbcDelegate(
+          stacks: <List<double>>[
+            for (var i = 0; i < 6; i++) <double>[50],
+          ],
+          barGapMax: _kOracleBarGapMax,
+          yMax: 150,
+          xPoints: <Object>[0, 20, 40, 60, 80, 100],
+        );
+        final solved = delegate.solveDomainMargin(story.width, storyMargins);
+        expect(
+          solved.barWidth,
+          _kOracleBarWidth,
+          reason:
+              'calculateAppropriateBarWidth over six evenly spaced xs answers '
+              'far above DEFAULT_BAR_WIDTH, so getBarWidth caps it at 16 — '
+              'which is what every captured rect measures',
+        );
+        expect(
+          solved.domainMargin,
+          kMinDomainMargin + _kOracleBarWidth / 2,
+          reason: 'VerticalStackedBarChart.tsx:958',
+        );
+
+        final margins = delegate.domainMargins(story.width, storyMargins)!;
+        // The captured x ticks: value 0 sits at the range start and value 100
+        // at the range end, both carrying the half pixel the browser bakes into
+        // an axis line.
+        final ticks = <double>[
+          for (final line in story.byTag('line'))
+            if (line.y2 == 6) line.ctm![4],
+        ]..sort();
+        expect(ticks.length, 11, reason: 'eleven captured tick marks');
+        expectOracleNumber(
+          '${story.id} x range start',
+          ticks.first - story.crispOffset,
+          margins.left!,
+        );
+        expectOracleNumber(
+          '${story.id} x range end',
+          ticks.last - story.crispOffset,
+          story.width - margins.right!,
+        );
+      });
+
+      test('a category axis takes the centring arm instead', () {
+        final delegate = _vsbcDelegate(
+          stacks: <List<double>>[
+            <double>[50],
+            <double>[50],
+          ],
+          barGapMax: 0,
+          yMax: 50,
+        );
+        expect(
+          delegate.xAxisType,
+          FluentChartAxisType.category,
+          reason: 'a count guard on the arm under test',
+        );
+        // `MIN_DOMAIN_MARGIN + (totalWidth - reqWidth) / 2` (`:925-933`), where
+        // reqWidth is two 16px bands at the 2/3 inner padding.
+        final totalWidth = calcTotalWidth(640, _margins, kMinDomainMargin);
+        expect(
+          delegate.solveDomainMargin(640, _margins).domainMargin,
+          kMinDomainMargin +
+              (totalWidth - calcRequiredWidth(_kOracleBarWidth, 2, 2 / 3)) / 2,
+          reason:
+              'the continuous arm would answer 8 + 8 here; the two differ, so '
+              'this pins the branch and not just the arithmetic',
+        );
+      });
+    },
+  );
+
+  // `paintSeries` had no label pass at all, so `hideLabels` and
+  // `yAxisTickFormat` were both stored and never read and none of the Default
+  // story's six stack totals was drawn.
+  group('VSBC stack total labels', () {
+    List<FluentStackedBarTotalLabel> labelsOf(
+      FluentVerticalStackedBarChartDelegate d, {
+      List<double> yDomain = const <double>[0, 100],
+    }) {
+      final context = _vsbcContext(yDomain: yDomain);
+      final layout = _layout(height: 350);
+      return d.totalLabelsFor(d.segmentsFor(context, layout));
+    }
+
+    test('one label per stack, carrying the stack total', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[10, 20],
+          <double>[40, 2],
+        ],
+        barGapMax: 0,
+        yMax: 100,
+      );
+      expect(
+        labelsOf(d).map((l) => l.text).toList(),
+        <String>['30', '42'],
+        reason:
+            'barTotalValue sums every displayed segment and the text is that '
+            'total through formatScientificLimitWidth, '
+            'VerticalStackedBarChart.tsx:1176-1214',
+      );
+    });
+
+    test('the anchor is the top segment centre, six pixels above it', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[10, 20],
+        ],
+        barGapMax: 0,
+        yMax: 100,
+      );
+      final context = _vsbcContext();
+      final layout = _layout(height: 350);
+      final segments = d.segmentsFor(context, layout);
+      final top = segments.singleWhere((s) => s.isLast);
+      expect(
+        d.totalLabelsFor(segments).single.anchor,
+        Offset(top.rect.center.dx, top.rect.top - 6),
+        reason:
+            'x={xPoint + _barWidth / 2} and y={yPoint - 6} under the rects\' '
+            'own translate, VerticalStackedBarChart.tsx:1202-1207',
+      );
+    });
+
+    test('hideLabels suppresses the pass', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[10, 20],
+        ],
+        barGapMax: 0,
+        yMax: 100,
+        hideLabels: true,
+      );
+      expect(labelsOf(d), isEmpty, reason: 'VerticalStackedBarChart.tsx:1160');
+    });
+
+    test('a selected legend narrows the total to its own segments', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[10, 20],
+        ],
+        barGapMax: 0,
+        yMax: 100,
+        // `_segments` names them 'series 0', 'series 1', …
+        selectedLegends: <String>['series 1'],
+      );
+      expect(
+        labelsOf(d).single.text,
+        '20',
+        reason:
+            'selectedBarTotalValue only accumulates highlighted segments, '
+            'VerticalStackedBarChart.tsx:1174-1180',
+      );
+    });
+
+    test('yAxisTickFormat replaces the default number format', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[10, 20],
+        ],
+        barGapMax: 0,
+        yMax: 100,
+        yAxisTickFormat: (value) => '${value.toStringAsFixed(1)} u',
+      );
+      expect(
+        labelsOf(d).single.text,
+        '30.0 u',
+        reason: 'VerticalStackedBarChart.tsx:1211-1213',
+      );
+    });
+
+    test('the label follows the resolved axis domain, not the data extent', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[100],
+        ],
+        barGapMax: 0,
+        yMax: 0,
+      );
+      // The Default story's own numbers: a 140 data maximum against ticks that
+      // `calculateRoundedTicks` nices to 150.
+      final onTicks = labelsOf(d, yDomain: <double>[0, 150]).single;
+      final onData = labelsOf(d, yDomain: <double>[0, 100]).single;
+      expect(
+        onTicks.anchor.dy,
+        greaterThan(onData.anchor.dy),
+        reason:
+            'a stack measured against a taller tick domain is shorter, so its '
+            'label sits LOWER. Reading the data extent instead of '
+            'yAxisDomainValues (`_getAxisData`, :400-406) drew every Default '
+            'segment 150/140 too tall',
+      );
+      expectOracleNumber(
+        'a 100 stack on a 0..150 axis reaches two thirds of the plot',
+        315 - 295 * 100 / 150 - 6,
+        onTicks.anchor.dy,
+      );
+    });
+  });
 
   group('VSBC axis wiring', () {
     test('the x axis type follows the first stack point', () {
@@ -1793,10 +2023,19 @@ const List<String> _stackLabels = <String>[
   'stack 7',
 ];
 
-/// A child context whose x scale is the band scale a category axis builds, and
-/// whose y scale is unread by the numeric segment solve — that one builds its
-/// own `yBarScale` (`VerticalStackedBarChart.tsx:850-853`).
-FluentCartesianChildContext _vsbcContext() => FluentCartesianChildContext(
+/// A child context whose x scale is the band scale a category axis builds.
+///
+/// [yDomain] is the **resolved** y-axis domain, the one `prepareDatapoints`
+/// niced the ticks onto. The numeric segment solve builds its own `yBarScale`
+/// (`VerticalStackedBarChart.tsx:849-853`) but takes that scale's domain from
+/// here, because upstream's `_yMin`/`_yMax` come out of `_getAxisData`
+/// (`:400-406`) reading `yAxisDomainValues`, which is assigned
+/// `yAxisScale.domain()` (`utilities.ts:889`). A stub carrying the data extent
+/// instead of the tick domain would let a chart pass here and be 7% wrong in
+/// the capture.
+FluentCartesianChildContext _vsbcContext({
+  List<double> yDomain = const <double>[0, 100],
+}) => FluentCartesianChildContext(
   xScale: _bandScale(
     domain: _stackLabels,
     range: <double>[40, 620],
@@ -1804,7 +2043,7 @@ FluentCartesianChildContext _vsbcContext() => FluentCartesianChildContext(
     innerPadding: 2 / 3,
     outerPadding: 0,
   ),
-  yScalePrimary: _magnitudeScale(domain: <double>[0, 100], span: 295),
+  yScalePrimary: _magnitudeScale(domain: yDomain, span: 295),
   containerWidth: 640,
   containerHeight: 350,
 );
@@ -1818,6 +2057,8 @@ FluentVerticalStackedBarChartDelegate _vsbcDelegate({
   double barCornerRadius = 0,
   List<String> selectedLegends = const <String>[],
   bool isHighContrast = false,
+  bool hideLabels = false,
+  String Function(double value)? yAxisTickFormat,
   List<Object>? xPoints,
 }) {
   expect(
@@ -1843,6 +2084,8 @@ FluentVerticalStackedBarChartDelegate _vsbcDelegate({
     barGapMax: barGapMax,
     barCornerRadius: barCornerRadius,
     barMinimumHeight: barMinimumHeight,
+    hideLabels: hideLabels,
+    yAxisTickFormat: yAxisTickFormat,
     yMinValue: yMin,
     yMaxValue: yMax,
   );

@@ -408,8 +408,14 @@ String truncateString(String str, int maxLength, {String ellipsis = '...'}) {
 /// Ports `sortAxisCategories` (`utilities.ts:2049-2110`), which is itself a port
 /// of Plotly's `sortAxisCategoriesByValue`.
 ///
-/// Three behaviours worth naming:
+/// Four behaviours worth naming:
 ///
+/// * [order] is nullable because upstream's parameter is
+///   `AxisCategoryOrder | undefined` (`:2051`), and an undefined order is not
+///   an error — `categoryOrder?.match(...)` is null, so it falls through to
+///   `Object.keys(categoryToValues)` at `:2110` and the categories come back in
+///   insertion order. That arm is the one every chart whose prop the caller
+///   left off actually takes;
 /// * an explicit order emits the named categories that the data carries, in the
 ///   caller's order and deduplicated, then appends everything else in insertion
 ///   order (`:2053-2072`);
@@ -423,7 +429,7 @@ String truncateString(String str, int maxLength, {String ellipsis = '...'}) {
 /// [stableSort] (spec §8).
 List<String> sortAxisCategories(
   Map<String, List<double>> categoryToValues,
-  FluentAxisCategoryOrder order,
+  FluentAxisCategoryOrder? order,
 ) {
   if (order is FluentAxisCategoryOrderExplicit) {
     final result = <String>[];
@@ -443,13 +449,16 @@ List<String> sortAxisCategories(
     return result;
   }
 
-  final name = (order as FluentAxisCategoryOrderPreset).upstreamName;
+  final name = (order as FluentAxisCategoryOrderPreset?)?.upstreamName;
   // utilities.ts:2044 —
   // /(category|total|sum|min|max|mean|median) (ascending|descending)/.
-  final match = RegExp(
-    r'(category|total|sum|min|max|mean|median) (ascending|descending)',
-  ).firstMatch(name);
-  // utilities.ts:2109 — 'default' and 'data' match nothing and fall through.
+  final match = name == null
+      ? null
+      : RegExp(
+          r'(category|total|sum|min|max|mean|median) (ascending|descending)',
+        ).firstMatch(name);
+  // utilities.ts:2109 — an absent order, 'default' and 'data' all match nothing
+  // and fall through.
   if (match == null) {
     return categoryToValues.keys.toList();
   }

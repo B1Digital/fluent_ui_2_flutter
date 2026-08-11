@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'axis/axis_builders.dart' as builders;
 import 'axis/axis_types.dart';
 import 'axis/domain_range.dart';
+import 'axis/tick_format.dart';
 import 'cartesian/cartesian_chart.dart';
 import 'cartesian/cartesian_chart_props.dart';
 import 'cartesian/cartesian_layout.dart';
@@ -159,6 +160,27 @@ class FluentStackedBarSegmentLayout {
   final Path? roundedTopPath;
 }
 
+/// One stack's total label.
+@immutable
+class FluentStackedBarTotalLabel {
+  /// Creates a label.
+  const FluentStackedBarTotalLabel({
+    required this.text,
+    required this.anchor,
+    required this.stackIndex,
+  });
+
+  /// The rendered string.
+  final String text;
+
+  /// The point the text is centred on, on its alphabetic baseline —
+  /// `text-anchor="middle"` at `VerticalStackedBarChart.tsx:1205`.
+  final Offset anchor;
+
+  /// Index of the owning stack in `stacks`.
+  final int stackIndex;
+}
+
 /// Renders stacked vertical bars into the shared cartesian shell.
 ///
 /// Ports `VerticalStackedBarChart.tsx` (1426 lines) — the largest of the bar
@@ -188,13 +210,21 @@ class FluentVerticalStackedBarChartDelegate
     this.lineOptions,
     this.yMinValue,
     this.yMaxValue,
-    this.xAxisInnerPadding,
-    this.xAxisOuterPadding,
+    // Stored raw and resolved by [innerPadding] and [outerPadding]; the shell
+    // reads the resolved overrides below. A named parameter cannot be a private
+    // initialising formal, hence the explicit assignment — the same shape
+    // VerticalBarChart uses.
+    double? xAxisInnerPadding,
+    double? xAxisOuterPadding,
     this.xAxisPadding,
-    this.xAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
-    this.yAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
+    this.hideTickOverlap = true,
+    this.xAxisCategoryOrder,
+    this.yAxisCategoryOrder,
     this.yAxisTickFormat,
-  });
+    // ignore: prefer_initializing_formals
+  }) : _xAxisInnerPadding = xAxisInnerPadding,
+       // ignore: prefer_initializing_formals
+       _xAxisOuterPadding = xAxisOuterPadding;
 
   /// The stacks, in author order.
   final List<FluentVerticalStackedBarGroup> stacks;
@@ -268,23 +298,68 @@ class FluentVerticalStackedBarChartDelegate
   /// (`VerticalStackedBarChart.tsx:403`).
   final double? yMaxValue;
 
-  /// Band inner padding override.
-  @override
-  final double? xAxisInnerPadding;
+  /// Band inner padding as the caller gave it, before [innerPadding] resolves
+  /// it. Kept raw because an explicit 0 and an absent value make different
+  /// charts — see [isScalePaddingDefined].
+  final double? _xAxisInnerPadding;
 
-  /// Band outer padding override.
-  @override
-  final double? xAxisOuterPadding;
+  /// Band outer padding as the caller gave it. Raw for the same reason.
+  final double? _xAxisOuterPadding;
 
   /// Legacy shorthand feeding both paddings.
   @override
   final double? xAxisPadding;
 
-  /// Ordering applied to a category x axis.
-  final FluentAxisCategoryOrder xAxisCategoryOrder;
+  /// `props.hideTickOverlap`, read only by the `'plotly'` arm of
+  /// [solveDomainMargin] (`VerticalStackedBarChart.tsx:941`).
+  final bool hideTickOverlap;
 
-  /// Ordering applied to a category y axis.
-  final FluentAxisCategoryOrder yAxisCategoryOrder;
+  /// Resolved inner padding: 2/3 on a category axis, 1/2 otherwise
+  /// (`VerticalStackedBarChart.tsx:327-331`).
+  double get innerPadding => getScalePadding(
+    _xAxisInnerPadding,
+    xAxisPadding,
+    xAxisType == FluentChartAxisType.category ? 2 / 3 : 1 / 2,
+  );
+
+  /// Resolved outer padding, default 0 (`:332`).
+  double get outerPadding =>
+      getScalePadding(_xAxisOuterPadding, xAxisPadding, 0);
+
+  /// The inner padding the **shell's** band scale is built with.
+  ///
+  /// Resolved, not raw, and only on a category axis: `:1395-1397` spreads
+  /// `_xAxisInnerPadding` and `_xAxisOuterPadding` into `CartesianChart` behind
+  /// an `_xAxisType === XAxisTypes.StringAxis` guard, so the band scale is
+  /// padded with the same numbers [solveDomainMargin] sized the range against.
+  /// Handing the raw null instead lets `createStringXAxis` fall back to its own
+  /// `xAxisPadding = 0.1` (`utilities.ts:574`) and the stacks then no longer
+  /// fill the range the domain margin centred them in.
+  @override
+  double? get xAxisInnerPadding => xAxisType == FluentChartAxisType.category
+      ? innerPadding
+      : _xAxisInnerPadding;
+
+  /// The outer padding the shell's band scale is built with. See
+  /// [xAxisInnerPadding].
+  @override
+  double? get xAxisOuterPadding => xAxisType == FluentChartAxisType.category
+      ? outerPadding
+      : _xAxisOuterPadding;
+
+  /// Ordering applied to a category x axis, or null when the caller named none.
+  ///
+  /// Null and [FluentAxisCategoryOrder.defaultOrder] mean the same thing here:
+  /// `xAxisCategoryOrder: 'default'` sits in the object upstream spreads
+  /// `_props` over (`VerticalStackedBarChart.tsx:87-91`), and both reach
+  /// `sortAxisCategories`' insertion-order arm regardless.
+  final FluentAxisCategoryOrder? xAxisCategoryOrder;
+
+  /// Ordering applied to a category y axis, or null when the caller named none.
+  ///
+  /// See [xAxisCategoryOrder]: null and
+  /// [FluentAxisCategoryOrder.defaultOrder] are interchangeable on this chart.
+  final FluentAxisCategoryOrder? yAxisCategoryOrder;
 
   /// Caller-supplied y tick formatter, reused for total labels.
   final String Function(double value)? yAxisTickFormat;
@@ -386,6 +461,118 @@ class FluentVerticalStackedBarChartDelegate
     return total;
   }
 
+  /// `_getDomainMargins(containerWidth)` bound to this delegate's own props
+  /// (`VerticalStackedBarChart.tsx:913-965`).
+  ///
+  /// Returns the bar width too, because upstream writes `_domainMargin` and
+  /// `_barWidth` into the same closure and the two are mutually dependent: on a
+  /// continuous axis the margin is half a bar wide, and the bar width is solved
+  /// against the width the margin leaves. [segmentsFor] needs the second —
+  /// `_createBar` re-derives it from the bandwidth on a category axis (`:990`)
+  /// and otherwise reads the one solved here.
+  ///
+  /// [margins] are the shell's, which upstream reads off the closure the
+  /// `getmargins` callback filled (`CartesianChart.tsx:180`).
+  ({double barWidth, double domainMargin}) solveDomainMargin(
+    double containerWidth,
+    FluentChartMargins margins,
+  ) {
+    // VerticalStackedBarChart.tsx:914.
+    var domainMargin = kMinDomainMargin;
+    var barWidth = getBarWidth(barWidthProp, maxBarWidth);
+    // `calcTotalWidth(containerWidth, _margins, MIN_DOMAIN_MARGIN)` (`:916`) —
+    // one MIN_DOMAIN_MARGIN per side, taken out up front.
+    final totalWidth = calcTotalWidth(
+      containerWidth,
+      margins,
+      kMinDomainMargin,
+    );
+
+    if (xAxisType == FluentChartAxisType.category) {
+      final labels = orderedXAxisLabels;
+      if (isScalePaddingDefined(_xAxisOuterPadding, xAxisPadding)) {
+        // `:919-922` — xAxisOuterPadding now does this job.
+        domainMargin = 0;
+      } else if (barWidthProp != 'auto') {
+        // `:925`.
+        barWidth = getBarWidth(barWidthProp, maxBarWidth);
+        final requiredWidth = calcRequiredWidth(
+          barWidth,
+          labels.length,
+          innerPadding,
+        );
+        // `:930-933`.
+        if (totalWidth >= requiredWidth) {
+          domainMargin = kMinDomainMargin + (totalWidth - requiredWidth) / 2;
+        }
+      } else if (mode == 'plotly' && labels.length > 1) {
+        // `:934-949`. The 1 is upstream's own `_xAxisLabels.length > 1`.
+        final bandwidth = calcBandwidth(
+          totalWidth,
+          labels.length,
+          innerPadding,
+        );
+        // `const barWidth` at `:937` SHADOWS the closure's `_barWidth`, so this
+        // arm sizes its margin from a width the bars never see. Reproduced: the
+        // local below is deliberately not written back to [barWidth].
+        final localBarWidth = getBarWidth(
+          barWidthProp,
+          maxBarWidth,
+          adjustedValue: bandwidth,
+        );
+        var requiredWidth = calcRequiredWidth(
+          localBarWidth,
+          labels.length,
+          innerPadding,
+        );
+        final margin1 = (totalWidth - requiredWidth) / 2;
+        // `Number.POSITIVE_INFINITY` at `:942`, the seed a `Math.min` fold
+        // needs.
+        var margin2 = double.infinity;
+        if (!hideTickOverlap) {
+          // +20 is the label breathing room at `:945`.
+          final step = measurer.longestWidth(labels, textStyles.axisTick) + 20;
+          requiredWidth = (labels.length - innerPadding) * step;
+          margin2 = (totalWidth - requiredWidth) / 2;
+        }
+        // `:949`. The 0 is upstream's own floor.
+        domainMargin =
+            kMinDomainMargin + math.max(0.0, math.min(margin1, margin2));
+      }
+    } else {
+      // `:952-958` — the continuous arm, which is the only place
+      // `calculateAppropriateBarWidth` runs for this chart.
+      barWidth = getBarWidth(
+        barWidthProp,
+        maxBarWidth,
+        adjustedValue: calculateAppropriateBarWidth(
+          <Object>[for (final stack in stacks) stack.xAxisPoint],
+          totalWidth,
+          innerPadding,
+        ),
+      );
+      // `:958` — half a bar at each end, so the outermost bars sit inside the
+      // plot rather than straddling its edges. VerticalBarChart takes the inset
+      // twice here; this chart takes it once.
+      domainMargin = kMinDomainMargin + barWidth / 2;
+    }
+    return (barWidth: barWidth, domainMargin: domainMargin);
+  }
+
+  @override
+  FluentChartMargins? domainMargins(
+    double containerWidth,
+    FluentChartMargins margins,
+  ) {
+    final margin = solveDomainMargin(containerWidth, margins).domainMargin;
+    // `{..._margins, left: …, right: …}`
+    // (`VerticalStackedBarChart.tsx:960-964`) — top and bottom pass through.
+    return margins.copyWith(
+      left: (margins.left ?? 0) + margin,
+      right: (margins.right ?? 0) + margin,
+    );
+  }
+
   /// Builds the six-verb rounded-top path.
   ///
   /// `M x (y+r) a r r 0 0 1 r -r h (w-2r) a r r 0 0 1 r r v (h-r) h -w z`
@@ -420,15 +607,19 @@ class FluentVerticalStackedBarChartDelegate
       return const <FluentStackedBarSegmentLayout>[];
     }
     final isBandX = xAxisType == FluentChartAxisType.category;
-    // `VerticalStackedBarChart.tsx:988-991` — only the band axis re-solves the
-    // width against the bandwidth.
+    // `VerticalStackedBarChart.tsx:989-991` — only the band axis re-solves the
+    // width against the bandwidth; the continuous arms keep the `_barWidth`
+    // `_getDomainMargins` solved at `:952-957`, which is the only place
+    // `calculateAppropriateBarWidth` runs. [layout] carries the shell's own
+    // margins, so the solve here sees exactly what the shell handed
+    // [domainMargins].
     final barWidth = isBandX
         ? getBarWidth(
             barWidthProp,
             maxBarWidth,
             adjustedValue: context.xScale.bandwidth,
           )
-        : getBarWidth(barWidthProp, maxBarWidth);
+        : solveDomainMargin(layout.size.width, layout.margins).barWidth;
     // `stringXAxis ? (bandwidth - _barWidth) / 2 : -_barWidth / 2`
     // (`:1002-1003`); both 2s centre the bar on its x.
     final translate = isBandX
@@ -436,16 +627,25 @@ class FluentVerticalStackedBarChartDelegate
         : -barWidth / 2;
     final bottom = layout.margins.bottom ?? 0;
     final top = layout.margins.top ?? 0;
-    final minMax = resolveYMinMax();
-    // `_getAxisData` (`:403-404`) then `_getScales` (`:850-853`).
+    // `_getAxisData` (`:400-406`) then `_getScales` (`:849-853`).
     //
-    // parity gap: upstream reads `_yMin` and `_yMax` off the **resolved tick
-    // domain**, which the shell writes back through `getAxisData`; the delegate
-    // has no such channel, so the data extent stands in. The two agree whenever
-    // the ticks land on the data, and diverge by the amount `prepareDatapoints`
-    // rounds the ceiling outward.
-    final yMin = math.min(minMax.startValue, yMinValue ?? kStackedBarYOrigin);
-    final yMax = math.max(minMax.endValue, yMaxValue ?? kStackedBarYOrigin);
+    // `_yMin` and `_yMax` are the ends of the **resolved** y-axis domain, not
+    // the data extent: `yAxisDomainValues` is assigned `yAxisScale.domain()`
+    // (`utilities.ts:889`), so upstream reads back exactly the domain
+    // `prepareDatapoints` niced the ticks onto. This port takes it off the
+    // scale the shell already built rather than routing it through a callback.
+    // Standing the data extent in instead scales every stack by
+    // dataMax/tickMax — for the Default story, 140/150, which is a 7% error on
+    // every segment height in the chart.
+    final domain = context.yScalePrimary.domain;
+    final yMin = math.min(
+      _domainEnd(domain.firstOrNull),
+      yMinValue ?? kStackedBarYOrigin,
+    );
+    final yMax = math.max(
+      _domainEnd(domain.lastOrNull),
+      yMaxValue ?? kStackedBarYOrigin,
+    );
     final yBarScale = scaleLinear()
       ..domainOf(<double>[
         math.min(kStackedBarYOrigin, yMin),
@@ -780,7 +980,7 @@ class FluentVerticalStackedBarChartDelegate
             maxBarWidth,
             adjustedValue: context.xScale.bandwidth,
           )
-        : getBarWidth(barWidthProp, maxBarWidth);
+        : solveDomainMargin(layout.size.width, layout.margins).barWidth;
     // VerticalStackedBarChart.tsx:1002-1003.
     final translate = isBandX
         ? (context.xScale.bandwidth - barWidth) / 2
@@ -855,6 +1055,120 @@ class FluentVerticalStackedBarChartDelegate
     }
     return out;
   }
+
+  /// The total label sitting over each stack in [segments].
+  ///
+  /// Ports the label arm of `_createBar`
+  /// (`VerticalStackedBarChart.tsx:1155-1215`). Three things it is easy to get
+  /// wrong, all upstream's:
+  ///
+  ///  * the label is the **total** of the stack, not of any one segment, and
+  ///    with a legend selected it is the total of the *selected* segments only
+  ///    (`:1170-1178`);
+  ///  * a caller's own `barLabel` replaces that total, but only when exactly one
+  ///    segment in the stack carries one (`:1165-1168`) — two of them and the
+  ///    numeric total wins;
+  ///  * the side is chosen by the **selected** total rather than by the drawn
+  ///    one (`:1204`), so a stack whose selection sums negative labels below
+  ///    itself even when its full total is positive.
+  ///
+  /// [segments] is the output of [segmentsFor]; its `isLast` member is
+  /// upstream's `index === barsToDisplay.length - 1`, which is what carries
+  /// `yPoint` and `heightOfLastBar` out of the segment loop.
+  List<FluentStackedBarTotalLabel> totalLabelsFor(
+    List<FluentStackedBarSegmentLayout> segments,
+  ) {
+    // `!props.hideLabels && _yAxisType !== YAxisType.StringAxis` (`:1160`).
+    if (hideLabels || yAxisType == FluentChartAxisType.category) {
+      return const <FluentStackedBarTotalLabel>[];
+    }
+    // `_barWidth >= 16` (`:1200`).
+    final minWidth = style.minBarLabelWidth!.resolve(const <WidgetState>{})!;
+    final gapAbove = style.barLabelGapAbove!.resolve(const <WidgetState>{})!;
+    final gapBelow = style.barLabelGapBelow!.resolve(const <WidgetState>{})!;
+    // `_noLegendHighlighted` (`:421-423`).
+    final noneHighlighted =
+        selectedLegends.isEmpty &&
+        (activeLegend == null || activeLegend!.isEmpty);
+    bool highlighted(FluentStackedBarDatum p) => isLegendHighlightedMulti(
+      p.legend,
+      selectedLegends: selectedLegends,
+      activeLegend: activeLegend,
+    );
+
+    final out = <FluentStackedBarTotalLabel>[];
+    for (final last in segments) {
+      if (!last.isLast || last.rect.width < minWidth) {
+        continue;
+      }
+      // `barsToDisplay` (`:1006-1014`), numeric-y arm.
+      final visible = stacks[last.stackIndex].chartData
+          .where((segment) => segment.data != 0 && segment.data != '')
+          .toList(growable: false);
+      // `:1162-1168` — one labelled segment, or none at all.
+      final labelled = visible
+          .where(
+            (p) => p.barLabel != null && (noneHighlighted || highlighted(p)),
+          )
+          .toList(growable: false);
+      final custom = labelled.length == 1 ? labelled.single.barLabel : null;
+
+      var show = false;
+      var selectedTotal = 0.0;
+      String? text;
+      if (noneHighlighted) {
+        // `:1169-1173`.
+        show = true;
+        for (final p in visible) {
+          selectedTotal += (p.data as num).toDouble();
+        }
+        text = custom ?? _formatTotal(selectedTotal);
+      } else {
+        // `:1174-1181`.
+        for (final p in visible) {
+          if (highlighted(p)) {
+            show = true;
+            selectedTotal += (p.data as num).toDouble();
+          }
+        }
+        text = custom ?? _formatTotal(selectedTotal);
+      }
+      if (!show) {
+        continue;
+      }
+      out.add(
+        FluentStackedBarTotalLabel(
+          text: text,
+          // `x={xPoint + _barWidth / 2}` under the same
+          // `translate(xScaleBandwidthTranslate, 0)` the rects carry (`:1202`,
+          // `:1207`), which is the drawn rect's own centre.
+          anchor: Offset(
+            last.rect.center.dx,
+            // `:1204`.
+            selectedTotal >= kStackedBarYOrigin
+                ? last.rect.top - gapAbove
+                : last.rect.bottom + gapBelow,
+          ),
+          stackIndex: last.stackIndex,
+        ),
+      );
+    }
+    return out;
+  }
+
+  /// One end of the primary y scale's domain as a number.
+  ///
+  /// `Y_ORIGIN` for anything else, which is upstream's `_yMin`/`_yMax` seed
+  /// when `_getAxisData` never fires (`VerticalStackedBarChart.tsx:113-114`) —
+  /// a category y axis, whose domain is a list of labels, is the only way to
+  /// get here with a non-numeric end.
+  static double _domainEnd(Object? value) =>
+      value is num ? value.toDouble() : kStackedBarYOrigin;
+
+  /// `props.yAxisTickFormat(barLabel)` or `formatScientificLimitWidth`
+  /// (`VerticalStackedBarChart.tsx:1210-1214`).
+  String _formatTotal(double value) =>
+      yAxisTickFormat?.call(value) ?? formatScientificLimitWidth(value);
 
   /// Ports the radius arm of `_getCircleOpacityAndRadius`
   /// (`VerticalStackedBarChart.tsx:681-700`).
@@ -1113,6 +1427,22 @@ class FluentVerticalStackedBarChartDelegate
         canvas.drawRect(segment.rect, paint);
       }
     }
+    // The `<text>` is a sibling of the stack's own `<g>` and comes after it
+    // (`:1183-1216`), so a label sits over its stack and under the overlay.
+    final labelStyle = style.barLabelStyle!.resolve(const <WidgetState>{})!;
+    for (final label in totalLabelsFor(segments)) {
+      final painter = measurer.layoutPainter(label.text, labelStyle);
+      final metrics = measurer.measure(label.text, labelStyle);
+      painter.paint(
+        canvas,
+        // `text-anchor: middle` on an alphabetic baseline (`:1205`).
+        Offset(
+          label.anchor.dx - metrics.width / 2,
+          label.anchor.dy - metrics.ascent,
+        ),
+      );
+      painter.dispose();
+    }
     // The overlay is a sibling `<g>` AFTER the one holding the bars
     // (`:1407-1417`), so a line always crosses over the stacks.
     _paintLines(canvas, context);
@@ -1157,8 +1487,8 @@ class FluentVerticalStackedBarChart extends StatefulWidget {
     this.lineOptions,
     this.xAxisInnerPadding,
     this.xAxisOuterPadding,
-    this.xAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
-    this.yAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
+    this.xAxisCategoryOrder,
+    this.yAxisCategoryOrder,
     this.style,
     this.legendSelectionMode = FluentChartLegendSelectionMode.single,
     this.focusNode,
@@ -1229,11 +1559,19 @@ class FluentVerticalStackedBarChart extends StatefulWidget {
   /// Band outer padding override.
   final double? xAxisOuterPadding;
 
-  /// Ordering applied to a category x axis.
-  final FluentAxisCategoryOrder xAxisCategoryOrder;
+  /// Ordering applied to a category x axis, or null when the caller named none.
+  ///
+  /// Null and [FluentAxisCategoryOrder.defaultOrder] mean the same thing here:
+  /// `xAxisCategoryOrder: 'default'` sits in the object upstream spreads
+  /// `_props` over (`VerticalStackedBarChart.tsx:87-91`), and both reach
+  /// `sortAxisCategories`' insertion-order arm regardless.
+  final FluentAxisCategoryOrder? xAxisCategoryOrder;
 
-  /// Ordering applied to a category y axis.
-  final FluentAxisCategoryOrder yAxisCategoryOrder;
+  /// Ordering applied to a category y axis, or null when the caller named none.
+  ///
+  /// See [xAxisCategoryOrder]: null and
+  /// [FluentAxisCategoryOrder.defaultOrder] are interchangeable on this chart.
+  final FluentAxisCategoryOrder? yAxisCategoryOrder;
 
   /// Style override, highest precedence.
   final FluentVerticalStackedBarChartStyle? style;
@@ -1337,6 +1675,7 @@ class _FluentVerticalStackedBarChartState
         xAxisInnerPadding: widget.xAxisInnerPadding,
         xAxisOuterPadding: widget.xAxisOuterPadding,
         xAxisPadding: widget.xAxisPadding,
+        hideTickOverlap: widget.props.hideTickOverlap,
         xAxisCategoryOrder: widget.xAxisCategoryOrder,
         yAxisCategoryOrder: widget.yAxisCategoryOrder,
         yAxisTickFormat: widget.props.yAxisTickFormat,

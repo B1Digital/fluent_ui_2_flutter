@@ -86,47 +86,54 @@ void main() {
         // story sets and it carries no rule the port can honour.
         chartDataMode: FluentChartDataMode.byDefault,
       ),
-      // MEASURED, NOT CHOSEN — 53.841%, and every point of it is a defect
-      // rather than rasteriser noise. Pinned at the measurement so the number
-      // is on record and any change to it, in either direction, has to be
-      // re-pinned deliberately. Three causes, all visible in
-      // `out/charts-horizontalbarchart--horizontal-bar-basic.png`:
+      // MEASURED, NOT CHOSEN — 0.149%, down from 53.841%. Pinned at the
+      // measurement so the number is on record and any change to it, in either
+      // direction, has to be re-pinned deliberately.
       //
-      //  1. Every row is 4px too tall. Upstream hangs the 5px title gap on the
-      //     LEFT span alone — `chartTitleLeft5pMargin`
+      // What moved (all three were one chart, not three):
+      //
+      //  1. Row pitch was 47 against the reference's 43. Upstream hangs the
+      //     5px title gap on the LEFT span alone — `chartTitleLeft5pMargin`
       //     (`useHorizontalBarChartStyles.styles.ts:67-69`, selected at
-      //     `:134`) — so the title flex line is
-      //     max(caption1 16 + 5, body1Strong 20) = 21. This port pads the
-      //     whole title Row instead (`horizontal_bar_chart.dart:852-857`),
-      //     giving 20 + 5 = 25. Measured row pitch: 43px in the reference,
-      //     47px here.
-      //  2. The last row keeps its bottom spacing. `_buildRow` wraps every row
-      //     in `Padding(bottom: rowSpacing)`
-      //     (`horizontal_bar_chart.dart:828-833`) with no last-row exception;
-      //     the reference's 334px box is 8 x (21 + 12) + 7 x 10, seven gaps
-      //     for eight rows. 4 x 8 + 10 = 42, which is exactly the RenderFlex
-      //     overflow asserted below, and the debug overflow stripes across the
-      //     last row are that overflow being drawn.
-      //  3. The synthesised remainder bar is opaque black instead of grey.
-      //     `colorBackgroundOverlay` is rgba(0,0,0,0.4) and composites over
-      //     the page to the reference's exact (150,150,150), but the strip
-      //     painter writes `fill.withValues(alpha: opacities[i])`
-      //     (`horizontal_bar_chart.dart:321`), which REPLACES the fill's own
-      //     alpha with the 1.0 that "not dimmed" means instead of multiplying
-      //     by it — upstream's `opacity` is an SVG attribute that multiplies.
-      //     Sampled at x=300: reference (150,150,150), here (0,0,0).
-      maxMismatch: 53.87,
+      //     `:129-136`) — inside a `display: flex` row, so the flex line is
+      //     max(caption1 16 + 5, body1Strong 20) = 21. The port padded the
+      //     whole title Row instead, giving max(16, 20) + 5 = 25. The gap now
+      //     hangs on the title `Text` and the Row is `crossAxisAlignment
+      //     .start`, which is the same 21 with both spans at its top — the two
+      //     boxes Oracle B measures at `[24, 48, 600, 21]` and
+      //     `[24, 48, 20.109375, 16]`.
+      //  2. The last row kept its bottom spacing, so the chart asked for 376px
+      //     inside the reference's 334 and Flutter reported a 42px RenderFlex
+      //     overflow, drawn as stripes across the last row. The reference box
+      //     is 8 x (21 + 12) + 7 x 10 — seven gaps for eight rows, because
+      //     `capture_png.mjs` clips to the union of the `fui-hbc__chartTitle`
+      //     and `fui-hbc__chart` boxes and the trailing `items` margin is
+      //     outside every one of them. The gap now lives on the enclosing
+      //     `Column`'s `spacing`, which also reproduces upstream's 10 + 16
+      //     between the last row and a legend strip.
+      //  3. The synthesised remainder bar was opaque black.
+      //     `colorBackgroundOverlay` is rgba(0,0,0,0.4), but the strip painter
+      //     wrote `fill.withValues(alpha: opacities[i])`, REPLACING the fill's
+      //     own alpha with the 1.0 that "not dimmed" means. Upstream's
+      //     `opacity` is an SVG presentation attribute, which multiplies.
+      //     Sampled at (300, 26): reference (150,150,150), now (153,153,153).
+      //
+      // The 0.149% left is 289 pixels and none of it is geometry. 283 are the
+      // glyphs of the eight left-hand row titles, which `_manifest.json`
+      // records no textRect for — `FocusableTooltipText` nests a span inside
+      // `fui-hbc__chartTitleLeft`, so the capture's leaf-element filter skips
+      // it and Skia's hinting is compared against Chromium's. The other 6 are
+      // the leading edge of "11,444" poking two pixels out of its own mask,
+      // which is the Selawik-Semibold-against-Segoe-UI-Semibold width residual
+      // `support/react_parity.dart` documents.
+      maxMismatch: 0.17,
     );
 
-    // The chart does not fit the box the reference was captured at: it asks
-    // for 376px inside the reference's 334, and Flutter reports that as a
-    // RenderFlex overflow during the pump. Consumed rather than ignored, and
-    // asserted rather than swallowed — it is causes 1 and 2 above, arriving
-    // as an exception instead of as pixels. When either is fixed this fails,
-    // which is the intended tripwire.
-    final overflow = tester.takeException();
-    expect(overflow, isA<FlutterError>());
-    expect('$overflow', contains('overflowed by 42 pixels on the bottom'));
+    // The chart now fits the box the reference was captured at exactly, so the
+    // pump raises nothing. Asserted rather than assumed: a RenderFlex overflow
+    // is consumed by `takeException` and would otherwise be invisible here
+    // while it painted debug stripes into the comparison above.
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('HeatMapChartBasic', (tester) async {
@@ -226,38 +233,52 @@ void main() {
         // storybook page runs, not the chart's own painting, and the reference
         // is a single static clip — no port equivalent, nothing to pass.
       ),
-      // MEASURED, NOT CHOSEN — 48.388%, and it is one defect repeated across
-      // every cell: the y categories come out in the wrong order, so all five
-      // rows are on the wrong bands. The columns, the colour ramp, the cell
-      // geometry and the legend all land, which is what the few grey cells in
-      // the diff are.
+      // MEASURED, NOT CHOSEN — 2.713%, down from 48.388%. Pinned at the
+      // measurement so the number is on record and any change to it, in either
+      // direction, has to be re-pinned deliberately.
       //
-      // The reference's y axis, bottom to top, is Texas, Alaska, Ohio, DC,
-      // NYC — p3, p2, p1, p4, p5, the order the cells appear in the story's
-      // source. This port gives Alaska, DC, NYC, Ohio, Texas, alphabetical.
-      // Two independent causes, both reachable from this story's props, which
-      // set no ordering at all:
+      // What moved. The old 48% was every cell in the wrong row: the reference
+      // y axis reads Texas, Alaska, Ohio, DC, NYC bottom to top — p3, p2, p1,
+      // p4, p5, the order the cells appear in the story's source — and the
+      // port gave Alaska, DC, NYC, Ohio, Texas, alphabetical. Two causes, both
+      // in one function, and both reachable from this story's props, which set
+      // no ordering at all:
       //
-      //  * upstream branches on `props.yAxisCategoryOrder !== 'default'`
-      //    (`HeatMapChart.tsx:715-717`), and an ABSENT prop is `undefined`,
-      //    which is not `'default'` — so the story takes the
-      //    `sortAxisCategories` path, whose `undefined` arm returns
-      //    `Object.keys(...)`, insertion order (`utilities.ts:2049-2110`).
-      //    `FluentCartesianChartProps.yAxisCategoryOrder` is non-nullable and
-      //    defaults to `FluentAxisCategoryOrder.defaultOrder`
-      //    (`cartesian_chart_props.dart:117`), which is upstream's *explicit*
-      //    `'default'` — the legacy `sortOrder` path the story never reaches.
-      //    The port cannot express the absent prop;
-      //    `FluentAxisCategoryOrder.data` reaches the same insertion order and
-      //    is deliberately NOT passed here, because the story does not pass it
-      //    and a test that passes it measures a chart the story never built.
-      //  * even on that legacy path the two disagree: upstream sorts the raw
-      //    keys and formats afterwards (`HeatMapChart.tsx:657-668` feeding
-      //    `:433-445`), giving p1..p5 -> Ohio, Alaska, Texas, DC, NYC, while
-      //    `buildFluentHeatMapDataSet` formats first and sorts the labels
-      //    (`heat_map_chart.dart:112-120` admits this), giving Alaska, DC,
-      //    NYC, Ohio, Texas. Neither of those is the reference either.
-      maxMismatch: 48.41,
+      //  1. Upstream branches on `props.yAxisCategoryOrder !== 'default'`
+      //     (`HeatMapChart.tsx:715-717`), and an ABSENT prop is `undefined`,
+      //     which is not `'default'` — HeatMapChart's
+      //     `props = { yAxisCategoryOrder: 'default', … }` (`:49-56`) is a
+      //     parameter default that fires only when React passes no props
+      //     object, which it never does. So the story takes the
+      //     `sortAxisCategories` path, whose `undefined` arm returns
+      //     `Object.keys(...)`, insertion order (`utilities.ts:2049-2110`).
+      //     `FluentCartesianChartProps.yAxisCategoryOrder` was non-nullable and
+      //     defaulted to `FluentAxisCategoryOrder.defaultOrder`, which is
+      //     upstream's *explicit* `'default'` and the legacy `sortOrder` path
+      //     the story never reaches. It is now `FluentAxisCategoryOrder?` and
+      //     null is the absent prop, so this story says nothing and gets the
+      //     insertion order the reference has.
+      //  2. That alone moved 48.388% to 37.494% and flipped the defect onto the
+      //     x axis, because `buildFluentHeatMapDataSet` did not know the axis
+      //     type: upstream gates the whole `sortAxisCategories` branch behind
+      //     `_xAxisType.current === XAxisTypes.StringAxis` (`:711-717`), so this
+      //     story's DATE x axis stays on the legacy arm and sorts `+a - +b` over
+      //     the epoch-millisecond index keys. The port sent both axes down the
+      //     same path and produced Mar/05, Mar/03, Mar/04, Mar/09, … The
+      //     function now derives the axis types the way `:744-746` does and
+      //     sorts the legacy arm on the raw value, which also retires the
+      //     `// parity:` note that used to sit on it.
+      //
+      // The 2.713% left is 3,585 pixels and none of it is ordering. 3,129 are
+      // the ten scanlines at the five row boundaries: the cell band is
+      // 49.781px tall on a 50.797px pitch (Oracle B `rect` bbox and ctm), so
+      // every horizontal edge falls mid-pixel and Chromium blends it — at
+      // (110, 70) the reference is (101,175,159) against this port's
+      // (64,157,137), and at (110, 71) (211,233,235) against (255,255,255).
+      // The port snaps the cell rect to whole pixels. The remaining ~456 are in
+      // rows 318-350, the legend's "+3 more" overflow button. Neither is this
+      // defect; both are pinned here so the next change to them is visible.
+      maxMismatch: 2.99,
     );
   });
 }

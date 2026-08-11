@@ -40,6 +40,7 @@ class FluentDonutChartStyle {
     this.arcLabelTextStyle,
     this.centreValueTextStyle,
     this.titleTextStyle,
+    this.titleBackgroundColor,
   });
 
   /// Width of the outline that separates one slice from its neighbour.
@@ -158,6 +159,16 @@ class FluentDonutChartStyle {
   /// `FluentChartTextStyles.chartTitle` already resolves.
   final WidgetStateProperty<TextStyle?>? titleTextStyle;
 
+  /// Fill of the rectangle `SVGTooltipText` paints behind the chart title.
+  ///
+  /// `useDonutChartStyles.styles.ts:48-53` — the `svgTooltip` slot, which
+  /// `DonutChart.tsx:368` hands `ChartTitle` as its `tooltipClassName`, is
+  /// `colorNeutralBackground1`. The Oracle B capture of
+  /// `charts-donutchart--donut-chart-basic` records that rect as
+  /// `rgb(255, 255, 255)` at y=-13, so it is drawn on every render and not
+  /// only under a tooltip.
+  final WidgetStateProperty<Color?>? titleBackgroundColor;
+
   /// This style with the non-null properties of [other] layered on top.
   ///
   /// Merging is per-property, not wholesale: overriding only [padAngle] keeps
@@ -188,6 +199,7 @@ class FluentDonutChartStyle {
       arcLabelTextStyle: other.arcLabelTextStyle ?? arcLabelTextStyle,
       centreValueTextStyle: other.centreValueTextStyle ?? centreValueTextStyle,
       titleTextStyle: other.titleTextStyle ?? titleTextStyle,
+      titleBackgroundColor: other.titleBackgroundColor ?? titleBackgroundColor,
     );
   }
 
@@ -213,6 +225,7 @@ class FluentDonutChartStyle {
     WidgetStateProperty<TextStyle?>? arcLabelTextStyle,
     WidgetStateProperty<TextStyle?>? centreValueTextStyle,
     WidgetStateProperty<TextStyle?>? titleTextStyle,
+    WidgetStateProperty<Color?>? titleBackgroundColor,
   }) => FluentDonutChartStyle(
     arcStrokeWidth: arcStrokeWidth ?? this.arcStrokeWidth,
     focusRingWidth: focusRingWidth ?? this.focusRingWidth,
@@ -235,6 +248,7 @@ class FluentDonutChartStyle {
     arcLabelTextStyle: arcLabelTextStyle ?? this.arcLabelTextStyle,
     centreValueTextStyle: centreValueTextStyle ?? this.centreValueTextStyle,
     titleTextStyle: titleTextStyle ?? this.titleTextStyle,
+    titleBackgroundColor: titleBackgroundColor ?? this.titleBackgroundColor,
   );
 
   /// Convenience for the common case of one value across every state.
@@ -262,6 +276,7 @@ class FluentDonutChartStyle {
     TextStyle? arcLabelTextStyle,
     TextStyle? centreValueTextStyle,
     TextStyle? titleTextStyle,
+    Color? titleBackgroundColor,
   }) => FluentDonutChartStyle(
     arcStrokeWidth: _all(arcStrokeWidth),
     focusRingWidth: _all(focusRingWidth),
@@ -283,6 +298,7 @@ class FluentDonutChartStyle {
     arcLabelTextStyle: _all(arcLabelTextStyle),
     centreValueTextStyle: _all(centreValueTextStyle),
     titleTextStyle: _all(titleTextStyle),
+    titleBackgroundColor: _all(titleBackgroundColor),
   );
 
   static WidgetStateProperty<T?>? _all<T>(T? value) =>
@@ -310,10 +326,11 @@ class FluentDonutChartStyle {
       other.focusRingColor == focusRingColor &&
       other.arcLabelTextStyle == arcLabelTextStyle &&
       other.centreValueTextStyle == centreValueTextStyle &&
-      other.titleTextStyle == titleTextStyle;
+      other.titleTextStyle == titleTextStyle &&
+      other.titleBackgroundColor == titleBackgroundColor;
 
-  // Twenty fields is exactly Object.hash's positional ceiling, so hashAll is
-  // used to leave room for a twenty-first.
+  // Twenty is exactly Object.hash's positional ceiling, and there are
+  // twenty-one fields, so hashAll it is.
   @override
   int get hashCode => Object.hashAll(<Object?>[
     arcStrokeWidth,
@@ -336,6 +353,7 @@ class FluentDonutChartStyle {
     arcLabelTextStyle,
     centreValueTextStyle,
     titleTextStyle,
+    titleBackgroundColor,
   ]);
 }
 
@@ -387,5 +405,7 @@ FluentDonutChartStyle resolveFluentDonutChartStyle(FluentThemeData theme) {
       color: theme.colors.neutralForeground1,
     ),
     titleTextStyle: text.chartTitle,
+    // useDonutChartStyles.styles.ts:48-53 — the svgTooltip slot.
+    titleBackgroundColor: theme.colors.neutralBackground1,
   );
 }

@@ -73,23 +73,39 @@ class FluentVegaDeclarativeChartTheme extends InheritedWidget {
       oldWidget.style != style;
 }
 
-/// The height a routed kind falls back to when the spec declares none.
+/// The kinds whose cell is sized from the spec, and the height each falls back
+/// to when the spec declares none.
 ///
 /// Every shell chart takes its size from its `BoxConstraints` (spec §2.2), so
-/// upstream's `height: spec.height ?? N` becomes this widget's `SizedBox`.
+/// upstream's `height: spec.height ?? N` becomes this widget's `SizedBox` —
+/// but only for the transformers that write a `height` at all. **Membership is
+/// the whole point of this table**: a kind absent from it is a kind whose
+/// props bag carries no dimensions, and sizing its cell from `spec.height`
+/// invents a box upstream does not have.
 ///
-/// `grep -n 'height:'` over `VegaLiteSchemaAdapter.ts` returns five lines and
-/// no more. Two are defaults, and they are the two entries below: stacked bar
-/// (`:2712`) and heatmap (`:3510`), both `DEFAULT_CHART_HEIGHT`, 350 at `:74`.
-/// `:1954` (line, and the area chart built on it) passes a declared `height`
-/// straight through, which the cell builder below does for every kind. The
-/// last two are donut (`:3307`) and polar (`:3856`, whose 400 is the only
-/// other literal):
-/// neither is a shell chart, so both read `height` inside their own
-/// transformer and neither belongs here. Every remaining transformer sets no
-/// `height` at all, so its chart sizes to its constraints.
-const Map<FluentVegaChartKind, double> kVegaDefaultCellHeight =
-    <FluentVegaChartKind, double>{
+/// `grep -nE '^\s*(width|height)[:,]'` over `VegaLiteSchemaAdapter.ts` returns
+/// five pairs and no more:
+///
+///  * `:1953-1954`, line — and the area chart that spreads its props at
+///    `:3053-3056` — pass a declared size straight through with NO default, so
+///    both are present here with a null height.
+///  * `:2711-2712` (stacked bar) and `:3509-3510` (heatmap) default to
+///    `DEFAULT_CHART_HEIGHT`, 350 at `:74`.
+///  * `:3306-3307` (donut) and `:3855-3856` (polar, whose 400 is the only
+///    other literal) are not shell charts: each reads `height` inside its own
+///    transformer, so neither belongs here.
+///
+/// The six that write neither are vertical bar (`:2141`), grouped vertical bar
+/// (`:2741`), horizontal bar (`:2841`), scatter (`:3070`) and histogram
+/// (`:3566`) — `ScatterChart.tsx:137-139` says so in as many words, "height and
+/// width are not used to resize or set as dimesions of the chart" — and their
+/// container div is `withResponsiveContainer`'s `height: props.height ?? '100%'`
+/// (`ResponsiveContainer.tsx:96`), i.e. their parent's height. In Flutter that
+/// is the incoming constraint, so their cell is handed through unwrapped.
+const Map<FluentVegaChartKind, double?> kVegaDefaultCellHeight =
+    <FluentVegaChartKind, double?>{
+      FluentVegaChartKind.line: null,
+      FluentVegaChartKind.area: null,
       FluentVegaChartKind.stackedBar: kVegaStackedBarDefaultHeight,
       FluentVegaChartKind.heatmap: 350,
     };
@@ -384,12 +400,21 @@ class _FluentVegaDeclarativeChartState
   /// container div (`ResponsiveContainer.tsx:97-103`) and the
   /// measure-and-inject cycle it wraps that div in is Flutter's constraint
   /// pass — spec §5.1.
+  ///
+  /// A kind outside [kVegaDefaultCellHeight] is handed through UNWRAPPED, and
+  /// that is not a shortcut: its transformer forwards neither dimension, so the
+  /// container div stays at `100%` and the chart's own shell decides. Sizing it
+  /// from `spec.height` is what made the scatter story 400 tall against
+  /// upstream's 350.
   Widget _buildCell(
     FluentVegaChartKind kind,
     Map<String, Object?> spec, {
     required bool isDark,
   }) {
     final chart = _buildChart(kind, spec, isDark: isDark);
+    if (!kVegaDefaultCellHeight.containsKey(kind)) {
+      return chart;
+    }
     final rawWidth = spec['width'];
     final rawHeight = spec['height'];
     final width = rawWidth is num ? rawWidth.toDouble() : null;
@@ -440,7 +465,15 @@ class _FluentVegaDeclarativeChartState
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        chart,
+        // The row below stands in for the one the chart's own shell would have
+        // drawn inside itself, so it has to come out of the same box:
+        // `CartesianChart.tsx:499-508` subtracts the legend strip from the
+        // container height before the svg is sized, and the shell's Column does
+        // the same with an `Expanded` plot. `Flexible` rather than `Expanded`
+        // because this Column is `min` and can be laid out unbounded — inside a
+        // scroll view a flexible child is laid out as an inflexible one, where
+        // an `Expanded` would throw.
+        Flexible(child: chart),
         FluentChartLegend(
           // The items carry their RAW titles: `FluentChartLegend` title-cases
           // for display itself (`chrome/legend.dart:359`, matching
@@ -481,15 +514,16 @@ class _FluentVegaDeclarativeChartState
     // only from a legend this widget owns. The chart's own is suppressed first
     // so exactly one is drawn.
     //
-    // GAP: the dimming upstream gets for free is lost with it. Measured
-    // 2026-08-11, because this note used to claim more missing work than there
-    // is: `selectedLegends` is ALREADY a parameter on eight of the ten shell
-    // charts — area, vertical bar, grouped vertical bar, vertical stacked bar,
-    // scatter, gantt, horizontal bar with axis and polar — and is absent only
-    // on `FluentLineChart` and `FluentHeatMapChart`. What no chart receives is
-    // a value: no transformer in either adapter passes `selectedLegends`. So
-    // closing the dimming is a pass-through in the eleven transformers plus
-    // the parameter on the two charts that lack it, not a change here.
+    // GAP: the dimming upstream gets for free is lost with it, and it is a
+    // wider gap than this note claimed twice. Re-measured 2026-08-12 by
+    // grepping every widget constructor rather than every file: only
+    // `FluentAreaChart` (`area_chart.dart:45`, added with the Plotly adapter's
+    // dimming) and `FluentPolarChart` (`polar_chart.dart:1036`) declare a
+    // `selectedLegends` parameter at all. The `selectedLegends` in the other
+    // eight charts is on their DELEGATE, written only by their own shell's
+    // `onLegendChange`, so a transformer has nowhere to put a caller's
+    // selection. Closing the dimming is therefore the parameter on eight
+    // widgets plus a pass-through in eleven transformers, not a change here.
     final canLift = kVegaLiftableLegendKinds.contains(route.kind);
     if (canLift) {
       _disableChartLegend(spec);

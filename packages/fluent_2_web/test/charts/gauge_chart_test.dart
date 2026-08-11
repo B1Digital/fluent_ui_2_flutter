@@ -531,6 +531,80 @@ void main() {
       );
     });
 
+    // The story above is captured with `width: 252` inside a 944px root, and
+    // the capture's own two html boxes say what upstream does with the
+    // difference: `fui-gc__chartWrapper` is at x 370 and 252 wide, while
+    // `fui-legend__root` is at x 24 and 944 wide. 370 - 24 = 346 = (944 - 252)
+    // / 2 — the chart is CENTRED and the legend is not, because the root is
+    // `display: flex; flex-direction: column; align-items: center; width: 100%`
+    // (`useGaugeChartStyles.styles.ts:35-43`) and `legendsContainer` overrides
+    // that with `width: 100%` (`:126-128`).
+    //
+    // Every coordinate `FluentGaugeLayout` solves — the origin above all — is
+    // relative to the svg, so the box handed to the painter has to be the
+    // svg's. Give it the root's and the whole gauge slides 346px left, which is
+    // what `test/parity/gauge_and_polar_parity_test.dart` measured as 4.2%.
+    testWidgets('a chart narrower than its root is centred inside it', (
+      tester,
+    ) async {
+      final story = loadOracleStory('charts-gaugechart--gauge-chart-basic');
+      final wrapper = story.boxes('fui-gc__chartWrapper').single.rect;
+      final root = story.boxes('fui-legend__root').single.rect;
+      final box = Size(root.width, wrapper.height + root.height);
+      // 944 is wider than the 800px default surface, which would otherwise
+      // clamp the root and quietly move the number under test.
+      tester.view.physicalSize = box;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await pump(
+        tester,
+        FluentGaugeChart(
+          key: key,
+          chartValue: 50,
+          width: wrapper.width,
+          height: box.height,
+          segments: segments,
+        ),
+        size: box,
+      );
+
+      final rootRect = tester.getRect(find.byKey(key));
+      final chartArea = tester
+          .getRect(
+            find
+                .descendant(
+                  of: find.byKey(key),
+                  matching: find.byType(CustomPaint),
+                )
+                .first,
+          )
+          .shift(-rootRect.topLeft);
+      expectOracleRect(
+        'the painted chart area inside the root',
+        Rect.fromLTWH(
+          wrapper.left - root.left,
+          0,
+          wrapper.width,
+          wrapper.height,
+        ),
+        chartArea,
+      );
+      expectOracleNumber(
+        'the gauge pivot inside the root',
+        // GaugeChart.tsx:599 translates by `_width / 2` — 126 — inside an svg
+        // whose own left edge is at 346, so the pivot lands on the root's
+        // horizontal centre.
+        root.width / 2,
+        chartArea.left + painterOf(tester).layout.origin.dx,
+      );
+      expectOracleNumber(
+        'the legend width',
+        root.width,
+        tester.getRect(find.byType(FluentChartLegend)).width,
+      );
+    });
+
     testWidgets('charts-gaugechart--gauge-chart-single-segment', (
       tester,
     ) async {

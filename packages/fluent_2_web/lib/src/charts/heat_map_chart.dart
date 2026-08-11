@@ -109,19 +109,24 @@ class FluentHeatMapDataSet {
 /// and cannot mis-align — the cursor's only purpose was to avoid an O(n²) scan
 /// over a list that was already sorted.
 ///
-/// `// parity:` upstream keys, sorts and only then formats, so a date or
-/// numeric axis sorts on the raw value (`+a - +b`, `:645-646` and `:660-661`)
-/// and [alphabeticalSort] — upstream's `sortOrder` — applies to a string axis
-/// alone (`:711-717`). This port formats first and applies [alphabeticalSort]
-/// to the formatted label on both axes, because the axis type is not one of
-/// its inputs. The two agree wherever a format is order-preserving, which the
-/// `%b/%d` labels of the captured story are; they diverge across a month
-/// boundary ('Apr/01' sorts before 'Mar/15') and on `.2~s` numbers ('1.5k'
-/// sorts before '900').
+/// Upstream keys, sorts and only then formats, so both orderings run on the raw
+/// value: a date or numeric axis on `+a - +b` over the epoch-millisecond or
+/// numeric index key (`:645-646`, `:660-661`, built by `_getXIndex` at
+/// `:358-368`), and a category axis on the raw label before any
+/// `xAxisStringFormatter` sees it (`:648`). This port keys by the formatted
+/// label — the grid is looked up by it — and carries the first raw value behind
+/// each key so both comparisons are still made on the raw. The one surviving
+/// difference is that two raws sharing a formatted label merge into one column
+/// here and stay two upstream.
+///
+/// The axis type is derived here rather than passed in, mirroring `:744-746`:
+/// it decides which of the two ordering paths an axis takes, and the delegate's
+/// `xAxisType`/`yAxisType` are both `category` unconditionally because the band
+/// scale is built from formatted strings whatever the data was.
 FluentHeatMapDataSet buildFluentHeatMapDataSet({
   required List<FluentHeatMapChartData> data,
-  required FluentAxisCategoryOrder xAxisCategoryOrder,
-  required FluentAxisCategoryOrder yAxisCategoryOrder,
+  required FluentAxisCategoryOrder? xAxisCategoryOrder,
+  required FluentAxisCategoryOrder? yAxisCategoryOrder,
   required bool alphabeticalSort,
   String? xAxisDateFormat,
   String? yAxisDateFormat,
@@ -153,6 +158,26 @@ FluentHeatMapDataSet buildFluentHeatMapDataSet({
   // `uniqueYPoints` key order (`:498-499`) and no separate list is needed.
   final xValues = <String, List<double>>{};
   final yValues = <String, List<double>>{};
+  // The raw value behind each formatted key — upstream's `uniqueXPoints` /
+  // `uniqueYPoints` key itself (`_getXIndex`, `:358-368`), which is what both
+  // legacy comparators at `:641-668` sort on.
+  final xRaw = <String, Object>{};
+  final yRaw = <String, Object>{};
+
+  // `_getXandY` (`:111-122`). The `return` inside its `forEach` continues the
+  // loop rather than breaking it, so the probe is the LAST non-empty series'
+  // first point; with no data at all it stays `''`, which `getTypeOfAxis`
+  // reports as a category axis.
+  Object xProbe = '';
+  Object yProbe = '';
+  for (final series in data) {
+    if (series.data.isNotEmpty) {
+      xProbe = series.data.first.x;
+      yProbe = series.data.first.y;
+    }
+  }
+  final xAxisType = chartAxisTypeOf(xProbe);
+  final yAxisType = chartAxisTypeOf(yProbe);
 
   for (final series in data) {
     for (final point in series.data) {
@@ -170,6 +195,8 @@ FluentHeatMapDataSet buildFluentHeatMapDataSet({
       );
       (xValues[xKey] ??= <double>[]).add(point.value);
       (yValues[yKey] ??= <double>[]).add(point.value);
+      xRaw[xKey] ??= point.x;
+      yRaw[yKey] ??= point.y;
       (rows[yKey] ??= <String, FluentHeatMapCell>{})[xKey] = FluentHeatMapCell(
         x: xKey,
         y: yKey,
@@ -187,26 +214,52 @@ FluentHeatMapDataSet buildFluentHeatMapDataSet({
 
   List<String> order(
     Map<String, List<double>> values,
-    FluentAxisCategoryOrder categoryOrder,
+    Map<String, Object> raws,
+    FluentChartAxisType axisType,
+    FluentAxisCategoryOrder? categoryOrder,
   ) {
-    // `props.xAxisCategoryOrder !== 'default'` (HeatMapChart.tsx:712).
-    if (categoryOrder is! FluentAxisCategoryOrderPreset ||
-        categoryOrder.upstreamName != 'default') {
+    // `_xAxisType.current === XAxisTypes.StringAxis && props.xAxisCategoryOrder
+    // !== 'default'` (HeatMapChart.tsx:711-717). BOTH halves gate this branch:
+    // a date or numeric axis never reaches `sortAxisCategories` at all, whatever
+    // the order says.
+    //
+    // A null order is upstream's ABSENT prop, and `undefined !== 'default'` is
+    // true — HeatMapChart's `props = { xAxisCategoryOrder: 'default', … }`
+    // (`:49-56`) is a parameter default that only fires when React passes no
+    // props object, which it never does. So an unset prop on a category axis
+    // takes this branch, not the legacy `sortOrder` one below, and
+    // `sortAxisCategories`' undefined arm hands back the keys in insertion
+    // order.
+    if (axisType == FluentChartAxisType.category &&
+        (categoryOrder is! FluentAxisCategoryOrderPreset ||
+            categoryOrder.upstreamName != 'default')) {
       return sortAxisCategories(values, categoryOrder);
     }
-    // `sortOrder === 'none' ? 0 : a.toLowerCase() > b.toLowerCase() ? 1 : -1`
-    // (`HeatMapChart.tsx:648`). A stable sort is required so that a comparator
-    // returning 0 preserves insertion order.
-    return stableSort<String>(
-      values.keys.toList(),
-      (a, b) => alphabeticalSort
-          ? (a.toLowerCase().compareTo(b.toLowerCase()) > 0 ? 1 : -1)
-          : 0,
-    );
+    // A stable sort is required so that a comparator returning 0 preserves
+    // insertion order, which is how `sortOrder: 'none'` keeps it.
+    return stableSort<String>(values.keys.toList(), (a, b) {
+      if (axisType != FluentChartAxisType.category) {
+        // `+a - +b` (`:645-646`) over the raw index key: epoch milliseconds on
+        // a date axis, the number itself on a numeric one. Reproduced as a
+        // subtraction, not a `compareTo`, so that a non-finite difference is
+        // the 0 that `Array.prototype.sort` reads it as.
+        final diff = _ordinalOf(raws[a]!) - _ordinalOf(raws[b]!);
+        return diff.isNaN ? 0 : diff.sign.toInt();
+      }
+      // `sortOrder === 'none' ? 0 : a.toLowerCase() > b.toLowerCase() ? 1 : -1`
+      // (`:648`), over the raw label — upstream formats only after this sort.
+      if (!alphabeticalSort) {
+        return 0;
+      }
+      return '${raws[a]}'.toLowerCase().compareTo('${raws[b]}'.toLowerCase()) >
+              0
+          ? 1
+          : -1;
+    });
   }
 
-  final xAxisPoints = order(xValues, xAxisCategoryOrder);
-  final yAxisPoints = order(yValues, yAxisCategoryOrder);
+  final xAxisPoints = order(xValues, xRaw, xAxisType, xAxisCategoryOrder);
+  final yAxisPoints = order(yValues, yRaw, yAxisType, yAxisCategoryOrder);
 
   for (final y in yAxisPoints) {
     final row = rows[y] ??= <String, FluentHeatMapCell>{};
@@ -229,6 +282,16 @@ FluentHeatMapDataSet buildFluentHeatMapDataSet({
     yAxisPoints: yAxisPoints,
   );
 }
+
+/// The number `+raw` coerces to in `_getXIndex`/`_getYIndex`'s index key
+/// (`HeatMapChart.tsx:358-380`): epoch milliseconds for a date, the value for a
+/// number, and `NaN` for anything else — which only a category axis produces,
+/// and a category axis never reaches this.
+double _ordinalOf(Object raw) => switch (raw) {
+  final DateTime d => d.millisecondsSinceEpoch.toDouble(),
+  final num n => n.toDouble(),
+  _ => double.nan,
+};
 
 /// The heat-map colour ramp.
 ///

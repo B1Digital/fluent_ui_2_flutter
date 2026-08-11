@@ -325,6 +325,128 @@ void main() {
       );
     });
 
+    /// The grid's own box — the [Table] plus the right and bottom lines no
+    /// cell owns.
+    Rect gridRect(WidgetTester tester) => tester.getRect(
+      find
+          .ancestor(of: find.byType(Table), matching: find.byType(Container))
+          .first,
+    );
+
+    testWidgets('the collapsed grid line is laid out, not drawn over the top', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const SizedBox(
+          width: 600,
+          child: FluentChartTable(key: key, headers: headers, rows: rows),
+        ),
+      );
+      final grid = gridRect(tester);
+      expect(
+        tester.getTopLeft(find.text('1')).dy -
+            tester.getTopLeft(find.text('One')).dy,
+        closeTo(34, 0.01),
+        reason:
+            'border-collapse (useChartTableStyles.styles.ts:29) merges the '
+            'adjacent 2px edges into ONE line that still occupies 2px of the '
+            'table box, so the row pitch is 8 + 16 + 8 + 2. The capture agrees: '
+            'the reference PNG for charts-charttable--chart-table-basic puts '
+            'its horizontal lines on rows 0, 34, 68, 102, 136 and 170. '
+            'TableBorder cannot produce this — RenderTable\'s border appears '
+            'in neither _computeColumnWidths nor performLayout, so it strokes '
+            'a boundary that took no space and every row comes out 32.',
+      );
+      expect(
+        tester.getTopLeft(find.text('One')).dx - grid.left,
+        closeTo(10, 0.01),
+        reason:
+            'Same rule across: the cell\'s 8px padding starts AFTER its 2px '
+            'line, so the first column\'s text sits 10 inside the grid. The '
+            'capture puts it at x = 10 with the line on 0 and 1.',
+      );
+      expect(
+        grid.height,
+        closeTo(3 * 34 + 2, 0.01),
+        reason:
+            'Three rows of 34 plus the bottom line, which is the one no cell '
+            'owns. The capture\'s five-row grid is 5 x 34 + 2 = 172 tall.',
+      );
+    });
+
+    testWidgets('the grid fills its box, splitting the surplus in proportion '
+        'to content rather than equally', (tester) async {
+      // One long heading against two short ones. The surplus is large enough
+      // that the two distributions are nowhere near each other: proportional
+      // gives roughly 550/75/75, an equal split of the same surplus gives
+      // 347/176/176, and a flat share gives 233/233/233.
+      await pump(
+        tester,
+        const SizedBox(
+          width: 700,
+          child: FluentChartTable(
+            key: key,
+            headers: <FluentChartTableCell>[
+              FluentChartTableCell(value: 'wwwwwwwwwwwwwwwwwwww'),
+              FluentChartTableCell(value: 'w'),
+              FluentChartTableCell(value: 'w'),
+            ],
+          ),
+        ),
+      );
+      final grid = gridRect(tester);
+      expect(
+        grid.width,
+        closeTo(700, 0.01),
+        reason:
+            'ChartTable.tsx:127-131 puts the width on the <table>, defaulting '
+            'to 100%, so the grid fills its box. With the width on the outer '
+            'box instead and IntrinsicColumnWidth inside a horizontal '
+            'viewport, the table sees an unbounded constraint and shrink-wraps '
+            'to its content — which is how the six-column capture came out '
+            '376px wide against upstream\'s 700.',
+      );
+      final long = tester.getTopLeft(find.text('wwwwwwwwwwwwwwwwwwww')).dx;
+      final short = tester.getTopLeft(find.text('w').at(0)).dx;
+      final shorter = tester.getTopLeft(find.text('w').at(1)).dx;
+      expect(
+        (shorter - short) * 3,
+        lessThan(short - long),
+        reason:
+            'Chromium hands the surplus to the columns in proportion to their '
+            'max-content width. Equal shares would put the two short columns '
+            'within a factor of two of the long one; proportional shares keep '
+            'them a factor of seven apart.',
+      );
+    });
+
+    testWidgets('a caller width lands on the grid, not on the root', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const SizedBox(
+          width: 600,
+          child: FluentChartTable(
+            key: key,
+            headers: headers,
+            rows: rows,
+            width: 400,
+          ),
+        ),
+      );
+      expect(
+        gridRect(tester).width,
+        closeTo(400, 0.01),
+        reason:
+            'ChartTable.tsx:130 sets `width` on the <table> element. The '
+            'capture proves the root is not the thing being sized: its '
+            'fui-ChartTable__root box is 944 wide (100% of the parent) while '
+            'the table inside it is exactly the 700 the story asked for.',
+      );
+    });
+
     testWidgets('every cell is a tab stop, header row first', (tester) async {
       await pump(
         tester,

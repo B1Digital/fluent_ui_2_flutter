@@ -1,4 +1,6 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:fluent_2_web/src/charts/area_chart.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart.dart';
 import 'package:fluent_2_web/src/charts/chrome/legend.dart';
 import 'package:fluent_2_web/src/charts/declarative_chart.dart';
 import 'package:fluent_2_web/src/charts/vertical_bar_chart.dart';
@@ -523,4 +525,74 @@ void main() {
           'yields 75 and 25.',
     );
   });
+
+  testWidgets(
+    "a single-plot figure's selectedLegends dims the unselected areas",
+    (tester) async {
+      await pump(
+        tester,
+        FluentDeclarativeChart(
+          chartSchema: FluentPlotlySchema(
+            plotlySchema: areaFigure(),
+            selectedLegends: const <String>['a'],
+          ),
+        ),
+      );
+      final delegate =
+          tester
+                  .widget<FluentCartesianChart>(
+                    find.byType(FluentCartesianChart),
+                  )
+                  .delegate
+              as FluentAreaChartDelegate;
+      expect(
+        delegate.selectedLegends,
+        <String>['a'],
+        reason:
+            'DeclarativeChart.tsx:598-603 spreads interactiveCommonProps into '
+            'EVERY non-annotation chart, so the single-plot path carries the '
+            'selection too — it is not a multi-plot-only knob.',
+      );
+      // The parameter arriving is not the point; the marks changing is. Both
+      // are asserted because the first localises a break in the wiring and the
+      // second catches a chart that takes the value and ignores it.
+      expect(
+        <double>[
+          delegate.fillOpacityFor('a'),
+          delegate.fillOpacityFor('b'),
+          delegate.fillOpacityFor('c'),
+        ],
+        <double>[0.7, 0.1, 0.1],
+        reason:
+            '_getOpacity (AreaChart.tsx:619-626): the highlighted legend keeps '
+            '0.7 and every other series drops to 0.1.',
+      );
+      expect(
+        tester
+            .widget<FluentChartLegend>(find.byType(FluentChartLegend))
+            .selectedLegends,
+        <String>['a'],
+        reason:
+            'AreaChart.tsx:589 spreads legendProps over the legend row, so A’s '
+            'swatch is filled and the rest are outlines.',
+      );
+    },
+  );
 }
+
+/// Three stacked `tonexty` scatter traces — the shape of `DEFAULT_SCHEMAS[0]`
+/// in the DeclarativeChart story, reduced to what the routing reads.
+Map<String, Object?> areaFigure() => <String, Object?>{
+  'data': <Object?>[
+    for (final name in <String>['a', 'b', 'c'])
+      <String, Object?>{
+        'type': 'scatter',
+        'mode': 'lines',
+        'fill': 'tonexty',
+        'name': name,
+        'x': <Object?>[0, 1, 2],
+        'y': <Object?>[1, 2, 3],
+      },
+  ],
+  'layout': <String, Object?>{},
+};

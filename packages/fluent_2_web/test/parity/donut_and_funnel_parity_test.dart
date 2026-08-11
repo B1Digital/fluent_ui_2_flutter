@@ -53,44 +53,35 @@ void main() {
         // Flutter equivalent and draws nothing.
         culture: 'en-US',
       ),
-      // Measured 5.734% — 13,237 of 230,866 unmasked px. NOT rasteriser noise,
-      // and not the data: the ring's horizontal extent is x 380-563 in BOTH
-      // images, so the outer radius (92), the centre x (471.5) and every angle
-      // agree exactly. The whole of the gap is where the plot sits inside the
-      // box. Measured band by band, and the three add up to the 13,237:
+      // Measured 0.110% — 255 of 230,866 unmasked px, aligned. Was 5.701%
+      // (13,162 px) while the title band was charged twice: `build` stacked
+      // `FluentChartTitle` above the plot as a Column child, which cost 22 px
+      // of flow that upstream never spends, so the ring sat 22 px low (top
+      // y=40 against the capture's 18) in a band 180 px tall instead of 202
+      // and its bottom was amputated at y=201.
       //
-      //   * 12,337 px, rows 18-214 — the ring is drawn 22 px LOWER and its
-      //     bottom is cut off. Ref ring top y=18, Flutter y=40; upstream's ring
-      //     closes at y=201, Flutter's ends flat at y=193 because the plot box
-      //     stops there. Comparing that band against a Flutter render shifted
-      //     up 22 px leaves 3,300 px of the 12,337, and 2,806 of those 3,300
-      //     are the rows below the clip — so ~9,000 px is pure displacement,
-      //     ~2,800 px is the amputated bottom of the donut, and the arcs
-      //     themselves are right to 162 px over 154 rows.
-      //   * 492 px, rows 0-17 — the title. Upstream renders `<ChartTitle>`
-      //     INSIDE the svg at `y={0}`, so its glyph box is y -11..3 (the
-      //     manifest's own first textRect, which the mask then covers) and the
-      //     viewport clips all but 3 rows of it. Flutter makes it a Column
-      //     child above the plot, where it paints in full.
-      //   * 408 px, rows 215-249 — the legend strip, 6 px right of upstream's.
-      //     The swatches are 14x14 in both and the row is the same width to the
-      //     pixel (ref ink x 411-531, Flutter 417-537); the offset is half of
-      //     `kLegendContainerMarginStart` (12), which `legend.dart:880` pads on
-      //     unconditionally even when the strip is centred.
-      //     `image_export.dart:91` states the rule the widget is missing:
-      //     `centerLegends ? 0.0 : kLegendContainerMarginStart`. FunnelChart
-      //     below shows the identical +6.
+      // Upstream pays for the band exactly once, into the radius
+      // (`DonutChart.tsx:335`, `(220 - 36) / 2 = 92`, which was already right).
+      // The title itself is an SVG `<text>` at `y={0}` INSIDE the svg
+      // (`:360-370`, and `ChartTitle.tsx:80` keeps a given y), so it consumes
+      // no flow and paints above the component: the manifest's first textRect
+      // is y=-11 h=14 and only its descenders are in the picture. The svg is
+      // `_height + titleHeight / 2` = 238 tall (`:358`) — this story's own
+      // `svgSize` — and `:421` pulls the legend container up by a whole
+      // `titleHeight`, netting a 202-px plot band, which is what the port now
+      // lays out. The Oracle B capture pins every number of it: chartWrapper
+      // 944x238 at page y=48, `fui-legend__root` at y=266, `translate(472,
+      // 110)` on the pie.
       //
-      // titleHeight is 36 (`titleHeightMin`), and `outerRadius = (220 - 36) / 2
-      // = 92` is ported correctly — the band is charged once, to the radius.
-      // The Column then charges it a SECOND time as flow: title 22 + legendGap
-      // 16 + legend 40 = 78 of the 250-px box, leaving the plot 172 px for a
-      // geometry solved at 220, and the Stack clips the overhang. Upstream
-      // never spends that space — its svg is `height + titleHeight / 2` = 238,
-      // which is this story's own `svgSize` in the manifest.
+      // The residual is rasteriser noise on the ring's antialiased edge — one
+      // to four pixels per row, no run longer than four. The three ink bands
+      // are now identical in both images: rows 0-2 (title descenders), 18-201
+      // (ring) and 227-240 (legend), x 380-563.
       //
-      // Above 5%: recorded, not excused. See the report, not this number.
-      maxMismatch: 6.31,
+      // The +6 px legend offset this comment used to record is gone;
+      // `legend.dart` no longer pads a centred strip, and the swatch row lands
+      // on the capture to the pixel.
+      maxMismatch: 0.13,
     );
   });
 

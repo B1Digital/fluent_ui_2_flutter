@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import 'chart_table_style.dart';
@@ -172,16 +175,76 @@ class FluentChartTableTheme extends InheritedTheme {
       FluentChartTableTheme(style: style, child: child);
 }
 
+/// A column that takes its share of the table in proportion to its content.
+///
+/// This is `table-layout: auto` on a table whose declared width exceeds the
+/// width its content needs (`ChartTable.tsx:127-131` puts a width on the
+/// `<table>` itself, and `useChartTableStyles.styles.ts:28-30` leaves the
+/// layout mode at its `auto` default). Chromium hands the surplus to the
+/// columns in *proportion to* their max-content width, not in equal shares:
+/// measured off the capture, the six columns of
+/// `charts-charttable--chart-table-basic` come out 129/114/117/117/118/103,
+/// where an equal split of the same surplus would be 123/117/117/117/117/108.
+///
+/// Reporting the max-content width as the column's [flex] is what makes
+/// [RenderTable] do it. With every column flexed, step 2 of
+/// `rendering/table.dart`'s `_computeColumnWidths` leaves `unflexedTableWidth`
+/// at zero and assigns each column `targetWidth * flex / totalFlex` — i.e.
+/// `targetWidth * maxContent / sumOfMaxContent`. Step 4 then shrinks the same
+/// way if the table is squeezed below its content, which is also what CSS
+/// does.
+class _ProportionalColumnWidth extends TableColumnWidth {
+  const _ProportionalColumnWidth();
+
+  @override
+  double minIntrinsicWidth(Iterable<RenderBox> cells, double containerWidth) {
+    var result = 0.0;
+    for (final cell in cells) {
+      result = math.max(result, cell.getMinIntrinsicWidth(double.infinity));
+    }
+    return result;
+  }
+
+  @override
+  double maxIntrinsicWidth(Iterable<RenderBox> cells, double containerWidth) {
+    var result = 0.0;
+    for (final cell in cells) {
+      result = math.max(result, cell.getMaxIntrinsicWidth(double.infinity));
+    }
+    return result;
+  }
+
+  @override
+  double? flex(Iterable<RenderBox> cells) {
+    final width = maxIntrinsicWidth(cells, double.infinity);
+    // RenderTable asserts a flex is strictly positive. A column with nothing
+    // in it has no share to claim, and a null flex contributes zero to both
+    // sides of the proportion, so the remaining columns split the whole width
+    // between them exactly as they would have.
+    return width > 0 ? width : null;
+  }
+}
+
 /// A Fluent 2 chart table: tabular data with the same title treatment and
 /// contrast guarantees as the painted charts.
 ///
-/// This is the one member of the family with no painter. [Table] and
-/// [TableBorder.all] reproduce `border-collapse: collapse`
-/// (`useChartTableStyles.styles.ts:29`) exactly — the grid line is stroked
-/// centred on the shared column and row boundaries, so adjacent cells are
-/// separated by ONE 2px line rather than two — and hand-rolling a grid painter
-/// would be more code and less correct.
-// ponytail: Table + TableBorder.all is border-collapse; no painter needed.
+/// This is the one member of the family with no painter, and the grid lines
+/// are laid out rather than drawn over the top. `border-collapse: collapse`
+/// (`useChartTableStyles.styles.ts:29`) merges the two adjacent 2px cell edges
+/// into ONE 2px line, and that line still *occupies space*: the capture's
+/// six-column, five-row grid is 700x172, of which 14x12 is grid line — seven
+/// verticals and six horizontals — on top of the padding and the text. So
+/// every cell owns the line along its top and left edge as a real [Border],
+/// and the grid owns the right and bottom edges that no cell covers.
+///
+/// [TableBorder] cannot express that. `RenderTable`'s border is paint-only —
+/// it appears in neither `_computeColumnWidths` nor `performLayout` — so it
+/// strokes each line centred on a boundary that reserved nothing, and every
+/// boundary falls short by one line width for each row or column before it.
+/// That was this widget's bug: a 32px row pitch against upstream's 34, and a
+/// grid 160 tall against 172.
+// ponytail: the border is layout, not decoration; a Border per cell is both
+// shorter than a grid painter and the only version that measures right.
 class FluentChartTable extends StatelessWidget {
   /// Creates a chart table.
   const FluentChartTable({
@@ -254,6 +317,10 @@ class FluentChartTable extends StatelessWidget {
     final bodyText = resolved.bodyTextStyle!.resolve(states)!;
     final headerBackground = resolved.headerBackgroundColor!.resolve(states);
     final borderWidth = resolved.borderWidth!.resolve(states)!;
+    final gridLine = BorderSide(
+      color: resolved.borderColor!.resolve(states)!,
+      width: borderWidth,
+    );
 
     Widget cell(
       FluentChartTableCell data, {
@@ -266,7 +333,7 @@ class FluentChartTable extends StatelessWidget {
           ? ''
           : content.toString();
       final base = isHeader ? headerText : bodyText;
-      final Widget painted = Padding(
+      Widget painted = Padding(
         padding: padding,
         child: Focus(
           child: Semantics(
@@ -278,9 +345,22 @@ class FluentChartTable extends StatelessWidget {
           ),
         ),
       );
-      return background == null
-          ? painted
-          : ColoredBox(color: background, child: painted);
+      if (background != null) {
+        painted = ColoredBox(color: background, child: painted);
+      }
+      // The collapsed half of `border-collapse`: this cell's top and left
+      // edges are the whole grid line it shares with the neighbour above and
+      // to the left, so the neighbours declare nothing. `Container` turns the
+      // border's own dimensions into layout padding, which is the part
+      // [TableBorder] does not do — the fill starts *after* the line rather
+      // than under it, and the line is what pushes the next row and column
+      // along by its width.
+      return Container(
+        decoration: BoxDecoration(
+          border: Border(top: gridLine, left: gridLine),
+        ),
+        child: painted,
+      );
     }
 
     Color? cellBackground(FluentChartTableCell data, {required bool isHeader}) {
@@ -307,16 +387,18 @@ class FluentChartTable extends StatelessWidget {
     }
 
     final table = Table(
-      border: TableBorder.all(
-        width: borderWidth,
-        color: resolved.borderColor!.resolve(states)!,
-      ),
       defaultColumnWidth: columnWidth == null
-          ? const IntrinsicColumnWidth()
-          // The grid line is stroked centred on the boundary and takes no
-          // space of its own, so the shared line is added to the column box to
-          // give the CSS pitch of cell width plus one collapsed border.
+          ? const _ProportionalColumnWidth()
+          // The shared line lives inside the column box now, so it is added
+          // here to give the CSS pitch of cell width plus one collapsed
+          // border.
           : FixedColumnWidth(columnWidth! + borderWidth),
+      // A `<td>` is always as tall as its row, so the grid line down its left
+      // edge runs the row's full height even when a neighbour wraps to two
+      // lines. `intrinsicHeight` measures the cell first and then stretches it
+      // to the row; `fill` skips the measuring pass and would leave every row
+      // zero-high.
+      defaultVerticalAlignment: TableCellVerticalAlignment.intrinsicHeight,
       children: <TableRow>[
         TableRow(
           children: <Widget>[
@@ -361,16 +443,53 @@ class FluentChartTable extends StatelessWidget {
               ),
             ),
           Expanded(
-            // ChartTable.tsx:121-125 — overflow auto on both axes.
-            child: SingleChildScrollView(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: table,
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                // ChartTable.tsx:121-125 — overflow auto on both axes.
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    // ChartTable.tsx:127-131 — the width goes on the <table>,
+                    // not on the root, and falls back to `100%`. Either way
+                    // the grid fills the box it is given and only overflows —
+                    // and so scrolls — when its own content will not fit,
+                    // which is what a minimum rather than a fixed width buys.
+                    // Without it the horizontal viewport hands the table an
+                    // unbounded width and it shrink-wraps to its content:
+                    // 376px against upstream's 700.
+                    constraints: BoxConstraints(
+                      minWidth: _gridMinWidth(constraints),
+                    ),
+                    child: Container(
+                      // The other half of `border-collapse`: every cell owns
+                      // its top and left line, so the grid's right and bottom
+                      // edges are the two no cell covers.
+                      decoration: BoxDecoration(
+                        border: Border(right: gridLine, bottom: gridLine),
+                      ),
+                      child: table,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// The width the grid is stretched to fill, given the box it sits in.
+  ///
+  /// `width` when the caller named one (`ChartTable.tsx:130`), the container
+  /// otherwise (the `100%` on the same line). Zero — i.e. shrink-wrap — when
+  /// [columnWidth] is set, because a caller who pinned a column width meant
+  /// it, and when the container itself is unbounded and there is nothing to
+  /// fill.
+  double _gridMinWidth(BoxConstraints constraints) {
+    if (columnWidth != null) {
+      return 0;
+    }
+    return width ?? (constraints.hasBoundedWidth ? constraints.maxWidth : 0);
   }
 }

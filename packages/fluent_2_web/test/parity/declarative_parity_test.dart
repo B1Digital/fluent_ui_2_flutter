@@ -76,30 +76,30 @@ void main() {
           selectedLegends: const <String>['a'],
         ),
       ),
-      // Measured 37.309% — 122,123 of 327,332 unmasked pixels. FAR above the
-      // noise floor, pinned at the measurement rather than loosened, and two
-      // separate defects rather than rasteriser disagreement. Split by where
-      // the mismatch lands:
+      // Measured 0.032% — 104 of 327,332 unmasked pixels, down from 32.408%
+      // (and from 37.309% before the y domain was fixed elsewhere).
       //
-      //   * 33.1% falls where the reference already has a mark, and it is the
-      //     unselected-series dimming. `selectedLegends` is `["a"]`, so
-      //     upstream paints series `a` at fill opacity 0.7 and `b`/`c`/`d` at
-      //     0.1 — sampled at (500, 240) the reference is (230, 237, 243),
-      //     exactly `rgb(55,128,191)` at alpha 0.1 over the #FAFAFA page. This
-      //     port paints all four at 0.7: (115, 166, 210), the same colour at
-      //     alpha 0.7. Series `a` itself matches to within a level per channel.
-      //     Cause: the gap `declarative_chart.dart:200-210` records —
-      //     `transformPlotlyToArea` never forwards `selectedLegends` to
-      //     `FluentAreaChart`, so the chart has no selection to dim against.
-      //   * 4.3% falls where the reference is bare background, and it is the y
-      //     scale. Both renders share the same plot rect (gridlines bounded at
-      //     y=20 and y=275) but not the same domain: upstream's ticks are
-      //     0/2/4/6/8/10, this port's are 0/3/6/9, so every stacked boundary
-      //     sits 10/9 too high — 24px at the x=2 peak.
+      // What closed: the unselected-series dimming. `selectedLegends` is
+      // `["a"]`, so upstream paints series `a` at fill opacity 0.7 and
+      // `b`/`c`/`d` at 0.1, and this port painted all four at 0.7 because
+      // `transformPlotlyToArea` had nowhere to forward the selection to —
+      // `FluentAreaChart` declared no `selectedLegends` parameter. It has one
+      // now, `DeclarativeChart.tsx:598-603`'s spread reaches the single-plot
+      // path, and the four fills, the four top edges and three of the four
+      // legend swatches all land within a level per channel.
       //
-      // The legend row differs too, for the first reason: A's swatch is filled
-      // and B/C/D's are outlines upstream, all four are filled here.
-      maxMismatch: 37.4,
+      // The 104 that remain are all in one place, and none of them is in the
+      // plot: they are the 1px outline of the two dimmed legend swatches, at
+      // (135..149, 327..340) and (180..194, 327..340). Upstream keeps the
+      // border at the full series colour and dims only the FILL —
+      // `Legends.tsx:374-378` sets `backgroundColor` from `_getColor` and
+      // `borderColor` from `legend.color`, and the sole `opacity` in
+      // `useLegendsStyles.styles.ts` is `:78`, high-contrast only. This port
+      // wraps the whole swatch, border included, in
+      // `Opacity(opacity: swatchOpacity)` (`chrome/legend.dart:414-421`), so
+      // B's border reads (107,161,208) against upstream's (55,128,191). That
+      // file is outside this change's remit.
+      maxMismatch: 0.052,
     );
   });
 
@@ -215,40 +215,36 @@ void main() {
       FluentVegaDeclarativeChart(
         chartSchema: FluentVegaSchema(vegaLiteSpec: spec),
       ),
-      // Measured 12.515% — 24,917 of 199,098 unmasked pixels. Pinned at the
-      // measurement; it is a defect, not noise.
+      // Measured 1.960% — 3,902 of 199,098 unmasked pixels, down from 12.515%.
       //
-      // The dominant cause is the `height: 400` above. Upstream ignores it for
-      // a `point` mark: the captured chart box is 600x351 and Oracle B records
-      // the svg at 600x310, i.e. the 350 default with a 41px legend row under
-      // it, inside a 400px-tall container div. This port's
-      // `_buildCell` (`vega_declarative_chart.dart:387-403`) applies
-      // `spec['height']` to EVERY kind, so the scatter cell is 400 tall, the
-      // legend row is added below it, and the chart overflows its own box by
-      // 97 px — which is the assertion taken below.
+      // What closed: the `height: 400` above. Upstream ignores it for a `point`
+      // mark — `transformVegaLiteToScatterChartProps` (`:3191-3231`) returns no
+      // dimensions at all, unlike stacked bar (`:2712`) and heatmap (`:3510`),
+      // and `ScatterChart.tsx:137-139` says so outright — so the container div
+      // keeps `withResponsiveContainer`'s `height: 100%`, `_fitParentContainer`
+      // (`CartesianChart.tsx:514-519`) falls back to 350 and takes the 40px
+      // legend strip out of it. Oracle B records exactly that: svg 600x310,
+      // legend root 580x32 eight pixels below it. This port sized EVERY kind
+      // from `spec['height']`, so the cell was 400 tall, the lifted legend row
+      // went under it and the whole thing overflowed its box by 89 px. The cell
+      // is now sized only for the kinds whose transformer forwards a size, and
+      // the lifted row is `Flexible`-fed the way the shell's own row is, which
+      // gives 311 + 40 against upstream's 310 + 8 + 32.
       //
-      // Rendered at a height that fits (310 -> still 7px over, 303 -> exact)
-      // the same comparison measures 4.109%, and what is left of it is a
-      // legend permutation: upstream orders the `ctr` series 3, 4, 2.5, 3.5,
-      // 2.4, 4.5 and this port orders them 2.5, 3.5, 3, 4, 2.4, 4.5. The
-      // port's order is first-appearance in the data; upstream's is JS object
-      // key enumeration, which hoists the integer-like keys "3" and "4" ahead
-      // of the rest in ascending order. Because the palette is handed out in
-      // that order, four of the seven points come out in a different colour.
-      maxMismatch: 12.6,
+      // What is left is the legend permutation the earlier measurement
+      // predicted: upstream orders the `ctr` series 3, 4, 2.5, 3.5, 2.4, 4.5
+      // and this port orders them 2.5, 3.5, 3, 4, 2.4, 4.5. The port's order is
+      // first-appearance in the data; upstream's is JS object key enumeration,
+      // which hoists the integer-like keys "3" and "4" ahead of the rest in
+      // ascending order. Because the palette is handed out in that order, four
+      // of the seven points and their swatches come out in a different colour —
+      // and that is `groupedData` in `internal/vega/transform_line.dart:148`,
+      // shared vega code outside this change's remit.
+      maxMismatch: 2.16,
     );
-    // The overflow is the finding, so it is asserted rather than tolerated:
-    // this fails loudly if the port ever stops sizing a scatter cell from
-    // `spec['height']`, which is exactly when the number above must be re-cut.
-    //
-    // 89, down from the 97 first measured: the legend no longer pays the 8px
-    // container margin that belonged to the cartesian shell, so the cell
-    // overflows its box by 8 less. The cause is untouched — the cell is still
-    // sized from `spec['height']` where upstream's scatter transformer sets
-    // none — so the assertion still bites.
-    expect(
-      tester.takeException().toString(),
-      contains('A RenderFlex overflowed by 89 pixels on the bottom.'),
-    );
+    // The overflow that used to be asserted here is gone: `takeException`
+    // returns null now, and a rendered chart that silently overflows its own
+    // box would fail the comparison above long before it reached 2.16%.
+    expect(tester.takeException(), isNull);
   });
 }

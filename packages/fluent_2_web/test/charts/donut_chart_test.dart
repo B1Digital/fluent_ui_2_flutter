@@ -56,20 +56,32 @@ void main() {
 
   /// The plot painter of the chart under [key].
   ///
-  /// `.first` is the plot: the title above it is a `Text` and the legend below
-  /// it comes later in the tree, so nothing else can precede it.
-  FluentDonutChartPainter painterOf(WidgetTester tester) =>
-      tester
-              .widget<CustomPaint>(
-                find
-                    .descendant(
-                      of: find.byKey(key),
-                      matching: find.byType(CustomPaint),
-                    )
-                    .first,
-              )
-              .painter!
-          as FluentDonutChartPainter;
+  /// Selected by type, not by position. The title is painted INSIDE the plot
+  /// and before it (`DonutChart.tsx:360-370`), so it owns the first
+  /// `CustomPaint` in the tree; a positional pick reads that one and fails the
+  /// cast.
+  FluentDonutChartPainter painterOf(WidgetTester tester) => tester
+      .widgetList<CustomPaint>(
+        find.descendant(
+          of: find.byKey(key),
+          matching: find.byType(CustomPaint),
+        ),
+      )
+      .map((paint) => paint.painter)
+      .whereType<FluentDonutChartPainter>()
+      .single;
+
+  /// The title painter of the chart under [key], or null when none is drawn.
+  FluentChartTitlePainter? titlePainterOf(WidgetTester tester) => tester
+      .widgetList<CustomPaint>(
+        find.descendant(
+          of: find.byKey(key),
+          matching: find.byType(CustomPaint),
+        ),
+      )
+      .map((paint) => paint.painter)
+      .whereType<FluentChartTitlePainter>()
+      .singleOrNull;
 
   test('the padded arc is narrower than its unpadded sweep on both rings', () {
     final padded = fluentDonutArcPaths(
@@ -256,12 +268,25 @@ void main() {
       ),
     );
     expect(
-      find.text('Donut'),
-      findsNothing,
+      titlePainterOf(tester),
+      isNull,
       reason:
           'DonutChart.tsx:360 gates the title on '
           '!hideLegend && data.chartTitle — a coupling nothing documents but '
           'the code enforces.',
+    );
+
+    await pump(
+      tester,
+      FluentDonutChart(key: key, data: dataOf(<(String, double)>[('A', 1)])),
+    );
+    expect(
+      titlePainterOf(tester)?.text,
+      'Donut',
+      reason:
+          'And with the legend shown it is drawn. `find.text` cannot see it: '
+          'DonutChart.tsx:361 renders the title as an SVG <text> inside the '
+          'chart svg, so the port paints it rather than laying it out.',
     );
   });
 
@@ -371,6 +396,114 @@ void main() {
   // arc `d` strings and the radii from the same fixture; this asserts the layer
   // above them, through the widget rather than a helper.
   group('Oracle B', () {
+    testWidgets('charts-donutchart--donut-chart-basic spends the title band '
+        'once', (tester) async {
+      final story = loadOracleStory('charts-donutchart--donut-chart-basic');
+      final wrapper = story.boxes('fui-donut__chartWrapper').single;
+      final legendRoot = story.boxes('fui-legend__root').single;
+      // Everything below is in the component's own frame: the svg starts at
+      // its top edge.
+      final legendTop = legendRoot.rect.top - wrapper.rect.top;
+      final ring = story.byTag('g').first;
+      final title = story.soleElement(
+        'text',
+        where: (element) => element.text == 'Donut chart basic example',
+      );
+      // `_getTitleHeight` (DonutChart.tsx:276-284) with the default 13px
+      // fallback, which the 36 floor beats.
+      const titleHeight = 36.0;
+
+      // The story is wider than the 800-pixel default surface, which would
+      // otherwise clamp the box below and move the centre off the captured
+      // one.
+      tester.view.physicalSize = Size(
+        wrapper.rect.width,
+        legendTop + legendRoot.rect.height,
+      );
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await pump(
+        tester,
+        const FluentDonutChart(
+          key: key,
+          // The story's own props. `height` is upstream's `_height`, which
+          // `:358` then renders `titleHeight / 2` taller.
+          height: 220,
+          innerRadius: 55,
+          valueInsideDonut: 35000,
+          data: FluentChartData(
+            chartTitle: 'Donut chart basic example',
+            chartData: <FluentChartDataPoint>[
+              FluentChartDataPoint(legend: 'first', data: 20000),
+              FluentChartDataPoint(legend: 'second', data: 35000),
+            ],
+          ),
+        ),
+        box: Size(wrapper.rect.width, legendTop + legendRoot.rect.height),
+      );
+
+      final chart = tester.getRect(find.byKey(key));
+      final plot = tester.getRect(
+        find.descendant(
+          of: find.byKey(key),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is CustomPaint &&
+                widget.painter is FluentDonutChartPainter,
+          ),
+        ),
+      );
+      expect(
+        plot.top - chart.top,
+        0,
+        reason:
+            'The title is an SVG <text> at y=0 INSIDE the svg '
+            '(DonutChart.tsx:360-370, ChartTitle.tsx:80), so it consumes no '
+            'vertical flow. Stacked above the plot as a widget it pushes the '
+            'whole ring down by its own height.',
+      );
+      expect(
+        plot.height,
+        wrapper.rect.height - titleHeight,
+        reason:
+            'The svg is `_height + titleHeight / 2` tall '
+            '(DonutChart.tsx:358) and the legend container takes a whole '
+            'titleHeight back off the top (:421), so the plot spends '
+            '${wrapper.rect.height} - $titleHeight of the column.',
+      );
+      expect(
+        plot.height + 16,
+        legendTop,
+        reason:
+            'And the legend lands one legendGap below it, where the capture '
+            'put it.',
+      );
+
+      final painter = painterOf(tester);
+      expect(
+        painter.layout.centre,
+        ring.translate,
+        reason:
+            'Pie.tsx:99 — translate(width / 2, _height / 2), which is NOT the '
+            'centre of the band the plot occupies.',
+      );
+      expect(
+        painter.layout.centre.dy + painter.layout.outerRadius,
+        plot.height,
+        reason:
+            'outerRadius is (_height - titleHeight) / 2 (DonutChart.tsx:335), '
+            'so a ring centred on _height / 2 closes exactly on the bottom of '
+            'that band. Anything larger means the band was charged for the '
+            'title twice and the donut is being clipped.',
+      );
+      expect(
+        titlePainterOf(tester)?.anchor,
+        Offset(title.x!, title.y!),
+        reason: 'DonutChart.tsx:363-364 — x={_width / 2}, y={0}.',
+      );
+    });
+
     testWidgets('charts-donutchart--donut-chart-dynamic places every arc '
         'label', (tester) async {
       final story = loadOracleStory('charts-donutchart--donut-chart-dynamic');

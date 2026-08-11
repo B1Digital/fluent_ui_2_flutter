@@ -373,7 +373,7 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
     this.yScaleType,
     this.xMinValue,
     this.xMaxValue,
-    this.yAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
+    this.yAxisCategoryOrder,
   });
 
   /// The chart's data bundle. Only [FluentChartData.scatterChartData] is read.
@@ -412,8 +412,13 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
   /// User-supplied x domain ceiling.
   final double? xMaxValue;
 
-  /// Ordering applied to a category y axis.
-  final FluentAxisCategoryOrder yAxisCategoryOrder;
+  /// Ordering applied to a category y axis, or null when the caller named none.
+  ///
+  /// ScatterChart sets no default for the prop (`ScatterChart.tsx:68`), so an
+  /// absent one is `undefined`, `undefined !== 'default'` at `:301` is true and
+  /// the labels come back in insertion order — **not** in the reverse-series
+  /// order the explicit [FluentAxisCategoryOrder.defaultOrder] selects.
+  final FluentAxisCategoryOrder? yAxisCategoryOrder;
 
   List<FluentScatterChartSeries> get _series =>
       data.scatterChartData ?? const <FluentScatterChartSeries>[];

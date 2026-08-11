@@ -306,7 +306,7 @@ class FluentGroupedVerticalBarChartDelegate
     double? xAxisInnerPadding,
     double? xAxisOuterPadding,
     this.hideTickOverlap = true,
-    this.xAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
+    this.xAxisCategoryOrder,
     this.yAxisTickFormat,
     this.culture,
     this.isCalloutForStack = false,
@@ -384,8 +384,14 @@ class FluentGroupedVerticalBarChartDelegate
   /// Whether the shell prunes overlapping x ticks — default true.
   final bool hideTickOverlap;
 
-  /// Ordering applied to the category x axis.
-  final FluentAxisCategoryOrder xAxisCategoryOrder;
+  /// Ordering applied to the category x axis, or null when the caller named
+  /// none.
+  ///
+  /// Null and [FluentAxisCategoryOrder.defaultOrder] mean the same thing here:
+  /// `xAxisCategoryOrder: 'default'` sits in the object upstream spreads
+  /// `_props` over (`GroupedVerticalBarChart.tsx:78-82`), so an absent prop
+  /// really does resolve to `'default'`.
+  final FluentAxisCategoryOrder? xAxisCategoryOrder;
 
   /// Caller-supplied y tick formatter, reused for total labels.
   final String Function(double value)? yAxisTickFormat;
@@ -448,7 +454,10 @@ class FluentGroupedVerticalBarChartDelegate
 
   @override
   List<String>? get datasetForXAxisDomain {
-    if (xAxisCategoryOrder != FluentAxisCategoryOrder.defaultOrder) {
+    // Null is the absent prop, which `GroupedVerticalBarChart.tsx:79` fills in
+    // with `'default'` before `:359` ever sees it.
+    if (xAxisCategoryOrder != null &&
+        xAxisCategoryOrder != FluentAxisCategoryOrder.defaultOrder) {
       return sortAxisCategories(<String, List<double>>{
         for (final category in data)
           category.name: <double>[
@@ -1055,7 +1064,7 @@ class FluentGroupedVerticalBarChart extends StatefulWidget {
     this.mode,
     this.xAxisInnerPadding,
     this.xAxisOuterPadding,
-    this.xAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
+    this.xAxisCategoryOrder,
     this.style,
     this.legendSelectionMode = FluentChartLegendSelectionMode.single,
     this.focusNode,
@@ -1102,8 +1111,14 @@ class FluentGroupedVerticalBarChart extends StatefulWidget {
   /// Category-scale outer padding override.
   final double? xAxisOuterPadding;
 
-  /// Ordering applied to the category x axis.
-  final FluentAxisCategoryOrder xAxisCategoryOrder;
+  /// Ordering applied to the category x axis, or null when the caller named
+  /// none.
+  ///
+  /// Null and [FluentAxisCategoryOrder.defaultOrder] mean the same thing here:
+  /// `xAxisCategoryOrder: 'default'` sits in the object upstream spreads
+  /// `_props` over (`GroupedVerticalBarChart.tsx:78-82`), so an absent prop
+  /// really does resolve to `'default'`.
+  final FluentAxisCategoryOrder? xAxisCategoryOrder;
 
   /// Style override, highest precedence.
   final FluentGroupedVerticalBarChartStyle? style;

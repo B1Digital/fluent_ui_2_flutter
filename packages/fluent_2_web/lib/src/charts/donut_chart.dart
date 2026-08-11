@@ -6,6 +6,7 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'axis/axis_label_layout.dart';
 import 'axis/tick_format.dart';
 import 'chrome/chart_popover.dart';
 import 'chrome/chart_title.dart';
@@ -15,6 +16,7 @@ import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
 import 'internal/chart_text_styles.dart';
 import 'internal/chart_utils.dart';
+import 'internal/d3/axis_geometry.dart';
 import 'internal/d3/format.dart' as d3;
 import 'internal/d3/js_math.dart' as d3;
 import 'internal/d3/path_sink.dart' as d3;
@@ -610,18 +612,22 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
             resolved.titleHeightMin!.resolve(states)!,
           );
 
+    // What the title band costs the COLUMN, which is NOT `titleHeight` and is
+    // not the title's own height either. Upstream never stacks the title above
+    // the plot: it is an SVG `<text>` inside the plot's own svg at y=0
+    // (`DonutChart.tsx:360-370`; `ChartTitle.tsx:80` takes a given `y`
+    // verbatim, so `calculatedY` is 0), so it consumes no vertical flow at all.
+    // The band is paid for twice over instead — once into the radius
+    // (`:335`), and once by sizing the svg `_height + titleHeight / 2`
+    // (`:358`) — and the legend container then pulls a whole `titleHeight`
+    // back off the top (`:421`). Net, the plot occupies `_height -
+    // titleHeight / 2` of the column when a legend is there to carry that
+    // margin, and `_height + titleHeight / 2` when it is not.
+    final bandDelta = (widget.hideLegend ? 1 : -1) * titleHeight / 2;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        // DonutChart.tsx:360 — the title is gated on the LEGEND, not on
-        // itself.
-        if (!widget.hideLegend && widget.data.chartTitle != null)
-          FluentChartTitle(
-            title: widget.data.chartTitle!,
-            // DonutChart.tsx:365 — `maxWidth={_width - 20}`.
-            maxWidth: widget.width == null ? null : widget.width! - 20,
-            textStyle: resolved.titleTextStyle!.resolve(states),
-          ),
         Flexible(
           child: LayoutBuilder(
             builder: (context, constraints) => _buildPlot(
@@ -631,6 +637,7 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
               resolved,
               points,
               titleHeight,
+              bandDelta,
             ),
           ),
         ),
@@ -651,6 +658,7 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
     FluentDonutChartStyle resolved,
     List<FluentChartDataPoint> points,
     double titleHeight,
+    double bandDelta,
   ) {
     const states = <WidgetState>{};
     // DonutChart.tsx:50-51 — the width and height state both start at 200, so
@@ -658,9 +666,22 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
     final plotWidth =
         widget.width ??
         (constraints.hasBoundedWidth ? constraints.maxWidth : 200.0);
+    // `_fitParentContainer` (`DonutChart.tsx:290-324`) solves `_height` from
+    // the space left over once the legend block and the svg's title surplus
+    // are taken off the container, which is this inversion: the flow the
+    // column has left IS that leftover, so the geometry height is it less
+    // [bandDelta].
     final plotHeight =
         widget.height ??
-        (constraints.hasBoundedHeight ? constraints.maxHeight : 200.0);
+        (constraints.hasBoundedHeight
+            ? constraints.maxHeight - bandDelta
+            : 200.0);
+    // The flow the plot spends. The geometry below is still solved at
+    // `plotHeight` — upstream's `_height` — and the pie still centres on
+    // `plotHeight / 2`, which is why the ring's bottom lands exactly on this
+    // band's edge whenever the height is the binding dimension.
+    final bandHeight = plotHeight + bandDelta;
+    final titleStyle = resolved.titleTextStyle!.resolve(states)!;
 
     final layout = FluentDonutLayout.compute(
       points: points,
@@ -693,67 +714,127 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
 
     return SizedBox(
       width: plotWidth,
-      height: plotHeight,
+      height: bandHeight,
       child: Semantics(
         container: true,
         explicitChildNodes: true,
-        // Pie.tsx:104 — the group is a listbox named for its slice count.
-        label: 'Donut chart with ${layout.slices.length} slices',
-        child: MouseRegion(
-          // DonutChart.tsx:344 — onMouseLeave clears the popover.
-          onExit: (_) => setState(() {
-            _hovered = null;
-            _anchor = null;
-          }),
-          onHover: (event) =>
-              _handleHover(event.localPosition, layout, arcPaths),
-          child: Stack(
-            children: <Widget>[
-              CustomPaint(
-                size: Size(plotWidth, plotHeight),
-                painter: FluentDonutChartPainter(
-                  layout: layout,
-                  opacities: opacities,
-                  arcPaths: arcPaths,
-                  fills: <Color>[
-                    // Spec 5.3 — the mark is flattened, the legend is not.
-                    for (final slice in layout.slices)
-                      colours.flattenMark(slice.colour),
-                  ],
-                  strokeColour: resolved.arcStrokeColor!.resolve(states)!,
-                  strokeWidth: resolved.arcStrokeWidth!.resolve(states)!,
-                  focusRingColour: resolved.focusRingColor!.resolve(states)!,
-                  focusRingWidth: resolved.focusRingWidth!.resolve(states)!,
-                  textDirection: Directionality.of(context),
-                  measurer: _measurer,
-                  focusedIndex: _focusedIndex,
-                  labels: labels,
-                ),
-              ),
-              for (var i = 0; i < layout.slices.length; i++)
-                Positioned.fromRect(
-                  rect: arcPaths[i].getBounds(),
-                  child: _buildArcTarget(
-                    layout.slices[i],
-                    i,
-                    arcPaths[i].getBounds().center,
+        // DonutChart.tsx:356 — the svg is labelled with the chart title, and
+        // the title `<text>` inside it is `aria-hidden` (`ChartTitle.tsx:105`),
+        // so this is the only place a reader hears it. It is NOT a heading.
+        label: widget.data.chartTitle,
+        child: Semantics(
+          container: true,
+          explicitChildNodes: true,
+          // Pie.tsx:104 — the group is a listbox named for its slice count.
+          label: 'Donut chart with ${layout.slices.length} slices',
+          child: MouseRegion(
+            // DonutChart.tsx:344 — onMouseLeave clears the popover.
+            onExit: (_) => setState(() {
+              _hovered = null;
+              _anchor = null;
+            }),
+            onHover: (event) =>
+                _handleHover(event.localPosition, layout, arcPaths),
+            child: Stack(
+              // useDonutChartStyles.styles.ts:40 — `overflow: visible` on
+              // the svg, and upstream floats the popover in a portal. The
+              // default hard edge is not free here: the arc hit targets below
+              // are `Positioned` on their path bounds, so one of them reaching
+              // a rounding step past the band switches the clip on for the
+              // whole stack and takes the hover popover and the arc labels
+              // with it. Measured at 2 px of Skia fringe on
+              // `charts-donutchart--donut-chart-basic` (0.110% either way).
+              clipBehavior: Clip.none,
+              children: <Widget>[
+                // DonutChart.tsx:360-370, painted BEFORE the pie exactly as
+                // the svg orders them. `ChartTitle.tsx:80` keeps the y it is
+                // given, so the alphabetic baseline sits on the plot's own top
+                // edge and all but the descenders — and the top of
+                // `SVGTooltipText`'s backing rect — fall outside the band. The
+                // capture agrees: its first text box is y=-11 h=14, three rows
+                // of which are inside the picture.
+                //
+                // ponytail: the clip is this port's, not upstream's. The
+                // glyphs really do paint above the component in a browser, but
+                // a Flutter widget that paints on its neighbours is a defect
+                // whatever the SVG says, and every pixel inside the box is the
+                // same either way.
+                if (!widget.hideLegend && widget.data.chartTitle != null)
+                  ClipRect(
+                    child: CustomPaint(
+                      size: Size(plotWidth, bandHeight),
+                      painter: FluentChartTitlePainter(
+                        // DonutChart.tsx:365 — `maxWidth={_width - 20}`, the
+                        // MEASURED width, which is why this reads plotWidth
+                        // and not the caller's `width`.
+                        text: shrinkToFit(
+                          widget.data.chartTitle!,
+                          titleStyle,
+                          plotWidth - 20,
+                          _measurer,
+                        ).text,
+                        style: titleStyle,
+                        // DonutChart.tsx:363-364 — `x={_width / 2}`, `y={0}`.
+                        anchor: Offset(plotWidth / 2, 0),
+                        textAnchor: FluentAxisTextAnchor.middle,
+                        // ChartTitle.tsx:74 — no titleYAnchor, so `auto`.
+                        baseline: FluentChartTitleBaseline.alphabetic,
+                        rotationRadians: 0,
+                        // ChartTitle.tsx:91.
+                        showBackground: true,
+                        backgroundColor: resolved.titleBackgroundColor!.resolve(
+                          states,
+                        )!,
+                        measurer: _measurer,
+                      ),
+                    ),
+                  ),
+                CustomPaint(
+                  size: Size(plotWidth, bandHeight),
+                  painter: FluentDonutChartPainter(
+                    layout: layout,
+                    opacities: opacities,
+                    arcPaths: arcPaths,
+                    fills: <Color>[
+                      // Spec 5.3 — the mark is flattened, the legend is not.
+                      for (final slice in layout.slices)
+                        colours.flattenMark(slice.colour),
+                    ],
+                    strokeColour: resolved.arcStrokeColor!.resolve(states)!,
+                    strokeWidth: resolved.arcStrokeWidth!.resolve(states)!,
+                    focusRingColour: resolved.focusRingColor!.resolve(states)!,
+                    focusRingWidth: resolved.focusRingWidth!.resolve(states)!,
+                    textDirection: Directionality.of(context),
+                    measurer: _measurer,
+                    focusedIndex: _focusedIndex,
+                    labels: labels,
                   ),
                 ),
-              if (centreValue != null)
-                _buildCentreValue(centreValue, layout, resolved),
-              if (!widget.hideTooltip && _hovered != null && _anchor != null)
-                FluentChartPopover(
-                  anchor: _anchor!,
-                  data: FluentChartPopoverData(
-                    // ChartPopover.tsx:43-44 — the callout overrides win.
-                    legend: _hovered!.xAxisCalloutData ?? _hovered!.legend,
-                    yValue:
-                        _hovered!.yAxisCalloutData ??
-                        d3.jsNumberToString(_hovered!.data ?? 0),
-                    color: _hovered!.color,
+                for (var i = 0; i < layout.slices.length; i++)
+                  Positioned.fromRect(
+                    rect: arcPaths[i].getBounds(),
+                    child: _buildArcTarget(
+                      layout.slices[i],
+                      i,
+                      arcPaths[i].getBounds().center,
+                    ),
                   ),
-                ),
-            ],
+                if (centreValue != null)
+                  _buildCentreValue(centreValue, layout, resolved),
+                if (!widget.hideTooltip && _hovered != null && _anchor != null)
+                  FluentChartPopover(
+                    anchor: _anchor!,
+                    data: FluentChartPopoverData(
+                      // ChartPopover.tsx:43-44 — the callout overrides win.
+                      legend: _hovered!.xAxisCalloutData ?? _hovered!.legend,
+                      yValue:
+                          _hovered!.yAxisCalloutData ??
+                          d3.jsNumberToString(_hovered!.data ?? 0),
+                      color: _hovered!.color,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

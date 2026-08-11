@@ -24,6 +24,7 @@ import 'internal/d3/shape_line_area.dart' as d3;
 import 'model/bar_data.dart';
 import 'model/chart_common.dart';
 import 'model/chart_value.dart';
+import 'model/line_options.dart';
 import 'vertical_bar_chart_style.dart';
 
 /// A Fluent 2 vertical bar chart, optionally overlaid with a single line.
@@ -43,6 +44,7 @@ class FluentVerticalBarChart extends StatefulWidget {
     this.chartTitle,
     this.lineLegendText,
     this.lineLegendColor,
+    this.lineOptions,
     this.useSingleColor = false,
     this.culture,
     this.xAxisPadding,
@@ -78,10 +80,24 @@ class FluentVerticalBarChart extends StatefulWidget {
   /// Legend title for the overlaid line.
   final String? lineLegendText;
 
-  /// Overrides the line colour. Note that upstream's default legend swatch and
-  /// drawn line resolve from different tokens; see
+  /// Overrides the line colour — the polyline's stroke, its dots' rings, and
+  /// the legend swatch, all three (`VerticalBarChart.tsx:165`, `:214`, `:244`
+  /// and `:826`).
+  ///
+  /// Null leaves each of them on its own default token, and upstream's two
+  /// defaults disagree: the drawn line falls back to
+  /// `colorPaletteYellowBackground1` and the swatch to
+  /// `colorPaletteYellowForeground1`. See
+  /// [FluentVerticalBarChartStyle.lineColor] and
   /// [FluentVerticalBarChartStyle.lineLegendSwatchColor].
   final Color? lineLegendColor;
+
+  /// How the overlaid line is stroked.
+  ///
+  /// Only `lineBorderWidth` is read (`VerticalBarChart.tsx:186-188`), and only
+  /// to size the halo drawn under the line at `3 + lineBorderWidth * 2`
+  /// (`:199`); every other field is inert on this chart by upstream's design.
+  final FluentLineOptions? lineOptions;
 
   /// Whether every bar takes a single colour.
   final bool useSingleColor;
@@ -210,6 +226,8 @@ class _FluentVerticalBarChartState extends State<FluentVerticalBarChart> {
         mode: widget.mode,
         colorsOverride: widget.colors,
         lineLegendText: widget.lineLegendText,
+        lineLegendColor: widget.lineLegendColor,
+        lineOptions: widget.lineOptions,
         xAxisInnerPadding: widget.xAxisInnerPadding,
         xAxisOuterPadding: widget.xAxisOuterPadding,
         xAxisPadding: widget.xAxisPadding,
@@ -562,6 +580,8 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
     this.mode,
     this.colorsOverride,
     this.lineLegendText,
+    this.lineLegendColor,
+    this.lineOptions,
     // The two band paddings are stored raw and resolved by [innerPadding] and
     // [outerPadding]; the shell reads the resolved overrides below. A named
     // parameter cannot be a private initialising formal, hence the explicit
@@ -623,6 +643,16 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
 
   /// Legend title for the overlaid line, if any.
   final String? lineLegendText;
+
+  /// `props.lineLegendColor` — the ink of the line **and** of its dots' rings
+  /// (`VerticalBarChart.tsx:165` destructures it once and spends it at `:214`
+  /// and `:244`). Null falls back to [FluentVerticalBarChartStyle.lineColor],
+  /// which carries upstream's `tokens.colorPaletteYellowBackground1` default.
+  final Color? lineLegendColor;
+
+  /// `props.lineOptions`; only `lineBorderWidth` is read
+  /// (`VerticalBarChart.tsx:186-188`).
+  final FluentLineOptions? lineOptions;
 
   /// Legacy shorthand feeding both paddings.
   @override
@@ -1110,10 +1140,38 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
         ? style.barOpacity!.resolve(<WidgetState>{})!
         : style.barOpacity!.resolve(<WidgetState>{WidgetState.disabled})!;
     final strokeWidth = style.lineStrokeWidth!.resolve(<WidgetState>{})!;
-    final rawLineColour = style.lineColor!.resolve(<WidgetState>{})!;
+    // `const { lineLegendColor = tokens.colorPaletteYellowBackground1 } = props`
+    // (`VerticalBarChart.tsx:165`). One value, spent on the polyline at `:214`
+    // and on every dot ring at `:244` — reading the token straight left the
+    // line painted in the fallback even when the caller named a colour.
+    final rawLineColour =
+        lineLegendColor ?? style.lineColor!.resolve(<WidgetState>{})!;
     // The line is a series mark, so its stroke flattens to the system
     // foreground under forced colours (design spec section 5.3).
     final lineColour = colors.flattenMark(rawLineColour);
+    final dotFill = style.lineDotFillColor!.resolve(<WidgetState>{})!;
+    // `lineBorderWidth` is parsed with `Number.parseFloat` off a
+    // `string | number` and guarded `> 0` (`VerticalBarChart.tsx:186-190`), so
+    // an absent or zero width draws no halo at all.
+    final border = lineOptions?.lineBorderWidth ?? 0;
+    if (border > 0) {
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          // `strokeWidth={3 + lineBorderWidth * 2}` (`:199`): the 3 is the
+          // line's own width and the 2 is the two sides it has to clear.
+          ..strokeWidth = strokeWidth + border * 2
+          ..strokeCap = StrokeCap.square
+          // `classes.lineBorder` is `stroke: tokens.colorNeutralBackground1`,
+          // and `Canvas` under forced colours
+          // (`useVerticalBarChartStyles.styles.ts:36-41`) — the same token and
+          // the same flattening as the dot fill below.
+          ..color = colors
+              .flattenMarkStroke(dotFill)
+              .withValues(alpha: opacity),
+      );
+    }
     canvas.drawPath(
       path,
       Paint()
@@ -1123,9 +1181,10 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
         ..strokeCap = StrokeCap.square
         ..color = lineColour.withValues(alpha: opacity),
     );
-    final dotFill = style.lineDotFillColor!.resolve(<WidgetState>{})!;
-    // The dot's halo is what separates it from the line beneath it, so it
-    // takes the stroke flattening rather than the mark one.
+    // `stroke={lineLegendColor}` on the dot too (`VerticalBarChart.tsx:244`),
+    // so the ring is the same ink as the line. It takes the stroke flattening
+    // rather than the mark one because the ring is what separates the dot from
+    // the line beneath it, and both flattened to CanvasText would merge.
     final haloColour = colors.flattenMarkStroke(rawLineColour);
     final withLine = _withLine;
     final dots = lineDotsFor(context);

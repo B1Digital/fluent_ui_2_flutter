@@ -427,6 +427,126 @@ void main() {
     );
   });
 
+  // The vertical metrics of a row, which are the whole of what
+  // `charts-horizontalbarchart--horizontal-bar-basic` measured wrong.
+  //
+  // Upstream stacks: a `chartTitle` flex line, then the 12px svg, then the
+  // `items` margin-bottom. The gap under the title hangs on the LEFT span alone
+  // (`chartTitleLeft5pMargin`, `useHorizontalBarChartStyles.styles.ts:67-69`,
+  // selected at `:129-136`), so the flex line is
+  // max(caption1 16 + 5, body1Strong 20) = **21** and both spans sit at its
+  // top — not max(16, 20) + 5 = 25 with the title centred. Oracle B measures
+  // `fui-hbc__chartTitle` at `[24, 48, 600, 21]` and `fui-hbc__chartTitleLeft`
+  // at `[24, 48, 20.109375, 16]`: same top, and 21 against 16.
+  group('row metrics', () {
+    final threeRows = <FluentChartData>[
+      for (final title in <String>['Row one', 'Row two', 'Row three'])
+        FluentChartData(
+          chartTitle: title,
+          chartData: <FluentChartDataPoint>[bar(title, 30)],
+        ),
+    ];
+
+    // 21 title + 12 svg per row, 10 between rows. Eight rows of this is the
+    // 334px box the reference is captured at.
+    const rowHeight = 33.0;
+    const rowSpacing = 10.0;
+
+    final strips = find.byWidgetPredicate(
+      (w) => w is CustomPaint && w.painter is FluentHorizontalBarStripPainter,
+    );
+
+    testWidgets('the title line is 21 tall and its text sits at the top', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentHorizontalBarChart(key: key, data: threeRows),
+        width: 600,
+      );
+      final top = tester.getRect(find.byKey(key)).top;
+      expect(
+        tester.getRect(strips.first).top - top,
+        21,
+        reason:
+            'useHorizontalBarChartStyles.styles.ts:52-56 is a flex row whose '
+            'line is max(16 + 5, 20); the svg starts below it.',
+      );
+      expect(
+        tester.getRect(find.text('Row one')).top - top,
+        0,
+        reason:
+            'The 5px is chartTitleLeft\'s margin-BOTTOM (:67-69), so the '
+            'title box starts at the top of the line, as oracle B\'s '
+            'fui-hbc__chartTitleLeft does at the same y as its chartTitle.',
+      );
+    });
+
+    testWidgets('rows pitch at 43 and the last one carries no trailing gap', (
+      tester,
+    ) async {
+      // Exactly the height three rows need. A trailing row margin would make
+      // this a RenderFlex overflow, which is what the reference's own clip
+      // proves upstream does not have: capture_png.mjs unions the chartTitle
+      // and chart boxes, and the `items` margin below the last row is outside
+      // both, so eight rows measured 8 x 33 + 7 x 10 = 334.
+      const exact = rowHeight * 3 + rowSpacing * 2;
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Center(
+            child: SizedBox(
+              width: 600,
+              height: exact,
+              child: FluentHorizontalBarChart(key: key, data: threeRows),
+            ),
+          ),
+        ),
+      );
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: '$exact is exactly what three rows need; nothing overflows.',
+      );
+      final tops = <double>[
+        for (var i = 0; i < 3; i++) tester.getRect(strips.at(i)).top,
+      ];
+      expect(
+        <double>[tops[1] - tops[0], tops[2] - tops[1]],
+        <double>[rowHeight + rowSpacing, rowHeight + rowSpacing],
+        reason:
+            'useHorizontalBarChartStyles.styles.ts:39-41 is '
+            'spacingVerticalMNudge, 10, under a 33px row — oracle B puts the '
+            'eight captured chartTitle boxes 43 apart.',
+      );
+      expect(
+        tester.getRect(find.byKey(key)).bottom - tops[2],
+        12,
+        reason:
+            'The chart ends at the bottom of the last svg. Upstream\'s own '
+            'trailing margin is outside every box the capture clips to, and a '
+            'Padding-per-row would have overflowed the box above.',
+      );
+    });
+
+    testWidgets('a legend strip is 26 below the last row', (tester) async {
+      await pump(
+        tester,
+        FluentHorizontalBarChart(key: key, data: threeLegends),
+        width: 600,
+      );
+      expect(
+        tester.getRect(find.byType(FluentChartLegend)).top -
+            tester.getRect(strips.first).bottom,
+        rowSpacing + 16,
+        reason:
+            'The row keeps its own 10px margin-bottom when something follows '
+            'it, and legendContainer adds spacingVerticalL on top '
+            '(useHorizontalBarChartStyles.styles.ts:107).',
+      );
+    });
+  });
+
   testWidgets('an empty data set announces the no-data alert', (tester) async {
     // Disposed inline, not through addTearDown: flutter_test verifies that
     // every handle is gone BEFORE the tear-downs run.

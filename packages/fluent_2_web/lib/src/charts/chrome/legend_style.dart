@@ -14,6 +14,16 @@ const double kLegendContainerMarginStart = 12;
 /// applied at `:55`.
 const double kLegendPadding = 8;
 
+/// Widest the strip's rows are laid out in, whatever the strip itself is given.
+///
+/// `useLegendsStyles.styles.ts:116` — `resizableArea`'s `max-width`. Its
+/// `min-width: 200px` at `:115` has no counterpart: CSS lets a min-width
+/// overflow a narrower parent, and reproducing that spill needs an
+/// [OverflowBox] that would paint the strip over whatever sits beside it. A
+/// strip narrower than 200 is simply that narrow here. No captured story is —
+/// the narrowest legend root in the corpus is `charts-heatmapchart`'s 430.
+const double kLegendResizableAreaMaxWidth = 800;
+
 /// Height of one legend row. `useLegendsStyles.styles.ts:13`.
 ///
 /// Consistent with the box model: 8 padding + 16 caption1 line height + 8.

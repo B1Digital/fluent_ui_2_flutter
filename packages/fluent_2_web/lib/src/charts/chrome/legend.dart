@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fluent_2_core/fluent_2_core.dart';
 // `listEquals` is not in the `show` list `widgets.dart` re-exports foundation
 // with, so it has to be imported directly.
@@ -846,6 +848,54 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
   /// `+{n} {overflowText}` — `OverflowMenu.tsx:16`.
   String _triggerLabel(int count) => '+$count ${widget.overflowText}';
 
+  /// `classes.resizableArea`, which holds the rows in **both** branches
+  /// (`Legends.tsx:115` and `:156`).
+  ///
+  /// `useLegendsStyles.styles.ts:109-116` is a block-level box with
+  /// `max-width: 800px` and `position: relative; left: 50%; transform:
+  /// translate(-50%, 0)`: 50% of the *parent's* width right, then 50% of its
+  /// *own* back left, which is a box capped at 800 and centred in the strip.
+  /// The [SizedBox] is what makes it block-level rather than shrink-to-fit —
+  /// the div's width is its cap, not its content's — and that is load-bearing
+  /// three times over: it is where the rows' lead offset comes from, it is the
+  /// width the overflow count is solved against (`Legends.tsx:114` wraps this
+  /// very div in `<Overflow>`, which measures the element it is given —
+  /// `@fluentui/react-overflow` is not in the extracted tree, so that last step
+  /// is read off the JSX rather than stated), and it is the width the wrapped
+  /// branch wraps at.
+  ///
+  /// Oracle B settles all three. `charts-legends--legends-wrap-lines` records
+  /// the box itself at (72, 0, 800, 120) inside a 944-wide root, and across the
+  /// corpus a left-aligned strip's first swatch sits at
+  /// `(rootWidth - 800) / 2 + kLegendPadding` for every captured width over the
+  /// cap — 70 at 924 (`charts-declarativechart--declarative-chart-basic-example`),
+  /// 78 at 940 (`charts-linechart--line-chart-annotations-example`), 80 at 944
+  /// (`charts-legends--legends-basic`) — and at plain [kLegendPadding] for every
+  /// width under it (`charts-linechart--line-chart-basic`, root 680).
+  ///
+  /// [Padding] and not [Align], which is horizontal-only by accident of what it
+  /// does to the *vertical* constraint: `Align` hands its child a loose one, so
+  /// a strip in a fixed-height legend row — `funnel_chart.dart:1119` reserves
+  /// `kMinLegendContainerHeight` — would stop filling that row and move 4px, and
+  /// the capture says it belongs where it already is
+  /// (`charts-funnelchart--funnel-chart-basic`, measured: 0.168% aligned against
+  /// 0.331% under an `Align`). `Padding` forwards the height untouched, so this
+  /// box is purely the horizontal cap it is upstream.
+  Widget _resizableArea(Widget child) => LayoutBuilder(
+    builder: (context, constraints) {
+      // An unbounded strip has no half-overhang to take; the cap is still the
+      // width the rows are measured and wrapped in.
+      final width = constraints.hasBoundedWidth
+          ? constraints.maxWidth
+          : kLegendResizableAreaMaxWidth;
+      final area = math.min(width, kLegendResizableAreaMaxWidth);
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: (width - area) / 2),
+        child: SizedBox(width: area, child: child),
+      );
+    },
+  );
+
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
@@ -894,10 +944,13 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
           // Legends.tsx:124 — the listbox is labelled 'Legends', and only when
           // allowFocusOnLegends is set does the role appear at all (:122).
           label: widget.allowFocusOnLegends ? 'Legends' : null,
-          // Legends.tsx:109 — the two layouts are mutually exclusive.
-          child: widget.enabledWrapLines
-              ? _buildWrapped(rows)
-              : _buildOverflow(rows, style, theme),
+          // Legends.tsx:109 — the two layouts are mutually exclusive, and both
+          // put their rows inside the resizable area.
+          child: _resizableArea(
+            widget.enabledWrapLines
+                ? _buildWrapped(rows)
+                : _buildOverflow(rows, style, theme),
+          ),
         ),
       ),
     );

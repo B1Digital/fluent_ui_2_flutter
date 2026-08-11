@@ -42,6 +42,7 @@ class FluentAreaChart extends StatefulWidget {
     this.culture,
     this.style,
     this.legendSelectionMode = FluentChartLegendSelectionMode.single,
+    this.selectedLegends,
     this.focusNode,
   });
 
@@ -66,6 +67,21 @@ class FluentAreaChart extends StatefulWidget {
 
   /// Whether the legend allows more than one selection.
   final FluentChartLegendSelectionMode legendSelectionMode;
+
+  /// The legend titles the chart's owner has selected — `legendProps
+  /// .selectedLegends` (`AreaChart.tsx:121`), spelled as a parameter because
+  /// [FluentCartesianChartProps] carries no legend bag.
+  ///
+  /// Null is "the caller said nothing": the legend row runs uncontrolled and
+  /// the stack keeps its `renderPoints.length > 1` multi-stack test. A list —
+  /// **empty included** — is a caller that owns the selection, and it flips
+  /// that test to `>= 1`, which is exactly what upstream's truthiness check on
+  /// the array does at `AreaChart.tsx:328-330`.
+  ///
+  /// The value seeds this widget's own selection (`:121`) and is re-read
+  /// whenever it changes (`:141-142`), which is what dims every unselected
+  /// series and fills only the selected legend's swatch.
+  final List<String>? selectedLegends;
 
   /// The chart's single focus node.
   final FocusNode? focusNode;
@@ -96,13 +112,26 @@ class FluentAreaChartState extends State<FluentAreaChart> {
   @override
   void initState() {
     super.initState();
+    // `AreaChart.tsx:121`.
+    _selectedLegends = widget.selectedLegends ?? const <String>[];
     _rebuildDataSet();
   }
 
   @override
   void didUpdateWidget(FluentAreaChart oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.data != widget.data || oldWidget.mode != widget.mode) {
+    // `:139-143`: the effect compares the two arrays, so a new list holding the
+    // same titles does not discard a selection the user has since changed.
+    final selectionChanged = !areArraysEqual(
+      oldWidget.selectedLegends,
+      widget.selectedLegends,
+    );
+    if (selectionChanged) {
+      _selectedLegends = widget.selectedLegends ?? const <String>[];
+    }
+    if (selectionChanged ||
+        oldWidget.data != widget.data ||
+        oldWidget.mode != widget.mode) {
       _rebuildDataSet();
     }
   }
@@ -112,11 +141,11 @@ class FluentAreaChartState extends State<FluentAreaChart> {
       series: _series,
       mode: widget.mode,
       hasSecondaryYScale: widget.props.secondaryYScaleOptions != null,
-      // NOT `widget.props.selectedLegends`: contract 7.1's props bag has no such
-      // field. The selection lives in this State, fed by the shell's
-      // `onLegendChange`, so "has a selection" is that list being non-empty --
-      // which is what `AreaChart.tsx:262` tests too.
-      hasSelectedLegends: _selectedLegends.isNotEmpty,
+      // The WIDGET's list, not this State's: `AreaChart.tsx:328` reads
+      // `props.legendProps?.selectedLegends` and tests the array's presence,
+      // never its length, so a selection the user makes by clicking does not
+      // move this flag and an empty list from the owner does.
+      hasSelectedLegends: widget.selectedLegends != null,
     );
   }
 
@@ -212,12 +241,18 @@ class FluentAreaChartState extends State<FluentAreaChart> {
                 setState(() => _activeLegend = null),
           ),
       ],
-      onLegendChange: (selected) => setState(() {
-        _selectedLegends = selected;
-        // `isMultiStack` reads the selection (`AreaChart.tsx:328-330`), so the
-        // dataset is stale until it is rebuilt.
-        _rebuildDataSet();
-      }),
+      // `:589`'s spread controls the row from `props.legendProps
+      // .selectedLegends`, and upstream can afford that because `:608` echoes
+      // every click back to the owner, which re-sends the prop. This widget
+      // exposes no such callback, so a row controlled by the prop would freeze
+      // on click. Controlled by this State instead: it is seeded from the prop
+      // and re-seeded when it changes, so the first frame is identical and the
+      // click behaves as upstream's echo makes it behave.
+      selectedLegends: _selectedLegends,
+      onLegendChange: (selected) =>
+          // `_onLegendSelectionChange` (`:597-609`) only moves this state;
+          // `_isMultiStackChart` is read off the prop, so the dataset stands.
+          setState(() => _selectedLegends = selected),
       delegate: FluentAreaChartDelegate(
         series: _series,
         dataSet: _dataSet,

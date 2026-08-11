@@ -55,14 +55,14 @@ void main() {
       // storybook page, height its content's (`useLegendsStyles.styles.ts:38-44`
       // sets no height) — so 944x32 is one 32px legend row across the page.
       //
-      // The harness mounts at a tight 944x32. This port's strip is 40 tall,
-      // because of the container margin the first tolerance note below reports,
-      // and a tight 32 squashes the row to 8px of content: measured that way the
-      // labels render at half height and the mismatch drops to 3.417% purely
-      // because most of the strip has ceased to exist. OverflowBox reproduces
-      // the browser instead — the block's width is imposed, its height is its
-      // content's, and whatever falls below the clip is simply not captured,
-      // which is what Chromium's own clip does.
+      // The harness mounts at a tight 944x32, and this port's strip is now 32
+      // tall too, so the OverflowBox is currently a no-op. It stays because it
+      // is what reproduces the browser: the block's width is imposed, its height
+      // is its content's, and whatever falls below the clip is simply not
+      // captured. Under the tight 32 the harness would instead squash a taller
+      // strip to fit — measured, when the strip was 40 tall, that halved the
+      // label height and *lowered* the mismatch to 3.417% purely because most of
+      // the strip had ceased to exist.
       OverflowBox(
         alignment: Alignment.topLeft,
         maxHeight: double.infinity,
@@ -74,63 +74,54 @@ void main() {
           // (`:115`).
         ),
       ),
-      // Measured 6.227% — 1,649 pixels of 26,482. NOT rasteriser noise and NOT
-      // a tolerance to raise. Correcting for a whole-image (-60, +8) translation
-      // takes it to 0.415% — 110 pixels, re-measured with the harness's own
-      // masking and channel tolerance — which is what says the strip itself is
-      // right and its POSITION is wrong; the harness's own shift probe stops at
-      // ±3 and cannot see it. (-60, +8) is the true minimum: a sweep of dx over
-      // -66..-54 and dy over 4..11 finds nothing better. Three defects, all
-      // reported rather than fixed:
+      // Measured 0.838% — 222 pixels of 26,482, down from 5.136% (1,360 px).
+      // What moved: `legend.dart` now reproduces `classes.resizableArea`, the
+      // box `Legends.tsx:115` and `:156` wrap the rows in. It is
+      // `max-width: 800px` with `position: relative; left: 50%; transform:
+      // translate(-50%, 0)` (`useLegendsStyles.styles.ts:109-116`) — 50% of the
+      // parent's width right, 50% of its own back left, i.e. a box capped at 800
+      // and centred. In this 944-wide root that is (944 - 800) / 2 = 72 of lead,
+      // and the reference's first swatch sits at exactly 72 + 8 of row padding.
+      // The port used to lay the rows straight into the incoming constraints and
+      // start at the container edge, which the harness could not report as a
+      // shift because its probe stops at ±3.
       //
-      //  * `Legends.tsx:118` wraps the rows in `classes.resizableArea`:
-      //    `max-width: 800px` with `position: relative; left: 50%; transform:
-      //    translate(-50%, 0)` (`useLegendsStyles.styles.ts:206-213`) — a box
-      //    capped at 800 and centred in its parent. In a 944-wide root that is
-      //    (944 - 800) / 2 = 72px of lead, and the reference's first swatch sits
-      //    at x=80, which is that 72 plus the row's own 8px padding. This port
-      //    has no counterpart at all, so its strip starts at the container edge.
-      //    The 800 is corroborated by a story this test does not mount:
-      //    `charts-legends--legends-wrap-lines` also leads with 72 and wraps
-      //    after 8 rows, and 8 of its rows are 759.1 wide against a 9th that
-      //    would reach 854 — a wrap that only a cap between those two explains.
-      //  * `FluentChartLegend` then adds `containerMargin`, 8 top and 12 start
-      //    (`legend_style.dart:266-271`), which upstream's `classes.root` does
-      //    not have: `LEGEND_CONTAINER_MARGIN_TOP`/`_START` are read only by
-      //    `image-export-utils.ts`, and on screen those same 8 and 12 are
-      //    `useCartesianChartStyles.styles.ts:102-105`'s margin on the
-      //    *CartesianChart's* legend wrapper — which is why
-      //    `cartesian_chart.dart:410` already zeroes them for that shell. A
-      //    standalone `Legends` has neither. Together the two account for the
-      //    whole (-60, +8): 12 - 72 = -60 across, 8 down.
-      //  * 94 of the 110 pixels still differing after that correction are the
-      //    Legend 3 diamond, and they settle the origin question
-      //    `legend_shape.dart:241-258` records as unverified. Upstream's diamond
-      //    is centred in its 14x14 swatch (measured, intensity-weighted centroid:
-      //    reference (260.99, 16.00) against a swatch box centred on
-      //    (260.78, 16.00)); this port's, once the (-60, +8) strip offset is
-      //    taken back out, is 7.25px left and 2.66px down of that — which is
-      //    rotating the box centre (7, 7) about the box corner to (0, 9.9), a
-      //    predicted (-7, +2.9). Chromium applies the `transform` attribute on
-      //    an outermost
-      //    `<svg>` in HTML flow with a CSS `transform-origin: 50% 50%`, not
-      //    about SVG user-space (0, 0) as `FluentChartLegendShapePainter` does.
-      //    The same reading predicts the pyramid swatch — which that comment
-      //    says paints nothing today — renders normally upstream.
+      // Oracle B settles the box outright: `charts-legends--legends-wrap-lines`
+      // records `fui-legend__resizableArea` itself at (72, 0, 800, 120) in the
+      // same 944-wide root, and the corpus confirms the *rule* rather than the
+      // one number — a left-aligned strip's first swatch is at
+      // (rootWidth - 800) / 2 + 8 for every captured width over the cap (70 at
+      // 924, 78 at 940, 80 at 944) and at plain 8 for every width under it
+      // (`charts-linechart--line-chart-basic`, root 680, swatch at 8).
       //
-      // The remaining 16 pixels are rasteriser noise on the two fractionally
-      // positioned swatches: Chromium snaps a border box to whole device pixels
-      // and Skia does not, so Legend 2's rectangle carries one column of 11%
-      // pink at its right edge that the reference rounds away (6 px, measured
-      // 255,255,255 against 252,224,241 — a 3/28 coverage of `#E3008C`), and the
-      // Legend 4 triangle's diagonals sit a pixel out (10 px). The triangle's
-      // own centroid lands within 0.36px of the reference's once the strip
-      // offset is removed, so its geometry is right and only its edges differ.
+      // The whole residual is three known things, none of them this file's and
+      // none of them a tolerance to raise:
+      //
+      //  * 184 px — the Legend 3 diamond, which settles the origin question
+      //    `legend_shape.dart:241-258` records as unverified. Intensity-weighted
+      //    centroids, now that the strip is aligned: reference (260.993, 16.003)
+      //    against this port's (253.773, 18.937), an offset of (-7.22, +2.93).
+      //    That is rotating the 14x14 swatch's centre (7, 7) about the box
+      //    corner instead of about its centre — a predicted (-7, +2.9). Chromium
+      //    applies the `transform` attribute of an outermost `<svg>` in HTML flow
+      //    about the CSS `transform-origin: 50% 50%`, not about SVG user-space
+      //    (0, 0) as `FluentChartLegendShapePainter` does. The same reading
+      //    predicts the pyramid swatch — which that comment says paints nothing
+      //    today — renders normally upstream. Outside this task's file list.
+      //  * 24 px — the Legend 4 triangle's diagonal edges. Its centroid is within
+      //    0.36 px of the reference's ((350.776, 13.960) against
+      //    (350.421, 13.903)), so the geometry is right and only the edge
+      //    rasterisation differs.
+      //  * 14 px — one column at the right edge of Legend 2's rectangle. The row
+      //    pitch is 86.891, so the second swatch starts at a fractional x;
+      //    Chromium snaps a border box to whole device pixels and Skia does not
+      //    (measured 250,250,250 against 252,224,241, a partial coverage of
+      //    `#E3008C`).
       //
       // Pinned just above the measured value so the number is recorded and any
       // drift — in either direction — fails and has to be re-pinned
       // deliberately.
-      maxMismatch: 6.85,
+      maxMismatch: 0.93,
     );
   });
 }

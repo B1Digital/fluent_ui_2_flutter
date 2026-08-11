@@ -120,6 +120,58 @@ void main() {
     );
   });
 
+  // `opacity` is an SVG presentation attribute: it composites the element at
+  // that factor, so it MULTIPLIES the fill's own alpha. Only the synthesised
+  // remainder bar is translucent today — `colorBackgroundOverlay`, rgba(0, 0,
+  // 0, 0.4) (`HorizontalBarChart.tsx:411`) — and it is the whole reason this
+  // matters: a painter that REPLACES the alpha turns the reference's grey into
+  // opaque black in the undimmed state, which is what
+  // `charts-horizontalbarchart--horizontal-bar-basic` measured at 53.841%.
+  group('a translucent fill keeps its own alpha', () {
+    // 0x66 is 102/255 — exactly the 0.4 of colorBackgroundOverlay.
+    const overlay = Color(0x66000000);
+
+    Future<int> alphaAt(double opacity) async {
+      final layout = FluentHorizontalBarRowLayout.compute(
+        points: <FluentChartDataPoint>[point(100)],
+        rowWidth: 100,
+        barGap: 3,
+        isRtl: false,
+      );
+      final image = await raster(
+        FluentHorizontalBarStripPainter(
+          layout: layout,
+          fills: const <Color>[overlay],
+          opacities: <double>[opacity],
+          barHeight: 12,
+          textDirection: TextDirection.ltr,
+        ),
+        const Size(100, 12),
+      );
+      return await pixelAt(image, 50, 6) & 0xFF;
+    }
+
+    test('undimmed it stays at 0.4, not 1', () async {
+      expect(
+        await alphaAt(1),
+        102,
+        reason:
+            'opacity=1 multiplies rgba(0,0,0,0.4) by one and leaves it at '
+            '0.4 — over the page it is the reference\'s grey, not black.',
+      );
+    });
+
+    test('dimmed the two multiply to 0.04', () async {
+      expect(
+        await alphaAt(0.1),
+        10,
+        reason:
+            'HorizontalBarChart.tsx:327 dims to 0.1, and 0.4 * 0.1 * 255 '
+            'rounds to 10 — replacing the alpha would give 26.',
+      );
+    });
+  });
+
   test('the painter draws every bar, including the one past the edge', () {
     final layout = FluentHorizontalBarRowLayout.compute(
       points: <FluentChartDataPoint>[point(30), point(40), point(30)],

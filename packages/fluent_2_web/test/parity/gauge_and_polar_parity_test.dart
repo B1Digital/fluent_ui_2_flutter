@@ -75,32 +75,37 @@ void main() {
           ),
         ],
       ),
-      // Measured 4.733%, pinned at the measured value rather than absorbed:
-      // almost all of it is one suspected defect, recorded here so a fix shows
-      // up as a failure that has to be re-pinned.
+      // Measured 0.145%, down from 4.246%. The gauge used to be painted
+      // against the LEFT edge of its box instead of centred: the `CustomPaint`
+      // was `Positioned.fill` over the whole incoming 944, while the origin it
+      // consumes is `size.width / 2` solved from the `width` PROP, so the arc
+      // landed at x = 126 against the reference's 472. The chart area is now
+      // the svg's own 252 and centred in the root, as
+      // `useGaugeChartStyles.styles.ts:35-43` (`align-items: center`) does
+      // upstream, while the legend keeps the full 944 (`:126-128`). The
+      // capture's own html boxes settle it: `fui-gc__chartWrapper` at x 370 by
+      // 252 wide, `fui-legend__root` at x 24 by 944 — a 346px inset that is
+      // exactly (944 - 252) / 2.
       //
-      // The arc, the needle and the two limit labels are the right size and the
-      // right colours — but the whole gauge is painted against the LEFT edge of
-      // its box instead of centred. `FluentGaugeLayout.compute` takes
-      // `origin.dx = size.width / 2` from the `width` PROP
-      // (`gauge_chart.dart:254`) while the `CustomPaint` that consumes it is
-      // `Positioned.fill` over the whole incoming box (`:1164`). Upstream's
-      // `_width / 2` translate (`GaugeChart.tsx:599`) is relative to an
-      // `<svg width={252}>` that the root centres, not to the root itself, so
-      // with the story's `width={252}` in a 944px root upstream draws the arc
-      // at x = 472 and the port draws it at x = 126 (measured: the port's arc
-      // spans x 65..186, centre 125.5, and is 34px wide per band exactly as
-      // the reference's is — the same gauge, in the wrong place).
-      //
-      // Mounting the port inside `Center(SizedBox(252, 128))` instead puts the
-      // arc exactly on the reference — 0.860% measured — which is the evidence
-      // that the geometry itself is right and only its placement is wrong. It
-      // is not what this test does, because at 252 the legend no longer fits:
-      // upstream lays the legend out across the full 944 and it measures 264px
-      // wide, so the port collapses it to "Low Risk +2 more". Passing the
-      // story's own props into the captured box is the faithful reproduction;
-      // the 252-wide box is a workaround that trades one defect for another.
-      maxMismatch: 5.21,
+      // The 0.145% left is 152 pixels in two places, neither of them the arc,
+      // which now lands on the reference to within its antialiased edge:
+      //   * ~96px around the centred `50%`, which is drawn the right SIZE in
+      //     the wrong PLACE — 38x16 of ink in both, at x 453..490 / y 65..80 in
+      //     the reference against x 443..480 / y 72..87 in the port, so 10 left
+      //     and 7 low. `gauge_chart_style.dart:365` builds `chartValueTextStyle`
+      //     as a bare `TextStyle(fontWeight, color)` with no `fontFamily`,
+      //     unlike every sibling in that resolver. `FluentChartTextMeasurer`
+      //     lays out a bare `TextSpan`, so it measures that style in the
+      //     FALLBACK font — a 60px advance and a 16px ascent for "50%" at 20px
+      //     — while `_centredText`'s `Text` merges the `DefaultTextStyle` and
+      //     paints Selawik at 38 and ~22.6. `left = origin.dx - width / 2` and
+      //     `top = origin.dy - ascent` then miss by exactly the two deltas.
+      //     Left here deliberately: the same one-line style fix moves the
+      //     `charts_shell_free` goldens, which cannot be regenerated while
+      //     another change already has them failing.
+      //   * 56px on the three legend swatches' left and right edges, each one
+      //     column wide (port 424..438 against the reference's 425..438).
+      maxMismatch: 0.165,
     );
   });
 

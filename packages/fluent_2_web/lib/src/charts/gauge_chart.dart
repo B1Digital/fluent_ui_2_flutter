@@ -121,6 +121,7 @@ class FluentGaugeSegment {
 @immutable
 class FluentGaugeLayout {
   const FluentGaugeLayout._({
+    required this.size,
     required this.margins,
     required this.outerRadius,
     required this.innerRadius,
@@ -237,6 +238,7 @@ class FluentGaugeLayout {
     }
 
     return FluentGaugeLayout._(
+      size: size,
       margins: margins,
       outerRadius: outerRadius,
       innerRadius: innerRadius,
@@ -269,6 +271,17 @@ class FluentGaugeLayout {
     if (rotation > 180) return 180;
     return rotation;
   }
+
+  /// The box this layout was solved for — upstream's `_width` by `_height`.
+  ///
+  /// Every coordinate below, [origin] included, is relative to its top-left
+  /// corner, so whoever paints the layout has to give the painter a box of
+  /// exactly this width or the whole gauge slides sideways. It is carried here
+  /// rather than recovered from `origin.dx * 2` at the paint site, because
+  /// upstream's root is wider than the chart whenever the caller passes a
+  /// `width` (`useGaugeChartStyles.styles.ts:35-43`) and the two are then not
+  /// the same number.
+  final Size size;
 
   /// Space reserved around the arc (`GaugeChart.tsx:110-116`).
   final EdgeInsets margins;
@@ -1157,137 +1170,157 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Expanded(
-                child: MouseRegion(
-                  onExit: (_) => _hidePopover(),
-                  child: Stack(
-                    children: <Widget>[
-                      Positioned.fill(child: CustomPaint(painter: painter)),
-                      if (widget.chartTitle != null)
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          // GaugeChart.tsx:604 — one titleOffset above the arc,
-                          // then back up by the row the title occupies.
-                          top:
-                              layout.origin.dy -
-                              layout.outerRadius -
-                              resolved.titleOffset!.resolve(states)! -
-                              resolved.labelHeight!.resolve(states)!,
-                          child: FluentChartTitle(
-                            title: widget.chartTitle!,
-                            textStyle:
-                                resolved.titleTextStyle!.resolve(states) ??
-                                textStyles.chartTitle,
-                          ),
-                        ),
-                      for (var i = 0; i < layout.segments.length; i++)
-                        _hitTarget(
-                          bounds: arcs
-                              .firstWhere((arc) => arc.segmentIndex == i)
-                              .path
-                              .getBounds()
-                              .shift(layout.origin),
-                          label: fluentGaugeSegmentLabel(
-                            layout.segments[i],
-                            layout.minValue,
-                            layout.maxValue,
-                            widget.variant,
-                            forSemantics: true,
-                          ),
-                          // GaugeChart.tsx:660 — a dimmed segment leaves the
-                          // tab order entirely.
-                          focusable: !_isDimmed(layout.segments[i].legend),
-                          onEnter: (bounds) {
-                            _focusedElement = layout.segments[i].legend;
-                            _showPopover(
-                              layout.segments[i].legend,
-                              bounds,
-                              layout,
-                            );
-                          },
-                        ),
-                      _hitTarget(
-                        bounds: painter.needlePath.getBounds().shift(
-                          layout.origin,
-                        ),
-                        // GaugeChart.tsx:275-276 — the non-callout form.
-                        label: 'Current value: $valueLabel',
-                        focusable: true,
-                        onEnter: (bounds) =>
-                            _showPopover(_kNeedleAnchor, bounds, layout),
-                      ),
-                      if (!widget.hideMinMax) ...<Widget>[
-                        // GaugeChart.tsx:617 and :627 — both limits are
-                        // image-role nodes with their own labels.
-                        _hitTarget(
-                          bounds: _limitBounds(
-                            layout,
-                            resolved,
-                            states,
-                            isMaximum: false,
-                          ),
-                          label:
-                              'Min value: '
-                              '${d3.jsNumberToString(layout.minValue)}',
-                          focusable: false,
-                          onEnter: null,
-                        ),
-                        _hitTarget(
-                          bounds: _limitBounds(
-                            layout,
-                            resolved,
-                            states,
-                            isMaximum: true,
-                          ),
-                          label:
-                              'Max value: '
-                              '${d3.jsNumberToString(layout.maxValue)}',
-                          focusable: false,
-                          onEnter: null,
-                        ),
-                      ],
-                      // GaugeChart.tsx:673-679 — x=0, y=0, text-anchor middle,
-                      // the default alphabetic baseline, and `aria-hidden`
-                      // because the needle already announces the same string.
-                      _centredText(
-                        shownValue,
-                        chartValueStyle,
-                        layout.origin,
-                        FluentChartTitleBaseline.alphabetic,
-                      ),
-                      if (shownSublabel != null)
-                        // GaugeChart.tsx:688-692 — x=0, y=4, hanging.
-                        _centredText(
-                          shownSublabel,
-                          sublabelStyle,
-                          layout.origin +
-                              Offset(0, resolved.labelOffset!.resolve(states)!),
-                          FluentChartTitleBaseline.hanging,
-                        ),
-                      if (_anchor != null && !widget.hideTooltip)
-                        Positioned.fill(
-                          // The popover follows the cursor, so letting it take
-                          // the pointer would pull the pointer off the band
-                          // that opened it and close it again.
-                          child: IgnorePointer(
-                            child: FluentChartPopover(
-                              anchor: _anchor!,
-                              data: FluentChartPopoverData(
-                                // GaugeChart.tsx:386-387 — the callout inverts
-                                // the painted form.
-                                xValue:
-                                    'Current value is '
-                                    '${fluentGaugeValueLabel(widget.chartValue, layout.minValue, layout.maxValue, widget.chartValueFormat, forCallout: true)}',
-                                yValues: _hoverValues,
-                                // GaugeChart.tsx:705-707 passes
-                                // `_multiValueCallout`, which is the stacked
-                                // body.
-                                isCalloutForStack: true,
+                // GaugeChart.tsx:593-594 sizes the `<svg>` from the `width`
+                // PROP, and `useGaugeChartStyles.styles.ts:35-43` makes its
+                // root `display: flex; flex-direction: column; align-items:
+                // center; width: 100%` — so a chart narrower than the box it
+                // is given is CENTRED in it, not pinned to the left edge.
+                // `layout.origin` is relative to that svg, so the box handed
+                // to the painter has to be the svg's, not the root's.
+                //
+                // Only the chart area narrows. The legend below stays on the
+                // full width, matching `legendsContainer { width: 100% }`
+                // (`:126-128`).
+                child: Align(
+                  child: SizedBox(
+                    width: layout.size.width,
+                    height: double.infinity,
+                    child: MouseRegion(
+                      onExit: (_) => _hidePopover(),
+                      child: Stack(
+                        children: <Widget>[
+                          Positioned.fill(child: CustomPaint(painter: painter)),
+                          if (widget.chartTitle != null)
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              // GaugeChart.tsx:604 — one titleOffset above the arc,
+                              // then back up by the row the title occupies.
+                              top:
+                                  layout.origin.dy -
+                                  layout.outerRadius -
+                                  resolved.titleOffset!.resolve(states)! -
+                                  resolved.labelHeight!.resolve(states)!,
+                              child: FluentChartTitle(
+                                title: widget.chartTitle!,
+                                textStyle:
+                                    resolved.titleTextStyle!.resolve(states) ??
+                                    textStyles.chartTitle,
                               ),
                             ),
+                          for (var i = 0; i < layout.segments.length; i++)
+                            _hitTarget(
+                              bounds: arcs
+                                  .firstWhere((arc) => arc.segmentIndex == i)
+                                  .path
+                                  .getBounds()
+                                  .shift(layout.origin),
+                              label: fluentGaugeSegmentLabel(
+                                layout.segments[i],
+                                layout.minValue,
+                                layout.maxValue,
+                                widget.variant,
+                                forSemantics: true,
+                              ),
+                              // GaugeChart.tsx:660 — a dimmed segment leaves the
+                              // tab order entirely.
+                              focusable: !_isDimmed(layout.segments[i].legend),
+                              onEnter: (bounds) {
+                                _focusedElement = layout.segments[i].legend;
+                                _showPopover(
+                                  layout.segments[i].legend,
+                                  bounds,
+                                  layout,
+                                );
+                              },
+                            ),
+                          _hitTarget(
+                            bounds: painter.needlePath.getBounds().shift(
+                              layout.origin,
+                            ),
+                            // GaugeChart.tsx:275-276 — the non-callout form.
+                            label: 'Current value: $valueLabel',
+                            focusable: true,
+                            onEnter: (bounds) =>
+                                _showPopover(_kNeedleAnchor, bounds, layout),
                           ),
-                        ),
-                    ],
+                          if (!widget.hideMinMax) ...<Widget>[
+                            // GaugeChart.tsx:617 and :627 — both limits are
+                            // image-role nodes with their own labels.
+                            _hitTarget(
+                              bounds: _limitBounds(
+                                layout,
+                                resolved,
+                                states,
+                                isMaximum: false,
+                              ),
+                              label:
+                                  'Min value: '
+                                  '${d3.jsNumberToString(layout.minValue)}',
+                              focusable: false,
+                              onEnter: null,
+                            ),
+                            _hitTarget(
+                              bounds: _limitBounds(
+                                layout,
+                                resolved,
+                                states,
+                                isMaximum: true,
+                              ),
+                              label:
+                                  'Max value: '
+                                  '${d3.jsNumberToString(layout.maxValue)}',
+                              focusable: false,
+                              onEnter: null,
+                            ),
+                          ],
+                          // GaugeChart.tsx:673-679 — x=0, y=0, text-anchor middle,
+                          // the default alphabetic baseline, and `aria-hidden`
+                          // because the needle already announces the same string.
+                          _centredText(
+                            shownValue,
+                            chartValueStyle,
+                            layout.origin,
+                            FluentChartTitleBaseline.alphabetic,
+                          ),
+                          if (shownSublabel != null)
+                            // GaugeChart.tsx:688-692 — x=0, y=4, hanging.
+                            _centredText(
+                              shownSublabel,
+                              sublabelStyle,
+                              layout.origin +
+                                  Offset(
+                                    0,
+                                    resolved.labelOffset!.resolve(states)!,
+                                  ),
+                              FluentChartTitleBaseline.hanging,
+                            ),
+                          if (_anchor != null && !widget.hideTooltip)
+                            Positioned.fill(
+                              // The popover follows the cursor, so letting it take
+                              // the pointer would pull the pointer off the band
+                              // that opened it and close it again.
+                              child: IgnorePointer(
+                                child: FluentChartPopover(
+                                  anchor: _anchor!,
+                                  data: FluentChartPopoverData(
+                                    // GaugeChart.tsx:386-387 — the callout inverts
+                                    // the painted form.
+                                    xValue:
+                                        'Current value is '
+                                        '${fluentGaugeValueLabel(widget.chartValue, layout.minValue, layout.maxValue, widget.chartValueFormat, forCallout: true)}',
+                                    yValues: _hoverValues,
+                                    // GaugeChart.tsx:705-707 passes
+                                    // `_multiValueCallout`, which is the stacked
+                                    // body.
+                                    isCalloutForStack: true,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),

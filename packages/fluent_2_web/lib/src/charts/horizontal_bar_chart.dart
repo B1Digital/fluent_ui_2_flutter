@@ -318,7 +318,13 @@ class FluentHorizontalBarStripPainter extends CustomPainter {
           : chartColors.flattenMark(fills[i]);
       canvas.drawRect(
         layout.rectOf(i, barHeight),
-        Paint()..color = fill.withValues(alpha: opacities[i]),
+        // `opacity` is an SVG presentation attribute (HorizontalBarChart.tsx
+        // :327): it composites the element at that factor, so it MULTIPLIES
+        // the fill's own alpha rather than replacing it. The synthesised
+        // remainder bar is `colorBackgroundOverlay`, rgba(0, 0, 0, 0.4)
+        // (:411) — replacing its alpha with the 1.0 that "not dimmed" means
+        // paints it solid black instead of the grey upstream shows.
+        Paint()..color = fill.withValues(alpha: fill.a * opacities[i]),
       );
     }
     final label = absoluteLabel;
@@ -763,6 +769,21 @@ class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
           children: <Widget>[
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
+              // `items` carries the gap as a margin-BOTTOM
+              // (useHorizontalBarChartStyles.styles.ts:39-44, selected at
+              // :119-125 off two chart-level props), so upstream's gap sits
+              // between rows and once more between the last row and the legend
+              // container's own 16px padding-top. A `spacing` on the Column
+              // reproduces both and, unlike a per-row Padding, leaves no
+              // trailing margin below the last row — which is exactly the box
+              // the reference is captured at: 8 x 33 + 7 x 10 = 334, seven gaps
+              // for eight rows.
+              spacing:
+                  widget.showTriangle ||
+                      widget.variant ==
+                          FluentHorizontalBarChartVariant.absoluteScale
+                  ? resolved.rowSpacingWithTriangle!.resolve(states)!
+                  : resolved.rowSpacing!.resolve(states)!,
               children: <Widget>[
                 ...rows,
                 if (!lastRowWasSingleBar)
@@ -825,204 +846,210 @@ class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
         ? null
         : points.first.horizontalBarChartData?.total;
 
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: widget.showTriangle || isAbsolute
-            ? resolved.rowSpacingWithTriangle!.resolve(states)!
-            : resolved.rowSpacing!.resolve(states)!,
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final layout = FluentHorizontalBarRowLayout.compute(
-            points: points,
-            rowWidth: constraints.maxWidth,
-            barGap: resolved.barGap!.resolve(states)!,
-            isRtl: direction == TextDirection.rtl,
-          );
-          final dimmed = resolved.dimmedOpacity!.resolve(states)!;
-          // HorizontalBarChart.tsx:284 — only the absolute-scale variant swaps
-          // the placeholder rect for a text.
-          final placeholderIndex = isAbsolute
-              ? points.indexWhere((p) => p.placeHolder)
-              : -1;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final layout = FluentHorizontalBarRowLayout.compute(
+          points: points,
+          rowWidth: constraints.maxWidth,
+          barGap: resolved.barGap!.resolve(states)!,
+          isRtl: direction == TextDirection.rtl,
+        );
+        final dimmed = resolved.dimmedOpacity!.resolve(states)!;
+        // HorizontalBarChart.tsx:284 — only the absolute-scale variant swaps
+        // the placeholder rect for a text.
+        final placeholderIndex = isAbsolute
+            ? points.indexWhere((p) => p.placeHolder)
+            : -1;
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Padding(
-                padding: EdgeInsets.only(
-                  bottom: isAbsolute
-                      ? resolved.titleBottomSpacingAbsolute!.resolve(states)!
-                      : resolved.titleBottomSpacing!.resolve(states)!,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    Flexible(
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            // `chartTitle` is a `display: flex` row
+            // (useHorizontalBarChartStyles.styles.ts:52-56) and the title gap
+            // hangs on the LEFT span alone — `chartTitleLeft5pMargin`, or 4
+            // for absolute-scale (:64-69, selected at :129-136). So the flex
+            // line is max(caption1 16 + gap, body1Strong 20) = 21, not
+            // max(16, 20) + gap = 25, and both spans sit at its top. Oracle B
+            // measures the `fui-hbc__chartTitle` box at 21 tall with
+            // `chartTitleLeft` 16 tall at the same y, and the row pitch at
+            // 43 = 21 + svg 12 + items margin 10.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                // HorizontalBarChart.tsx:432 — an absent title renders no
+                // left span at all, and `space-between` then leaves the value
+                // at the start of the line.
+                if (row.chartTitle != null && row.chartTitle!.isNotEmpty)
+                  Flexible(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        bottom: isAbsolute
+                            ? resolved.titleBottomSpacingAbsolute!.resolve(
+                                states,
+                              )!
+                            : resolved.titleBottomSpacing!.resolve(states)!,
+                      ),
                       child: Text(
-                        row.chartTitle ?? '',
+                        row.chartTitle!,
                         style: resolved.titleTextStyle!.resolve(states),
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                       ),
                     ),
-                    _valueText(row, isSingleBar, resolved) ??
-                        const SizedBox.shrink(),
-                  ],
-                ),
-              ),
-              if (benchmark != null && benchmark > 0 && total != null)
-                SizedBox(
-                  // useHorizontalBarChartStyles.styles.ts:78-83 — the
-                  // container is 7 tall with -3 top and -1 bottom margins, so
-                  // it consumes 3 of vertical flow and overlaps its
-                  // neighbours.
-                  // parity: useHorizontalBarChartStyles.styles.ts:80-82.
-                  height: 3,
-                  child: OverflowBox(
-                    maxHeight: resolved.benchmarkHeight!.resolve(states),
-                    alignment: Alignment.topCenter,
-                    child: CustomPaint(
-                      painter: FluentBenchmarkTrianglePainter(
-                        ratio: FluentBenchmarkTrianglePainter.ratioFor(
-                          benchmark: benchmark,
-                          total: total,
-                        ),
-                        colour: resolved.benchmarkColor!.resolve(states)!,
-                        triangleWidth: resolved.benchmarkWidth!.resolve(
-                          states,
-                        )!,
-                        triangleHeight: resolved.benchmarkHeight!.resolve(
-                          states,
-                        )!,
+                  ),
+                _valueText(row, isSingleBar, resolved) ??
+                    const SizedBox.shrink(),
+              ],
+            ),
+            if (benchmark != null && benchmark > 0 && total != null)
+              SizedBox(
+                // useHorizontalBarChartStyles.styles.ts:78-83 — the
+                // container is 7 tall with -3 top and -1 bottom margins, so
+                // it consumes 3 of vertical flow and overlaps its
+                // neighbours.
+                // parity: useHorizontalBarChartStyles.styles.ts:80-82.
+                height: 3,
+                child: OverflowBox(
+                  maxHeight: resolved.benchmarkHeight!.resolve(states),
+                  alignment: Alignment.topCenter,
+                  child: CustomPaint(
+                    painter: FluentBenchmarkTrianglePainter(
+                      ratio: FluentBenchmarkTrianglePainter.ratioFor(
+                        benchmark: benchmark,
+                        total: total,
                       ),
+                      colour: resolved.benchmarkColor!.resolve(states)!,
+                      triangleWidth: resolved.benchmarkWidth!.resolve(states)!,
+                      triangleHeight: resolved.benchmarkHeight!.resolve(
+                        states,
+                      )!,
                     ),
                   ),
                 ),
-              SizedBox(
-                height: barHeight,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: <Widget>[
-                    CustomPaint(
-                      size: Size(constraints.maxWidth, barHeight),
-                      painter: FluentHorizontalBarStripPainter(
-                        layout: layout,
-                        fills: <Color>[
-                          for (var i = 0; i < points.length; i++)
-                            chartColours.flattenMark(
-                              points[i].color ??
-                                  // parity: HorizontalBarChart.tsx:265 picks
-                                  // defaultColors[floor(random() * 4 + 1)] — a
-                                  // random index in 1..4 that never selects
-                                  // entry 0. Randomness is one of the two
-                                  // exceptions in design spec section 5.2, so
-                                  // this is the same range made deterministic.
-                                  palette[i % 4 + 1],
+              ),
+            SizedBox(
+              height: barHeight,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  CustomPaint(
+                    size: Size(constraints.maxWidth, barHeight),
+                    painter: FluentHorizontalBarStripPainter(
+                      layout: layout,
+                      fills: <Color>[
+                        for (var i = 0; i < points.length; i++)
+                          chartColours.flattenMark(
+                            points[i].color ??
+                                // parity: HorizontalBarChart.tsx:265 picks
+                                // defaultColors[floor(random() * 4 + 1)] — a
+                                // random index in 1..4 that never selects
+                                // entry 0. Randomness is one of the two
+                                // exceptions in design spec section 5.2, so
+                                // this is the same range made deterministic.
+                                palette[i % 4 + 1],
+                          ),
+                      ],
+                      opacities: <double>[
+                        for (final point in points)
+                          _highlighted(point.legend) || _noneHighlighted
+                              ? 1.0
+                              : dimmed,
+                      ],
+                      barHeight: barHeight,
+                      textDirection: direction,
+                      absoluteLabelIndex: placeholderIndex == -1
+                          ? null
+                          : placeholderIndex,
+                      absoluteLabel: placeholderIndex == -1 || widget.hideLabels
+                          ? null
+                          : formatScientificLimitWidth(
+                              points.first.horizontalBarChartData?.x ?? 0,
                             ),
-                        ],
-                        opacities: <double>[
-                          for (final point in points)
-                            _highlighted(point.legend) || _noneHighlighted
-                                ? 1.0
-                                : dimmed,
-                        ],
-                        barHeight: barHeight,
-                        textDirection: direction,
-                        absoluteLabelIndex: placeholderIndex == -1
-                            ? null
-                            : placeholderIndex,
-                        absoluteLabel:
-                            placeholderIndex == -1 || widget.hideLabels
-                            ? null
-                            : formatScientificLimitWidth(
-                                points.first.horizontalBarChartData?.x ?? 0,
-                              ),
-                        absoluteLabelStyle: resolved.barLabelTextStyle!.resolve(
-                          states,
-                        ),
-                        absoluteLabelOffset: resolved.barLabelOffset!.resolve(
-                          states,
-                        )!,
+                      absoluteLabelStyle: resolved.barLabelTextStyle!.resolve(
+                        states,
                       ),
+                      absoluteLabelOffset: resolved.barLabelOffset!.resolve(
+                        states,
+                      )!,
                     ),
-                    // One Focus per bar, not a roving index — design spec §5.7
-                    // bounded-cardinality exemption, bound asserted in `build`
-                    // at 32 marks per row.
-                    for (var i = 0; i < points.length; i++)
-                      if (!points[i].placeHolder)
-                        Positioned.fromRect(
-                          rect: layout.rectOf(i, barHeight),
-                          child: Builder(
-                            builder: (barContext) => Focus(
-                              // HorizontalBarChart.tsx:322 gives every bar
-                              // role="option"; the label is what a test and a
-                              // debug dump identify the bar's own focus node
-                              // by, against the legend's below it.
-                              debugLabel: 'FluentHorizontalBarChart bar',
-                              canRequestFocus:
-                                  _highlighted(points[i].legend) ||
-                                  _noneHighlighted,
-                              onFocusChange: (hasFocus) {
-                                // HorizontalBarChart.tsx:321 — onFocus is the
-                                // same handler as onMouseOver.
-                                if (!hasFocus ||
-                                    widget.hideTooltip ||
+                  ),
+                  // One Focus per bar, not a roving index — design spec §5.7
+                  // bounded-cardinality exemption, bound asserted in `build`
+                  // at 32 marks per row.
+                  for (var i = 0; i < points.length; i++)
+                    if (!points[i].placeHolder)
+                      Positioned.fromRect(
+                        rect: layout.rectOf(i, barHeight),
+                        child: Builder(
+                          builder: (barContext) => Focus(
+                            // HorizontalBarChart.tsx:322 gives every bar
+                            // role="option"; the label is what a test and a
+                            // debug dump identify the bar's own focus node
+                            // by, against the legend's below it.
+                            debugLabel: 'FluentHorizontalBarChart bar',
+                            canRequestFocus:
+                                _highlighted(points[i].legend) ||
+                                _noneHighlighted,
+                            onFocusChange: (hasFocus) {
+                              // HorizontalBarChart.tsx:321 — onFocus is the
+                              // same handler as onMouseOver.
+                              if (!hasFocus ||
+                                  widget.hideTooltip ||
+                                  points[i].legend == '') {
+                                return;
+                              }
+                              final box =
+                                  barContext.findRenderObject() as RenderBox?;
+                              if (box == null) return;
+                              setState(() {
+                                _hovered = points[i];
+                                _anchor = _toPlot(
+                                  box.localToGlobal(
+                                    box.size.center(Offset.zero),
+                                  ),
+                                );
+                              });
+                            },
+                            child: MouseRegion(
+                              onHover: (event) {
+                                // HorizontalBarChart.tsx:318-320 — a bar
+                                // whose legend is the empty string, which is
+                                // every synthesised placeholder, has no
+                                // handler at all.
+                                if (widget.hideTooltip ||
                                     points[i].legend == '') {
                                   return;
                                 }
-                                final box =
-                                    barContext.findRenderObject() as RenderBox?;
-                                if (box == null) return;
+                                // HorizontalBarChart.tsx:349-360 — the
+                                // popover only moves when the pointer
+                                // travels more than one pixel.
+                                final next = _toPlot(event.position);
+                                if (_anchor != null &&
+                                    (_anchor! - next).distance <= 1) {
+                                  return;
+                                }
                                 setState(() {
                                   _hovered = points[i];
-                                  _anchor = _toPlot(
-                                    box.localToGlobal(
-                                      box.size.center(Offset.zero),
-                                    ),
-                                  );
+                                  _anchor = next;
                                 });
                               },
-                              child: MouseRegion(
-                                onHover: (event) {
-                                  // HorizontalBarChart.tsx:318-320 — a bar
-                                  // whose legend is the empty string, which is
-                                  // every synthesised placeholder, has no
-                                  // handler at all.
-                                  if (widget.hideTooltip ||
-                                      points[i].legend == '') {
-                                    return;
-                                  }
-                                  // HorizontalBarChart.tsx:349-360 — the
-                                  // popover only moves when the pointer
-                                  // travels more than one pixel.
-                                  final next = _toPlot(event.position);
-                                  if (_anchor != null &&
-                                      (_anchor! - next).distance <= 1) {
-                                    return;
-                                  }
-                                  setState(() {
-                                    _hovered = points[i];
-                                    _anchor = next;
-                                  });
-                                },
-                                child: Semantics(
-                                  label: _ariaLabel(points[i]),
-                                  button: points[i].onClick != null,
-                                  onTap: points[i].onClick,
-                                  child: const SizedBox.expand(),
-                                ),
+                              child: Semantics(
+                                label: _ariaLabel(points[i]),
+                                button: points[i].onClick != null,
+                                onTap: points[i].onClick,
+                                child: const SizedBox.expand(),
                               ),
                             ),
                           ),
                         ),
-                  ],
-                ),
+                      ),
+                ],
               ),
-            ],
-          );
-        },
-      ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

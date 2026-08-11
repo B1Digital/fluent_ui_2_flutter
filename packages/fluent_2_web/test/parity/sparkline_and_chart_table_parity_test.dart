@@ -158,32 +158,41 @@ void main() {
         headers: headers,
         rows: rows,
       ),
-      // Measured 12.476% — 23,554 pixels of 188,800 — and NOT rasteriser
-      // noise. Pinned at the measured value so the number is recorded, not
-      // because the number is acceptable. Two defects, both visible in
-      // `out/charts-charttable--chart-table-basic.png`:
+      // Measured 4.070% — 7,684 pixels of 188,800 — down from 12.476%. Both
+      // of the geometry defects that made up the old number are gone:
       //
-      //  1. The table is 376px wide against upstream's 700. `width` is applied
-      //     to the outer SizedBox (`chart_table.dart:345`) while the grid keeps
-      //     `IntrinsicColumnWidth`, so it never fills the box. Upstream puts
-      //     `width` on the *table* element — the capture proves it: the root
-      //     box is 944 (100% of the parent less the 12px margins) and the table
-      //     inside it is exactly 700 — and CSS auto layout spreads the surplus
-      //     across the columns in proportion to their content, giving pitches
-      //     of 129/114/117/117/118/103. 7,473 of the mismatched pixels (3.96 of
-      //     the 12.48) are at x >= 376, i.e. beyond where this table stops.
-      //  2. The row pitch is 32 against upstream's 34, and the whole grid is
-      //     160 tall against 172. `TableBorder` strokes the 2px line centred on
-      //     a boundary that takes no space of its own, but `border-collapse`
-      //     adds the collapsed border to the table's box. Every boundary is 2px
-      //     short, in both axes.
+      //  1. The grid is 700 wide, not 376. `width` now lands on the grid the
+      //     way `ChartTable.tsx:130` lands it on the <table>, and the columns
+      //     take the surplus in proportion to their content the way CSS auto
+      //     layout does.
+      //  2. The row pitch is 34, not 32, and the grid is 172 tall, not 160.
+      //     The collapsed 2px line is laid out as a real Border on each cell
+      //     instead of stroked over the top by TableBorder, so it occupies the
+      //     space `border-collapse` gives it.
+      //
+      // Measured off the two PNGs, every horizontal line now lands exactly:
+      // rows 0/34/68/102/136/170 in both. The verticals land on
+      // 0/128/245/362/479/596/698 against the capture's
+      // 0/129/243/360/477/595/698 — pitches 128/117/117/117/117/102 against
+      // 129/114/117/117/118/103.
+      //
+      // That last 1-2px is the documented font residual and nothing else.
+      // Chromium sizes the four "Qn Sales" headers differently from one
+      // another (114/117/117/118); Selawik Semibold makes all four identical
+      // (117/117/117/117), and back-solving the proportional split puts
+      // Selawik's "Q1 Sales" 3.3% wide of Segoe UI Semibold's — inside the
+      // 3.87% that `support/react_parity.dart` measured for weight 600. CSS
+      // auto layout then amplifies each of those by 698/388, so a 1.5px metric
+      // error becomes a 3px column error.
       //
       // The story has no textRects, so unlike every other parity story its
-      // glyphs are compared unmasked. That is a small part of the number: the
-      // reference has 3,423 dark pixels in total (1.81%), so text can account
-      // for at most ~3.6 points even fully displaced, and the remaining ~9 is
-      // grid geometry.
-      maxMismatch: 13.73,
+      // glyphs are compared unmasked, and there is no layout fix below about
+      // 1.7%: shifting each column of the Flutter render by its own measured
+      // offset before comparing still leaves 3,219 mismatched pixels of pure
+      // Skia-versus-Chromium glyph rasterisation (the reference carries 4,730
+      // dark pixels, 2.51%). Of the 7,684 that remain, 896 are the four
+      // misplaced vertical lines and the other 6,788 are text.
+      maxMismatch: 4.48,
     );
   });
 }

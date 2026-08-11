@@ -48,7 +48,7 @@ class FluentGanttChart extends StatefulWidget {
     this.enableGradient = false,
     this.roundCorners = false,
     this.useUtc = true,
-    this.yAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
+    this.yAxisCategoryOrder,
     this.popoverBuilder,
     this.style,
     this.legendSelectionMode = FluentChartLegendSelectionMode.single,
@@ -85,8 +85,14 @@ class FluentGanttChart extends StatefulWidget {
   /// Whether dates are formatted in UTC — default true.
   final bool useUtc;
 
-  /// Ordering applied to a category y axis.
-  final FluentAxisCategoryOrder yAxisCategoryOrder;
+  /// Ordering applied to a category y axis, or null when the caller named none.
+  ///
+  /// Null and [FluentAxisCategoryOrder.defaultOrder] mean the same thing here,
+  /// unlike on HeatMapChart or ScatterChart: `yAxisCategoryOrder = 'default'`
+  /// (`GanttChart.tsx:45`) is a **destructuring** default, so upstream really
+  /// does see `'default'` when the prop is absent and takes the reversed
+  /// insertion order at `:156`.
+  final FluentAxisCategoryOrder? yAxisCategoryOrder;
 
   /// Replaces the popover body.
   ///
@@ -306,7 +312,7 @@ class FluentGanttChartDelegate extends FluentCartesianSeriesDelegate {
     this.roundCorners = false,
     this.useUtc = true,
     this.culture,
-    this.yAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
+    this.yAxisCategoryOrder,
   });
 
   /// The spans, in author order, with colours already assigned.
@@ -351,8 +357,14 @@ class FluentGanttChartDelegate extends FluentCartesianSeriesDelegate {
   @override
   final String? culture;
 
-  /// Ordering applied to a category y axis.
-  final FluentAxisCategoryOrder yAxisCategoryOrder;
+  /// Ordering applied to a category y axis, or null when the caller named none.
+  ///
+  /// Null and [FluentAxisCategoryOrder.defaultOrder] mean the same thing here,
+  /// unlike on HeatMapChart or ScatterChart: `yAxisCategoryOrder = 'default'`
+  /// (`GanttChart.tsx:45`) is a **destructuring** default, so upstream really
+  /// does see `'default'` when the prop is absent and takes the reversed
+  /// insertion order at `:156`.
+  final FluentAxisCategoryOrder? yAxisCategoryOrder;
 
   @override
   FluentChartType get chartType => FluentChartType.ganttChart;
@@ -411,7 +423,10 @@ class FluentGanttChartDelegate extends FluentCartesianSeriesDelegate {
         (String a, String b) => double.parse(a).compareTo(double.parse(b)),
       );
     }
-    if (yAxisCategoryOrder == FluentAxisCategoryOrder.defaultOrder) {
+    // Null is the absent prop, which `GanttChart.tsx:45` fills in with
+    // `'default'` before `:155` ever sees it.
+    if (yAxisCategoryOrder == null ||
+        yAxisCategoryOrder == FluentAxisCategoryOrder.defaultOrder) {
       return map.keys.toList().reversed.toList(growable: false);
     }
     return sortAxisCategories(map, yAxisCategoryOrder);
