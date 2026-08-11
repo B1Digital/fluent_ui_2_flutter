@@ -827,6 +827,32 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       '_colorMap, isDark: isDark)` is an arm of its exhaustive switch (plan 09 '
       'line 19459), returned as the widget the chart renders rather than '
       'computed and dropped. Goes when Task 52 lands.',
+
+  // Task 48 appended the histogram to the same file. Its two private helpers,
+  // `_vegaBinCentre` and `_vegaHistogramAggregate`, are invisible to this scan
+  // by their leading underscore and are both called from
+  // `transformVegaToHistogram` a few lines below them.
+  'transformVegaToHistogram':
+      'internal/vega/transform_bar.dart:349, the port of the exported '
+      'VegaLiteSchemaAdapter.ts:3566-3695. Upstream has exactly one caller — '
+      '`grep -n transformVegaLiteToHistogramProps` over '
+      'crawlers/fluentui-react-charts/out/charts/src/components/'
+      'VegaDeclarativeChart/VegaDeclarativeChart.tsx returns the import at '
+      ':14, the `typeof` in the registry type at :185 and the registry entry '
+      'itself at :208, `histogram: { transformer: '
+      'transformVegaLiteToHistogramProps, renderer: '
+      'ResponsiveVerticalBarChart }` — the same renderer the `bar` entry uses, '
+      'because a histogram is a render mode of the vertical bar chart rather '
+      'than a chart type. Task 52 is the caller in this port: '
+      '`FluentVegaChartKind.histogram => transformVegaToHistogram(spec, '
+      '_colorMap, isDark: isDark)` is an arm of its exhaustive switch (plan 09 '
+      'line 19479), returned as the widget the chart renders rather than '
+      'computed and dropped. The routing side is already live: '
+      '`internal/vega/routing.dart:318` answers '
+      '`FluentVegaChartKind.histogram` for a truthy `encoding.x.bin` '
+      '(`VegaLiteSchemaAdapter.ts:1698-1700`), so this transformer is the only '
+      'thing standing between that verdict and a rendered chart. Goes when '
+      'Task 52 lands.',
 };
 
 /// Files scanned for declarations: every `.dart` file under
