@@ -200,16 +200,20 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   'transformPlotlyToVbc':
       'internal/plotly/transform_bar.dart, the Plotly vertical-bar and '
       'histogram transformer (PlotlySchemaAdapter.ts:1793-1906) and plan 09 '
-      "Task 20. Upstream reaches it from the `verticalbar` and `histogram` "
-      "entries of DeclarativeChart's chartMap (DeclarativeChart.tsx:268-271), "
-      'dispatched at :607, and the router already resolves both kinds — what '
-      'is missing is the widget that reads the route, which is plan 09 Task '
-      '28, and which also supplies the enclosing SizedBox this transformer '
-      "deliberately does not build (spec §2.2's constraint-sized shell charts, "
-      'with the 350 from PlotlySchemaAdapter.ts:1892 living in '
+      'Task 20. Upstream reaches it from the `verticalbar` entry of '
+      "DeclarativeChart's chartMap (DeclarativeChart.tsx:303-306), dispatched "
+      'at :607, and a `histogram` trace is the only thing routed there '
+      '(PlotlySchemaConverter.ts:516-517). The widget that reads the route is '
+      'plan 09 Task 28, which also supplies the enclosing SizedBox this '
+      "transformer deliberately does not build (spec §2.2's constraint-sized "
+      'shell charts, with the 350 from PlotlySchemaAdapter.ts:1892 living in '
       'kPlotlyDefaultCellHeight). So the call site does not exist yet rather '
-      'than having been forgotten. Whoever lands DeclarativeChart deletes this '
-      'entry — the test below fails until they do. `getNumberAtIndexOrDefault` '
+      'than having been forgotten. Two things must land before it can: that '
+      'widget, and a `verticalBar` member of FluentPlotlyChartKind — '
+      'internal/plotly/router.dart:707-710 currently sends `histogram` to '
+      '`verticalStackedBar`, which is the one route upstream reserves for this '
+      'transformer, so as it stands a histogram would bin nothing. Whoever '
+      'lands DeclarativeChart deletes this entry. `getNumberAtIndexOrDefault` '
       'needs no entry: this function calls it.',
   'transformPlotlyToLine':
       'internal/plotly/transform_xy.dart, one of the three wrappers over the '
