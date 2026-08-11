@@ -31,11 +31,11 @@ export 'src/buttons/button.dart';
 export 'src/buttons/button_style.dart';
 export 'src/buttons/compound_button.dart';
 export 'src/buttons/split_button.dart';
-// The chart foundation. `src/charts/internal/d3/**` and
-// `src/charts/internal/responsive.dart` are deliberately NOT exported: the d3
-// port is 28 files of unprefixed globals kept internal on purpose, and the
-// responsive helper has no public symbol. Tests reach both by deep import,
-// which is existing precedent in this repository.
+// The chart foundation. `src/charts/internal/d3/**` is deliberately NOT
+// exported: the port is 28 files of unprefixed globals kept internal on
+// purpose. Tests reach it by deep import, which is existing precedent in this
+// repository. `src/charts/internal/responsive.dart` was named here too and is
+// now deleted rather than hidden — see the design document, section 5.1.
 export 'src/charts/annotation_only_chart.dart';
 export 'src/charts/annotation_only_chart_style.dart';
 export 'src/charts/area_chart.dart';
