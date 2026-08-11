@@ -1,9 +1,13 @@
+import 'package:flutter/foundation.dart';
+
+import 'base64_data.dart';
 import 'json_guard.dart';
 import 'predicates.dart';
 
-/// The 16 chart kinds a Plotly figure can route to.
+/// The 17 chart kinds a Plotly figure can route to.
 ///
-/// One-for-one with the `FluentChart` union at `PlotlySchemaConverter.ts:4-20`.
+/// The 16 of the `FluentChart` union at `PlotlySchemaConverter.ts:4-20`, plus
+/// [funnel] — which the union omits but `:546` returns; see its doc.
 enum FluentPlotlyChartKind {
   /// Layout annotations with no traces (`PlotlySchemaConverter.ts:499`).
   annotation,
@@ -20,6 +24,14 @@ enum FluentPlotlyChartKind {
   /// A scatter that cannot be drawn as a line and falls back to a stacked bar
   /// (`PlotlySchemaConverter.ts:576`).
   fallback,
+
+  /// `funnel` or `funnelarea` (`PlotlySchemaConverter.ts:544-546`).
+  ///
+  /// Absent from the `FluentChart` union at `PlotlySchemaConverter.ts:4-20`,
+  /// which the `as TraceInfo` cast at `:602` lets through; `:546` is the branch
+  /// that returns it and `DeclarativeChart.tsx:248-251` renders a `FunnelChart`
+  /// for it, so the union is what is incomplete, not the branch.
+  funnel,
 
   /// `indicator` or `gauge` (`PlotlySchemaConverter.ts:516`).
   gauge,
@@ -67,6 +79,7 @@ String plotlyChartKindName(FluentPlotlyChartKind kind) => switch (kind) {
   FluentPlotlyChartKind.composite => 'composite',
   FluentPlotlyChartKind.donut => 'donut',
   FluentPlotlyChartKind.fallback => 'fallback',
+  FluentPlotlyChartKind.funnel => 'funnel',
   FluentPlotlyChartKind.gauge => 'gauge',
   FluentPlotlyChartKind.groupedVerticalBar => 'groupedverticalbar',
   FluentPlotlyChartKind.heatmap => 'heatmap',
@@ -435,4 +448,333 @@ void validatePlotlyTrace(
         );
       }
   }
+}
+
+/// One surviving trace and the kind it maps to.
+@immutable
+class FluentPlotlyTraceInfo {
+  /// Creates a trace record.
+  const FluentPlotlyTraceInfo({required this.index, required this.kind});
+
+  /// Index into the **original** `data` array, not the filtered one
+  /// (`PlotlySchemaConverter.ts:600`).
+  final int index;
+
+  /// The chart kind this trace alone maps to.
+  final FluentPlotlyChartKind kind;
+
+  @override
+  bool operator ==(Object other) =>
+      other is FluentPlotlyTraceInfo &&
+      other.index == index &&
+      other.kind == kind;
+
+  @override
+  int get hashCode => Object.hash(index, kind);
+
+  @override
+  String toString() =>
+      'FluentPlotlyTraceInfo($index, ${plotlyChartKindName(kind)})';
+}
+
+/// The result of routing a Plotly figure.
+///
+/// `OutputChartType` at `PlotlySchemaConverter.ts:28-36`.
+@immutable
+class FluentPlotlyRoute {
+  /// Creates a route.
+  const FluentPlotlyRoute({
+    required this.isValid,
+    this.errorMessage,
+    this.kind,
+    this.traces = const <FluentPlotlyTraceInfo>[],
+  });
+
+  /// Whether at least one trace survived validation.
+  final bool isValid;
+
+  /// The joined validator messages when [isValid] is false.
+  final String? errorMessage;
+
+  /// The figure-level chart kind, null when invalid.
+  final FluentPlotlyChartKind? kind;
+
+  /// Per-trace kinds, in original-index order.
+  final List<FluentPlotlyTraceInfo> traces;
+}
+
+/// `hasAnnotationContent` at `PlotlySchemaConverter.ts:207-213`.
+///
+/// A non-array is content, because `:212` only counts the length of something
+/// that is one.
+bool _hasAnnotationContent(Object? annotations) {
+  if (annotations == null) {
+    return false;
+  }
+  if (annotations is! List<Object?>) {
+    return true;
+  }
+  return annotations.isNotEmpty;
+}
+
+/// Validates the top-level shape of a figure (`PlotlySchemaConverter.ts:215-248`).
+///
+/// A figure with no traces is admitted when the layout carries annotations,
+/// because `AnnotationOnlyChart` is a legitimate output.
+Map<String, Object?> getValidSchema(Object? input) {
+  if (input == null) {
+    throw const PlotlySchemaException(
+      'Invalid plotly schema: Plotly input is null or undefined',
+    );
+  }
+  if (input is! Map<String, Object?>) {
+    throw PlotlySchemaException(
+      'Invalid plotly schema: Plotly input is not an object. '
+      'Input type: ${input.runtimeType}',
+    );
+  }
+  final layout = input['layout'];
+  final hasAnnotations =
+      layout is Map<String, Object?> &&
+      _hasAnnotationContent(layout['annotations']);
+  final data = input['data'];
+  if (data is! List<Object?>) {
+    if (hasAnnotations) {
+      return <String, Object?>{...input, 'data': <Object?>[]};
+    }
+    throw const PlotlySchemaException(
+      'Invalid plotly schema: Plotly input data is not a valid array or '
+      'typed array',
+    );
+  }
+  if (data.isEmpty) {
+    if (hasAnnotations) {
+      return <String, Object?>{...input, 'data': <Object?>[]};
+    }
+    throw const PlotlySchemaException(
+      'Invalid plotly schema: Plotly input data is empty',
+    );
+  }
+  return input;
+}
+
+/// The `bar` arm of the mapping switch (`PlotlySchemaConverter.ts:523-543`).
+///
+/// Null is the `{isValid: false}` return at `:538`, the one arm of the switch
+/// that rejects a trace it has already validated.
+FluentPlotlyChartKind? _mapBar(
+  Map<String, Object?> trace,
+  Map<String, Object?>? layout,
+) {
+  if (trace['orientation'] == 'h') {
+    return canMapToGantt(trace)
+        ? FluentPlotlyChartKind.gantt
+        : FluentPlotlyChartKind.horizontalBar;
+  }
+  if (isObjectArray(trace['y'])) {
+    return FluentPlotlyChartKind.groupedVerticalBar;
+  }
+  if (const <String>['group', 'overlay'].contains(layout?['barmode'])) {
+    // `PlotlySchemaConverter.ts:537-539` rejects a non-numeric y for GVBC.
+    if (!isNumberArray(trace['y'])) {
+      return null;
+    }
+    return FluentPlotlyChartKind.groupedVerticalBar;
+  }
+  return FluentPlotlyChartKind.verticalStackedBar;
+}
+
+/// The `scatter`/`scattergl` arm (`PlotlySchemaConverter.ts:547-576`).
+///
+/// [foundScatterGantt] is read and written, because `:552` latches it for the
+/// invisible companion trace plotly.py emits after the corner trace.
+FluentPlotlyChartKind _mapScatter(
+  Map<String, Object?> trace,
+  Map<String, Object?>? layout, {
+  required bool foundScatterGantt,
+  required void Function() onScatterGantt,
+}) {
+  if (isScatterGanttChart(trace, foundScatterGantt: foundScatterGantt)) {
+    onScatterGantt();
+    return FluentPlotlyChartKind.gantt;
+  }
+  if (_isScatterMarkers(_mode(trace))) {
+    final shapes = layout?['shapes'];
+    final hasLineShape =
+        shapes is List<Object?> &&
+        shapes.any((s) => s is Map<String, Object?> && s['type'] == 'line');
+    return hasLineShape && supportedScatterInLineChart(trace, layout)
+        ? FluentPlotlyChartKind.line
+        : FluentPlotlyChartKind.scatter;
+  }
+  if (!doesScatterNeedFallback(trace, layout)) {
+    return isScatterAreaChart(trace)
+        ? FluentPlotlyChartKind.area
+        : FluentPlotlyChartKind.line;
+  }
+  // `:574-575` notes that an area chart can never reach here: validateScatter
+  // throws when both isScatterAreaChart and doesScatterNeedFallback hold.
+  return FluentPlotlyChartKind.fallback;
+}
+
+/// Routes a Plotly figure to one chart kind and a per-trace kind list.
+///
+/// `PlotlySchemaConverter.ts:477-646`, branch for branch. Three composite rules
+/// run after the per-trace switch, in this order (`:605-642`): lines plus bars
+/// resolve to grouped-vertical-bar unless any stacked bar is present, in which
+/// case fallback; lines plus a fallback resolve to fallback; more than one
+/// surviving kind resolves to composite.
+FluentPlotlyRoute mapFluentChart(Object? input) {
+  // `:479` calls `sanitizeJson` for its throw alone and discards the result,
+  // so only the depth guard is observable here. The escaping half of
+  // `sanitizePlotlyJson` is a fresh copy in the port rather than upstream's
+  // in-place rewrite, and this function returns a route, not a schema — the
+  // transformers escape the copy they read.
+  try {
+    validatePlotlyJsonDepth(input);
+  } on PlotlySchemaException catch (e) {
+    return FluentPlotlyRoute(
+      isValid: false,
+      errorMessage: 'Invalid JSON: ${e.message}',
+    );
+  }
+
+  final Map<String, Object?> schema;
+  try {
+    schema = decodeBase64Fields(getValidSchema(input));
+  } on PlotlySchemaException catch (e) {
+    return FluentPlotlyRoute(isValid: false, errorMessage: e.message);
+  }
+
+  final layout = schema['layout'] is Map<String, Object?>
+      ? schema['layout']! as Map<String, Object?>
+      : null;
+  final data = schema['data']! as List<Object?>;
+  final hasAnnotations = _hasAnnotationContent(layout?['annotations']);
+
+  if (data.isEmpty) {
+    // `:494-499`. getValidSchema only returns an empty data array when the
+    // layout carries annotations, so the second arm is unreachable through it
+    // and is kept for a caller that hands this an already-validated schema.
+    if (hasAnnotations) {
+      return const FluentPlotlyRoute(
+        isValid: true,
+        kind: FluentPlotlyChartKind.annotation,
+      );
+    }
+    return const FluentPlotlyRoute(
+      isValid: false,
+      errorMessage: 'Plotly input data is empty',
+    );
+  }
+
+  // `getValidTraces` at `:448-475`: one pass that validates and keeps the
+  // original index.
+  final errors = <String>[];
+  final valid = <(int, Map<String, Object?>)>[];
+  for (var i = 0; i < data.length; i++) {
+    final trace = data[i];
+    if (trace is! Map<String, Object?>) {
+      continue;
+    }
+    try {
+      validatePlotlyTrace(trace, layout);
+      valid.add((i, trace));
+    } on PlotlySchemaException catch (e) {
+      errors.add('data[$i] - type: ${trace['type']}, ${e.message}');
+    }
+  }
+  if (valid.isEmpty) {
+    return FluentPlotlyRoute(isValid: false, errorMessage: errors.join('; '));
+  }
+
+  var foundScatterGantt = false;
+  final mapped = <FluentPlotlyTraceInfo>[];
+  final mapErrors = <String>[];
+  for (final (index, trace) in valid) {
+    final FluentPlotlyChartKind? kind;
+    switch (trace['type']) {
+      case 'pie':
+        kind = FluentPlotlyChartKind.donut;
+      case 'histogram2d':
+      case 'heatmap':
+        kind = FluentPlotlyChartKind.heatmap;
+      case 'sankey':
+        kind = FluentPlotlyChartKind.sankey;
+      case 'indicator':
+      case 'gauge':
+        kind = FluentPlotlyChartKind.gauge;
+      case 'histogram':
+        // `PlotlySchemaConverter.ts:518` sends histograms to the vertical bar
+        // chart, whose transformer bins them.
+        kind = FluentPlotlyChartKind.verticalStackedBar;
+      case 'scatterpolar':
+        kind = FluentPlotlyChartKind.scatterPolar;
+      case 'table':
+        kind = FluentPlotlyChartKind.table;
+      case 'bar':
+        kind = _mapBar(trace, layout);
+        if (kind == null) {
+          mapErrors.add('GVBC does not support string y-axis.');
+        }
+      case 'funnel':
+      case 'funnelarea':
+        kind = FluentPlotlyChartKind.funnel;
+      case 'scatter':
+      case 'scattergl':
+        kind = _mapScatter(
+          trace,
+          layout,
+          foundScatterGantt: foundScatterGantt,
+          onScatterGantt: () => foundScatterGantt = true,
+        );
+      default:
+        kind = null;
+        mapErrors.add('$_unsupportedPrefix ${trace['type']}');
+    }
+    if (kind != null) {
+      mapped.add(FluentPlotlyTraceInfo(index: index, kind: kind));
+    }
+  }
+
+  if (mapped.isEmpty) {
+    // `:586-590` de-duplicates the messages and keeps first-seen order, which
+    // is what a LinkedHashSet does.
+    return FluentPlotlyRoute(
+      isValid: false,
+      errorMessage: mapErrors.toSet().join('; '),
+    );
+  }
+
+  final kinds = mapped.map((t) => t.kind).toSet();
+  final containsBars =
+      kinds.contains(FluentPlotlyChartKind.groupedVerticalBar) ||
+      kinds.contains(FluentPlotlyChartKind.verticalStackedBar);
+  final containsLines =
+      kinds.contains(FluentPlotlyChartKind.line) ||
+      kinds.contains(FluentPlotlyChartKind.fallback);
+  if (containsLines) {
+    if (containsBars) {
+      final useGvbc = !kinds.contains(FluentPlotlyChartKind.verticalStackedBar);
+      return FluentPlotlyRoute(
+        isValid: true,
+        kind: useGvbc
+            ? FluentPlotlyChartKind.groupedVerticalBar
+            : FluentPlotlyChartKind.fallback,
+        traces: mapped,
+      );
+    }
+    if (kinds.contains(FluentPlotlyChartKind.fallback)) {
+      return FluentPlotlyRoute(
+        isValid: true,
+        kind: FluentPlotlyChartKind.fallback,
+        traces: mapped,
+      );
+    }
+  }
+  return FluentPlotlyRoute(
+    isValid: true,
+    kind: kinds.length > 1 ? FluentPlotlyChartKind.composite : kinds.first,
+    traces: mapped,
+  );
 }
