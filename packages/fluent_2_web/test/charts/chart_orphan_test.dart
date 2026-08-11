@@ -30,7 +30,7 @@
 // That number was measured without the same-file refinement below. With it, the
 // wider sweep reported 1509 declarations and 25 orphans, and every one of the 25
 // was checked by hand against `grep`: not one had a `lib/` reference that was
-// not a doc comment. On 2026-08-11 it reports 1664 declarations across 98 files
+// not a doc comment. On 2026-08-11 it reports 1661 declarations across 97 files
 // and 18 orphans — the 17 excused below plus `FluentSparkline`, which
 // refinement 4 made visible and which was checked the same way. The
 // false-positive rate of the rule as written is 0 of 18.
@@ -649,7 +649,7 @@ void main() {
   };
 
   test('the scan read the sources it claims to read', () {
-    // 1664 reportable declarations across 98 files on 2026-08-11. The floor is
+    // 1661 reportable declarations across 97 files on 2026-08-11. The floor is
     // the failure this guards: a regex that stops matching reports zero orphans
     // and passes, which is the gate quietly deleting itself. `melos run ci`
     // would stay green through it, exactly as it did through all seven defects
