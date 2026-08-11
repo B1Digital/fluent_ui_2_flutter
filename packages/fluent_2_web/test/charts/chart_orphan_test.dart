@@ -668,13 +668,12 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // computed and dropped. Its entry predicted the :2291 position (Task 43's
   // line transformer) as the first caller; Task 43 had not landed when Task 44
   // did, so the scatter path is the one that took it.
-  'mapInterpolateToCurve':
-      'internal/vega/common.dart:133. Upstream has exactly two callers, '
-      'VegaLiteSchemaAdapter.ts:1843 and :3792, both `mapInterpolateToCurve('
-      "markProps.interpolate)`; the first is the line transformer's curve "
-      'option and the second the same read inside the concat path. Task 43 '
-      'ports the first, and the call is a statement in its own Step 3 code '
-      '(plan 09 line 15655). Goes when Task 43 lands.',
+  // `mapInterpolateToCurve` was here and left by the exit it named: Task 43's
+  // line transformer reads it once, above the series loop, at the
+  // VegaLiteSchemaAdapter.ts:1843 position, and the curve it returns is spent
+  // on `FluentLineOptions.curve` for every series rather than computed and
+  // dropped — pinned by transform_line_test's 'a mark object contributes
+  // curve, dash and width line options', whose `curve: null` mutant dies.
   // `extractTickConfig` and `extractYAxisType` were here and both left by the
   // exit they named. Task 44 spends them one line apart — `final tickConfig =
   // extractTickConfig(spec);` at the VegaLiteSchemaAdapter.ts:3179 position and
@@ -755,13 +754,14 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // spelled out in its Step 3. Their results are the bar list itself, not a
   // value computed and dropped: the aggregate branch is `:2182-2208` and the
   // count branch `:2214-2235`, and both push into `barData`.
-  'extractVegaColorFillBars':
-      'internal/vega/context.dart:781, the `rect` layers with x and x2 turned '
-      'into background regions (VegaLiteSchemaAdapter.ts:787-847). Task 43 is '
-      'its only caller in the plan, on the line after extractVegaAnnotations '
-      '(plan 09 line 15875, the `:1885` position), and the result is the '
-      "line chart's colorFillBars rather than a value computed and dropped. "
-      'Goes when Task 43 lands.',
+  // `extractVegaColorFillBars` was here and left by the exit it named: Task
+  // 43's line transformer calls it on the line after extractVegaAnnotations,
+  // at the VegaLiteSchemaAdapter.ts:1885 position, and the bars it returns are
+  // `FluentLineChart.colorFillBars` rather than a value computed and dropped.
+  // `groupDataBySeries`, which the note above records as invisible to this
+  // scan rather than wired, went with it: the same transformer groups its rows
+  // at the `:1808-1818` position and builds one FluentLineChartSeries per
+  // entry of the map it returns.
 
   // Task 44's `internal/vega/transform_line.dart`. One of its two symbols is
   // here; `_nominalYAxisProps` is private and invisible to this scan twice over
@@ -782,6 +782,33 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       '_colorMap, isDark: isDark)` is an arm of its exhaustive switch (plan 09 '
       'line 19472), returned as the widget the chart renders rather than '
       'computed and dropped. Goes when Task 52 lands.',
+
+  // Task 43 appended two more public symbols to the same file. Only
+  // `transformVegaToArea` is here, and NOT because `transformVegaToLine` is
+  // wired: it is called by `transformVegaToArea` fourteen lines below it, in
+  // the same file, which refinement 1 counts as a reference. Nothing in the
+  // rendered widget tree reaches either until Task 52, and that is stated here
+  // rather than left to the scan, which cannot say it. The three private
+  // helpers Task 43 added — `_findPrimaryLineSpec`, `_dashArrayOf`,
+  // `_lineOptionsFrom` and `_xOrder` — are invisible to this scan by their
+  // leading underscore and are each called from `transformVegaToLine`.
+  'transformVegaToArea':
+      'internal/vega/transform_line.dart:808, the port of the exported '
+      'VegaLiteSchemaAdapter.ts:3027-3058, which delegates to '
+      'transformVegaToLine and overrides only the fill mode. Upstream has '
+      'exactly one caller — `grep -n transformVegaLiteToAreaChartProps` over '
+      'crawlers/fluentui-react-charts/out/charts/src/components/'
+      'VegaDeclarativeChart/VegaDeclarativeChart.tsx returns the import at '
+      ':10, the `typeof` in the registry type at :181 and the registry entry '
+      'itself at :204, `area: { transformer: '
+      'transformVegaLiteToAreaChartProps, renderer: ResponsiveAreaChart }`. '
+      'Task 52 is the caller in this port: `FluentVegaChartKind.area => '
+      'transformVegaToArea(spec, _colorMap, isDark: isDark)` is an arm of its '
+      'exhaustive switch (plan 09 line 19470), beside the '
+      '`FluentVegaChartKind.line => transformVegaToLine(...)` arm at line '
+      '19457, and each is returned as the widget the chart renders rather '
+      'than computed and dropped. Goes when Task 52 lands, and takes the '
+      'unreachability of transformVegaToLine with it.',
 
   // Task 45's `internal/vega/transform_bar.dart`. One of its two public
   // symbols is here; `kVegaDefaultTruncateChars` is read by the truncation
