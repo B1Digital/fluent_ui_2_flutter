@@ -156,20 +156,12 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'kept because plan 09 Task 2 specifies it on FluentResponsiveChartMetrics '
       'and pins it with a test. The likely resolution when the adapters land '
       'is deletion with that test, not wiring.',
-  'getChartAnnotationsFromLayout':
-      'internal/plotly/annotations.dart, the entry point of the Plotly '
-      'annotation converter (PlotlySchemaAdapter.ts:1076-1161). Its five '
-      'neighbours in that file are reached from convertPlotlyAnnotation and so '
-      'are not reported; this one is the outermost call, and upstream reaches '
-      'it from five trace transformers, the first being '
-      'transformPlotlyJsonToAnnotationChartProps at '
-      'PlotlySchemaAdapter.ts:1252. Those transformers are plan '
-      "09's tasks 17-27 and none has landed, so the caller does not exist yet "
-      'rather than having been forgotten: plan 09 Task 20 writes '
-      '`getChartAnnotationsFromLayout(layout, isMultiPlot: isMultiPlot)` '
-      'verbatim. Whoever lands the first transformer deletes this entry — the '
-      'test below fails until they do.',
 
+  // `getChartAnnotationsFromLayout` was here until plan 09 Task 18 landed the
+  // first transformer that calls it: internal/plotly/transform_bar.dart writes
+  // `getChartAnnotationsFromLayout(layout, isMultiPlot: isMultiPlot)` at the
+  // `PlotlySchemaAdapter.ts:1579` position, which is what its own entry said
+  // would remove it.
   'transformPlotlyToDonut':
       'internal/plotly/transform_pie.dart, the Plotly `pie` transformer '
       '(PlotlySchemaAdapter.ts:1282-1388) and plan 09 Task 17. Upstream '
@@ -180,6 +172,19 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'the call site does not exist yet rather than having been forgotten. '
       'Whoever lands DeclarativeChart deletes this entry — the test below '
       'fails until they do.',
+  'transformPlotlyToVsbc':
+      'internal/plotly/transform_bar.dart, the Plotly vertical-stacked-bar '
+      'transformer (PlotlySchemaAdapter.ts:1390-1608) and plan 09 Task 18. It '
+      "is also the fallback route's transformer, so upstream reaches it twice "
+      "from DeclarativeChart's chartMap — the `verticalstackedbar` entry and "
+      'the `fallback` entry (DeclarativeChart.tsx:268-271), both dispatched at '
+      ':607. That widget is plan 09 Task 28, which supplies the enclosing '
+      "SizedBox this transformer deliberately does not build (spec §2.2's "
+      'constraint-sized shell charts, with the 350 from '
+      'PlotlySchemaAdapter.ts:1584 living in kPlotlyDefaultCellHeight), so the '
+      'call site does not exist yet rather than having been forgotten. Whoever '
+      'lands DeclarativeChart deletes this entry — the test below fails until '
+      'they do.',
 
   // --- Ported constants nothing reads --------------------------------------
   // `kMinDonutRadius` was here until plan 09 Task 17 landed: the Plotly pie
