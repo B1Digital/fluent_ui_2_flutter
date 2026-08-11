@@ -1,11 +1,15 @@
-/// The Plotly `pie` transformer, and the three non-plot ones.
+/// The Plotly `pie` transformer, and the six non-plot ones.
 ///
 /// Ports `transformPlotlyJsonToDonutProps` (`PlotlySchemaAdapter.ts:1282-1388`)
-/// and, because all three are short and none of them draws a cartesian cell,
+/// and, because they are short and none of them draws a cartesian cell,
 /// `transformPlotlyJsonToSankeyProps` (`:2623-2715`),
-/// `transformPlotlyJsonToGaugeProps` (`:2717-2838`) and
+/// `transformPlotlyJsonToGaugeProps` (`:2717-2838`),
 /// `transformPlotlyJsonToChartTableProps` (`:2908-3016`) with the four table
-/// helpers they need (`:2849-2906`).
+/// helpers they need (`:2849-2906`),
+/// `transformPlotlyJsonToFunnelChartProps` (`:3060-3175`) with
+/// `getCategoriesAndValues` (`:3018-3057`),
+/// `transformPlotlyJsonToPolarChartProps` (`:3177-3280`) and
+/// `transformPlotlyJsonToAnnotationChartProps` (`:1245-1280`).
 ///
 /// Internal to the package: nothing here is barrel-exported.
 library;
@@ -14,21 +18,30 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
+import '../../annotation_only_chart.dart';
 import '../../axis/axis_types.dart';
 import '../../axis/tick_format.dart';
 import '../../chart_table.dart';
 import '../../donut_chart.dart';
+import '../../funnel_chart.dart';
 import '../../gauge_chart.dart';
 import '../../model/bar_data.dart';
 import '../../model/cartesian_series.dart';
+import '../../model/chart_common.dart';
+import '../../model/polar_data.dart';
 import '../../model/sankey_data.dart';
+import '../../polar_chart.dart';
+import '../../polar_chart_scales.dart';
 import '../../sankey_chart.dart';
 import '../d3/format.dart' as d3;
 import '../d3/js_math.dart' as d3;
 import '../d3/stable_sort.dart';
 import '../data_viz_palette.dart';
+import 'annotations.dart';
+import 'axis.dart';
 import 'color_adapter.dart';
 import 'common.dart';
+import 'legends.dart';
 import 'predicates.dart';
 
 /// One filtered `(label, value, colour)` triple, before the descending sort
@@ -875,5 +888,522 @@ FluentChartTable transformPlotlyToChartTable(
     // FluentChartTable does not take. Dropped, as at `:1386`, `:2713` and
     // `:2836`.
     // // parity: PlotlySchemaAdapter.ts:3014
+  );
+}
+
+/// JavaScript's `Number(value)` (`PlotlySchemaAdapter.ts:3111`, `:3152`).
+///
+/// `transform_bar.dart:75` holds the same nine lines. Both copies are private to
+/// their file, so neither can call the other, and promoting one would edit a
+/// file this task does not own.
+// ponytail: duplicated rather than hoisted; nine private lines.
+double _jsNumber(Object? value) {
+  if (value is num) return value.toDouble();
+  if (value is bool) return value ? 1 : 0;
+  // `Number(null)` is 0; `Number(undefined)` is NaN, and an absent array slot
+  // is `undefined` rather than null, so the two are separated at the call site.
+  if (value == null) return 0;
+  final text = '$value'.trim();
+  // `Number('')` is 0 in JavaScript, not NaN.
+  if (text.isEmpty) return 0;
+  return double.tryParse(text) ?? double.nan;
+}
+
+/// A funnel stage label narrowed to the `num | String` union
+/// [FluentFunnelDataPoint.stage] asserts (`FunnelChart.types.ts:15`).
+///
+/// Upstream writes the raw label through (`PlotlySchemaAdapter.ts:3117`,
+/// `:3157`) and its type there is `string | number` too, so only a malformed
+/// figure reaches the interpolation. Stage identity is compared on the narrowed
+/// value, which matches `:3110`'s `===` for every label of the declared type: a
+/// numeric 1 and a string `'1'` stay distinct here as they do there.
+Object _funnelStage(Object? label) {
+  if (label is num) return label;
+  if (label is String) return label;
+  return '$label';
+}
+
+/// The `colorMap` key a funnel label makes.
+///
+/// Upstream passes the raw label to `resolveColor` (`:3147`), which uses it as a
+/// `Map` key; `PlotlyColorMap` is keyed by `String`, so a numeric label is
+/// stringified the JavaScript way rather than the Dart way — `3`, not `3.0`.
+String _funnelLegendKey(Object? label) =>
+    label is num ? d3.jsNumberToString(label.toDouble()) : '$label';
+
+/// The `labels`/`values` pair a funnel trace declares
+/// (`PlotlySchemaAdapter.ts:3073-3074`, `:3102-3103`, `:3023-3024`).
+({Object? labels, Object? values}) _funnelColumns(
+  Map<String, Object?> series,
+) => (
+  labels: series['labels'] ?? series['y'] ?? series['stage'],
+  values: series['values'] ?? series['x'] ?? series['value'],
+);
+
+/// Ports `getCategoriesAndValues` (`PlotlySchemaAdapter.ts:3018-3057`).
+///
+/// The two orientation arms are mirror images: `'h'` prefers the y column as the
+/// categories, anything else prefers the x column, and each falls back to
+/// "whichever side is a string array" when neither pairing is clean.
+({List<Object?> categories, List<Object?> values}) _categoriesAndValues(
+  Map<String, Object?> series,
+) {
+  // `:3022`: `series.orientation || 'h'`, so an empty string is also `'h'`.
+  final declared = series['orientation'];
+  final orientation = declared is String && declared.isNotEmpty
+      ? declared
+      : 'h';
+  final columns = _funnelColumns(series);
+  final y = columns.labels;
+  final x = columns.values;
+  final xIsString = isStringArray(x);
+  final yIsString = isStringArray(y);
+  final xIsNumber = isNumberArray(x);
+  final yIsNumber = isNumberArray(y);
+
+  // `:3030-3038`.
+  List<Object?> toArray(Object? value) {
+    if (value is List<Object?>) return value;
+    if (value is String || value is num) return <Object?>[value];
+    return const <Object?>[];
+  }
+
+  if (orientation == 'h') {
+    // `:3040-3046`.
+    if (yIsString && xIsNumber) {
+      return (categories: toArray(y), values: toArray(x));
+    }
+    if (xIsString && yIsNumber) {
+      return (categories: toArray(x), values: toArray(y));
+    }
+    return (
+      categories: yIsString ? toArray(y) : toArray(x),
+      values: yIsString ? toArray(x) : toArray(y),
+    );
+  }
+  // `:3048-3054`.
+  if (xIsString && yIsNumber) {
+    return (categories: toArray(x), values: toArray(y));
+  }
+  if (yIsString && xIsNumber) {
+    return (categories: toArray(y), values: toArray(x));
+  }
+  return (
+    categories: xIsString ? toArray(x) : toArray(y),
+    values: xIsString ? toArray(y) : toArray(x),
+  );
+}
+
+/// One stage under construction, before its sub-values are frozen
+/// (`PlotlySchemaAdapter.ts:3116-3122`).
+typedef _FunnelStage = ({Object stage, List<FluentFunnelSubValue> subValues});
+
+/// Builds a funnel from a Plotly `funnel` figure
+/// (`PlotlySchemaAdapter.ts:3060-3175`).
+///
+/// A figure is stacked only when it has more than one trace and every one of
+/// them declares more than one label AND more than one value (`:3070-3076`);
+/// otherwise every trace contributes flat stages. The two arms differ in what
+/// the palette is indexed by: the stacked one takes slot 0 per TRACE (`:3094`,
+/// so one colour per series across all stages), the flat one slot `i` per
+/// STAGE (`:3146`).
+FluentFunnelChart transformPlotlyToFunnel(
+  Map<String, Object?> input, {
+  required bool isMultiPlot,
+  required PlotlyColorMap colorMap,
+  required FluentPlotlyColorway colorwayType,
+  required bool isDark,
+}) {
+  final layout = _map(input['layout']);
+  final data = _list(input['data']);
+  final colorway = _colorway(layout);
+
+  // `:3070-3076`.
+  final isStacked =
+      data.length > 1 &&
+      data.every((entry) {
+        final series = _map(entry);
+        if (series == null) return false;
+        final columns = _funnelColumns(series);
+        return columns.labels is List<Object?> &&
+            columns.values is List<Object?> &&
+            (columns.values! as List<Object?>).length > 1 &&
+            (columns.labels! as List<Object?>).length > 1;
+      });
+
+  final stages = <_FunnelStage>[];
+  final flat = <FluentFunnelDataPoint>[];
+
+  for (var seriesIdx = 0; seriesIdx < data.length; seriesIdx++) {
+    final series = _map(data[seriesIdx]);
+    if (series == null) continue;
+    final marker = _map(series['marker']);
+    // `:3087`, `:3138`.
+    final extracted = extractColor(
+      colorway,
+      colorwayType,
+      marker?['colors'] ?? marker?['color'],
+      colorMap,
+      isDark: isDark,
+    );
+
+    if (isStacked) {
+      final name = series['name'];
+      // `:3082`: `series.name || \`Category ${seriesIdx + 1}\``, so an empty
+      // name falls back too.
+      final category = name is String && name.isNotEmpty
+          ? name
+          : 'Category ${seriesIdx + 1}';
+      // `:3092-3099`: index 0 always, so one palette slot per trace.
+      final colour = parseCssColour(
+        resolveColor(
+          extracted,
+          0,
+          category,
+          colorMap,
+          colorway,
+          isDark: isDark,
+        ),
+      );
+      final columns = _funnelColumns(series);
+      // `:3105-3107`.
+      if (columns.labels is! List<Object?> ||
+          columns.values is! List<Object?>) {
+        continue;
+      }
+      final labels = columns.labels! as List<Object?>;
+      final values = columns.values! as List<Object?>;
+      for (var i = 0; i < labels.length; i++) {
+        final stage = _funnelStage(labels[i]);
+        // `:3111-3114`: an out-of-range slot is `undefined`, whose `Number` is
+        // NaN, so a short values array truncates the stages rather than
+        // contributing zeroes.
+        final value = i < values.length ? _jsNumber(values[i]) : double.nan;
+        if (value.isNaN) continue;
+        // `:3110`.
+        final index = stages.indexWhere((entry) => entry.stage == stage);
+        final subValue = FluentFunnelSubValue(
+          category: category,
+          value: value,
+          color: colour,
+        );
+        if (index == -1) {
+          stages.add((
+            stage: stage,
+            subValues: <FluentFunnelSubValue>[subValue],
+          ));
+        } else {
+          stages[index].subValues.add(subValue);
+        }
+      }
+    } else {
+      // `:3128-3162`.
+      final pair = _categoriesAndValues(series);
+      for (var i = 0; i < pair.categories.length; i++) {
+        final label = pair.categories[i];
+        // `:3144-3151`.
+        final colour = resolveColor(
+          extracted,
+          i,
+          _funnelLegendKey(label),
+          colorMap,
+          colorway,
+          isDark: isDark,
+        );
+        final value = i < pair.values.length
+            ? _jsNumber(pair.values[i])
+            : double.nan;
+        // `:3153-3155`.
+        if (value.isNaN) continue;
+        flat.add(
+          FluentFunnelDataPoint(
+            stage: _funnelStage(label),
+            value: value,
+            color: parseCssColour(colour),
+          ),
+        );
+      }
+    }
+  }
+
+  final titles = getTitles(layout);
+  final first = _firstTrace(input);
+  return FluentFunnelChart(
+    // `:3167`.
+    data: isStacked
+        ? <FluentFunnelDataPoint>[
+            for (final entry in stages)
+              FluentFunnelDataPoint(
+                stage: entry.stage,
+                subValues: entry.subValues,
+              ),
+          ]
+        : flat,
+    // `:3168`, with the same empty-string-to-null step the donut takes: an
+    // empty title would otherwise reserve the style's title height.
+    chartTitle: titles.chartTitle.isEmpty ? null : titles.chartTitle,
+    // `:3169-3170`.
+    width: _num(layout?['width']),
+    height: _num(layout?['height']),
+    // parity: PlotlySchemaAdapter.ts:3171. Plotly's 'v' means the funnel *bars*
+    // run vertically, which Fluent calls a horizontal funnel. The names invert;
+    // the mapping is correct.
+    orientation: first['orientation'] == 'v'
+        ? FluentFunnelOrientation.horizontal
+        : FluentFunnelOrientation.vertical,
+    // `:3172`.
+    hideLegend: isMultiPlot || layout?['showlegend'] == false,
+    // AUDIT CORRECTION: `:3173` also spreads `titleStyles`, which
+    // FluentFunnelChart does not take. Dropped, as at `:1386`, `:2713`,
+    // `:2836` and `:3014`.
+    // // parity: PlotlySchemaAdapter.ts:3173
+  );
+}
+
+/// Builds a polar chart from a Plotly `scatterpolar` figure
+/// (`PlotlySchemaAdapter.ts:3177-3280`).
+///
+/// **Not carried across:** `:3273`'s `width` reaches the widget, but the 400 at
+/// `:3275` is a real prop here rather than a cell wrapper's job, because
+/// [FluentPolarChart] takes both.
+FluentPolarChart transformPlotlyToPolar(
+  Map<String, Object?> input, {
+  required bool isMultiPlot,
+  required PlotlyColorMap colorMap,
+  required FluentPlotlyColorway colorwayType,
+  required bool isDark,
+}) {
+  final layout = _map(input['layout']);
+  final data = _list(input['data']);
+  final colorway = _colorway(layout);
+  // `:3183`.
+  final legend = getLegendProps(data, layout, isMultiPlot: isMultiPlot);
+  // `:3184`.
+  final resolveRValue = getAxisValueResolver(
+    getPolarAxisType(data, 'r', layout),
+  );
+
+  final polarData = <FluentPolarSeries>[];
+  for (var index = 0; index < data.length; index++) {
+    final series = _map(data[index]);
+    // `:3189`.
+    if (series == null || series['type'] != 'scatterpolar') continue;
+    final legendName = index < legend.names.length ? legend.names[index] : '';
+    final fill = series['fill'];
+    // `:3190`.
+    final isAreaTrace = fill == 'toself' || fill == 'tonext';
+    final mode = series['mode'];
+    // `:3191`: an undefined mode is a line; anything else has to say `lines`.
+    final isLineTrace = mode == null
+        ? true
+        : mode is String && mode.contains('lines');
+    final line = _map(series['line']);
+    final marker = _map(series['marker']);
+    // `:3192`. The two `?[]` reads are hoisted because Dart cannot parse a
+    // null-aware index inside a conditional expression's branches.
+    final lineColour = line?['color'];
+    final traceMarkerColour = marker?['color'];
+    final colors = isAreaTrace
+        ? series['fillcolor']
+        : (isLineTrace ? lineColour : traceMarkerColour);
+    final extracted = extractColor(
+      colorway,
+      colorwayType,
+      colors,
+      colorMap,
+      isDark: isDark,
+    );
+    // `:3200-3207`.
+    final seriesColor = resolveColor(
+      extracted,
+      index,
+      legendName,
+      colorMap,
+      colorway,
+      isDark: isDark,
+    );
+    // `:3208-3210`.
+    final seriesOpacity = getOpacity(series, index);
+    final finalSeriesColor = applyOpacityHex8(seriesColor, seriesOpacity);
+    // `:3211`.
+    final lineOptions = getLineOptions(line);
+    final thetaUnit = series['thetaunit'];
+
+    final rValues = _list(series['r']);
+    final thetaValues = series['theta'];
+    final markerSize = marker?['size'];
+    final text = series['text'];
+    final points = <FluentPolarDataPoint>[];
+    // `:3218-3251`.
+    for (var rIndex = 0; rIndex < rValues.length; rIndex++) {
+      final theta = _at(thetaValues, rIndex);
+      final resolvedR = resolveRValue(rValues[rIndex]);
+      // `:3230-3232`.
+      if (isInvalidValue(resolvedR) || isInvalidValue(theta)) continue;
+      // `:3224-3229`.
+      final markerColor = resolveColor(
+        extracted,
+        rIndex,
+        legendName,
+        colorMap,
+        colorway,
+        isDark: isDark,
+      );
+      final markerOpacity = getOpacity(series, rIndex);
+      points.add(
+        FluentPolarDataPoint(
+          // `:3235`.
+          r: resolvedR!,
+          // `:3236-3244`. Only a numeric theta is converted; a category is cast
+          // to string untouched, so the unit never reaches a label.
+          theta: theta is num
+              ? switch (thetaUnit) {
+                  // `:3239`.
+                  'radians' => theta * 180 / math.pi,
+                  // `:3241`.
+                  'gradians' => theta * 0.9,
+                  // `:3242`: already degrees.
+                  _ => theta.toDouble(),
+                }
+              : '$theta',
+          // `:3245`.
+          color: parseCssColour(
+            markerColor.isEmpty
+                ? finalSeriesColor
+                : applyOpacityHex8(markerColor, markerOpacity),
+          ),
+          // `:3222`, `:3246`: a per-point size only from an array, a shared one
+          // from a scalar.
+          markerSize: markerSize is List<Object?>
+              ? _num(_at(markerSize, rIndex))
+              : _num(markerSize),
+          // `:3223`, `:3247`.
+          text: text is List<Object?>
+              ? (_at(text, rIndex) == null ? null : '${_at(text, rIndex)}')
+              : (text == null ? null : '$text'),
+        ),
+      );
+    }
+
+    final shape = getLegendShape(series);
+    // `:3260-3272`.
+    if (isAreaTrace) {
+      polarData.add(
+        FluentAreaPolarSeries(
+          legend: legendName,
+          data: points,
+          legendShape: shape,
+          color: parseCssColour(finalSeriesColor),
+          lineOptions: lineOptions,
+        ),
+      );
+    } else if (isLineTrace) {
+      polarData.add(
+        FluentLinePolarSeries(
+          legend: legendName,
+          data: points,
+          legendShape: shape,
+          color: parseCssColour(finalSeriesColor),
+          lineOptions: lineOptions,
+        ),
+      );
+    } else {
+      polarData.add(
+        FluentScatterPolarSeries(
+          legend: legendName,
+          data: points,
+          legendShape: shape,
+          color: parseCssColour(finalSeriesColor),
+        ),
+      );
+    }
+  }
+
+  // `:3277`.
+  final axes = getPolarAxisProps(data, layout);
+  return FluentPolarChart(
+    // `:3272`.
+    data: polarData,
+    // `:3274`.
+    width: _num(layout?['width']),
+    // `:3275`.
+    height: _num(layout?['height']) ?? 400,
+    // `:3276`.
+    hideLegend: legend.hideLegend,
+    radialAxis: axes.radialAxis,
+    angularAxis: axes.angularAxis,
+    // `:4354-4357` through the spread at `:3277`. An absent key leaves the
+    // widget's own default in place, which is what an unspread key does
+    // upstream.
+    angularUnit: axes.angularUnit == 'radians'
+        ? FluentPolarAngularUnit.radians
+        : FluentPolarAngularUnit.degrees,
+    direction: axes.direction == 'clockwise'
+        ? FluentPolarDirection.clockwise
+        : FluentPolarDirection.counterclockwise,
+    // NOT PORTED: `:3279` leaves `getTitles` commented out upstream, so a polar
+    // figure draws no title. Reproduced by passing none.
+    // // parity: PlotlySchemaAdapter.ts:3279
+  );
+}
+
+/// Builds an annotation-only chart from a figure whose layout is all there is
+/// (`PlotlySchemaAdapter.ts:1245-1280`).
+///
+/// [colorMap], [colorwayType] and [isDark] are unused: upstream takes the three
+/// at `:1248-1250` with a leading underscore on each name, because every colour
+/// this chart paints comes from the layout itself. They stay so the parameter
+/// list is uniform across every transformer.
+FluentAnnotationOnlyChart transformPlotlyToAnnotationOnly(
+  Map<String, Object?> input, {
+  required bool isMultiPlot,
+  required PlotlyColorMap colorMap,
+  required FluentPlotlyColorway colorwayType,
+  required bool isDark,
+}) {
+  final layout = _map(input['layout']);
+  // `:1252`.
+  final annotations = getChartAnnotationsFromLayout(
+    layout,
+    isMultiPlot: isMultiPlot,
+  );
+  // `:1253-1254`: an empty title is `undefined`, not `''`.
+  final titles = getTitles(layout);
+  // `:1257-1259`.
+  final description = _map(layout?['meta'])?['description'];
+  final paper = layout?['paper_bgcolor'];
+  final plot = layout?['plot_bgcolor'];
+  final font = _map(layout?['font']);
+  final fontColor = font?['color'];
+  final fontFamily = font?['family'];
+  final margin = _map(layout?['margin']);
+
+  return FluentAnnotationOnlyChart(
+    // `:1269`.
+    annotations: annotations,
+    // `:1270`.
+    chartTitle: titles.chartTitle.isEmpty ? null : titles.chartTitle,
+    // `:1271`.
+    description: description is String ? description : null,
+    // `:1261-1262`, `:1272-1273`: a non-numeric width or height is dropped
+    // rather than coerced.
+    width: _num(layout?['width']),
+    height: _num(layout?['height']),
+    // `:1263-1264`, `:1274-1275`.
+    paperBackgroundColor: paper is String ? parseCssColour(paper) : null,
+    plotBackgroundColor: plot is String ? parseCssColour(plot) : null,
+    // `:1265-1266`.
+    fontColor: fontColor is String ? parseCssColour(fontColor) : null,
+    fontFamily: fontFamily is String ? fontFamily : null,
+    // `:1267`, `:1276`. Plotly's margin keys are `l`/`r`/`t`/`b`, which
+    // `AnnotationOnlyChart.tsx:19-22` reads in that order.
+    margin: margin == null
+        ? null
+        : FluentChartMargins(
+            left: _num(margin['l']),
+            right: _num(margin['r']),
+            top: _num(margin['t']),
+            bottom: _num(margin['b']),
+          ),
   );
 }

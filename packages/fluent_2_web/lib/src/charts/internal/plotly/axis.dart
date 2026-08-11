@@ -799,6 +799,19 @@ _PolarAxis _polarAxis(
   );
 }
 
+/// The type one polar data key resolves to (`PlotlySchemaAdapter.ts:4283-4291`,
+/// returning only the `_type` field of `getPolarAxis`).
+///
+/// [getPolarAxisProps] needs the whole axis record; the polar transformer at
+/// `PlotlySchemaAdapter.ts:3186` needs the type alone, to build its radial
+/// value resolver — `getAxisValueResolver(getPolarAxis(data, 'r', layout)._type)`
+/// — so this exposes that one field rather than the private record.
+FluentPlotlyAxisType getPolarAxisType(
+  List<Object?> data,
+  String dataKey,
+  Map<String, Object?>? layout,
+) => _polarAxis(data, dataKey, layout).type;
+
 /// `PlotlySchemaAdapter.ts:4293-4318` — the same three-branch ladder as
 /// [getAxisTickProps], minus the category tick-layout arm.
 ({

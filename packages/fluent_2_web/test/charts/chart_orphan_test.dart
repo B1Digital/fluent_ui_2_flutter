@@ -355,23 +355,59 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'entry and need none: getLegendProps has four callers in '
       'transform_bar.dart and one in transform_xy.dart, and getLegendShape has '
       'three. Whoever lands DeclarativeChart deletes this entry.',
-  'getPolarAxisProps':
-      'internal/plotly/axis.dart:936, the radial and angular axis '
-      'configuration a polar layout implies '
-      '(PlotlySchemaAdapter.ts:4339-4361) and plan 09 Task 13. Upstream has '
-      'exactly one caller in the whole of charts/src — '
-      'PlotlySchemaAdapter.ts:3277, spread into the return of '
-      'transformPlotlyJsonToPolarChartProps (:3177-3280) — and that '
-      'transformer is plan 09 Task 26, which has not landed. So the call site '
-      'does not exist yet rather than having been forgotten. Unlike its '
-      'siblings in this file it is NOT blocked on DeclarativeChart: the '
-      'moment transformPlotlyToPolar exists it must read this, and the two '
-      'cartesian range helpers this task landed alongside it '
-      '(getXMinMaxValues, getYMinMaxValues) show what that looks like — both '
-      'are wired at five production call sites in transform_bar.dart and '
-      'transform_xy.dart and need no entry. Whoever lands '
-      'transformPlotlyToPolar deletes this entry. FluentPlotlyPolarAxisProps '
-      'and kDefaultPolarSubplot need none: this function is their caller.',
+  // `getPolarAxisProps` was here until plan 09 Task 26 landed. Its entry said
+  // "the moment transformPlotlyToPolar exists it must read this", and it does:
+  // internal/plotly/transform_pie.dart calls it once, where
+  // PlotlySchemaAdapter.ts:3277 spreads it. The excuse outlived its gap and
+  // went with it. getPolarAxisType, added to axis.dart by the same task to
+  // expose the one field PlotlySchemaAdapter.ts:3186 needs, needs no entry
+  // either: the polar transformer is its caller.
+  'transformPlotlyToFunnel':
+      'internal/plotly/transform_pie.dart, the Plotly funnel transformer '
+      '(PlotlySchemaAdapter.ts:3060-3175, with getCategoriesAndValues at '
+      ':3018-3057) and plan 09 Task 26. Upstream reaches it from the `funnel` '
+      "entry of DeclarativeChart's chartMap (DeclarativeChart.tsx:326-329), "
+      'dispatched at :607, and the router already resolves that kind '
+      '(internal/plotly/router.dart:729) — what is missing is the widget that '
+      'reads the route, which is plan 09 Task 28. That widget also supplies '
+      "the enclosing SizedBox this transformer does not build (spec §2.2's "
+      'constraint-sized shell charts, with the 350 from '
+      'PlotlySchemaAdapter.ts:2613 living in kPlotlyDefaultCellHeight); '
+      ":3169-3170's own width and height are forwarded, because "
+      'FluentFunnelChart takes both. So the call site does not exist yet '
+      'rather than having been forgotten, and what this transformer produces '
+      'is proven consumable by the mounted test in '
+      'test/charts/declarative/transform_funnel_polar_test.dart, which pumps a '
+      'real FluentFunnelChart built from a figure and finds every transformed '
+      'stage painted in the legend. Whoever lands DeclarativeChart deletes '
+      'this entry.',
+  'transformPlotlyToPolar':
+      'internal/plotly/transform_pie.dart, the Plotly polar transformer '
+      '(PlotlySchemaAdapter.ts:3177-3280) and plan 09 Task 26. Upstream '
+      "reaches it from the `scatterpolar` entry of DeclarativeChart's chartMap "
+      '(DeclarativeChart.tsx:330-333), dispatched at :607, and the router '
+      'already resolves that kind (internal/plotly/router.dart:719) — what is '
+      'missing is the widget that reads the route, which is plan 09 Task 28. '
+      'So the call site does not exist yet rather than having been forgotten, '
+      'and what this transformer produces is proven consumable by the mounted '
+      'test in test/charts/declarative/transform_funnel_polar_test.dart, which '
+      'pumps a real FluentPolarChart built from a figure and finds the '
+      'transformed series named in the legend the layout pass builds. Whoever '
+      'lands DeclarativeChart deletes this entry.',
+  'transformPlotlyToAnnotationOnly':
+      'internal/plotly/transform_pie.dart, the Plotly annotation-only '
+      'transformer (PlotlySchemaAdapter.ts:1245-1280) and plan 09 Task 26. '
+      "Upstream reaches it from the `annotation` entry of DeclarativeChart's "
+      'chartMap (DeclarativeChart.tsx:263-266), dispatched at :607 after the '
+      'single-group short circuit at :478-480, and the router already resolves '
+      'that kind (internal/plotly/router.dart:662) — what is missing is the '
+      'widget that reads the route, which is plan 09 Task 28. So the call site '
+      'does not exist yet rather than having been forgotten, and what this '
+      'transformer produces is proven consumable by the mounted test in '
+      'test/charts/declarative/transform_funnel_polar_test.dart, which pumps a '
+      'real FluentAnnotationOnlyChart built from a figure and finds the '
+      'transformed annotation painted. Whoever lands DeclarativeChart deletes '
+      'this entry.',
   'mapFluentChart':
       'internal/plotly/router.dart:627, the routing table itself '
       '(PlotlySchemaConverter.ts:477-646) and plan 09 Task 7. Upstream has '
