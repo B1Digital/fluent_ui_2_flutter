@@ -259,6 +259,18 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'FluentGanttChart built from a figure and reads the transformed points '
       'back off the delegate it paints from. Whoever lands DeclarativeChart '
       'deletes this entry.',
+  'getAllupLegendsProps':
+      'internal/plotly/legends.dart, the all-up legend a multi-plot figure '
+      'draws beneath its grid (PlotlySchemaAdapter.ts:3489-3567) and plan 09 '
+      'Task 11. Upstream has exactly one caller, DeclarativeChart.tsx:535-541, '
+      'and it is deliberately placed BEFORE the render loop at :571 because '
+      'the order in which it touches colorMap is the order every transformer '
+      'beneath it then inherits — so it cannot be wired from a transformer to '
+      'dodge this list, and plan 09 Task 28 writes the one call at the one '
+      'position. The other two exports of this file are NOT excused by this '
+      'entry and need none: getLegendProps has four callers in '
+      'transform_bar.dart and one in transform_xy.dart, and getLegendShape has '
+      'three. Whoever lands DeclarativeChart deletes this entry.',
 
   // --- Ported constants nothing reads --------------------------------------
   // `kMinDonutRadius` was here until plan 09 Task 17 landed: the Plotly pie
