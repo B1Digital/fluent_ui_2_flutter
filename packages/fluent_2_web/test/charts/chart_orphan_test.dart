@@ -490,23 +490,39 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // --- Vega ports whose consumer is a later task in this same plan ---------
   // Plan 09's Vega half is being built bottom-up, so this is the Plotly wave's
   // shape again: eighteen entries stood here until Task 28 landed
-  // `declarative_chart.dart`, and every one of them named it. The five below
-  // name Task 40 (`internal/vega/routing.dart`) and Task 52
-  // (`vega_declarative_chart.dart`), and each call site was read out of
+  // `declarative_chart.dart`, and every one of them named it. Each call site
+  // below was read out of
   // docs/superpowers/plans/2026-08-08-fluent-2-charts-09-declarative.md rather
   // than assumed. If the named task lands and the entry survives, the symbol is
   // not foundation work, it is dead code: delete it with its tests.
   //
-  // Three more symbols in the same file are invisible to this scan because they
+  // Four of the five entries that stood here on 2026-08-11 went when Task 40
+  // landed `internal/vega/routing.dart`, which is the exit each of them named:
+  // `getMarkType` is the mark test at the VegaLiteSchemaAdapter.ts:1654 and
+  // `:1671` positions, `isVegaLayerSpec` and `isVegaUnitSpec` are the two arms
+  // of `normalizeVegaSpec` (`:573`, `:588`), and `extractVegaDataValues` is
+  // `autoCorrectEncodingTypes`' dataset read at `:1560`. None was re-worded
+  // into a fresher deferral.
+  //
+  // Task 40 exports three symbols and adds ONE entry. `autoCorrectEncodingTypes`
+  // needs none — `getVegaChartType` calls it at the `:1650` position, in the
+  // same file, which this scan counts. `normalizeVegaSpec` needed none either by
+  // the time the task landed: `internal/vega/context.dart:162` opens the
+  // transform context with `final unitSpecs = normalizeVegaSpec(spec);` at the
+  // `:1163` position, inside `initializeTransformContext`
+  // (VegaLiteSchemaAdapter.ts:1162-1268). Only `getVegaChartType` is still
+  // waiting, and on Task 52 alone.
+  //
+  // Two more symbols in `spec.dart` are invisible to this scan because they
   // name themselves — `kVegaMaxJsonDepth` is read by `validateVegaJsonDepth`,
   // which recurses, and `VegaSpecException` is thrown inside its own file — and
-  // they are no more wired than these five until Task 52 calls the guard.
-  // Recorded here so the count below is not read as the whole gap.
+  // they are no more wired than the entries here until Task 52 calls the guard.
+  // Recorded so the count below is not read as the whole gap.
   //
   // Two symbols Task 36's Produces line also listed, `vegaEncoding` and
   // `vegaChannel`, are NOT here: they would have been exactly the dead code
   // this list must not park. Task 40 re-derives the first layer's encoding
-  // inline — `layer != null ? first?['encoding'] : spec['encoding']` behind its
+  // inline — `hasLayer ? (first?['encoding']) : spec['encoding']` behind its
   // own private `_channel` — and `grep -rn 'vegaChannel\|vegaEncoding'` over
   // docs/superpowers/plans returns only Task 36's own Produces line and its own
   // test, so the two were deleted rather than written and excused.
@@ -518,27 +534,19 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       "rebuild. Task 52's build is the caller — `final spec = "
       'deepCloneVegaSpec(rawSpec);` on the line after `validateVegaJsonDepth('
       'rawSpec);`. Goes when Task 52 lands.',
-  'getMarkType':
-      "internal/vega/spec.dart:83. Task 40's getVegaChartType reads it for the "
-      'bar-plus-line layer test (VegaLiteSchemaAdapter.ts:1653-1667) and for '
-      "the first layer's mark at `:1670-1671`, and every transformer from Task "
-      '42 on switches on its result. Goes when Task 40 lands.',
-  'isVegaLayerSpec':
-      "internal/vega/spec.dart:101, the layered arm of Task 40's "
-      'normalizeVegaSpec (VegaLiteSchemaAdapter.ts:572-601). Goes when Task 40 '
-      'lands.',
-  'isVegaUnitSpec':
-      "internal/vega/spec.dart:110, the unit arm of Task 40's normalizeVegaSpec "
-      '(VegaLiteSchemaAdapter.ts:590-596). Goes when Task 40 lands.',
-  'extractVegaDataValues':
-      "internal/vega/spec.dart:118. Task 40's autoCorrectEncodingTypes reads "
-      "`extractVegaDataValues(unitSpec['data'] ?? spec['data'])` at the "
-      'VegaLiteSchemaAdapter.ts:1560 position, and every Vega transformer from '
-      'Task 42 on reads its dataset through it. Goes when Task 40 lands.',
+  'getVegaChartType':
+      'internal/vega/routing.dart:227, the port of getChartType '
+      "(VegaLiteSchemaAdapter.ts:1648-1749). Task 52's "
+      '`_FluentVegaDeclarativeChartState` is the caller — `final route = '
+      'getVegaChartType(spec);` at the VegaDeclarativeChart.tsx:508-511 '
+      'position (plan 09 line 19554), feeding an exhaustive switch over '
+      'FluentVegaChartKind. Its own callee autoCorrectEncodingTypes is NOT '
+      'here: `:1650` calls it from inside this function, in the same file, and '
+      'the scan counts that. Goes when Task 52 lands.',
 
   // Task 31's `internal/vega/js_value.dart` — the ECMAScript abstract
-  // operations the expression evaluator is written on top of. Exactly one of
-  // its twelve public functions is still here. The other eleven are not:
+  // operations the expression evaluator is written on top of. None of its
+  // twelve public functions is here any longer:
   // jsToNumber, jsToString, jsStrictEquals and jsLooseEquals have real callers
   // inside the file (jsAdd coerces through the first two, the abstract-equality
   // algorithm recurses through the last two), JsUndefined is named by every
@@ -553,39 +561,93 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // jsAdd for the `typeof === string` test at `:363-367`. Task 34's comparison
   // level then took jsLess, jsGreater, jsLessOrEqual and jsGreaterOrEqual, one
   // per `case` of `_parseComparison`, and its equality level took the two
-  // equality helpers a second time. jsTypeof's caller is later still and in a
-  // different direction, which is why it is the one that remains.
-  'jsTypeof':
-      'internal/vega/js_value.dart:48. Its callers are the two `typeof '
-      'sampleValue` diagnostics upstream, not the parser: '
-      'VegaLiteSchemaAdapter.ts:955 in autoCorrectEncodingTypes, which Task 40 '
-      'ports, and `:3594` in the binning error path, which Task 47 ports. Both '
-      "read the result against the string 'string', so a Dart `runtimeType` "
-      'would not answer the same question. Goes when Task 40 lands.',
+  // equality helpers a second time. jsTypeof's caller was later still and in a
+  // different direction, and it is the twelfth to leave: its entry read
+  // "VegaLiteSchemaAdapter.ts:955 in autoCorrectEncodingTypes, which Task 40
+  // ports … Goes when Task 40 lands", and half of that was wrong. `:955` is
+  // inside validateEncodingType, declared at `:934` — `autoCorrectEncodingTypes`
+  // starts at `:1553` and has no `typeof` diagnostic at all — so Task 40 landed
+  // without touching it. The real caller is Task 41's port of that validator,
+  // `common.dart:546`, `final actualType = jsTypeof(sampleValue);`, and the
+  // remaining upstream use at `:3594` is the binning error path Task 47 ports.
+  // Recorded because the entry named an exit that did not exist, which is the
+  // one failure mode this list cannot detect on its own.
 
-  // `internal/vega/expression.dart`. Four of its five public symbols are not
-  // here, for the same reason js_value.dart lists five of twelve: `VegaToken`
-  // is constructed on every arm of the tokenizer, `VegaExpressionException` is
+  // `internal/vega/expression.dart` now lists NONE of its five public symbols,
+  // for the same reason js_value.dart lists one of twelve: `VegaToken` is
+  // constructed on every arm of the tokenizer, `VegaExpressionException` is
   // thrown from six places, `kVegaAllowedIdentifiers` is the guard at
-  // `_parsePrimary` and `tokenizeVegaExpression` — which was here, excused as
+  // `_parsePrimary`, `tokenizeVegaExpression` — which was here, excused as
   // "goes when Task 33 lands" — is now the first statement of
   // `evaluateVegaExpression`, exactly as `VegaLiteExpressionEvaluator.ts:521`
-  // calls `tokenize` before handing the tokens to the parser at `:522`. That
-  // entry's one exit was taken and it went with it.
-  'evaluateVegaExpression':
-      'internal/vega/expression.dart:723, the port of `safeEvaluateExpression` '
-      '(VegaLiteExpressionEvaluator.ts:520-524). Its callers are two private '
-      "helpers in Task 37's `internal/vega/transforms.dart`, and both are "
-      "statements in that task's own Step 3 code (plan 09 lines 12240 and "
-      '12250): `_filterKeeps` is `jsTruthy(evaluateVegaExpression(expr, row))` '
-      'at the VegaLiteSchemaAdapter.ts:236-242 position and `_calculated` '
-      'writes the result into a new column at `:250-257`. `grep -rn '
-      "'safeEvaluateExpression' over crawlers/fluentui-react-charts/out/charts/"
-      'src returns the declaration, the import at :48, those two, and a third '
-      'at :1185 — the conditional-colour resolver, which plan 09 line 14810 '
-      'ports in Task 42 as `jsTruthy(evaluateVegaExpression(test, row)) ? '
-      'trueValue : elseValue`. So three consumers are coming and Task 37 is '
-      'the first. Goes when Task 37 lands.',
+  // calls `tokenize` before handing the tokens to the parser at `:522`, and
+  // `evaluateVegaExpression` itself was excused as "its callers are two private
+  // helpers in Task 37's `internal/vega/transforms.dart` … Goes when Task 37
+  // lands". Task 37 landed and both helpers are exactly those statements:
+  // `_filterKeeps` is `jsTruthy(evaluateVegaExpression(expr, row))` at the
+  // `VegaLiteSchemaAdapter.ts:236-242` position, and `_calculated` writes the
+  // result into a new column at `:250-257`. Two entries, each with one stated
+  // exit, and both exits were taken. The third consumer the second one named —
+  // the conditional-colour resolver at `:1185` — is Task 42's and will need no
+  // entry of its own.
+
+  // Task 37's `internal/vega/transforms.dart` needs NEITHER of its two public
+  // symbols here, and this note exists so the next reader does not add one back.
+  // `applyFoldTransform` is called by `applyVegaTransforms` at the
+  // `VegaLiteSchemaAdapter.ts:229` position — a real caller in the declaring
+  // file, which is what refinement 1 above exists to see. `applyVegaTransforms`
+  // was written up as an entry naming Task 42 as its coming consumer, and Task
+  // 42 landed in the same wave: `internal/vega/context.dart:173` and `:179` are
+  // `initializeTransformContext` running the top-level transforms and then the
+  // primary unit spec's, which is upstream's own pair at `:1172-1173`. `grep -n
+  // 'applyTransforms('` over
+  // crawlers/fluentui-react-charts/out/charts/src/components/
+  // VegaDeclarativeChart/VegaLiteSchemaAdapter.ts returns the declaration at
+  // :214 and seven calls — :1172, :1173, :1776, :2371, :2372, :2529 and :2530 —
+  // so every Vega transformer from Task 43 on reaches its dataset through it.
+  // Task 38 appends six more ops to the same loop body and changes none of that.
+
+  // Task 39's `internal/vega/color_adapter.dart`. Two of its seven public
+  // symbols are here. getVegaColor and interpolateHexColor are not, and need no
+  // entry: getVegaColorFromMap calls the first at the
+  // VegaLiteColorAdapter.ts:281 position and getSequentialSchemeColors calls
+  // the second at `:340`, so each is reached from inside its own file whatever
+  // the transformers do. The four `List<FluentDataVizToken>` mappings are
+  // reached the same way, through the private `_schemeMapping` switch.
+  //
+  // Three symbols Task 39's Produces line listed are NOT here, because writing
+  // them would have parked dead code on this list rather than excused a gap.
+  // isStandardVegaScheme and the four hex scheme arrays it is the sole reader
+  // of — VEGA_CATEGORY10, VEGA_CATEGORY20, VEGA_TABLEAU10 and VEGA_TABLEAU20 —
+  // are dead in the upstream module too: `grep -rn isStandardVegaScheme` over
+  // crawlers/fluentui-react-charts/out/charts/src returns only its own export
+  // at VegaLiteColorAdapter.ts:368, and the four arrays are module-private
+  // consts whose only uses in that file are its four comparisons at `:375`,
+  // `:378`, `:381` and `:384`. `grep -n isStandardVegaScheme` over
+  // docs/superpowers/plans returns Task 39's own Produces line and the file
+  // table at line 134 and nothing in Tasks 40-57, so no unported consumer is
+  // coming either. An entry for them could name no exit, which is what makes
+  // deletion the resolution rather than an excuse.
+  'getVegaColorFromMap':
+      'internal/vega/color_adapter.dart:164, the legend-to-colour cache '
+      '(VegaLiteColorAdapter.ts:267-285). Task 42 is the caller and the call '
+      "is a statement in that task's own Step 3 code (plan 09 line 15372): "
+      '`declared is String && declared.isNotEmpty ? declared : '
+      'getVegaColorFromMap(legend, colorMap, null, null, isDark: isDark)`, at '
+      'the VegaLiteSchemaAdapter.ts:811-814 position. `grep -rn '
+      'getVegaColorFromMap` over crawlers/fluentui-react-charts/out/charts/src '
+      'returns the declaration, the import at VegaLiteSchemaAdapter.ts:47, '
+      'that call and a second at `:2029`. Goes when Task 42 lands.',
+  'getSequentialSchemeColors':
+      'internal/vega/color_adapter.dart:255, the sequential and diverging '
+      'ramps for a continuous colour scale (VegaLiteColorAdapter.ts:318-344). '
+      "Task 49's heatmap transformer is the caller, at the "
+      'VegaLiteSchemaAdapter.ts:3474 position — the `else if (colorScheme)` '
+      'arm of the quantitative colour scale, whose result `:3477` reverses in '
+      "place for a descending sort. Task 49's Step 1 test 'a descending colour "
+      "sort reverses the ramp' (plan 09 lines 18478-18490) drives exactly that "
+      "arm with `'scheme': 'blues'`, so the task cannot pass without this "
+      'function. Goes when Task 49 lands.',
 };
 
 /// Files scanned for declarations: every `.dart` file under
