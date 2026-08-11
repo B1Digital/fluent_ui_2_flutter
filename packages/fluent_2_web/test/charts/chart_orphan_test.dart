@@ -172,6 +172,18 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'the call site does not exist yet rather than having been forgotten. '
       'Whoever lands DeclarativeChart deletes this entry — the test below '
       'fails until they do.',
+  'transformPlotlyToGvbc':
+      'internal/plotly/transform_bar.dart, the Plotly grouped-vertical-bar '
+      'transformer (PlotlySchemaAdapter.ts:1610-1791) and plan 09 Task 19. '
+      'Upstream reaches it from the `groupedverticalbar` entry of '
+      "DeclarativeChart's chartMap (DeclarativeChart.tsx:268-271), dispatched "
+      'at :607, and the router already resolves that kind '
+      '(internal/plotly/router.dart:758-763) — what is missing is the widget '
+      'that reads the route, which is plan 09 Task 28. So the call site does '
+      'not exist yet rather than having been forgotten. Whoever lands '
+      'DeclarativeChart deletes this entry — the test below fails until they '
+      'do. `normalizeObjectArrayForGvbc` needs no entry: this function calls '
+      'it.',
   'transformPlotlyToVsbc':
       'internal/plotly/transform_bar.dart, the Plotly vertical-stacked-bar '
       'transformer (PlotlySchemaAdapter.ts:1390-1608) and plan 09 Task 18. It '
@@ -185,6 +197,35 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'call site does not exist yet rather than having been forgotten. Whoever '
       'lands DeclarativeChart deletes this entry — the test below fails until '
       'they do.',
+  'transformPlotlyToLine':
+      'internal/plotly/transform_xy.dart, one of the three wrappers over the '
+      'Plotly scatter-trace core (PlotlySchemaAdapter.ts:1925-1940, body at '
+      ':1979-2212) and plan 09 Task 21. Upstream reaches it from the `line` '
+      "entry of DeclarativeChart's chartMap (DeclarativeChart.tsx:268-271), "
+      'dispatched at :607, and a figure mixing line and scatter traces routes '
+      'here too (:578-588). That widget is plan 09 Task 28. The core itself is '
+      'NOT excused by this entry: mapColorFillBars and getValidXYRanges are '
+      'called from inside the same file, and the polar half of what this '
+      'produces is proven end to end by the mounted test in '
+      'test/charts/declarative/transform_scatter_test.dart, which counts the '
+      'category-ring labels a real FluentLineChart paints. Whoever lands '
+      'DeclarativeChart deletes this entry.',
+  'transformPlotlyToArea':
+      'internal/plotly/transform_xy.dart, the area wrapper over the same core '
+      '(PlotlySchemaAdapter.ts:1908-1923). Upstream reaches it from the `area` '
+      "entry of DeclarativeChart's chartMap (DeclarativeChart.tsx:268-271); "
+      'that widget is plan 09 Task 28, which also supplies the enclosing '
+      "SizedBox (spec §2.2's constraint-sized shell charts, with the 350 from "
+      'PlotlySchemaAdapter.ts:2172 living in kPlotlyDefaultCellHeight). '
+      'Whoever lands DeclarativeChart deletes this entry.',
+  'transformPlotlyToScatter':
+      'internal/plotly/transform_xy.dart, the scatter wrapper over the same '
+      'core (PlotlySchemaAdapter.ts:1942-1957) — the branch that alone adds '
+      'showYAxisLablesTooltip (:2201) and the category order (:2202), and that '
+      'alone builds scatterChartData rather than lineChartData (:2162-2164). '
+      "Upstream reaches it from the `scatter` entry of DeclarativeChart's "
+      'chartMap (DeclarativeChart.tsx:268-271); that widget is plan 09 Task '
+      '28. Whoever lands DeclarativeChart deletes this entry.',
 
   // --- Ported constants nothing reads --------------------------------------
   // `kMinDonutRadius` was here until plan 09 Task 17 landed: the Plotly pie
@@ -194,15 +235,13 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // open and is not this list's to hold — `donut_chart.dart` computes its
   // radius through `layout.labelRadius` (:841) and floors it at nothing, so an
   // imperatively mounted donut in a tiny box is still not floored at 1.
-  'kDefaultDateString':
-      'Ports `DEFAULT_DATE_STRING` (utilities.ts:91), declared at '
-      'axis/axis_types.dart:61 with a note that JavaScript parses a bare '
-      'YYYY-MM-DD as UTC midnight. The one place that wants it writes the '
-      'epoch as a literal instead: domain_range.dart:491-492 builds '
-      '`DateTime.utc(2000)` twice under a comment at :490 that says the port '
-      '"falls back to `kDefaultDateString`". The comment is accurate about '
-      'intent and wrong about the code. Substituting the constant at both '
-      'sites removes this entry and the contradiction together.',
+  // `kDefaultDateString` was here until plan 09 Task 13 landed
+  // `internal/plotly/axis.dart`, whose `plotlyTick0` reads
+  // `DateTime.parse(kDefaultDateString)` at :582 — a real caller, so the excuse
+  // outlived its gap and the test below was failing on it. The gap the entry
+  // described is still open and is not this list's to hold:
+  // domain_range.dart:491-492 still writes `DateTime.utc(2000)` twice under a
+  // comment at :490 claiming it falls back to the constant.
   'kLegendShapeViewportSize':
       'The 14×14 SVG viewport a legend swatch is drawn into, '
       'chrome/legend_shape.dart:79, verified against Oracle B as stated '

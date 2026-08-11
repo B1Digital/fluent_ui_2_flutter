@@ -1,18 +1,21 @@
 /// The Plotly bar-family figure transformers.
 ///
 /// Ports `PlotlySchemaAdapter.ts:1390-1608` (vertical stacked bar, which is
-/// also the `fallback` route). Internal to the package: nothing here is
-/// barrel-exported.
+/// also the `fallback` route) and `:1610-1791` with `:1169-1243` (grouped
+/// vertical bar). Internal to the package: nothing here is barrel-exported.
 library;
 
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
+import '../../axis/tick_format.dart';
 import '../../cartesian/cartesian_chart_props.dart';
+import '../../grouped_vertical_bar_chart.dart';
 import '../../model/bar_data.dart';
 import '../../model/chart_common.dart';
 import '../../model/line_options.dart';
+import '../../model/series_v2.dart';
 import '../../vertical_stacked_bar_chart.dart';
 import '../d3/color.dart' as d3;
 import '../d3/format.dart' as d3;
@@ -77,10 +80,14 @@ double _jsNumber(Object? value) {
 /// Kept private because the plan gives `getValidXYRanges` no owner: task 24's
 /// audit note records that it is "undefined anywhere in this plan" and that the
 /// heatmap does not need it. Whoever declares it publicly deletes this.
+///
+/// [resolveX] is optional because `:1738` (the grouped transformer) omits it
+/// where `:1425` supplies one — upstream's `typeof resolveX === 'function'`
+/// guard at `:3615` is exactly this null check.
 List<(int, int)> _validXYRanges(
-  Map<String, Object?> series,
-  Object? Function(Object?) resolveX,
-) {
+  Map<String, Object?> series, [
+  Object? Function(Object?)? resolveX,
+]) {
   final x = series['x'];
   final y = series['y'];
   if (x is! List<Object?> || y is! List<Object?>) {
@@ -96,7 +103,7 @@ List<(int, int)> _validXYRanges(
     // test spelt in Dart.
     final yValue = end < y.length ? y[end] : null;
     if (isInvalidValue(x[end]) ||
-        isInvalidValue(resolveX(x[end])) ||
+        (resolveX != null && isInvalidValue(resolveX(x[end]))) ||
         isInvalidValue(yValue)) {
       if (end - start > 0) {
         ranges.add((start, end));
@@ -513,7 +520,7 @@ FluentVerticalStackedBarChart transformPlotlyToVsbc(
       // `:1601`.
       yAxisTickFormat: yAxisTickFormat,
       // `:1605`. Both counts are non-nullable with the shell's own defaults
-      // (6 and 4, `cartesian_chart_props.dart:94-95`), so an absent `nticks`
+      // (6 and 4, `cartesian_chart_props.dart:95-96`), so an absent `nticks`
       // keeps them.
       tickValues: tickProps.xAxisTickValues,
       yAxisTickValues: tickProps.yAxisTickValues,
@@ -532,6 +539,488 @@ FluentVerticalStackedBarChart transformPlotlyToVsbc(
         tickLayout: tickProps.yAxisTickLayout,
       ),
       // `:1606`.
+      annotations: annotations,
+    ),
+  );
+}
+
+/// The CSS-property key pattern at `PlotlySchemaAdapter.ts:501-507`.
+///
+/// Transcribed verbatim, including the bare `%` alternative and the vendor
+/// prefixes, which are the second alternation group.
+final RegExp _cssKeyPattern = RegExp(
+  r'^(color|fill|stroke|border|background|font|shadow|outline|margin|padding'
+  r'|gap|align|justify|display|flex|grid|'
+  r'text|line|letter|word|vertical|horizontal|overflow|position|top|right'
+  r'|bottom|left|zindex|z-index|opacity|'
+  r'filter|clip|cursor|resize|transition|animation|transform|box|column|row'
+  r'|direction|visibility|'
+  r'content|width|height|aspect|image|user|pointer|caret|scroll|%)'
+  r'|(-webkit-|-moz-|-ms-|-o-)',
+  caseSensitive: false,
+);
+
+/// Whether [key] names styling rather than data
+/// (`PlotlySchemaAdapter.ts:494-512`).
+bool _shouldIgnoreKey(String key) {
+  final lowerKey = key.toLowerCase();
+  // `:495-497`. // parity: `lowerKey === 'style'` is unreachable behind
+  // `includes('style')`, so the port keeps only the first test.
+  if (lowerKey.contains('style')) return true;
+  return _cssKeyPattern.hasMatch(lowerKey);
+}
+
+/// Splits an array of objects into one bar trace per numeric key
+/// (`PlotlySchemaAdapter.ts:1169-1243`).
+///
+/// **Deviation from the plan:** its Step 1 calls this with a whole trace and
+/// reads a `'__series__'` key off a `Map` return. Upstream returns
+/// `{ traces, x }` and `:1625-1645` destructures `traces` to spread each entry
+/// as a trace of its own, which a magic-keyed map cannot express, so the record
+/// shape is kept.
+///
+/// **Deviation from upstream:** `:1193-1198` also accepts a primitive item —
+/// a bare number becomes a one-key object, anything else contributes nothing.
+/// The only call site is gated by `isObjectArray` (`:1629`), which demands
+/// every item be an object, so those two arms are unreachable and are not
+/// ported; the parameter type says so.
+///
+/// The numeric filter at `:1186-1191` parses once here where `:1218-1226`
+/// re-tests the raw value. The set of surviving keys is identical, because both
+/// gates are `isNumber`.
+({List<Map<String, Object?>> traces, List<Object?> x})
+normalizeObjectArrayForGvbc(
+  List<Map<String, Object?>> data, [
+  List<Object?>? xLabels,
+]) {
+  // `:1173-1175`.
+  if (data.isEmpty) {
+    return (traces: const <Map<String, Object?>>[], x: const <Object?>[]);
+  }
+
+  // `:1178`.
+  final x = xLabels != null && xLabels.length == data.length
+      ? xLabels
+      : <Object?>[for (var i = 0; i < data.length; i++) 'Item ${i + 1}'];
+
+  // `:1181-1200`.
+  final flattened = <Map<String, double>>[
+    for (final item in data)
+      <String, double>{
+        for (final entry in flattenObject(item).entries)
+          if (!_shouldIgnoreKey(entry.key) && isPlotlyNumber(entry.value))
+            entry.key: entry.value is num
+                ? (entry.value! as num).toDouble()
+                // `parseFloat` at `:1223`: a literal Dart cannot read is 0,
+                // which is what `parseFloat('0x10')` returns too.
+                : double.tryParse('${entry.value}') ?? 0,
+      },
+  ];
+
+  // `:1203-1206`: first-seen key order, which is what a JavaScript `Set` and a
+  // Dart `LinkedHashSet` both keep.
+  final allKeys = <String>{for (final object in flattened) ...object.keys};
+
+  final traces = <Map<String, Object?>>[];
+  for (final key in allKeys) {
+    // `:1216-1227`: a key absent from an object contributes NO entry, so a
+    // ragged input yields a short y column rather than a hole. // parity
+    final yValues = <double>[
+      for (final object in flattened)
+        if (object.containsKey(key)) object[key]!,
+    ];
+    // `:1230`.
+    if (yValues.isNotEmpty) {
+      // `:1231-1238`.
+      traces.add(<String, Object?>{
+        'type': 'bar',
+        'name': key,
+        'x': x,
+        'y': yValues,
+      });
+    }
+  }
+
+  return (traces: traces, x: x);
+}
+
+/// `getFormattedCalloutYData` (`PlotlySchemaAdapter.ts:253-261`).
+///
+/// Task 18 left this out of the stacked transformer for want of a
+/// `formatToLocaleString`; `axis/tick_format.dart:210` has since landed one, so
+/// the grouped transformer calls it. The stacked transformer is another task's
+/// file position and is left alone.
+String _formattedCalloutYData(
+  Object? yVal,
+  String Function(double)? yAxisTickFormat,
+) {
+  // `:258`: the format is applied to a number only.
+  if (yAxisTickFormat != null && yVal is num) {
+    return yAxisTickFormat(yVal.toDouble());
+  }
+  return formatToLocaleString(yVal);
+}
+
+/// Transforms a Plotly grouped `bar` figure into a Fluent grouped vertical bar
+/// chart (`PlotlySchemaAdapter.ts:1610-1791`).
+///
+/// The chart carries [FluentGroupedVerticalBarChart.dataV2] rather than
+/// `data`: upstream fills `dataV2` too (`:1652` and `:1770`), and it is the
+/// only input shape that carries the scatter overlay at `:1740-1763`. The
+/// widget pivots it into one group per x value itself
+/// (`GroupedVerticalBarChart.tsx:267-295`).
+///
+/// No `noOfCharsToTruncate` is injected. That is deliberate: `:1769-1789` has
+/// no such entry where the stacked transformer's `:1595` sets 20, so the y
+/// labels here keep the shell's own default rather than the stacked chart's.
+///
+/// As with the stacked transformer the chart is returned bare — the shell
+/// charts size to their constraints (spec §2.2) and task 28 supplies `:1772`'s
+/// 350 from `kPlotlyDefaultCellHeight`.
+FluentGroupedVerticalBarChart transformPlotlyToGvbc(
+  Map<String, Object?> input, {
+  required bool isMultiPlot,
+  required PlotlyColorMap colorMap,
+  required FluentPlotlyColorway colorwayType,
+  required bool isDark,
+}) {
+  final rawData = input['data'];
+  final inputData = rawData is List<Object?> ? rawData : const <Object?>[];
+  final rawLayout = input['layout'];
+  // `:1618`: only `data` is replaced, so the processed layout the tail reads at
+  // `:1781` and `:1784` is this same object.
+  final layout = rawLayout is Map<String, Object?> ? rawLayout : null;
+  final colorway = _colorway(layout);
+
+  bool isObjectArrayBar(Object? series) =>
+      series is Map<String, Object?> &&
+      series['type'] == 'bar' &&
+      isObjectArray(series['y']);
+
+  // `:1621-1623`.
+  final hasObjectArrayData = inputData.any(isObjectArrayBar);
+
+  // `:1625-1645`.
+  final data = <Object?>[];
+  for (final entry in inputData) {
+    if (hasObjectArrayData && isObjectArrayBar(entry)) {
+      final series = entry! as Map<String, Object?>;
+      final yObjects = (series['y']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      final xValues = series['x'];
+      // `:1631-1634`.
+      final normalised = normalizeObjectArrayForGvbc(
+        yObjects,
+        xValues is List<Object?> ? xValues : null,
+      );
+      for (final trace in normalised.traces) {
+        // `:1637-1641`: the marker is copied onto every generated trace, and
+        // an absent one is copied as absent.
+        data.add(<String, Object?>{...trace, 'marker': series['marker']});
+      }
+    } else {
+      data.add(entry);
+    }
+  }
+
+  // `:1652`.
+  final seriesV2 = <FluentDataSeries>[];
+  // `:1653`.
+  final secondary = _getSecondaryYAxisValues(data, layout);
+  // `:1654`.
+  final legend = getLegendProps(data, layout, isMultiPlot: isMultiPlot);
+  // `:1656`: threaded across traces, exactly as in the stacked transformer.
+  String Function(double)? colorScale;
+  // `:1657`: `d3.format(layout.yaxis.tickformat)` (`:211-220`).
+  final yAxis = layout?['yaxis'];
+  final tickformat = yAxis is Map<String, Object?> ? yAxis['tickformat'] : null;
+  final yAxisTickFormat = tickformat is String && tickformat.isNotEmpty
+      ? d3.format(tickformat)
+      : null;
+
+  for (var index1 = 0; index1 < data.length; index1++) {
+    final series = data[index1];
+    if (series is! Map<String, Object?>) continue;
+
+    // `:1659`.
+    colorScale = createColorScale(layout, series, colorScale);
+    // `:1660`.
+    final legendTitle = index1 < legend.names.length
+        ? legend.names[index1]
+        : '';
+    // `:1661`.
+    final legendShape = getLegendShape(series);
+    final marker = series['marker'];
+    final markerColor = marker is Map<String, Object?> ? marker['color'] : null;
+    final line = series['line'];
+    final lineColour = line is Map<String, Object?> ? line['color'] : null;
+    // `:1717`.
+    final usesSecondary = _usesSecondaryYScale(series, layout);
+
+    if (series['type'] == 'bar') {
+      // `:1665-1671`: extracted once per trace.
+      final extractedBarColors = extractColor(
+        colorway,
+        colorwayType,
+        markerColor,
+        colorMap,
+        isDark: isDark,
+      );
+
+      final xColumn = series['x'];
+      final yColumn = series['y'];
+      final text = series['text'];
+      final texttemplate = series['texttemplate'];
+      final points = <FluentDataPointV2>[];
+      // `:1677`'s `series.x as Datum[]` throws on a trace with no x column;
+      // the guard is what stands in for that, because a figure that far off
+      // spec is rejected by the router long before it reaches here.
+      if (xColumn is List<Object?>) {
+        for (var xIndex = 0; xIndex < xColumn.length; xIndex++) {
+          final xValue = xColumn[xIndex];
+          final yValue = yColumn is List<Object?> && xIndex < yColumn.length
+              ? yColumn[xIndex]
+              : null;
+          // `:1679-1681`: the point is dropped, and `:1716` filters it out.
+          if (isInvalidValue(xValue) || isInvalidValue(yValue)) continue;
+
+          // `:1683-1697`.
+          final String colour;
+          if (colorScale != null) {
+            final scaleInput =
+                markerColor is List<Object?> && markerColor.isNotEmpty
+                ? markerColor[xIndex % markerColor.length]
+                : 0;
+            colour = colorScale(scaleInput is num ? scaleInput.toDouble() : 0);
+          } else {
+            colour = resolveColor(
+              extractedBarColors,
+              xIndex,
+              legendTitle,
+              colorMap,
+              colorway,
+              isDark: isDark,
+            );
+          }
+          // `:1698`.
+          final opacity = getOpacity(series, xIndex);
+
+          // `:1701-1706`.
+          var barLabel = text is List<Object?> && xIndex < text.length
+              ? text[xIndex]
+              : (text is List<Object?> ? null : text);
+          if (barLabel != null &&
+              barLabel != '' &&
+              barLabel != false &&
+              texttemplate != null) {
+            barLabel = formatTextWithTemplate(barLabel, texttemplate, xIndex);
+          }
+
+          points.add(
+            FluentDataPointV2(
+              // `:1709`.
+              x: '$xValue',
+              // `:1710`: a string y is legal at the type level and the pivot
+              // at `GroupedVerticalBarChart.tsx:281` reads it as 0.
+              y: yValue is num ? yValue.toDouble() : '$yValue',
+              // `:1711`.
+              yAxisCalloutData: _formattedCalloutYData(yValue, yAxisTickFormat),
+              // `:1712`.
+              color: _parseCssColour(
+                applyOpacityHex8(colour, opacity),
+                isDark: isDark,
+              ),
+              // `:1713` writes `barLabel`, which `DataPointV2`
+              // (`types/DataPoint.ts:1134-1179`) does not declare and
+              // `_processDataV2` (`.tsx:279-287`) does not copy, so upstream
+              // computes a label no bar ever draws. `text` is the nearest
+              // declared field and is dropped by the same pivot, so the
+              // computation stays live and the outcome is unchanged.
+              // parity
+              text: barLabel == null || barLabel == '' ? null : '$barLabel',
+            ),
+          );
+        }
+      }
+
+      seriesV2.add(
+        FluentBarSeries(
+          // `:1675-1676`.
+          legend: legendTitle,
+          key: legendTitle,
+          data: points,
+          // `:1717`.
+          useSecondaryYScale: usesSecondary,
+        ),
+      );
+    } else if (series['type'] == 'scatter') {
+      // `:1721-1727`.
+      final extractedLineColors = extractColor(
+        colorway,
+        colorwayType,
+        lineColour,
+        colorMap,
+        isDark: isDark,
+      );
+      // `:1728-1735`: the LINE colour is indexed by the trace, not by the point.
+      final resolvedLineColour = resolveColor(
+        extractedLineColors,
+        index1,
+        legendTitle,
+        colorMap,
+        colorway,
+        isDark: isDark,
+      );
+      // `:1736`. // parity: unlike the stacked transformer at `:1491` this one
+      // keeps the dash presets whatever the mode is.
+      final lineOptions = getLineOptions(
+        line is Map<String, Object?> ? line : null,
+      );
+      // `:1737`: also indexed by the trace.
+      final opacity = getOpacity(series, index1);
+      final mode = series['mode'];
+      // `:1738`: no resolver, so only the raw x and y are tested.
+      final validRanges = _validXYRanges(series);
+      final xColumn = series['x'];
+      final yColumn = series['y'];
+
+      for (final (rangeStart, rangeEnd) in validRanges) {
+        // `:1741-1742`.
+        final rangeXValues = (xColumn! as List<Object?>).sublist(
+          rangeStart,
+          rangeEnd,
+        );
+        final rangeYValues = (yColumn! as List<Object?>).sublist(
+          rangeStart,
+          rangeEnd,
+        );
+        seriesV2.add(
+          FluentLineSeries(
+            // `:1746`. // parity: a trace split into several ranges yields
+            // several series under ONE legend name, where the stacked
+            // transformer suffixes them at `:1494`.
+            legend: legendTitle,
+            // `:1747`.
+            legendShape: legendShape,
+            // `:1748-1755`.
+            data: <FluentDataPointV2>[
+              for (var i = 0; i < rangeXValues.length; i++)
+                FluentDataPointV2(
+                  x: '${rangeXValues[i]}',
+                  y: rangeYValues[i] is num
+                      ? (rangeYValues[i]! as num).toDouble()
+                      : '${rangeYValues[i]}',
+                  yAxisCalloutData: _formattedCalloutYData(
+                    rangeYValues[i],
+                    yAxisTickFormat,
+                  ),
+                ),
+            ],
+            // `:1756`.
+            color: _parseCssColour(
+              applyOpacityHex8(resolvedLineColour, opacity),
+              isDark: isDark,
+            ),
+            // `:1757-1760`: `{...(lineOptions ?? {}), mode: series.mode}`.
+            lineOptions: FluentLineOptions(
+              strokeWidth: lineOptions?.strokeWidth,
+              strokeDasharray: lineOptions?.strokeDasharray,
+              strokeDashoffset: lineOptions?.strokeDashoffset,
+              strokeLinecap: lineOptions?.strokeLinecap,
+              lineBorderWidth: lineOptions?.lineBorderWidth,
+              lineBorderColor: lineOptions?.lineBorderColor,
+              curve: lineOptions?.curve,
+              mode: mode is String ? FluentLineMode.parse(mode) : null,
+              fill: lineOptions?.fill,
+            ),
+            // `:1761`.
+            useSecondaryYScale: usesSecondary,
+          ),
+        );
+      }
+    }
+  }
+
+  // `:1767`.
+  final annotations = getChartAnnotationsFromLayout(
+    layout,
+    isMultiPlot: isMultiPlot,
+  );
+  // `:1782`.
+  final titles = getTitles(layout);
+  // `:1781` and `:1784`. Absent ranges leave the shell defaults (0/0 for y,
+  // null for x, true for the round-off) exactly as upstream's empty spread
+  // does — this transformer seeds no y bounds of its own, so the range is the
+  // only source there.
+  final xRange = getXMinMaxValues(layout);
+  final yRange = getYMinMaxValues(layout);
+  // `:1783`, `:1787` and `:1788`.
+  final categoryOrder = getAxisCategoryOrderProps(data, layout);
+  final barProps = getBarProps(data, layout);
+  final tickProps = getAxisTickProps(data, layout);
+
+  return FluentGroupedVerticalBarChart(
+    dataV2: seriesV2,
+    // `:1782`.
+    chartTitle: titles.chartTitle,
+    // `:1773`, overwritten by `:1787` with the same literal when the layout
+    // declares a bar geometry at all.
+    barWidth: barProps.barWidth ?? 'auto',
+    // `:1787`. The shell's own default is 24
+    // (`GroupedVerticalBarChart.tsx:80`).
+    maxBarWidth: barProps.maxBarWidth ?? 24,
+    xAxisInnerPadding: barProps.xAxisInnerPadding,
+    xAxisOuterPadding: barProps.xAxisOuterPadding,
+    // `:1774`.
+    mode: 'plotly',
+    // `:1778`.
+    roundCorners: true,
+    // `:1783`. Only the x order is declared: the grouped chart's x axis is the
+    // only categorical one it has.
+    xAxisCategoryOrder: categoryOrder.x ?? FluentAxisCategoryOrder.defaultOrder,
+    props: FluentCartesianChartProps(
+      xAxisTitle: titles.xAxisTitle,
+      yAxisTitle: titles.yAxisTitle,
+      // `:1775`.
+      secondaryYAxisTitle: secondary.title,
+      secondaryYScaleOptions: secondary.scaleOptions,
+      // `:1777`.
+      hideLegend: legend.hideLegend,
+      // `:1776`.
+      hideTickOverlap: true,
+      // `:1779`.
+      showYAxisLables: true,
+      // `:1780`.
+      roundedTicks: true,
+      // `:1781`.
+      xMinValue: xRange.xMinValue,
+      xMaxValue: xRange.xMaxValue,
+      showRoundOffXTickValues: xRange.showRoundOffXTickValues,
+      // `:1784`.
+      yMinValue: yRange.yMinValue ?? 0,
+      yMaxValue: yRange.yMaxValue ?? 0,
+      // `:1786`.
+      yAxisTickFormat: yAxisTickFormat,
+      // `:1788`. Both counts are non-nullable with the shell's own defaults
+      // (6 and 4, `cartesian_chart_props.dart:95-96`), so an absent `nticks`
+      // keeps them.
+      tickValues: tickProps.xAxisTickValues,
+      yAxisTickValues: tickProps.yAxisTickValues,
+      xAxisTickCount: tickProps.xAxisTickCount ?? 6,
+      yAxisTickCount: tickProps.yAxisTickCount ?? 4,
+      xAxis: FluentAxisConfig(
+        tickStep: tickProps.xAxisTickStep,
+        tick0: tickProps.xAxisTick0,
+        tickText: tickProps.xAxisTickText,
+        tickLayout: tickProps.xAxisTickLayout,
+      ),
+      yAxis: FluentAxisConfig(
+        tickStep: tickProps.yAxisTickStep,
+        tick0: tickProps.yAxisTick0,
+        tickText: tickProps.yAxisTickText,
+        tickLayout: tickProps.yAxisTickLayout,
+      ),
+      // `:1789`.
       annotations: annotations,
     ),
   );
