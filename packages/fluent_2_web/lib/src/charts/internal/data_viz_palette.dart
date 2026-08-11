@@ -5,8 +5,8 @@ import 'package:flutter/widgets.dart';
 ///
 /// Ports the `DataVizPalette` object (`colors.ts:4-52`) — forty `qualitative.*`
 /// entries followed by seven `semantic.*` entries, in that order. The ordinals
-/// are load-bearing: `FluentDataVizPalette.tokenFromUpstreamName` indexes
-/// [FluentDataVizToken.values] with the qualitative number.
+/// are load-bearing: `FluentDataVizPalette.resolve` reads the ordinal of a
+/// qualitative token as its index into the forty ramps at `colors.ts:5-44`.
 enum FluentDataVizToken {
   /// `'qualitative.1'` — cornflower tint 10 (`colors.ts:63`).
   color1,
@@ -279,44 +279,22 @@ abstract final class FluentDataVizPalette {
 
   /// The colour [token] names.
   ///
-  /// Ports `getColorFromToken` (`colors.ts:139-146`) for the token arm. The
-  /// upstream function also returns its argument unchanged when it names no
-  /// token; that pass-through lives in [tokenFromUpstreamName], which returns
-  /// null so the caller can parse the string as a colour instead.
+  /// Ports `getColorFromToken` (`colors.ts:139-146`) for the token arm, which
+  /// is the only arm this port needs: every colour it carries is typed as a
+  /// `Color?` or a [FluentDataVizToken], never as an upstream token string, so
+  /// the `return token` pass-through at `:145` has no caller here. A lookup
+  /// from the string form used to live beside this as `tokenFromUpstreamName`
+  /// and is retired — the last consumer it was held for, the Vega colour
+  /// adapter, indexes tables of `DataVizPalette` constants
+  /// (`VegaLiteColorAdapter.ts:95-106`, read at `:249-250`) and lands on this
+  /// method, and a consumer-supplied Vega colour is returned directly at
+  /// `:243` without reaching `getColorFromToken` at all.
   static Color resolve(FluentDataVizToken token, {bool isDark = false}) {
     final ramp = _semantic[token];
     if (ramp != null) return _themeSpecific(ramp, isDark: isDark);
     // The forty qualitative tokens occupy ordinals 0..39, so the ordinal is the
     // ramp index (colors.ts:5-44).
     return _themeSpecific(_qualitative[token.index], isDark: isDark);
-  }
-
-  /// The token [name] identifies, or null when it identifies none.
-  ///
-  /// [name] is one of the 47 strings at `colors.ts:5-51`. A null result is what
-  /// `colors.ts:145` expresses by returning the string unchanged: the value is
-  /// a raw CSS colour and the caller should parse it.
-  static FluentDataVizToken? tokenFromUpstreamName(String name) {
-    const qualitativePrefix = 'qualitative.';
-    if (name.startsWith(qualitativePrefix)) {
-      final number = int.tryParse(name.substring(qualitativePrefix.length));
-      // The ramps are numbered from 1 to 40 inclusive (colors.ts:63-102).
-      if (number == null || number < 1 || number > qualitativeCount) {
-        return null;
-      }
-      // The forty qualitative tokens occupy ordinals 0..39 (colors.ts:5-44).
-      return FluentDataVizToken.values[number - 1];
-    }
-    return switch (name) {
-      'semantic.info' => FluentDataVizToken.info,
-      'semantic.disabled' => FluentDataVizToken.disabled,
-      'semantic.highError' => FluentDataVizToken.highError,
-      'semantic.error' => FluentDataVizToken.error,
-      'semantic.warning' => FluentDataVizToken.warning,
-      'semantic.success' => FluentDataVizToken.success,
-      'semantic.highSuccess' => FluentDataVizToken.highSuccess,
-      _ => null,
-    };
   }
 }
 

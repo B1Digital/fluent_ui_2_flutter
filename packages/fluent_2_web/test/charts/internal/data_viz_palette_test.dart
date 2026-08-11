@@ -156,48 +156,6 @@ void main() {
     });
   });
 
-  group('FluentDataVizPalette.tokenFromUpstreamName', () {
-    test('maps a qualitative name to its token', () {
-      expect(
-        FluentDataVizPalette.tokenFromUpstreamName('qualitative.7'),
-        FluentDataVizToken.color7,
-        reason: 'colors.ts:11.',
-      );
-      expect(
-        FluentDataVizPalette.tokenFromUpstreamName('qualitative.40'),
-        FluentDataVizToken.color40,
-        reason: 'colors.ts:44 — the last qualitative entry.',
-      );
-    });
-    test('maps every semantic name to its token', () {
-      expect(
-        FluentDataVizPalette.tokenFromUpstreamName('semantic.highSuccess'),
-        FluentDataVizToken.highSuccess,
-        reason: 'colors.ts:51.',
-      );
-    });
-    test('returns null for a raw colour, which is the pass-through door', () {
-      expect(
-        FluentDataVizPalette.tokenFromUpstreamName('#ff0000'),
-        isNull,
-        reason:
-            'colors.ts:145 returns the token string unchanged when it is not a '
-            'known token, so a raw CSS colour passes through. A null here is '
-            "the caller's signal to parse it as a colour instead.",
-      );
-      expect(
-        FluentDataVizPalette.tokenFromUpstreamName('qualitative.41'),
-        isNull,
-        reason: 'There are only forty qualitative ramps (colors.ts:62-103).',
-      );
-      expect(
-        FluentDataVizPalette.tokenFromUpstreamName('qualitative.0'),
-        isNull,
-        reason: 'The ramps are numbered from 1 (colors.ts:63).',
-      );
-    });
-  });
-
   group('fluentChartIsDarkTheme', () {
     test('compares HSL lightness, not Brightness', () {
       expect(

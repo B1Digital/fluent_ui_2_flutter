@@ -32,9 +32,10 @@
 // was checked by hand against `grep`: not one had a `lib/` reference that was
 // not a doc comment. It read 1661 declarations and 18 orphans on the morning of
 // 2026-08-11; after the batch that resolved thirteen of those — nine of them by
-// deleting the symbol — it reports 1653 declarations across 97 files and 5
-// orphans, which are the 5 excused below. The false-positive rate of the rule as
-// written is 0 of 5, and was 0 of 18 at the wider count.
+// deleting the symbol — and the fourteenth, `tokenFromUpstreamName`, deleted the
+// same day, it reports 1652 declarations across 97 files and 4 orphans, which
+// are the 4 excused below. The false-positive rate of the rule as written is
+// 0 of 4, and was 0 of 18 at the wider count.
 //
 // FOUR REFINEMENTS make the signal usable, and all four are load-bearing.
 // Each is stated with what it costs, because the next reader will be tempted to
@@ -129,7 +130,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// and the last test below fails if this map drifts from the scan in either
 /// direction, so an excuse cannot outlive the gap it excuses.
 ///
-/// Five on 2026-08-11, after a batch that resolved thirteen of the eighteen
+/// Four on 2026-08-11, after a batch that resolved fourteen of the eighteen
 /// this file carried that morning — each one wired or deleted, none re-worded
 /// into a fresher deferral. Eighteen, in turn, was down from thirty-five and up
 /// by the one that
@@ -175,52 +176,25 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'caller. It is the non-throwing query for whether toImage will '
       'succeed, versus the StateError at image_export.dart:455.',
 
-  // --- Blocked: the consumer is not ported --------------------------------
-  'tokenFromUpstreamName':
-      'Ports the token-lookup arm of `getColorFromToken` (colors.ts:139-146) '
-      '— the `TOKENS.indexOf(token)` branch at :140, with a null result '
-      "standing in for upstream's `return token` pass-through at :145. The "
-      'port types every series colour as `Color?` instead of a colour string, '
-      'so a ported chart already holds a resolved colour or names a '
-      'FluentDataVizToken and calls `FluentDataVizPalette.resolve`. A raw '
-      'upstream token string only ever arrives from untyped JSON. Audited '
-      '2026-08-11: this entry used to say "the same two unported declarative '
-      'adapters", and one of the two has landed, which is the shape that hid '
-      'transformPlotlyToVbc. It did not hide anything here — the reason '
-      'strengthened. Re-audited 2026-08-11 with the batch that emptied most of '
-      'this list, which corrected one word of it: the entry claimed EVERY '
-      'upstream caller of getColorFromToken reads a consumer-supplied colour '
-      'string, and half of them do not — HorizontalBarChartWithAxis.tsx:'
-      '113-116, VerticalStackedBarChart.tsx:157-161 and '
-      'PlotlySchemaAdapter.ts:2565-2567 pass a DataVizPalette constant, which '
-      'is the typed branch the port takes through FluentDataVizPalette.resolve '
-      'and not a reason to keep this function. Every caller that passes a '
-      'runtime string is an imperative chart reading it from its own props '
-      '(PolarChart.tsx:123, DonutChart.tsx:264, LineChart.tsx:280, '
-      'GanttChart.tsx:80, ScatterChart.tsx:157), which is exactly what the '
-      "port's Color? typing removes; and the Plotly adapter took the typed "
-      'branch instead — PlotlyColorAdapter.ts:102 passes a DataVizPalette '
-      'token to getColorFromToken, and color_adapter.dart:162 calls '
-      'FluentDataVizPalette.resolve on the same token. Re-audited again on '
-      '2026-08-11 by the verification pass over that batch, which read the one '
-      'adapter the entry had left as its unblocker and found the claim false. '
-      'The entry said "one adapter is left, Vega, whose '
-      'VegaLiteColorAdapter.ts:250 does call it on a string. Unblocks with '
-      'that one, or is deleted with it." :250 is the ONLY getColorFromToken '
-      'call in the whole Vega tree, and its argument is '
-      '`schemeMapping[index % schemeMapping.length]` (:249) off '
-      'getSchemeMapping (:192-209), whose four tables — '
-      'CATEGORY10_FLUENT_MAPPING at :95-106 and the CATEGORY20, TABLEAU10 and '
-      'TABLEAU20 tables beside it — hold DataVizPalette constants and nothing '
-      'else. That is the typed branch, the same one this entry already ruled '
-      'out as a reason for the other adapters. A consumer-supplied Vega colour '
-      'never reaches the function at all: getVegaColor returns its custom '
-      '`range` entry directly at :243. So NOTHING in plan 09 Tasks 31-57 will '
-      'call this, the deferral has no unblocker left, and the resolution is '
-      'the other half of its own sentence — deletion, with the three tests and '
-      'six assertions at test/charts/internal/data_viz_palette_test.dart:'
-      '159-198 that reach it. That is a lib change with its own TDD cycle and '
-      'is not this list to make, so the entry stays only until it is made.',
+  // --- Retired: the blocker did not exist ---------------------------------
+  // `tokenFromUpstreamName` was here, the one entry excused as blocked on an
+  // unported consumer, and its own re-audit had already found that blocker
+  // false and named deletion as the resolution. Re-verified against the source
+  // before deleting rather than taken on the entry's word: `grep -rn
+  // getColorFromToken` over crawlers/fluentui-react-charts/out/charts/src
+  // returns exactly one hit in the Vega tree, VegaLiteColorAdapter.ts:250,
+  // whose argument is `schemeMapping[index % schemeMapping.length]` (:249) off
+  // getSchemeMapping (:192-209), and whose four tables — CATEGORY10 at
+  // :95-106 and the CATEGORY20, TABLEAU10 and TABLEAU20 tables beside it —
+  // hold DataVizPalette constants and nothing else. A consumer-supplied Vega
+  // colour never reaches the function at all: getVegaColor returns its custom
+  // `range` entry directly at :243. Plan 09 Task 39, which was starting as
+  // this was written, types that branch the same way — its Produces line
+  // spells "the four `List<FluentDataVizToken>` mappings", so the Vega adapter
+  // holds tokens and resolves them through FluentDataVizPalette.resolve,
+  // exactly as color_adapter.dart:162 already does for Plotly. Deleted with
+  // the three tests and six assertions at data_viz_palette_test.dart:159-198,
+  // which were the only code of any kind that reached it.
   // `shouldResize` was here, and it named its own resolution: "the likely
   // resolution when the adapters land is deletion with that test, not wiring".
   // The adapter landed and took the wiring instead — `declarative_chart.dart`
