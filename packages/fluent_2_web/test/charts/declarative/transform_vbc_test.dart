@@ -254,7 +254,7 @@ void main() {
     expect(
       chart.props.yScaleType,
       FluentAxisScaleType.log,
-      reason: 'PlotlySchemaAdapter.ts:3947-3949, same spread.',
+      reason: 'PlotlySchemaAdapter.ts:3946-3948, same spread.',
     );
   });
 }
