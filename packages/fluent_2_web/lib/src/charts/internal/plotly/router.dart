@@ -4,10 +4,11 @@ import 'base64_data.dart';
 import 'json_guard.dart';
 import 'predicates.dart';
 
-/// The 17 chart kinds a Plotly figure can route to.
+/// The 18 chart kinds a Plotly figure can route to.
 ///
 /// The 16 of the `FluentChart` union at `PlotlySchemaConverter.ts:4-20`, plus
-/// [funnel] — which the union omits but `:546` returns; see its doc.
+/// [funnel] and [verticalBar] — which the union omits but `:546` and `:518`
+/// return; see their docs.
 enum FluentPlotlyChartKind {
   /// Layout annotations with no traces (`PlotlySchemaConverter.ts:499`).
   annotation,
@@ -60,6 +61,17 @@ enum FluentPlotlyChartKind {
   /// `table` (`PlotlySchemaConverter.ts:522`).
   table,
 
+  /// `histogram`, the one type that bins (`PlotlySchemaConverter.ts:518`).
+  ///
+  /// Absent from the `FluentChart` union at `PlotlySchemaConverter.ts:4-20`
+  /// for the same reason [funnel] is — the `as TraceInfo` cast at `:602` lets
+  /// it through — yet `:518` is the branch that returns it and
+  /// `DeclarativeChart.tsx:303-306` binds it to `transformPlotlyJsonToVBCProps`
+  /// in `chartMap`, so the union is what is incomplete, not the branch. A
+  /// `bar` trace never arrives here: `:542` sends a plain vertical bar to
+  /// [verticalStackedBar].
+  verticalBar,
+
   /// Stacked bars, the default vertical bar route
   /// (`PlotlySchemaConverter.ts:542`).
   verticalStackedBar,
@@ -89,6 +101,7 @@ String plotlyChartKindName(FluentPlotlyChartKind kind) => switch (kind) {
   FluentPlotlyChartKind.scatterPolar => 'scatterpolar',
   FluentPlotlyChartKind.sankey => 'sankey',
   FluentPlotlyChartKind.table => 'table',
+  FluentPlotlyChartKind.verticalBar => 'verticalbar',
   FluentPlotlyChartKind.verticalStackedBar => 'verticalstackedbar',
   FluentPlotlyChartKind.gantt => 'gantt',
 };
@@ -705,16 +718,11 @@ FluentPlotlyRoute mapFluentChart(Object? input) {
       case 'gauge':
         kind = FluentPlotlyChartKind.gauge;
       case 'histogram':
-        // KNOWN DIVERGENCE, not parity. `PlotlySchemaConverter.ts:518` returns
-        // `'verticalbar'` — a kind absent from the `FluentChart` union at
-        // `:4-20` but carrying its own `chartMap` entry and its own binning
-        // transformer (`DeclarativeChart.tsx:303-306`). This enum has no
-        // `verticalBar` member, so a histogram lands on the stacked-bar route
-        // and would bin nothing. The gap is held open by the
-        // `transformPlotlyToVbc` entry of `kChartOrphanAllowlist`, which names
-        // this line; closing it means adding the member here and in
-        // `plotlyChartKindName`, not editing that entry.
-        kind = FluentPlotlyChartKind.verticalStackedBar;
+        // `PlotlySchemaConverter.ts:518`. The kind is absent from the
+        // `FluentChart` union at `:4-20` but carries its own `chartMap` entry
+        // and its own binning transformer (`DeclarativeChart.tsx:303-306`),
+        // and it is the only route to that transformer.
+        kind = FluentPlotlyChartKind.verticalBar;
       case 'scatterpolar':
         kind = FluentPlotlyChartKind.scatterPolar;
       case 'table':

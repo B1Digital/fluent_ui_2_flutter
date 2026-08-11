@@ -1,6 +1,7 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:fluent_2_web/src/charts/chrome/legend.dart';
 import 'package:fluent_2_web/src/charts/declarative_chart.dart';
+import 'package:fluent_2_web/src/charts/vertical_bar_chart.dart';
 import 'package:fluent_2_web/src/charts/vertical_stacked_bar_chart.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,15 +22,19 @@ void main() {
   /// 400 is deep enough for one 350-tall cell plus the all-up legend
   /// (`kPlotlyDefaultCellHeight`); a figure that also draws the multi-plot
   /// title needs more, and says so at its call site.
-  Future<void> pump(WidgetTester tester, Widget child, {double height = 400}) =>
-      tester.pumpWidget(
-        FluentApp(
-          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
-          home: Center(
-            child: SizedBox(width: 700, height: height, child: child),
-          ),
-        ),
-      );
+  Future<void> pump(
+    WidgetTester tester,
+    Widget child, {
+    double height = 400,
+    double width = 700,
+  }) => tester.pumpWidget(
+    FluentApp(
+      theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+      home: Center(
+        child: SizedBox(width: width, height: height, child: child),
+      ),
+    ),
+  );
 
   /// A two-cell figure: one bar trace on `x`, one on `x2`, with the four
   /// domains `getGridProperties` needs to place them
@@ -131,6 +136,72 @@ void main() {
           'DeclarativeChart.tsx:562-569 lays the cells out as grid columns, '
           'so the `x2` cell sits to the right of the `x` cell rather than '
           'stacked on top of it.',
+    );
+  });
+
+  // This is the test that decided against porting `ResponsiveContainer`'s
+  // measure-and-inject cycle (`ResponsiveContainer.tsx:23-61, 79-91`) as a
+  // widget. Upstream needs a `ResizeObserver` because a React component cannot
+  // read its own box; the injected `width`/`height` then reach the chart, which
+  // measures the DOM again anyway (`CartesianChart.tsx:107-128` lists them as
+  // effect dependencies and takes its real numbers from
+  // `getBoundingClientRect` at `:510-525`). Flutter delivers the box directly,
+  // so the whole cycle collapses into the constraints the cell already hands
+  // down. What follows is the proof of that claim, at both levels the cycle
+  // touched: the grid re-divides and each cell re-lays-out.
+  testWidgets('halving the available width reflows the grid and every cell', (
+    tester,
+  ) async {
+    final chart = FluentDeclarativeChart(
+      chartSchema: FluentPlotlySchema(plotlySchema: twoAxisFigure()),
+    );
+    // 700 and 350 are this test's own two viewport widths, chosen so the
+    // second is exactly half the first and the expectations below are the
+    // halves rather than tuned numbers.
+    // Measured from the figure's own left edge, because the enclosing `Center`
+    // re-centres a narrower figure and every absolute dx below would otherwise
+    // land on the same viewport centre in both passes — which is how the first
+    // draft of this assertion passed on a grid that had not re-divided at all.
+    double secondColumnStart() =>
+        tester.getTopLeft(find.byType(FluentVerticalStackedBarChart).last).dx -
+        tester.getTopLeft(find.byType(FluentDeclarativeChart)).dx;
+
+    await pump(tester, chart, width: 700);
+    final wideCell = tester
+        .getSize(find.byType(FluentVerticalStackedBarChart).first)
+        .width;
+    final wideSecondColumnStart = secondColumnStart();
+
+    await pump(tester, chart, width: 350);
+    final narrowCell = tester
+        .getSize(find.byType(FluentVerticalStackedBarChart).first)
+        .width;
+    final narrowSecondColumnStart = secondColumnStart();
+
+    expect(
+      wideCell,
+      350,
+      reason:
+          'the two cells of DeclarativeChart.tsx:562-569 are `repeat(2, 1fr)`, '
+          'so a 700-wide figure gives each 350.',
+    );
+    expect(
+      narrowCell,
+      175,
+      reason:
+          'and halving the viewport must halve the cell. A cell that stays at '
+          '350 means the chart is sized by something other than the '
+          'constraints it is given, which is the only thing upstream needed '
+          "ResponsiveContainer's ResizeObserver for.",
+    );
+    expect(
+      <double>[wideSecondColumnStart, narrowSecondColumnStart],
+      <double>[350, 175],
+      reason:
+          'the grid itself re-divides, not only the cells inside it: the `x2` '
+          'column boundary moves with the figure. A cell can shrink while the '
+          'boundary stays put — that is what a fixed-width column would do — '
+          'so this is a separate claim from the two above.',
     );
   });
 
@@ -327,6 +398,129 @@ void main() {
       reason:
           'and the cells are still there, so the assertion above is not '
           'passing on an empty tree.',
+    );
+  });
+
+  /// A histogram over eight observations, three below 5 and five at or above
+  /// it, with `xbins` pinning the edges so the bins do not depend on the
+  /// Sturges fallback (`PlotlySchemaAdapter.ts:3413-3441`).
+  ///
+  /// The `y` column is deliberately not the count: 10 for every observation in
+  /// the first bin and 2 for every observation in the second, so `count` (3, 5)
+  /// and `sum` (30, 10) disagree in both bins and a `histfunc` that resolved to
+  /// the wrong arm could not produce the expected numbers by accident.
+  Map<String, Object?> histogramFigure({
+    String? histfunc,
+    String? histnorm,
+    num? layoutHeight,
+  }) => <String, Object?>{
+    'layout': ?(layoutHeight == null
+        ? null
+        : <String, Object?>{'height': layoutHeight}),
+    'data': <Object?>[
+      <String, Object?>{
+        'type': 'histogram',
+        'x': <Object?>[0, 1, 2, 5, 6, 7, 8, 9],
+        'y': <Object?>[10, 10, 10, 2, 2, 2, 2, 2],
+        // 0/10/5 are the interval this figure declares, not a tuned
+        // constant: two five-wide bins over [0, 10).
+        'xbins': <String, Object?>{'start': 0, 'end': 10, 'size': 5},
+        'histfunc': ?histfunc,
+        'histnorm': ?histnorm,
+      },
+    ],
+  };
+
+  testWidgets('a histogram figure reaches the binning transformer and renders '
+      'a vertical bar chart', (tester) async {
+    await pump(
+      tester,
+      FluentDeclarativeChart(
+        chartSchema: FluentPlotlySchema(
+          plotlySchema: histogramFigure(layoutHeight: 600),
+        ),
+      ),
+      // Deeper than the 600 the figure declares, so the height assertion
+      // below cannot be satisfied by the box simply running out.
+      height: 800,
+    );
+    expect(
+      find.byType(FluentVerticalStackedBarChart),
+      findsNothing,
+      reason:
+          'PlotlySchemaConverter.ts:517-518 routes a histogram to '
+          '`verticalbar`, whose chartMap entry is '
+          'transformPlotlyJsonToVBCProps (DeclarativeChart.tsx:303-306) — '
+          'never the stacked bar.',
+    );
+    final chart = tester.widget<FluentVerticalBarChart>(
+      find.byType(FluentVerticalBarChart),
+    );
+    expect(
+      chart.data.map((point) => point.y).toList(),
+      <double>[3, 5],
+      reason:
+          'the default histfunc is the COUNT of each bin, not a sum '
+          '(PlotlySchemaAdapter.ts:3453-3454): three observations below 5 and '
+          'five at or above it. A sum would read 30 and 10.',
+    );
+    expect(
+      chart.data.map((point) => point.x).toList(),
+      <double>[2.5, 7.5],
+      reason:
+          'PlotlySchemaAdapter.ts:1876 plots each bar at the bin CENTRE, '
+          '(x0 + x1) / 2 over [0, 5) and [5, 10).',
+    );
+    expect(
+      chart.data.map((point) => point.xAxisCalloutData).toList(),
+      <String>['[0 - 5)', '[5 - 10)'],
+      reason:
+          'PlotlySchemaAdapter.ts:1882 formats the callout as the half-open '
+          'interval, which only the binning transformer produces.',
+    );
+    expect(
+      chart.mode,
+      'histogram',
+      reason:
+          'PlotlySchemaAdapter.ts:1893 injects the histogram render mode, so '
+          'the chart drops the inner padding at vertical_bar_chart.dart:657.',
+    );
+    expect(
+      tester.getSize(find.byType(FluentVerticalBarChart)).height,
+      600,
+      reason:
+          'PlotlySchemaAdapter.ts:1892 is `input.layout?.height ?? 350`, and '
+          'the transformer deliberately builds neither half (spec §2.2): both '
+          "arrive as the cell's SizedBox, which exists only when "
+          'kPlotlyDefaultCellHeight has an entry for the kind. Without the '
+          'verticalBar entry the declared 600 is dropped on the floor and the '
+          "chart falls back to the cartesian shell's own 350 "
+          '(cartesian/cartesian_chart.dart:28) — which is why the default '
+          'cannot be asserted here: it and the fallback are the same number.',
+    );
+  });
+
+  testWidgets('a histogram carrying histfunc and histnorm reaches both through '
+      'the widget', (tester) async {
+    await pump(
+      tester,
+      FluentDeclarativeChart(
+        chartSchema: FluentPlotlySchema(
+          plotlySchema: histogramFigure(histfunc: 'sum', histnorm: 'percent'),
+        ),
+      ),
+    );
+    final chart = tester.widget<FluentVerticalBarChart>(
+      find.byType(FluentVerticalBarChart),
+    );
+    expect(
+      chart.data.map((point) => point.y).toList(),
+      <double>[75, 25],
+      reason:
+          'histfunc: sum reduces the bins to 30 and 10 '
+          '(PlotlySchemaAdapter.ts:3446) and histnorm: percent scales each by '
+          'the 40 total (:3467), so nothing but both arms firing in that order '
+          'yields 75 and 25.',
     );
   });
 }

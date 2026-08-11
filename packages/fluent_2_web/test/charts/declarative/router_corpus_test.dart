@@ -1,3 +1,5 @@
+import 'package:fluent_2_web/src/charts/internal/plotly/grid.dart'
+    show isNonPlotType;
 import 'package:fluent_2_web/src/charts/internal/plotly/router.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -182,6 +184,18 @@ void main() {
       figure: fig(<Map<String, Object?>>[
         <String, Object?>{'type': 'histogram', 'x': numX},
       ]),
+      // `PlotlySchemaConverter.ts:517-518`. This is the ONLY route to the
+      // binning transformer; the stacked bar bins nothing.
+      kind: FluentPlotlyChartKind.verticalBar,
+    ),
+    (
+      name: 'a plain vertical bar stays a stacked bar',
+      figure: fig(<Map<String, Object?>>[
+        <String, Object?>{'type': 'bar', 'x': strX, 'y': numY},
+      ]),
+      // `PlotlySchemaConverter.ts:542`, the `else` of the `orientation === 'h'`
+      // test with no `group`/`overlay` barmode. The `bar` arm never returns
+      // `verticalbar`, so the row above is not a licence to send bars there.
       kind: FluentPlotlyChartKind.verticalStackedBar,
     ),
     (
@@ -238,6 +252,21 @@ void main() {
       );
     });
   }
+
+  test('the histogram kind is laid out from an axis pair', () {
+    expect(
+      isNonPlotType(FluentPlotlyChartKind.verticalBar),
+      isFalse,
+      reason:
+          'the seven names at PlotlySchemaAdapter.ts:3638 do not include '
+          '`verticalbar`, and `isNonPlotType` matches on the string '
+          '`plotlyChartKindName` returns (grid.dart:197). A wrong name there '
+          'would give every histogram trace a synthetic non-plot cell key '
+          '(declarative_chart.dart:640) and drop it from the all-up legend '
+          '(legends.dart:169) — neither of which the mounted tests would see '
+          'in a single-trace figure.',
+    );
+  });
 
   test('the corpus covers every reachable single-trace kind', () {
     final covered = cases.map((c) => c.kind).toSet();
