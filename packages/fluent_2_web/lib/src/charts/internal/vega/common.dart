@@ -1,9 +1,12 @@
 import 'package:flutter/foundation.dart';
 
+import '../../chrome/legend.dart';
 import '../../model/chart_common.dart';
 import '../../model/line_options.dart';
 import '../d3/array_stats.dart' as d3;
 import '../d3/format.dart' as d3;
+import '../plotly/common.dart' show parseCssColour;
+import 'color_adapter.dart';
 import 'js_value.dart';
 import 'routing.dart';
 import 'spec.dart';
@@ -586,5 +589,129 @@ void validateVegaXYEncodings(
     yType,
     encoding: encoding,
     channelName: 'y',
+  );
+}
+
+/// The shared legend a concat spec renders below its grid
+/// (`VegaLiteSchemaAdapter.ts:1988-2042`).
+///
+/// Deliberately not a `FluentChartLegend`: the widget is built by task 53, which
+/// merges these with its own selection callbacks. Splitting the data from the
+/// widget is what lets the same props be asserted in a unit test without pumping
+/// anything. The shape mirrors `FluentPlotlyLegendProps`
+/// (`internal/plotly/legends.dart:44-66`) field for field, which is why it
+/// carries no `operator ==` either — see the note on [legends].
+@immutable
+class FluentVegaLegendProps {
+  /// Creates a set of shared-legend properties.
+  const FluentVegaLegendProps({
+    required this.legends,
+    required this.centerLegends,
+    required this.enabledWrapLines,
+    required this.canSelectMultipleLegends,
+  });
+
+  /// One entry per distinct colour value, in first-seen row order (`:2028-2034`).
+  ///
+  /// `FluentChartLegendItem` declares no `operator ==`, so any value equality
+  /// written over this list would compare its elements by identity and read as
+  /// a value comparison while behaving as an identity one. None is written.
+  final List<FluentChartLegendItem> legends;
+
+  /// Always true (`:2038`, and again at `:1999` and `:2013` on the two early
+  /// returns).
+  final bool centerLegends;
+
+  /// Always true (`:2039`).
+  final bool enabledWrapLines;
+
+  /// Always true (`:2040`).
+  final bool canSelectMultipleLegends;
+}
+
+/// The empty result both early returns share (`:1996-2003`, `:2010-2017`).
+const FluentVegaLegendProps _emptyVegaLegendProps = FluentVegaLegendProps(
+  legends: <FluentChartLegendItem>[],
+  centerLegends: true,
+  enabledWrapLines: true,
+  canSelectMultipleLegends: true,
+);
+
+/// Builds the shared legend for a multi-plot Vega spec
+/// (`VegaLiteSchemaAdapter.ts:1988-2042`).
+///
+/// Read from **sub-spec zero only** (`:2005`), so a concat whose second cell
+/// introduces further colour values shows an incomplete legend. That is
+/// upstream's behaviour and is reproduced.
+/// // parity: VegaLiteSchemaAdapter.ts:2005
+FluentVegaLegendProps getVegaLiteLegendsProps(
+  Map<String, Object?> spec,
+  Map<String, String> colorMap, {
+  required bool isDark,
+}) {
+  // `:1993`.
+  final unitSpecs = normalizeVegaSpec(spec);
+  // `:1996-2003`: an unroutable spec still returns the three flags, so the
+  // caller never has to null-check them.
+  if (unitSpecs.isEmpty) {
+    return _emptyVegaLegendProps;
+  }
+
+  // `:2005-2008`. Note that NO transforms run here — a `fold` that materialises
+  // the colour column would be invisible to the shared legend.
+  // parity: VegaLiteSchemaAdapter.ts:2006
+  final primarySpec = unitSpecs.first;
+  final dataValues = extractVegaDataValues(primarySpec['data']);
+  final encodingRaw = primarySpec['encoding'];
+  final encoding = encodingRaw is Map<String, Object?>
+      ? encodingRaw
+      : const <String, Object?>{};
+  final color = encoding['color'];
+  final colorField = color is Map<String, Object?> && color['field'] is String
+      ? color['field']! as String
+      : null;
+
+  // `:2010-2017`.
+  if (colorField == null) {
+    return _emptyVegaLegendProps;
+  }
+
+  // `:2020-2025`: a `Set`, so the order is first-seen insertion order and
+  // duplicates collapse. `:2022` is `!== undefined`, which an absent key is and
+  // an explicit null is not, so a null cell becomes a legend titled `'null'`.
+  final seriesNames = <String>{};
+  for (final row in dataValues) {
+    if (!row.containsKey(colorField) || row[colorField] is JsUndefined) {
+      continue;
+    }
+    seriesNames.add(jsToString(row[colorField]));
+  }
+
+  // `:2028-2034`.
+  final legends = <FluentChartLegendItem>[
+    for (final seriesName in seriesNames)
+      FluentChartLegendItem(
+        title: seriesName,
+        // `:2029`: `getVegaColorFromMap(name, colorMap, undefined, undefined,
+        // isDarkTheme)` — NEITHER the scheme nor the range is forwarded, so
+        // `getVegaColor` falls all the way through to the plain qualitative
+        // cycle at `VegaLiteColorAdapter.ts:254`. A spec whose colour scale
+        // names `tableau10` therefore gets hotPink for its second series here
+        // while its sub-charts draw it pumpkin. The colour map hides this
+        // whenever a sub-chart has already been transformed and seeded it,
+        // which is why it survived upstream.
+        // parity: VegaLiteSchemaAdapter.ts:2029
+        color: parseCssColour(
+          getVegaColorFromMap(seriesName, colorMap, null, null, isDark: isDark),
+        ),
+      ),
+  ];
+
+  // `:2036-2041`.
+  return FluentVegaLegendProps(
+    legends: legends,
+    centerLegends: true,
+    enabledWrapLines: true,
+    canSelectMultipleLegends: true,
   );
 }
