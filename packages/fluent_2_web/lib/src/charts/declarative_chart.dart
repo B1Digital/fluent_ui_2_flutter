@@ -396,19 +396,34 @@ class _FluentDeclarativeChartState extends State<FluentDeclarativeChart> {
     }
   }
 
-  /// The degenerate-grid collapse, a pass-through until the task that owns it
-  /// lands.
+  /// The degenerate-grid collapse.
   ///
   /// `DeclarativeChart.tsx:510-533`: when a multi-plot figure produces a
-  /// one-by-one grid, all but one group is dropped — the LAST for a donut
-  /// (`:516-523`) and the FIRST for everything else (`:525-530`) — and
-  /// `isMultiPlot` is forced back to false at `:532`.
+  /// one-by-one grid there is nowhere to put the other groups, so all but one
+  /// is dropped — the LAST for a donut (`:516-523`, "picking the last one
+  /// similar to plotly") and the FIRST for everything else (`:525-530`) — and
+  /// `isMultiPlot` is forced back to false at `:532`, which is what suppresses
+  /// the figure title at `:561` and the all-up legend at `:634`.
+  ///
+  /// **Port note:** `:513-514` compares the two formatted CSS strings against
+  /// [kSingleRepeat]; this compares [FluentPlotlyGridProperties.rowCount] and
+  /// [FluentPlotlyGridProperties.columnCount] against one, which is the same
+  /// predicate one step earlier. [kSingleRepeat] stays exported for the
+  /// storybook, which still renders the CSS form.
   ({Map<String, List<int>> groups, bool isMultiPlot}) collapseDegenerateGrid(
     Map<String, List<int>> groups, {
     required bool isMultiPlot,
     required FluentPlotlyGridProperties grid,
     required FluentPlotlyChartKind kind,
-  }) => (groups: groups, isMultiPlot: isMultiPlot);
+  }) {
+    if (!isMultiPlot || grid.rowCount != 1 || grid.columnCount != 1) {
+      return (groups: groups, isMultiPlot: isMultiPlot);
+    }
+    final key = kind == FluentPlotlyChartKind.donut
+        ? groups.keys.last
+        : groups.keys.first;
+    return (groups: <String, List<int>>{key: groups[key]!}, isMultiPlot: false);
+  }
 
   @override
   Widget build(BuildContext context) {
