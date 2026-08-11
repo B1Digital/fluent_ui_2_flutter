@@ -66,11 +66,11 @@ Color _parseCssColour(String colour, {required bool isDark}) {
   );
 }
 
-/// `Number(value)` (`PlotlySchemaAdapter.ts:1503`'s `yVal as number` cast,
+/// `Number(value)` (`PlotlySchemaAdapter.ts:1507`'s `yVal as number` cast,
 /// which is a runtime coercion in the `Math.max` that consumes it).
 ///
 /// A numeric string coerces, and anything else is `NaN` — which is exactly the
-/// point of `:1503`, see the `// parity` note at its call site.
+/// point of `:1507`, see the `// parity` note at its call site.
 double _jsNumber(Object? value) {
   if (value is num) return value.toDouble();
   if (value is bool) return value ? 1 : 0;
@@ -215,6 +215,24 @@ List<String>? _colorway(Map<String, Object?>? layout) {
   ];
 }
 
+/// The distinct x values across every trace
+/// (`PlotlySchemaAdapter.ts:468-487`).
+///
+/// Private for the same reason as [_parseCssColour]: the plan gives
+/// `extractXCategories` no owner, and `transform_xy.dart` carries an identical
+/// private copy. Whoever declares it publicly deletes both.
+List<Object> _extractXCategories(List<Object?> data) {
+  final categories = <Object>{};
+  for (final series in data) {
+    final column = series is Map<String, Object?> ? series['x'] : null;
+    if (column is! List<Object?>) continue;
+    for (final value in column) {
+      if (value != null) categories.add(value);
+    }
+  }
+  return categories.toList();
+}
+
 /// Transforms a Plotly `bar` figure into a Fluent vertical stacked bar chart
 /// (`PlotlySchemaAdapter.ts:1390-1608`).
 ///
@@ -241,7 +259,7 @@ FluentVerticalStackedBarChart transformPlotlyToVsbc(
   final layout = rawLayout is Map<String, Object?> ? rawLayout : null;
   final colorway = _colorway(layout);
 
-  // `:1394`. Keyed by the x value's string form, which is what a JavaScript
+  // `:1398`. Keyed by the x value's string form, which is what a JavaScript
   // object key is: `mapXToDataPoints[x]` collapses the number 1 and the string
   // '1' onto one group upstream, and onto one group here.
   final groups = <String, _Stack>{};
@@ -328,7 +346,7 @@ FluentVerticalStackedBarChart transformPlotlyToVsbc(
             ? legend.names[index1]
             : '';
 
-        // `:1445-1461`.
+        // `:1445-1458`.
         final String colour;
         if (colorScale != null) {
           final scaleInput =
@@ -347,12 +365,12 @@ FluentVerticalStackedBarChart transformPlotlyToVsbc(
           );
         }
 
-        // `:1462`.
+        // `:1459`.
         final opacity = getOpacity(series, index2);
-        // `:1463`.
+        // `:1460`.
         final yVal = rangeYValues[index2];
 
-        // `:1465-1470`. `yAxisCalloutData` is deliberately absent: it comes
+        // `:1462-1467`. `yAxisCalloutData` is deliberately absent: it comes
         // from `getFormattedCalloutYData` (`:253-261`), whose
         // `formatToLocaleString` has no owner in this plan and no landed port,
         // so the chart formats the raw value with its own locale instead.
@@ -367,11 +385,11 @@ FluentVerticalStackedBarChart transformPlotlyToVsbc(
         }
 
         if (series['type'] == 'bar') {
-          // `:1472-1478`.
+          // `:1469-1475`.
           group.bars.add(
             FluentStackedBarDatum(
               legend: legendTitle,
-              // `:1474`: a string y is legal and makes the y axis a band
+              // `:1471`: a string y is legal and makes the y axis a band
               // scale (`bar_data.dart:312-318`).
               data: yVal is num ? yVal.toDouble() : '$yVal',
               color: _parseCssColour(
@@ -382,11 +400,11 @@ FluentVerticalStackedBarChart transformPlotlyToVsbc(
             ),
           );
           if (yVal is num) {
-            // `:1480-1482`.
+            // `:1476-1478`.
             yMaxValue = math.max(yMaxValue, yVal.toDouble());
           }
         } else if (series['type'] == 'scatter' || isFallback) {
-          // `:1483-1490`: the LINE colour is indexed by the trace, not by the
+          // `:1479-1487`: the LINE colour is indexed by the trace, not by the
           // point.
           final resolvedLineColour = resolveColor(
             extractedLineColors,
@@ -397,26 +415,26 @@ FluentVerticalStackedBarChart transformPlotlyToVsbc(
             isDark: isDark,
           );
           final mode = series['mode'];
-          // `:1491`: a text mode drops the dash presets entirely.
+          // `:1488`: a text mode drops the dash presets entirely.
           final lineOptions = mode is String && mode.contains('text')
               ? null
               : getLineOptions(line is Map<String, Object?> ? line : null);
           final usesSecondary = _usesSecondaryYScale(series, layout);
           group.lines.add(
             FluentStackedBarLineDatum(
-              // `:1494`: a trace split into several valid ranges gets one
+              // `:1491`: a trace split into several valid ranges gets one
               // legend per range, suffixed from 1.
               legend:
                   legendTitle +
                   (validRanges.length > 1 ? '.${rangeIdx + 1}' : ''),
               legendShape: getLegendShape(series),
               y: yVal is num ? yVal.toDouble() : '$yVal',
-              // `:1497`: the bar opacity, applied to the line colour.
+              // `:1494`: the bar opacity, applied to the line colour.
               color: _parseCssColour(
                 applyOpacityHex8(resolvedLineColour, opacity),
                 isDark: isDark,
               ),
-              // `:1498-1501`: `{...(lineOptions ?? {}), mode: series.mode}`.
+              // `:1495-1498`: `{...(lineOptions ?? {}), mode: series.mode}`.
               lineOptions: FluentLineOptions(
                 strokeWidth: lineOptions?.strokeWidth,
                 strokeDasharray: lineOptions?.strokeDasharray,
@@ -444,6 +462,104 @@ FluentVerticalStackedBarChart transformPlotlyToVsbc(
         yMaxValue = math.max(yMaxValue, _jsNumber(yVal));
       }
     }
+  }
+
+  // `:1512`.
+  final xCategories = _extractXCategories(data);
+
+  // `:1514-1576`: every `line` shape becomes one reference datum in the group
+  // at each of its two x endpoints, both under the same legend.
+  final shapes = layout?['shapes'];
+  final shapeList = shapes is List<Object?> ? shapes : const <Object?>[];
+  // Counts only the `line` shapes, which is what `:1514-1516`'s filter-then-
+  // forEach index does.
+  var shapeIdx = -1;
+  for (final shape in shapeList) {
+    if (shape is! Map<String, Object?> || shape['type'] != 'line') continue;
+    shapeIdx++;
+    final shapeLine = shape['line'] is Map<String, Object?>
+        ? shape['line']! as Map<String, Object?>
+        : null;
+
+    Object? resolveShapeX(Object? value) {
+      // `:1519-1526`: an `x domain` endpoint pins to the first or last
+      // category, and an empty category list yields upstream's `undefined`.
+      if (shape['xref'] == 'x domain') {
+        if (value == 0) {
+          return xCategories.isEmpty ? null : xCategories.first;
+        }
+        if (value == 1) {
+          return xCategories.isEmpty ? null : xCategories.last;
+        }
+      }
+      // `:1527-1533`: any numeric endpoint indexes the category list, and one
+      // that misses falls back to the shape's own index.
+      // // parity: PlotlySchemaAdapter.ts:1527 — a numeric x axis has its
+      // reference line silently moved onto a data value.
+      if (value is num) {
+        final asIndex = value.toInt();
+        if (value == asIndex && asIndex >= 0 && asIndex < xCategories.length) {
+          return xCategories[asIndex];
+        }
+        return shapeIdx < xCategories.length ? xCategories[shapeIdx] : null;
+      }
+      return value;
+    }
+
+    Object? resolveShapeY(Object? value) {
+      // `:1539-1553`: a `paper` yref reads as a fraction of the y domain the
+      // traces just built, so it follows the seeds at `:1399-1400`.
+      if (shape['yref'] != 'paper') return value;
+      if (value == 0) return yMinValue;
+      if (value == 1) return yMaxValue;
+      if (value is num) {
+        return yMinValue + value.toDouble() * (yMaxValue - yMinValue);
+      }
+      return value;
+    }
+
+    // `:1561`. Upstream's `rgb(lineColor!).formatHex8() ?? lineColor` on an
+    // absent colour is `rgb(undefined)`, whose channels are all NaN; that is
+    // an unpaintable CSS string, so black stands in for it here, as it does in
+    // `transform_xy.dart`'s port of the same pass.
+    final shapeColour = shapeLine?['color'] is String
+        ? _parseCssColour(shapeLine!['color']! as String, isDark: isDark)
+        : const Color(0xFF000000);
+    // `:1562`.
+    final shapeOptions = getLineOptions(shapeLine);
+
+    void addReference(Object? xKey, Object? yValue) {
+      // `:1557` and `:1567`: an endpoint that keys no group is dropped.
+      final group = groups['$xKey'];
+      // Upstream casts the endpoint to a string and pushes it regardless;
+      // [FluentStackedBarLineDatum.y] is `num | String`, so an endpoint that is
+      // neither is dropped rather than asserted on.
+      if (group == null) return;
+      final Object y;
+      if (yValue is num) {
+        y = yValue.toDouble();
+      } else if (yValue is String) {
+        y = yValue;
+      } else {
+        return;
+      }
+      group.lines.add(
+        FluentStackedBarLineDatum(
+          // `:1559` and `:1569`.
+          legend: 'Reference_$shapeIdx',
+          y: y,
+          color: shapeColour,
+          lineOptions: shapeOptions,
+          // `:1563` and `:1573`.
+          useSecondaryYScale: false,
+        ),
+      );
+    }
+
+    // `:1537`, `:1555` and `:1557-1565`.
+    addReference(resolveShapeX(shape['x0']), resolveShapeY(shape['y0']));
+    // `:1538`, `:1556` and `:1567-1575`.
+    addReference(resolveShapeX(shape['x1']), resolveShapeY(shape['y1']));
   }
 
   final stacks = <FluentVerticalStackedBarGroup>[

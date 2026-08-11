@@ -36,7 +36,7 @@ void main() {
       chart.data.map((group) => group.xAxisPoint).toList(),
       <Object>['a', 'b'],
       reason:
-          'PlotlySchemaAdapter.ts:1405-1470 walks traces in order and keys '
+          'PlotlySchemaAdapter.ts:1406-1442 walks traces in order and keys '
           'groups by x.',
     );
     expect(
@@ -165,8 +165,90 @@ void main() {
       chart.data.first.lineData!.single.legend,
       'line',
       reason:
-          'PlotlySchemaAdapter.ts:1472-1540 folds scatter traces into lineData '
+          'PlotlySchemaAdapter.ts:1479-1506 folds scatter traces into lineData '
           'per group.',
+    );
+  });
+
+  test('a line shape becomes a reference line on the groups it lands in', () {
+    final chart = build(<String, Object?>{
+      'data': <Object?>[
+        <String, Object?>{
+          'type': 'bar',
+          'name': 's1',
+          'x': <Object?>['a', 'b'],
+          'y': <Object?>[1, 2],
+        },
+      ],
+      'layout': <String, Object?>{
+        'shapes': <Object?>[
+          <String, Object?>{
+            'type': 'line',
+            'xref': 'x domain',
+            'yref': 'paper',
+            'x0': 0,
+            'x1': 1,
+            'y0': 0,
+            'y1': 1,
+            'line': <String, Object?>{'color': 'red'},
+          },
+        ],
+      },
+    });
+    expect(
+      chart.data.map((group) => group.lineData!.single.legend).toList(),
+      <String>['Reference_0', 'Reference_0'],
+      reason:
+          'PlotlySchemaAdapter.ts:1557-1575 pushes the shape at both of its x '
+          'endpoints under one legend.',
+    );
+    expect(
+      chart.data.map((group) => group.lineData!.single.y).toList(),
+      <Object>[0.0, 2.0],
+      reason:
+          'PlotlySchemaAdapter.ts:1539-1553: a `paper` yref maps 0 to the '
+          'running yMinValue and 1 to the running yMaxValue, which the two bars '
+          'left at 0 and 2.',
+    );
+  });
+
+  test('a line shape endpoint that matches no group is dropped', () {
+    final chart = build(<String, Object?>{
+      'data': <Object?>[
+        <String, Object?>{
+          'type': 'bar',
+          'name': 's1',
+          'x': <Object?>['a', 'b'],
+          'y': <Object?>[1, 2],
+        },
+      ],
+      'layout': <String, Object?>{
+        'shapes': <Object?>[
+          <String, Object?>{
+            'type': 'line',
+            'x0': 'nowhere',
+            'x1': 1,
+            'y0': 7,
+            'y1': 8,
+            'line': <String, Object?>{'color': 'red'},
+          },
+        ],
+      },
+    });
+    expect(
+      chart.data.first.lineData,
+      isEmpty,
+      reason:
+          'PlotlySchemaAdapter.ts:1557 guards on the group existing, and no '
+          "group is keyed 'nowhere'.",
+    );
+    expect(
+      chart.data.last.lineData!.single.y,
+      8,
+      reason:
+          'PlotlySchemaAdapter.ts:1527-1533 indexes xCategories with a numeric '
+          "endpoint, so `x1: 1` is the category 'b', and :1567-1574 pushes "
+          'there with the raw y1 because the yref is not `paper`.',
     );
   });
 
