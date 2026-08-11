@@ -961,7 +961,7 @@ String _funnelLegendKey(Object? label) =>
   final xIsNumber = isNumberArray(x);
   final yIsNumber = isNumberArray(y);
 
-  // `:3030-3038`.
+  // `:3031-3039`.
   List<Object?> toArray(Object? value) {
     if (value is List<Object?>) return value;
     if (value is String || value is num) return <Object?>[value];
@@ -969,7 +969,7 @@ String _funnelLegendKey(Object? label) =>
   }
 
   if (orientation == 'h') {
-    // `:3040-3046`.
+    // `:3041-3048`.
     if (yIsString && xIsNumber) {
       return (categories: toArray(y), values: toArray(x));
     }
@@ -981,7 +981,7 @@ String _funnelLegendKey(Object? label) =>
       values: yIsString ? toArray(x) : toArray(y),
     );
   }
-  // `:3048-3054`.
+  // `:3049-3056`.
   if (xIsString && yIsNumber) {
     return (categories: toArray(x), values: toArray(y));
   }
@@ -1163,7 +1163,7 @@ FluentFunnelChart transformPlotlyToFunnel(
 /// Builds a polar chart from a Plotly `scatterpolar` figure
 /// (`PlotlySchemaAdapter.ts:3177-3280`).
 ///
-/// **Not carried across:** `:3273`'s `width` reaches the widget, but the 400 at
+/// **Not carried across:** `:3274`'s `width` reaches the widget, but the 400 at
 /// `:3275` is a real prop here rather than a cell wrapper's job, because
 /// [FluentPolarChart] takes both.
 FluentPolarChart transformPlotlyToPolar(
@@ -1176,9 +1176,9 @@ FluentPolarChart transformPlotlyToPolar(
   final layout = _map(input['layout']);
   final data = _list(input['data']);
   final colorway = _colorway(layout);
-  // `:3183`.
+  // `:3185`.
   final legend = getLegendProps(data, layout, isMultiPlot: isMultiPlot);
-  // `:3184`.
+  // `:3186`.
   final resolveRValue = getAxisValueResolver(
     getPolarAxisType(data, 'r', layout),
   );
@@ -1186,20 +1186,20 @@ FluentPolarChart transformPlotlyToPolar(
   final polarData = <FluentPolarSeries>[];
   for (var index = 0; index < data.length; index++) {
     final series = _map(data[index]);
-    // `:3189`.
+    // `:3191`.
     if (series == null || series['type'] != 'scatterpolar') continue;
     final legendName = index < legend.names.length ? legend.names[index] : '';
     final fill = series['fill'];
-    // `:3190`.
+    // `:3192`.
     final isAreaTrace = fill == 'toself' || fill == 'tonext';
     final mode = series['mode'];
-    // `:3191`: an undefined mode is a line; anything else has to say `lines`.
+    // `:3193`: an undefined mode is a line; anything else has to say `lines`.
     final isLineTrace = mode == null
         ? true
         : mode is String && mode.contains('lines');
     final line = _map(series['line']);
     final marker = _map(series['marker']);
-    // `:3192`. The two `?[]` reads are hoisted because Dart cannot parse a
+    // `:3194`. The two `?[]` reads are hoisted because Dart cannot parse a
     // null-aware index inside a conditional expression's branches.
     final lineColour = line?['color'];
     final traceMarkerColour = marker?['color'];
@@ -1213,7 +1213,7 @@ FluentPolarChart transformPlotlyToPolar(
       colorMap,
       isDark: isDark,
     );
-    // `:3200-3207`.
+    // `:3202-3209`.
     final seriesColor = resolveColor(
       extracted,
       index,
@@ -1222,10 +1222,10 @@ FluentPolarChart transformPlotlyToPolar(
       colorway,
       isDark: isDark,
     );
-    // `:3208-3210`.
+    // `:3210-3211`.
     final seriesOpacity = getOpacity(series, index);
     final finalSeriesColor = applyOpacityHex8(seriesColor, seriesOpacity);
-    // `:3211`.
+    // `:3212`.
     final lineOptions = getLineOptions(line);
     final thetaUnit = series['thetaunit'];
 
@@ -1234,13 +1234,13 @@ FluentPolarChart transformPlotlyToPolar(
     final markerSize = marker?['size'];
     final text = series['text'];
     final points = <FluentPolarDataPoint>[];
-    // `:3218-3251`.
+    // `:3219-3254`.
     for (var rIndex = 0; rIndex < rValues.length; rIndex++) {
       final theta = _at(thetaValues, rIndex);
       final resolvedR = resolveRValue(rValues[rIndex]);
-      // `:3230-3232`.
+      // `:3235-3237`.
       if (isInvalidValue(resolvedR) || isInvalidValue(theta)) continue;
-      // `:3224-3229`.
+      // `:3225-3233`.
       final markerColor = resolveColor(
         extracted,
         rIndex,
@@ -1252,32 +1252,32 @@ FluentPolarChart transformPlotlyToPolar(
       final markerOpacity = getOpacity(series, rIndex);
       points.add(
         FluentPolarDataPoint(
-          // `:3235`.
+          // `:3240`.
           r: resolvedR!,
-          // `:3236-3244`. Only a numeric theta is converted; a category is cast
+          // `:3241-3248`. Only a numeric theta is converted; a category is cast
           // to string untouched, so the unit never reaches a label.
           theta: theta is num
               ? switch (thetaUnit) {
-                  // `:3239`.
+                  // `:3244`.
                   'radians' => theta * 180 / math.pi,
-                  // `:3241`.
+                  // `:3246`.
                   'gradians' => theta * 0.9,
-                  // `:3242`: already degrees.
+                  // `:3247`: already degrees.
                   _ => theta.toDouble(),
                 }
               : '$theta',
-          // `:3245`.
+          // `:3249`.
           color: parseCssColour(
             markerColor.isEmpty
                 ? finalSeriesColor
                 : applyOpacityHex8(markerColor, markerOpacity),
           ),
-          // `:3222`, `:3246`: a per-point size only from an array, a shared one
+          // `:3223`, `:3250`: a per-point size only from an array, a shared one
           // from a scalar.
           markerSize: markerSize is List<Object?>
               ? _num(_at(markerSize, rIndex))
               : _num(markerSize),
-          // `:3223`, `:3247`.
+          // `:3224`, `:3251`.
           text: text is List<Object?>
               ? (_at(text, rIndex) == null ? null : '${_at(text, rIndex)}')
               : (text == null ? null : '$text'),
@@ -1286,7 +1286,7 @@ FluentPolarChart transformPlotlyToPolar(
     }
 
     final shape = getLegendShape(series);
-    // `:3260-3272`.
+    // `:3257-3268`.
     if (isAreaTrace) {
       polarData.add(
         FluentAreaPolarSeries(
@@ -1322,7 +1322,7 @@ FluentPolarChart transformPlotlyToPolar(
   // `:3277`.
   final axes = getPolarAxisProps(data, layout);
   return FluentPolarChart(
-    // `:3272`.
+    // `:3273`.
     data: polarData,
     // `:3274`.
     width: _num(layout?['width']),
@@ -1341,9 +1341,9 @@ FluentPolarChart transformPlotlyToPolar(
     direction: axes.direction == 'clockwise'
         ? FluentPolarDirection.clockwise
         : FluentPolarDirection.counterclockwise,
-    // NOT PORTED: `:3279` leaves `getTitles` commented out upstream, so a polar
+    // NOT PORTED: `:3278` leaves `getTitles` commented out upstream, so a polar
     // figure draws no title. Reproduced by passing none.
-    // // parity: PlotlySchemaAdapter.ts:3279
+    // // parity: PlotlySchemaAdapter.ts:3278
   );
 }
 
@@ -1369,7 +1369,7 @@ FluentAnnotationOnlyChart transformPlotlyToAnnotationOnly(
   );
   // `:1253-1254`: an empty title is `undefined`, not `''`.
   final titles = getTitles(layout);
-  // `:1257-1259`.
+  // `:1256-1258`.
   final description = _map(layout?['meta'])?['description'];
   final paper = layout?['paper_bgcolor'];
   final plot = layout?['plot_bgcolor'];
@@ -1385,17 +1385,17 @@ FluentAnnotationOnlyChart transformPlotlyToAnnotationOnly(
     chartTitle: titles.chartTitle.isEmpty ? null : titles.chartTitle,
     // `:1271`.
     description: description is String ? description : null,
-    // `:1261-1262`, `:1272-1273`: a non-numeric width or height is dropped
+    // `:1260-1261`, `:1272-1273`: a non-numeric width or height is dropped
     // rather than coerced.
     width: _num(layout?['width']),
     height: _num(layout?['height']),
-    // `:1263-1264`, `:1274-1275`.
+    // `:1262-1263`, `:1274-1275`.
     paperBackgroundColor: paper is String ? parseCssColour(paper) : null,
     plotBackgroundColor: plot is String ? parseCssColour(plot) : null,
-    // `:1265-1266`.
+    // `:1264-1265`, `:1276-1277`.
     fontColor: fontColor is String ? parseCssColour(fontColor) : null,
     fontFamily: fontFamily is String ? fontFamily : null,
-    // `:1267`, `:1276`. Plotly's margin keys are `l`/`r`/`t`/`b`, which
+    // `:1266`, `:1278`. Plotly's margin keys are `l`/`r`/`t`/`b`, which
     // `AnnotationOnlyChart.tsx:19-22` reads in that order.
     margin: margin == null
         ? null

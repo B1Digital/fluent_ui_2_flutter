@@ -101,7 +101,7 @@ void main() {
     // takes `'h'` (`:3022`). `isStringArray` accepts null
     // (`predicates.dart:118-119`, `PlotlySchemaConverter.ts:147-150`), so a
     // `[null, null]` y IS a string array and a numeric x IS a number array:
-    // `:3040-3041` therefore keeps y as the categories and x as the values.
+    // `:3042-3043` therefore keeps y as the categories and x as the values.
     final chart = funnel(<String, Object?>{
       'data': <Object?>[
         <String, Object?>{
@@ -263,12 +263,12 @@ void main() {
     expect(
       firstTheta('radians'),
       closeTo(57.29577951308232, 1e-9),
-      reason: 'PlotlySchemaAdapter.ts:3243-3247: theta * 180 / pi.',
+      reason: 'PlotlySchemaAdapter.ts:3243-3244: theta * 180 / pi.',
     );
     expect(
       firstTheta('gradians'),
       closeTo(0.9, 1e-12),
-      reason: 'PlotlySchemaAdapter.ts:3245.',
+      reason: 'PlotlySchemaAdapter.ts:3245-3246.',
     );
     expect(
       firstTheta(null),
@@ -292,7 +292,7 @@ void main() {
       chart.data.single.data.single.theta,
       'north',
       reason:
-          'PlotlySchemaAdapter.ts:3240-3248 converts only a numeric theta; '
+          'PlotlySchemaAdapter.ts:3241-3248 converts only a numeric theta; '
           'anything else is cast to string untouched, so the radian '
           'conversion never touches a category.',
     );
@@ -314,22 +314,22 @@ void main() {
     expect(
       seriesOf(<String, Object?>{'fill': 'toself'}),
       isA<FluentAreaPolarSeries>(),
-      reason: "PlotlySchemaAdapter.ts:3187 — 'toself' and 'tonext' are areas.",
+      reason: "PlotlySchemaAdapter.ts:3192 — 'toself' and 'tonext' are areas.",
     );
     expect(
       seriesOf(<String, Object?>{'mode': 'lines+markers'}),
       isA<FluentLinePolarSeries>(),
-      reason: 'PlotlySchemaAdapter.ts:3188, :3266.',
+      reason: 'PlotlySchemaAdapter.ts:3193, :3259.',
     );
     expect(
       seriesOf(<String, Object?>{'mode': 'markers'}),
       isA<FluentScatterPolarSeries>(),
-      reason: 'PlotlySchemaAdapter.ts:3271-3274 — the neither-arm.',
+      reason: 'PlotlySchemaAdapter.ts:3263-3267 — the neither-arm.',
     );
     expect(
       seriesOf(<String, Object?>{}),
       isA<FluentLinePolarSeries>(),
-      reason: 'PlotlySchemaAdapter.ts:3188 — an undefined mode is a line.',
+      reason: 'PlotlySchemaAdapter.ts:3193 — an undefined mode is a line.',
     );
   });
 
@@ -347,7 +347,7 @@ void main() {
       chart.data.single.data.map((p) => p.theta).toList(),
       <double>[0, 270],
       reason:
-          'PlotlySchemaAdapter.ts:3230-3232 drops the point when either '
+          'PlotlySchemaAdapter.ts:3235-3237 drops the point when either '
           'coordinate is invalid.',
     );
   });
@@ -364,7 +364,7 @@ void main() {
         ],
       }).data,
       isEmpty,
-      reason: 'PlotlySchemaAdapter.ts:3186 runs only for a scatterpolar trace.',
+      reason: 'PlotlySchemaAdapter.ts:3191 runs only for a scatterpolar trace.',
     );
   });
 
@@ -453,7 +453,7 @@ void main() {
       reason:
           'the transformed series has to reach a real layout pass, not '
           'merely a props bag: the legend name comes from '
-          'PlotlySchemaAdapter.ts:3183 and :3251.',
+          'PlotlySchemaAdapter.ts:3185 and :3189.',
     );
   });
 
@@ -565,7 +565,7 @@ void main() {
       ],
       <double>[1, 2, 3, 4],
       reason:
-          'PlotlySchemaAdapter.ts:1276 forwards layout.margin, which '
+          'PlotlySchemaAdapter.ts:1278 forwards layout.margin, which '
           'AnnotationOnlyChart.tsx:19-22 reads as t/r/b/l.',
     );
   });
