@@ -1620,6 +1620,18 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     FluentCartesianLayout layout,
     FluentChartColors colors,
   ) {
+    // `:1950-1953` puts `_renderedColorFillBars` ahead of `{lines}` inside one
+    // `<g>`, so every band is behind every halo, segment, area and marker the
+    // series loop below paints.
+    for (final band in colorFillBarRectsFor(context, layout)) {
+      final fill = band.colour.withValues(alpha: band.opacity);
+      if (band.patterned) {
+        _paintStripes(canvas, band.rect, fill);
+      } else {
+        // `:1401-1402` — `fill={color} fillOpacity={opacity}`.
+        canvas.drawRect(band.rect, Paint()..color = fill);
+      }
+    }
     // `:1357-1367` wraps each series in its own `<g>` holding that series'
     // borders, then its lines, then its points — so a halo never covers its
     // own neighbour and a marker is never buried under the next series' line.
@@ -1799,6 +1811,57 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
         );
       }
     }
+  }
+
+  /// Fills [rect] with the diagonal-stripe pattern in [colour].
+  ///
+  /// `:1401` fills a patterned band with `url(#pattern)` rather than a flat
+  /// colour, and `patternUnits={'userSpaceOnUse'}` (`:1425`) anchors the 16×16
+  /// tile grid (`:1422-1423`) on the plot origin instead of on the rect — so
+  /// two bands at different x share one continuous stripe phase. The inner
+  /// clip is the `<pattern>` element's own overflow: without it the first and
+  /// last diagonals of [FluentChartStripeTilePainter], which deliberately
+  /// overhang the tile so the stripes meet across a boundary, would each run
+  /// the full width of the band a second and third time.
+  ///
+  /// Cost is one clip and three lines per tile, so a band covering the whole
+  /// plot draws `area / 256` of them. Bands span a few x values in practice; a
+  /// full-plot band that ever costs frames wants the tile rasterised once
+  /// behind an `ImageShader` instead.
+  void _paintStripes(Canvas canvas, Rect rect, Color colour) {
+    final tileSize = style.stripeTileSize!.resolve(<WidgetState>{})!;
+    // A caller may override the tile size through the style, and a
+    // non-positive one would step the loops below nowhere at all.
+    if (tileSize <= 0) {
+      return;
+    }
+    final tile = FluentChartStripeTilePainter(
+      color: colour,
+      strokeWidth: style.stripeStrokeWidth!.resolve(<WidgetState>{})!,
+    );
+    final size = Size.square(tileSize);
+    canvas
+      ..save()
+      ..clipRect(rect);
+    for (
+      var x = (rect.left / tileSize).floorToDouble() * tileSize;
+      x < rect.right;
+      x += tileSize
+    ) {
+      for (
+        var y = (rect.top / tileSize).floorToDouble() * tileSize;
+        y < rect.bottom;
+        y += tileSize
+      ) {
+        canvas
+          ..save()
+          ..translate(x, y)
+          ..clipRect(Offset.zero & size);
+        tile.paint(canvas, size);
+        canvas.restore();
+      }
+    }
+    canvas.restore();
   }
 
   /// Draws one segment, honouring [FluentLineSegment.dashPattern] when

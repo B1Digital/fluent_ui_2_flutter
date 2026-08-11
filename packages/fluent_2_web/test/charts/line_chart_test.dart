@@ -1590,6 +1590,126 @@ void main() {
         reason: 'spec §5.3: a series mark flattens to the system colour',
       );
     });
+
+    test('a plain band is painted behind every line and marker', () {
+      final recorder = _LineRecorder();
+      final delegate = _lineDelegateWithFillBar(startX: 2, endX: 5);
+      delegate.paintSeries(
+        recorder,
+        _ctx(),
+        _layout(),
+        FluentChartColors.of(_theme()),
+      );
+      final band = recorder.rects.single;
+      expect(
+        band.rect,
+        delegate.colorFillBarRectsFor(_ctx(), _layout()).single.rect,
+        reason:
+            'the painted rect is the one colorFillBarRectsFor resolved, or the '
+            'geometry the five assertions above pin is not what reaches the '
+            'canvas',
+      );
+      expect(
+        // Read as 32-bit ARGB because `Paint` keeps its colour in 32-bit
+        // floats: 0.4 comes back out as 0.4000000059604645, so the components
+        // do not compare equal to the doubles they were set from.
+        band.colour.toARGB32(),
+        const Color(0xFF0078D4).withValues(alpha: 0.4).toARGB32(),
+        reason:
+            'fill={color} fillOpacity={0.4} (LineChart.tsx:1401-1402 with '
+            ':1828-1830)',
+      );
+      expect(
+        <int>[band.pathsBefore, band.linesBefore],
+        const <int>[0, 0],
+        reason:
+            'LineChart.tsx:1951-1952 puts _renderedColorFillBars ahead of '
+            '{lines} inside one <g>, so the band is behind every segment, '
+            'halo and marker of the series loop',
+      );
+    });
+
+    test('a patterned band tiles the stripe pattern instead of filling', () {
+      final style = resolveFluentLineChartStyle(_theme());
+      final tileSize = style.stripeTileSize!.resolve(<WidgetState>{})!;
+      final stripeWidth = style.stripeStrokeWidth!.resolve(<WidgetState>{})!;
+      final delegate = _lineDelegateWithFillBar(
+        startX: 2,
+        endX: 5,
+        applyPattern: true,
+      );
+      final rect = delegate.colorFillBarRectsFor(_ctx(), _layout()).single.rect;
+      final recorder = _LineRecorder();
+      delegate.paintSeries(
+        recorder,
+        _ctx(),
+        _layout(),
+        FluentChartColors.of(_theme()),
+      );
+      expect(
+        recorder.rects,
+        isEmpty,
+        reason:
+            'LineChart.tsx:1401 fills a patterned band with url(#pattern), so '
+            'no flat rect is drawn for one',
+      );
+      // patternUnits="userSpaceOnUse" (LineChart.tsx:1425) anchors the tile
+      // grid on the plot origin rather than on the rect, so the first tile of
+      // each axis is the last multiple of the tile size at or before that edge.
+      var tiles = 0;
+      for (
+        var x = (rect.left / tileSize).floorToDouble() * tileSize;
+        x < rect.right;
+        x += tileSize
+      ) {
+        for (
+          var y = (rect.top / tileSize).floorToDouble() * tileSize;
+          y < rect.bottom;
+          y += tileSize
+        ) {
+          tiles++;
+        }
+      }
+      expect(
+        tiles,
+        greaterThan(1),
+        reason:
+            'the fixture band must span more than one tile or the count below '
+            'cannot tell a tiled pattern from a single stamp',
+      );
+      expect(
+        recorder.strokeWidths.where((width) => width == stripeWidth).length,
+        tiles * 3,
+        reason:
+            'every tile draws the three diagonals of M-4,4 l8,-8 M0,16 '
+            'l16,-16 M12,20 l8,-8 (LineChart.tsx:1418) at strokeWidth 1.25 '
+            '(:1427); an anchor on rect.left instead of on the plot origin '
+            'lands on a different tile count',
+      );
+    });
+
+    test('a painted band flattens its colour under high contrast', () {
+      final theme = FluentThemeData.highContrast(
+        fontPlatform: FluentFontPlatform.web,
+      );
+      const authored = Color(0xFF884422);
+      final recorder = _LineRecorder();
+      _lineDelegateWithFillBar(
+        startX: 2,
+        endX: 5,
+        color: authored,
+        withTheme: theme,
+      ).paintSeries(recorder, _ctx(), _layout(), FluentChartColors.of(theme));
+      expect(
+        recorder.rects.single.colour.toARGB32(),
+        FluentChartColors.of(
+          theme,
+        ).flattenMark(authored).withValues(alpha: 0.4).toARGB32(),
+        reason:
+            'spec §5.3: the colour that reaches the canvas is the flattened '
+            'one, at the 0.4 of LineChart.tsx:1830',
+      );
+    });
   });
 
   group('FluentChartStripeTilePainter', () {
@@ -2045,6 +2165,112 @@ void main() {
       );
     });
 
+    testWidgets('the mounted chart really paints its colour fill bars', (
+      tester,
+    ) async {
+      // `colorFillBarRectsFor` shipped fully tested and uncalled, while
+      // line_chart.dart:238 already built a legend entry per band — so a chart
+      // given colorFillBars listed them in the legend and painted none of
+      // them. Only what the widget's OWN painter emits is evidence.
+      Future<_LineRecorder> plotOf(List<FluentColorFillBar> bars) async {
+        await pump(
+          tester,
+          FluentLineChart(data: _lineData(), colorFillBars: bars),
+        );
+        final plot = find
+            .descendant(
+              of: find.byType(FluentCartesianChart),
+              matching: find.byType(CustomPaint),
+            )
+            .first;
+        final recorder = _LineRecorder();
+        tester
+            .widget<CustomPaint>(plot)
+            .painter!
+            .paint(recorder, tester.getSize(plot));
+        return recorder;
+      }
+
+      const colour = Color(0xFF0078D4);
+      FluentColorFillBar bar({required bool applyPattern}) =>
+          FluentColorFillBar(
+            legend: 'band',
+            color: colour,
+            applyPattern: applyPattern,
+            data: const <FluentColorFillBarRange>[
+              FluentColorFillBarRange(startX: 2, endX: 3),
+            ],
+          );
+
+      final bare = await plotOf(const <FluentColorFillBar>[]);
+      expect(
+        bare.rects,
+        isEmpty,
+        reason:
+            '_lineData names no chart title and the shell has no axis titles '
+            'to back, so nothing else under the plot draws a rect and the '
+            'two mounts below can be read directly',
+      );
+      final plain = await plotOf(<FluentColorFillBar>[
+        bar(applyPattern: false),
+      ]);
+      final band = plain.rects.single;
+      expect(
+        band.colour.toARGB32(),
+        FluentChartColors.of(
+          _theme(),
+        ).flattenMark(colour).withValues(alpha: 0.4).toARGB32(),
+        reason:
+            'fill={color} fillOpacity={0.4} (LineChart.tsx:1401-1402 with '
+            ':1828-1830); no rect at all means paintSeries never reaches '
+            'colorFillBarRectsFor from FluentLineChart.build',
+      );
+      final plotRect =
+          Offset.zero &
+          tester.getSize(
+            find
+                .descendant(
+                  of: find.byType(FluentCartesianChart),
+                  matching: find.byType(CustomPaint),
+                )
+                .first,
+          );
+      expect(
+        band.rect.width,
+        greaterThan(0),
+        reason:
+            'x runs 1..4 and the band spans 2..3, so a zero-width rect means '
+            'the x scale never reached the band',
+      );
+      expect(
+        plotRect.overlaps(band.rect),
+        isTrue,
+        reason: 'a band painted clear of $plotRect is not on the plot',
+      );
+      final patterned = await plotOf(<FluentColorFillBar>[
+        bar(applyPattern: true),
+      ]);
+      expect(
+        patterned.rects,
+        isEmpty,
+        reason:
+            'LineChart.tsx:1401 fills a patterned band with url(#pattern) '
+            'instead of the flat colour',
+      );
+      final stripeWidth = resolveFluentLineChartStyle(
+        _theme(),
+      ).stripeStrokeWidth!.resolve(<WidgetState>{})!;
+      expect(
+        patterned.strokeWidths.where((width) => width == stripeWidth).length -
+            bare.strokeWidths.where((width) => width == stripeWidth).length,
+        greaterThan(0),
+        reason:
+            'the diagonals of LineChart.tsx:1418 are the only thing the plot '
+            'strokes at 1.25 (:1427); a delta of 0 means the stripe tile is '
+            'unreachable from the mounted widget',
+      );
+    });
+
     testWidgets('isCalloutForStack defaults to true', (tester) async {
       await pump(tester, FluentLineChart(data: _lineData()));
       expect(
@@ -2159,6 +2385,90 @@ void main() {
         legends.map((item) => item.title),
         <String>['alpha', 'beta', 'Weekend'],
         reason: 'the lines keep author order ahead of the bars',
+      );
+    });
+
+    testWidgets('hovering a legend redraws the bands at the new opacity', (
+      tester,
+    ) async {
+      // The dimming rule is resolved by colorFillBarRectsFor and pinned above,
+      // but the loop that carries a hover into it runs through setState and a
+      // rebuilt delegate. This drives the legend callbacks the shell was
+      // handed and reads the alpha that reaches the canvas, so it fails if any
+      // link of that chain is missing.
+      await pump(
+        tester,
+        FluentLineChart(
+          data: _lineData(),
+          colorFillBars: const <FluentColorFillBar>[
+            FluentColorFillBar(
+              legend: 'Weekend',
+              color: Color(0xFF00FF00),
+              data: <FluentColorFillBarRange>[
+                FluentColorFillBarRange(startX: 1, endX: 2),
+              ],
+            ),
+            FluentColorFillBar(
+              legend: 'Holiday',
+              color: Color(0xFF00FF00),
+              data: <FluentColorFillBarRange>[
+                FluentColorFillBarRange(startX: 3, endX: 4),
+              ],
+            ),
+          ],
+        ),
+      );
+      Future<List<double>> alphasAfter(void Function() hover) async {
+        hover();
+        await tester.pump();
+        final recorder = _LineRecorder();
+        final plot = find
+            .descendant(
+              of: find.byType(FluentCartesianChart),
+              matching: find.byType(CustomPaint),
+            )
+            .first;
+        tester
+            .widget<CustomPaint>(plot)
+            .painter!
+            .paint(recorder, tester.getSize(plot));
+        // The rects come back in colorFillBars order (Weekend, then Holiday),
+        // which is the order colorFillBarRectsFor walks them in.
+        return recorder.rects
+            .map((entry) => entry.colour.a)
+            .toList(growable: false);
+      }
+
+      final legends = shellOf(tester).legends;
+      expect(
+        legends.map((item) => item.title),
+        const <String>['alpha', 'beta', 'Weekend', 'Holiday'],
+        reason:
+            'the hovers below index into this row, so an order change must '
+            'fail here rather than silently hover the wrong entry',
+      );
+      expect(
+        await alphasAfter(legends[2].onHoverAction!),
+        <Matcher>[closeTo(0.4, 1e-6), closeTo(0.1, 1e-6)],
+        reason:
+            'LineChart.tsx:1396-1398 keeps the highlighted bar at its own '
+            'opacity (:1830) and drops every other one to 0.1',
+      );
+      expect(
+        await alphasAfter(legends[0].onHoverAction!),
+        <Matcher>[closeTo(0.1, 1e-6), closeTo(0.1, 1e-6)],
+        reason:
+            'hovering a line highlights no bar, so both fall to the 0.1 of '
+            ':1398',
+      );
+      expect(
+        await alphasAfter(
+          () => legends[0].onMouseOutAction!(isLegendFocused: false),
+        ),
+        <Matcher>[closeTo(0.4, 1e-6), closeTo(0.4, 1e-6)],
+        reason:
+            '_noLegendHighlighted is true again once the hover clears '
+            '(:1397), which restores both bars',
       );
     });
 
@@ -2623,6 +2933,24 @@ class _LineRecorder implements Canvas {
     strokeWidths.add(paint.strokeWidth);
     drawn.add((p1, p2));
   }
+
+  /// Every [Canvas.drawRect], with how much had already been drawn when it
+  /// arrived.
+  ///
+  /// `pathsBefore` and `linesBefore` are what make a z-order assertion
+  /// readable: a colour fill bar sits ahead of `{lines}` in the same `<g>`
+  /// (`LineChart.tsx:1950-1953`), so both counts must be 0 when its rect is
+  /// drawn.
+  final List<({Rect rect, Color colour, int pathsBefore, int linesBefore})>
+  rects = <({Rect rect, Color colour, int pathsBefore, int linesBefore})>[];
+
+  @override
+  void drawRect(Rect rect, Paint paint) => rects.add((
+    rect: rect,
+    colour: paint.color,
+    pathsBefore: paths.length,
+    linesBefore: drawn.length,
+  ));
 
   @override
   void drawPath(Path path, Paint paint) {

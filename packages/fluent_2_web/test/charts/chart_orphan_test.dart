@@ -261,13 +261,6 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'is the reason nothing calls this one. It is a convenience overload '
       'with no consumer. The likely resolution is deletion with its four test '
       'references, not wiring.',
-  'colorFillBarRectsFor':
-      'Ports `_createColorFillBars` (LineChart.tsx:1372-1413), '
-      'line_chart.dart:1091. Five assertions in test/charts/line_chart_test '
-      'reach it; no painter does, so a LineChart given colorFillBars paints '
-      'none of them. This is the same shape as singlePathFor, which was fixed '
-      'in fec8d49 on the same delegate, and it is the strongest reason to '
-      'believe the fix there was narrower than the defect.',
   'hoverValuesFor':
       'line_chart.dart:144, the popover rows for a hovered x. Declared public '
       'for the tests by its own doc at :102-103, which names '
