@@ -1,16 +1,19 @@
 /// The Vega-Lite bar-family transformers.
 ///
-/// Ports `VegaLiteSchemaAdapter.ts:2141-2337` (vertical bar) and
-/// `:3524-3695` (histogram). Internal to the package: nothing here is
-/// barrel-exported.
+/// Ports `VegaLiteSchemaAdapter.ts:2141-2337` (vertical bar),
+/// `:2349-2729` (vertical stacked bar) and `:3524-3695` (histogram).
+/// Internal to the package: nothing here is barrel-exported.
 library;
 
 import 'dart:math' as math;
 
 import '../../cartesian/cartesian_chart_props.dart';
+import '../../chrome/legend_shape.dart';
 import '../../model/bar_data.dart';
 import '../../model/chart_common.dart';
+import '../../model/line_options.dart';
 import '../../vertical_bar_chart.dart';
+import '../../vertical_stacked_bar_chart.dart';
 import '../d3/array_stats.dart' as d3;
 import '../d3/bin.dart' as d3;
 import '../d3/js_math.dart' as d3;
@@ -20,7 +23,8 @@ import 'common.dart';
 import 'context.dart';
 import 'js_value.dart'
     show JsUndefined, jsToNumber, jsToString, jsTruthy, jsTypeof;
-import 'spec.dart' show VegaSpecException;
+import 'spec.dart' show VegaSpecException, extractVegaDataValues, getMarkType;
+import 'transforms.dart' show applyVegaTransforms;
 
 /// `DEFAULT_TRUNCATE_CHARS` (`VegaLiteSchemaAdapter.ts:76`), the bottom rung of
 /// the bar charts' truncation ladder.
@@ -593,6 +597,636 @@ FluentVerticalBarChart transformVegaToHistogram(
       yAxisTickFormat: createValueFormatter(yAxisTickFormatSpec),
       // `:3689`.
       hideTickOverlap: true,
+    ),
+  );
+}
+
+/// The height a stacked bar falls back to when the spec declares none
+/// (`VegaLiteSchemaAdapter.ts:2712`, whose `DEFAULT_CHART_HEIGHT` is 350 at
+/// `:74`).
+///
+/// `FluentVerticalStackedBarChart` is a shell chart and takes its size from its
+/// `BoxConstraints` (spec §2.2), so the value is applied by the declarative
+/// widget as the cell's `SizedBox` rather than passed in here.
+const double kVegaStackedBarDefaultHeight = 350;
+
+/// `encoding.<channel>`, the channel definition itself.
+Map<String, Object?>? _channel(Map<String, Object?> encoding, String name) {
+  final definition = encoding[name];
+  return definition is Map<String, Object?> ? definition : null;
+}
+
+/// `channel.field`, absent when it is missing or empty.
+///
+/// Upstream reads the raw value (`VegaLiteSchemaAdapter.ts:1276-1288`) and
+/// every consumer in the stacked-bar transformer then tests it with `!` or a
+/// ternary — `:2383`, `:2479`, `:2538`, `:2542` — so an empty string is as
+/// absent as a missing key.
+String? _channelField(Map<String, Object?>? channel) {
+  final field = channel?['field'];
+  return field is String && field.isNotEmpty ? field : null;
+}
+
+/// The colour scheme and explicit range an encoding declares
+/// (`VegaLiteSchemaAdapter.ts:1396-1404`).
+///
+/// `FluentVegaTransformContext` carries the same pair, but only for
+/// `unitSpecs[0]`; `:2368` picks the first BAR layer, which need not be layer
+/// zero, so the stacked-bar transformer re-reads it from that layer's encoding.
+({String? scheme, List<String>? range}) _colorConfig(
+  Map<String, Object?> encoding,
+) {
+  final scale = _channel(encoding, 'color')?['scale'];
+  final scheme = scale is Map<String, Object?> ? scale['scheme'] : null;
+  final range = scale is Map<String, Object?> ? scale['range'] : null;
+  return (
+    scheme: scheme is String ? scheme : null,
+    range: range is List<Object?>
+        ? <String>[
+            for (final entry in range)
+              if (entry is String) entry,
+          ]
+        : null,
+  );
+}
+
+/// The dash-and-width options a mark declares, or null when it declares neither
+/// (`VegaLiteSchemaAdapter.ts:2601-2606` for a line, `:2627-2633` for a rule,
+/// which spell the same two tests in the other order).
+///
+/// `:2603` and `:2631` both read `if (markProps.strokeWidth)`, so a width of 0
+/// is as absent as no width at all. `strokeDash` is tested the same way, but an
+/// array is truthy however short it is, so an EMPTY dash array yields the empty
+/// `stroke-dasharray` string rather than no options.
+/// // parity: VegaLiteSchemaAdapter.ts:2602
+///
+/// `:2604` joins with a SPACE, which is the SVG `stroke-dasharray` syntax.
+FluentLineOptions? _markLineOptions(FluentVegaMarkProperties markProps) {
+  final width = markProps.strokeWidth == 0 ? null : markProps.strokeWidth;
+  final dash = markProps.strokeDash;
+  if (width == null && dash == null) {
+    return null;
+  }
+  return FluentLineOptions(
+    strokeWidth: width,
+    strokeDasharray: dash?.map(d3.jsNumberToString).join(' '),
+  );
+}
+
+/// `value as number`, the unchecked cast at `VegaLiteSchemaAdapter.ts:2592` and
+/// `:2646`.
+///
+/// The cast converts nothing, and `LineDataInVerticalStackedBarChart.y` is
+/// `number | string` (`types/DataPoint.ts:686`), so a string y reaches the
+/// chart as a string and drives its band scale. Only a value the model cannot
+/// hold at all is coerced, which is where this stops being a pure cast.
+Object _asLineY(Object? value) {
+  if (value is num || value is String) {
+    return value!;
+  }
+  return jsToNumber(value);
+}
+
+/// Transforms a Vega-Lite bar spec into a Fluent vertical stacked bar chart
+/// (`VegaLiteSchemaAdapter.ts:2349-2729`).
+///
+/// The largest Vega transformer: it stacks bars per x value, folds `line` and
+/// `point` layers into per-group line overlays, resolves a secondary y axis and
+/// replicates every `rule` layer across every x point as a flat reference line.
+///
+/// [spec] is mutated, for the reason [transformVegaToVerticalBar] gives.
+FluentVerticalStackedBarChart transformVegaToStackedBar(
+  Map<String, Object?> spec,
+  Map<String, String> colorMap, {
+  required bool isDark,
+}) {
+  // `:2355`: only `unitSpecs` is taken from the context. Everything below
+  // re-derives from the primary layer, because the bar layer is not
+  // necessarily layer zero.
+  final unitSpecs = initializeTransformContext(spec).unitSpecs;
+
+  // `:2358-2365`. A `point` mark counts as a line layer here, unlike the line
+  // transformer, where it switches the dots on instead.
+  final barSpecs = <Map<String, Object?>>[];
+  final lineSpecs = <Map<String, Object?>>[];
+  final ruleSpecs = <Map<String, Object?>>[];
+  for (final unitSpec in unitSpecs) {
+    switch (getMarkType(unitSpec['mark'])) {
+      case 'bar':
+        barSpecs.add(unitSpec);
+      case 'line':
+      case 'point':
+        lineSpecs.add(unitSpec);
+      case 'rule':
+        ruleSpecs.add(unitSpec);
+      default:
+        break;
+    }
+  }
+
+  // `:2368`: a bar layer wins; failing that, layer zero.
+  final primarySpec = barSpecs.isNotEmpty ? barSpecs.first : unitSpecs.first;
+  // `:2369-2372`: BOTH transform lists, top-level first. `transformVegaToLine`
+  // applies only the top-level ones; this one does not.
+  final topLevelTransforms = spec['transform'];
+  var dataValues = applyVegaTransforms(
+    extractVegaDataValues(primarySpec['data']),
+    topLevelTransforms is List<Object?> ? topLevelTransforms : null,
+  );
+  final primaryTransforms = primarySpec['transform'];
+  dataValues = applyVegaTransforms(
+    dataValues,
+    primaryTransforms is List<Object?> ? primaryTransforms : null,
+  );
+
+  // `:2373-2374`.
+  final encodingRaw = primarySpec['encoding'];
+  final encoding = encodingRaw is Map<String, Object?>
+      ? encodingRaw
+      : <String, Object?>{};
+  final markProps = getMarkProperties(primarySpec['mark']);
+
+  // `:2377`.
+  final yChannel = _channel(encoding, 'y');
+  final colorChannel = _channel(encoding, 'color');
+  final xField = _channelField(_channel(encoding, 'x'));
+  final yField = _channelField(yChannel);
+  final colorField = _channelField(colorChannel);
+  final yAggregateRaw = yChannel?['aggregate'];
+  final yAggregate = yAggregateRaw is String && yAggregateRaw.isNotEmpty
+      ? yAggregateRaw
+      : null;
+  // `:2378`: a static colour on the encoding, which outranks the scheme.
+  final colorValueRaw = colorChannel?['value'];
+  final colorValue = colorValueRaw is String ? colorValueRaw : null;
+
+  // `:2383-2385`, message verbatim.
+  if (xField == null) {
+    throw const VegaSpecException(
+      'VegaLiteSchemaAdapter: x encoding is required for stacked bar charts',
+    );
+  }
+
+  // `:2381`, `:2389-2393`.
+  final aggregatedData = yAggregate != null
+      ? computeAggregateData(dataValues, xField, yField, yAggregate)
+      : null;
+  if (aggregatedData == null && yField == null) {
+    throw const VegaSpecException(
+      'VegaLiteSchemaAdapter: y encoding is required for stacked bar charts',
+    );
+  }
+
+  // `:2396`.
+  final colorConfig = _colorConfig(encoding);
+
+  // `:2399-2401`: insertion order of this map IS the x-axis order, and `:2656`
+  // is `Object.values` of it. The groups are built with growable lists and
+  // filled in place, exactly as upstream fills its own object literals — the
+  // record-of-lists an earlier draft used carried no information the group
+  // itself does not.
+  final mapXToDataPoints = <String, FluentVerticalStackedBarGroup>{};
+  final colorIndex = <String, int>{};
+  var currentColorIndex = 0;
+
+  // The two lists are explicitly growable because the branches below fill them
+  // in place; a `<T>[]` literal here would be lint-corrected to a `const` one
+  // and throw on the first `add`.
+  FluentVerticalStackedBarGroup groupFor(String key, Object xAxisPoint) =>
+      mapXToDataPoints[key] ??= FluentVerticalStackedBarGroup(
+        xAxisPoint: xAxisPoint,
+        chartData: List<FluentStackedBarDatum>.empty(growable: true),
+        lineData: List<FluentStackedBarLineDatum>.empty(growable: true),
+      );
+
+  String colourFor(String legend) {
+    final index = colorIndex[legend] ??= currentColorIndex++;
+    return resolveVegaSeriesColour(
+      legend,
+      index,
+      colorValue,
+      markProps.color,
+      colorMap,
+      colorScheme: colorConfig.scheme,
+      colorRange: colorConfig.range,
+      isDark: isDark,
+    );
+  }
+
+  if (aggregatedData != null) {
+    // `:2403-2437`: an aggregate spec produces exactly one stack per x value,
+    // and the legend is the literal `'Bar'` for all of them.
+    for (final entry in aggregatedData) {
+      final category = entry['category']! as String;
+      // `:2407`.
+      const legend = 'Bar';
+      groupFor(category, category).chartData.add(
+        FluentStackedBarDatum(
+          legend: legend,
+          data: entry['value']! as double,
+          color: parseCssColour(colourFor(legend)),
+        ),
+      );
+    }
+  } else {
+    // `:2440-2441`: the FIRST row that HAS the y column decides whether the
+    // whole column is numeric, so a row holding an explicit null is the sample
+    // and sends every row down the counting branch.
+    Object? firstYValue;
+    for (final row in dataValues) {
+      if (row.containsKey(yField) && row[yField] is! JsUndefined) {
+        firstYValue = row[yField];
+        break;
+      }
+    }
+    final yIsNumeric = firstYValue is num;
+
+    if (!yIsNumeric) {
+      // `:2443-2473`: a non-numeric y column — typically a `quantitative` type
+      // auto-corrected to `nominal` — falls back to counting rows per category.
+      final counts = countByCategory(dataValues, xField, colorField, 'Bar');
+      for (final xEntry in counts.entries) {
+        final group = groupFor(xEntry.key, xEntry.key);
+        for (final legendEntry in xEntry.value.entries) {
+          group.chartData.add(
+            FluentStackedBarDatum(
+              legend: legendEntry.key,
+              data: legendEntry.value.toDouble(),
+              color: parseCssColour(colourFor(legendEntry.key)),
+            ),
+          );
+        }
+      }
+    } else {
+      // `:2476-2521`: the normal numeric path.
+      final formatSpec = _axisOption(encoding, 'y', 'format');
+      // `:2517`, and `:2699` reads the same spec for the axis itself.
+      final yFormatter = createValueFormatter(
+        formatSpec is String ? formatSpec : null,
+      );
+      for (final row in dataValues) {
+        final xValue = row[xField];
+        final yValue = row[yField];
+
+        // `:2481-2483`: a non-numeric y on the numeric path drops the row.
+        if (isInvalidValue(xValue) ||
+            isInvalidValue(yValue) ||
+            yValue is! num) {
+          continue;
+        }
+
+        // `:2486`: `!== undefined`, so an absent colour column falls back to
+        // `'Bar'` while an explicit null is legended `'null'`.
+        // // parity: VegaLiteSchemaAdapter.ts:2479
+        final String legend;
+        if (colorField != null &&
+            row.containsKey(colorField) &&
+            row[colorField] is! JsUndefined) {
+          legend = jsToString(row[colorField]);
+        } else {
+          legend = 'Bar';
+        }
+
+        // `:2489-2492`: a bar x axis is categorical even when the values are
+        // numbers, so a number is stringified for the axis point. A `Date` is
+        // cast rather than converted and reaches the chart as one, which
+        // `FluentVerticalStackedBarGroup.xAxisPoint` accepts.
+        final xKey = jsToString(xValue);
+        final label = yFormatter == null ? null : yFormatter(yValue.toDouble());
+        groupFor(xKey, xValue is DateTime ? xValue : xKey).chartData.add(
+          FluentStackedBarDatum(
+            legend: legend,
+            data: yValue.toDouble(),
+            color: parseCssColour(colourFor(legend)),
+            // `:2519`: one formatted string for the callout and the on-bar
+            // label alike, and both are set only when a format exists.
+            yAxisCalloutData: label,
+            barLabel: label,
+          ),
+        );
+      }
+    }
+  }
+
+  // `:2588`: read off the TOP-LEVEL spec, not off a layer.
+  final resolve = spec['resolve'];
+  final resolveScale = resolve is Map<String, Object?>
+      ? resolve['scale']
+      : null;
+  final hasIndependentYScales =
+      resolveScale is Map<String, Object?> &&
+      resolveScale['y'] == 'independent';
+
+  // `:2526-2610`: every line and point layer folds into the groups.
+  for (var lineIndex = 0; lineIndex < lineSpecs.length; lineIndex++) {
+    final lineSpec = lineSpecs[lineIndex];
+    // `:2527-2530`: again both transform lists.
+    var lineDataValues = applyVegaTransforms(
+      extractVegaDataValues(lineSpec['data']),
+      topLevelTransforms is List<Object?> ? topLevelTransforms : null,
+    );
+    final lineTransforms = lineSpec['transform'];
+    lineDataValues = applyVegaTransforms(
+      lineDataValues,
+      lineTransforms is List<Object?> ? lineTransforms : null,
+    );
+
+    final lineEncodingRaw = lineSpec['encoding'];
+    final lineEncoding = lineEncodingRaw is Map<String, Object?>
+        ? lineEncodingRaw
+        : const <String, Object?>{};
+    final lineMarkProps = getMarkProperties(lineSpec['mark']);
+
+    final lineY = _channel(lineEncoding, 'y');
+    final lineXField = _channelField(_channel(lineEncoding, 'x'));
+    final lineYField = _channelField(lineY);
+    final lineColorField = _channelField(_channel(lineEncoding, 'color'));
+
+    // `:2538-2540`.
+    if (lineXField == null || lineYField == null) {
+      continue;
+    }
+
+    // `:2542`: note the inversion — a colour FIELD gives the bare `'Line'` and
+    // no colour field gives the numbered `'Line 1'`, because the per-row
+    // legend below replaces the base whenever the field exists.
+    final lineLegendBase = lineColorField != null
+        ? 'Line'
+        : 'Line ${lineIndex + 1}';
+
+    // `:2589`: a secondary axis needs the independent resolve AND a line y
+    // field that differs from the bars'.
+    final useSecondaryYScale = hasIndependentYScales && lineYField != yField;
+
+    // `:2601-2606`.
+    final lineOptions = _markLineOptions(lineMarkProps);
+
+    for (final row in lineDataValues) {
+      final xValue = row[lineXField];
+      final yValue = row[lineYField];
+      // `:2548-2550`.
+      if (isInvalidValue(xValue) || isInvalidValue(yValue)) {
+        continue;
+      }
+
+      final xKey = jsToString(xValue);
+      // `:2555-2556`, the same `!== undefined` read as the bar branch.
+      final lineLegend =
+          lineColorField != null &&
+              row.containsKey(lineColorField) &&
+              row[lineColorField] is! JsUndefined
+          ? jsToString(row[lineColorField])
+          : lineLegendBase;
+
+      // `:2557-2563`: a line x value with no bar of its own still creates a
+      // group, and its axis point is the RAW value rather than the stringified
+      // one the bar branch writes at `:2490`.
+      // // parity: VegaLiteSchemaAdapter.ts:2559
+      final Object xAxisPoint;
+      if (xValue is num || xValue is String || xValue is DateTime) {
+        xAxisPoint = xValue!;
+      } else {
+        xAxisPoint = xKey;
+      }
+
+      // `:2566-2584`: the mark's own colour wins outright; otherwise the shared
+      // resolver runs with NEITHER the scheme nor the range, so a line overlay
+      // ignores a declared `scale.scheme`.
+      // // parity: VegaLiteSchemaAdapter.ts:2574-2583
+      final String lineColour;
+      if (lineMarkProps.color != null && lineMarkProps.color!.isNotEmpty) {
+        lineColour = lineMarkProps.color!;
+      } else {
+        final index = colorIndex[lineLegend] ??= currentColorIndex++;
+        lineColour = resolveVegaSeriesColour(
+          lineLegend,
+          index,
+          null,
+          null,
+          colorMap,
+          isDark: isDark,
+        );
+      }
+
+      groupFor(xKey, xAxisPoint).lineData!.add(
+        FluentStackedBarLineDatum(
+          // `:2592`.
+          y: _asLineY(yValue),
+          color: parseCssColour(lineColour),
+          legend: lineLegend,
+          // `:2595`: a line overlay on a stacked bar always draws a triangle.
+          legendShape: FluentChartLegendShape.triangle,
+          // `:2596`: `data` carries the value only when it really is a number.
+          data: yValue is num ? yValue : null,
+          useSecondaryYScale: useSecondaryYScale,
+          lineOptions: lineOptions,
+        ),
+      );
+    }
+  }
+
+  // `:2614-2654`: each rule layer with a constant y becomes a flat line on
+  // EVERY existing group. Note the ordering consequence: a rule is replicated
+  // only across the groups that exist by now, so a rule cannot create an x
+  // point.
+  for (var ruleIndex = 0; ruleIndex < ruleSpecs.length; ruleIndex++) {
+    final ruleSpec = ruleSpecs[ruleIndex];
+    final ruleEncodingRaw = ruleSpec['encoding'];
+    final ruleEncoding = ruleEncodingRaw is Map<String, Object?>
+        ? ruleEncodingRaw
+        : const <String, Object?>{};
+    final ruleMarkProps = getMarkProperties(ruleSpec['mark']);
+    final ruleY = _channel(ruleEncoding, 'y');
+    final yDatum = ruleY == null ? null : ruleY['datum'] ?? ruleY['value'];
+    // `:2619`: a rule without a constant y is skipped here; only
+    // `extractVegaAnnotations` sees it.
+    if (yDatum == null) {
+      continue;
+    }
+
+    // `:2620`: the colour-map KEY, deliberately not the legend.
+    final ruleColourKey = 'Reference_$ruleIndex';
+    // `:2621`: Vega's reference-line red, the fourth entry of category10,
+    // hard-coded rather than taken from the scheme — the same literal
+    // `transformVegaToLine` carries at `:1907`.
+    final ruleColour =
+        ruleMarkProps.color == null || ruleMarkProps.color!.isEmpty
+        ? '#d62728'
+        : ruleMarkProps.color!;
+    // `:2623-2625`: the key still consumes a palette index even though the
+    // colour above never uses it. // parity: VegaLiteSchemaAdapter.ts:2623
+    colorIndex[ruleColourKey] ??= currentColorIndex++;
+
+    final ruleLineOptions = _markLineOptions(ruleMarkProps);
+
+    // `:2636-2641`: a companion `text` layer at the same y supplies the label;
+    // otherwise it is the datum's own string form. This — not `Reference_$i` —
+    // is what lands in `legend`.
+    var ruleText = jsToString(yDatum);
+    for (final candidate in unitSpecs) {
+      if (getMarkType(candidate['mark']) != 'text') {
+        continue;
+      }
+      final candidateEncoding = candidate['encoding'];
+      if (candidateEncoding is! Map<String, Object?>) {
+        continue;
+      }
+      final candidateY = _channel(candidateEncoding, 'y');
+      if (candidateY == null ||
+          (candidateY['datum'] ?? candidateY['value']) != yDatum) {
+        continue;
+      }
+      final textChannel = _channel(candidateEncoding, 'text');
+      // `:2640`: `datum || value || yDatum`, so a falsy label falls through.
+      final Object? label;
+      if (textChannel == null) {
+        label = yDatum;
+      } else if (jsTruthy(textChannel['datum'])) {
+        label = textChannel['datum'];
+      } else if (jsTruthy(textChannel['value'])) {
+        label = textChannel['value'];
+      } else {
+        label = yDatum;
+      }
+      ruleText = jsToString(label);
+      break;
+    }
+
+    // `:2644-2652`.
+    for (final group in mapXToDataPoints.values) {
+      group.lineData!.add(
+        FluentStackedBarLineDatum(
+          // `:2646`.
+          y: _asLineY(yDatum),
+          legend: ruleText,
+          color: parseCssColour(ruleColour),
+          lineOptions: ruleLineOptions,
+          // `:2650`: a reference line never uses the secondary axis.
+          useSecondaryYScale: false,
+        ),
+      );
+    }
+  }
+
+  // `:2656-2657`.
+  final chartData = mapXToDataPoints.values.toList(growable: false);
+  final titles = getVegaLiteTitles(spec);
+
+  // `:2660`.
+  final hasSecondaryYAxis = chartData.any(
+    (group) => group.lineData?.any((line) => line.useSecondaryYScale) ?? false,
+  );
+
+  // `:2663-2693`.
+  String? secondaryYAxisTitle;
+  FluentSecondaryYScaleOptions? secondaryYScaleOptions;
+  if (hasSecondaryYAxis && lineSpecs.isNotEmpty) {
+    // `:2665`: the FIRST line layer supplies the title and the domain, whichever
+    // layer actually drove the secondary axis. // parity
+    final lineEncodingRaw = lineSpecs.first['encoding'];
+    final lineEncoding = lineEncodingRaw is Map<String, Object?>
+        ? lineEncodingRaw
+        : const <String, Object?>{};
+    final lineY = _channel(lineEncoding, 'y');
+    final lineYAxis = lineY?['axis'];
+    // `:2669-2671`.
+    if (lineYAxis is Map<String, Object?> && lineYAxis['title'] is String) {
+      secondaryYAxisTitle = lineYAxis['title']! as String;
+    }
+
+    // `:2674-2681`: `typeof line.y === 'number'`, which is why `y` is not
+    // coerced on the way in.
+    final allLineYValues = <double>[
+      for (final group in chartData)
+        for (final line
+            in group.lineData ?? const <FluentStackedBarLineDatum>[])
+          if (line.useSecondaryYScale && line.y is num)
+            (line.y as num).toDouble(),
+    ];
+    if (allLineYValues.isNotEmpty) {
+      // `:2685-2691`: an explicit `scale.domain` on the line layer wins over
+      // the data extent, and the fallback for an empty extent is 0.
+      final lineScale = lineY?['scale'];
+      final lineDomain = lineScale is Map<String, Object?>
+          ? lineScale['domain']
+          : null;
+      final domain = lineDomain is List<Object?> ? lineDomain : null;
+      secondaryYScaleOptions = FluentSecondaryYScaleOptions(
+        yMinValue: domain != null && domain.isNotEmpty
+            ? jsToNumber(domain.first)
+            : d3.min<num>(allLineYValues)?.toDouble() ?? 0,
+        yMaxValue: domain != null && domain.length > 1
+            ? jsToNumber(domain[1])
+            : d3.max<num>(allLineYValues)?.toDouble() ?? 0,
+      );
+    }
+  }
+
+  // `:2696`.
+  final yAxisType = extractYAxisType(encoding);
+  // `:2699`, the same spec the bar labels above were formatted with.
+  final yAxisTickFormatSpec = _axisOption(encoding, 'y', 'format');
+  // `:2700`.
+  final bounds = extractYMinMax(encoding, dataValues);
+  // `:2703`.
+  final categoryOrder = extractAxisCategoryOrderProps(encoding);
+  // `:2713`.
+  final legendConfig = colorChannel?['legend'];
+  final legendDisabled =
+      legendConfig is Map<String, Object?> && legendConfig['disable'] == true;
+
+  return FluentVerticalStackedBarChart(
+    // `:2706`.
+    data: chartData,
+    // `:2707`. `FluentVerticalStackedBarChart` takes the chart title as a named
+    // parameter rather than through a props bag.
+    chartTitle: titles.chartTitle,
+    // `:2715`.
+    roundCorners: true,
+    // `:2717`: the bar-gap ceiling, a multiplier and not a pixel count.
+    barGapMax: 2,
+    // `:2727`. Both orders land on the WIDGET, not on the identically named
+    // `FluentCartesianChartProps` fields: `vertical_stacked_bar_chart.dart:1340`
+    // and `:1341` hand `widget.xAxisCategoryOrder` and
+    // `widget.yAxisCategoryOrder` to the delegate and the props are never read.
+    xAxisCategoryOrder: categoryOrder.x ?? FluentAxisCategoryOrder.defaultOrder,
+    yAxisCategoryOrder: categoryOrder.y ?? FluentAxisCategoryOrder.defaultOrder,
+    props: FluentCartesianChartProps(
+      // `:2708-2709`.
+      xAxisTitle: titles.xAxisTitle,
+      yAxisTitle: titles.yAxisTitle,
+      // `:2713`: `?? false`.
+      hideLegend: legendDisabled,
+      // `:2714`.
+      showYAxisLables: true,
+      // `:2716`.
+      hideTickOverlap: true,
+      // `:2718`: `DEFAULT_TRUNCATE_CHARS`, the constant this file already holds.
+      noOfCharsToTruncate: kVegaDefaultTruncateChars,
+      // `:2719`.
+      showYAxisLablesTooltip: true,
+      // `:2720`: only a String axis point wraps; a numeric or temporal one does
+      // not.
+      wrapXAxisLables:
+          chartData.isNotEmpty && chartData.first.xAxisPoint is String,
+      // `:2721`. Plan 05's shell resolves
+      // `props.xAxis?.tickLayout ?? delegate.xAxisTickLayout`
+      // (`CartesianChart.tsx:220`), so this is the only route in.
+      xAxis: const FluentAxisConfig(tickLayout: FluentTickLayout.auto),
+      // `:2722`. Upstream forwards the d3 SPEC and the chart resolves it; this
+      // port's prop is the resolved formatter, so it is built here.
+      yAxisTickFormat: createValueFormatter(
+        yAxisTickFormatSpec is String ? yAxisTickFormatSpec : null,
+      ),
+      // `:2723-2724`: both are conditional spreads upstream, and the shell's
+      // own defaults are 0 and 0 — which is what an absent domain leaves.
+      yMinValue: bounds.min ?? 0,
+      yMaxValue: bounds.max ?? 0,
+      // `:2725`.
+      yScaleType: yAxisType ?? FluentAxisScaleType.auto,
+      // `:2726`.
+      secondaryYAxisTitle: secondaryYAxisTitle,
+      secondaryYScaleOptions: secondaryYScaleOptions,
     ),
   );
 }

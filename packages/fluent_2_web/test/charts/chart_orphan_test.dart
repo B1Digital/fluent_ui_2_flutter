@@ -853,6 +853,45 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       '(`VegaLiteSchemaAdapter.ts:1698-1700`), so this transformer is the only '
       'thing standing between that verdict and a rendered chart. Goes when '
       'Task 52 lands.',
+
+  // Task 46 appended the vertical stacked bar to the same file. Its five
+  // private helpers — `_channel`, `_channelField`, `_colorConfig`,
+  // `_markLineOptions` and `_asLineY` — are invisible to this scan by their
+  // leading underscore and are all called from `transformVegaToStackedBar`
+  // below them.
+  'transformVegaToStackedBar':
+      'internal/vega/transform_bar.dart:698, the port of the exported '
+      'VegaLiteSchemaAdapter.ts:2349-2729. Upstream has exactly one caller — '
+      '`grep -n transformVegaLiteToVerticalStackedBarChartProps` over '
+      'crawlers/fluentui-react-charts/out/charts/src/components/'
+      'VegaDeclarativeChart/VegaDeclarativeChart.tsx returns the import at '
+      ':7, the `typeof` in the registry type at :170 and the registry entry '
+      "itself at :192-195, `'stacked-bar': { transformer: "
+      'transformVegaLiteToVerticalStackedBarChartProps, renderer: '
+      'ResponsiveVerticalStackedBarChart }`. Task 52 is the caller in this '
+      'port: `FluentVegaChartKind.stackedBar => transformVegaToStackedBar('
+      'spec, _colorMap, isDark: isDark)` is an arm of its exhaustive switch '
+      '(plan 09 line 19462), returned as the widget the chart renders rather '
+      'than computed and dropped. The routing side is already live: '
+      '`internal/vega/routing.dart:252`, `:341` and `:364` all answer '
+      '`FluentVegaChartKind.stackedBar` (`VegaLiteSchemaAdapter.ts:1663-1665` '
+      'for the bar-plus-line layer combo and `:1714` for an explicit stack), '
+      'so this transformer is the only thing standing between those three '
+      'verdicts and a rendered chart. Goes when Task 52 lands.',
+  'kVegaStackedBarDefaultHeight':
+      'internal/vega/transform_bar.dart:611, the 350 at '
+      'VegaLiteSchemaAdapter.ts:2712 whose DEFAULT_CHART_HEIGHT is declared at '
+      ':74. It is a top-level constant rather than a chart parameter because '
+      'FluentVerticalStackedBarChart is a shell chart and takes its size from '
+      'its BoxConstraints (spec 2.2), so upstream `height: spec.height ?? '
+      'DEFAULT_CHART_HEIGHT` becomes the cell SizedBox the declarative widget '
+      'wraps the chart in. Task 52 is its only consumer and reads it by name: '
+      '`kVegaDefaultCellHeight` maps `FluentVegaChartKind.stackedBar` to it '
+      '(plan 09 line 19355), beside the heatmap 350 at :3510 and the polar '
+      '400 at :3856 — the only three kinds that have a height default at all. '
+      'Goes when Task 52 lands. This is the same shape as '
+      'kPlotlyDefaultCellHeight, which carried the 350 at '
+      'PlotlySchemaAdapter.ts:1892 until its own widget landed.',
 };
 
 /// Files scanned for declarations: every `.dart` file under
