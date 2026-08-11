@@ -350,6 +350,59 @@ void main() {
       );
     });
 
+    test('a long unary chain past the ceiling is refused, not crashed', () {
+      // Measured before the guard: 50,000 negations evaluated and 200,000 threw
+      // a raw StackOverflowError, so `!` is the second unbounded path and it
+      // does not pass through _parseExpression. One count per `!`.
+      expect(
+        () => evaluateVegaExpression(
+          '${'!' * (kVegaMaxExpressionDepth + 1)}datum.a',
+          const <String, Object?>{'a': 1},
+        ),
+        throwsA(
+          isA<VegaExpressionException>().having(
+            (e) => e.message,
+            'message',
+            'Safe expression evaluator: Maximum expression depth exceeded',
+          ),
+        ),
+        reason:
+            'the unary arm recurses into itself, so guarding only the grammar '
+            'entry point would leave a 200,000-character negation chain able '
+            'to take the frame down',
+      );
+    });
+
+    test('nesting past the ceiling is refused, not crashed', () {
+      // hardened, spec §5.2 exception 2: the JSON depth guard counts *object*
+      // nesting, and an expression is one string value at JSON depth 3 — so
+      // `{"transform": [{"calculate": "((((…1…))))"}]}` clears
+      // `validateVegaJsonDepth` however deep the parentheses go. Measured on
+      // this tree before the guard existed: 2,000 levels evaluated, 10,000
+      // threw a raw `StackOverflowError` out of `_parsePrimary`, and because
+      // `FluentVegaDeclarativeChart.build` catches only VegaSpecException and
+      // VegaExpressionException it escaped `build()` and took the frame down.
+      // Upstream has no counterpart guard — `VegaLiteExpressionEvaluator.ts`
+      // recurses unbounded — so this is added rather than ported.
+      final expr =
+          '${'(' * (kVegaMaxExpressionDepth + 1)}1'
+          '${')' * (kVegaMaxExpressionDepth + 1)}';
+      expect(
+        () => evaluateVegaExpression(expr, const <String, Object?>{}),
+        throwsA(
+          isA<VegaExpressionException>().having(
+            (e) => e.message,
+            'message',
+            'Safe expression evaluator: Maximum expression depth exceeded',
+          ),
+        ),
+        reason:
+            'one level past the ceiling must surface as the same exception '
+            'every other refusal does, so the widget renders its error body '
+            'instead of throwing an Error no catch clause names',
+      );
+    });
+
     test('a long flat expression does not blow the stack', () {
       // 2000 terms: the additive loop is iterative, so depth stays constant
       // while length grows. 2001 is the recorded node result for 1 + 1*2000.

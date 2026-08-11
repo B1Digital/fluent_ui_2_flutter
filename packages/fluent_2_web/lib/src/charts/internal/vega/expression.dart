@@ -379,6 +379,25 @@ final Set<String> kVegaAllowedIdentifiers = <String>{
 ///
 /// Upstream evaluates as it parses rather than building a tree, and so does
 /// this: each level returns a *value*, not a node.
+/// How deeply [evaluateVegaExpression] will re-enter its own grammar before it
+/// refuses the expression.
+///
+/// hardened, spec §5.2 exception 2: `VegaLiteExpressionEvaluator.ts` recurses
+/// unbounded, and `kVegaMaxJsonDepth` does not cover this — that guard counts
+/// object nesting, and an expression arrives as one string value at JSON depth
+/// 3 inside `{"transform": [{"calculate": …}]}`. So `((((…1…))))` clears the
+/// depth guard however deep the parentheses go. Measured on this tree: each
+/// level costs about ten frames (ternary down to primary), 2,000 levels
+/// evaluated and 10,000 threw `StackOverflowError` — an `Error`, which the
+/// widget's `on VegaExpressionException` clause does not catch, so it escaped
+/// `build()`.
+///
+/// 1000 is five times the deepest expression anything in this port evaluates
+/// (the 200-level parenthesis nest in `expression_matrix_test.dart`) and an
+/// order of magnitude below the measured overflow, so it refuses only what no
+/// authored `calculate` or `filter` contains.
+const int kVegaMaxExpressionDepth = 1000;
+
 class _VegaExpressionParser {
   _VegaExpressionParser(this._tokens, this._datum);
 
@@ -420,9 +439,36 @@ class _VegaExpressionParser {
     return _advance();
   }
 
+  /// How many grammar re-entries are open, guarded by
+  /// [kVegaMaxExpressionDepth].
+  int _depth = 0;
+
+  /// Runs [parse] one level deeper, refusing past [kVegaMaxExpressionDepth].
+  ///
+  /// The two re-entrant points are wrapped rather than the ten descent levels
+  /// between them: [_parseExpression] is where a parenthesised group, a bracket
+  /// index, a call argument and both ternary branches come back in, and
+  /// [_parseUnary] is the one level that recurses into itself without passing
+  /// through it. A parenthesis therefore costs two counts and a `!` one, so the
+  /// effective ceilings are about 500 nested groups and 1000 negations — both
+  /// far past anything an authored expression contains, and both short of the
+  /// stack.
+  T _descend<T>(T Function() parse) {
+    if (++_depth > kVegaMaxExpressionDepth) {
+      throw const VegaExpressionException(
+        'Safe expression evaluator: Maximum expression depth exceeded',
+      );
+    }
+    try {
+      return parse();
+    } finally {
+      _depth--;
+    }
+  }
+
   /// `:274-276`. The grammar's entry point, which a bracket index (`:429`) and
   /// a parenthesised group (`:493`) re-enter through.
-  Object? _parseExpression() => _parseTernary();
+  Object? _parseExpression() => _descend(_parseTernary);
 
   /// `:278-288`.
   Object? _parseTernary() {
@@ -576,8 +622,11 @@ class _VegaExpressionParser {
     return left;
   }
 
-  /// `:395-409`.
-  Object? _parseUnary() {
+  /// `:395-409`. Wrapped because its three arms recurse into it directly,
+  /// which is a path [_parseExpression] never sees.
+  Object? _parseUnary() => _descend(_parseUnaryOperand);
+
+  Object? _parseUnaryOperand() {
     switch (_peek().type) {
       case '!':
         _advance();
