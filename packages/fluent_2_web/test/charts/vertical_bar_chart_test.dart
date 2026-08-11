@@ -1168,6 +1168,51 @@ void main() {
       );
     });
 
+    testWidgets('the chartAxisTypeOf fallthrough is unreachable from a '
+        'mounted chart', (tester) async {
+      // `chartAxisTypeOf`'s `_` arm (model/chart_value.dart:34) reports a date
+      // for anything that is neither a String nor a num, reproducing the
+      // `default:` at utilities.ts:1693. `FluentVerticalBarChartProps.xAxisType`
+      // (vertical_bar_chart.dart:674) is this chart's only route into that arm,
+      // and it reads `points.first.x` — so the datum's own constructor assert
+      // is what decides whether the arm can ever be handed a non-date.
+      expect(
+        chartAxisTypeOf(const <int>[]),
+        FluentChartAxisType.date,
+        reason: 'utilities.ts:1693 `default: return XAxisTypes.DateAxis`.',
+      );
+      expect(
+        () => FluentVerticalBarChartDataPoint(x: const <int>[], y: 1),
+        throwsA(isA<AssertionError>()),
+        reason:
+            'types/DataPoint.ts:170 `number | string | Date` — the value the '
+            'arm above would mislabel cannot be built into a datum at all, so '
+            'it never reaches vertical_bar_chart.dart:674.',
+      );
+      await pump(
+        tester,
+        FluentVerticalBarChart(
+          data: <FluentVerticalBarChartDataPoint>[
+            // Two bars, because one is enough to type the axis but not to draw
+            // a band; the heights are any two non-zero values, which is all
+            // VerticalBarChart.tsx:1076-1078 asks to avoid the empty state.
+            FluentVerticalBarChartDataPoint(x: DateTime.utc(2024), y: 1),
+            FluentVerticalBarChartDataPoint(x: DateTime.utc(2024, 2), y: 2),
+          ],
+        ),
+      );
+      expect(
+        tester
+            .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+            .delegate
+            .xAxisType,
+        FluentChartAxisType.date,
+        reason:
+            'the arm stays reachable for a real DateTime, which is the only '
+            'kind of value the guard admits into it.',
+      );
+    });
+
     testWidgets('the semantic title names the bars and the line', (
       tester,
     ) async {

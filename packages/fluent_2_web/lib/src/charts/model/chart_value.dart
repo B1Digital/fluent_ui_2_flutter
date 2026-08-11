@@ -26,23 +26,18 @@ enum FluentChartAxisType {
 /// a date, even when it is neither.
 ///
 /// `// parity:` the `default:` fallthrough at `utilities.ts:1693` and `:1701` is
-/// reproduced rather than tightened, because charts pass their first data point
-/// through it unvalidated and a throw here would change which charts render.
+/// reproduced rather than tightened. Upstream's guard against reaching that arm
+/// with a non-date is its signature, `p: string | number | Date`
+/// (`utilities.ts:1686`) — a compile-time union with no runtime half to port.
+/// This port's equivalent is the `num | String | DateTime` assert every datum
+/// that feeds a `getTypeOfAxis` call site already carries, so the arm is handed
+/// a real date and nothing else; adding a throw here would only duplicate that
+/// guard one step later, and in release both are stripped alike.
 FluentChartAxisType chartAxisTypeOf(Object value) => switch (value) {
   String() => FluentChartAxisType.category,
   num() => FluentChartAxisType.numeric,
   _ => FluentChartAxisType.date,
 };
-
-/// Whether [value] is one of the three types a chart axis accepts.
-bool isChartAxisValue(Object? value) =>
-    value is num || value is String || value is DateTime;
-
-/// Whether [value] can drive a continuous axis — a number or a date.
-bool isNumericOrDate(Object? value) => value is num || value is DateTime;
-
-/// Whether [value] can drive a numeric or a band axis — a number or a category.
-bool isNumericOrCategory(Object? value) => value is num || value is String;
 
 /// Whether [value] is unusable as a coordinate.
 ///

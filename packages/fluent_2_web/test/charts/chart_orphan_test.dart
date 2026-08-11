@@ -342,14 +342,19 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // `fluentChartStripePhase(Offset(x, y))` falls in a clamped colour band — is
   // now asserted per pixel over two box shapes in
   // `test/charts/chrome/legend_shape_test.dart`.
-  'rectsFor':
-      'horizontal_bar_chart_with_axis.dart:655, the geometry-only view of the '
-      'bar rects. Its own doc at :662 explains that the painter and the hit '
-      'regions need the richer point-carrying variant instead, and that '
-      'running the layout twice would fold the running offsets twice — which '
-      'is the reason nothing calls this one. It is a convenience overload '
-      'with no consumer. The likely resolution is deletion with its four test '
-      'references, not wiring.',
+  // `rectsFor` was here, excused as "a convenience overload with no consumer"
+  // whose "likely resolution is deletion with its four test references". It is
+  // deleted. Its own doc said why nothing could ever call it: the painter and
+  // the hit regions need the point-carrying `placeBars`, and taking the
+  // geometry-only view of a `placeBars` pass they have already made costs a
+  // second fold of the running offsets. Upstream has no counterpart either: the
+  // bar geometry is built once inside `sortedBars.map` at
+  // `HorizontalBarChartWithAxis.tsx:404-495`, where the `<rect>` at `:470-489`
+  // and the datum it came from are the same closure. Nothing in plan 09's Vega
+  // half (Tasks 31-57) names it. Its four assertions did NOT go with it — each
+  // one pins real parity (the `:419-422` position guard, and two oracle
+  // stories) and each reached it only to strip `.rect` off the list `placeBars`
+  // returns, so they now call `placeBars` directly and the count is unchanged.
   // `hoverValuesFor` was here, excused as "the isCalloutForStack narrowing it
   // implements (LineChart.tsx:1660-1668) is applied nowhere in lib/". The entry
   // understated its own gap: `FluentLineChartDelegate.buildHitRegions` returned
@@ -377,23 +382,45 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // --- Predicates with no caller -------------------------------------------
   // chart_value.dart is where a value is classified before it reaches an axis.
   // Its neighbours are all called — chartAxisTypeOf, isInvalidChartValue,
-  // isPlottable, isNumberLike — which is what makes these four stand out: they
-  // are the same shape, in the same file, reached only from tests.
-  'isChartAxisValue':
-      'model/chart_value.dart:38, `value is num || String || DateTime`. No '
-      'upstream citation on it, and no lib/ caller: nothing validates an '
-      'incoming axis value against the three types the axis accepts, so an '
-      'unsupported type reaches chartAxisTypeOf (:31) and is classified as a '
-      'date by its `_` arm. Wiring this at the entry point would make that '
-      'arm reachable only for real dates; deleting it accepts the '
-      'fallthrough, which is itself a documented parity choice at :28-30.',
-  'isNumericOrDate':
-      'model/chart_value.dart:42, the continuous-axis predicate. Five test '
-      'references, no lib/ caller. Goes with the group above.',
-  'isNumericOrCategory':
-      'model/chart_value.dart:45, the numeric-or-band predicate. Same shape '
-      'and same resolution as isNumericOrDate.',
-  // `isDateLike` (model/chart_value.dart:89) was the fourth of this group and
+  // isPlottable, isNumberLike.
+  //
+  // `isChartAxisValue`, `isNumericOrDate` and `isNumericOrCategory` were the
+  // fourth, fifth and sixth, excused on the claim that "nothing validates an
+  // incoming axis value against the three types the axis accepts, so an
+  // unsupported type reaches chartAxisTypeOf (:31) and is classified as a date
+  // by its `_` arm". That claim was false. Every one of the eight
+  // `getTypeOfAxis` call sites in lib/ — `vertical_bar_chart.dart:674`,
+  // `vertical_stacked_bar_chart.dart:302`, `:308`, `:315`,
+  // `horizontal_bar_chart_with_axis.dart:482`, `gantt_chart.dart:364`, `:369`,
+  // `scatter_chart.dart:429` — reads a field whose own constructor already
+  // asserts the union, each citing the `types/DataPoint.ts` line that declares
+  // it (`bar_data.dart:205`, `:421`, `:308`, `:359`, `:260`, `:525`, `:558`,
+  // `cartesian_series.dart:101`). The port validates; the three helpers were a
+  // second copy of that predicate with no caller, and are deleted.
+  //
+  // They could not have been wired in the form the design asked for.
+  // `kernel/shared-data-model.md:575` specifies them as "predicates used by the
+  // const-constructor asserts across the model", and a const constructor's
+  // assert condition must be a potentially constant expression: `assert(x is
+  // num || x is String || x is DateTime)` compiles, `assert(isChartAxisValue(x))`
+  // is `const_eval_method_invocation`, "Methods can't be invoked in constant
+  // expressions". The inline form in the model IS the wiring, and it is the only
+  // legal one. Verified by compiling both.
+  //
+  // Deleting them also loses nothing in release, where the asserts are stripped:
+  // a predicate consumed inside an assert is stripped with it. Tightening the
+  // `_` arm for real would mean an unconditional throw, and upstream has no
+  // runtime check at all to port — `getTypeOfAxis` (`utilities.ts:1686`) takes
+  // `p: string | number | Date`, a compile-time union.
+  //
+  // Plan 09's Vega tasks were checked for a future consumer before deleting:
+  // its validators (`internal/vega/common.dart`) are `validateVegaDataArray`,
+  // `validateVegaNoNestedArrays`, `validateVegaEncodingType` — field-presence
+  // and declared-encoding-type checks against `VegaLiteSchemaAdapter.ts:890-992`,
+  // none of them a `num | String | DateTime` test. No task in plan 09 names any
+  // of the three.
+  //
+  // `isDateLike` (model/chart_value.dart:89) was the seventh of this group and
   // has been deleted from the list rather than re-worded: the entry predicted
   // that its natural caller was "axis-type inference over untyped input, which
   // in this port is the two unported declarative adapters", and the Plotly
@@ -418,17 +445,16 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // `FluentPlotlyGridProperties.isSingleRepeat`, and the figures the wrong
   // predicate was silently collapsing are covered by
   // test/charts/declarative/declarative_collapse_test.dart.
-  'resolveXAxisPoint':
-      'internal/plotly/common.dart:348, the per-value x coercion. It is an '
-      'orphan UPSTREAM TOO: `grep -rn resolveXAxisPoint` over '
-      'crawlers/fluentui-react-charts/out/charts/src returns exactly one hit, '
-      'the `export const` at PlotlySchemaAdapter.ts:368, and no call anywhere. '
-      'Every landed transformer types its x column as a whole and coerces in '
-      'bulk, which is why none of them reaches for a per-value helper. Nothing '
-      'in the Vega half will call it either — Vega types its own fields. The '
-      'honest resolution is deletion with its five assertions in '
-      'test/charts/declarative/common_test.dart:431-459; it is kept for now '
-      'only because common.dart belongs to plan 09 Task 5.',
+  // `resolveXAxisPoint` was here, excused as an orphan UPSTREAM TOO whose
+  // "honest resolution is deletion with its five assertions". It is deleted.
+  // The upstream claim was re-verified: `grep -rn resolveXAxisPoint` over
+  // crawlers/fluentui-react-charts/out/charts/src still returns exactly one
+  // hit, the `export const` at PlotlySchemaAdapter.ts:368, with no call at any
+  // line of any file. Every landed transformer types its x column as a whole
+  // and coerces in bulk, and no Vega task (31-57) mentions it. Deleting it also
+  // retires the signature deviation its doc carried — this port dropped
+  // upstream's `isXYearCategory` arm (`:378-380`), so a year category came back
+  // unstringified and the first caller would have inherited that.
   'isSafePlotlyUrl':
       'internal/plotly/json_guard.dart:156, the URL-scheme allowlist hardened '
       'under spec §5.2 exception 2. Upstream has exactly one caller — '

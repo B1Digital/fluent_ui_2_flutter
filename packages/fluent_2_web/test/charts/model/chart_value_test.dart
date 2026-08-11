@@ -107,39 +107,6 @@ void main() {
     });
   });
 
-  group('isChartAxisValue / isNumericOrDate / isNumericOrCategory', () {
-    test('classify the three admissible runtime types', () {
-      expect(isChartAxisValue('a'), isTrue, reason: 'String is admissible.');
-      expect(isChartAxisValue(1), isTrue, reason: 'num is admissible.');
-      expect(
-        isChartAxisValue(DateTime(2024)),
-        isTrue,
-        reason: 'DateTime is admissible.',
-      );
-      expect(
-        isChartAxisValue(const <int>[]),
-        isFalse,
-        reason: 'Nothing else is.',
-      );
-      expect(isNumericOrDate('a'), isFalse, reason: 'A String is neither.');
-      expect(
-        isNumericOrDate(DateTime(2024)),
-        isTrue,
-        reason: 'A DateTime is a date.',
-      );
-      expect(
-        isNumericOrCategory(DateTime(2024)),
-        isFalse,
-        reason: 'A DateTime is neither numeric nor a category.',
-      );
-      expect(
-        isNumericOrCategory('a'),
-        isTrue,
-        reason: 'A String is a category.',
-      );
-    });
-  });
-
   group('isNumberLike', () {
     test('parses a leading float out of a string, like parseFloat', () {
       expect(
