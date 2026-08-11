@@ -207,4 +207,50 @@ void main() {
           "reading of the palette that could drift from the chart's",
     );
   });
+
+  test('a colourless trace takes the Plotly colourway slot its own series will '
+      'take', () {
+    final colorMap = <String, String>{};
+    final props = getAllupLegendsProps(
+      <Object?>[
+        <String, Object?>{'legendgroup': 'left', 'name': 'Left'},
+        <String, Object?>{'legendgroup': 'right', 'name': 'Right'},
+      ],
+      <String, Object?>{},
+      <FluentPlotlyTraceInfo>[
+        const FluentPlotlyTraceInfo(
+          index: 0,
+          kind: FluentPlotlyChartKind.verticalStackedBar,
+        ),
+        const FluentPlotlyTraceInfo(
+          index: 1,
+          kind: FluentPlotlyChartKind.verticalStackedBar,
+        ),
+      ],
+      colorMap,
+      colorwayType: FluentPlotlyColorway.byDefault,
+      isDark: false,
+    );
+    expect(
+      colorMap,
+      isEmpty,
+      reason:
+          'PlotlySchemaAdapter.ts:3553 makes no colour lookup for a trace that '
+          'declares none, and seeding the map here would shift every series '
+          'colour the transformers pick afterwards',
+    );
+    expect(
+      props.legends.map((legend) => legend.color).toList(),
+      // internal/plotly/color_adapter.dart:69-80, slots 0 and 1 of
+      // `kPlotlyFluentColorway`: color1 cornflower.tint10 and the `warning`
+      // token, which is what `plotlyGetColor` will hand the two series.
+      <Color>[const Color(0xFF637CEF), const Color(0xFFF7630C)],
+      reason:
+          'PlotlySchemaAdapter.ts:3553 pushes undefined and upstream renders '
+          'the swatch unpainted; a Dart Color cannot be null, so the '
+          'substitute has to be the slot the chart beneath will pick — the '
+          "raw qualitative cycle's slot 1 is hotPink #E3008C, which would "
+          'label an orange series with a pink swatch',
+    );
+  });
 }

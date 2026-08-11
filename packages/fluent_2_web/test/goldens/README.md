@@ -63,7 +63,7 @@ Never commit a `--update-goldens` run you have not looked at. The whole point is
 that the diff is reviewable, and an unexamined regeneration converts a caught
 regression into a committed one.
 
-222 images, ~5.3 MB total. Keep the growth per component small: coarsen a grid
+261 images, ~6.3 MB total. Keep the growth per component small: coarsen a grid
 rather than adding a megabyte of PNG.
 
 ## Known ceiling
@@ -90,6 +90,17 @@ any of them will (correctly) fail its image.
   colours have four.
 Row 2 of `chart_chrome.light.png` is the strip undimmed, which is the only cell
 in the net that proves the stripe painter runs at all.
+
+A second defect this net caught and that is now **fixed**: in row 4 of
+`declarative_chart.*.png`, the multi-plot all-up legend drew a hot-pink swatch
+beside an orange bar. A trace that declares no colour makes upstream push
+`color: undefined` (`PlotlySchemaAdapter.ts:3553`) and render the swatch
+unpainted; a Dart `Color` cannot be null, so `legends.dart` substituted
+`FluentDataVizPalette.next` at the legend's index — a **different cycle** from
+the `kPlotlyFluentColorway` that `plotlyGetColor`
+(`internal/plotly/color_adapter.dart:182-189`) hands the series. The two agree
+only on slot 0, which is why a one-legend figure looked right and the two-cell
+row did not. Now both read the same table.
 
 A defect this net caught and that is now **fixed**, kept here because the image
 is its regression test: a striped legend swatch used to render with no border,

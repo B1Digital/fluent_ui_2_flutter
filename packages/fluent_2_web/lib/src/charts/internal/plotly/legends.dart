@@ -208,13 +208,26 @@ FluentPlotlyLegendProps getAllupLegendsProps(
             // `PlotlySchemaAdapter.ts:3553` casts a possibly-undefined result
             // to `string`, so a trace with no declared colour and no schema
             // colourway pushes `color: undefined` and the swatch renders
-            // unpainted. A Dart `Color` cannot be null, so the swatch takes
-            // the qualitative cycle at the legend's own index — which is what
-            // the chart beneath it will pick anyway — WITHOUT touching
-            // `colorMap`, because touching it here would shift every
-            // downstream colour by one. // parity: PlotlySchemaAdapter.ts:3553
+            // unpainted. A Dart `Color` cannot be null, so the swatch reads
+            // the cycle the chart beneath it will pick from at the legend's own
+            // index, WITHOUT touching `colorMap`, because touching it here
+            // would shift every downstream colour by one.
+            //
+            // That cycle is `plotlyGetColor`'s
+            // (`internal/plotly/color_adapter.dart:182-189`): the Plotly
+            // colourway first and the raw qualitative one only past its tenth
+            // slot. Reading `FluentDataVizPalette.next` directly is a DIFFERENT
+            // cycle that agrees only on slot 0 — its slot 1 is hotPink where
+            // the series takes `warning` — so a two-legend multi-plot drew a
+            // pink swatch beside an orange bar. // parity:
+            // PlotlySchemaAdapter.ts:3553
             color: resolved is String
                 ? parseCssColour(resolved)
+                : allupLegends.length < kPlotlyFluentColorway.length
+                ? FluentDataVizPalette.resolve(
+                    kPlotlyFluentColorway[allupLegends.length],
+                    isDark: isDark,
+                  )
                 : FluentDataVizPalette.next(
                     allupLegends.length,
                     isDark: isDark,
