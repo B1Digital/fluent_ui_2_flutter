@@ -1,6 +1,6 @@
 // Guards `lib/src/charts/` against a symbol that is written, tested, and then
 // never called — a helper whose whole cost is paid and whose value is zero, and
-// which reads as shipped work in a wave report. It has happened seven times,
+// which reads as shipped work in a wave report. It has happened eight times,
 // and every time it was found by hand rather than by CI:
 //
 //   * wave 5 — `FluentLineMarkerPainter` was complete and green, and LineChart
@@ -12,9 +12,14 @@
 //   * after wave 6 — `FluentLineChartDelegate.singlePathFor` was complete and
 //     mutation-proven, and engine B painted no lines at all.
 //   * after wave 6 — `solveDomainMargin` on both bar charts, twice over.
+//   * wave 7 — `FluentResponsiveChartHost` was mounted per grid cell by
+//     `declarative_chart.dart`, and its builder was handed the metrics it
+//     existed to compute and returned a child built outside the builder. It
+//     had a call site, so THIS GATE CERTIFIED IT AS WIRED.
 //
 // A green suite is not evidence against this defect: every one of those shipped
-// green. Only a caller is.
+// green. A caller is the floor, and the eighth is why it is only the floor —
+// see the called-but-discarded ceiling below, which this file does not cover.
 //
 // This file began as a gate on `lib/src/charts/internal/` alone, and the last
 // three defects above all lived one directory up, where it could not see them.
@@ -23,11 +28,14 @@
 // published widget's callers are users rather than `lib/` code.
 //
 // That number was measured without the same-file refinement below. With it, the
-// wider sweep reports 1509 declarations and 25 orphans, and every one of the 25
-// was checked by hand against `grep`: not one has a `lib/` reference that is not
-// a doc comment. The false-positive rate of the rule as written is 0 of 25.
+// wider sweep reported 1509 declarations and 25 orphans, and every one of the 25
+// was checked by hand against `grep`: not one had a `lib/` reference that was
+// not a doc comment. On 2026-08-11 it reports 1664 declarations across 98 files
+// and 18 orphans — the 17 excused below plus `FluentSparkline`, which
+// refinement 4 made visible and which was checked the same way. The
+// false-positive rate of the rule as written is 0 of 18.
 //
-// THREE REFINEMENTS make the signal usable, and all three are load-bearing.
+// FOUR REFINEMENTS make the signal usable, and all four are load-bearing.
 // Each is stated with what it costs, because the next reader will be tempted to
 // drop one:
 //
@@ -47,31 +55,57 @@
 //     `SingleChildLayoutDelegate` overrides on `FluentChartPopoverLayoutDelegate`
 //     are called by `RenderCustomSingleChildLayoutBox` for a delegate that
 //     `chart_popover.dart:600` really does install. Reporting them was the whole
-//     of this rule's false-positive rate: 3 of 28 without this refinement, 0 of
-//     25 with it. It is still counted as a declaration, so the subtraction in
-//     refinement 2 stays correct.
+//     of this rule's false-positive rate when it was measured: 3 of 28 without
+//     this refinement, 0 of 25 with it. It is still counted as a declaration, so
+//     the subtraction in refinement 2 stays correct.
 //
-// A REJECTED REFINEMENT, recorded with its numbers so it is not re-proposed as
-// an improvement: also treating a constructor declaration as a declaration site
-// rather than a reference, so that an entirely unused class is reportable. It
-// was measured, and it adds exactly three findings — `FluentAnnotationOnlyChart`,
-// `FluentChartTable` and `FluentSparkline` — and zero real orphans. All three
-// are `StatelessWidget`, which is the only thing separating them from
-// `FluentAreaChart`: a `StatefulWidget` is saved by the `State<T>` in its own
-// file, a stateless one has no such back-reference. They are the exact
-// consumer-facing shape this gate must not flag, so the refinement is off and
-// the blind spot is a ceiling below instead. It would take the rule from 0 of 25
-// to 3 of 28.
+//  4. Count a constructor line as a declaration of its class. `const Foo({`
+//     spells `Foo`, so without this it read as a reference and every class
+//     cleared the threshold on the strength of its own constructor — no class
+//     was reportable, used or not. Verified by planting an unused public class
+//     under `lib/src/charts/` and watching the gate stay green; verified again
+//     after, by watching the same plant fail.
+//
+//     This refinement was measured once and REJECTED, on numbers that showed it
+//     adding three findings and no real orphans: `FluentAnnotationOnlyChart`,
+//     `FluentChartTable` and `FluentSparkline`, all `StatelessWidget`, the
+//     consumer-facing shape this gate must not flag. Re-measured on 2026-08-11
+//     it adds exactly one, because the first two acquired `lib/` callers in the
+//     meantime — `transform_pie.dart:1381` returns a `FluentAnnotationOnlyChart`
+//     and `:874` a `FluentChartTable`. `FluentSparkline` is the one left and is
+//     excused below, for the same reason `isAttached` is. One allowlist entry is
+//     the whole price of seeing a category that contains every painter,
+//     delegate, layout and style class in the subsystem.
 //
 // KNOWN CEILINGS, so a later reader does not mistake silence for proof:
 //   * This is a name-level scan, not a resolver. A member sharing a name with
 //     anything else in `lib/` — a field called `label`, `width`, `height` — can
 //     never be reported, because some other declaration's use of that word
 //     counts as a reference. It under-reports; it does not invent.
-//   * A class is effectively unreportable once it declares a constructor, per
-//     the rejected refinement above. An unused *class* therefore hides; an
-//     unused *member of it* does not, and neither does an unused free function,
-//     which is what caught `internal/scatter_polar.dart`.
+//   * CALLED-BUT-DISCARDED IS NOT COVERED, and this gate certified exactly that
+//     defect once — `FluentResponsiveChartHost`, the eighth instance above. A
+//     name-frequency scan sees that a name is written in `lib/`; that is not the
+//     same claim as its value being read. Three detectors were measured against
+//     this tree on 2026-08-11 before the ceiling was accepted rather than
+//     closed, and all three are recorded here so they are not re-proposed:
+//       - a closure parameter never named in the closure's own body: 31 hits,
+//         0 defects. Eleven are `(context, ...)` builders that need no context;
+//         seventeen are the d3 accessor signature `(d, i, data)` used for `d`
+//         alone (`sparkline.dart:74`, `polar_chart.dart:632`,
+//         `sankey_chart.dart:330`); three are `onChange: (selected, current)`
+//         (`declarative_chart.dart:783`). The discarded `metrics` was textually
+//         indistinguishable from all thirty-one.
+//       - a returned value assigned to nothing: 19 hits, 0 defects. Every one is
+//         a wrapped `=>` body, not a statement — `getTypeOfAxis` at
+//         `internal/chart_utils.dart:498-499` is `=>` then a newline then
+//         `chartAxisTypeOf(value);` — and separating the two needs the preceding
+//         token, which is a parser, not a regex.
+//       - a `_`-named parameter where the API implies use: 23 sites, and `_` is
+//         the language's own marker for deliberate non-use, so the rule would
+//         flag the idiom that states the opposite of the defect.
+//     0 of 73 across the three, so none was adopted. A builder or callback
+//     parameter that arrives and is dropped is a human's job at review; this
+//     file does not check it and must not be read as though it did.
 //   * Enum constants are out of scope. `FluentDataVizToken.color2..color40` are
 //     reached positionally (`FluentDataVizToken.values[number - 1]` at
 //     `data_viz_palette.dart:308`, `_qualitative[token.index]` at `:291`) and
@@ -94,7 +128,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// and the last test below fails if this map drifts from the scan in either
 /// direction, so an excuse cannot outlive the gap it excuses.
 ///
-/// Seventeen on 2026-08-11, down from thirty-five: plan 09 Task 28 landed
+/// Eighteen on 2026-08-11, down from thirty-five and up by the one that
+/// refinement 4 made visible, `FluentSparkline`: plan 09 Task 28 landed
 /// `declarative_chart.dart` and took eighteen entries with it in one go, every
 /// one of which had named that widget as the caller it was waiting for. The
 /// list before that was twenty-one, itself down from twenty-four when
@@ -105,9 +140,21 @@ import 'package:flutter_test/flutter_test.dart';
 /// `lib/` line was read from the file named.
 const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // --- Deliberate: the caller is not in lib/ and never will be -------------
+  'FluentSparkline':
+      'sparkline.dart:206, a published StatelessWidget. Its callers are '
+      'consumers of the package, which live outside lib/ by construction — the '
+      'same reason isAttached is on this list, and the reason FluentAreaChart '
+      'is not: a StatefulWidget is named by the `State<T>` in its own file and '
+      'a stateless one has no such back-reference. It is the entire measured '
+      'cost of refinement 4, and it does not hide a gap. Upstream has no '
+      'declarative route to a sparkline either — `grep -rn Sparkline` over '
+      'crawlers/fluentui-react-charts/out/charts/src hits only Sparkline.ts, '
+      'index.ts and components/Sparkline/, never DeclarativeChart — so no '
+      'unported adapter is going to arrive and call it. Removing this entry '
+      'means the package grows a lib/ consumer of its own sparkline.',
   'cachedCount':
       'Test and diagnostic observability on the measurer memo, declared as '
-      'such at chart_text_measurer.dart:119. FluentChartTextMeasurer is the '
+      'such at chart_text_measurer.dart:120. FluentChartTextMeasurer is the '
       "subsystem's only TextPainter owner — `melos run chart-invariants` "
       'fails if a second one appears — and the memo is what keeps a metric '
       'consistent with the painter it was measured from. Six assertions in '
@@ -118,7 +165,7 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   'isAttached':
       'Public state on FluentChartController, the imperative handle a user '
       "attaches through a chart's `controller` parameter (image_export.dart:"
-      '425-428, replacing upstream `componentRef` at hooks.ts:23-41). Its '
+      '426-429, replacing upstream `componentRef` at hooks.ts:23-41). Its '
       'callers are consumers of the published package, which live outside '
       'lib/ by construction — the same reason FluentAreaChart has no lib/ '
       'caller. It is the non-throwing query for whether toImage will '
@@ -132,8 +179,20 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'port types every series colour as `Color?` instead of a colour string, '
       'so a ported chart already holds a resolved colour or names a '
       'FluentDataVizToken and calls `FluentDataVizPalette.resolve`. A raw '
-      'upstream token string only ever arrives from untyped JSON, i.e. in the '
-      'same two unported declarative adapters. Unblocks with them.',
+      'upstream token string only ever arrives from untyped JSON. Audited '
+      '2026-08-11: this entry used to say "the same two unported declarative '
+      'adapters", and one of the two has landed, which is the shape that hid '
+      'transformPlotlyToVbc. It did not hide anything here — the reason '
+      'strengthened. Every upstream caller of getColorFromToken is an '
+      'imperative chart reading a consumer-supplied colour string '
+      '(PolarChart.tsx:123, DonutChart.tsx:264, LineChart.tsx:280, '
+      'GanttChart.tsx:80, ScatterChart.tsx:157), which is exactly what the '
+      "port's Color? typing removes; and the Plotly adapter took the typed "
+      'branch instead — PlotlyColorAdapter.ts:102 passes a DataVizPalette '
+      'token to getColorFromToken, and color_adapter.dart:162 calls '
+      'FluentDataVizPalette.resolve on the same token. One adapter is left, '
+      'Vega, whose VegaLiteColorAdapter.ts:250 does call it on a string. '
+      'Unblocks with that one, or is deleted with it.',
   // `shouldResize` was here, and it named its own resolution: "the likely
   // resolution when the adapters land is deletion with that test, not wiring".
   // The adapter landed and took the wiring instead — `declarative_chart.dart`
@@ -426,6 +485,28 @@ final RegExp _topLevelDeclaration = RegExp(
   r'[A-Za-z_][A-Za-z0-9_<>,?\[\]. ]*[ >?\]] *([a-z][A-Za-z0-9_]*) *[(=;]',
 );
 
+/// A constructor declared at exactly two spaces of indent: `const Foo({`,
+/// `Foo._(`, `factory Foo.fromJson(`.
+///
+/// This line spells the class name, so a scan that does not know it is a
+/// declaration reads it as a reference — which is what made a class
+/// unreportable regardless of whether anything used it. The capitalised name
+/// must be followed by an optional `.named` and then `(`, which is what keeps a
+/// method off the pattern: `Foo copyWith({` has a word between the two.
+///
+/// The `(?:\.[A-Za-z0-9_]+)?` arm reports no orphan on today's tree, and is
+/// kept because it is the difference between seeing and not seeing a class
+/// whose only constructor is named — `FluentSparklineLayout._` at
+/// `sparkline.dart:29` is the house idiom. Proven by planting a class with a
+/// private named constructor and nothing else: the gate fails with the arm and
+/// passes without it. Over-matching here is loud rather than silent — an extra
+/// subtraction reports a false orphan — so the pattern is deliberately narrow
+/// on what precedes the name and permissive after it.
+final RegExp _constructorDeclaration = RegExp(
+  r'^  (?:const |factory |external )*([A-Z][A-Za-z0-9_]*)(?:\.[A-Za-z0-9_]+)?'
+  r' *\(',
+);
+
 /// A member declared at exactly two spaces of indent — `dart format` puts every
 /// class member there and every statement inside one at four or more, so the
 /// indent alone separates a field from a local. Named constructors are skipped:
@@ -491,6 +572,10 @@ bool _isOverride(List<String> lines, int index) {
     // at the same two-space indent, so without this its locals — `final double
     // radius;` at `marker_geometry.dart:45` — read as fields.
     var inClassBody = false;
+    // Enum bodies are excluded from the member scan above and included here: a
+    // constant like `  color1,` must not read as a field, but `  const
+    // FluentFoo(this.x);` is still the enum's constructor spelling its own name.
+    var inTypeBody = false;
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i];
       if (!line.startsWith(' ')) {
@@ -498,6 +583,7 @@ bool _isOverride(List<String> lines, int index) {
         if (type != null) {
           record(type.group(1)!, file, i, reportable: true);
           inClassBody = !line.startsWith('enum ');
+          inTypeBody = true;
           continue;
         }
         final topLevel = _topLevelDeclaration.firstMatch(line);
@@ -506,12 +592,25 @@ bool _isOverride(List<String> lines, int index) {
         }
         if (line.trim().isNotEmpty) {
           inClassBody = false;
+          inTypeBody = false;
         }
         continue;
       }
       // A trailing comma is a parameter in a wrapped signature or a switch
       // pattern arm, never a member.
-      if (!inClassBody || line.trimRight().endsWith(',')) {
+      if (line.trimRight().endsWith(',')) {
+        continue;
+      }
+      if (inTypeBody) {
+        final constructor = _constructorDeclaration.firstMatch(line);
+        if (constructor != null) {
+          // Counted, never reported: the site of a class is its `class` line,
+          // and a constructor has no name of its own to report.
+          record(constructor.group(1)!, file, i, reportable: false);
+          continue;
+        }
+      }
+      if (!inClassBody) {
         continue;
       }
       final member = _memberDeclaration.firstMatch(line);
@@ -550,7 +649,7 @@ void main() {
   };
 
   test('the scan read the sources it claims to read', () {
-    // 1509 reportable declarations across 81 files on 2026-08-11. The floor is
+    // 1664 reportable declarations across 98 files on 2026-08-11. The floor is
     // the failure this guards: a regex that stops matching reports zero orphans
     // and passes, which is the gate quietly deleting itself. `melos run ci`
     // would stay green through it, exactly as it did through all seven defects
@@ -587,6 +686,23 @@ void main() {
           'symbol would read as uncalled and the allowlist would grow to '
           'cover the whole subsystem',
     );
+    // A constructor line spells its own class name, and reading it as a
+    // reference is what kept every class with a constructor off this report —
+    // the gate stayed green on a planted unused public class. `FluentSparkline`
+    // declares `class` at sparkline.dart:206 and `const FluentSparkline({` at
+    // :208, so two is the count that proves the constructor arm is still on.
+    // Nothing else fails if it is dropped: the scan would simply stop finding
+    // classes, silently, exactly as it did before.
+    expect(
+      declarations.counts['FluentSparkline'],
+      greaterThanOrEqualTo(2),
+      reason:
+          'the scan counted ${declarations.counts['FluentSparkline']} '
+          'declarations of FluentSparkline, which declares a class and a '
+          'constructor — the constructor arm has been dropped, so every class '
+          'that declares a constructor is unreportable again and this gate is '
+          'blind to painters, delegates, layouts and styles as a category',
+    );
     // A record return type is the one declaration shape this scan was blind to,
     // and that blindness is why both `solveDomainMargin` declarations were
     // invisible rather than merely unreported. Anchoring on the symbol that was
@@ -618,7 +734,7 @@ void main() {
           '${unexcused.join('\n')}\n'
           'Wire it, delete it, or add it to kChartOrphanAllowlist with the '
           'reason it stays. A tested helper nothing calls is the defect this '
-          'gate exists to stop, and it has shipped seven times under a green '
+          'gate exists to stop, and it has shipped eight times under a green '
           'suite.',
     );
   });
