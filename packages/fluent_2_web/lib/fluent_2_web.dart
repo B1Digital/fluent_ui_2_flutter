@@ -36,6 +36,9 @@ export 'src/buttons/split_button.dart';
 // purpose. Tests reach it by deep import, which is existing precedent in this
 // repository. `src/charts/internal/responsive.dart` was named here too and is
 // now deleted rather than hidden — see the design document, section 5.1.
+// `src/charts/internal/plotly/**` and `src/charts/internal/vega/**` are held
+// back on the same grounds: they are the two declarative adapters' private
+// transformers, published only through the four `*declarative_chart*` files.
 export 'src/charts/annotation_only_chart.dart';
 export 'src/charts/annotation_only_chart_style.dart';
 export 'src/charts/area_chart.dart';
@@ -65,6 +68,8 @@ export 'src/charts/chrome/event_annotation.dart';
 export 'src/charts/chrome/legend.dart';
 export 'src/charts/chrome/legend_shape.dart';
 export 'src/charts/chrome/legend_style.dart';
+export 'src/charts/declarative_chart.dart';
+export 'src/charts/declarative_chart_style.dart';
 export 'src/charts/donut_chart.dart';
 export 'src/charts/donut_chart_style.dart';
 export 'src/charts/funnel_chart.dart';
@@ -89,6 +94,11 @@ export 'src/charts/internal/chart_utils.dart';
 export 'src/charts/internal/data_viz_palette.dart';
 export 'src/charts/internal/image_export.dart';
 export 'src/charts/internal/marker_geometry.dart';
+// The single exception to that rule: `FluentPlotlyColorway` is a widget prop of
+// `FluentDeclarativeChart` (`DeclarativeChart.tsx:132`), so a consumer cannot
+// set `colorwayType` without naming it. Nothing else in the library is shown.
+export 'src/charts/internal/plotly/color_adapter.dart'
+    show FluentPlotlyColorway;
 export 'src/charts/internal/scatter_polar.dart';
 export 'src/charts/line_chart.dart';
 export 'src/charts/line_chart_style.dart';
@@ -113,6 +123,8 @@ export 'src/charts/scatter_chart.dart';
 export 'src/charts/scatter_chart_style.dart';
 export 'src/charts/sparkline.dart';
 export 'src/charts/sparkline_style.dart';
+export 'src/charts/vega_declarative_chart.dart';
+export 'src/charts/vega_declarative_chart_style.dart';
 export 'src/charts/vertical_bar_chart.dart';
 export 'src/charts/vertical_bar_chart_style.dart';
 export 'src/charts/vertical_stacked_bar_chart.dart';

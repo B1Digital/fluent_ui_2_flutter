@@ -1,5 +1,4 @@
 import 'package:fluent_2_web/fluent_2_web.dart';
-import 'package:fluent_2_web/src/charts/internal/plotly/color_adapter.dart';
 import 'package:fluent_2_web/src/charts/internal/plotly/transform_bar.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';

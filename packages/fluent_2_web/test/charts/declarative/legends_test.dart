@@ -1,7 +1,6 @@
 import 'dart:ui' show Color;
 
 import 'package:fluent_2_web/fluent_2_web.dart';
-import 'package:fluent_2_web/src/charts/internal/plotly/color_adapter.dart';
 import 'package:fluent_2_web/src/charts/internal/plotly/legends.dart';
 import 'package:fluent_2_web/src/charts/internal/plotly/router.dart';
 import 'package:flutter_test/flutter_test.dart';
