@@ -185,16 +185,6 @@ final class FluentMixedCoordinate extends FluentChartAnnotationCoordinate {
   final FluentAnnotationYAxis yAxis;
 }
 
-/// The width a chart reserves for an annotation when none is given.
-///
-/// `DEFAULT_FOREIGN_OBJECT_WIDTH` (`ChartAnnotationLayer.tsx:28`).
-const double kDefaultForeignObjectWidth = 180;
-
-/// The height a chart reserves for an annotation when none is given.
-///
-/// `DEFAULT_FOREIGN_OBJECT_HEIGHT` (`ChartAnnotationLayer.tsx:29`).
-const double kDefaultForeignObjectHeight = 60;
-
 /// The line drawn from an annotation to its anchor.
 ///
 /// Ports `ChartAnnotationConnectorProps` (`types/ChartAnnotation.ts:46-59`). The
@@ -266,7 +256,17 @@ class FluentChartAnnotationLayout {
   /// Vertical nudge applied after alignment, in logical pixels.
   final double offsetY;
 
-  /// The width text wraps at. Null uses [kDefaultForeignObjectWidth].
+  /// The width the box is capped at, which is where its text wraps.
+  ///
+  /// Null caps it at nothing: `ChartAnnotationLayer.tsx:493` writes
+  /// `maxWidth: layout?.maxWidth` onto the container, so an absent one emits no
+  /// `max-width` and the box takes the whole natural width of its text. The
+  /// `DEFAULT_FOREIGN_OBJECT_WIDTH` of 180 at `:28` is **not** a default for
+  /// this: it is third in the `measuredSize?.width ?? layout?.maxWidth ?? 180`
+  /// chain at `:535`, reachable only in the frame before upstream's hidden
+  /// measurement div reports a size. Flutter measures in the same frame
+  /// (`chrome/annotation_layer.dart:996-1011`), so no state of this port can
+  /// select it.
   final double? maxWidth;
 
   /// Whether the annotation is kept inside the plot area.

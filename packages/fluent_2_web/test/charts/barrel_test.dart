@@ -57,7 +57,6 @@ void main() {
         const FluentChartMarkSemantics(),
         kChartTitlePadding,
         kDefaultBarWidth,
-        kDefaultForeignObjectWidth,
       ],
       isNotEmpty,
       reason:

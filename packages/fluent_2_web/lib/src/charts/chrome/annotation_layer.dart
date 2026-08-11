@@ -921,7 +921,7 @@ class FluentChartAnnotationLayerTheme extends InheritedTheme {
 /// (`ChartAnnotationLayer.tsx:596-632`), waiting a frame for the answer. Flutter
 /// lays text out synchronously, so the boxes are measured through
 /// [FluentChartTextMeasurer] in the same frame and the `180 × 60` first-paint
-/// fallback at `:534-535` never appears.
+/// fallback at `:535-536` never appears.
 class FluentChartAnnotationLayer extends StatelessWidget {
   /// Creates an annotation layer.
   const FluentChartAnnotationLayer({

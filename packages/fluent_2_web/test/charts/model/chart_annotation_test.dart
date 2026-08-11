@@ -290,20 +290,14 @@ void main() {
     });
   });
 
-  group('the foreign-object constants', () {
-    test('match the layer defaults', () {
-      expect(
-        kDefaultForeignObjectWidth,
-        180,
-        reason: 'ChartAnnotationLayer.tsx:28.',
-      );
-      expect(
-        kDefaultForeignObjectHeight,
-        60,
-        reason: 'ChartAnnotationLayer.tsx:29.',
-      );
-    });
-  });
+  // `kDefaultForeignObjectWidth` / `kDefaultForeignObjectHeight` were asserted
+  // here to be 180 and 60 until they were deleted. They ported
+  // DEFAULT_FOREIGN_OBJECT_WIDTH / _HEIGHT (ChartAnnotationLayer.tsx:28-29),
+  // whose only use is the pre-measurement fallback at `:535-536` — a state a
+  // synchronously measured port has none of. What the pair is replaced by is
+  // behavioural, not a restated number: the two maxWidth tests in
+  // test/charts/chrome/annotation_layer_test.dart pin that a null maxWidth
+  // leaves the box unbounded rather than 180 wide.
 
   group('FluentEventAnnotation', () {
     test('pairs a date with an event label', () {

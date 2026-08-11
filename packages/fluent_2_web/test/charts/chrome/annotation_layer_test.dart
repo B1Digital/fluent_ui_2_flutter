@@ -871,13 +871,31 @@ void mainSizing() {
 
     test('a null clipToBounds still clamps the BOX to the plot rect', () {
       expect(
-        layout(const Offset(215, 50)).rect.right,
+        layout(
+          const Offset(215, 50),
+          // Spelled with a layout object present, because
+          // `layout?.clampsViewport ?? true` short-circuits on a null layout
+          // and would never reach clampsViewport at all. This is the state the
+          // test is named for: a layout that exists and leaves the flag unset.
+          layoutProps: const FluentChartAnnotationLayout(),
+        ).rect.right,
         context.plotRect.right,
         reason:
             'ChartAnnotationLayer.tsx:544 is `layout?.clipToBounds !== false`, '
             'so undefined selects the plot rect as the clamping viewport even '
             'though :385 left the point alone. That asymmetry is the whole '
             'reason clipToBounds is a tri-state.',
+      );
+    });
+
+    test('a missing layout clamps the BOX the same way', () {
+      expect(
+        layout(const Offset(215, 50)).rect.right,
+        context.plotRect.right,
+        reason:
+            'ChartAnnotationLayer.tsx:544 reads `layout?.clipToBounds`, so an '
+            'absent layout is undefined too and takes the same `!== false` '
+            'arm as an unset flag.',
       );
     });
 
@@ -1614,6 +1632,99 @@ void mainLayerWidget() {
       reason:
           'ChartAnnotationLayer.tsx:521-522 — `rotate(Ndeg)` with '
           '`transform-origin: 50% 50%`.',
+    );
+  });
+
+  // ChartAnnotationLayer.tsx:492-493 puts `maxWidth: layout?.maxWidth` on the
+  // annotation container, so an absent one emits no `max-width` at all and the
+  // hidden measurement div (`:608-632`) shrink-wraps the text. `:535` then
+  // takes that measured width. `DEFAULT_FOREIGN_OBJECT_WIDTH` (`:28`) sits
+  // third in the `measuredSize?.width ?? layout?.maxWidth ?? 180` chain at
+  // `:535`, so it is reachable only in the frame before
+  // getBoundingClientRect answers — never once a size is known, and never as a
+  // wrap width. These two pin that a null maxWidth is unbounded rather than
+  // 180-wide, which is what model/chart_annotation.dart:269 used to claim.
+  const naturalWidthText =
+      'A deployment note long enough to run well past the default';
+  double boxWidth(WidgetTester tester) => tester
+      .widget<Positioned>(
+        find.descendant(
+          of: find.byType(FluentChartAnnotationLayer),
+          matching: find.byType(Positioned),
+        ),
+      )
+      .width!;
+  double boxHeight(WidgetTester tester) => tester
+      .widget<Positioned>(
+        find.descendant(
+          of: find.byType(FluentChartAnnotationLayer),
+          matching: find.byType(Positioned),
+        ),
+      )
+      .height!;
+
+  testWidgets('a null maxWidth leaves the box at its natural width', (
+    tester,
+  ) async {
+    await pump(tester, const <FluentChartAnnotation>[
+      FluentChartAnnotation(
+        text: naturalWidthText,
+        coordinates: FluentPixelCoordinate(x: 100, y: 100),
+      ),
+    ]);
+    // The 180 is DEFAULT_FOREIGN_OBJECT_WIDTH (ChartAnnotationLayer.tsx:28),
+    // named here only as the bound this text must be seen to cross.
+    expect(
+      boxWidth(tester),
+      greaterThan(180),
+      reason:
+          'ChartAnnotationLayer.tsx:493 writes no max-width when the layout '
+          'omits one, so the box takes the text it measured (`:535`). Nothing '
+          'upstream wraps a null maxWidth at 180.',
+    );
+  });
+
+  testWidgets('an explicit maxWidth is the one thing that bounds the box', (
+    tester,
+  ) async {
+    await pump(tester, const <FluentChartAnnotation>[
+      FluentChartAnnotation(
+        text: naturalWidthText,
+        coordinates: FluentPixelCoordinate(x: 100, y: 100),
+      ),
+    ]);
+    final natural = (width: boxWidth(tester), height: boxHeight(tester));
+    await pump(tester, const <FluentChartAnnotation>[
+      FluentChartAnnotation(
+        text: naturalWidthText,
+        coordinates: FluentPixelCoordinate(x: 100, y: 100),
+        // Upstream's own DEFAULT_FOREIGN_OBJECT_WIDTH value, asked for
+        // explicitly: the only way ChartAnnotationLayer.tsx:493 ever puts 180
+        // on the container.
+        layout: FluentChartAnnotationLayout(maxWidth: 180),
+      ),
+    ]);
+    expect(
+      boxWidth(tester),
+      lessThanOrEqualTo(180),
+      reason:
+          'ChartAnnotationLayer.tsx:493 — a named maxWidth is a container '
+          'max-width, so the text wraps inside it and :535 measures the '
+          'narrower box.',
+    );
+    expect(
+      boxWidth(tester),
+      lessThan(natural.width),
+      reason:
+          'The same text unbounded is wider, which is what makes the bound '
+          'observable rather than coincidental.',
+    );
+    expect(
+      boxHeight(tester),
+      greaterThan(natural.height),
+      reason:
+          'useChartAnnotationLayer.styles.ts:107 is `white-space: pre-wrap`, '
+          'so the width the box loses comes back as wrapped lines.',
     );
   });
 
