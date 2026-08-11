@@ -94,11 +94,13 @@ import 'package:flutter_test/flutter_test.dart';
 /// and the last test below fails if this map drifts from the scan in either
 /// direction, so an excuse cannot outlive the gap it excuses.
 ///
-/// Twenty-one on 2026-08-11: nineteen, down from twenty-four when
+/// Seventeen on 2026-08-11, down from thirty-five: plan 09 Task 28 landed
+/// `declarative_chart.dart` and took eighteen entries with it in one go, every
+/// one of which had named that widget as the caller it was waiting for. The
+/// list before that was twenty-one, itself down from twenty-four when
 /// VerticalStackedBarChart's line overlay took five entries with it as
-/// `paintSeries` started painting it, plus `shouldResize` from the responsive
-/// host and `getChartAnnotationsFromLayout` from the Plotly annotation
-/// converter. Every upstream line cited here was read from
+/// `paintSeries` started painting it. Every upstream line cited here was read
+/// from
 /// `crawlers/fluentui-react-charts/out/charts/src` while writing it, and every
 /// `lib/` line was read from the file named.
 const Map<String, String> kChartOrphanAllowlist = <String, String>{
@@ -123,15 +125,6 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'succeed, versus the StateError at image_export.dart:455.',
 
   // --- Blocked: the consumer is not ported --------------------------------
-  'fluentChartIsDarkTheme':
-      'Ports `useIsDarkTheme` (DeclarativeChart.tsx:340-351, twinned at '
-      'VegaDeclarativeChartHooks.ts:12), which compares HSL lightness rather '
-      'than reading a brightness flag. Both callers are the declarative '
-      'adapters — DeclarativeChart and VegaDeclarativeChart, the two of '
-      "upstream's twenty charts not yet ported. Every imperatively mounted "
-      'chart leaves isDark false, which is upstream behaviour, so there is no '
-      'other site that should be calling this. Unblocks when either adapter '
-      'lands.',
   'tokenFromUpstreamName':
       'Ports the token-lookup arm of `getColorFromToken` (colors.ts:139-146) '
       '— the `TOKENS.indexOf(token)` branch at :140, with a null result '
@@ -146,10 +139,10 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       '(calculatedHeight ?? 0)` scalar upstream injects into every child of '
       'ResponsiveContainer (ResponsiveContainer.tsx:84) for the sole benefit '
       'of SankeyChart, whose resize effect lists it as a dependency '
-      '(SankeyChart.tsx:608). The host that declares it is mounted only by the '
-      'two unported declarative adapters, so like fluentChartIsDarkTheme it is '
-      'waiting on them — but unlike that entry it may never gain a caller '
-      'even then, and the honest reading is that it already has none: the '
+      '(SankeyChart.tsx:608). The host that declares it is mounted by the '
+      'declarative adapters, and FluentDeclarativeChart now mounts one per '
+      'grid cell (declarative_chart.dart) — without reading this, and the '
+      'honest reading is that it never will: the '
       'shipped FluentSankeyChart states at sankey_chart.dart:606-609 that '
       '`parentRef` and `shouldResize` are replaced by the widget\'s own '
       'BoxConstraints, and it exposes no parameter to pass this to. It is '
@@ -157,46 +150,22 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'and pins it with a test. The likely resolution when the adapters land '
       'is deletion with that test, not wiring.',
 
+  // Eighteen entries were here until plan 09 Task 28 landed
+  // `lib/src/charts/declarative_chart.dart`, the one widget every one of them
+  // named as the caller that did not exist yet: `mapFluentChart`,
+  // `getAllupLegendsProps`, `fluentChartIsDarkTheme` and fifteen of the sixteen
+  // `transformPlotlyTo*` functions. `_FluentDeclarativeChartState._buildChart`
+  // dispatches each transformer from its own arm, `_buildFigure` calls the
+  // router at the `DeclarativeChart.tsx:362` position and the legend builder at
+  // the `:535` position, and `build` reads the dark-theme test at `:340-351`.
+  // The sixteenth transformer, `transformPlotlyToVbc`, is below with the reason
+  // it survived.
+  //
   // `getChartAnnotationsFromLayout` was here until plan 09 Task 18 landed the
   // first transformer that calls it: internal/plotly/transform_bar.dart writes
   // `getChartAnnotationsFromLayout(layout, isMultiPlot: isMultiPlot)` at the
   // `PlotlySchemaAdapter.ts:1579` position, which is what its own entry said
   // would remove it.
-  'transformPlotlyToDonut':
-      'internal/plotly/transform_pie.dart, the Plotly `pie` transformer '
-      '(PlotlySchemaAdapter.ts:1282-1388) and plan 09 Task 17. Upstream '
-      "reaches it from the `donut` entry of DeclarativeChart's chartMap "
-      '(DeclarativeChart.tsx:268-271), dispatched at :607; that adapter is one '
-      'of '
-      "upstream's twenty charts not yet ported and is plan 09's last task, so "
-      'the call site does not exist yet rather than having been forgotten. '
-      'Whoever lands DeclarativeChart deletes this entry — the test below '
-      'fails until they do.',
-  'transformPlotlyToGvbc':
-      'internal/plotly/transform_bar.dart, the Plotly grouped-vertical-bar '
-      'transformer (PlotlySchemaAdapter.ts:1610-1791) and plan 09 Task 19. '
-      'Upstream reaches it from the `groupedverticalbar` entry of '
-      "DeclarativeChart's chartMap (DeclarativeChart.tsx:268-271), dispatched "
-      'at :607, and the router already resolves that kind '
-      '(internal/plotly/router.dart:765-770) — what is missing is the widget '
-      'that reads the route, which is plan 09 Task 28. So the call site does '
-      'not exist yet rather than having been forgotten. Whoever lands '
-      'DeclarativeChart deletes this entry — the test below fails until they '
-      'do. `normalizeObjectArrayForGvbc` needs no entry: this function calls '
-      'it.',
-  'transformPlotlyToVsbc':
-      'internal/plotly/transform_bar.dart, the Plotly vertical-stacked-bar '
-      'transformer (PlotlySchemaAdapter.ts:1390-1608) and plan 09 Task 18. It '
-      "is also the fallback route's transformer, so upstream reaches it twice "
-      "from DeclarativeChart's chartMap — the `verticalstackedbar` entry and "
-      'the `fallback` entry (DeclarativeChart.tsx:268-271), both dispatched at '
-      ':607. That widget is plan 09 Task 28, which supplies the enclosing '
-      "SizedBox this transformer deliberately does not build (spec §2.2's "
-      'constraint-sized shell charts, with the 350 from '
-      'PlotlySchemaAdapter.ts:1584 living in kPlotlyDefaultCellHeight), so the '
-      'call site does not exist yet rather than having been forgotten. Whoever '
-      'lands DeclarativeChart deletes this entry — the test below fails until '
-      'they do.',
   'transformPlotlyToVbc':
       'internal/plotly/transform_bar.dart, the Plotly vertical-bar and '
       'histogram transformer (PlotlySchemaAdapter.ts:1793-1906) and plan 09 '
@@ -207,154 +176,20 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'plan 09 Task 28, which also supplies the enclosing SizedBox this '
       "transformer deliberately does not build (spec §2.2's constraint-sized "
       'shell charts, with the 350 from PlotlySchemaAdapter.ts:1892 living in '
-      'kPlotlyDefaultCellHeight). So the call site does not exist yet rather '
-      'than having been forgotten. Two things must land before it can: that '
-      'widget, and a `verticalBar` member of FluentPlotlyChartKind — '
-      'internal/plotly/router.dart:707-717 currently sends `histogram` to '
-      '`verticalStackedBar`, which is the one route upstream reserves for this '
-      'transformer, so as it stands a histogram would bin nothing. Whoever '
-      'lands DeclarativeChart deletes this entry. `getNumberAtIndexOrDefault` '
-      'needs no entry: this function calls it.',
-  'transformPlotlyToLine':
-      'internal/plotly/transform_xy.dart, one of the three wrappers over the '
-      'Plotly scatter-trace core (PlotlySchemaAdapter.ts:1925-1940, body at '
-      ':1979-2212) and plan 09 Task 21. Upstream reaches it from the `line` '
-      "entry of DeclarativeChart's chartMap (DeclarativeChart.tsx:268-271), "
-      'dispatched at :607, and a figure mixing line and scatter traces routes '
-      'here too (:578-588). That widget is plan 09 Task 28. The core itself is '
-      'NOT excused by this entry: mapColorFillBars and getValidXYRanges are '
-      'called from inside the same file, and the polar half of what this '
-      'produces is proven end to end by the mounted test in '
-      'test/charts/declarative/transform_scatter_test.dart, which counts the '
-      'category-ring labels a real FluentLineChart paints. Whoever lands '
-      'DeclarativeChart deletes this entry.',
-  'transformPlotlyToArea':
-      'internal/plotly/transform_xy.dart, the area wrapper over the same core '
-      '(PlotlySchemaAdapter.ts:1908-1923). Upstream reaches it from the `area` '
-      "entry of DeclarativeChart's chartMap (DeclarativeChart.tsx:268-271); "
-      'that widget is plan 09 Task 28, which also supplies the enclosing '
-      "SizedBox (spec §2.2's constraint-sized shell charts, with the 350 from "
-      'PlotlySchemaAdapter.ts:2172 living in kPlotlyDefaultCellHeight). '
-      'Whoever lands DeclarativeChart deletes this entry.',
-  'transformPlotlyToScatter':
-      'internal/plotly/transform_xy.dart, the scatter wrapper over the same '
-      'core (PlotlySchemaAdapter.ts:1942-1957) — the branch that alone adds '
-      'showYAxisLablesTooltip (:2201) and the category order (:2202), and that '
-      'alone builds scatterChartData rather than lineChartData (:2162-2164). '
-      "Upstream reaches it from the `scatter` entry of DeclarativeChart's "
-      'chartMap (DeclarativeChart.tsx:268-271); that widget is plan 09 Task '
-      '28. Whoever lands DeclarativeChart deletes this entry.',
-  'transformPlotlyToGantt':
-      'internal/plotly/transform_bar.dart, the Plotly gantt transformer '
-      '(PlotlySchemaAdapter.ts:2296-2395) and plan 09 Task 23. Upstream '
-      "reaches it from the `gantt` entry of DeclarativeChart's chartMap "
-      '(DeclarativeChart.tsx:268-271), dispatched at :607; that widget is plan '
-      '09 Task 28, which also supplies the enclosing SizedBox this transformer '
-      "deliberately does not build (spec §2.2's constraint-sized shell charts, "
-      'with the 350 from PlotlySchemaAdapter.ts:2382 living in '
-      'kPlotlyDefaultCellHeight). So the call site does not exist yet rather '
-      'than having been forgotten, and what this transformer produces is '
-      'proven consumable by the mounted test in '
-      'test/charts/declarative/transform_gantt_test.dart, which pumps a real '
-      'FluentGanttChart built from a figure and reads the transformed points '
-      'back off the delegate it paints from. Whoever lands DeclarativeChart '
-      'deletes this entry.',
-  'transformPlotlyToHbwa':
-      'internal/plotly/transform_bar.dart, the Plotly horizontal-bar-with-axis '
-      'transformer (PlotlySchemaAdapter.ts:2214-2294) and plan 09 Task 22 — '
-      'the only transformer that computes a real pixel geometry (:2263-2270). '
-      "Upstream reaches it from the `horizontalbar` entry of DeclarativeChart's "
-      'chartMap (DeclarativeChart.tsx:283-286), dispatched at :607, and the '
-      'router already resolves that kind (internal/plotly/router.dart:572) — '
-      'what is missing is the widget that reads the route, which is plan 09 '
-      'Task 28. So the call site does not exist yet rather than having been '
-      'forgotten, and what this transformer produces is proven consumable by '
-      'the mounted test in '
-      'test/charts/declarative/transform_hbwa_test.dart, which pumps a real '
-      'FluentHorizontalBarChartWithAxis built from a figure and reads both the '
-      'transformed points and the solved bar height back off the delegate it '
-      'paints from. Whoever lands DeclarativeChart deletes this entry.',
-  'transformPlotlyToHeatmap':
-      'internal/plotly/transform_xy.dart, the Plotly heatmap and histogram2d '
-      'transformer (PlotlySchemaAdapter.ts:2397-2621) and plan 09 Task 24. '
-      "Upstream reaches it from the `heatmap` entry of DeclarativeChart's "
-      'chartMap (DeclarativeChart.tsx:295-298), dispatched at :607, and the '
-      'router already resolves both trace types to that kind '
-      '(internal/plotly/router.dart:699-701) — what is missing is the widget '
-      'that reads the route, which is plan 09 Task 28. That widget also '
-      'supplies the enclosing SizedBox this transformer deliberately does not '
-      "build (spec §2.2's constraint-sized shell charts, with the 350 from "
-      'PlotlySchemaAdapter.ts:2613 living in kPlotlyDefaultCellHeight). So the '
-      'call site does not exist yet rather than having been forgotten, and '
-      'what this transformer produces is proven consumable by the mounted '
-      'test in test/charts/declarative/transform_heatmap_test.dart, which '
-      'pumps a real FluentHeatMapChart built from a figure and reads the '
-      'transformed grid and colour domain back off the delegate it paints '
-      'from. Whoever lands DeclarativeChart deletes this entry. '
-      'cleanPlotlyText needs no entry: this function is its only caller.',
-  'transformPlotlyToSankey':
-      'internal/plotly/transform_pie.dart, the Plotly sankey transformer '
-      '(PlotlySchemaAdapter.ts:2623-2715) and plan 09 Task 25. Upstream '
-      "reaches it from the `sankey` entry of DeclarativeChart's chartMap "
-      '(DeclarativeChart.tsx:272-275), dispatched at :607, and the router '
-      'already resolves that kind (internal/plotly/router.dart:702-703) — '
-      'what is missing is the widget that reads the route, which is plan 09 '
-      'Task 28. That widget also supplies the enclosing SizedBox this '
-      "transformer deliberately does not build (spec §2.2's constraint-sized "
-      'charts; FluentSankeyChart takes no width or height at all, because '
-      'sankey_chart.dart:606-608 records both props as dead upstream, so '
-      "PlotlySchemaAdapter.ts:2709's 468 belongs with the 350 in "
-      'kPlotlyDefaultCellHeight). So the call site does not exist yet rather '
-      'than having been forgotten, and what this transformer produces is '
-      'proven consumable by the mounted test in '
-      'test/charts/declarative/transform_nonplot_test.dart, which pumps a '
-      'real FluentSankeyChart built from a figure and reads the node and link '
-      'counts back off the semantics the layout pass emits. Whoever lands '
-      'DeclarativeChart deletes this entry.',
-  'transformPlotlyToGauge':
-      'internal/plotly/transform_pie.dart, the Plotly indicator transformer '
-      '(PlotlySchemaAdapter.ts:2717-2838) and plan 09 Task 25. Upstream '
-      "reaches it from the `gauge` entry of DeclarativeChart's chartMap "
-      '(DeclarativeChart.tsx:299-302), dispatched at :607, and the router '
-      'already resolves both trace types to that kind '
-      '(internal/plotly/router.dart:704-706) — what is missing is the widget '
-      'that reads the route, which is plan 09 Task 28. So the call site does '
-      'not exist yet rather than having been forgotten, and what this '
-      'transformer produces is proven consumable by the mounted test in '
-      'test/charts/declarative/transform_nonplot_test.dart, which pumps a '
-      'real FluentGaugeChart built from a figure and finds both the delta '
-      'sublabel and the unformatted chart value painted. Whoever lands '
-      'DeclarativeChart deletes this entry. getGaugeAxisColor needs no entry: '
-      'this function is its only caller.',
-  'transformPlotlyToChartTable':
-      'internal/plotly/transform_pie.dart, the Plotly table transformer '
-      '(PlotlySchemaAdapter.ts:2908-3016) and plan 09 Task 25. Upstream '
-      "reaches it from the `table` entry of DeclarativeChart's chartMap "
-      '(DeclarativeChart.tsx:277-280), dispatched at :607, and the router '
-      'already resolves that kind (internal/plotly/router.dart:720-721) — '
-      'what is missing is the widget that reads the route, which is plan 09 '
-      'Task 28. Unlike its nine cartesian siblings this one really does carry '
-      "the layout's own box, because chart_table.dart:204-212 keeps width and "
-      "height and holds upstream's '100%' and 650 fallbacks inside the "
-      'widget. So the call site does not exist yet rather than having been '
-      'forgotten, and what this transformer produces is proven consumable by '
-      'the mounted test in '
-      'test/charts/declarative/transform_nonplot_test.dart, which pumps a '
-      'real FluentChartTable built from a figure and finds every transformed '
-      'header and body cell painted. Whoever lands DeclarativeChart deletes '
-      'this entry.',
-  'getAllupLegendsProps':
-      'internal/plotly/legends.dart, the all-up legend a multi-plot figure '
-      'draws beneath its grid (PlotlySchemaAdapter.ts:3489-3567) and plan 09 '
-      'Task 11. Upstream has exactly one caller, DeclarativeChart.tsx:535-541, '
-      'and it is deliberately placed BEFORE the render loop at :571 because '
-      'the order in which it touches colorMap is the order every transformer '
-      'beneath it then inherits — so it cannot be wired from a transformer to '
-      'dodge this list, and plan 09 Task 28 writes the one call at the one '
-      'position. The other two exports of this file are NOT excused by this '
-      'entry and need none: getLegendProps has four callers in '
-      'transform_bar.dart and one in transform_xy.dart, and getLegendShape has '
-      'three. Whoever lands DeclarativeChart deletes this entry.',
+      'kPlotlyDefaultCellHeight). That widget has now landed — plan 09 Task 28, '
+      'declarative_chart.dart — and this entry did NOT go with it, because the '
+      'second of the two blockers it named is still open: FluentPlotlyChartKind '
+      'has no `verticalBar` member, so internal/plotly/router.dart:707-717 '
+      'sends `histogram` to `verticalStackedBar`, which is the one route '
+      'upstream reserves for this transformer, and a histogram bins nothing. '
+      "The widget's `_buildChart` therefore has no arm to dispatch here from "
+      'and kPlotlyDefaultCellHeight carries no entry for the 350 at '
+      'PlotlySchemaAdapter.ts:1892. Closing it means adding the member to the '
+      'enum and to plotlyChartKindName, re-pointing the `histogram` case in '
+      "the router, and re-pinning the router corpus's own expectation at "
+      'test/charts/declarative/router_corpus_test.dart:181-186 — not editing '
+      'this entry. `getNumberAtIndexOrDefault` needs no entry: this function '
+      'calls it.',
   // `getPolarAxisProps` was here until plan 09 Task 26 landed. Its entry said
   // "the moment transformPlotlyToPolar exists it must read this", and it does:
   // internal/plotly/transform_pie.dart calls it once, where
@@ -362,71 +197,6 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // went with it. getPolarAxisType, added to axis.dart by the same task to
   // expose the one field PlotlySchemaAdapter.ts:3186 needs, needs no entry
   // either: the polar transformer is its caller.
-  'transformPlotlyToFunnel':
-      'internal/plotly/transform_pie.dart, the Plotly funnel transformer '
-      '(PlotlySchemaAdapter.ts:3060-3175, with getCategoriesAndValues at '
-      ':3018-3057) and plan 09 Task 26. Upstream reaches it from the `funnel` '
-      "entry of DeclarativeChart's chartMap (DeclarativeChart.tsx:326-329), "
-      'dispatched at :607, and the router already resolves that kind '
-      '(internal/plotly/router.dart:729) — what is missing is the widget that '
-      'reads the route, which is plan 09 Task 28. That widget also supplies '
-      "the enclosing SizedBox this transformer does not build (spec §2.2's "
-      'constraint-sized shell charts, with the 350 from '
-      'PlotlySchemaAdapter.ts:2613 living in kPlotlyDefaultCellHeight); '
-      ":3169-3170's own width and height are forwarded, because "
-      'FluentFunnelChart takes both. So the call site does not exist yet '
-      'rather than having been forgotten, and what this transformer produces '
-      'is proven consumable by the mounted test in '
-      'test/charts/declarative/transform_funnel_polar_test.dart, which pumps a '
-      'real FluentFunnelChart built from a figure and finds every transformed '
-      'stage painted in the legend. Whoever lands DeclarativeChart deletes '
-      'this entry.',
-  'transformPlotlyToPolar':
-      'internal/plotly/transform_pie.dart, the Plotly polar transformer '
-      '(PlotlySchemaAdapter.ts:3177-3280) and plan 09 Task 26. Upstream '
-      "reaches it from the `scatterpolar` entry of DeclarativeChart's chartMap "
-      '(DeclarativeChart.tsx:330-333), dispatched at :607, and the router '
-      'already resolves that kind (internal/plotly/router.dart:719) — what is '
-      'missing is the widget that reads the route, which is plan 09 Task 28. '
-      'So the call site does not exist yet rather than having been forgotten, '
-      'and what this transformer produces is proven consumable by the mounted '
-      'test in test/charts/declarative/transform_funnel_polar_test.dart, which '
-      'pumps a real FluentPolarChart built from a figure and finds the '
-      'transformed series named in the legend the layout pass builds. Whoever '
-      'lands DeclarativeChart deletes this entry.',
-  'transformPlotlyToAnnotationOnly':
-      'internal/plotly/transform_pie.dart, the Plotly annotation-only '
-      'transformer (PlotlySchemaAdapter.ts:1245-1280) and plan 09 Task 26. '
-      "Upstream reaches it from the `annotation` entry of DeclarativeChart's "
-      'chartMap (DeclarativeChart.tsx:263-266), dispatched at :607 after the '
-      'single-group short circuit at :478-480, and the router already resolves '
-      'that kind (internal/plotly/router.dart:662) — what is missing is the '
-      'widget that reads the route, which is plan 09 Task 28. So the call site '
-      'does not exist yet rather than having been forgotten, and what this '
-      'transformer produces is proven consumable by the mounted test in '
-      'test/charts/declarative/transform_funnel_polar_test.dart, which pumps a '
-      'real FluentAnnotationOnlyChart built from a figure and finds the '
-      'transformed annotation painted. Whoever lands DeclarativeChart deletes '
-      'this entry.',
-  'mapFluentChart':
-      'internal/plotly/router.dart:627, the routing table itself '
-      '(PlotlySchemaConverter.ts:477-646) and plan 09 Task 7. Upstream has '
-      'exactly one caller in the whole of charts/src — '
-      'DeclarativeChart.tsx:362, between the sanitizeJson at :361 and the '
-      'decodeBase64Fields at :368 — and that widget is plan 09 Task 28, which '
-      'also consumes the route: the reduced data list at '
-      'DeclarativeChart.tsx:372-375 is built from validTracesInfo, and the '
-      'kind it returns is what :578-590 picks a chartMap entry with before '
-      ':607 renders it. So every transformer '
-      'excused above and this router are blocked on the same one widget, and '
-      'the call site does not exist yet rather than having been forgotten. A '
-      'test is not a caller: the corpus in plan 09 Task 8 sweeps this '
-      "function's whole branch table from "
-      'test/charts/declarative/router_corpus_test.dart and proves nothing '
-      'about reachability. Whoever lands DeclarativeChart deletes this entry. '
-      'getValidSchema, FluentPlotlyRoute and FluentPlotlyTraceInfo need no '
-      'entry: this function is their caller.',
-
   // --- Ported constants nothing reads --------------------------------------
   // `kMinDonutRadius` was here until plan 09 Task 17 landed: the Plotly pie
   // transformer is upstream's own `: MIN_DONUT_RADIUS` fallback
