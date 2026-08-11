@@ -720,6 +720,133 @@ void main() {
     });
   });
 
+  // `SankeyChart.tsx:1160-1166` renders `<ChartTitle>` with no `y`, so the
+  // title's baseline is `ChartTitle.tsx:80-87` — the one place in the port
+  // where that default is reached, every other `<ChartTitle>` caller either
+  // passing an explicit `y` (`GaugeChart.tsx:604`, `DonutChart.tsx:364`) or
+  // being laid out as a widget rather than painted.
+  group('the chart title', () {
+    final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+    final story = loadOracleStory('charts-sankeychart--sankey-chart-basic');
+    // The one `<text>` the story's chartTitle produced. Its `y` is what
+    // `ChartTitle.tsx:80-87` resolved to with no `titleStyles` passed, and its
+    // `fontSize` is what the class rendered — 10 against a `y` solved from the
+    // literal 13 of `:83`. The two disagree upstream, which is why the
+    // placement cannot be read off the title's own text style.
+    final captured = story.soleElement(
+      'text',
+      where: (element) => element.text == 'Sankey Chart',
+    );
+
+    /// Mounts a titled sankey and replays its painter, so the anchor the title
+    /// is drawn about can be read back off the canvas.
+    Future<_RecordingCanvas> paintTitled(
+      WidgetTester tester, {
+      double? titleFontSize,
+    }) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Center(
+            child: SizedBox(
+              // The captured svg's own box. The 800x600 test surface narrows
+              // it, which is why the x below is read off the solved layout
+              // rather than off the fixture.
+              width: story.width,
+              height: story.height,
+              child: FluentSankeyChart(
+                data: data,
+                chartTitle: captured.text,
+                titleFontSize: titleFontSize,
+              ),
+            ),
+          ),
+        ),
+      );
+      return _replay(tester);
+    }
+
+    testWidgets('with no font size it sits where the capture put it', (
+      tester,
+    ) async {
+      final recorded = await paintTitled(tester);
+      expect(
+        recorded.translates,
+        hasLength(1),
+        reason:
+            'the title block is the painter\'s only translate, so a second one '
+            'would mean the assertion below reads a different anchor',
+      );
+      final state = tester.state<FluentSankeyChartState>(
+        find.byType(FluentSankeyChart),
+      );
+      expect(
+        recorded.translates.single,
+        Offset(state.layout.size.width / 2, captured.y!),
+        reason:
+            'SankeyChart.tsx:1162 centres the title on the container and '
+            'passes no y, so ChartTitle.tsx:80-87 places it — ${captured.y} in '
+            'the capture, against a title the same capture renders at '
+            '${captured.fontSize}px',
+      );
+    });
+
+    testWidgets('a title font size moves it down with the band it sits in', (
+      tester,
+    ) async {
+      // 24 is the oversized title sankey_chart_layout_test.dart:318 already
+      // reserves a band for; no captured story passes titleStyles, so the
+      // font-size arm of the formula has no fixture and is derived here.
+      const fontSize = 24.0;
+      final recorded = await paintTitled(tester, titleFontSize: fontSize);
+      expect(
+        recorded.translates.single.dy,
+        fontSize + kChartTitleAxisPadding,
+        reason:
+            'ChartTitle.tsx:80-87 solves max(titleFont.size + '
+            'AXIS_TITLE_PADDING, CHART_TITLE_PADDING - AXIS_TITLE_PADDING) = '
+            '32, while SankeyChart.tsx:554-560 grows the reserved band to 44. '
+            'A title pinned at the default 21 sits high of its own band.',
+      );
+    });
+
+    test('a title font size is the size the title is laid out at', () {
+      const fontSize = 24.0;
+      final spy = _SpyMeasurer();
+      FluentSankeyChartPainter(
+        layout: layout,
+        // Empty, so the only string this painter lays out is its title.
+        visuals: const <FluentSankeyNodeVisual>[],
+        order: const <FluentSankeyDomItem>[],
+        selection: FluentSankeySelection.none,
+        style: resolveFluentSankeyChartStyle(theme),
+        states: const <WidgetState>{},
+        measurer: spy,
+        colors: FluentChartColors.of(theme),
+        isRtl: false,
+        chartTitle: 'Flow',
+        titleFontSize: fontSize,
+      ).paint(_RecordingCanvas(), layout.size);
+      expect(
+        spy.sizes,
+        // Two entries, both the title's: `FluentChartTitlePainter.paint`
+        // measures and then lays out, through the one factory.
+        hasLength(2),
+        reason:
+            'an empty list would pass the set comparison below having measured '
+            'nothing at all',
+      );
+      expect(
+        spy.sizes.toSet(),
+        <double>{fontSize},
+        reason:
+            'ChartTitle.tsx:106 hands titleFont to getChartTitleInlineStyles, '
+            'whose Common.styles.ts:113 writes fontSize onto the <text>, so '
+            'the same number that moved the baseline sizes the glyphs',
+      );
+    });
+  });
+
   group('high contrast flattening (spec 5.3)', () {
     final light = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
     final highContrast = FluentThemeData.highContrast(
@@ -1057,6 +1184,10 @@ class _RecordingCanvas implements Canvas {
   final List<(Color, PaintingStyle, Shader?)> paths =
       <(Color, PaintingStyle, Shader?)>[];
 
+  /// One entry per `translate`, in paint order. Nodes and links are drawn in
+  /// absolute coordinates, so the chart title's anchor is the only one.
+  final List<Offset> translates = <Offset>[];
+
   /// The colour of every filled draw among [recorded].
   Iterable<Color> fills(List<(Color, PaintingStyle, Shader?)> recorded) =>
       recorded.where((r) => r.$2 == PaintingStyle.fill).map((r) => r.$1);
@@ -1078,6 +1209,9 @@ class _RecordingCanvas implements Canvas {
       paths.add((paint.color, paint.style, paint.shader));
 
   @override
+  void translate(double dx, double dy) => translates.add(Offset(dx, dy));
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
@@ -1089,9 +1223,13 @@ class _SpyMeasurer extends FluentChartTextMeasurer {
   /// The packed ARGB of every style laid out, in paint order.
   final List<int> colours = <int>[];
 
+  /// The font size of every style laid out, in paint order.
+  final List<double> sizes = <double>[];
+
   @override
   TextPainter layoutPainter(String text, TextStyle style) {
     colours.add(style.color!.toARGB32());
+    sizes.add(style.fontSize!);
     return super.layoutPainter(text, style);
   }
 }

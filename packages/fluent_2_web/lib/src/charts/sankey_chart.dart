@@ -382,6 +382,7 @@ class FluentSankeyChartPainter extends CustomPainter {
     required this.colors,
     required this.isRtl,
     this.chartTitle,
+    this.titleFontSize,
   });
 
   /// The solved layout.
@@ -414,6 +415,12 @@ class FluentSankeyChartPainter extends CustomPainter {
 
   /// Title drawn above the plot, or null.
   final String? chartTitle;
+
+  /// Size of [chartTitle], which also places its baseline — upstream's
+  /// `titleStyles.titleFont.size` (`SankeyChart.tsx:556`,
+  /// `ChartTitle.tsx:83`). Null takes the theme's size and the literal 13 the
+  /// placement falls back to, which are different numbers upstream too.
+  final double? titleFontSize;
 
   void _paintLink(Canvas canvas, int index) {
     final link = layout.links[index];
@@ -557,10 +564,20 @@ class FluentSankeyChartPainter extends CustomPainter {
       // `:1159-1167` — centred, with the SVGTooltipText backing rectangle.
       FluentChartTitlePainter(
         text: chartTitle!,
-        style: style.titleTextStyle!.resolve(states)!,
-        // `ChartTitle.tsx:78-86` — max(13 + 8, 20 - 8) = 21 by default. 2
-        // centres the title over the container.
-        anchor: Offset(layout.size.width / 2, 21),
+        // `ChartTitle.tsx:106` passes the same font to
+        // `getChartTitleInlineStyles`, whose `Common.styles.ts:113` writes it
+        // over the class's size. A null size leaves the class alone, which is
+        // what `copyWith` does with one.
+        style: style.titleTextStyle!
+            .resolve(states)!
+            .copyWith(fontSize: titleFontSize),
+        // `SankeyChart.tsx:1160-1166` passes no `y`, so the default of
+        // `ChartTitle.tsx:80-87` places the baseline. 2 centres the title over
+        // the container (`:1162`).
+        anchor: Offset(
+          layout.size.width / 2,
+          fluentChartTitleDefaultY(titleFontSize),
+        ),
         textAnchor: FluentAxisTextAnchor.middle,
         baseline: FluentChartTitleBaseline.alphabetic,
         // 0 — the title is never rotated.
@@ -580,6 +597,7 @@ class FluentSankeyChartPainter extends CustomPainter {
       oldDelegate.colors != colors ||
       oldDelegate.isRtl != isRtl ||
       oldDelegate.chartTitle != chartTitle ||
+      oldDelegate.titleFontSize != titleFontSize ||
       !identical(oldDelegate.visuals, visuals);
 }
 
@@ -917,6 +935,7 @@ class FluentSankeyChartState extends State<FluentSankeyChart> {
                     colors: FluentChartColors.of(theme),
                     isRtl: isRtl,
                     chartTitle: widget.hideTitle ? null : widget.chartTitle,
+                    titleFontSize: widget.titleFontSize,
                   ),
                 ),
                 if (_popover != null)

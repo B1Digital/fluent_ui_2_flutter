@@ -323,14 +323,24 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // argument at :404 are the same flag and its blank-axis branch is therefore
   // unreachable on both sides. Pinned by
   // test/charts/cartesian/cartesian_y_axis_labels_test.dart.
-  'fluentChartTitleDefaultY':
-      'Ports the default `y` of a painted chart title, `ChartTitle.tsx:80-87` '
-      '— `max(fontSize + AXIS_TITLE_PADDING, CHART_TITLE_PADDING - '
-      'AXIS_TITLE_PADDING)` with the literal 13 fallback at :83 — declared at '
-      'chrome/chart_title.dart:229. Four assertions in test/charts reach it '
-      'and no painter does, so a title with no explicit y is placed by '
-      'whatever the title painter does instead. Goes when that painter asks '
-      'this for its default.',
+  // `fluentChartTitleDefaultY` was here, excused as "a title with no explicit
+  // y is placed by whatever the title painter does instead. Goes when that
+  // painter asks this for its default." The painter now asks it. The constant
+  // was the authoritative half: `sankey_chart.dart` was the one painter that
+  // reaches this default — every other `<ChartTitle>` caller either passes an
+  // explicit `y` (`GaugeChart.tsx:604`, `DonutChart.tsx:364`) or is laid out
+  // as a widget — and it wrote the literal 21 with the formula in a comment,
+  // so `FluentSankeyChart.titleFontSize` moved the reserved band
+  // (`SankeyChart.tsx:554-560`, via `sankeyTitleHeight`) while the title
+  // stayed pinned at the default's value and floated high of its own band.
+  // The same prop is upstream's `titleStyles.titleFont.size`, which
+  // `ChartTitle.tsx:106` also hands to `getChartTitleInlineStyles`
+  // (`Common.styles.ts:113`), so it now sizes the glyphs too — it had been
+  // wired to neither. The default is pinned against the capture rather than
+  // re-derived: `charts-sankeychart--sankey-chart-basic` puts its title `<text>`
+  // at y 21 while rendering it at 10px, which is exactly why the placement
+  // cannot be read off the title's own text style. Three tests in
+  // test/charts/sankey_chart_test.dart.
   // `fluentChartStripePhase` was here, excused because "the painter computes
   // the phase inline rather than calling this, so the shared definition and the
   // painted result are two expressions that must be kept equal by hand. Goes
