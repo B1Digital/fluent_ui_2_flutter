@@ -164,9 +164,14 @@ void main() {
             'Five stories render a legend swatch as an svg: '
             'charts-legends--legends-basic and --legends-controlled contribute '
             'two each, charts-linechart--line-chart-gaps two, '
-            'charts-scatterchart--scatter-chart-log-axis-example two and '
-            'charts-vegadeclarativechart--default six. A drop here means the '
-            'per-shape assertions below went vacuous.',
+            'charts-scatterchart--scatter-chart-log-axis-example two and the '
+            'Vega declarative default story six. That last id is deliberately '
+            'not spelt: this is the whole-corpus swatch sweep, and '
+            'oracle_b_fixture_usage_test.dart scans for a literal id, so '
+            'writing it here would have reported the story as covered by an '
+            "assertion of its own layout when it is covered by this file's "
+            'one shared property. A drop here means the per-shape assertions '
+            'below went vacuous.',
       );
       expect(
         swatches.map((swatch) => shapeOfCapturedPath(swatch.$2)).toSet(),

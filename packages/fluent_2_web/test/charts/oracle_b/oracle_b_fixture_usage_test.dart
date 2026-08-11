@@ -51,10 +51,25 @@ const String _nothingAssertsIt =
 /// and both tests below fail if this map drifts from the corpus in either
 /// direction.
 ///
-/// Twenty-nine of ninety on 2026-08-10, of which twenty-one are asserted by
-/// nothing whatsoever. That ratio is the point of the map: a wave report that
-/// counts ninety captured fixtures as ninety verified ones overstates the
-/// verified count threefold.
+/// Thirty of ninety on 2026-08-11, of which twenty-two are asserted by nothing
+/// whatsoever. That ratio is the point of the map: a wave report that counts
+/// ninety captured fixtures as ninety verified ones overstates the verified
+/// count threefold.
+///
+/// It read twenty-nine and twenty-one until the final audit measured the one
+/// false negative this scan can produce. `text.contains(id)` cannot tell an
+/// assertion from prose, and `charts-vegadeclarativechart--default` was spelt
+/// only inside a `reason:` string in `test/charts/chrome/legend_shape_test.dart`
+/// — one of the three whole-corpus sweeps this file's header names as the bar
+/// it is stricter than. So the corpus's one Vega capture read as covered on the
+/// strength of a sentence. The sweep now describes that story without spelling
+/// its id, which is what makes this list's own count true; the swatch-count
+/// assertion it lives in is unchanged.
+///
+/// The Plotly adapter's only capture,
+/// `charts-declarativechart--declarative-chart-basic-example`, is on this list
+/// too. Twenty-seven tasks of declarative-adapter work landed without either
+/// declarative story acquiring an assertion of its own geometry.
 const Map<String, String> kOracleStoriesNoTestNames = <String, String>{
   'charts-areachart--area-chart-all-negative': _nothingAssertsIt,
   'charts-areachart--area-chart-custom-accessibility': _nothingAssertsIt,
@@ -93,6 +108,7 @@ const Map<String, String> kOracleStoriesNoTestNames = <String, String>{
       _nothingAssertsIt,
   'charts-verticalstackedbarchart--vertical-stacked-bar-custom-accessibility':
       _nothingAssertsIt,
+  'charts-vegadeclarativechart--default': _nothingAssertsIt,
   'charts-verticalstackedbarchart--vertical-stacked-bar-date-axis':
       _nothingAssertsIt,
 };
