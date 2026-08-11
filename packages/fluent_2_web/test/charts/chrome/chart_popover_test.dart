@@ -473,6 +473,40 @@ void main() {
       );
     });
 
+    testWidgets('the popover swatch box is the shape viewport, not the legend '
+        "row's border box", (tester) async {
+      await pumpMulti(
+        tester,
+        const FluentChartPopoverData(
+          isCalloutForStack: true,
+          xValue: 'Jan',
+          yValues: <FluentYValueHover>[
+            FluentYValueHover(legend: 'a', y: 1, index: 0),
+          ],
+        ),
+      );
+      final box = tester.getSize(
+        find.ancestor(
+          of: find.byWidgetPredicate(
+            (widget) =>
+                widget is CustomPaint &&
+                widget.painter is FluentChartLegendShapePainter,
+          ),
+          matching: find.byType(SizedBox),
+        ),
+      );
+      expect(
+        box,
+        const Size(kLegendShapeViewportSize, kLegendShapeViewportSize),
+        reason:
+            'ChartPopover.tsx:211-217 renders the same <Shape> the legend does, '
+            'and shape.tsx:39-40 and :46-49 size that svg themselves, so the '
+            "box is the shape's own viewport. kLegendSwatchBoxSize is the "
+            'legend row border box (useLegendsStyles.styles.ts:80-82) and is '
+            'only equal to it while the swatch border is 1px.',
+      );
+    });
+
     testWidgets('the popover swatch has no stroke, unlike the legend', (
       tester,
     ) async {

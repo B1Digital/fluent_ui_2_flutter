@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:fluent_2_web/src/charts/chrome/legend_shape.dart';
@@ -129,33 +128,28 @@ void main() {
       );
     });
 
-    test('width ratios match pointTypes at utilities.ts:1747-1772', () {
+    test('the wide shapes are authored at full size, not divided down', () {
+      // `pointTypes[*].widthRatio` (utilities.ts:1747-1771) belongs to
+      // `_getPointPath` (LineChart.tsx:82-137) and is applied at exactly one
+      // site, LineChart.tsx:493-494 — see FluentLineMarkerPainter.kWidthRatios,
+      // which FluentLineChartDelegate.markersFor divides by. `shape.tsx:32-54`
+      // has one
+      // ratio-free code path for all nine swatches, so a hexagon swatch spans
+      // the same authored 0..12 box a triangle does. Halving it to 0..6 is the
+      // plausible wrong fix, and this is what fails if it is applied.
       expect(
-        kPointWidthRatios[FluentChartLegendShape.hexagon],
-        2,
-        reason: 'utilities.ts:1764 gives the hexagon a widthRatio of 2.',
-      );
-      expect(
-        kPointWidthRatios[FluentChartLegendShape.pentagon],
-        1.168,
-        reason: 'utilities.ts:1767 gives the pentagon a widthRatio of 1.168.',
-      );
-      expect(
-        kPointWidthRatios[FluentChartLegendShape.octagon],
-        2.414,
-        reason: 'utilities.ts:1770 gives the octagon a widthRatio of 2.414.',
-      );
-      expect(
-        kPointWidthRatios[FluentChartLegendShape.circle],
-        1,
-        reason: 'utilities.ts:1749 gives the circle a widthRatio of 1.',
-      );
-      expect(
-        kPointWidthRatios.containsKey(FluentChartLegendShape.dottedLine),
-        isFalse,
+        fluentChartLegendShapePath(FluentChartLegendShape.hexagon).getBounds(),
+        const Rect.fromLTRB(0, 0, 12, 10),
         reason:
-            'dottedLine is a CustomPoints member (utilities.ts:1724-1726) and '
-            'has no pointTypes entry, so it must not appear in the table.',
+            'shape.tsx:25 authors M9 0H3L0 5L3 10H9L12 5L9 0Z, which spans '
+            'x 0..12 and y 0..10 — the swatch carries no widthRatio.',
+      );
+      expect(
+        fluentChartLegendShapePath(FluentChartLegendShape.octagon).getBounds(),
+        const Rect.fromLTRB(0, 0, 10, 10),
+        reason:
+            'shape.tsx:27-28 spans 0..10 on both axes; the 2.414 ratio at '
+            'utilities.ts:1770 sizes the LineChart marker, not this.',
       );
     });
   });
@@ -276,31 +270,36 @@ void main() {
   mainPart3();
 }
 
-/// Renders [painter] into a [kLegendShapeViewportSize] square and returns the
-/// raw RGBA bytes, so a pixel can be asserted rather than a call log.
-Future<ByteData> renderShape(FluentChartLegendShapePainter painter) async {
+/// Renders [painter] into a [size] box and returns a reader for the packed
+/// ARGB of one device pixel, so a pixel can be asserted rather than a call log.
+///
+/// [size] defaults to the [kLegendShapeViewportSize] square every legend and
+/// popover swatch is actually given; a caller passes something else only to
+/// exercise the viewBox scale, which is 1 at that default. The reader closes
+/// over the row pitch rather than taking it, which is what stops a test from
+/// restating the box size a second time and reading the wrong row.
+Future<int Function(int x, int y)> renderPainter(
+  CustomPainter painter, {
+  Size size = const Size(kLegendShapeViewportSize, kLegendShapeViewportSize),
+}) async {
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder);
-  const size = Size(kLegendShapeViewportSize, kLegendShapeViewportSize);
   painter.paint(canvas, size);
+  final stride = size.width.toInt();
   final image = await recorder.endRecording().toImage(
-    kLegendShapeViewportSize.toInt(),
-    kLegendShapeViewportSize.toInt(),
+    stride,
+    size.height.toInt(),
   );
-  final data = await image.toByteData();
+  final data = (await image.toByteData())!;
   image.dispose();
-  return data!;
-}
-
-/// The packed ARGB of the device pixel ([x], [y]) inside the RGBA [data] a
-/// [renderShape] call returned.
-int argbAt(ByteData data, int x, int y) {
-  final offset = (y * kLegendShapeViewportSize.toInt() + x) * 4;
-  final r = data.getUint8(offset);
-  final g = data.getUint8(offset + 1);
-  final b = data.getUint8(offset + 2);
-  final a = data.getUint8(offset + 3);
-  return (a << 24) | (r << 16) | (g << 8) | b;
+  return (int x, int y) {
+    final offset = (y * stride + x) * 4;
+    final r = data.getUint8(offset);
+    final g = data.getUint8(offset + 1);
+    final b = data.getUint8(offset + 2);
+    final a = data.getUint8(offset + 3);
+    return (a << 24) | (r << 16) | (g << 8) | b;
+  };
 }
 
 /// The [FluentChartLegendShapePainter] group, called from [main].
@@ -312,7 +311,7 @@ void mainPart2() {
     test(
       'the viewBox origin shifts the square one pixel down and right',
       () async {
-        final data = await renderShape(
+        final pixel = await renderPainter(
           const FluentChartLegendShapePainter(
             shape: FluentChartLegendShape.square,
             fill: fill,
@@ -321,14 +320,14 @@ void mainPart2() {
           ),
         );
         expect(
-          argbAt(data, 7, 7),
+          pixel(7, 7),
           fill.toARGB32(),
           reason:
               'The square covers user space 1..12; with the viewBox origin of '
               'shape.tsx:41 that is device 2..13, so the centre is filled.',
         );
         expect(
-          argbAt(data, 0, 0),
+          pixel(0, 0),
           0x00000000,
           reason:
               'User-space (0, 0) maps to device (1, 1), so device (0, 0) is '
@@ -336,6 +335,43 @@ void mainPart2() {
         );
       },
     );
+
+    test('a swatch box wider than the viewport scales the shape', () async {
+      // Twice the viewport, so the expected coordinates below are the scale-1
+      // ones doubled and the two cases cannot be confused for each other.
+      const scale = 2;
+      final pixel = await renderPainter(
+        const FluentChartLegendShapePainter(
+          shape: FluentChartLegendShape.square,
+          fill: fill,
+          stroke: stroke,
+          strokeWidth: 0,
+        ),
+        size: const Size(
+          scale * kLegendShapeViewportSize,
+          scale * kLegendShapeViewportSize,
+        ),
+      );
+      expect(
+        pixel(20, 20),
+        fill.toARGB32(),
+        reason:
+            'shape.tsx:39-41 renders a viewBox 14 units wide into a box the '
+            'svg attribute sizes, so the mapping scales by box / '
+            'kLegendShapeViewportSize. At twice the viewport the square '
+            'covers device 4..26 and device (20, 20) is inside it; a painter '
+            'that ignores its box leaves the shape at 2..13 and this pixel '
+            'transparent.',
+      );
+      expect(
+        pixel(3, 3),
+        0x00000000,
+        reason:
+            'The scaled square starts at device 4, so (3, 3) is outside it — '
+            'the assertion above alone would also pass for a shape that was '
+            'merely translated rather than scaled.',
+      );
+    });
 
     test('an unrotated shape reports zero rotation', () {
       expect(
@@ -398,7 +434,7 @@ void mainPart2() {
     });
 
     test('the pyramid rotates a half turn about the viewport corner', () async {
-      final data = await renderShape(
+      final pixel = await renderPainter(
         const FluentChartLegendShapePainter(
           shape: FluentChartLegendShape.pyramid,
           fill: fill,
@@ -408,8 +444,7 @@ void mainPart2() {
       );
       final anyPainted = List<int>.generate(
         kLegendShapeViewportSize.toInt() * kLegendShapeViewportSize.toInt(),
-        (i) => argbAt(
-          data,
+        (i) => pixel(
           i % kLegendShapeViewportSize.toInt(),
           i ~/ kLegendShapeViewportSize.toInt(),
         ),
@@ -573,19 +608,19 @@ void mainPart3() {
     });
 
     test('paints the 3..4 band and leaves 0..3 clear', () async {
-      final data = await renderStripe(
+      final pixel = await renderPainter(
         const FluentChartStripePainter(color: stripe),
       );
 
       expect(
-        argbAt(data, 5, 0),
+        pixel(5, 0),
         stripe.toARGB32(),
         reason:
             'Phase at (5, 0) is 3.54, inside the clamped 3..4 colour band, so '
             'the pixel takes the legend colour.',
       );
       expect(
-        argbAt(data, 2, 0),
+        pixel(2, 0),
         0x00000000,
         reason:
             'Phase at (2, 0) is 1.41, inside the transparent 0..3 band. A '
@@ -593,28 +628,63 @@ void mainPart3() {
             'the source says the colour starts at 1px.',
       );
       expect(
-        argbAt(data, 6, 0),
+        pixel(6, 0),
         0x00000000,
         reason:
             'Phase at (6, 0) is 4.24, which is 0.24 into the next period and '
             'therefore transparent again — the period is 4, not 5.',
       );
     });
-  });
-}
 
-/// Renders [painter] into a [kLegendShapeViewportSize] square and returns the
-/// raw RGBA bytes, so [argbAt] can read a single device pixel back.
-Future<ByteData> renderStripe(FluentChartStripePainter painter) async {
-  final recorder = ui.PictureRecorder();
-  final canvas = Canvas(recorder);
-  const size = Size(kLegendShapeViewportSize, kLegendShapeViewportSize);
-  painter.paint(canvas, size);
-  final image = await recorder.endRecording().toImage(
-    kLegendShapeViewportSize.toInt(),
-    kLegendShapeViewportSize.toInt(),
-  );
-  final data = await image.toByteData();
-  image.dispose();
-  return data!;
+    // The painter's own comment states the contract that used to hold the two
+    // expressions together by hand: the pixel at (x, y) is coloured iff
+    // `fluentChartStripePhase(Offset(x, y))` lands in a colour band. Asserting
+    // it per pixel is what makes the painter's call to that function
+    // load-bearing rather than decorative — every band the loop fails to emit
+    // shows up here as a pixel that disagrees with the shared definition.
+    for (final size in const <Size>[
+      // The swatch box itself.
+      Size(kLegendShapeViewportSize, kLegendShapeViewportSize),
+      // Taller than it is wide, and taller than the widest phase its width
+      // alone reaches: 6 + 40 over sqrt2 is 32.5, against 6. A loop bounded by
+      // anything narrower than the far corner's own phase runs out of bands
+      // partway down this box and leaves the bottom rows bare.
+      Size(6, 40),
+    ]) {
+      test('every pixel of a ${size.width}x${size.height} box agrees with '
+          'fluentChartStripePhase', () async {
+        final pixel = await renderPainter(
+          const FluentChartStripePainter(color: stripe),
+          size: size,
+        );
+        final disagreed = <String>[];
+        for (var y = 0; y < size.height; y++) {
+          for (var x = 0; x < size.width; x++) {
+            final phase = fluentChartStripePhase(
+              Offset(x.toDouble(), y.toDouble()),
+            );
+            // `%` on a double is Dart's Euclidean remainder, so it is
+            // non-negative for the negative phases a rotated frame produces.
+            final coloured = phase % kStripePeriod >= kStripeColourStart;
+            final painted = pixel(x, y) != 0x00000000;
+            if (painted != coloured) {
+              disagreed.add(
+                '($x, $y) phase ${phase.toStringAsFixed(3)}: '
+                'painted $painted, phase function says $coloured',
+              );
+            }
+          }
+        }
+        expect(
+          disagreed,
+          isEmpty,
+          reason:
+              'FluentChartStripePainter documents that a pixel is coloured '
+              'exactly when fluentChartStripePhase puts it in the clamped '
+              '3..4 band of Legends.tsx:300. These pixels do not:\n'
+              '${disagreed.join('\n')}',
+        );
+      });
+    }
+  });
 }

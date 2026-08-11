@@ -78,37 +78,26 @@ const double kLegendShapeViewBoxOrigin = 1;
 /// `shape.tsx:43-45` rotates the whole element and CSS reports the rotated box.
 const double kLegendShapeViewportSize = 14;
 
-/// `pointTypes[*].widthRatio` (`utilities.ts:1747-1771`).
-///
-/// For a pentagon, hexagon or octagon the bounding box grows faster than the
-/// side length, so a marker asked for a width of *w* is drawn at `w / ratio` to
-/// land on *w*. Used by series markers, never by the legend swatch, which is
-/// always the full [kLegendShapeViewportSize] viewport.
-///
-/// [FluentChartLegendShape.dottedLine] is deliberately absent: it is a
-/// `CustomPoints` member (`utilities.ts:1724-1726`) and `pointTypes` has no
-/// entry for it, which is also why `ChartPopover.tsx:216` can index
-/// `Points[i % Object.keys(pointTypes).length]` safely — that length is the
-/// eight entries below.
-const Map<FluentChartLegendShape, double> kPointWidthRatios =
-    <FluentChartLegendShape, double>{
-      // utilities.ts:1748-1750.
-      FluentChartLegendShape.circle: 1,
-      // utilities.ts:1751-1753.
-      FluentChartLegendShape.square: 1,
-      // utilities.ts:1754-1756.
-      FluentChartLegendShape.triangle: 1,
-      // utilities.ts:1757-1759.
-      FluentChartLegendShape.diamond: 1,
-      // utilities.ts:1760-1762.
-      FluentChartLegendShape.pyramid: 1,
-      // utilities.ts:1763-1765.
-      FluentChartLegendShape.hexagon: 2,
-      // utilities.ts:1766-1768.
-      FluentChartLegendShape.pentagon: 1.168,
-      // utilities.ts:1769-1771.
-      FluentChartLegendShape.octagon: 2.414,
-    };
+// `kPointWidthRatios` was declared here, a `FluentChartLegendShape`-keyed
+// transcription of `pointTypes[*].widthRatio` (`utilities.ts:1747-1771`), and
+// nothing read it. It is deleted rather than wired, because the table already
+// has a port and that port is already applied where upstream applies it.
+//
+// `grep -rn widthRatio` over `crawlers/fluentui-react-charts/out/charts/src`
+// returns the table (`utilities.ts:1738`, `:1749-1770`), one use
+// (`LineChart.tsx:493-494`) and an unrelated local in `funnelGeometry.ts:187`.
+// The one use sits in `_getPath` and narrows the box handed to `_getPointPath`
+// (`LineChart.tsx:82-137`), the LineChart *data-point marker* builder, whose
+// hexagon reaches x ± w and octagon x ± 1.207w. That is
+// `FluentLineMarkerPainter.kWidthRatios` in `line_chart.dart`, which
+// `FluentLineChartDelegate.markersFor` divides by at the `:494` position.
+//
+// The legend swatch never meets a ratio: `shape.tsx:32-54` is a single
+// ratio-free code path that renders whichever of the nine authored `d` strings
+// (`:19-30`) the shape names, and `ChartPopover.tsx:211-217` renders that same
+// component. So a hexagon swatch spans the authored 0..12 exactly as a triangle
+// does, which is what [fluentChartLegendShapePath] returns and what Oracle B's
+// fourteen `fui-legend__shape` captures measure.
 
 /// The marker outline for [shape], in the authored 0..12 user space of
 /// `shape.tsx:19-30`.
@@ -236,7 +225,8 @@ double fluentChartLegendShapeRotation(FluentChartLegendShape shape) =>
       _ => 0,
     };
 
-/// Paints one legend marker into a [kLegendShapeViewportSize] square.
+/// Paints one legend marker into the box it is given, mapping the
+/// [kLegendShapeViewportSize] viewport onto it.
 ///
 /// Reproduces `shape.tsx:32-54` exactly, in its own order: the `transform` on
 /// the `<svg>` element runs first, then the viewBox maps user space into the
@@ -298,8 +288,22 @@ class FluentChartLegendShapePainter extends CustomPainter {
     canvas.save();
     // The element transform, about the rendered box's own (0, 0).
     canvas.rotate(fluentChartLegendShapeRotation(shape));
-    // The viewBox mapping: `-1 -1 14 14` into a 14x14 box is a pure
-    // translation, because the scale is 14 / 14 = 1 (`shape.tsx:39-41`).
+    // The viewBox mapping (`shape.tsx:39-41`): a viewBox
+    // [kLegendShapeViewportSize] units wide is scaled onto the rendered box and
+    // its origin then shifted by [kLegendShapeViewBoxOrigin]. Upstream sizes
+    // that box itself, so the quotient is always 1 there; the port takes it
+    // from the legend style (`legend.dart:416`) and from the popover
+    // (`chart_popover.dart:373-374`) instead, and computing the quotient is
+    // what stops the two from drifting into a 14-unit marker adrift in a box
+    // of some other size.
+    //
+    // The width alone, because the svg attribute and the viewBox are both
+    // square (`shape.tsx:39-41`), so upstream's two scales are equal by
+    // construction. The port's one non-square box is the 4px line-in-bar
+    // swatch (`legend.dart:356-358`), and upstream keeps its svg square through
+    // that case too: `Legends.tsx:376`'s height reaches only the non-svg div
+    // (`shape.tsx:35`).
+    canvas.scale(size.width / kLegendShapeViewportSize);
     canvas.translate(kLegendShapeViewBoxOrigin, kLegendShapeViewBoxOrigin);
 
     // dottedLine is three open subpaths and has no interior, so filling it is a
@@ -384,21 +388,39 @@ class FluentChartStripePainter extends CustomPainter {
     // pattern, which upstream leaves to the browser's own device grid anyway.
     canvas.translate(0.5, 0.5);
     // Rotating by +45 degrees makes the gradient axis the canvas x axis, so one
-    // band is a rectangle rather than a sheared quadrilateral.
+    // band is a rectangle rather than a sheared quadrilateral — and it makes a
+    // band's local x its own phase, because the local point (u, 0) is the
+    // global (u/√2, u/√2), whose [fluentChartStripePhase] is u.
     canvas.rotate(math.pi / 4);
     final paint = Paint()
       ..color = color
       ..isAntiAlias = false;
-    // The rotated box never reaches further than its own diagonal from the
-    // origin in either direction, and width + height bounds that.
-    final extent = size.width + size.height;
-    for (var phase = -extent; phase <= extent; phase += kStripePeriod) {
+    // Both bounds come from [fluentChartStripePhase] on the box's own corners,
+    // which is the whole of why the shared definition and the painted result
+    // cannot drift: the pattern starts at the near corner's phase and the last
+    // band drawn is the one the far corner reaches.
+    //
+    // A loop anchored on anything else moves every band. The previous bound ran
+    // from `-(width + height)` in steps of [kStripePeriod], so the bands landed
+    // at phases congruent to `-(width + height)` and were correct only when
+    // that sum was a multiple of 4: right for the 14×14 swatch, and two pixels
+    // out along the gradient for the 14×4 line-in-bar swatch
+    // (`legend.dart:356-358`). It also emitted the band below zero, whose
+    // closed upper edge painted the box's own corner pixel — the one point of
+    // phase exactly 0, which the clamped `3..4` band of `Legends.tsx:300`
+    // leaves transparent.
+    final nearPhase = fluentChartStripePhase(Offset.zero);
+    final farPhase = fluentChartStripePhase(Offset(size.width, size.height));
+    for (var phase = nearPhase; phase <= farPhase; phase += kStripePeriod) {
       canvas.drawRect(
         Rect.fromLTWH(
           phase + kStripeColourStart,
-          -extent,
+          // Perpendicular to the gradient the box spans local y from
+          // `-width / √2` to `height / √2`, and [farPhase] is
+          // `(width + height) / √2`, so it bounds both.
+          -farPhase,
           kStripePeriod - kStripeColourStart,
-          2 * extent,
+          2 * farPhase,
         ),
         paint,
       );

@@ -7,7 +7,6 @@ import '../axis/tick_format.dart';
 import '../model/callout_data.dart';
 import 'chart_popover_style.dart';
 import 'legend_shape.dart';
-import 'legend_style.dart';
 
 /// The reading a chart popover displays.
 ///
@@ -366,8 +365,13 @@ Widget _popoverRow(
     children: <Widget>[
       if (toDrawShape)
         SizedBox(
-          width: kLegendSwatchBoxSize,
-          height: kLegendSwatchBoxSize,
+          // `ChartPopover.tsx:211-217` renders the same `<Shape>` the legend
+          // does, and that component sizes its own svg (`shape.tsx:39-40`,
+          // `:46-49`) — so the box is the shape viewport, not the legend row's
+          // border box. The two coincide at 14 only because
+          // `useLegendsStyles.styles.ts:14` makes the swatch border 1px.
+          width: kLegendShapeViewportSize,
+          height: kLegendShapeViewportSize,
           child: CustomPaint(
             painter: FluentChartLegendShapePainter(
               // ChartPopover.tsx:216 derives the marker from the index alone

@@ -276,10 +276,10 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // (`utilities.ts:1738`, `:1749-1770`), one use (`LineChart.tsx:493-494`) and an
   // unrelated local in `funnelGeometry.ts:187`. That one use is inside `_getPath`
   // and feeds `_getPointPath` (`LineChart.tsx:82-137`), the data-point marker
-  // builder, which `FluentLineMarkerPainter.kWidthRatios`
-  // (`line_chart.dart:312-321`) transcribes in the same `Points` order and
-  // `line_chart.dart:1484` divides by, pinned per shape at
-  // `line_chart_test.dart:727-757`. The legend swatch is `shape.tsx:32-53`: one
+  // builder, which `FluentLineMarkerPainter.kWidthRatios` transcribes in the
+  // same `Points` order and `FluentLineChartDelegate.markersFor` divides by,
+  // pinned per shape by line_chart_test's 'a wide shape is narrowed by its
+  // width ratio, a narrow one is not'. The legend swatch is `shape.tsx:32-54`: one
   // ratio-free code path for all nine authored `d` strings. Applying a ratio
   // there would have HALVED a hexagon swatch against the box Chromium measured,
   // not corrected it. So the entry was excusing a second transcription of a
