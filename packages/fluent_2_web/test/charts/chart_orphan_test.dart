@@ -469,7 +469,7 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // upstream's `isXYearCategory` arm (`:378-380`), so a year category came back
   // unstringified and the first caller would have inherited that.
   'isSafePlotlyUrl':
-      'internal/plotly/json_guard.dart:156, the URL-scheme allowlist hardened '
+      'internal/plotly/json_guard.dart:159, the URL-scheme allowlist hardened '
       'under spec §5.2 exception 2. Upstream has exactly one caller — '
       'VerticalStackedBarChart.tsx:308, `if (props.href && isSafeUrl('
       'props.href)) { window.location.href = props.href; }` — and this port '
@@ -494,8 +494,10 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // (internal/vega/spec.dart:63), `getVegaChartType` (routing.dart:227),
   // `getVegaLiteLegendsProps` (common.dart:674), `kVegaStackedBarDefaultHeight`
   // (transform_bar.dart:614) and the ten `transformVegaTo*` transformers.
-  // `_FluentVegaDeclarativeChartState.build` clones the spec, validates its
-  // depth, routes it and dispatches through an exhaustive switch whose arms
+  // `_FluentVegaDeclarativeChartState.build` validates the spec's depth
+  // (`:591`), clones it (`:596`) — that order, because a clone that ran first
+  // would recurse as deep as the attacker asked before anything counted the
+  // levels — routes it and dispatches through an exhaustive switch whose arms
   // RETURN the widget that is mounted — not a value computed and dropped, the
   // ceiling this file cannot see. `transformVegaToLine` never needed an entry:
   // `transformVegaToArea` calls it at transform_line.dart:814.
