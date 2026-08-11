@@ -125,8 +125,14 @@ Widget buildFluentChartPopoverSingleValue(
     mainAxisSize: MainAxisSize.min,
     children: <Widget>[
       // ChartPopover.tsx:62-66 — a row that would space its children apart if
-      // the commented-out time reading at :65 were ever restored.
+      // the commented-out time reading at :65 were ever restored. It still
+      // hugs: upstream sets no width, min-width or max-width on any popover
+      // slot (useChartPopoverStyles.styles.ts:33-107), so the surface is
+      // shrink-to-fit and `space-between` has nothing to spread. A Row left on
+      // the MainAxisSize.max default claims the whole loose box instead and
+      // drags the surface out to the full plot width with it.
       Row(
+        mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: <Widget>[
           Text(data.xValue ?? '', style: style.xTextStyle!.resolve(states)),
@@ -153,7 +159,13 @@ Widget buildFluentChartPopoverSingleValue(
               ),
               // useChartPopoverStyles.styles.ts:104 — spacingHorizontalS is 8.
               const SizedBox(width: FluentSpacing.s),
-              block,
+              // A Row lays a non-flexible child out with an unbounded main
+              // axis, so a long legend would run past the surface rather than
+              // wrap. Upstream wraps it: calloutBlockContainer is a block-level
+              // div (useChartPopoverStyles.styles.ts:49-52) whose grid root
+              // clips (`overflow: hidden`, :35) and whose surface is capped at
+              // the available box by `autoSize: 'always'` (ChartPopover.tsx:48).
+              Flexible(child: block),
               if (data.ratio != null)
                 // ChartPopover.tsx:70-73 — a ratio switches the container to
                 // `alignItems: flex-end`. The block is the tallest child, so
@@ -395,7 +407,9 @@ Widget _popoverRow(
       // useChartPopoverStyles.styles.ts:68 on the shape and :63 on the barred
       // block — spacingHorizontalS is 8 either way.
       const SizedBox(width: FluentSpacing.s),
-      inner,
+      // Flexible for the same reason the single-value block is: the row is the
+      // only thing that can be arbitrarily wide, and upstream wraps it.
+      Flexible(child: inner),
     ],
   );
 

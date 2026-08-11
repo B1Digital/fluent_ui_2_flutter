@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:fluent_2_web/src/charts/chrome/chart_popover.dart';
 import 'package:fluent_2_web/src/charts/chrome/chart_popover_style.dart';
@@ -897,6 +899,92 @@ void main() {
         reason:
             'Stealing focus from the chart would break the chart\'s own '
             'keyboard traversal, so nothing inside the surface is reachable.',
+      );
+    });
+  });
+
+  group('the popover surface width', () {
+    // The defect: a Sankey link popover holding three short readings rendered
+    // the full plot width. Any box far wider than the content reproduces it —
+    // 760 is the widest that leaves the 800x600 test surface room for the
+    // anchor offset, and 500 is taller than the popover can grow, so the
+    // delegate never flips it.
+    const plotWidth = 760.0;
+    const longLegend =
+        'A very long series name that goes on and on and on and should '
+        'eventually have to wrap somewhere rather than run forever';
+
+    Finder surface() => find.descendant(
+      of: find.byType(FluentChartPopover),
+      matching: find.byType(ExcludeFocus),
+    );
+
+    Future<void> pump(WidgetTester tester, String legend) => tester.pumpWidget(
+      FluentApp(
+        theme: theme,
+        home: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: plotWidth,
+            height: 500,
+            child: FluentChartPopover(
+              anchor: Offset.zero,
+              data: FluentChartPopoverData(
+                xValue: 'node4',
+                legend: legend,
+                yValue: '2',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    testWidgets('the surface measures its content, not the plot box', (
+      tester,
+    ) async {
+      await pump(tester, 'From node0');
+      final padding = resolveFluentChartPopoverStyle(theme).surfacePadding!
+          .resolve(const <WidgetState>{})!
+          .resolve(TextDirection.ltr);
+      // The widest of the two stacked bodies: the bare x reading, or the
+      // accent bar plus its gap plus the taller block beside it.
+      final content =
+          padding.horizontal +
+          max(
+            tester.getSize(find.text('node4')).width,
+            kChartPopoverAccentBarWidth +
+                FluentSpacing.s +
+                max(
+                  tester.getSize(find.text('From node0')).width,
+                  tester.getSize(find.text('2')).width,
+                ),
+          );
+      expect(
+        tester.getSize(surface()).width,
+        moreOrLessEquals(content, epsilon: 0.01),
+        reason:
+            'useChartPopoverStyles.styles.ts:33-107 sets no width, min-width '
+            'or max-width on any slot, so the surface is shrink-to-fit and '
+            "`autoSize: 'always'` (ChartPopover.tsx:48) only caps it. A body "
+            'left on the MainAxisSize.max default reports the loose box the '
+            'layout delegate hands down instead — the whole plot width.',
+      );
+    });
+
+    testWidgets('a long series name wraps instead of running past the '
+        'surface', (tester) async {
+      await pump(tester, longLegend);
+      expect(
+        tester.getSize(find.text(longLegend)).width,
+        lessThanOrEqualTo(plotWidth),
+        reason:
+            'calloutBlockContainer is a block-level div '
+            '(useChartPopoverStyles.styles.ts:49-52) inside a grid root that '
+            'clips (:35), so upstream wraps at the cap. A Row lays a '
+            'non-flexible child out with an unbounded main axis, so without '
+            'Flexible the legend is laid out at its full intrinsic width and '
+            'RenderFlex overflows the surface.',
       );
     });
   });
