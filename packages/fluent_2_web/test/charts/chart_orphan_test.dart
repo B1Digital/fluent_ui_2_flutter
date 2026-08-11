@@ -203,7 +203,7 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'Task 20. Upstream reaches it from the `verticalbar` entry of '
       "DeclarativeChart's chartMap (DeclarativeChart.tsx:303-306), dispatched "
       'at :607, and a `histogram` trace is the only thing routed there '
-      '(PlotlySchemaConverter.ts:516-517). The widget that reads the route is '
+      '(PlotlySchemaConverter.ts:517-518). The widget that reads the route is '
       'plan 09 Task 28, which also supplies the enclosing SizedBox this '
       "transformer deliberately does not build (spec §2.2's constraint-sized "
       'shell charts, with the 350 from PlotlySchemaAdapter.ts:1892 living in '
