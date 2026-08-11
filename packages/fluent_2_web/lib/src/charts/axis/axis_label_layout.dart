@@ -296,7 +296,8 @@ FluentXAxisLabelLayout wrapXLabels(
 /// That arm is the port's *normal* path. Upstream guards its only call with
 /// `props.showYAxisLablesTooltip` (`CartesianChart.tsx:396`) and then passes the
 /// same flag back in as `truncateLabel` (`:404`), so the two can never disagree
-/// and the blank-axis branch is unreachable there. `cartesian_painter.dart:137`
+/// and the blank-axis branch is unreachable there.
+/// `cartesian_painter.dart:220-226`
 /// folds the guard into the argument and calls this unconditionally, because
 /// the full label this returns when the flag is off is exactly the d3 tick text
 /// upstream leaves standing when it skips the call.

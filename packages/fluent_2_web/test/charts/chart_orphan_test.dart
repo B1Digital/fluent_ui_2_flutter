@@ -30,10 +30,11 @@
 // That number was measured without the same-file refinement below. With it, the
 // wider sweep reported 1509 declarations and 25 orphans, and every one of the 25
 // was checked by hand against `grep`: not one had a `lib/` reference that was
-// not a doc comment. On 2026-08-11 it reports 1661 declarations across 97 files
-// and 18 orphans — the 17 excused below plus `FluentSparkline`, which
-// refinement 4 made visible and which was checked the same way. The
-// false-positive rate of the rule as written is 0 of 18.
+// not a doc comment. It read 1661 declarations and 18 orphans on the morning of
+// 2026-08-11; after the batch that resolved thirteen of those — nine of them by
+// deleting the symbol — it reports 1653 declarations across 97 files and 5
+// orphans, which are the 5 excused below. The false-positive rate of the rule as
+// written is 0 of 5, and was 0 of 18 at the wider count.
 //
 // FOUR REFINEMENTS make the signal usable, and all four are load-bearing.
 // Each is stated with what it costs, because the next reader will be tempted to
@@ -200,9 +201,26 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       "port's Color? typing removes; and the Plotly adapter took the typed "
       'branch instead — PlotlyColorAdapter.ts:102 passes a DataVizPalette '
       'token to getColorFromToken, and color_adapter.dart:162 calls '
-      'FluentDataVizPalette.resolve on the same token. One adapter is left, '
-      'Vega, whose VegaLiteColorAdapter.ts:250 does call it on a string. '
-      'Unblocks with that one, or is deleted with it.',
+      'FluentDataVizPalette.resolve on the same token. Re-audited again on '
+      '2026-08-11 by the verification pass over that batch, which read the one '
+      'adapter the entry had left as its unblocker and found the claim false. '
+      'The entry said "one adapter is left, Vega, whose '
+      'VegaLiteColorAdapter.ts:250 does call it on a string. Unblocks with '
+      'that one, or is deleted with it." :250 is the ONLY getColorFromToken '
+      'call in the whole Vega tree, and its argument is '
+      '`schemeMapping[index % schemeMapping.length]` (:249) off '
+      'getSchemeMapping (:192-209), whose four tables — '
+      'CATEGORY10_FLUENT_MAPPING at :95-106 and the CATEGORY20, TABLEAU10 and '
+      'TABLEAU20 tables beside it — hold DataVizPalette constants and nothing '
+      'else. That is the typed branch, the same one this entry already ruled '
+      'out as a reason for the other adapters. A consumer-supplied Vega colour '
+      'never reaches the function at all: getVegaColor returns its custom '
+      '`range` entry directly at :243. So NOTHING in plan 09 Tasks 31-57 will '
+      'call this, the deferral has no unblocker left, and the resolution is '
+      'the other half of its own sentence — deletion, with the three tests and '
+      'six assertions at test/charts/internal/data_viz_palette_test.dart:'
+      '159-198 that reach it. That is a lib change with its own TDD cycle and '
+      'is not this list to make, so the entry stays only until it is made.',
   // `shouldResize` was here, and it named its own resolution: "the likely
   // resolution when the adapters land is deletion with that test, not wiring".
   // The adapter landed and took the wiring instead — `declarative_chart.dart`
@@ -326,7 +344,8 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // ship that flag on from the Plotly transforms
   // (transform_bar.dart:641, :1412, :1929 and transform_xy.dart:940, :1369),
   // and their first y label started 66.99 logical pixels off the chart's left
-  // edge. cartesian_painter.dart:137 now calls the helper, unconditionally,
+  // edge. cartesian_painter.dart:220-226 now calls the helper,
+  // unconditionally,
   // with `truncateLabel: props.showYAxisLablesTooltip` — which also makes the
   // spec 5.2 exception 2 arm the default path rather than dead code, since
   // upstream's own guard at CartesianChart.tsx:396 and its `truncateLabel`
