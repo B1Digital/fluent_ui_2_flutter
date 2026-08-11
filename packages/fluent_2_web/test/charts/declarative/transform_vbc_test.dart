@@ -230,4 +230,31 @@ void main() {
           ':1883 spreads nothing for an empty one.',
     );
   });
+
+  test('a declared log axis reaches the scale-type props', () {
+    final chart = build(<String, Object?>{
+      'data': <Object?>[
+        <String, Object?>{
+          'type': 'histogram',
+          'x': <Object?>[1, 2],
+        },
+      ],
+      'layout': <String, Object?>{
+        'xaxis': <String, Object?>{'type': 'log'},
+        'yaxis': <String, Object?>{'type': 'log'},
+      },
+    });
+    expect(
+      chart.props.xScaleType,
+      FluentAxisScaleType.log,
+      reason:
+          'PlotlySchemaAdapter.ts:3943-3945 sets xScaleType for a declared log '
+          'axis, and FluentCartesianChartProps carries the field.',
+    );
+    expect(
+      chart.props.yScaleType,
+      FluentAxisScaleType.log,
+      reason: 'PlotlySchemaAdapter.ts:3947-3949, same spread.',
+    );
+  });
 }

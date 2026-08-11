@@ -1653,8 +1653,9 @@ FluentVerticalBarChart transformPlotlyToVbc(
   final titles = getTitles(layout);
   // `:1903`.
   final categoryOrder = getAxisCategoryOrderProps(data, layout);
-  // Not an upstream spread at `:1889-1904`; see the tick note below.
+  // Neither is an upstream spread at `:1889-1904`; see the notes below.
   final tickProps = getAxisTickProps(data, layout);
+  final scaleTypes = getAxisScaleTypeProps(data, layout);
   // `:1900` and `:1902`.
   final xRange = getXMinMaxValues(layout);
   final yRange = getYMinMaxValues(layout);
@@ -1695,6 +1696,14 @@ FluentVerticalBarChart transformPlotlyToVbc(
       // too.
       yMinValue: yRange.yMinValue ?? 0,
       yMaxValue: yRange.yMaxValue ?? 0,
+      // Upstream's return block spreads no scale types either. Kept for the
+      // reason `axis.dart` states on `getAxisScaleTypeProps` and the gantt
+      // transformer above repeats: `FluentCartesianChartProps` carries the
+      // field, so dropping it would lose a declared log axis outright.
+      // // parity break: PlotlySchemaAdapter.ts:1889
+      xScaleType: scaleTypes.x ?? FluentAxisScaleType.auto,
+      yScaleType: scaleTypes.y ?? FluentAxisScaleType.auto,
+      secondaryYScaleType: scaleTypes.secondaryY ?? FluentAxisScaleType.auto,
       // Upstream spreads `getAxisTickProps` into the stacked (`:1605`) and
       // grouped (`:1788`) bar props but NOT into this one, which is how a
       // `tickvals` array or a category x axis's auto tick layout
