@@ -318,8 +318,8 @@ class FluentEventAnnotationPainter extends CustomPainter {
 /// commented-out v8 `Callout` block with `callout = null` beside a
 /// `TODO - need to replace callout with popover`, and `onRenderCard` is
 /// collected and never rendered. [FluentEventAnnotation.cardBuilder] is
-/// therefore accepted and ignored. `// parity:` — implementing it would be new
-/// behaviour, not a port.
+/// therefore accepted and ignored. `// parity:` `LabelLink.tsx:35-59` —
+/// implementing it would be new behaviour, not a port.
 class FluentEventAnnotationLayer extends StatelessWidget {
   /// Creates an event annotation overlay.
   const FluentEventAnnotationLayer({

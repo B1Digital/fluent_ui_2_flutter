@@ -77,7 +77,10 @@ void validatePlotlyJsonDepth(Object? value, [int depth = 0]) {
   if (depth > kPlotlyMaxJsonDepth) {
     throw const PlotlySchemaException('Maximum json depth exceeded');
   }
-  // hardened: `Map<Object?, Object?>` rather than `Map<String, Object?>`. Map
+  // hardened: against `PlotlySchemaConverter.ts:182`, whose
+  // `typeof jsonObject === 'object'` catches every object shape. The Dart
+  // equivalent is `Map<Object?, Object?>` rather than `Map<String, Object?>`.
+  // Map
   // is covariant in its type arguments, so the narrow test matches every
   // string-keyed map but silently skips a `Map<dynamic, dynamic>` — which is
   // what an untyped caller's `{}` literal is — leaving it unmeasured and, in
@@ -155,7 +158,8 @@ final RegExp _urlScheme = RegExp(
 /// everything else scheme-less is treated as a same-origin relative path.
 bool isSafePlotlyUrl(String href) {
   final normalised = href.replaceAll(_urlNoise, '');
-  // hardened: the WHATWG URL parser folds a backslash onto a forward slash for
+  // hardened: `isSafeUrl.ts:12-15` again — the WHATWG URL parser folds a
+  // backslash onto a forward slash for
   // every special scheme, so `\\evil.example` and `/\evil.example` reach the
   // same host as `//evil.example`. Folding before the test closes all four
   // spellings at once; a leading single `\` folds to an absolute same-origin

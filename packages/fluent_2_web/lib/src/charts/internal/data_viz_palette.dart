@@ -261,7 +261,8 @@ abstract final class FluentDataVizPalette {
   /// so, exactly as upstream does — only the two declarative adapters pass a
   /// real value, through `fluentChartIsDarkTheme` (spec §5.8).
   ///
-  /// `// parity:` a negative `index + offset` throws upstream, because
+  /// `// parity:` a negative `index + offset` throws upstream (`colors.ts:135`),
+  /// because
   /// `QUALITATIVE_COLORS[-1]` is `undefined` and `getThemeSpecificColor` then
   /// reads `.length` off it. Dart's `%` would wrap silently instead, so the
   /// assert below keeps the failure visible in debug builds.

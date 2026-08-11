@@ -521,7 +521,8 @@ class FluentHorizontalBarChartWithAxisDelegate
     // (`d3-scale/src/ordinal.js`), so the band range is sized for the distinct
     // categories either way; the repeats survive only in the tick list.
     //
-    // parity: the Oracle B captures place the *first* data group at the band
+    // parity: (`.tsx:819-829` again) the Oracle B captures place the first data
+    // group at the band
     // the *last* label names, which is the opposite of what this reversal
     // produces. The reversal is what the cited source does, so it is what this
     // ports; see the test note in
