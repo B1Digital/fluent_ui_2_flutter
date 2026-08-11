@@ -535,6 +535,62 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       "`extractVegaDataValues(unitSpec['data'] ?? spec['data'])` at the "
       'VegaLiteSchemaAdapter.ts:1560 position, and every Vega transformer from '
       'Task 42 on reads its dataset through it. Goes when Task 40 lands.',
+
+  // Task 31's `internal/vega/js_value.dart` — the ECMAScript abstract
+  // operations the expression evaluator is written on top of. Seven of its
+  // twelve public functions are here; the other five are not, because
+  // jsToNumber, jsToString, jsStrictEquals and jsLooseEquals already have real
+  // callers inside the file (jsAdd coerces through the first two, the
+  // abstract-equality algorithm recurses through the last two) and JsUndefined
+  // is named by every type test in it. That asymmetry is the point: what is
+  // listed here is what the file genuinely cannot reach on its own, and it is
+  // reachable only from an evaluator that does not exist yet.
+  //
+  // These seven are the operators of the parser's precedence ladder, so their
+  // caller is one file: Task 32 creates `internal/vega/expression.dart`, Task
+  // 33 appends the primary through multiplicative levels and Task 34 appends
+  // additive through ternary, which is the task that spends six of the seven.
+  // Every one is a *statement* in that task's own Step 3 code, not a
+  // speculative consumer — plan 09 line 11230 is literally
+  // `left = jsTruthy(left) ? left : right;`. jsTypeof's caller is later still
+  // and in a different direction, which is why it carries its own entry rather
+  // than sharing this one's exit condition.
+  'jsTruthy':
+      'internal/vega/js_value.dart:27. Task 34 branches `&&` and `||` on it '
+      'and returns the untouched operand, because upstream `left || right` '
+      '(VegaLiteExpressionEvaluator.ts:295, :305) evaluates to an OPERAND and '
+      "Dart's own operators are typed bool-to-bool. Task 47's `filter` "
+      'transform wraps the whole expression result in it as well, at the '
+      'VegaLiteSchemaAdapter.ts:948 position. Goes when Task 34 lands.',
+  'jsTypeof':
+      'internal/vega/js_value.dart:48. Its callers are the two `typeof '
+      'sampleValue` diagnostics upstream, not the parser: '
+      'VegaLiteSchemaAdapter.ts:955 in autoCorrectEncodingTypes, which Task 40 '
+      'ports, and `:3594` in the binning error path, which Task 47 ports. Both '
+      "read the result against the string 'string', so a Dart `runtimeType` "
+      'would not answer the same question. Goes when Task 40 lands.',
+  'jsAdd':
+      'internal/vega/js_value.dart:263. Task 34\'s additive level is its only '
+      'caller: `VegaLiteExpressionEvaluator.ts:364-367` tests BOTH operands '
+      'for `typeof === string` and concatenates if either is one, and Dart has '
+      'no `+` with a string-or-number union to express that. Goes when Task 34 '
+      'lands.',
+  'jsLess':
+      "internal/vega/js_value.dart:288, the `case '<'` of Task 34's comparison "
+      'level (VegaLiteExpressionEvaluator.ts:341-343). Goes when Task 34 '
+      'lands.',
+  'jsGreater':
+      "internal/vega/js_value.dart:292, the `case '>'` of the same level "
+      '(VegaLiteExpressionEvaluator.ts:344-346). Separate from jsLess because '
+      'the specification defines it as `b < a` with the operands swapped, '
+      'which is what makes `2 > 2` false rather than the negation of `2 < 2`. '
+      'Goes when Task 34 lands.',
+  'jsLessOrEqual':
+      "internal/vega/js_value.dart:296, the `case '<='` of the same level "
+      '(VegaLiteExpressionEvaluator.ts:347-349). Goes when Task 34 lands.',
+  'jsGreaterOrEqual':
+      "internal/vega/js_value.dart:303, the `case '>='` of the same level "
+      '(VegaLiteExpressionEvaluator.ts:350-352). Goes when Task 34 lands.',
 };
 
 /// Files scanned for declarations: every `.dart` file under
