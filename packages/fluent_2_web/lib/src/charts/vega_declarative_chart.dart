@@ -6,6 +6,7 @@ import 'internal/chart_utils.dart' show areArraysEqual;
 import 'internal/data_viz_palette.dart' show fluentChartIsDarkTheme;
 import 'internal/vega/common.dart';
 import 'internal/vega/expression.dart';
+import 'internal/vega/js_value.dart' show jsTruthy;
 import 'internal/vega/routing.dart';
 import 'internal/vega/spec.dart';
 import 'internal/vega/transform_bar.dart';
@@ -126,6 +127,80 @@ const Set<FluentVegaChartKind> kVegaLiftableLegendKinds = <FluentVegaChartKind>{
   FluentVegaChartKind.polar,
 };
 
+/// The gap between concat cells — `gap: '16px'`
+/// (`VegaDeclarativeChart.tsx:451`).
+const double kVegaConcatGap = 16;
+
+/// The sub-specs of a concat spec and the axis they run along, or null when
+/// [spec] declares neither concat (`VegaDeclarativeChart.tsx:100-145`).
+///
+/// `isHConcatSpec` and `isVConcatSpec` (`:100-110`) both demand a NON-EMPTY
+/// array, and `getVegaConcatGridProperties` tests hconcat first (`:118`), so a
+/// spec declaring both runs horizontally. The `templateRows`/`templateColumns`
+/// halves of that function are CSS-grid track lists and map to nothing here: a
+/// `Row` of `Expanded` cells already IS `repeat(n, 1fr)` and a `Column` of
+/// intrinsic-height cells already IS `repeat(n, auto)`.
+({List<Map<String, Object?>> specs, bool isHorizontal})? vegaConcatSpecs(
+  Map<String, Object?> spec,
+) {
+  for (final (key, isHorizontal) in const <(String, bool)>[
+    ('hconcat', true),
+    ('vconcat', false),
+  ]) {
+    final raw = spec[key];
+    if (raw is List<Object?> && raw.isNotEmpty) {
+      return (
+        specs: <Map<String, Object?>>[
+          // A non-object entry keeps its cell rather than vanishing from the
+          // grid, which is what upstream's `{...entry}` does with one.
+          for (final sub in raw)
+            if (sub is Map<String, Object?>) sub else const <String, Object?>{},
+        ],
+        isHorizontal: isHorizontal,
+      );
+    }
+  }
+  return null;
+}
+
+/// One concat sub-spec merged onto its parent
+/// (`VegaDeclarativeChart.tsx:463-473`).
+///
+/// `_hideLegend` (`:472`) is not carried in the map: this port has no props bag
+/// for `renderSingleChart` to write it into, so the caller applies the same
+/// spec-level switch the single-chart path uses.
+Map<String, Object?> mergeVegaConcatSubSpec(
+  Map<String, Object?> parent,
+  Map<String, Object?> sub,
+) {
+  final parentEncoding = parent['encoding'];
+  final subEncoding = sub['encoding'];
+  final parentHeight = parent['height'];
+  final subHeight = sub['height'];
+  return <String, Object?>{
+    // `:464`. Shallow, as upstream's spread is: every channel object below is
+    // shared with the parent and with the sibling cells, so
+    // `autoCorrectEncodingTypes` corrects them once for all of them.
+    ...sub,
+    // `:465`: `||`, so a falsy `data` falls through to the parent's.
+    'data': jsTruthy(sub['data']) ? sub['data'] : parent['data'],
+    // `:466-469`: the parent first, so the child wins per channel.
+    'encoding': <String, Object?>{
+      if (parentEncoding is Map<String, Object?>) ...parentEncoding,
+      if (subEncoding is Map<String, Object?>) ...subEncoding,
+    },
+    // `:456-461` folded into `:470`. The outer test is on the CHILD, and the
+    // inner default reaches for the parent before its own final 300 (`:461`),
+    // so the effective order is child, parent, 300 — never the routed kind's
+    // entry in [kVegaDefaultCellHeight], because this key is always a number.
+    'height': switch ((subHeight, parentHeight)) {
+      (final num height, _) => height,
+      (_, final num height) => height,
+      _ => 300,
+    },
+  };
+}
+
 /// Renders a Vega-Lite specification as the Fluent chart it routes to
 /// (`VegaDeclarativeChart.tsx:389-528`).
 ///
@@ -133,9 +208,9 @@ const Set<FluentVegaChartKind> kVegaLiftableLegendKinds = <FluentVegaChartKind>{
 /// auto-corrects its encoding types, routes it to one of eleven chart kinds and
 /// hands it to that kind's transformer.
 ///
-/// `hconcat` and `vconcat` (`:430-497`) are not read here: a concat spec falls
-/// through to [getVegaChartType] like any other, which is what keeps it
-/// rendering rather than crashing until the grid lands.
+/// An `hconcat` or `vconcat` spec (`:430-497`) is routed cell by cell instead,
+/// each cell merged onto the parent by [mergeVegaConcatSubSpec], and one shared
+/// legend is drawn below the grid.
 class FluentVegaDeclarativeChart extends StatefulWidget {
   /// Creates a Vega declarative chart.
   const FluentVegaDeclarativeChart({
@@ -355,6 +430,146 @@ class _FluentVegaDeclarativeChartState
     }
   }
 
+  /// The routed chart with the lifted legend row beneath it, or the chart
+  /// alone when there is nothing to lift.
+  Widget _withSharedLegend(Widget chart, FluentVegaLegendProps? legendProps) {
+    if (legendProps == null || legendProps.legends.isEmpty) {
+      return chart;
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        chart,
+        FluentChartLegend(
+          // The items carry their RAW titles: `FluentChartLegend` title-cases
+          // for display itself (`chrome/legend.dart:359`, matching
+          // `useLegendsStyles.styles.ts:56`), and the selection it reports back
+          // is keyed on the title, so capitalising here would break the
+          // round-trip at `:406-411`.
+          legends: legendProps.legends,
+          // `:418`: `canSelectMultipleLegends: true`, which this port spells as
+          // a selection mode.
+          selectionMode: legendProps.canSelectMultipleLegends
+              ? FluentChartLegendSelectionMode.multiple
+              : FluentChartLegendSelectionMode.single,
+          selectedLegends: _activeLegends,
+          centerLegends: legendProps.centerLegends,
+          enabledWrapLines: legendProps.enabledWrapLines,
+          onChange: (selected, current) => _onActiveLegendsChange(selected),
+        ),
+      ],
+    );
+  }
+
+  /// The single-spec path (`VegaDeclarativeChart.tsx:499-521`).
+  Widget _buildSingle(Map<String, Object?> spec, {required bool isDark}) {
+    // `:498-512`: a layered spec that is not a bar-plus-line combination is
+    // detected and then deliberately left alone, so only the first layer is
+    // rendered. Reproduced, including the absence of any user-visible
+    // warning. // parity: VegaDeclarativeChart.tsx:506-511
+    //
+    // `getVegaChartType` runs `autoCorrectEncodingTypes` itself (`:1650`), so
+    // there is no separate correction pass to write here.
+    final route = getVegaChartType(spec);
+
+    // `:227-243`: upstream spreads `legendProps` — the selection AND its
+    // change handler — into the chart it renders (`:417-426`, `:243`), so
+    // the chart's own legend both dims the marks and reports back. No shell
+    // chart in this port takes a controlled selection except
+    // `FluentPolarChart`, and no transformer passes one, so the round-trip
+    // through `onSchemaChange` is only available from a legend this widget
+    // owns. The chart's own is
+    // suppressed first so exactly one is drawn.
+    //
+    // GAP: the dimming upstream gets for free is lost with it. Closing it is
+    // a `selectedLegends` parameter on the nine shell charts and on the
+    // eleven transformers, not a change here.
+    final canLift = kVegaLiftableLegendKinds.contains(route.kind);
+    if (canLift) {
+      _disableChartLegend(spec);
+    }
+    final chart = _buildCell(route.kind, spec, isDark: isDark);
+    // AFTER the chart, unlike `:443`'s concat ordering: `getVegaColorFromMap`
+    // is a cache seeded by whoever asks first (`VegaLiteColorAdapter.ts:275`)
+    // and the shared-legend reader forwards neither the scheme nor the range
+    // (`VegaLiteSchemaAdapter.ts:2029`). Asking it first would repaint a
+    // `scheme: tableau10` chart in the plain qualitative cycle; asking it
+    // second makes the lifted row agree with the marks.
+    return _withSharedLegend(
+      chart,
+      canLift ? getVegaLiteLegendsProps(spec, _colorMap, isDark: isDark) : null,
+    );
+  }
+
+  /// The concat grid and the one legend shared by its cells
+  /// (`VegaDeclarativeChart.tsx:430-497`).
+  ///
+  /// // ponytail: `minWidth: 0` at `:486` is a CSS-grid workaround for a
+  /// min-content floor that Flutter's `Expanded` does not have, so it maps to
+  /// nothing.
+  ///
+  /// // parity: VegaDeclarativeChart.tsx:423-426 spreads one componentRef
+  /// across every concat sub-chart, so the last one to mount wins. Reproduced
+  /// because nothing in this component reads the handle —
+  /// `FluentVegaDeclarativeChart` exposes no componentRef and no image export,
+  /// and no transformer takes one, so there is no handle here to share or to
+  /// clobber.
+  Widget _buildConcat(
+    Map<String, Object?> spec,
+    ({List<Map<String, Object?>> specs, bool isHorizontal}) concat, {
+    required bool isDark,
+  }) {
+    // `:454`, in order, because each cell's transformer seeds `_colorMap` for
+    // the next one.
+    final merged = <Map<String, Object?>>[
+      for (final sub in concat.specs) mergeVegaConcatSubSpec(spec, sub),
+    ];
+    final cells = <Widget>[];
+    for (final cellSpec in merged) {
+      final route = getVegaChartType(cellSpec);
+      // `:472` marks EVERY sub-spec `_hideLegend`, which `:237-240` turns into
+      // `hideLegend` on the props. This port's stand-in is the spec-level
+      // switch the single path uses, so the four kinds outside
+      // [kVegaLiftableLegendKinds] keep the legend their transformer gives
+      // them — the gap that constant already records.
+      if (kVegaLiftableLegendKinds.contains(route.kind)) {
+        _disableChartLegend(cellSpec);
+      }
+      final cell = _buildCell(route.kind, cellSpec, isDark: isDark);
+      // `:449-450` and `:475-476`: hconcat is `repeat(n, 1fr)` across one row,
+      // vconcat one column of `auto` rows.
+      cells.add(concat.isHorizontal ? Expanded(child: cell) : cell);
+    }
+
+    final grid = concat.isHorizontal
+        ? Row(
+            spacing: kVegaConcatGap,
+            // The grid's default `align-items: stretch` puts every cell's top
+            // on the row line; a cell keeps the height `:470` gave it, so the
+            // alignment is `start` rather than Flutter's `stretch`, which
+            // would force the cross axis tight and override that height.
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: cells,
+          )
+        : Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: kVegaConcatGap,
+            children: cells,
+          );
+
+    // `:442`: the shared legend is read from sub-spec zero alone. Read after
+    // the cells for the colour-map reason `_buildSingle` records, which is the
+    // one place this port departs from `:442`'s ordering; `:434-441` differs
+    // from the merge above only in the `height` key, which
+    // `getVegaLiteLegendsProps` does not read.
+    return _withSharedLegend(
+      grid,
+      getVegaLiteLegendsProps(merged.first, _colorMap, isDark: isDark),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
@@ -379,68 +594,13 @@ class _FluentVegaDeclarativeChartState
       // handed. Cloning first means the caller's own object survives a rebuild
       // unchanged, which a `const` spec in a widget tree requires.
       final spec = deepCloneVegaSpec(rawSpec);
-      // `:498-512`: a layered spec that is not a bar-plus-line combination is
-      // detected and then deliberately left alone, so only the first layer is
-      // rendered. Reproduced, including the absence of any user-visible
-      // warning. // parity: VegaDeclarativeChart.tsx:506-511
-      //
-      // `getVegaChartType` runs `autoCorrectEncodingTypes` itself (`:1650`), so
-      // there is no separate correction pass to write here.
-      final route = getVegaChartType(spec);
-
-      // `:227-243`: upstream spreads `legendProps` — the selection AND its
-      // change handler — into the chart it renders (`:417-426`, `:243`), so
-      // the chart's own legend both dims the marks and reports back. No shell
-      // chart in this port takes a controlled selection except
-      // `FluentPolarChart`, and no transformer passes one, so the round-trip
-      // through `onSchemaChange` is only available from a legend this widget
-      // owns. The chart's own is
-      // suppressed first so exactly one is drawn.
-      //
-      // GAP: the dimming upstream gets for free is lost with it. Closing it is
-      // a `selectedLegends` parameter on the nine shell charts and on the
-      // eleven transformers, not a change here.
-      final canLift = kVegaLiftableLegendKinds.contains(route.kind);
-      if (canLift) {
-        _disableChartLegend(spec);
-      }
-      final chart = _buildCell(route.kind, spec, isDark: isDark);
-      // AFTER the chart, unlike `:443`'s concat ordering: `getVegaColorFromMap`
-      // is a cache seeded by whoever asks first (`VegaLiteColorAdapter.ts:275`)
-      // and the shared-legend reader forwards neither the scheme nor the range
-      // (`VegaLiteSchemaAdapter.ts:2029`). Asking it first would repaint a
-      // `scheme: tableau10` chart in the plain qualitative cycle; asking it
-      // second makes the lifted row agree with the marks.
-      final legendProps = canLift
-          ? getVegaLiteLegendsProps(spec, _colorMap, isDark: isDark)
-          : null;
-      body = legendProps == null || legendProps.legends.isEmpty
-          ? chart
-          : Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                chart,
-                FluentChartLegend(
-                  // The items carry their RAW titles: `FluentChartLegend`
-                  // title-cases for display itself (`chrome/legend.dart:359`,
-                  // matching `useLegendsStyles.styles.ts:56`), and the
-                  // selection it reports back is keyed on the title, so
-                  // capitalising here would break the round-trip at `:406-411`.
-                  legends: legendProps.legends,
-                  // `:418`: `canSelectMultipleLegends: true`, which this port
-                  // spells as a selection mode.
-                  selectionMode: legendProps.canSelectMultipleLegends
-                      ? FluentChartLegendSelectionMode.multiple
-                      : FluentChartLegendSelectionMode.single,
-                  selectedLegends: _activeLegends,
-                  centerLegends: legendProps.centerLegends,
-                  enabledWrapLines: legendProps.enabledWrapLines,
-                  onChange: (selected, current) =>
-                      _onActiveLegendsChange(selected),
-                ),
-              ],
-            );
+      // `:429-430`: the concat test comes first, so a concat spec never reaches
+      // `getChartType` at all — each of its cells is routed on its own merged
+      // spec instead.
+      final concat = vegaConcatSpecs(spec);
+      body = concat == null
+          ? _buildSingle(spec, isDark: isDark)
+          : _buildConcat(spec, concat, isDark: isDark);
     } on VegaSpecException catch (error) {
       return _error(context, style, error.message);
     } on VegaExpressionException catch (error) {
