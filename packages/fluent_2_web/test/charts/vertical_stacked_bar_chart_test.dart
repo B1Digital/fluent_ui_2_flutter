@@ -16,6 +16,7 @@ import 'package:fluent_2_web/src/charts/internal/data_viz_palette.dart';
 import 'package:fluent_2_web/src/charts/model/bar_data.dart';
 import 'package:fluent_2_web/src/charts/model/chart_common.dart';
 import 'package:fluent_2_web/src/charts/model/chart_value.dart';
+import 'package:fluent_2_web/src/charts/model/line_options.dart';
 import 'package:fluent_2_web/src/charts/vertical_stacked_bar_chart.dart';
 import 'package:fluent_2_web/src/charts/vertical_stacked_bar_chart_style.dart';
 import 'package:flutter/widgets.dart';
@@ -30,6 +31,14 @@ const double _kOracleBarWidth = 16;
 /// `barGapMax` as the captured stories were rendered with it — every adjacent
 /// pair of segments in them is exactly 2px apart.
 const double _kOracleBarGapMax = 2;
+
+/// `lineOptions.lineBorderWidth` as the secondary-y-axis story was rendered
+/// with it.
+///
+/// Hand-derived, because no story source was captured: the halo's stroke width
+/// is `3 + lineBorderWidth * 2` (`VerticalStackedBarChart.tsx:601`) and the
+/// capture's border lines are 7px, so the prop can only have been 2.
+const double _kOracleLineBorderWidth = 2;
 
 /// The segment rects of [story], grouped by their `x` and ordered top-down
 /// within each group.
@@ -1049,6 +1058,25 @@ void main() {
             'VerticalStackedBarChart.tsx:1006-1014',
       );
     });
+
+    test('paintSeries places the stacks with the CATEGORY solve', () {
+      final d = _vsbcStringYDelegate(
+        labels: const <String>['low', 'mid', 'high'],
+      );
+      final context = _vsbcBandYContext();
+      expect(
+        _paintDelegate(d, context).rects.map((r) => r.rect).toList(),
+        d
+            .categorySegmentsFor(context, _layout(height: 350))
+            .map((s) => s.rect)
+            .toList(),
+        reason:
+            '_getGraphData hands _createBar the shell y scale on a string y '
+            'axis and its own yBarScale otherwise (:392-396). The numeric '
+            'solve casts `data` to num, so a paintSeries that never branches '
+            'throws on a labelled segment rather than mislaying it',
+      );
+    });
   });
 
   group('VSBC line overlay', () {
@@ -1087,36 +1115,62 @@ void main() {
       final d = _vsbcWithLines(
         colours: <Color>[const Color(0xFF111111), const Color(0xFF222222)],
       );
+      final strokes = _paintDelegate(d, _vsbcContext()).lines;
       expect(
-        d.lineSegmentColour(0).toARGB32(),
+        strokes,
+        hasLength(1),
+        reason: 'two line points make one segment, and no halo is configured',
+      );
+      expect(
+        strokes.single.colour,
         0xFF222222,
         reason:
             'parity: `stroke = lineObject[item][i].color` reads the '
-            'segment END, VerticalStackedBarChart.tsx:614',
+            'segment END, VerticalStackedBarChart.tsx:620',
       );
     });
 
-    test('high contrast flattens the stroke and the halo to opposite slots', () {
-      final d = _vsbcWithLines(isHighContrast: true);
+    test('high contrast flattens the line and its halo to opposite slots', () {
+      final d = _vsbcWithLines(
+        isHighContrast: true,
+        activeXAxisDataPoint: _stackLabels[0],
+        lineOptions: const FluentLineOptions(lineBorderWidth: 2),
+      );
+      final recorder = _paintDelegate(d, _vsbcContext());
+      final halo = recorder.lines.where((l) => l.strokeWidth == 7).toList();
+      final ink = recorder.lines.where((l) => l.strokeWidth == 3).toList();
       expect(
-        d.lineSegmentColour(0),
-        _canvasText,
+        (halo.length, ink.length),
+        (1, 1),
         reason:
-            'spec section 5.3 — a line stroke is a mark, so it routes through '
-            'flattenMark',
+            'lineBorderWidth 2 gives a 3 + 2 * 2 = 7px halo under a 3px line '
+            '(VerticalStackedBarChart.tsx:601 and :617)',
       );
       expect(
-        d.lineDotFillColour,
-        _canvas,
+        ink.single.colour,
+        _canvasText.toARGB32(),
         reason:
-            "the dot's fill is the halo that separates it from the line it "
-            'sits on, so it routes through flattenMarkStroke and lands on '
-            'Canvas, not CanvasText',
+            'spec section 5.3 — the line is the mark itself, so it routes '
+            'through flattenMark and lands on CanvasText',
       );
       expect(
-        d.lineDotFillColour,
-        isNot(d.lineSegmentColour(0)),
-        reason: 'flattening both the same way would erase the dot',
+        halo.single.colour,
+        _canvas.toARGB32(),
+        reason:
+            'the halo is what holds the line off the stacks it crosses, so it '
+            'routes through flattenMarkStroke and lands on Canvas — with both '
+            'on CanvasText the line would vanish into bars that flattened to '
+            'the same colour',
+      );
+      expect(
+        recorder.circles.map((c) => (c.style, c.colour)).toList(),
+        <(PaintingStyle, int)>[
+          (PaintingStyle.fill, _canvas.toARGB32()),
+          (PaintingStyle.stroke, _canvasText.toARGB32()),
+        ],
+        reason:
+            'the dot is a fill under a ring (:648 then :647); flattening both '
+            'the same way would erase it',
       );
     });
 
@@ -1128,15 +1182,53 @@ void main() {
         reason: 'the helper labels its stacks, so the x axis is a band axis',
       );
       final ctx = _vsbcContext();
-      final path = band.linePathsFor(ctx)['line 0']!;
       expect(
-        path.getBounds().left,
-        // Path bounds are float32, so the epsilon is the storage width and not
-        // a slack in the geometry.
-        closeTo(ctx.xScale(_stackLabels[0])! + ctx.xScale.bandwidth / 2, 1e-4),
+        _paintDelegate(band, ctx).lines.single.a.dx,
+        closeTo(ctx.xScale(_stackLabels[0])! + ctx.xScale.bandwidth / 2, 1e-9),
         reason:
             'xScaleBandwidthTranslate is bandwidth/2 on a string x axis, '
-            'VerticalStackedBarChart.tsx:556',
+            'VerticalStackedBarChart.tsx:569',
+      );
+    });
+
+    test('a legend selected elsewhere dims the line to one tenth', () {
+      final d = _vsbcWithLines(
+        selectedLegends: const <String>['series 0'],
+        lineOptions: const FluentLineOptions(lineBorderWidth: 2),
+      );
+      final alphas = _paintDelegate(
+        d,
+        _vsbcContext(),
+      ).lines.map((l) => (l.colour >>> 24) / 255).toList();
+      expect(
+        alphas,
+        everyElement(closeTo(0.1, 1 / 255)),
+        reason:
+            'opacity={shouldHighlight ? 1 : 0.1} on the halo (:600) and on the '
+            'line (:616), and `line 0` is not the selected legend. The tenth '
+            'of 255 is 25.5, so the packed byte can only be within half a '
+            'step of it',
+      );
+      expect(alphas, hasLength(2), reason: 'one halo and one line');
+    });
+
+    test('the line uses the secondary y scale only when the point asks', () {
+      Offset firstVertex({required bool useSecondaryYScale}) => _paintDelegate(
+        _vsbcWithLines(useSecondaryYScale: useSecondaryYScale),
+        _twoScaleContext(),
+      ).lines.single.a;
+      expect(
+        firstVertex(useSecondaryYScale: true).dy,
+        isNot(firstVertex(useSecondaryYScale: false).dy),
+        reason:
+            'VerticalStackedBarChart.tsx:577-587 plots a segment against '
+            'yScaleSecondary when both of its endpoints ask for it; two scales '
+            'with different domains cannot agree on the same y',
+      );
+      expect(
+        firstVertex(useSecondaryYScale: true).dy,
+        closeTo(_twoScaleContext().yScaleSecondary!(10)!, 1e-9),
+        reason: 'the secondary scale is the one at :580',
       );
     });
   });
@@ -1162,13 +1254,30 @@ void main() {
       return segments;
     }
 
-    test('the overlaid line path visits every captured vertex', () {
+    /// The delegate and context the capture's four line points feed, with the
+    /// halo width [_kOracleLineBorderWidth] the capture's stroke implies.
+    (FluentVerticalStackedBarChartDelegate, FluentCartesianChildContext)
+    replayLine(List<OracleElement> segments) {
+      final xs = <Object>[segments.first.x1!, for (final s in segments) s.x2!];
+      final ys = <double>[segments.first.y1!, for (final s in segments) s.y2!];
+      return (
+        _vsbcWithLines(
+          xPoints: xs,
+          lineYs: ys,
+          useSecondaryYScale: true,
+          lineOptions: const FluentLineOptions(
+            lineBorderWidth: _kOracleLineBorderWidth,
+          ),
+        ),
+        _identityContext(xs, ys),
+      );
+    }
+
+    test('the overlaid line visits every captured vertex', () {
       final story = loadOracleStory(
         'charts-verticalstackedbarchart--vertical-stacked-bar-secondary-y-axis',
       );
       final segments = lineSegments(story);
-      final xs = <Object>[segments.first.x1!, for (final s in segments) s.x2!];
-      final ys = <double>[segments.first.y1!, for (final s in segments) s.y2!];
       for (final s in segments) {
         expectOracleOffset(
           '${story.id} line segment translate',
@@ -1177,36 +1286,87 @@ void main() {
           tolerance: kOracleMeasuredTolerance,
         );
       }
-      final d = _vsbcWithLines(
-        xPoints: xs,
-        lineYs: ys,
-        useSecondaryYScale: true,
-      );
-      final path = d.linePathsFor(_identityContext(xs, ys))['line 0']!;
-      expectOracleRect(
-        '${story.id} overlaid line bounds',
-        Rect.fromLTRB(
-          segments.first.x1!,
-          ys.reduce(math.min),
-          segments.last.x2!,
-          ys.reduce(math.max),
-        ),
-        path.getBounds(),
-      );
-      final metrics = path.computeMetrics().toList();
+      final (d, context) = replayLine(segments);
+      final drawn = _paintDelegate(
+        d,
+        context,
+        height: 260,
+      ).lines.where((l) => l.strokeWidth == 3).toList();
       expect(
-        metrics.length,
-        1,
-        reason: 'four defined points make one unbroken contour',
+        drawn,
+        hasLength(segments.length),
+        reason:
+            '${story.id} draws one <line> per segment (:609-625), and the port '
+            'has to emit the same count rather than one joined polyline',
       );
-      var captured = 0.0;
-      for (final s in segments) {
-        captured += (Offset(s.x2!, s.y2!) - Offset(s.x1!, s.y1!)).distance;
+      for (final (i, s) in segments.indexed) {
+        expectOracleOffset(
+          '${story.id} line segment $i start',
+          Offset(s.x1!, s.y1!),
+          drawn[i].a,
+        );
+        expectOracleOffset(
+          '${story.id} line segment $i end',
+          Offset(s.x2!, s.y2!),
+          drawn[i].b,
+        );
       }
-      expectOracleNumber(
-        '${story.id} overlaid line total length',
+    });
+
+    test('the captured halo is a 7px run of the neutral background', () {
+      final story = loadOracleStory(
+        'charts-verticalstackedbarchart--vertical-stacked-bar-secondary-y-axis',
+      );
+      final segments = lineSegments(story);
+      final captured =
+          story.byTag('line').where((e) => e.strokeWidth == 7).toList()
+            ..sort((a, b) => a.x1!.compareTo(b.x1!));
+      expect(
         captured,
-        metrics.single.length,
+        hasLength(segments.length),
+        reason:
+            '${story.id} strokes one border line under each of its three line '
+            'segments (:592-608), or the widths below check nothing',
+      );
+      final (d, context) = replayLine(segments);
+      final drawn = _paintDelegate(
+        d,
+        context,
+        height: 260,
+      ).lines.where((l) => l.strokeWidth != 3).toList();
+      expect(
+        drawn.map((l) => l.strokeWidth).toSet(),
+        <double>{7},
+        reason:
+            'the captured 7px stroke is `3 + lineBorderWidth * 2` (:601) at '
+            'lineBorderWidth $_kOracleLineBorderWidth — the only value that '
+            'produces it, and the story prop it pins down',
+      );
+      for (final (i, c) in captured.indexed) {
+        expect(
+          drawn[i].colour,
+          c.stroke!.toARGB32(),
+          reason:
+              '${story.id} strokes the halo with colorNeutralBackground1 '
+              '(:604), which the light theme resolves to white',
+        );
+        expectOracleOffset(
+          '${story.id} halo segment $i start',
+          Offset(c.x1!, c.y1!),
+          drawn[i].a,
+        );
+      }
+      expect(
+        drawn.map((l) => l.order).reduce(math.max),
+        lessThan(
+          _paintDelegate(d, context, height: 260).lines
+              .where((l) => l.strokeWidth == 3)
+              .map((l) => l.order)
+              .reduce(math.min),
+        ),
+        reason:
+            'every borderForLines entry is emitted before every line entry '
+            '(:672-673), so the halo can never paint over its own line',
       );
     });
 
@@ -1241,6 +1401,15 @@ void main() {
               'VerticalStackedBarChart.tsx:694-698',
         );
       }
+      expect(
+        _paintDelegate(d, _vsbcContext()).circles,
+        isEmpty,
+        reason:
+            'ponytail: an opacity-0 dot exists upstream only to hold a tab '
+            'stop (:650-652), and this delegate emits no hit regions at all, '
+            'so the port skips the paint instead of drawing four invisible '
+            'circles',
+      );
     });
   });
 
@@ -1251,6 +1420,111 @@ void main() {
         home: Center(child: SizedBox(width: 800, height: 350, child: chart)),
       ),
     );
+
+    /// Runs the plot painter the widget itself mounted over a recorder.
+    ///
+    /// The plot is the first [CustomPaint] under the shell: the column puts it
+    /// ahead of the legend (`cartesian_chart.dart:370-382`) and builds it with
+    /// `painter: FluentCartesianChartPainter` (`:542-543`). Reading the paint
+    /// back from *this* painter is the only thing that proves a delegate helper
+    /// is reached from `FluentVerticalStackedBarChart.build` rather than from a
+    /// hand-built delegate in a unit test.
+    _VsbcRecorder paintPlot(WidgetTester tester) {
+      final plot = find
+          .descendant(
+            of: find.byType(FluentCartesianChart),
+            matching: find.byType(CustomPaint),
+          )
+          .first;
+      final recorder = _VsbcRecorder();
+      tester
+          .widget<CustomPaint>(plot)
+          .painter!
+          .paint(recorder, tester.getSize(plot));
+      return recorder;
+    }
+
+    testWidgets('the mounted chart really paints its line overlay', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentVerticalStackedBarChart(data: _vsbcLineOverlayStacks()),
+      );
+      final recorder = paintPlot(tester);
+      final ink = recorder.lines
+          .where((l) => l.colour == _kLineInk.toARGB32())
+          .toList();
+      expect(
+        ink,
+        hasLength(2),
+        reason:
+            'three line points make two <line> elements '
+            '(VerticalStackedBarChart.tsx:573-620); zero means paintSeries '
+            'never reaches linePathsFor from the mounted widget',
+      );
+      expect(
+        ink.map((l) => l.strokeWidth).toList(),
+        const <double>[3, 3],
+        reason:
+            'strokeWidth={lineObject[item][0].lineOptions?.strokeWidth ?? 3} '
+            '(VerticalStackedBarChart.tsx:617)',
+      );
+      expect(
+        ink.map((l) => l.cap).toList(),
+        const <StrokeCap>[StrokeCap.round, StrokeCap.round],
+        reason:
+            "strokeLinecap={… ?? 'round'} (VerticalStackedBarChart.tsx:618)",
+      );
+      expect(
+        recorder.rects.map((r) => r.order).reduce(math.max),
+        lessThan(ink.map((l) => l.order).reduce(math.min)),
+        reason:
+            'the overlay is a sibling <g> AFTER the one holding the bars '
+            '(VerticalStackedBarChart.tsx:1407-1417), so a line always crosses '
+            'over the stacks and never under them',
+      );
+      final plot = Offset.zero & tester.getSize(find.byType(CustomPaint).first);
+      for (final segment in ink) {
+        expect(
+          plot.contains(segment.a) && plot.contains(segment.b),
+          isTrue,
+          reason: 'a line drawn outside $plot is not on the plot',
+        );
+      }
+    });
+
+    testWidgets('the mounted chart really paints its line halo', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentVerticalStackedBarChart(
+          data: _vsbcLineOverlayStacks(),
+          lineOptions: const FluentLineOptions(
+            lineBorderWidth: _kOracleLineBorderWidth,
+          ),
+        ),
+      );
+      final halo = paintPlot(
+        tester,
+      ).lines.where((l) => l.strokeWidth == 7).toList();
+      expect(
+        halo,
+        hasLength(2),
+        reason:
+            'props.lineOptions.lineBorderWidth (:566-568) is the only source '
+            'of the halo, so an unforwarded prop leaves the 3 + 2 * 2 = 7px '
+            'run (:601) unpainted',
+      );
+      expect(
+        halo.map((l) => l.colour).toSet(),
+        <int>{0xFFFFFFFF},
+        reason:
+            'stroke={tokens.colorNeutralBackground1} (:604), which the light '
+            'theme resolves to white',
+      );
+    });
 
     testWidgets('the legend colour is deterministic, not random', (
       tester,
@@ -1422,6 +1696,27 @@ List<FluentVerticalStackedBarGroup> _vsbcStacks() =>
         FluentVerticalStackedBarGroup(
           chartData: _segments(<double>[10.0 + i, 20.0 + i]),
           xAxisPoint: _stackLabels[i],
+        ),
+    ];
+
+/// The overlaid line's ink, chosen as the purple the secondary-y-axis capture
+/// strokes its line with so nothing else in the plot can share it.
+const Color _kLineInk = Color(0xFFB146C2);
+
+/// Three single-segment stacks under one three-point line legend.
+///
+/// The segments are a flat 50 so the bars cannot move a line point, and the
+/// line ys rise, fall and rise so a collapsed polyline is not mistakable for a
+/// correct one.
+List<FluentVerticalStackedBarGroup> _vsbcLineOverlayStacks() =>
+    <FluentVerticalStackedBarGroup>[
+      for (final (i, y) in <double>[25, 40, 30].indexed)
+        FluentVerticalStackedBarGroup(
+          chartData: _segments(<double>[50]),
+          xAxisPoint: _stackLabels[i],
+          lineData: <FluentStackedBarLineDatum>[
+            FluentStackedBarLineDatum(y: y, color: _kLineInk, legend: 'line 0'),
+          ],
         ),
     ];
 
@@ -1652,6 +1947,9 @@ FluentVerticalStackedBarChartDelegate _vsbcWithLines({
   List<Object>? xPoints,
   bool isHighContrast = false,
   bool useSecondaryYScale = false,
+  List<String> selectedLegends = const <String>[],
+  Object? activeXAxisDataPoint,
+  FluentLineOptions? lineOptions,
 }) {
   final palette = colours ?? _palette;
   expect(
@@ -1680,7 +1978,123 @@ FluentVerticalStackedBarChartDelegate _vsbcWithLines({
     colors: _colours(isHighContrast: isHighContrast),
     measurer: FluentChartTextMeasurer(),
     textStyles: FluentChartTextStyles.of(theme),
-    selectedLegends: const <String>[],
+    selectedLegends: selectedLegends,
+    activeXAxisDataPoint: activeXAxisDataPoint,
+    lineOptions: lineOptions,
     palette: _palette,
   );
+}
+
+/// A context carrying two numeric y scales with disjoint outputs, so a vertex
+/// on one can never coincide with the same value on the other.
+FluentCartesianChildContext _twoScaleContext() => FluentCartesianChildContext(
+  xScale: _bandScale(
+    domain: _stackLabels,
+    range: <double>[40, 620],
+    innerPadding: 2 / 3,
+    outerPadding: 0,
+  ),
+  yScalePrimary: _magnitudeScale(domain: <double>[0, 100], span: 295),
+  yScaleSecondary: _magnitudeScale(domain: <double>[0, 1000], span: 295),
+  containerWidth: 640,
+  containerHeight: 350,
+);
+
+/// Runs [d]'s own `paintSeries` over a recorder.
+///
+/// `paintSeries` is the delegate's whole painting surface — the axes and their
+/// labels are the shell's — so every stroke, rect and circle a recorder driven
+/// this way collects belongs to the stacks or to the line overlay.
+_VsbcRecorder _paintDelegate(
+  FluentVerticalStackedBarChartDelegate d,
+  FluentCartesianChildContext context, {
+  double height = 350,
+}) {
+  final recorder = _VsbcRecorder();
+  d.paintSeries(recorder, context, _layout(height: height), d.colors);
+  return recorder;
+}
+
+/// A [Canvas] that logs every stroke, fill and rect the plot painter emits.
+///
+/// Colours are stored as `toARGB32` because a [Paint] colour has been through
+/// `withValues(alpha: …)` by the time it lands here, and the packed integer is
+/// the comparison that survives that round trip unambiguously.
+class _VsbcRecorder implements Canvas {
+  /// Every [Canvas.drawLine], in paint order.
+  final List<
+    ({
+      Offset a,
+      Offset b,
+      int colour,
+      double strokeWidth,
+      StrokeCap cap,
+      int order,
+    })
+  >
+  lines =
+      <
+        ({
+          Offset a,
+          Offset b,
+          int colour,
+          double strokeWidth,
+          StrokeCap cap,
+          int order,
+        })
+      >[];
+
+  /// Every [Canvas.drawRect] and [Canvas.drawRRect], in paint order.
+  final List<({Rect rect, int colour, int order})> rects =
+      <({Rect rect, int colour, int order})>[];
+
+  /// Every [Canvas.drawCircle], in paint order.
+  final List<
+    ({Offset centre, double radius, int colour, PaintingStyle style, int order})
+  >
+  circles =
+      <
+        ({
+          Offset centre,
+          double radius,
+          int colour,
+          PaintingStyle style,
+          int order,
+        })
+      >[];
+
+  int _order = 0;
+
+  @override
+  void drawLine(Offset p1, Offset p2, Paint paint) => lines.add((
+    a: p1,
+    b: p2,
+    colour: paint.color.toARGB32(),
+    strokeWidth: paint.strokeWidth,
+    cap: paint.strokeCap,
+    order: _order++,
+  ));
+
+  @override
+  void drawRect(Rect rect, Paint paint) =>
+      rects.add((rect: rect, colour: paint.color.toARGB32(), order: _order++));
+
+  @override
+  void drawRRect(RRect rrect, Paint paint) => rects.add((
+    rect: rrect.outerRect,
+    colour: paint.color.toARGB32(),
+    order: _order++,
+  ));
+
+  @override
+  void drawCircle(Offset c, double radius, Paint paint) => circles.add((
+    centre: c,
+    radius: radius,
+    colour: paint.color.toARGB32(),
+    style: paint.style,
+    order: _order++,
+  ));
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }

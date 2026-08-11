@@ -94,9 +94,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// and the last test below fails if this map drifts from the scan in either
 /// direction, so an excuse cannot outlive the gap it excuses.
 ///
-/// Twenty-five of 1509 on 2026-08-11. Every upstream line cited here was read
-/// from `crawlers/fluentui-react-charts/out/charts/src` while writing it, and
-/// every `lib/` line was read from the file named.
+/// Nineteen on 2026-08-11, down from twenty-four: VerticalStackedBarChart's
+/// line overlay took five entries with it when `paintSeries` started painting
+/// it. Every upstream line cited here was read from
+/// `crawlers/fluentui-react-charts/out/charts/src` while writing it, and every
+/// `lib/` line was read from the file named.
 const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // --- Deliberate: the caller is not in lib/ and never will be -------------
   'cachedCount':
@@ -137,44 +139,6 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'FluentDataVizToken and calls `FluentDataVizPalette.resolve`. A raw '
       'upstream token string only ever arrives from untyped JSON, i.e. in the '
       'same two unported declarative adapters. Unblocks with them.',
-
-  // --- Unpainted geometry: VerticalStackedBarChart's line overlay ---------
-  // The five below are one feature, not five oversights. `lineData` is public
-  // on the series and the chart does read it — legend entries at :328, the
-  // secondary-scale min/max at :577, the y domain at :656, the empty-state
-  // check at :1138 and the hit regions at :1243 — so a consumer can supply a
-  // line and see it in the legend. What is missing is the paint: `paintSeries`
-  // (:954) is the delegate's only painting entry point and names none of these.
-  // This is the `singlePathFor` defect exactly, one chart over, and it was
-  // invisible until this gate was widened past `internal/`.
-  'linePathsFor':
-      'The line overlay geometry, vertical_stacked_bar_chart.dart:919. Called '
-      'from test/charts/vertical_stacked_bar_chart_test.dart:1131 and :1185 '
-      'and from nowhere in lib/. `paintSeries` (:954) is the only paint entry '
-      'on this delegate and does not reference it, so the path is built for '
-      'the tests and never for the canvas. Removing this entry means calling '
-      'it from paintSeries — with lineDotFillColour, lineDotRadiusFor and '
-      'lineSegmentColour, which are the rest of the same overlay.',
-  'categorySegmentsFor':
-      'vertical_stacked_bar_chart.dart:759, the per-category segment layout '
-      'the line overlay needs to anchor its points. Reached only from '
-      'test/charts/vertical_stacked_bar_chart_test.dart:1001 and :1040. Goes '
-      'when linePathsFor is wired, or with it if the overlay is dropped.',
-  'lineDotRadiusFor':
-      'vertical_stacked_bar_chart.dart:860, the dot radius under the '
-      'highlighted and active-x combinations. Four assertions in '
-      'test/charts/vertical_stacked_bar_chart_test.dart (:1058, :1063, :1069, '
-      ':1074) pin all four combinations of a value the canvas never asks for. '
-      'Goes with the rest of the overlay.',
-  'lineSegmentColour':
-      'vertical_stacked_bar_chart.dart:886, the colour of the segment ending '
-      'at a given index. Its own doc one line above proposes widening the '
-      'signature, which is a design note on a method with no caller. Goes '
-      'with the rest of the overlay.',
-  'lineDotFillColour':
-      'vertical_stacked_bar_chart.dart:896, the dot fill, correctly flattened '
-      'through flattenMarkStroke per spec 5.3 — a spec rule applied to a '
-      'colour that never reaches a canvas. Goes with the rest of the overlay.',
 
   // --- Ported constants nothing reads --------------------------------------
   'kMinDonutRadius':
