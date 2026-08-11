@@ -92,36 +92,36 @@ void main() {
     expect(
       chart.props.hideTickOverlap,
       isTrue,
-      reason: 'PlotlySchemaAdapter.ts:2383.',
+      reason: 'PlotlySchemaAdapter.ts:2384.',
     );
     expect(
       chart.props.noOfCharsToTruncate,
       20,
-      reason: 'PlotlySchemaAdapter.ts:2384.',
+      reason: 'PlotlySchemaAdapter.ts:2386.',
     );
     expect(
       chart.props.showYAxisLables,
       isTrue,
-      reason: 'PlotlySchemaAdapter.ts:2380.',
+      reason: 'PlotlySchemaAdapter.ts:2381.',
     );
     expect(
       chart.props.showYAxisLablesTooltip,
       isTrue,
-      reason: 'PlotlySchemaAdapter.ts:2385.',
+      reason: 'PlotlySchemaAdapter.ts:2387.',
     );
-    expect(chart.roundCorners, isTrue, reason: 'PlotlySchemaAdapter.ts:2386.');
+    expect(chart.roundCorners, isTrue, reason: 'PlotlySchemaAdapter.ts:2388.');
     expect(
       chart.useUtc,
       isFalse,
       reason:
-          'PlotlySchemaAdapter.ts:2387, the chart-level flag the Gantt '
+          'PlotlySchemaAdapter.ts:2389, the chart-level flag the Gantt '
           'render path reads (gantt_chart.dart:219).',
     );
     expect(
       chart.props.useUTC,
       isFalse,
       reason:
-          'PlotlySchemaAdapter.ts:2387 again, for the shared cartesian '
+          'PlotlySchemaAdapter.ts:2389 again, for the shared cartesian '
           'shell (cartesian_chart.dart:755).',
     );
   });

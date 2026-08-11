@@ -1263,12 +1263,13 @@ FluentGanttChart transformPlotlyToGantt(
     chartTitle: titles.chartTitle,
     // `:2392`. `FluentCartesianChartProps` carries no bar geometry, so the two
     // horizontal bar props sit on the chart itself. Absent, the shell's own
-    // defaults stand (`GanttChart.tsx:44-45`), which is what upstream's empty
-    // spread leaves too.
+    // defaults stand — 24 from `DEFAULT_BAR_HEIGHT` (`GanttChart.tsx:41`) and
+    // the `1 / 2` padding at `GanttChart.tsx:117` — which is what upstream's
+    // empty spread leaves too.
     maxBarHeight: barProps.maxBarHeight ?? kGanttDefaultBarHeight,
     yAxisPadding: barProps.yAxisPadding ?? 0.5,
     // `:2388`. The plan pinned this as droppable; `FluentGanttChart` does carry
-    // the flag (`gantt_chart.dart:82`), so it is set rather than recorded.
+    // the flag (`gantt_chart.dart:83`), so it is set rather than recorded.
     roundCorners: true,
     // `:2389`: gantt renders local time, which is why `:2307` is the one call
     // site that passes `parseLocalDate`. Set twice because the Gantt paints its
@@ -1282,22 +1283,27 @@ FluentGanttChart transformPlotlyToGantt(
     props: FluentCartesianChartProps(
       xAxisTitle: titles.xAxisTitle,
       yAxisTitle: titles.yAxisTitle,
-      // `:2380`.
-      showYAxisLables: true,
-      // `:2383`.
-      hideTickOverlap: true,
       // `:2381`.
-      hideLegend: legend.hideLegend,
-      // `:2384`: 20 characters before an ellipsis.
-      noOfCharsToTruncate: 20,
+      showYAxisLables: true,
+      // `:2384`.
+      hideTickOverlap: true,
       // `:2385`.
-      showYAxisLablesTooltip: true,
+      hideLegend: legend.hideLegend,
+      // `:2386`: 20 characters before an ellipsis.
+      noOfCharsToTruncate: 20,
       // `:2387`.
+      showYAxisLablesTooltip: true,
+      // `:2389`.
       useUTC: false,
       xAxisCategoryOrder:
           categoryOrder.x ?? FluentAxisCategoryOrder.defaultOrder,
       yAxisCategoryOrder:
           categoryOrder.y ?? FluentAxisCategoryOrder.defaultOrder,
+      // Upstream's return spreads only getTitles, getAxisCategoryOrderProps,
+      // getBarProps and getAxisTickProps (`:2390-2393`) — no scale types. The
+      // plan adds them, and they are kept for the same reason axis.dart states
+      // on getAxisScaleTypeProps: FluentCartesianChartProps has the field, so
+      // dropping it would lose a declared log x axis outright.
       xScaleType: scaleTypes.x ?? FluentAxisScaleType.auto,
       yScaleType: scaleTypes.y ?? FluentAxisScaleType.auto,
       secondaryYScaleType: scaleTypes.secondaryY ?? FluentAxisScaleType.auto,
