@@ -705,8 +705,15 @@ FluentPlotlyRoute mapFluentChart(Object? input) {
       case 'gauge':
         kind = FluentPlotlyChartKind.gauge;
       case 'histogram':
-        // `PlotlySchemaConverter.ts:518` sends histograms to the vertical bar
-        // chart, whose transformer bins them.
+        // KNOWN DIVERGENCE, not parity. `PlotlySchemaConverter.ts:518` returns
+        // `'verticalbar'` — a kind absent from the `FluentChart` union at
+        // `:4-20` but carrying its own `chartMap` entry and its own binning
+        // transformer (`DeclarativeChart.tsx:303-306`). This enum has no
+        // `verticalBar` member, so a histogram lands on the stacked-bar route
+        // and would bin nothing. The gap is held open by the
+        // `transformPlotlyToVbc` entry of `kChartOrphanAllowlist`, which names
+        // this line; closing it means adding the member here and in
+        // `plotlyChartKindName`, not editing that entry.
         kind = FluentPlotlyChartKind.verticalStackedBar;
       case 'scatterpolar':
         kind = FluentPlotlyChartKind.scatterPolar;

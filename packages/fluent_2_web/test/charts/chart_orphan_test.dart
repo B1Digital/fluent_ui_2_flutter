@@ -178,7 +178,7 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'Upstream reaches it from the `groupedverticalbar` entry of '
       "DeclarativeChart's chartMap (DeclarativeChart.tsx:268-271), dispatched "
       'at :607, and the router already resolves that kind '
-      '(internal/plotly/router.dart:758-763) — what is missing is the widget '
+      '(internal/plotly/router.dart:765-770) — what is missing is the widget '
       'that reads the route, which is plan 09 Task 28. So the call site does '
       'not exist yet rather than having been forgotten. Whoever lands '
       'DeclarativeChart deletes this entry — the test below fails until they '
@@ -210,7 +210,7 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'kPlotlyDefaultCellHeight). So the call site does not exist yet rather '
       'than having been forgotten. Two things must land before it can: that '
       'widget, and a `verticalBar` member of FluentPlotlyChartKind — '
-      'internal/plotly/router.dart:707-710 currently sends `histogram` to '
+      'internal/plotly/router.dart:707-717 currently sends `histogram` to '
       '`verticalStackedBar`, which is the one route upstream reserves for this '
       'transformer, so as it stands a histogram would bin nothing. Whoever '
       'lands DeclarativeChart deletes this entry. `getNumberAtIndexOrDefault` '
@@ -271,6 +271,24 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'entry and need none: getLegendProps has four callers in '
       'transform_bar.dart and one in transform_xy.dart, and getLegendShape has '
       'three. Whoever lands DeclarativeChart deletes this entry.',
+  'mapFluentChart':
+      'internal/plotly/router.dart:627, the routing table itself '
+      '(PlotlySchemaConverter.ts:477-646) and plan 09 Task 7. Upstream has '
+      'exactly one caller in the whole of charts/src — '
+      'DeclarativeChart.tsx:362, between the sanitizeJson at :361 and the '
+      'decodeBase64Fields at :368 — and that widget is plan 09 Task 28, which '
+      'also consumes the route: the reduced data list at '
+      'DeclarativeChart.tsx:372-375 is built from validTracesInfo, and the '
+      'kind it returns is what :578-590 picks a chartMap entry with before '
+      ':607 renders it. So every transformer '
+      'excused above and this router are blocked on the same one widget, and '
+      'the call site does not exist yet rather than having been forgotten. A '
+      'test is not a caller: the corpus in plan 09 Task 8 sweeps this '
+      "function's whole branch table from "
+      'test/charts/declarative/router_corpus_test.dart and proves nothing '
+      'about reachability. Whoever lands DeclarativeChart deletes this entry. '
+      'getValidSchema, FluentPlotlyRoute and FluentPlotlyTraceInfo need no '
+      'entry: this function is their caller.',
 
   // --- Ported constants nothing reads --------------------------------------
   // `kMinDonutRadius` was here until plan 09 Task 17 landed: the Plotly pie
