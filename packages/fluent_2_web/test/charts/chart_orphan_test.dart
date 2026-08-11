@@ -646,11 +646,15 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'function. Goes when Task 49 lands.',
 
   // Task 41's `internal/vega/common.dart`. Five of its seventeen public symbols
-  // are here, and the other twelve need no entry: Task 42's
-  // `internal/vega/context.dart` already reads parseVegaValue, getMarkProperties
-  // with its two records, extractYMinMax, createValueFormatter, the two
-  // category-order helpers and the three validators, which is what leaves only
-  // the five below waiting on a transformer. Each call site was read out of
+  // are here. Task 42's `internal/vega/context.dart` reads exactly two of the
+  // other twelve — parseVegaValue at :413-414 and getMarkProperties at :318 —
+  // and the remaining ten are invisible to this scan rather than wired:
+  // extractYMinMax, createValueFormatter, parseVegaDateValue, the two
+  // category-order helpers and the three validators are each named inside
+  // common.dart itself, which refinement 1 counts, and `grep -rn` over
+  // lib/src/charts returns no hit for any of them outside that file. They are
+  // no more called than the five below until a transformer lands; recorded so
+  // the count here is not read as the whole gap. Each call site was read out of
   // docs/superpowers/plans/2026-08-08-fluent-2-charts-09-declarative.md rather
   // than assumed, and every one is a statement in that task's own Step 3 code.
   'getVegaLiteTitles':
@@ -664,7 +668,7 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'lands.',
   'mapInterpolateToCurve':
       'internal/vega/common.dart:133. Upstream has exactly two callers, '
-      "VegaLiteSchemaAdapter.ts:1843 and :3792, both `mapInterpolateToCurve("
+      'VegaLiteSchemaAdapter.ts:1843 and :3792, both `mapInterpolateToCurve('
       "markProps.interpolate)`; the first is the line transformer's curve "
       'option and the second the same read inside the concat path. Task 43 '
       'ports the first, and the call is a statement in its own Step 3 code '
