@@ -2020,9 +2020,15 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
                       index: allowMultipleShapesForPoints ? row.index : -1,
                     ),
                 ],
-          legend: isCalloutForStack ? null : line.legend,
-          yValue: isCalloutForStack ? null : yValue,
-          color: isCalloutForStack ? null : colourOf(mark.seriesIndex),
+          // `:1877-1879`, an object literal no `isCalloutForStack` branch
+          // guards — `:1682-1684` fill all three from the hovered circle
+          // whatever the flag is. Narrowing them to null under the flag would
+          // be invisible for the first two, which only the single-value body
+          // reads, but not for the colour: `ChartPopover.tsx:257` paints every
+          // subcount reading of the STACKED body from it.
+          legend: line.legend,
+          yValue: yValue,
+          color: colourOf(mark.seriesIndex),
         ),
         // `_getAriaLabel` (`:1832-1841`).
         semanticsLabel:

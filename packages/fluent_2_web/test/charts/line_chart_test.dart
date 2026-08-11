@@ -2425,6 +2425,80 @@ void main() {
       );
     });
 
+    testWidgets(
+      'isCalloutForStack true still carries the hovered line legend, reading '
+      'and colour',
+      (tester) async {
+        // alpha's second point carries a breakdown, because a subcount reading
+        // is the one thing the stacked body paints from the POPOVER-level
+        // colour (`ChartPopover.tsx:257`) rather than from the row's own.
+        await pump(
+          tester,
+          FluentLineChart(
+            data: FluentChartData(
+              lineChartData: <FluentLineChartSeries>[
+                FluentLineChartSeries(
+                  legend: 'alpha',
+                  data: <Object>[
+                    for (var i = 1; i <= 4; i++)
+                      FluentLineChartDataPoint(
+                        x: i,
+                        y: i * 10.0,
+                        yAxisCalloutBreakdown: i == 2
+                            // 7 appears nowhere else on the surface: the
+                            // readings are multiples of five and the axis
+                            // labels are painted, not Text widgets.
+                            ? const <String, double>{'p50': 7}
+                            : null,
+                      ),
+                  ],
+                ),
+                FluentLineChartSeries(
+                  legend: 'beta',
+                  data: <Object>[
+                    for (var i = 1; i <= 4; i++)
+                      FluentLineChartDataPoint(x: i, y: 45 - i * 5.0),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+        final data = await hoverMark(tester, 0, 1);
+        final seriesColour = FluentChartColors.of(
+          _theme(),
+        ).flattenMark(FluentDataVizPalette.next(0));
+        expect(
+          data.color,
+          seriesColour,
+          reason:
+              'LineChart.tsx:1879 sets `color: lineColor` on an object literal '
+              'no isCalloutForStack branch guards, and :1684 fills that state '
+              'from the hovered line whatever the flag is',
+        );
+        expect(
+          data.legend,
+          'alpha',
+          reason:
+              'LineChart.tsx:1878 sets `legend: legendVal` beside it, from '
+              ':1683',
+        );
+        expect(
+          data.yValue,
+          '20',
+          reason: 'and LineChart.tsx:1877 `YValue`, from :1682',
+        );
+        expect(
+          tester.widget<Text>(find.text('7')).style?.color,
+          seriesColour,
+          reason:
+              'ChartPopover.tsx:257 paints a subcount reading with '
+              '`props.color`, so a colour that reaches the data and stops '
+              'there would leave this at colorNeutralForeground1',
+        );
+      },
+    );
+
     testWidgets('a data point is a keyboard stop that narrates itself', (
       tester,
     ) async {
