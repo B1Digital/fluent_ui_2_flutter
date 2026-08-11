@@ -1,3 +1,5 @@
+import 'dart:ui' show Color;
+
 import 'package:fluent_2_web/fluent_2_web.dart';
 import 'package:fluent_2_web/src/charts/internal/plotly/color_adapter.dart';
 import 'package:fluent_2_web/src/charts/internal/plotly/legends.dart';
@@ -165,6 +167,45 @@ void main() {
       legend.hideLegend,
       isTrue,
       reason: 'PlotlySchemaAdapter.ts:3584 short-circuits on isMultiPlot.',
+    );
+  });
+
+  test('an unparseable declared colour seeds the colour map and paints from '
+      'it', () {
+    final colorMap = <String, String>{};
+    final props = getAllupLegendsProps(
+      <Object?>[
+        <String, Object?>{
+          'legendgroup': 'g',
+          'line': <String, Object?>{'color': 'not-a-colour'},
+        },
+      ],
+      <String, Object?>{},
+      <FluentPlotlyTraceInfo>[
+        const FluentPlotlyTraceInfo(index: 0, kind: FluentPlotlyChartKind.line),
+      ],
+      colorMap,
+      colorwayType: FluentPlotlyColorway.byDefault,
+      isDark: false,
+    );
+    expect(
+      colorMap,
+      <String, String>{'Label_0': '#637cef'},
+      reason:
+          'PlotlyColorAdapter.ts:167-168 hands an unparseable single colour to '
+          "getColor under `Label_0`, so this legend consumes the map's first "
+          'qualitative slot before any transformer runs — the ordering '
+          'DeclarativeChart.tsx:535 depends on, and the thing that silently '
+          'shifts every downstream series colour if a lookup is added here',
+    );
+    expect(
+      props.legends.single.color,
+      const Color(0xFF637CEF),
+      reason:
+          'internal/data_viz_palette.dart:173, cornflower.tint10 — the swatch '
+          'is the same colour the map now holds, parsed by the shared '
+          'parseCssColour (internal/plotly/common.dart:17), not a second '
+          "reading of the palette that could drift from the chart's",
     );
   });
 }

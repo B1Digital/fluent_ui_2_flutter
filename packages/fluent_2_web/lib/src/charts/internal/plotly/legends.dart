@@ -9,33 +9,11 @@ import 'package:flutter/widgets.dart';
 
 import '../../chrome/legend.dart';
 import '../../chrome/legend_shape.dart';
-import '../d3/color.dart' as d3;
 import '../data_viz_palette.dart';
 import 'color_adapter.dart';
+import 'common.dart';
 import 'grid.dart';
 import 'router.dart';
-
-/// A resolved `#rrggbb` colour string as a [Color].
-///
-/// **Deviation:** the plan names `parseCssColour`, a `d3.color(...)` helper it
-/// assigns to task 17 in `common.dart`; that task has not landed, so this is
-/// the same two lines kept private here rather than a public symbol planted in
-/// another task's file. Whoever lands `parseCssColour` deletes this.
-///
-/// Every string reaching it comes from [resolveColor] or [extractColor], which
-/// return `D3Rgb.formatHex()` output, so the unparseable branch is defensive:
-/// it takes the first qualitative colour rather than inventing a black swatch.
-Color _parseCssColour(String colour, {required bool isDark}) {
-  final rgb = d3.color(colour)?.rgb();
-  if (rgb == null) return FluentDataVizPalette.next(0, isDark: isDark);
-  int channel(double value) => value.isNaN ? 0 : value.round().clamp(0, 255);
-  return Color.fromARGB(
-    channel((rgb.a.isNaN ? 1.0 : rgb.a) * 255),
-    channel(rgb.r),
-    channel(rgb.g),
-    channel(rgb.b),
-  );
-}
 
 /// Chooses the swatch a legend entry draws (`PlotlySchemaAdapter.ts:3479-3487`).
 ///
@@ -185,20 +163,20 @@ FluentPlotlyLegendProps getAllupLegendsProps(
             continue;
           }
           allupLegends.add(
-            FluentChartLegendItem(
-              title: legend,
-              color: _parseCssColour(colour, isDark: isDark),
-            ),
+            FluentChartLegendItem(title: legend, color: parseCssColour(colour)),
           );
         }
       } else if (!isNonPlotType(kind)) {
         // `PlotlySchemaAdapter.ts:3538-3556`. The kind test is `grid.dart`'s
         // `isNonPlotType`, which is the same seven names upstream's own
-        // `isNonPlotType` lists at `:3637-3639` — the plan wrote an exhaustive
-        // switch here to avoid importing a file task 14 had not yet created,
-        // but task 14 has landed and one of that switch's arms
-        // (`FluentPlotlyChartKind.funnel`) is not a value the router's enum
-        // spells, so the switch could not compile.
+        // `isNonPlotType` lists at `:3637-3639`. The plan wrote an exhaustive
+        // switch here to avoid importing a file task 14 had not yet created;
+        // task 14 has landed, and calling its function keeps the seven names
+        // in one place. That is not a stylistic preference: when this was
+        // written the plan's switch could not compile at all, because
+        // `FluentPlotlyChartKind.funnel` was not yet a member of the router's
+        // enum — task 26 added it afterwards, and a switch listing every
+        // member would have gone stale exactly there.
         final line = series['line'];
         final marker = series['marker'];
         final lineColor = line is Map<String, Object?> ? line['color'] : null;
@@ -236,7 +214,7 @@ FluentPlotlyLegendProps getAllupLegendsProps(
             // `colorMap`, because touching it here would shift every
             // downstream colour by one. // parity: PlotlySchemaAdapter.ts:3553
             color: resolved is String
-                ? _parseCssColour(resolved, isDark: isDark)
+                ? parseCssColour(resolved)
                 : FluentDataVizPalette.next(
                     allupLegends.length,
                     isDark: isDark,
