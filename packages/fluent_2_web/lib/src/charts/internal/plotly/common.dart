@@ -1,9 +1,34 @@
 import 'package:flutter/widgets.dart';
 
 import '../../model/line_options.dart';
+import '../d3/color.dart' as d3;
 import '../d3/format.dart' as d3;
 import '../d3/js_math.dart' as d3;
 import 'predicates.dart';
+
+/// Reads a CSS colour string as a [Color].
+///
+/// Every string the Plotly transformers hand this is either `D3Rgb.formatHex()`
+/// output — which is what `extractColor` and `resolveColor` return — or a raw
+/// `marker.colors` entry straight out of the schema, the one unvalidated
+/// source. An unparseable specifier lands on opaque black, because upstream
+/// hands the same string to `rgb(...)` and d3's all-NaN `Rgb` clamps its
+/// channels to zero when it is formatted (`d3-color/src/color.js:292-294`).
+Color parseCssColour(String colour) {
+  final rgb = d3.color(colour)?.rgb();
+  if (rgb == null) return const Color(0xFF000000);
+  // NaN channels clamp to 0 and out-of-range ones clamp to the byte range,
+  // matching `_clampInt` (`d3-color/src/color.js:288-294`). Every channel here
+  // is non-negative, so `round`'s half-away-from-zero rule and JavaScript's
+  // half-up `Math.round` agree.
+  int channel(double value) => value.isNaN ? 0 : value.round().clamp(0, 255);
+  return Color.fromARGB(
+    channel((rgb.a.isNaN ? 1.0 : rgb.a) * 255),
+    channel(rgb.r),
+    channel(rgb.g),
+    channel(rgb.b),
+  );
+}
 
 /// One entry of `dashOptions` (`PlotlySchemaAdapter.ts:136-173`).
 ///

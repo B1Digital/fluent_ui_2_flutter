@@ -170,13 +170,25 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'verbatim. Whoever lands the first transformer deletes this entry — the '
       'test below fails until they do.',
 
+  'transformPlotlyToDonut':
+      'internal/plotly/transform_pie.dart, the Plotly `pie` transformer '
+      '(PlotlySchemaAdapter.ts:1282-1388) and plan 09 Task 17. Upstream '
+      "reaches it from the `donut` entry of DeclarativeChart's chartMap "
+      '(DeclarativeChart.tsx:268-271), dispatched at :607; that adapter is one '
+      'of '
+      "upstream's twenty charts not yet ported and is plan 09's last task, so "
+      'the call site does not exist yet rather than having been forgotten. '
+      'Whoever lands DeclarativeChart deletes this entry — the test below '
+      'fails until they do.',
+
   // --- Ported constants nothing reads --------------------------------------
-  'kMinDonutRadius':
-      'Ports `MIN_DONUT_RADIUS` (utilities.ts:90), declared at '
-      'axis/axis_types.dart:54. donut_chart.dart computes its radius through '
-      '`layout.labelRadius` (:841) and clamps against nothing, so a donut '
-      'given a tiny box is not floored at 1 the way upstream floors it. '
-      'Either the donut layout clamps to this, or the constant goes.',
+  // `kMinDonutRadius` was here until plan 09 Task 17 landed: the Plotly pie
+  // transformer is upstream's own `: MIN_DONUT_RADIUS` fallback
+  // (PlotlySchemaAdapter.ts:1356) and now reads the constant, so the excuse
+  // outlived its gap and the entry went with it. The gap it described is still
+  // open and is not this list's to hold — `donut_chart.dart` computes its
+  // radius through `layout.labelRadius` (:841) and floors it at nothing, so an
+  // imperatively mounted donut in a tiny box is still not floored at 1.
   'kDefaultDateString':
       'Ports `DEFAULT_DATE_STRING` (utilities.ts:91), declared at '
       'axis/axis_types.dart:61 with a note that JavaScript parses a bare '
