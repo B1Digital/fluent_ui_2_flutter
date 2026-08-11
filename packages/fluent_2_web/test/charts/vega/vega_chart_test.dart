@@ -286,8 +286,9 @@ void main() {
       (state as dynamic).activeLegends,
       isEmpty,
       reason:
-          'VegaDeclarativeChart.tsx:413-415 watches chartSchema.selectedLegends '
-          'alone, not the whole schema — a narrower dependency than the Plotly '
+          'VegaDeclarativeChart.tsx:413-415 watches '
+          'chartSchema.selectedLegends alone, not the whole schema — a '
+          'narrower dependency than the Plotly '
           'widget uses.',
     );
   });

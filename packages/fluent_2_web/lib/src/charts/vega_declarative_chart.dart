@@ -75,12 +75,18 @@ class FluentVegaDeclarativeChartTheme extends InheritedWidget {
 /// The height a routed kind falls back to when the spec declares none.
 ///
 /// Every shell chart takes its size from its `BoxConstraints` (spec §2.2), so
-/// upstream's `height: spec.height ?? N` becomes this widget's `SizedBox`. Only
-/// two shell kinds have a default at all: stacked bar
-/// (`VegaLiteSchemaAdapter.ts:2712`) and heatmap (`:3510`). The other cartesian
-/// kinds leave `height` undefined at `:1954`, `:3307` and `:3695`, so they size
-/// to their constraints, and donut (`:3306-3307`) and polar (`:3856`) read
-/// `height` inside their own transformers because neither is a shell chart.
+/// upstream's `height: spec.height ?? N` becomes this widget's `SizedBox`.
+///
+/// `grep -n 'height:'` over `VegaLiteSchemaAdapter.ts` returns five lines and
+/// no more. Two are defaults, and they are the two entries below: stacked bar
+/// (`:2712`) and heatmap (`:3510`), both `DEFAULT_CHART_HEIGHT`, 350 at `:74`.
+/// `:1954` (line, and the area chart built on it) passes a declared `height`
+/// straight through, which the cell builder below does for every kind. The
+/// last two are donut (`:3307`) and polar (`:3856`, whose 400 is the only
+/// other literal):
+/// neither is a shell chart, so both read `height` inside their own
+/// transformer and neither belongs here. Every remaining transformer sets no
+/// `height` at all, so its chart sizes to its constraints.
 const Map<FluentVegaChartKind, double> kVegaDefaultCellHeight =
     <FluentVegaChartKind, double>{
       FluentVegaChartKind.stackedBar: kVegaStackedBarDefaultHeight,
@@ -91,17 +97,19 @@ const Map<FluentVegaChartKind, double> kVegaDefaultCellHeight =
 /// the kinds whose chart-owned legend this widget can suppress in favour of its
 /// own.
 ///
-/// Upstream suppresses generically: `VegaDeclarativeChart.tsx:238-240` writes
+/// Upstream suppresses generically: `VegaDeclarativeChart.tsx:238-239` writes
 /// `hideLegend` into the transformed **props bag** after the transformer has
-/// run. This port's transformers return typed widgets rather than props, so the
-/// only switch left is the one every transformer already reads out of the spec
-/// — `VegaLiteSchemaAdapter.ts:2325` (vertical bar), `:2713` (stacked bar),
-/// `:2986` (horizontal bar), `:2213` (line and area), `:1938` (scatter) and
-/// `:3855` (polar).
+/// run, and only a concat sub-spec ever sets the `_hideLegend` flag it reads
+/// (`:472`). This port's transformers return typed widgets rather than props,
+/// so the only switch left is the one seven of them already read out of the
+/// spec — `VegaLiteSchemaAdapter.ts:1975` (line, and the area chart built on
+/// it), `:2325` (vertical bar), `:2713` (stacked bar), `:2989` (horizontal
+/// bar), `:3212` (scatter) and `:3857` (polar), all of them
+/// `encoding.color?.legend?.disable ?? false`.
 ///
 /// GAP, recorded rather than papered over: `transformVegaToGroupedBar`
-/// (`:2819-2828`), `transformVegaToHistogram` (`:1954`) and
-/// `transformVegaToDonut` (`:3301-3308`) pass no `hideLegend` at all, and the
+/// (`:2817-2827`), `transformVegaToHistogram` (`:3682-3694`) and
+/// `transformVegaToDonut` (`:3300-3309`) return no `hideLegend` at all, and the
 /// heatmap hard-codes `hideLegend: true` (`:3511`) so it has no legend to lift.
 /// For those four the chart keeps whatever legend upstream's transformer gives
 /// it, and the selection does not round-trip through
@@ -298,8 +306,9 @@ class _FluentVegaDeclarativeChartState
   ///
   /// `:151-160` wraps every renderer in `withResponsiveContainer`. Nothing
   /// stands in for that here and nothing needs to: the box below IS its
-  /// container div (`ResponsiveContainer.tsx:97-103`) and the measure-and-inject
-  /// cycle it wraps that div in is Flutter's constraint pass — spec §5.1.
+  /// container div (`ResponsiveContainer.tsx:97-103`) and the
+  /// measure-and-inject cycle it wraps that div in is Flutter's constraint
+  /// pass — spec §5.1.
   Widget _buildCell(
     FluentVegaChartKind kind,
     Map<String, Object?> spec, {
@@ -370,21 +379,22 @@ class _FluentVegaDeclarativeChartState
       // handed. Cloning first means the caller's own object survives a rebuild
       // unchanged, which a `const` spec in a widget tree requires.
       final spec = deepCloneVegaSpec(rawSpec);
-      // `:500-512`: a layered spec that is not a bar-plus-line combination is
+      // `:498-512`: a layered spec that is not a bar-plus-line combination is
       // detected and then deliberately left alone, so only the first layer is
       // rendered. Reproduced, including the absence of any user-visible
-      // warning. // parity: VegaDeclarativeChart.tsx:508-511
+      // warning. // parity: VegaDeclarativeChart.tsx:506-511
       //
       // `getVegaChartType` runs `autoCorrectEncodingTypes` itself (`:1650`), so
       // there is no separate correction pass to write here.
       final route = getVegaChartType(spec);
 
       // `:227-243`: upstream spreads `legendProps` — the selection AND its
-      // change handler — into the chart it renders (`:417-426`), so the chart's
-      // own legend both dims the marks and reports back. No shell chart in this
-      // port takes a controlled selection except `FluentPolarChart`, and no
-      // transformer passes one, so the round-trip through `onSchemaChange` is
-      // only available from a legend this widget owns. The chart's own is
+      // change handler — into the chart it renders (`:417-426`, `:243`), so
+      // the chart's own legend both dims the marks and reports back. No shell
+      // chart in this port takes a controlled selection except
+      // `FluentPolarChart`, and no transformer passes one, so the round-trip
+      // through `onSchemaChange` is only available from a legend this widget
+      // owns. The chart's own is
       // suppressed first so exactly one is drawn.
       //
       // GAP: the dimming upstream gets for free is lost with it. Closing it is
@@ -418,7 +428,7 @@ class _FluentVegaDeclarativeChartState
                   // selection it reports back is keyed on the title, so
                   // capitalising here would break the round-trip at `:406-411`.
                   legends: legendProps.legends,
-                  // `:417`: `canSelectMultipleLegends: true`, which this port
+                  // `:418`: `canSelectMultipleLegends: true`, which this port
                   // spells as a selection mode.
                   selectionMode: legendProps.canSelectMultipleLegends
                       ? FluentChartLegendSelectionMode.multiple
