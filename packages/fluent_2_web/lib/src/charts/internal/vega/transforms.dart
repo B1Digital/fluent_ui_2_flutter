@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../d3/array_stats.dart' as d3;
 import '../d3/stable_sort.dart';
 import 'expression.dart';
@@ -328,9 +330,307 @@ List<Map<String, Object?>> applyVegaTransforms(
           },
       ];
     }
+
+    // `:420-441`: regression — collapses the dataset to the two endpoints of a
+    // least-squares line.
+    if (transform.containsKey('regression') && transform.containsKey('on')) {
+      final yField = transform['regression'];
+      final xField = transform['on'];
+      final xs = <double>[];
+      final ys = <double>[];
+      for (final row in result) {
+        final x = jsToNumber(_read(row, xField));
+        final y = jsToNumber(_read(row, yField));
+        // `:425`: a point survives only when BOTH coordinates are numbers.
+        if (!x.isNaN && !y.isNaN) {
+          xs.add(x);
+          ys.add(y);
+        }
+      }
+      // `:426`. 2 is the smallest sample a slope can be fitted to.
+      if (xs.length >= 2) {
+        final n = xs.length;
+        final sumX = d3.sum(xs);
+        final sumY = d3.sum(ys);
+        final sumXY = d3.sum(<double>[
+          for (var i = 0; i < n; i++) xs[i] * ys[i],
+        ]);
+        final sumX2 = d3.sum(<double>[for (final x in xs) x * x]);
+        // `VegaLiteSchemaAdapter.ts:432-433`. The textbook OLS denominator
+        // n * sumX2 - sumX * sumX cancels catastrophically for large,
+        // tightly-clustered x. Reproduced as written, because a
+        // numerically-stable rewrite would give a different last ulp from the
+        // browser. // parity: VegaLiteSchemaAdapter.ts:432
+        final slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+        final intercept = (sumY - slope * sumX) / n;
+        // `:434-435`: 0 is upstream's own `?? 0`, unreachable here because the
+        // list is known non-empty.
+        final xMin = d3.min<double>(xs) ?? 0;
+        final xMax = d3.max<double>(xs) ?? 0;
+        // `:436-439`. The computed keys coerce with `String()`, and an x field
+        // equal to the y field leaves only the y value — as the object literal
+        // does.
+        result = <Map<String, Object?>>[
+          <String, Object?>{
+            jsToString(xField): xMin,
+            jsToString(yField): slope * xMin + intercept,
+          },
+          <String, Object?>{
+            jsToString(xField): xMax,
+            jsToString(yField): slope * xMax + intercept,
+          },
+        ];
+      }
+    }
+
+    // `:444-458`: loess — a moving average that keeps one row per input row and
+    // DROPS every column other than the two it names.
+    if (transform.containsKey('loess') && transform.containsKey('on')) {
+      final yField = transform['loess'];
+      final xField = transform['on'];
+      final xKey = jsToString(xField);
+      final yKey = jsToString(yField);
+      // `:447-449`: filter, then sort ascending by x. The comparator returns 0
+      // for a tie, so the sort must be stable.
+      final sorted = stableSort(
+        <Map<String, Object?>>[
+          for (final row in result)
+            if (!jsToNumber(_read(row, xField)).isNaN &&
+                !jsToNumber(_read(row, yField)).isNaN)
+              row,
+        ],
+        (a, b) {
+          final delta =
+              jsToNumber(_read(a, xField)) - jsToNumber(_read(b, xField));
+          // -1 and 1 are the sign of upstream's own subtraction (`:449`), which
+          // Dart's comparator requires as an int.
+          if (delta == 0) {
+            return 0;
+          }
+          return delta < 0 ? -1 : 1;
+        },
+      );
+      // `VegaLiteSchemaAdapter.ts:450`: windowSize = max(3, floor(n / 4));
+      // `:452-453`: start = max(0, i - floor(w / 2)) and end = min(n, start + w),
+      // so the window is asymmetric at both tails rather than centred.
+      final windowSize = math.max(3, sorted.length ~/ 4);
+      final smoothed = <Map<String, Object?>>[];
+      for (var i = 0; i < sorted.length; i++) {
+        final start = math.max(0, i - windowSize ~/ 2);
+        final end = math.min(sorted.length, start + windowSize);
+        final windowY = <double>[
+          for (final row in sorted.getRange(start, end))
+            jsToNumber(_read(row, yField)),
+        ];
+        // `:455`: the `??` falls back to this row's own y, which the filter at
+        // `:448` has already proved is a number.
+        final avgY = d3.mean(windowY) ?? jsToNumber(_read(sorted[i], yField));
+        smoothed.add(<String, Object?>{xKey: sorted[i][xKey], yKey: avgY});
+      }
+      result = smoothed;
+    }
+
+    // `:461-496`: density — replaces the dataset with a sampled kernel estimate.
+    if (transform.containsKey('density')) {
+      final field = transform['density'];
+      final groupby = _stringList(transform['groupby']);
+      // `:467` uses the `'__all__'` fallback, and `:483` re-finds the sample row
+      // by scanning for the first row of the group — which is `group.first`.
+      final groups = _group(result, groupby, useAllFallback: true);
+      final densityResult = <Map<String, Object?>>[];
+      for (final group in groups.values) {
+        // `:471` pushes `Number(row[field])` WITHOUT filtering, so a NaN still
+        // counts towards `values.length` in the denominator at `:491`.
+        final values = <double>[
+          for (final row in group) jsToNumber(_read(row, field)),
+        ];
+        // `:476-477`: 0 is upstream's own `?? 0`, reached when every value is
+        // NaN.
+        final minValue = d3.min<double>(values) ?? 0;
+        final maxValue = d3.max<double>(values) ?? 0;
+        final span = maxValue - minValue;
+        // `:478`: `|| 1`, so a zero-width (or NaN) range becomes 1.
+        final range = span == 0 || span.isNaN ? 1.0 : span;
+        // `VegaLiteSchemaAdapter.ts:479-492`. bins is 20 and the loop runs
+        // i <= bins, so 21 points are emitted. The count uses a STRICT
+        // |v - x| < bandwidth.
+        const bins = 20;
+        final bandwidth = range / bins;
+        // `:481-487`: the group columns come from the first row of the group,
+        // and are spread LAST at `:492` — so a group field named `value` or
+        // `density` overwrites the estimate.
+        final groupFields = <String, Object?>{
+          for (final field in groupby) field: group.first[field],
+        };
+        for (var i = 0; i <= bins; i++) {
+          final x = minValue + (i / bins) * range;
+          var count = 0;
+          for (final value in values) {
+            if ((value - x).abs() < bandwidth) {
+              count++;
+            }
+          }
+          densityResult.add(<String, Object?>{
+            'value': x,
+            'density': count / (values.length * bandwidth),
+            ...groupFields,
+          });
+        }
+      }
+      result = densityResult;
+    }
+
+    // `:499-512`: quantile — replaces the dataset with one row per probability.
+    if (transform.containsKey('quantile')) {
+      final field = transform['quantile'];
+      final probsRaw = transform['probs'];
+      // `:501`: `||`, so an absent `probs` takes the quartiles. A `probs` that
+      // is present but not an array throws at upstream's `.map`; it is skipped
+      // to the defaults here rather than crashing the whole chart.
+      // // parity: VegaLiteSchemaAdapter.ts:501
+      final probs = probsRaw is List<Object?>
+          ? probsRaw
+          : const <Object?>[0.25, 0.5, 0.75];
+      final values = <double>[
+        for (final row in result)
+          if (!jsToNumber(_read(row, field)).isNaN)
+            jsToNumber(_read(row, field)),
+      ]..sort();
+      if (values.isNotEmpty) {
+        result = <Map<String, Object?>>[
+          for (final prob in probs)
+            <String, Object?>{
+              // `:509`: the RAW probability is stringified, so an integer 1
+              // renders as '1' and not '1.0'.
+              'prob': jsToString(prob),
+              'value': values[_quantileIndex(jsToNumber(prob), values.length)],
+            },
+        ];
+      }
+    }
+
+    // `:515-535`: impute — adds a row for every integer key between the
+    // smallest and the largest one present.
+    if (transform.containsKey('impute') && transform.containsKey('key')) {
+      final field = transform['impute'];
+      final keyField = transform['key'];
+      final keyName = jsToString(keyField);
+      // `:518-519`: `||` on the method, `??` on the fill value — so an explicit
+      // null value still becomes 0, and 0 is upstream's own default.
+      final method = transform['method'] is String && transform['method'] != ''
+          ? transform['method']
+          : 'value';
+      final fillValue = transform['value'] ?? 0;
+
+      // `:521`: the RAW cell values, so a string '1' never matches the numeric
+      // key 1 the loop walks.
+      final existingKeys = <Object?>{for (final row in result) row[keyName]};
+      final allKeyValues = <double>[
+        for (final row in result)
+          if (!jsToNumber(_read(row, keyField)).isNaN)
+            jsToNumber(_read(row, keyField)),
+      ];
+      if (allKeyValues.isNotEmpty) {
+        // `:524-525`: 0 is upstream's own `?? 0`, unreachable for a non-empty
+        // list.
+        final minKey = d3.min<double>(allKeyValues) ?? 0;
+        final maxKey = d3.max<double>(allKeyValues) ?? 0;
+        // `:526-532`. Upstream `push`es onto `result`, which on the first
+        // transform is the caller's own array — mutating the input. A fresh
+        // list is built instead; the returned data is identical.
+        // // parity: VegaLiteSchemaAdapter.ts:530
+        final imputed = <Map<String, Object?>>[...result];
+        // 1 is upstream's own `k++` step (`:526`), which starts at a possibly
+        // fractional minKey.
+        for (var k = minKey; k <= maxKey; k += 1) {
+          if (!existingKeys.contains(k)) {
+            imputed.add(<String, Object?>{
+              keyName: k,
+              // `:529`: 0 for any method other than 'value'.
+              jsToString(field): method == 'value' ? fillValue : 0,
+            });
+          }
+        }
+        // `:533`: ties keep their insertion order, so the sort must be stable.
+        result = stableSort(imputed, (a, b) {
+          final delta =
+              jsToNumber(_read(a, keyField)) - jsToNumber(_read(b, keyField));
+          // As in the loess comparator: the sign of upstream's subtraction.
+          if (delta == 0 || delta.isNaN) {
+            return 0;
+          }
+          return delta < 0 ? -1 : 1;
+        });
+      }
+    }
+
+    // `:538-562`: lookup — a left join against an inline dataset.
+    final fromSpec = transform['from'];
+    if (transform.containsKey('lookup') && fromSpec is Map<String, Object?>) {
+      final lookupField = transform['lookup'];
+      final fromData = fromSpec['data'];
+      final fromValues = fromData is Map<String, Object?>
+          ? fromData['values']
+          : null;
+      final fromKey = fromSpec['key'];
+      final fromFields = fromSpec['fields'];
+      // `:545`: a truthiness test, so an EMPTY values or fields array passes
+      // while an empty `key` string does not.
+      if (fromValues is List<Object?> &&
+          fromKey is String &&
+          fromKey.isNotEmpty &&
+          fromFields is List<Object?>) {
+        final lookupMap = <String, Map<String, Object?>>{};
+        for (final row in fromValues) {
+          if (row is Map<String, Object?>) {
+            // `:548`: a later duplicate key overwrites an earlier one.
+            lookupMap[jsToString(_read(row, fromKey))] = row;
+          }
+        }
+        result = <Map<String, Object?>>[
+          for (final row in result)
+            if (lookupMap[jsToString(_read(row, lookupField))]
+                case final lookupRow?)
+              <String, Object?>{
+                ...row,
+                // `:553-556`: only the listed fields are copied, and the spread
+                // at `:557` puts them AFTER the row — so a listed field the
+                // lookup row lacks blanks the row's own value.
+                for (final f in fromFields)
+                  jsToString(f): lookupRow[jsToString(f)],
+              }
+            else
+              // `:559`: an unmatched row passes through untouched.
+              row,
+        ];
+      }
+    }
   }
 
   return result;
+}
+
+/// `row[field]` with JavaScript's missing-property semantics
+/// (`VegaLiteSchemaAdapter.ts:424`, `:448`, `:471`, `:503`, `:522`, `:551`).
+///
+/// A computed property name coerces with `String()`, and an ABSENT property is
+/// `undefined` rather than `null` — which matters because `Number(undefined)`
+/// is NaN whereas `Number(null)` is 0. Every numeric transform here filters on
+/// NaN, so conflating the two would silently admit missing cells as zeroes.
+Object? _read(Map<String, Object?> row, Object? field) {
+  final key = jsToString(field);
+  return row.containsKey(key) ? row[key] : JsUndefined.instance;
+}
+
+/// `VegaLiteSchemaAdapter.ts:508`: nearest rank, not interpolated.
+///
+/// `Math.floor(p * len)` is clamped rather than indexed raw: for a probability
+/// outside `[0, 1]` — or a non-finite one — JavaScript reads past the array and
+/// gets `undefined`, whereas Dart would throw. 0 is the lower bound the clamp
+/// restores. // parity: VegaLiteSchemaAdapter.ts:508
+int _quantileIndex(double p, int length) {
+  final scaled = p * length;
+  return scaled.isFinite ? scaled.floor().clamp(0, length - 1) : 0;
 }
 
 /// `Number(x) || 0` (`VegaLiteSchemaAdapter.ts:329-330`, `:346`).
