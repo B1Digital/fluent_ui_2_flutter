@@ -1,0 +1,156 @@
+// Pixel parity for GaugeChart and PolarChart, against the live
+// @fluentui/react-charts render.
+//
+// Every input below is transcribed from the story's own source, recovered from
+// the storybook runtime by `capture_png.mjs` into
+// `crawlers/storybooks-fluentui/out/stories/<story-id>.tsx`.
+//
+// See `support/react_parity.dart` for why text is masked and why the tolerance
+// is not zero.
+//
+// BOTH stories carry the same suspected legend defect, so it is written once
+// here. Each chart reserves 32 for the strip and hands `FluentChartLegend` a
+// tight 32 (`gauge_chart.dart:1295-1296`, `polar_chart.dart:1306` with
+// `kPolarLegendHeight`). The legend then spends 8 of that 32 on its own
+// `containerMargin` top (`legend_style.dart:266-271`) and lays a
+// `kLegendHeight` = 32 row inside the 24 that are left. A `Row` constrains its
+// children in the cross axis, so the row's `Padding(all: 8)`
+// (`legend.dart:407`) leaves the swatch-and-label line 24 - 16 = **8px** —
+// against upstream's 14px swatch and 16px label. Measured on the reference
+// against the port, per chart:
+//   * gauge:  reference swatch y 105..118 (14px, centred in the 96..128
+//     strip); port y 112..119, 14 wide and 8 tall.
+//   * polar:  reference swatch y 327..340 (14px, centred in the 318..350
+//     strip); port y 334..341, again 8 tall.
+// Every legend label is therefore drawn with its bottom half cut off and sits
+// 7px low. Upstream centres a full-height 32px row in the 32px strip and adds
+// no margin inside it, which is exactly the 105 and 327 the capture recorded.
+import 'package:fluent_2_web/src/charts/gauge_chart.dart';
+import 'package:fluent_2_web/src/charts/internal/data_viz_palette.dart';
+import 'package:fluent_2_web/src/charts/model/polar_data.dart';
+import 'package:fluent_2_web/src/charts/polar_chart.dart';
+import 'package:fluent_2_web/src/charts/polar_chart_scales.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'support/react_parity.dart';
+
+void main() {
+  setUpAll(loadParityFonts);
+
+  testWidgets('GaugeChartBasic', (tester) async {
+    await expectReactParity(
+      tester,
+      'charts-gaugechart--gauge-chart-basic',
+      // The manifest's box is 944x128: upstream's root is a full-width block
+      // and only the svg inside it is 252 wide, centred. Both the svg and the
+      // legend row in the reference sit on x = 472 = 944 / 2 (measured: the
+      // arc spans x 411..532, centre 471.5). The port is given the story's own
+      // `width: 252` inside that captured box, which is exactly what upstream
+      // is given; passing 944 instead would lay a completely different gauge
+      // out, because the outer radius is solved from the width.
+      FluentGaugeChart(
+        // The three sliders start at width 252, height 128, value 50; the
+        // checkbox and all three Switches start off, so hideMinMax,
+        // enableGradient, roundCorners and legendMultiSelect are all false.
+        chartValue: 50,
+        width: 252,
+        height: 128,
+        variant: FluentGaugeChartVariant.multipleSegments,
+        segments: <FluentGaugeChartSegment>[
+          FluentGaugeChartSegment(
+            size: 33,
+            color: FluentDataVizPalette.resolve(FluentDataVizToken.success),
+            legend: 'Low Risk',
+          ),
+          FluentGaugeChartSegment(
+            size: 34,
+            color: FluentDataVizPalette.resolve(FluentDataVizToken.warning),
+            legend: 'Medium Risk',
+          ),
+          FluentGaugeChartSegment(
+            size: 33,
+            color: FluentDataVizPalette.resolve(FluentDataVizToken.error),
+            legend: 'High Risk',
+          ),
+        ],
+      ),
+      // Measured 4.733%, pinned at the measured value rather than absorbed:
+      // almost all of it is one suspected defect, recorded here so a fix shows
+      // up as a failure that has to be re-pinned.
+      //
+      // The arc, the needle and the two limit labels are the right size and the
+      // right colours — but the whole gauge is painted against the LEFT edge of
+      // its box instead of centred. `FluentGaugeLayout.compute` takes
+      // `origin.dx = size.width / 2` from the `width` PROP
+      // (`gauge_chart.dart:254`) while the `CustomPaint` that consumes it is
+      // `Positioned.fill` over the whole incoming box (`:1164`). Upstream's
+      // `_width / 2` translate (`GaugeChart.tsx:599`) is relative to an
+      // `<svg width={252}>` that the root centres, not to the root itself, so
+      // with the story's `width={252}` in a 944px root upstream draws the arc
+      // at x = 472 and the port draws it at x = 126 (measured: the port's arc
+      // spans x 65..186, centre 125.5, and is 34px wide per band exactly as
+      // the reference's is — the same gauge, in the wrong place).
+      //
+      // Mounting the port inside `Center(SizedBox(252, 128))` instead puts the
+      // arc exactly on the reference — 0.860% measured — which is the evidence
+      // that the geometry itself is right and only its placement is wrong. It
+      // is not what this test does, because at 252 the legend no longer fits:
+      // upstream lays the legend out across the full 944 and it measures 264px
+      // wide, so the port collapses it to "Low Risk +2 more". Passing the
+      // story's own props into the captured box is the faithful reproduction;
+      // the 252-wide box is a workaround that trades one defect for another.
+      maxMismatch: 5.21,
+    );
+  });
+
+  testWidgets('PolarChartBasic', (tester) async {
+    // `const data: PolarChartProps["data"]` in
+    // charts-polarchart--polar-chart-basic.tsx. Both series are `areapolar`.
+    const data = <FluentPolarSeries>[
+      FluentAreaPolarSeries(
+        legend: 'Mike',
+        color: Color(0xFF8884D8),
+        data: <FluentPolarDataPoint>[
+          FluentPolarDataPoint(r: 120, theta: 'Math'),
+          FluentPolarDataPoint(r: 98, theta: 'Chinese'),
+          FluentPolarDataPoint(r: 86, theta: 'English'),
+          FluentPolarDataPoint(r: 99, theta: 'Geography'),
+          FluentPolarDataPoint(r: 85, theta: 'Physics'),
+          FluentPolarDataPoint(r: 65, theta: 'History'),
+        ],
+      ),
+      FluentAreaPolarSeries(
+        legend: 'Lily',
+        color: Color(0xFF82CA9D),
+        data: <FluentPolarDataPoint>[
+          FluentPolarDataPoint(r: 110, theta: 'Math'),
+          FluentPolarDataPoint(r: 130, theta: 'Chinese'),
+          FluentPolarDataPoint(r: 130, theta: 'English'),
+          FluentPolarDataPoint(r: 100, theta: 'Geography'),
+          FluentPolarDataPoint(r: 90, theta: 'Physics'),
+          FluentPolarDataPoint(r: 85, theta: 'History'),
+        ],
+      ),
+    ];
+
+    await expectReactParity(
+      tester,
+      'charts-polarchart--polar-chart-basic',
+      // Both sliders start at 600 x 350, which is the captured box.
+      const FluentPolarChart(
+        data: data,
+        width: 600,
+        height: 350,
+        shape: FluentPolarShape.polygon,
+        direction: FluentPolarDirection.clockwise,
+      ),
+      // Measured 0.233%. The plot itself is all but exact: the two filled
+      // hexagons, the six spokes, the polygon grid rings and the radial axis
+      // land on the reference to within a handful of antialiased pixels at the
+      // six vertices. Everything left is the legend strip — see the note at the
+      // top of this file, which the gauge above reproduces too.
+      maxMismatch: 0.26,
+    );
+  });
+}
