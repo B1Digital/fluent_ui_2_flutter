@@ -335,15 +335,24 @@ void main() {
     });
 
     test('the area declares no hit region', () {
+      final delegate = _polarDelegate(<FluentLineChartSeries>[_polarSeries()]);
       expect(
-        _polarDelegate(<FluentLineChartSeries>[
-          _polarSeries(),
-        ]).buildHitRegions(_polarCtx(), _polarLayout()),
-        isEmpty,
+        delegate
+            .buildHitRegions(_polarCtx(), _polarLayout())
+            .map((region) => region.bounds),
+        delegate
+            .markersFor(_polarCtx())
+            .map(
+              (mark) => Rect.fromCircle(
+                center: mark.centre,
+                radius: kFluentLineHoverLatchRadius,
+              ),
+            ),
         reason:
             'pointerEvents="none" (LineChart.tsx:1340) — the area is painted '
             'onto the canvas and declares nothing the shell can hover, focus '
-            'or narrate',
+            'or narrate, so the regions are exactly the per-marker latches of '
+            'LineChart.tsx:1162-1168 and nothing else',
       );
     });
 
@@ -533,14 +542,14 @@ void main() {
     });
 
     test('the labels declare no hit region', () {
+      final delegate = _polarDelegate(<FluentLineChartSeries>[_polarSeries()]);
       expect(
-        _polarDelegate(<FluentLineChartSeries>[
-          _polarSeries(),
-        ]).buildHitRegions(_polarCtx(), _polarLayout()),
-        isEmpty,
+        delegate.buildHitRegions(_polarCtx(), _polarLayout()).length,
+        delegate.markersFor(_polarCtx()).length,
         reason:
             'the <text> nodes at scatterpolar-utils.tsx:49-59 carry no handler, '
-            'role or tabIndex, so they are decoration and not a stop',
+            'role or tabIndex, so they are decoration and not a stop — the '
+            'regions count the markers alone',
       );
     });
 

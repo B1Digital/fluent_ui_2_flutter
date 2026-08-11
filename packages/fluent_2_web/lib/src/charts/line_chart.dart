@@ -6,10 +6,12 @@ import 'package:flutter/widgets.dart';
 import 'axis/axis_builders.dart' as builders;
 import 'axis/axis_types.dart';
 import 'axis/domain_range.dart';
+import 'axis/tick_format.dart';
 import 'cartesian/cartesian_chart.dart';
 import 'cartesian/cartesian_chart_props.dart';
 import 'cartesian/cartesian_layout.dart';
 import 'cartesian/cartesian_series_delegate.dart';
+import 'chrome/chart_popover.dart';
 import 'chrome/event_annotation.dart';
 import 'chrome/legend.dart';
 import 'internal/chart_colors.dart';
@@ -99,8 +101,8 @@ class FluentLineChart extends StatefulWidget {
   State<FluentLineChart> createState() => FluentLineChartState();
 }
 
-/// State for [FluentLineChart]. Public only so widget tests can reach
-/// [hoverValuesFor], which is the shape `FluentAreaChartState` already uses.
+/// State for [FluentLineChart]. Public so a widget test can reach it through
+/// `tester.state`, the shape `FluentAreaChartState` already uses.
 class FluentLineChartState extends State<FluentLineChart> {
   /// LineChart tracks ONE selected legend, not a list (`LineChart.tsx:186`).
   final String _selectedLegend = '';
@@ -108,57 +110,21 @@ class FluentLineChartState extends State<FluentLineChart> {
   String? _activePointId;
   (int, int)? _nearestPoint;
   late final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
-  late List<FluentCustomizedCalloutData> _calloutPoints;
 
   List<FluentLineChartSeries> get _series =>
       widget.data.lineChartData ?? const <FluentLineChartSeries>[];
 
-  @override
-  void initState() {
-    super.initState();
-    _calloutPoints = calloutData(_series);
-  }
-
-  @override
-  void didUpdateWidget(FluentLineChart oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.data != widget.data) {
-      _calloutPoints = calloutData(_series);
-    }
-  }
+  /// `useUTC` is `string | boolean` upstream and is read as a JS truthy value
+  /// (`CartesianChart.types.ts:448`), so an empty string is false. The same
+  /// getter spelt at `vertical_stacked_bar_chart.dart:1267`.
+  bool get _useUtc =>
+      widget.props.useUTC == true ||
+      (widget.props.useUTC is String && (widget.props.useUTC! as String) != '');
 
   @override
   void dispose() {
     _measurer.invalidate();
     super.dispose();
-  }
-
-  /// The popover rows for the hovered x value.
-  ///
-  /// With `isCalloutForStack` false the stack is narrowed to the single datum
-  /// whose y matches the latched point (`LineChart.tsx:1660-1668`). Upstream's
-  /// `find` returns the FIRST match, and it can only run from a circle whose y
-  /// it already knows; the port is reachable before any point is latched, so
-  /// with none latched the first row stands in — either way the answer is at
-  /// most one row, which is the whole meaning of the flag.
-  List<FluentCustomizedCalloutDataPoint> hoverValuesFor(Object x) {
-    final found =
-        findCalloutPoints(_calloutPoints, x, isXAxisDate: x is DateTime) ??
-        const <FluentCustomizedCalloutDataPoint>[];
-    if (widget.isCalloutForStack) {
-      return found;
-    }
-    final nearest = _nearestPoint;
-    final matching = nearest == null
-        ? found
-        : found.where(
-            (point) =>
-                point.y ==
-                (_series[nearest.$1].data[nearest.$2]
-                        as FluentLineChartDataPoint)
-                    .y,
-          );
-    return matching.take(1).toList(growable: false);
   }
 
   @override
@@ -188,6 +154,9 @@ class FluentLineChartState extends State<FluentLineChart> {
       optimizeLargeData: widget.optimizeLargeData,
       allowMultipleShapesForPoints: widget.allowMultipleShapesForPoints,
       colorFillBars: widget.colorFillBars,
+      isCalloutForStack: widget.isCalloutForStack,
+      culture: widget.culture,
+      useUtc: _useUtc,
       // The plan reads `props.strokeWidth` here, but plan 05 dropped that
       // field from the props bag (`cartesian_chart_props.dart:75`), so the
       // override comes from `lineOptions.strokeWidth` or the style alone.
@@ -274,6 +243,17 @@ class FluentLineChartState extends State<FluentLineChart> {
 /// Oracle B capture of `LineChartEvents` ends its rules at y=225 in a 260px
 /// container, which is the same 35.
 const double kFluentLineEventAnnotationBottomInset = 35;
+
+/// The radius of a data point's hover target.
+///
+/// Upstream's own magnetic latch, the invisible `r={8}` circle it puts under
+/// the last callout point (`LineChart.tsx:1162-1168`). The visible circles
+/// carry `onMouseOver` at their painted size, which is `invisibleSize` 1
+/// (`:65`) — half a pixel of radius — for every point that is neither active
+/// nor an endpoint, so the latch is what makes an idle point hittable at all.
+/// `grouped_vertical_bar_chart.dart:805-816` settled the same question the same
+/// way for its 0.3px line dots.
+const double kFluentLineHoverLatchRadius = 8;
 
 /// The eight LineChart marker shapes.
 ///
@@ -727,6 +707,9 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     this.xMaxValue,
     this.yMinValue = 0,
     this.colorFillBars = const <FluentColorFillBar>[],
+    this.isCalloutForStack = true,
+    this.culture,
+    this.useUtc = false,
   });
 
   /// The input series.
@@ -788,6 +771,24 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
 
   /// The shaded bands drawn behind the lines (`props.colorFillBars`).
   final List<FluentColorFillBar> colorFillBars;
+
+  /// Whether the popover lists every series at the hovered x, or the hovered
+  /// line alone.
+  ///
+  /// `ChartPopover.tsx:57` renders the stacked body from this flag and `:60`
+  /// the single-value one; `LineChart.tsx:147` defaults it true and `:1893`
+  /// spreads it onto the popover.
+  final bool isCalloutForStack;
+
+  /// BCP-47 locale for the popover's readings (`props.culture`).
+  ///
+  /// Overrides the base getter, so the shell formats this chart's tick labels
+  /// with it too (`cartesian_chart.dart:751`, `CartesianChart.tsx:169`).
+  @override
+  final String? culture;
+
+  /// Whether a date reading is formatted in UTC (`props.useUTC`).
+  final bool useUtc;
 
   @override
   FluentChartType get chartType => FluentChartType.lineChart;
@@ -1931,16 +1932,109 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     return out;
   }
 
-  /// LineChart declares no hit regions.
+  /// One hover target, keyboard stop and popover per marker.
   ///
-  /// Its hover is a nearest-point latch over the whole plot
-  /// (`LineChart.tsx:1165`) rather than one region per mark, so the shell's
-  /// region machinery has nothing to walk here.
+  /// Engine A hangs `_handleHover` off every circle it draws (`:593`, `:865`,
+  /// `:943`, `:1031`, `:1108`, `:1251`) and backs the last one with an
+  /// invisible `r={8}` latch (`:1162-1168`); [markersFor] resolves exactly that
+  /// set of circles, so it is what the regions are cut from.
+  ///
+  /// // ponytail: engine B outside markers mode declares nothing, because
+  /// [markersFor] emits nothing there (`:773`). Upstream covers it with
+  /// `_onMouseOverLargeDataset` (`:1542-1606`), a bisect over the hovered line
+  /// that resolves a nearest point from a hover anywhere on it — a second hover
+  /// model, and one the shell has no region shape for. Add it when a
+  /// `optimizeLargeData` chart needs a callout.
   @override
   List<FluentChartHitRegion> buildHitRegions(
     FluentCartesianChildContext context,
     FluentCartesianLayout layout,
-  ) => const <FluentChartHitRegion>[];
+  ) {
+    // `calloutPointsRef.current` (`:1657`). Upstream memoises this in a ref;
+    // here it is one pass over the data beside the one [markersFor] already
+    // makes on the same call.
+    final points = calloutData(series);
+
+    /// `_injectIndexPropertyInLineChartData`'s colour resolution (`:277-281`),
+    /// which is what `lineColor` reads at `:541` and what the legend swatch
+    /// shows. A callout row carries `series.color` unresolved
+    /// (`chart_utils.dart:71`), so a series that names none would paint the
+    /// transparent placeholder rather than its palette entry.
+    Color colourOf(int seriesIndex) => colors.flattenMark(
+      series[seriesIndex].color ?? FluentDataVizPalette.next(seriesIndex),
+    );
+
+    FluentChartHitRegion regionFor(FluentLineMark mark) {
+      final line = series[mark.seriesIndex];
+      // Safe for the same reason [markersFor] is: it casts the whole series
+      // one call earlier to resolve this very mark.
+      final point = line.data[mark.pointIndex] as FluentLineChartDataPoint;
+      // `xAxisCalloutData ? … : '' + formattedData` (`:1680`, `:1656`), where a
+      // date goes through `formatDateToLocaleString`.
+      final xValue =
+          point.xAxisCalloutData ??
+          formatToLocaleString(point.x, culture: culture, useUtc: useUtc);
+      // `yAxisCalloutData || point.y` (`:1839`), formatted the way
+      // `ChartPopover.tsx:89` formats `YValue`.
+      final yValue =
+          point.yAxisCalloutText ??
+          formatToLocaleString(point.y, culture: culture);
+      // `found.values` — every series' reading at the hovered x (`:1657`),
+      // which `:1681` hands to the stacked body and `ChartPopover.tsx:57`
+      // renders. The single-value body reads none of it, so it is not built:
+      // `:1877-1879` fill it from the hovered circle alone.
+      //
+      // Upstream also narrows the stack to the first row whose y is the hovered
+      // circle's (`:1660-1668`). That value reaches neither popover body — it
+      // is passed to `calloutPropsPerDataPoint` (`:1898`) and
+      // `onRenderCalloutPerDataPoint` (`:307`), two consumer hooks the ported
+      // props bag does not carry — so it has nothing to feed here.
+      final stack = isCalloutForStack
+          ? findCalloutPoints(points, point.x, isXAxisDate: point.x is DateTime)
+          : null;
+      return FluentChartHitRegion(
+        bounds: Rect.fromCircle(
+          center: mark.centre,
+          radius: kFluentLineHoverLatchRadius,
+        ),
+        index: mark.pointIndex,
+        legend: line.legend,
+        popoverData: FluentChartPopoverData(
+          xValue: xValue,
+          isCalloutForStack: isCalloutForStack,
+          yValues: stack == null
+              ? null
+              : <FluentYValueHover>[
+                  for (final row in stack)
+                    FluentYValueHover(
+                      legend: row.legend,
+                      y: row.y,
+                      color: colourOf(row.index ?? mark.seriesIndex),
+                      yAxisCalloutText: row.yAxisCalloutText,
+                      yAxisCalloutBreakdown: row.yAxisCalloutBreakdown,
+                      // `index: allowMultipleShapesForPoints ? index : -1`
+                      // (`:284`), which is what `ChartPopover.tsx:188` gates
+                      // the shape swatch on: with the flag off every marker is
+                      // a circle, so the rows show the accent bar instead of a
+                      // shape that would name a marker the plot never drew.
+                      index: allowMultipleShapesForPoints ? row.index : -1,
+                    ),
+                ],
+          legend: isCalloutForStack ? null : line.legend,
+          yValue: isCalloutForStack ? null : yValue,
+          color: isCalloutForStack ? null : colourOf(mark.seriesIndex),
+        ),
+        // `_getAriaLabel` (`:1832-1841`).
+        semanticsLabel:
+            point.callOutSemantics?.label ??
+            '$xValue. ${line.legend}, $yValue.',
+      );
+    }
+
+    return <FluentChartHitRegion>[
+      for (final mark in markersFor(context)) regionFor(mark),
+    ];
+  }
 
   /// Parses an SVG `stroke-dasharray` into a Flutter dash list.
   ///

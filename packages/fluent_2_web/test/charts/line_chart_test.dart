@@ -5,8 +5,11 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 // The barrel is owned by the integration task, so these files are imported
 // directly until `line_chart.dart` is exported from it.
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_chart_props.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_layout.dart';
+import 'package:fluent_2_web/src/charts/cartesian/cartesian_painter.dart';
 import 'package:fluent_2_web/src/charts/cartesian/cartesian_series_delegate.dart';
+import 'package:fluent_2_web/src/charts/chrome/chart_popover.dart';
 import 'package:fluent_2_web/src/charts/chrome/event_annotation.dart';
 import 'package:fluent_2_web/src/charts/chrome/legend.dart';
 import 'package:fluent_2_web/src/charts/internal/chart_colors.dart';
@@ -21,6 +24,7 @@ import 'package:fluent_2_web/src/charts/model/cartesian_series.dart';
 import 'package:fluent_2_web/src/charts/model/chart_annotation.dart';
 import 'package:fluent_2_web/src/charts/model/chart_common.dart';
 import 'package:fluent_2_web/src/charts/model/line_options.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -2282,34 +2286,193 @@ void main() {
       );
     });
 
-    testWidgets('isCalloutForStack false narrows the popover to one datum', (
+    /// Hovers the marker of series [seriesIndex] at [pointIndex] on the
+    /// **mounted** chart and returns the popover the shell opened.
+    ///
+    /// The centre comes from the painter the widget itself mounted — its
+    /// scales, its layout — rather than from a hand-built delegate, so this
+    /// fails if `buildHitRegions` stops being reached from
+    /// `FluentLineChart.build`. A hand-built delegate would pass either way,
+    /// which is how nine helpers in this programme shipped green and uncalled.
+    Future<FluentChartPopoverData> hoverMark(
+      WidgetTester tester,
+      int seriesIndex,
+      int pointIndex, {
+      Offset offset = Offset.zero,
+    }) async {
+      final plot = find
+          .descendant(
+            of: find.byType(FluentCartesianChart),
+            matching: find.byType(CustomPaint),
+          )
+          .first;
+      final painter =
+          tester.widget<CustomPaint>(plot).painter!
+              as FluentCartesianChartPainter;
+      // The shell builds exactly this before calling buildHitRegions
+      // (`cartesian_chart.dart:473-483`).
+      final childContext = FluentCartesianChildContext(
+        xScale: painter.xAxis.scale,
+        yScalePrimary: painter.yAxisPrimary.scale,
+        yScaleSecondary: painter.yAxisSecondary?.scale,
+        containerWidth: painter.layout.size.width,
+        containerHeight: painter.layout.size.height,
+      );
+      final mark = (painter.delegate as FluentLineChartDelegate)
+          .markersFor(childContext)
+          .firstWhere(
+            (mark) =>
+                mark.seriesIndex == seriesIndex &&
+                mark.pointIndex == pointIndex,
+          );
+      final gesture = await tester.createGesture(
+        kind: ui.PointerDeviceKind.mouse,
+      );
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(tester.getTopLeft(plot) + mark.centre + offset);
+      await tester.pumpAndSettle();
+      return tester
+          .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+          .data;
+    }
+
+    testWidgets('isCalloutForStack true stacks every series at the hovered x', (
+      tester,
+    ) async {
+      await pump(tester, FluentLineChart(data: _lineData()));
+      // alpha's second point, x = 2, y = 20. beta is at 35 there. The pointer
+      // sits 6px off the centre, inside the r=8 latch of LineChart.tsx:1165
+      // and well outside the half-pixel an idle marker paints (`:65`): a
+      // region cut to the painted size would miss this.
+      final data = await hoverMark(tester, 0, 1, offset: const Offset(6, 0));
+      expect(
+        data.isCalloutForStack,
+        isTrue,
+        reason:
+            'ChartPopover.tsx:57 renders the stacked body from this flag, and '
+            'LineChart.tsx:147 defaults it true',
+      );
+      expect(
+        data.yValues?.map((value) => value.legend),
+        <String>['alpha', 'beta'],
+        reason:
+            'LineChart.tsx:1681 hands setYValueHover the whole of found.values '
+            '— every series that has a reading at the hovered x',
+      );
+      expect(
+        data.xValue,
+        '2',
+        reason: 'the hovered x heads the callout (LineChart.tsx:1680)',
+      );
+      expect(
+        data.yValues?.first.index,
+        -1,
+        reason:
+            'LineChart.tsx:284 pins the row index to -1 unless '
+            'allowMultipleShapesForPoints, and ChartPopover.tsx:188 reads that '
+            '-1 as "no shape swatch" — every marker here is a circle',
+      );
+      expect(
+        data.yValues?.first.color,
+        FluentChartColors.of(
+          _theme(),
+        ).flattenMark(FluentDataVizPalette.next(0)),
+        reason:
+            'a row carries the series colour unresolved (chart_utils.dart:71), '
+            'so a popover that trusts it paints the transparent placeholder '
+            'instead of the palette entry the line and its legend show',
+      );
+    });
+
+    testWidgets('isCalloutForStack false shows the hovered line alone', (
       tester,
     ) async {
       await pump(
         tester,
         FluentLineChart(data: _lineData(), isCalloutForStack: false),
       );
-      final state = tester.state<FluentLineChartState>(
-        find.byType(FluentLineChart),
+      // beta's second point, x = 2, y = 35. alpha is the FIRST series at that
+      // x, so a popover that ignores the flag names alpha here.
+      final data = await hoverMark(tester, 1, 1);
+      expect(
+        data.isCalloutForStack,
+        isFalse,
+        reason:
+            'ChartPopover.tsx:60 gates the single-value body on the flag being '
+            'false',
       );
       expect(
-        state.hoverValuesFor(2).length,
-        1,
-        reason: 'LineChart.tsx:1660-1668 filters found.values by matching y',
+        data.legend,
+        'beta',
+        reason:
+            'LineChart.tsx:1683 sets legendVal from the hovered line, which is '
+            'what ChartPopover.tsx:43 prints',
+      );
+      expect(
+        data.yValue,
+        '35',
+        reason:
+            'and LineChart.tsx:1682 sets YValue from the hovered circle, '
+            'ChartPopover.tsx:89',
+      );
+      expect(
+        data.yValues,
+        isNull,
+        reason:
+            'the stacked body is not rendered at all under this flag, so the '
+            'rows that feed it must not be assembled either',
       );
     });
 
-    testWidgets('isCalloutForStack true keeps every series at that x', (
+    testWidgets('a data point is a keyboard stop that narrates itself', (
       tester,
     ) async {
-      await pump(tester, FluentLineChart(data: _lineData()));
-      final state = tester.state<FluentLineChartState>(
-        find.byType(FluentLineChart),
+      final handle = tester.ensureSemantics();
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(tester, FluentLineChart(data: _lineData(), focusNode: node));
+      node.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(
+        find.bySemanticsLabel('1. beta, 40.'),
+        findsOneWidget,
+        reason:
+            'canvas text produces no semantics node, so the region label is '
+            "the chart's only narration — `_getAriaLabel` at "
+            'LineChart.tsx:1832-1841. The first stop is the LAST series, '
+            'because markersFor walks series last to first so series 0 paints '
+            'on top (LineChart.tsx:535)',
       );
       expect(
-        state.hoverValuesFor(2).map((point) => point.legend),
-        <String>['alpha', 'beta'],
-        reason: 'LineChart.tsx:1655 hands the whole stack to the callout',
+        find.byType(FluentChartPopover),
+        findsOneWidget,
+        reason:
+            'and _handleFocus opens the callout on focus (LineChart.tsx:1626-'
+            '1636), unlike ScatterChart whose _refArray is never pushed to — '
+            'LineChart.tsx:1447 pushes',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('a date x reaches the callout formatted', (tester) async {
+      await pump(
+        tester,
+        FluentLineChart(
+          data: _dateLineData(),
+          props: const FluentCartesianChartProps(useUTC: true),
+        ),
+      );
+      final data = await hoverMark(tester, 0, 0);
+      expect(
+        data.xValue,
+        endsWith('UTC'),
+        reason:
+            'LineChart.tsx:1656 formats a Date x through '
+            'formatDateToLocaleString with props.culture and props.useUTC; '
+            "printing the DateTime itself would read '2024-03-10 00:00:00.000Z'",
       );
     });
 
