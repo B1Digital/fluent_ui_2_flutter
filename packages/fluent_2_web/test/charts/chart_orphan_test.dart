@@ -271,16 +271,13 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   'isNumericOrCategory':
       'model/chart_value.dart:45, the numeric-or-band predicate. Same shape '
       'and same resolution as isNumericOrDate.',
-  'isDateLike':
-      'model/chart_value.dart:89, the fullest of the four: it ports `isDate` '
-      '(chart-utilities/PlotlySchemaConverter.ts:44-60) with both upstream '
-      'guards, including the year-2000/2001 rule that keeps a bare month name '
-      'such as "March" off a date axis. Its natural caller is axis-type '
-      'inference over untyped input, which in this port is the two unported '
-      'declarative adapters — so it may belong with '
-      'fluentChartIsDarkTheme above rather than here, but unlike those two '
-      'nothing in the port records that dependency, so it is listed on the '
-      'evidence rather than on the guess.',
+  // `isDateLike` (model/chart_value.dart:89) was the fourth of this group and
+  // has been deleted from the list rather than re-worded: the entry predicted
+  // that its natural caller was "axis-type inference over untyped input, which
+  // in this port is the two unported declarative adapters", and the Plotly
+  // adapter now calls it — `internal/plotly/predicates.dart:62` is `isPlotlyDate`
+  // delegating to it, which is what stopped plan 09 Task 5 from transcribing
+  // `PlotlySchemaConverter.ts:44-60` a second time.
 };
 
 /// Files scanned for declarations: every `.dart` file under
