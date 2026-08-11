@@ -128,7 +128,10 @@ import 'package:flutter_test/flutter_test.dart';
 /// and the last test below fails if this map drifts from the scan in either
 /// direction, so an excuse cannot outlive the gap it excuses.
 ///
-/// Eighteen on 2026-08-11, down from thirty-five and up by the one that
+/// Five on 2026-08-11, after a batch that resolved thirteen of the eighteen
+/// this file carried that morning — each one wired or deleted, none re-worded
+/// into a fresher deferral. Eighteen, in turn, was down from thirty-five and up
+/// by the one that
 /// refinement 4 made visible, `FluentSparkline`: plan 09 Task 28 landed
 /// `declarative_chart.dart` and took eighteen entries with it in one go, every
 /// one of which had named that widget as the caller it was waiting for. The
@@ -183,8 +186,15 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       '2026-08-11: this entry used to say "the same two unported declarative '
       'adapters", and one of the two has landed, which is the shape that hid '
       'transformPlotlyToVbc. It did not hide anything here — the reason '
-      'strengthened. Every upstream caller of getColorFromToken is an '
-      'imperative chart reading a consumer-supplied colour string '
+      'strengthened. Re-audited 2026-08-11 with the batch that emptied most of '
+      'this list, which corrected one word of it: the entry claimed EVERY '
+      'upstream caller of getColorFromToken reads a consumer-supplied colour '
+      'string, and half of them do not — HorizontalBarChartWithAxis.tsx:'
+      '113-116, VerticalStackedBarChart.tsx:157-161 and '
+      'PlotlySchemaAdapter.ts:2565-2567 pass a DataVizPalette constant, which '
+      'is the typed branch the port takes through FluentDataVizPalette.resolve '
+      'and not a reason to keep this function. Every caller that passes a '
+      'runtime string is an imperative chart reading it from its own props '
       '(PolarChart.tsx:123, DonutChart.tsx:264, LineChart.tsx:280, '
       'GanttChart.tsx:80, ScatterChart.tsx:157), which is exactly what the '
       "port's Color? typing removes; and the Plotly adapter took the typed "
@@ -476,9 +486,13 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'path reaches a URL. This is the ONE entry on this list that must not be '
       'resolved by deletion. The moment any task adds an href, a link '
       'annotation or a tappable label, that call site is this function and '
-      'wiring it is not optional. Its negative tests '
-      '(test/charts/declarative/json_guard_test.dart:117-168) stay green in '
-      'the meantime so the guard is correct on the day it is needed.',
+      'wiring it is not optional. Its tests stay green in the meantime so the '
+      'guard is correct on the day it is needed: the two rejection tests at '
+      'test/charts/declarative/json_guard_test.dart:117 and :135, and the '
+      'acceptance test at :153 that keeps them from passing by rejecting '
+      'everything. Re-audited 2026-08-11 — the entry used to call :117-168 '
+      '"its negative tests", a range whose second half is that acceptance '
+      'test.',
 };
 
 /// Files scanned for declarations: every `.dart` file under
