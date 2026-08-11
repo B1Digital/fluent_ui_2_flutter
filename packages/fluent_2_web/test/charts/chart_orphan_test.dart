@@ -296,7 +296,7 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       '(spec 5.2, exception 2). Upstream calls it from one place, '
       'CartesianChart.tsx:400-406. The port has no equivalent call: y labels '
       'come from the `orderedYAxisLabels` getters on the delegates '
-      '(scatter_chart.dart:607, vertical_stacked_bar_chart.dart:680, '
+      '(scatter_chart.dart:607, vertical_stacked_bar_chart.dart:690, '
       'gantt_chart.dart:406) and from the axis builders. So the truncation '
       'behaviour and the accessibility fix are both unreachable. Goes when '
       'the cartesian y-axis path routes through it.',
