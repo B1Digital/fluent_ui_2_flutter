@@ -904,7 +904,7 @@ FluentAxisCategoryOrder _polarCategoryOrder(List<Object?> data, _PolarAxis ax) {
 }
 
 /// The radial and angular axis configuration a polar layout implies
-/// (`PlotlySchemaAdapter.ts:4339-4362`).
+/// (`PlotlySchemaAdapter.ts:4339-4361`).
 @immutable
 class FluentPlotlyPolarAxisProps {
   /// Creates a polar axis record.
@@ -932,7 +932,7 @@ class FluentPlotlyPolarAxisProps {
   final String? direction;
 }
 
-/// Builds both polar axes (`PlotlySchemaAdapter.ts:4339-4362`).
+/// Builds both polar axes (`PlotlySchemaAdapter.ts:4339-4361`).
 FluentPlotlyPolarAxisProps getPolarAxisProps(
   List<Object?> data,
   Map<String, Object?>? layout,

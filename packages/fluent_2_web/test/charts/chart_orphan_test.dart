@@ -271,6 +271,23 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'entry and need none: getLegendProps has four callers in '
       'transform_bar.dart and one in transform_xy.dart, and getLegendShape has '
       'three. Whoever lands DeclarativeChart deletes this entry.',
+  'getPolarAxisProps':
+      'internal/plotly/axis.dart:936, the radial and angular axis '
+      'configuration a polar layout implies '
+      '(PlotlySchemaAdapter.ts:4339-4361) and plan 09 Task 13. Upstream has '
+      'exactly one caller in the whole of charts/src — '
+      'PlotlySchemaAdapter.ts:3277, spread into the return of '
+      'transformPlotlyJsonToPolarChartProps (:3177-3280) — and that '
+      'transformer is plan 09 Task 26, which has not landed. So the call site '
+      'does not exist yet rather than having been forgotten. Unlike its '
+      'siblings in this file it is NOT blocked on DeclarativeChart: the '
+      'moment transformPlotlyToPolar exists it must read this, and the two '
+      'cartesian range helpers this task landed alongside it '
+      '(getXMinMaxValues, getYMinMaxValues) show what that looks like — both '
+      'are wired at five production call sites in transform_bar.dart and '
+      'transform_xy.dart and need no entry. Whoever lands '
+      'transformPlotlyToPolar deletes this entry. FluentPlotlyPolarAxisProps '
+      'and kDefaultPolarSubplot need none: this function is their caller.',
   'mapFluentChart':
       'internal/plotly/router.dart:627, the routing table itself '
       '(PlotlySchemaConverter.ts:477-646) and plan 09 Task 7. Upstream has '
