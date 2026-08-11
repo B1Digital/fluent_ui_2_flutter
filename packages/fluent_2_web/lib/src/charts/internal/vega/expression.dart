@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 
+import '../d3/js_math.dart' as d3;
 import 'js_value.dart';
 
 /// Raised for an expression this port refuses to read.
@@ -243,3 +246,369 @@ List<VegaToken> tokenizeVegaExpression(String expr) {
   tokens.add(VegaToken(type: 'eof', value: null, start: i));
   return tokens;
 }
+
+/// Argument [index] of a call, or `undefined` when the call passed fewer.
+///
+/// JavaScript binds a missing parameter to `undefined`, not to `null`, and the
+/// two coerce differently: `Number(undefined)` is NaN where `Number(null)` is 0,
+/// so `abs()` is NaN rather than 0.
+Object? _arg(List<Object?> args, int index) =>
+    index < args.length ? args[index] : JsUndefined.instance;
+
+/// The safe built-in functions (`VegaLiteExpressionEvaluator.ts:43-66`).
+///
+/// There are twenty-two, not the nineteen the file's own header lists at
+/// `:12-14`: that comment predates `isString`, `isBoolean` and `isArray` and is
+/// stale. Every one takes the whole argument list, because `min` and `max` are
+/// variadic (`:60-61`) and JavaScript lets any of them be called with the wrong
+/// arity.
+final Map<String, Object? Function(List<Object?>)> _safeFunctions =
+    <String, Object? Function(List<Object?>)>{
+      // `:44`. Zero and the empty string are valid; only null, undefined and
+      // NaN are not.
+      'isValid': (args) {
+        final x = _arg(args, 0);
+        return x != null && x is! JsUndefined && !(x is num && x.isNaN);
+      },
+      // `:45`. `x instanceof Date`.
+      'isDate': (args) => _arg(args, 0) is DateTime,
+      // `:46`.
+      'isNumber': (args) {
+        final x = _arg(args, 0);
+        return x is num && !x.isNaN;
+      },
+      // `:47`.
+      'isString': (args) => _arg(args, 0) is String,
+      // `:48`.
+      'isBoolean': (args) => _arg(args, 0) is bool,
+      // `:49`.
+      'isArray': (args) => _arg(args, 0) is List,
+      // `:50` is the GLOBAL `isNaN`, which coerces its argument first, so
+      // `isNaN('x')` is true. `Number.isNaN` would answer false.
+      'isNaN': (args) => jsToNumber(_arg(args, 0)).isNaN,
+      // `:51` is `Number.isFinite`, which does NOT coerce, so `isFinite('1')`
+      // is false where the global `isFinite` answers true.
+      'isFinite': (args) {
+        final x = _arg(args, 0);
+        return x is num && x.isFinite;
+      },
+      // `:52-58`. Each is `Math`'s own, and NaN flows through every one.
+      'abs': (args) => jsToNumber(_arg(args, 0)).abs(),
+      'ceil': (args) => jsToNumber(_arg(args, 0)).ceilToDouble(),
+      'floor': (args) => jsToNumber(_arg(args, 0)).floorToDouble(),
+      // `Math.round` is half-UP, so Math.round(-0.5) is -0 and Math.round(-1.5)
+      // is -1. Dart's round() is half-away-from-zero and gives -1 and -2. Every
+      // rounding site in this evaluator goes through d3.jsRound.
+      'round': (args) => d3.jsRound(jsToNumber(_arg(args, 0))),
+      'sqrt': (args) => math.sqrt(jsToNumber(_arg(args, 0))),
+      'log': (args) => math.log(jsToNumber(_arg(args, 0))),
+      'exp': (args) => math.exp(jsToNumber(_arg(args, 0))),
+      // `:59`, the `**` operator over two coerced numbers.
+      'pow': (args) => math
+          .pow(jsToNumber(_arg(args, 0)), jsToNumber(_arg(args, 1)))
+          .toDouble(),
+      // `:60-61`. `Math.min()` with no arguments is +Infinity and `Math.max()`
+      // is -Infinity, and one NaN anywhere poisons the whole call.
+      'min': (args) => _extreme(args, takeSmaller: true),
+      'max': (args) => _extreme(args, takeSmaller: false),
+      // `:62`. A string's length is its UTF-16 code unit count on both sides.
+      'length': (args) {
+        final x = _arg(args, 0);
+        if (x is String) {
+          return x.length;
+        }
+        if (x is List) {
+          return x.length;
+        }
+        // 0 is upstream's own fallback for every other type, including an
+        // object — `length({})` is 0, not undefined.
+        return 0;
+      },
+      // `:63-65`.
+      'toNumber': (args) => jsToNumber(_arg(args, 0)),
+      'toString': (args) => jsToString(_arg(args, 0)),
+      'toBoolean': (args) => jsTruthy(_arg(args, 0)),
+    };
+
+/// `Math.min` when [takeSmaller], `Math.max` otherwise
+/// (`VegaLiteExpressionEvaluator.ts:60-61`).
+double _extreme(List<Object?> args, {required bool takeSmaller}) {
+  // The identity of an empty call: `Math.min()` is +Infinity and `Math.max()`
+  // is -Infinity, so the first real argument always replaces it.
+  var result = takeSmaller ? double.infinity : double.negativeInfinity;
+  for (final arg in args) {
+    final x = jsToNumber(arg);
+    if (x.isNaN) {
+      return double.nan;
+    }
+    if (takeSmaller ? x < result : x > result) {
+      result = x;
+    }
+  }
+  return result;
+}
+
+/// The safe constants (`VegaLiteExpressionEvaluator.ts:71-79`).
+const Map<String, Object?> _safeConstants = <String, Object?>{
+  'PI': math.pi,
+  'E': math.e,
+  'SQRT2': math.sqrt2,
+  'LN2': math.ln2,
+  'LN10': math.ln10,
+  'NaN': double.nan,
+  'Infinity': double.infinity,
+};
+
+/// Every identifier an expression may name (`VegaLiteExpressionEvaluator.ts:82`).
+///
+/// This is the security boundary's inner wall and the reason `globalThis`,
+/// `window`, `process`, `require`, `eval` and `Function` cannot be reached: a
+/// name outside this set is refused at `:475-477` before any lookup happens.
+/// Derived from the two tables above rather than restated, so the set cannot
+/// drift from what is actually callable — the plan asked for a `const`, and a
+/// hand-written copy of thirty names kept equal by eye is exactly the defect
+/// `kPointWidthRatios` was deleted for.
+final Set<String> kVegaAllowedIdentifiers = <String>{
+  'datum',
+  ..._safeFunctions.keys,
+  ..._safeConstants.keys,
+};
+
+/// Recursive-descent parser and evaluator
+/// (`VegaLiteExpressionEvaluator.ts:233-502`).
+///
+/// Upstream evaluates as it parses rather than building a tree, and so does
+/// this: each level returns a *value*, not a node.
+class _VegaExpressionParser {
+  _VegaExpressionParser(this._tokens, this._datum);
+
+  final List<VegaToken> _tokens;
+
+  /// The one binding `datum` resolves to (`:479-481`, via the context object
+  /// `:522` builds).
+  final Map<String, Object?> _datum;
+
+  int _pos = 0;
+
+  /// `:244-252`.
+  Object? parse() {
+    final result = _parseExpression();
+    if (_peek().type != 'eof') {
+      throw VegaExpressionException(
+        "Safe expression evaluator: unexpected token '${_peek().type}' at "
+        'position ${_peek().start}',
+      );
+    }
+    return result;
+  }
+
+  /// `:254-256`. The stream always ends with `eof`, so this needs no bound.
+  VegaToken _peek() => _tokens[_pos];
+
+  /// `:258-262`.
+  VegaToken _advance() => _tokens[_pos++];
+
+  /// `:264-272`.
+  VegaToken _expect(String type) {
+    final token = _peek();
+    if (token.type != type) {
+      throw VegaExpressionException(
+        "Safe expression evaluator: expected '$type' but got '${token.type}' "
+        'at position ${token.start}',
+      );
+    }
+    return _advance();
+  }
+
+  /// `:274-276`.
+  ///
+  /// The ternary and the four logical levels below it land in the next task;
+  /// until then the grammar's entry point is the additive level, which is what
+  /// a bracket index (`:429`) and a parenthesised group (`:493`) re-enter
+  /// through.
+  Object? _parseExpression() => _parseAdditive();
+
+  /// `:358-373`.
+  Object? _parseAdditive() {
+    var left = _parseMultiplicative();
+    while (_peek().type == '+' || _peek().type == '-') {
+      final op = _advance().type;
+      final right = _parseMultiplicative();
+      // `:363-367` tests BOTH operands for stringness, which [jsAdd] owns;
+      // subtraction has no such branch and coerces unconditionally.
+      left = op == '+'
+          ? jsAdd(left, right)
+          : jsToNumber(left) - jsToNumber(right);
+    }
+    return left;
+  }
+
+  /// `:375-393`.
+  Object? _parseMultiplicative() {
+    var left = _parseUnary();
+    while (_peek().type == '*' || _peek().type == '/' || _peek().type == '%') {
+      final op = _advance().type;
+      final right = _parseUnary();
+      switch (op) {
+        case '*':
+          left = jsToNumber(left) * jsToNumber(right);
+        case '/':
+          // Dart's `/` on doubles is JavaScript's: `7 / 2` is 3.5 and `1 / 0`
+          // is Infinity rather than a throw.
+          left = jsToNumber(left) / jsToNumber(right);
+        case '%':
+          // JavaScript's remainder keeps the sign of the dividend; Dart's `%`
+          // is a modulo that keeps the sign of the divisor. `-7 % 3` is -1 in
+          // JavaScript and 2 in Dart, so use remainder().
+          left = jsToNumber(left).remainder(jsToNumber(right));
+      }
+    }
+    return left;
+  }
+
+  /// `:395-409`.
+  Object? _parseUnary() {
+    switch (_peek().type) {
+      case '!':
+        _advance();
+        // `:398` negates with JavaScript truthiness, so `!''` is true. A Dart
+        // bool cast would have thrown on every non-boolean operand.
+        return !jsTruthy(_parseUnary());
+      case '-':
+        _advance();
+        return -jsToNumber(_parseUnary());
+      case '+':
+        _advance();
+        return jsToNumber(_parseUnary());
+    }
+    return _parsePostfix();
+  }
+
+  /// `:411-460`.
+  Object? _parsePostfix() {
+    var value = _parsePrimary();
+
+    while (true) {
+      switch (_peek().type) {
+        // `:415-425`: property access, own properties only.
+        case '.':
+          _advance();
+          value = _member(value, _expect('ident').value! as String);
+        // `:426-437`: bracket access, own properties only, key stringified.
+        case '[':
+          _advance();
+          final index = _parseExpression();
+          _expect(']');
+          value = _member(value, jsToString(index));
+        // `:438-453`: a call, and only a built-in is callable.
+        case '(':
+          if (value is! Object? Function(List<Object?>)) {
+            throw const VegaExpressionException(
+              'Safe expression evaluator: function calls are only allowed for '
+              'built-in functions',
+            );
+          }
+          _advance();
+          final args = <Object?>[];
+          if (_peek().type != ')') {
+            args.add(_parseExpression());
+            while (_peek().type == ',') {
+              _advance();
+              args.add(_parseExpression());
+            }
+          }
+          _expect(')');
+          value = value(args);
+        default:
+          return value;
+      }
+    }
+  }
+
+  /// `value[key]`, restricted to own properties
+  /// (`VegaLiteExpressionEvaluator.ts:37-38`, applied at `:421` and `:433`).
+  ///
+  /// Dart has no prototype chain, so the half of upstream's model that blocks
+  /// `constructor`, `__proto__`, `toString` and `valueOf` is satisfied
+  /// structurally: a `Map` holds only what was put in it. The identifier
+  /// allowlist is the half that still does work, and it stays.
+  ///
+  /// A miss yields `undefined`, never `null` and never a throw, because the two
+  /// are distinguishable downstream: `datum.missing == null` is true while
+  /// `datum.missing === null` is false.
+  Object? _member(Object? value, String key) {
+    if (value is Map<String, Object?>) {
+      return value.containsKey(key) ? value[key] : JsUndefined.instance;
+    }
+    if (value is List<Object?>) {
+      // An array's own properties are its in-range indices and `length` —
+      // `Object.prototype.hasOwnProperty.call([1, 2], '0')` and `'length'` are
+      // both true — so `datum.arr[0]` and `datum.arr.length` are reads upstream
+      // allows.
+      if (key == 'length') {
+        return value.length;
+      }
+      final index = int.tryParse(key);
+      if (index != null && index >= 0 && index < value.length) {
+        return value[index];
+      }
+    }
+    return JsUndefined.instance;
+  }
+
+  /// `:462-501`.
+  Object? _parsePrimary() {
+    final token = _peek();
+
+    switch (token.type) {
+      case 'number':
+      case 'string':
+      case 'boolean':
+      case 'null':
+        _advance();
+        return token.value;
+
+      case 'ident':
+        final name = token.value! as String;
+        if (!kVegaAllowedIdentifiers.contains(name)) {
+          // `:476`, message verbatim.
+          throw VegaExpressionException(
+            "Safe expression evaluator: unknown identifier '$name'",
+          );
+        }
+        _advance();
+        if (name == 'datum') {
+          return _datum;
+        }
+        // The allowlist is derived from these two tables, so a name that
+        // reached here is in exactly one of them.
+        return _safeFunctions[name] ?? _safeConstants[name];
+
+      case '(':
+        _advance();
+        final result = _parseExpression();
+        _expect(')');
+        return result;
+
+      default:
+        // `:499`, message verbatim.
+        throw VegaExpressionException(
+          "Safe expression evaluator: unexpected token '${token.type}' at "
+          'position ${token.start}',
+        );
+    }
+  }
+}
+
+/// Evaluates the Vega-Lite expression [expr] against [datum]
+/// (`VegaLiteExpressionEvaluator.ts:520-524`).
+///
+/// Only property access, arithmetic, comparison, logical operators, the
+/// ternary, literals and the built-ins in [kVegaAllowedIdentifiers] are
+/// reachable; assignment, an arbitrary call and any global are refused.
+///
+/// Returns JavaScript values: a `double` for every number, [JsUndefined] for a
+/// missing property, and whatever the datum holds for a present one. Throws a
+/// [VegaExpressionException] for anything the grammar or the allowlist refuses.
+Object? evaluateVegaExpression(String expr, Map<String, Object?> datum) =>
+    _VegaExpressionParser(tokenizeVegaExpression(expr), datum).parse();

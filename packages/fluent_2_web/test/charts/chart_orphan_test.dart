@@ -537,31 +537,25 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'Task 42 on reads its dataset through it. Goes when Task 40 lands.',
 
   // Task 31's `internal/vega/js_value.dart` — the ECMAScript abstract
-  // operations the expression evaluator is written on top of. Seven of its
-  // twelve public functions are here; the other five are not, because
+  // operations the expression evaluator is written on top of. Five of its
+  // twelve public functions are here; the other seven are not, because
   // jsToNumber, jsToString, jsStrictEquals and jsLooseEquals already have real
   // callers inside the file (jsAdd coerces through the first two, the
-  // abstract-equality algorithm recurses through the last two) and JsUndefined
-  // is named by every type test in it. That asymmetry is the point: what is
-  // listed here is what the file genuinely cannot reach on its own, and it is
-  // reachable only from an evaluator that does not exist yet.
+  // abstract-equality algorithm recurses through the last two), JsUndefined is
+  // named by every type test in it, and jsTruthy and jsAdd acquired callers
+  // when Task 33 landed. That asymmetry is the point: what is listed here is
+  // what the file genuinely cannot reach on its own.
   //
-  // These seven are the operators of the parser's precedence ladder, so their
-  // caller is one file: Task 32 creates `internal/vega/expression.dart`, Task
-  // 33 appends the primary through multiplicative levels and Task 34 appends
-  // additive through ternary, which is the task that spends six of the seven.
-  // Every one is a *statement* in that task's own Step 3 code, not a
-  // speculative consumer — plan 09 line 11230 is literally
-  // `left = jsTruthy(left) ? left : right;`. jsTypeof's caller is later still
-  // and in a different direction, which is why it carries its own entry rather
-  // than sharing this one's exit condition.
-  'jsTruthy':
-      'internal/vega/js_value.dart:27. Task 34 branches `&&` and `||` on it '
-      'and returns the untouched operand, because upstream `left || right` '
-      '(VegaLiteExpressionEvaluator.ts:295, :305) evaluates to an OPERAND and '
-      "Dart's own operators are typed bool-to-bool. Task 47's `filter` "
-      'transform wraps the whole expression result in it as well, at the '
-      'VegaLiteSchemaAdapter.ts:948 position. Goes when Task 34 lands.',
+  // `jsTruthy` and `jsAdd` were here until Task 33's parser spent them, which
+  // is what their own entries said would remove them: the unary `!` at
+  // expression.dart's `_parseUnary` negates through jsTruthy — upstream's `:398`
+  // is JavaScript truthiness, so `!''` is true where a Dart bool cast would
+  // have thrown — `toBoolean` (`:65`) is jsTruthy outright, and the additive
+  // level calls jsAdd for the `typeof === string` test at `:363-367`. The four
+  // relational operators below are still Task 34's, one per `case` of the
+  // comparison level, and every one is a *statement* in that task's own Step 3
+  // code rather than a speculative consumer. jsTypeof's caller is later still
+  // and in a different direction, which is why it carries its own entry.
   'jsTypeof':
       'internal/vega/js_value.dart:48. Its callers are the two `typeof '
       'sampleValue` diagnostics upstream, not the parser: '
@@ -569,12 +563,6 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'ports, and `:3594` in the binning error path, which Task 47 ports. Both '
       "read the result against the string 'string', so a Dart `runtimeType` "
       'would not answer the same question. Goes when Task 40 lands.',
-  'jsAdd':
-      'internal/vega/js_value.dart:263. Task 34\'s additive level is its only '
-      'caller: `VegaLiteExpressionEvaluator.ts:364-367` tests BOTH operands '
-      'for `typeof === string` and concatenates if either is one, and Dart has '
-      'no `+` with a string-or-number union to express that. Goes when Task 34 '
-      'lands.',
   'jsLess':
       "internal/vega/js_value.dart:288, the `case '<'` of Task 34's comparison "
       'level (VegaLiteExpressionEvaluator.ts:341-343). Goes when Task 34 '
@@ -592,22 +580,29 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       "internal/vega/js_value.dart:303, the `case '>='` of the same level "
       '(VegaLiteExpressionEvaluator.ts:350-352). Goes when Task 34 lands.',
 
-  // Task 32's `internal/vega/expression.dart`. One of the three symbols it
-  // adds is here and the other two are not, for the same reason js_value.dart
-  // lists seven of twelve: `VegaToken` is constructed on every arm of the
-  // tokenizer and `VegaExpressionException` is thrown from two of them, so
-  // both are reached from inside the file that declares them. The tokenizer's
-  // own caller is the one thing the file cannot supply.
-  'tokenizeVegaExpression':
-      'internal/vega/expression.dart:87. Its caller is one function in this '
-      'same file, and it is the next task to touch the file: Task 33 appends '
-      "`evaluateVegaExpression`, which is upstream's `safeEvaluateExpression` "
-      '(VegaLiteExpressionEvaluator.ts:520-524), whose first statement at '
-      '`:521` is `const tokens = tokenize(expr)` before it hands them to the '
-      'parser at `:522`. Upstream has exactly one call of `tokenize` — `grep '
-      "-n 'tokenize(' over the file returns :87, the declaration, and :521 — "
-      'so no second consumer is coming and this entry has one exit. Goes when '
-      'Task 33 lands.',
+  // `internal/vega/expression.dart`. Four of its five public symbols are not
+  // here, for the same reason js_value.dart lists five of twelve: `VegaToken`
+  // is constructed on every arm of the tokenizer, `VegaExpressionException` is
+  // thrown from six places, `kVegaAllowedIdentifiers` is the guard at
+  // `_parsePrimary` and `tokenizeVegaExpression` — which was here, excused as
+  // "goes when Task 33 lands" — is now the first statement of
+  // `evaluateVegaExpression`, exactly as `VegaLiteExpressionEvaluator.ts:521`
+  // calls `tokenize` before handing the tokens to the parser at `:522`. That
+  // entry's one exit was taken and it went with it.
+  'evaluateVegaExpression':
+      'internal/vega/expression.dart:613, the port of `safeEvaluateExpression` '
+      '(VegaLiteExpressionEvaluator.ts:520-524). Its callers are two private '
+      "helpers in Task 37's `internal/vega/transforms.dart`, and both are "
+      "statements in that task's own Step 3 code (plan 09 lines 12240 and "
+      '12250): `_filterKeeps` is `jsTruthy(evaluateVegaExpression(expr, row))` '
+      'at the VegaLiteSchemaAdapter.ts:236-242 position and `_calculated` '
+      'writes the result into a new column at `:250-257`. `grep -rn '
+      "'safeEvaluateExpression' over crawlers/fluentui-react-charts/out/charts/"
+      'src returns the declaration, the import at :48, those two, and a third '
+      'at :1185 — the conditional-colour resolver, which plan 09 line 14810 '
+      'ports in Task 42 as `jsTruthy(evaluateVegaExpression(test, row)) ? '
+      'trueValue : elseValue`. So three consumers are coming and Task 37 is '
+      'the first. Goes when Task 37 lands.',
 };
 
 /// Files scanned for declarations: every `.dart` file under
