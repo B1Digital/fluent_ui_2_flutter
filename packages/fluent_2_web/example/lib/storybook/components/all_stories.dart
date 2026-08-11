@@ -2,6 +2,7 @@ import 'package:storybook_flutter/storybook_flutter.dart';
 
 import '../theme_stories.dart';
 import 'button_stories.dart';
+import 'charts_showcase_stories.dart';
 import 'charts_stories.dart';
 import 'inputs_stories.dart';
 import 'navigation_stories.dart';
@@ -18,4 +19,5 @@ List<Story> get allStories => [
   ...navigationStories,
   ...overlaysStories,
   ...chartsStories,
+  ...chartsShowcaseStories,
 ];
