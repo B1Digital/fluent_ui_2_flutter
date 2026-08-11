@@ -200,11 +200,14 @@ const Map<FluentPlotlyChartKind, double> kPlotlyDefaultCellHeight =
 /// silently dropped: `:412-420` builds a `legendProps` bag —
 /// `canSelectMultipleLegends`, the selection and its change handler — and
 /// `:598-603` spreads it into every non-annotation chart, so a **single**-plot
-/// figure round-trips its legend selection through `onSchemaChange` too. In
-/// this port only the polar chart exposes `selectedLegends`/`onLegendChange` as
-/// widget parameters; the other shells keep the selection in private state, so
-/// there is nothing to pass it to. The all-up legend of a multi-plot figure
-/// does round-trip, because this widget owns that legend.
+/// figure round-trips its legend selection through `onSchemaChange` too. Only
+/// `FluentPolarChart` exposes `onLegendChange`, so no other shell can report a
+/// selection back and the outbound half has nowhere to start. `selectedLegends`
+/// is a different matter, and this note used to conflate the two: eight of the
+/// ten shell charts already take it — all but `FluentLineChart` and
+/// `FluentHeatMapChart` — and no transformer in either adapter passes it, so
+/// the inbound half is unwired rather than unavailable. The all-up legend of a
+/// multi-plot figure does round-trip, because this widget owns that legend.
 class FluentDeclarativeChart extends StatefulWidget {
   /// Creates a declarative chart.
   const FluentDeclarativeChart({

@@ -475,16 +475,21 @@ class _FluentVegaDeclarativeChartState
 
     // `:227-243`: upstream spreads `legendProps` — the selection AND its
     // change handler — into the chart it renders (`:417-426`, `:243`), so
-    // the chart's own legend both dims the marks and reports back. No shell
-    // chart in this port takes a controlled selection except
-    // `FluentPolarChart`, and no transformer passes one, so the round-trip
-    // through `onSchemaChange` is only available from a legend this widget
-    // owns. The chart's own is
-    // suppressed first so exactly one is drawn.
+    // the chart's own legend both dims the marks and reports back. Only
+    // `FluentPolarChart` exposes `onLegendChange`, so no other shell reports a
+    // selection back and the round-trip through `onSchemaChange` is available
+    // only from a legend this widget owns. The chart's own is suppressed first
+    // so exactly one is drawn.
     //
-    // GAP: the dimming upstream gets for free is lost with it. Closing it is
-    // a `selectedLegends` parameter on the nine shell charts and on the
-    // eleven transformers, not a change here.
+    // GAP: the dimming upstream gets for free is lost with it. Measured
+    // 2026-08-11, because this note used to claim more missing work than there
+    // is: `selectedLegends` is ALREADY a parameter on eight of the ten shell
+    // charts — area, vertical bar, grouped vertical bar, vertical stacked bar,
+    // scatter, gantt, horizontal bar with axis and polar — and is absent only
+    // on `FluentLineChart` and `FluentHeatMapChart`. What no chart receives is
+    // a value: no transformer in either adapter passes `selectedLegends`. So
+    // closing the dimming is a pass-through in the eleven transformers plus
+    // the parameter on the two charts that lack it, not a change here.
     final canLift = kVegaLiftableLegendKinds.contains(route.kind);
     if (canLift) {
       _disableChartLegend(spec);
