@@ -507,7 +507,7 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // Task 40 exports three symbols and adds ONE entry. `autoCorrectEncodingTypes`
   // needs none — `getVegaChartType` calls it at the `:1650` position, in the
   // same file, which this scan counts. `normalizeVegaSpec` needed none either by
-  // the time the task landed: `internal/vega/context.dart:162` opens the
+  // the time the task landed: `internal/vega/context.dart:163` opens the
   // transform context with `final unitSpecs = normalizeVegaSpec(spec);` at the
   // `:1163` position, inside `initializeTransformContext`
   // (VegaLiteSchemaAdapter.ts:1162-1268). Only `getVegaChartType` is still
@@ -696,6 +696,74 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'point they are reached through and it is the one with no caller yet. '
       "Task 43 ports the :1802 call as that task's own Step 3 statement (plan "
       '09 line 15752). Goes when Task 43 lands.',
+
+  // Task 42's `internal/vega/context.dart`. Six of its eight public symbols are
+  // here, and each names the transformer task that calls it; every call site
+  // was read out of
+  // docs/superpowers/plans/2026-08-08-fluent-2-charts-09-declarative.md rather
+  // than assumed, and every one is a statement in that task's own Step 3 code.
+  //
+  // FluentVegaTransformContext needs no entry: it is the return type of
+  // initializeTransformContext and the constructed value at :285, both in its
+  // own file, and its seventeen fields are named by the `required this.x` of
+  // that constructor.
+  //
+  // groupDataBySeries is NOT here and is not wired either — it is INVISIBLE to
+  // this scan. Its return type is a record spread over four lines, so
+  // `dart format` leaves the declaration as `groupDataBySeries(` at column 0,
+  // which matches neither the type pattern nor the top-level pattern above:
+  // the same class of miss the `\([^()]*\)\??` arm was added for, one line
+  // further out of reach. Task 43 is its caller (plan 09 lines 15768-15778, the
+  // VegaLiteSchemaAdapter.ts:1808-1818 position), so it leaves when the six
+  // below do; recorded here because the scan cannot say it.
+  'initializeTransformContext':
+      'internal/vega/context.dart:160, the single normalising pass over a spec '
+      '(VegaLiteSchemaAdapter.ts:1162-1268): both transform lists, the '
+      'conditional colour materialised into `__conditional_color__` and a '
+      '`timeUnit` collapsed into buckets. Task 44 is the first caller — `final '
+      'context = initializeTransformContext(spec);` at the `:3076` position '
+      '(plan 09 line 16285) — and reads context.data, .encoding and .markProps '
+      'on the next three lines rather than dropping the result. Tasks 46, 47 '
+      'and 48 repeat it (plan 09 lines 16944, 17657, 17776 and 18140). Task 43 '
+      'is deliberately not a caller: its line transformer re-derives the '
+      'primary spec through findPrimaryLineSpec (`:1757-1795`), which plan 09 '
+      'line 15620 records. Goes when Task 44 lands.',
+  'resolveVegaSeriesColour':
+      'internal/vega/context.dart:348, the four-priority colour chain '
+      '(VegaLiteSchemaAdapter.ts:109-133). Task 43 is the first caller: the '
+      'line transformer numbers each series with a per-chart ordinal and '
+      'passes it as `index` (plan 09 lines 15794-15810), which is the whole '
+      'point of the `:129` rule — a colour keyed on the local index, not on '
+      "the shared map's size. Tasks 44, 46, 47, 48 and 49 repeat it (plan 09 "
+      'lines 16406, 17046, 17244, 17714, 17822 and 18247). Goes when Task 43 '
+      'lands.',
+  'computeAggregateData':
+      'internal/vega/context.dart:504, the `{category, value}` aggregator '
+      '(VegaLiteSchemaAdapter.ts:1300-1361). Task 46 is the first caller — '
+      '`aggregatedData = computeAggregateData(dataValues, xField, yField, '
+      'yAggregate);` at the `:2389-2393` position (plan 09 line 17014) — and '
+      "Task 47 calls it with the two fields swapped for the horizontal bar's "
+      'x aggregate (plan 09 line 17802). Goes when Task 46 lands.',
+  'countByCategory':
+      'internal/vega/context.dart:555, the nested `Map<xKey, Map<legend, '
+      'count>>` (VegaLiteSchemaAdapter.ts:1367-1388). Task 46 is its only '
+      'caller in the plan: `final counts = countByCategory(dataValues, xField, '
+      "colorField, 'Bar');` (plan 09 line 17092) at the `:2443-2473` "
+      'fallback, where a non-numeric y column is counted per category instead '
+      'of summed. Goes when Task 46 lands.',
+  'extractVegaAnnotations':
+      'internal/vega/context.dart:595, the text and rule layers turned into '
+      'annotations (VegaLiteSchemaAdapter.ts:683-782). Task 43 is the first '
+      'caller, `final annotations = extractVegaAnnotations(spec);` at the '
+      '`:1884` position (plan 09 line 15874), and Tasks 44, 47 and 49 repeat '
+      'it (plan 09 lines 16429, 17946 and 18303). Goes when Task 43 lands.',
+  'extractVegaColorFillBars':
+      'internal/vega/context.dart:781, the `rect` layers with x and x2 turned '
+      'into background regions (VegaLiteSchemaAdapter.ts:787-847). Task 43 is '
+      'its only caller in the plan, on the line after extractVegaAnnotations '
+      '(plan 09 line 15875, the `:1885` position), and the result is the '
+      "line chart's colorFillBars rather than a value computed and dropped. "
+      'Goes when Task 43 lands.',
 };
 
 /// Files scanned for declarations: every `.dart` file under
