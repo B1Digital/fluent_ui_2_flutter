@@ -958,7 +958,146 @@ List<Story> get chartsStories => [
       );
     },
   ),
+  Story(
+    name: 'Charts/FluentDeclarativeChart',
+    description:
+        'Renders a Plotly figure by routing it to one of the Fluent charts, '
+        'with no chart type named by the caller.',
+    builder: (context) {
+      return DemoColumn(
+        children: [
+          for (final entry in _plotlyStorySchemas.entries)
+            DemoRail(
+              title: entry.key,
+              children: [
+                SizedBox(
+                  // DemoRail lays its children out in a Wrap, which offers
+                  // unbounded width, so a cell has to state both extents.
+                  // 400 is the tallest intrinsic height either adapter asks
+                  // for — a routed cell plus its own legend strip — and is
+                  // what stops the Column inside the chart overflowing; 520
+                  // keeps the axis labels legible on a laptop canvas.
+                  width: 520,
+                  height: 400,
+                  child: FluentDeclarativeChart(
+                    chartSchema: FluentPlotlySchema(plotlySchema: entry.value),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      );
+    },
+  ),
+  Story(
+    name: 'Charts/FluentVegaDeclarativeChart',
+    description:
+        'Renders a Vega-Lite specification by routing it to one of the Fluent '
+        'charts.',
+    builder: (context) {
+      return DemoColumn(
+        children: [
+          for (final entry in _vegaStorySpecs.entries)
+            DemoRail(
+              title: entry.key,
+              children: [
+                SizedBox(
+                  // As above. The stacked bar is the cell that needs all 400:
+                  // kVegaDefaultCellHeight gives it 350 and its lifted legend
+                  // takes the rest.
+                  width: 520,
+                  height: 400,
+                  child: FluentVegaDeclarativeChart(
+                    chartSchema: FluentVegaSchema(vegaLiteSpec: entry.value),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      );
+    },
+  ),
 ];
+
+/// Plotly schemas the FluentDeclarativeChart story renders, one per output
+/// kind.
+///
+/// Each is a minimal figure exercising a different branch of `mapFluentChart`
+/// so a reviewer can see the router working: a bar trace with no `barmode`
+/// stacks, a numeric-x `mode: 'lines'` scatter is a line, and a `pie` with a
+/// `hole` is a donut.
+const Map<String, Map<String, Object?>> _plotlyStorySchemas =
+    <String, Map<String, Object?>>{
+      'Vertical stacked bar': <String, Object?>{
+        'data': <Object?>[
+          <String, Object?>{
+            'type': 'bar',
+            'name': 'Revenue',
+            'x': <Object?>['Q1', 'Q2', 'Q3', 'Q4'],
+            'y': <Object?>[42, 55, 38, 61],
+          },
+        ],
+      },
+      'Line': <String, Object?>{
+        'data': <Object?>[
+          <String, Object?>{
+            'type': 'scatter',
+            'mode': 'lines',
+            'name': 'Latency',
+            'x': <Object?>[1, 2, 3, 4, 5],
+            'y': <Object?>[12, 19, 14, 22, 17],
+          },
+        ],
+      },
+      'Donut': <String, Object?>{
+        'data': <Object?>[
+          <String, Object?>{
+            'type': 'pie',
+            'hole': 0.5,
+            'labels': <Object?>['Alpha', 'Beta', 'Gamma'],
+            'values': <Object?>[30, 45, 25],
+          },
+        ],
+      },
+    };
+
+/// Vega-Lite specs the FluentVegaDeclarativeChart story renders.
+///
+/// The pair differs only in the `color` channel, which is the whole of the
+/// bar-versus-stacked-bar decision in the routing ladder.
+const Map<String, Map<String, Object?>> _vegaStorySpecs =
+    <String, Map<String, Object?>>{
+      'Bar': <String, Object?>{
+        'mark': 'bar',
+        'data': <String, Object?>{
+          'values': <Object?>[
+            <String, Object?>{'category': 'A', 'amount': 28},
+            <String, Object?>{'category': 'B', 'amount': 55},
+            <String, Object?>{'category': 'C', 'amount': 43},
+          ],
+        },
+        'encoding': <String, Object?>{
+          'x': <String, Object?>{'field': 'category', 'type': 'nominal'},
+          'y': <String, Object?>{'field': 'amount', 'type': 'quantitative'},
+        },
+      },
+      'Stacked bar': <String, Object?>{
+        'mark': 'bar',
+        'data': <String, Object?>{
+          'values': <Object?>[
+            <String, Object?>{'category': 'A', 'group': 'x', 'amount': 12},
+            <String, Object?>{'category': 'A', 'group': 'y', 'amount': 16},
+            <String, Object?>{'category': 'B', 'group': 'x', 'amount': 30},
+            <String, Object?>{'category': 'B', 'group': 'y', 'amount': 25},
+          ],
+        },
+        'encoding': <String, Object?>{
+          'x': <String, Object?>{'field': 'category', 'type': 'nominal'},
+          'y': <String, Object?>{'field': 'amount', 'type': 'quantitative'},
+          'color': <String, Object?>{'field': 'group', 'type': 'nominal'},
+        },
+      },
+    };
 
 /// The six-subject radar data of `charts-polarchart--polar-chart-basic`
 /// (PolarChartDefault.stories.tsx). The two hex colours are the story's own
