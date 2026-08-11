@@ -459,9 +459,33 @@ abstract final class FluentVerticalBarChartGeometry {
         mode: mode,
       );
       // parity: VerticalBarChart.tsx:1055-1056 are two identical lines, so the
-      // margin grows by a whole bar width, not half of one.
+      // margin grows by a whole bar width, not half of one. Oracle B pins that
+      // for a chart in no mode — charts-verticalbarchart--vertical-bar-dynamic
+      // solves 12 = 8 + 4 against a 4px bar, not 8 + 2 — so it is reproduced.
       domainMargin += barWidth / 2;
-      domainMargin += barWidth / 2;
+      // // parity break: VerticalBarChart.tsx:1056, in histogram mode only.
+      //
+      // The bars sit centred on the range ends, so n of them at a width of w
+      // occupy `(n - 1) * w` of range plus a half-bar overhang at each end.
+      // That is the geometry `calculateAppropriateBarWidth` is derived for
+      // (`vbc-utils.ts:36-38` and the RFC it cites), and it is what the
+      // histogram arm above reserves: it centres `calcRequiredWidth(
+      // maxBarWidth, n, innerPadding)` of width and then solves w back out of
+      // exactly that. Taking the inset twice spends one bar width the reserve
+      // does not have, leaving `(n - 2) * w` of range — every histogram's bars
+      // overlap their neighbours, and a TWO-bin histogram gets nothing: at
+      // n = 2 the range is 0 and both bin centres map to one pixel.
+      //
+      // Two bins is what the shipped Plotly route produces from an `xbins`
+      // figure (`PlotlySchemaAdapter.ts:1834` binning, `:1876` plotting each
+      // bar at its bin centre), so this is not a corner. None of the eleven
+      // captured VerticalBarChart stories is a histogram, so no oracle pins
+      // upstream's arithmetic here, and the line above keeps every capture that
+      // does. Delete this guard and the two histogram assertions in
+      // test/charts/vertical_bar_chart_test.dart fail.
+      if (mode != 'histogram') {
+        domainMargin += barWidth / 2;
+      }
     }
     return (barWidth: barWidth, domainMargin: domainMargin);
   }

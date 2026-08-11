@@ -1615,6 +1615,131 @@ void main() {
       );
     });
   });
+
+  // The histogram arm of `_getDomainMargins` (`VerticalBarChart.tsx:1028-1035`)
+  // centres the bars inside exactly `calcRequiredWidth(maxBarWidth, n,
+  // innerPadding)` of plot width, and `calculateAppropriateBarWidth`
+  // (`vbc-utils.ts:25-40`) then solves the bar width from that reserved width.
+  // The bars only fit it if the range keeps HALF a bar of inset at each end,
+  // which is what that formula is derived for; the whole-bar inset upstream
+  // takes leaves one bar width too little, and at two bins there is nothing
+  // left at all.
+  //
+  // Mounted rather than solved by hand: the collapse is only visible once the
+  // shell has built the x scale from the delegate's own domain margins
+  // (`CartesianChart.tsx:195`), which is the hand-off `solveDomainMargin`
+  // spent four waves not being part of.
+  group('FluentVerticalBarChart histogram numeric x range', () {
+    /// The x range the shell built for a mounted chart, and the bar width the
+    /// delegate solved beside the domain margin that positioned it.
+    Future<({double rangeWidth, double barWidth, double marginLeft})> solveOf(
+      WidgetTester tester, {
+      required List<double> xs,
+      required String? mode,
+      // 24 is `VerticalBarChart.tsx:69`'s own default, and 50 is what the
+      // Plotly histogram transformer sets (`PlotlySchemaAdapter.ts:1895`).
+      double maxBarWidth = 24,
+    }) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+          home: Center(
+            // 400x300 is a box, not a ported constant.
+            child: SizedBox(
+              width: 400,
+              height: 300,
+              child: FluentVerticalBarChart(
+                mode: mode,
+                maxBarWidth: maxBarWidth,
+                data: <FluentVerticalBarChartDataPoint>[
+                  for (final x in xs)
+                    // The y values only give the bars a height; nothing here
+                    // reads them. 10 is an arbitrary positive value.
+                    FluentVerticalBarChartDataPoint(x: x, y: 10),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      final painter = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((widget) => widget.painter)
+          .whereType<FluentCartesianChartPainter>()
+          .first;
+      final delegate = painter.delegate as FluentVerticalBarChartDelegate;
+      final solved = delegate.solveDomainMargin(
+        painter.layout.size.width,
+        painter.layout.margins,
+      );
+      final range = painter.xAxis.scale.range;
+      return (
+        rangeWidth: (range.last - range.first).abs(),
+        barWidth: solved.barWidth,
+        marginLeft: (painter.layout.margins.left ?? 0) + solved.domainMargin,
+      );
+    }
+
+    testWidgets('three numeric bars stay one bar apart', (tester) async {
+      const xs = <double>[1, 2, 3];
+      final histogram = await solveOf(tester, xs: xs, mode: 'histogram');
+      expect(
+        histogram.rangeWidth,
+        // 1 is the fewer gaps than bars: n centres span n - 1 steps.
+        closeTo((xs.length - 1) * histogram.barWidth, 1e-9),
+        reason:
+            'the bars are centred on the range ends, so n adjacent bars of w '
+            'need a range of (n - 1) * w — the width '
+            '`calculateAppropriateBarWidth` (vbc-utils.ts:36-38) solves for. A '
+            'narrower range overlaps every bar with its neighbour.',
+      );
+    });
+
+    testWidgets('a two-bin histogram keeps a range at all', (tester) async {
+      // The two bin centres the shipped Plotly route produces for the `xbins`
+      // figure pinned in declarative/declarative_chart_test.dart: (0 + 5) / 2
+      // and (5 + 10) / 2 (`PlotlySchemaAdapter.ts:1876`).
+      const centres = <double>[2.5, 7.5];
+      final histogram = await solveOf(
+        tester,
+        xs: centres,
+        mode: 'histogram',
+        maxBarWidth: 50,
+      );
+      expect(
+        histogram.rangeWidth,
+        greaterThan(0),
+        reason:
+            'a zero-width x range maps both bin centres to the same pixel, so '
+            'the chart draws one bar where the histogram has two and the axis '
+            'keeps a single tick — the whole plot collapsed',
+      );
+      expect(
+        histogram.rangeWidth,
+        closeTo(histogram.barWidth, 1e-9),
+        reason:
+            'two centres span one bar step, so the range is exactly one bar '
+            'wide once the two half-bar insets are taken',
+      );
+    });
+
+    testWidgets('a plain numeric axis keeps the whole-bar inset', (
+      tester,
+    ) async {
+      final plain = await solveOf(tester, xs: <double>[1, 2, 3], mode: null);
+      expect(
+        plain.marginLeft,
+        closeTo(_margins.left! + kMinDomainMargin + plain.barWidth, 1e-9),
+        reason:
+            'VerticalBarChart.tsx:1055-1056 are two identical lines, so a '
+            'chart in no mode insets by a WHOLE bar. Oracle B pins it: '
+            'charts-verticalbarchart--vertical-bar-dynamic solves 12 = 8 + 4 '
+            'against a 4px bar, never 8 + 2 — so the doubling is reproduced '
+            'outside histogram mode and only the histogram arm above departs '
+            'from it.',
+      );
+    });
+  });
 }
 
 /// Three bars, one legend each, no overlaid line.
