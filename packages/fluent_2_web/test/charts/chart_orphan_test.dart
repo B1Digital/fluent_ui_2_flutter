@@ -872,6 +872,51 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'for the bar-plus-line layer combo and `:1714` for an explicit stack), '
       'so this transformer is the only thing standing between those three '
       'verdicts and a rendered chart. Goes when Task 52 lands.',
+
+  // Task 47 appended the grouped and horizontal bars to the same file. It added
+  // no private helper of its own — it reuses `_channel`, `_channelType`,
+  // `_axisOption` and `_colorConfig`, already declared above it — and the one
+  // symbol it added elsewhere, `parseVegaDateValue` in
+  // `internal/vega/common.dart`, is called from the horizontal transformer's
+  // temporal branch, which refinement 1 counts.
+  'transformVegaToGroupedBar':
+      'internal/vega/transform_bar.dart:1245, the port of the exported '
+      'VegaLiteSchemaAdapter.ts:2741-2829. Upstream has exactly one caller — '
+      '`grep -n transformVegaLiteToGroupedVerticalBarChartProps` over '
+      'crawlers/fluentui-react-charts/out/charts/src/components/'
+      'VegaDeclarativeChart/VegaDeclarativeChart.tsx returns the import at '
+      ':8, the `typeof` in the registry type at :174 and the registry entry '
+      "itself at :196-199, `'grouped-bar': { transformer: "
+      'transformVegaLiteToGroupedVerticalBarChartProps, renderer: '
+      'ResponsiveGroupedVerticalBarChart }`. Task 52 is the caller in this '
+      'port: `FluentVegaChartKind.groupedBar => transformVegaToGroupedBar('
+      'spec, _colorMap, isDark: isDark)` is an arm of its exhaustive switch '
+      '(plan 09 line 19465), returned as the widget the chart renders rather '
+      'than computed and dropped. The routing side is already live: '
+      '`internal/vega/routing.dart:341` answers '
+      '`FluentVegaChartKind.groupedBar` for a bar spec with a colour encoding '
+      'and a truthy `xOffset` channel (`VegaLiteSchemaAdapter.ts:1710-1714`), '
+      'so this transformer is the only thing standing between that verdict and '
+      'a rendered chart. Goes when Task 52 lands.',
+  'transformVegaToHorizontalBar':
+      'internal/vega/transform_bar.dart:1375, the port of the exported '
+      'VegaLiteSchemaAdapter.ts:2841-3009. Upstream has exactly one caller — '
+      '`grep -n transformVegaLiteToHorizontalBarChartProps` over '
+      'crawlers/fluentui-react-charts/out/charts/src/components/'
+      'VegaDeclarativeChart/VegaDeclarativeChart.tsx returns the import at '
+      ':9, the `typeof` in the registry type at :178 and the registry entry '
+      "itself at :200-203, `'horizontal-bar': { transformer: "
+      'transformVegaLiteToHorizontalBarChartProps, renderer: '
+      'ResponsiveHorizontalBarChartWithAxis }`. Task 52 is the caller in this '
+      'port: `FluentVegaChartKind.horizontalBar => transformVegaToHorizontalBar'
+      '(spec, _colorMap, isDark: isDark)` is an arm of its exhaustive switch '
+      '(plan 09 line 19468), returned as the widget the chart renders rather '
+      'than computed and dropped. The routing side is already live: '
+      '`internal/vega/routing.dart:330` answers '
+      '`FluentVegaChartKind.horizontalBar` for a categorical y against a '
+      'numeric x (`VegaLiteSchemaAdapter.ts:1705-1707`), so this transformer '
+      'is the only thing standing between that verdict and a rendered chart. '
+      'Goes when Task 52 lands.',
   'kVegaStackedBarDefaultHeight':
       'internal/vega/transform_bar.dart:611, the 350 at '
       'VegaLiteSchemaAdapter.ts:2712 whose DEFAULT_CHART_HEIGHT is declared at '
