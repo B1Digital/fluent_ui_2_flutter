@@ -93,18 +93,24 @@ void main() {
         ),
         culture: 'en-US',
       ),
-      // Measured, then pinned. The residual is the two series' strokes: a 4px
-      // line over a 4px halo antialiases differently in Skia and Chromium, and
-      // that shows as a red outline along both edges of both lines in
-      // `test/parity/out/`. Everything else — plot rect, gridlines, ticks,
-      // legend — lands inside the tolerance.
+      // Measured 0.028% — 54 pixels of 191,179 — then pinned just above it.
+      // Skia and Chromium genuinely agree on this chart: the residual is a
+      // handful of pixels where a 4px line crosses another at a shallow angle.
       //
-      // It was 6.663% before the two defects this comparison found: axis titles
-      // painted untruncated (`cartesian_painter.dart` ignoring the layout's
-      // `yAxisTitleMaxHeight`) and the legend's container margin applied twice,
-      // which cost the plot 8 of its 260 pixels. Pinned rather than loosened,
-      // so a regression in either fails here.
-      maxMismatch: 2.6,
+      // It was 6.663% at first, and the whole of that gap was defects rather
+      // than rasteriser noise:
+      //   * axis titles painted untruncated, because `cartesian_painter.dart`
+      //     read neither bound its own layout had solved (6.663 -> 6.392);
+      //   * the legend's container margin applied twice, costing the plot 8 of
+      //     its 260 pixels (6.392 -> 2.482);
+      //   * and the last 2.482 was this harness's own bug — the capture clipped
+      //     to the union of everything drawn, so an overflowing legend label
+      //     made the reference 714px wide and stretched the mounted chart's x
+      //     scale by 2%.
+      //
+      // Pinned tight rather than loosened: an improvement has to be re-pinned
+      // deliberately, and a regression of even a tenth of a percent fails here.
+      maxMismatch: 0.05,
     );
   });
 }

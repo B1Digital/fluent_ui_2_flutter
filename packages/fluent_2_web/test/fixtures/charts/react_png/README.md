@@ -36,7 +36,7 @@ Neither is a wrong number in a formula. Both are a picture that does not match.
 
 | field | meaning |
 |---|---|
-| `width`, `height` | the clip, in logical px at DPR 1. **Mount the Flutter chart at exactly this size** or the two images are of different layouts. |
+| `width`, `height` | the chart's own box, in logical px at DPR 1. **Mount the Flutter chart at exactly this size** or the two images are of different layouts. |
 | `textRects` | every `<text>` and HTML label box, relative to the clip. Masked on *both* images before comparing — see below. |
 | `svgSize` | the chart svg's own box, where there is one. |
 | `sourceFile` | the story's module, upstream. |
@@ -63,6 +63,14 @@ Flutter port has to reproduce — to `crawlers/storybooks-fluentui/out/stories/`
 Story ids are enumerated from the live `index.json` and never constructed: five
 naming conventions are in use upstream, and a constructed id renders
 storybook's error page and captures a screenshot of nothing.
+
+The box is the chart's own outermost non-empty container, **not** the union of
+everything it draws. A legend label can render past the edge of the component
+that owns it, and unioning that overflow in made 22 of these 90 references
+wider than the chart they show — enough to stretch a mounted chart's x scale by
+2%, which reads as a growing error along the axis rather than as the capture
+bug it is. Anything overflowing the chart's box is cropped, exactly as it would
+be for a consumer who sized the chart that way.
 
 ## Ceilings
 
