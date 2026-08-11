@@ -105,10 +105,16 @@ class FluentCartesianChildContext {
 /// a chart testable by feeding its delegate a [FluentCartesianLayout] with
 /// nothing mounted — design spec section 3.3.
 ///
-/// A concrete delegate normally holds the chart's own points *and* its
-/// `FluentCartesianChartProps`, which is where `roundedTicks` and the scale
-/// types are read from: the shell does not forward them, because
-/// [createYAxis] owns their interpretation.
+/// A concrete delegate normally holds the chart's own points *and* the handful
+/// of `FluentCartesianChartProps` values its axis build interprets — the scale
+/// types among them.
+///
+/// `roundedTicks` is deliberately **not** one of them. It used to be described
+/// here as the delegate's to read, and the result was that no delegate read it:
+/// the shell did not forward it, `createNumericYAxis` took an argument nobody
+/// passed, and every chart silently took the unrounded arm. It now travels on
+/// [FluentYAxisParams], which the shell fills and every delegate already hands
+/// straight to the builder, so no delegate can drop it again.
 abstract class FluentCartesianSeriesDelegate {
   /// Allows const subclasses.
   const FluentCartesianSeriesDelegate();

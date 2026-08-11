@@ -51,10 +51,16 @@ const String _nothingAssertsIt =
 /// and both tests below fail if this map drifts from the corpus in either
 /// direction.
 ///
-/// Thirty of ninety on 2026-08-11, of which twenty-two are asserted by nothing
-/// whatsoever. That ratio is the point of the map: a wave report that counts
-/// ninety captured fixtures as ninety verified ones overstates the verified
-/// count threefold.
+/// Twenty-eight of ninety on 2026-08-12, of which twenty are asserted by
+/// nothing whatsoever. That ratio is the point of the map: a wave report that
+/// counts ninety captured fixtures as ninety verified ones overstates the
+/// verified count threefold.
+///
+/// It read thirty and twenty-two until `test/parity/` began comparing whole
+/// renders against the captured PNGs. Both declarative stories left the map
+/// that way — a pixel comparison of the story upstream draws is the
+/// story-specific assertion this map exists to demand, and it is a stronger
+/// one than a geometry probe of the elements somebody remembered to name.
 ///
 /// It read twenty-nine and twenty-one until the final audit measured the one
 /// false negative this scan can produce. `text.contains(id)` cannot tell an
@@ -75,7 +81,6 @@ const Map<String, String> kOracleStoriesNoTestNames = <String, String>{
   'charts-areachart--area-chart-custom-accessibility': _nothingAssertsIt,
   'charts-areachart--area-chart-large-data': _nothingAssertsIt,
   'charts-areachart--area-chart-negative': _nothingAssertsIt,
-  'charts-declarativechart--declarative-chart-basic-example': _nothingAssertsIt,
   'charts-donutchart--donut-chart-custom-accessibility': _nothingAssertsIt,
   'charts-donutchart--donut-chart-custom-callout': _nothingAssertsIt,
   'charts-donutchart--donut-chart-responsive': _nothingAssertsIt,
@@ -108,7 +113,6 @@ const Map<String, String> kOracleStoriesNoTestNames = <String, String>{
       _nothingAssertsIt,
   'charts-verticalstackedbarchart--vertical-stacked-bar-custom-accessibility':
       _nothingAssertsIt,
-  'charts-vegadeclarativechart--default': _nothingAssertsIt,
   'charts-verticalstackedbarchart--vertical-stacked-bar-date-axis':
       _nothingAssertsIt,
 };

@@ -240,9 +240,15 @@ void main() {
     // The overflow is the finding, so it is asserted rather than tolerated:
     // this fails loudly if the port ever stops sizing a scatter cell from
     // `spec['height']`, which is exactly when the number above must be re-cut.
+    //
+    // 89, down from the 97 first measured: the legend no longer pays the 8px
+    // container margin that belonged to the cartesian shell, so the cell
+    // overflows its box by 8 less. The cause is untouched — the cell is still
+    // sized from `spec['height']` where upstream's scatter transformer sets
+    // none — so the assertion still bites.
     expect(
       tester.takeException().toString(),
-      contains('A RenderFlex overflowed by 97 pixels on the bottom.'),
+      contains('A RenderFlex overflowed by 89 pixels on the bottom.'),
     );
   });
 }

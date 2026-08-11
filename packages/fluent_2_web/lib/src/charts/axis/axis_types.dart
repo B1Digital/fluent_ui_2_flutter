@@ -342,6 +342,7 @@ class FluentYAxisParams {
     this.maxOfYVal = 0,
     // The target interval count upstream destructures (`utilities.ts:811`).
     this.yAxisTickCount = 4,
+    this.roundedTicks = false,
     this.yAxisTickFormat,
     // No band padding (`utilities.ts:964`).
     this.yAxisPadding = 0,
@@ -383,6 +384,18 @@ class FluentYAxisParams {
   /// The target interval count handed to `prepareDatapoints`
   /// (`utilities.ts:811`).
   final int yAxisTickCount;
+
+  /// Whether the domain is widened to a round step before the ticks are cut
+  /// (`calculateRoundedTicks`, `utilities.ts:1892`).
+  ///
+  /// Lives here rather than as an argument to `createNumericYAxis` because it
+  /// is a property of the axis being built, exactly like [yAxisTickCount] and
+  /// [tickValues] beside it, and every delegate reaches the builder through
+  /// this bag. Upstream threads it as a separate argument
+  /// (`CartesianChart.types.ts:754`); routing it through the bag instead means
+  /// no delegate has to know it exists, which is why none of them forwarded it
+  /// and it went unread for the whole port.
+  final bool roundedTicks;
 
   /// A label override: either a `String Function(Object value, int index)` or a
   /// d3-format specifier [String] (`utilities.ts:865-877`).

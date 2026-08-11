@@ -263,11 +263,22 @@ FluentChartLegendStyle resolveFluentChartLegendStyle(FluentThemeData theme) {
     dimmedSwatchOpacity: WidgetStatePropertyAll<double?>(
       chartColors.isHighContrast ? kInactiveLegendSwatchOpacityHc : 1,
     ),
+    // Zero, because upstream's `fui-legend__root` rule carries no margin at
+    // all: it sets `whiteSpace`, `width` and `alignItems` and nothing else
+    // (`useLegendsStyles.styles.ts:40-47`). [kLegendContainerMarginTop] and
+    // [kLegendContainerMarginStart] exist beside it for
+    // `image-export-utils.ts:305-306`, which draws the strip into an SVG and
+    // has no CSS box to inherit — `internal/image_export.dart` reads them
+    // directly for the same reason.
+    //
+    // The gap a legend appears to have on screen belongs to whichever chart
+    // mounts it, and each one differs: the cartesian shell gives 8 top / 20
+    // start (`useCartesianChartStyles.styles.ts:102-105`), DonutChart and
+    // HorizontalBarChart 16 top (`paddingTop: spacingVerticalL`), and Gauge,
+    // Polar and Funnel none. Defaulting to the export constants charged every
+    // one of them an extra 8 and 12 that upstream never applies.
     containerMargin: const WidgetStatePropertyAll<EdgeInsetsGeometry?>(
-      EdgeInsetsDirectional.only(
-        top: kLegendContainerMarginTop,
-        start: kLegendContainerMarginStart,
-      ),
+      EdgeInsets.zero,
     ),
   );
 }

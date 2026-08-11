@@ -550,7 +550,6 @@ FluentAxisSpec createNumericYAxis(
   required bool isIntegralDataset,
   required FluentChartType chartType,
   bool useSecondaryYScale = false,
-  bool roundedTicks = false,
   FluentAxisScaleType? scaleType,
 }) {
   final minMax = yAxisParams.yMinMaxValues;
@@ -575,7 +574,7 @@ FluentAxisSpec createNumericYAxis(
     finalYmin,
     yAxisParams.yAxisTickCount,
     isIntegralDataset: isIntegralDataset,
-    roundedTicks: roundedTicks,
+    roundedTicks: yAxisParams.roundedTicks,
   );
   var scaleDomain = <double>[domainValues.first, domainValues.last];
 
