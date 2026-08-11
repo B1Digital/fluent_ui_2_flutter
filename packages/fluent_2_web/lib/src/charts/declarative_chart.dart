@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
@@ -5,6 +8,7 @@ import 'chrome/legend.dart';
 import 'declarative_chart_style.dart';
 import 'internal/chart_utils.dart' show areArraysEqual;
 import 'internal/data_viz_palette.dart' show fluentChartIsDarkTheme;
+import 'internal/image_export.dart' show FluentChartImageExporter;
 import 'internal/plotly/axis.dart' show kDefaultPolarSubplot;
 import 'internal/plotly/base64_data.dart';
 import 'internal/plotly/color_adapter.dart';
@@ -56,23 +60,88 @@ class FluentPlotlySchema {
       Object.hash(identityHashCode(plotlySchema), selectedLegends.length);
 }
 
-/// Holds the exported-image handle for a [FluentDeclarativeChart].
+/// Drives image export for a [FluentDeclarativeChart]
+/// (`DeclarativeChart.tsx:433-473`).
 ///
-/// The image export itself is a later task; this one declares only what
-/// [FluentDeclarativeChart.controller] needs in order to compile and to record
-/// the branch the export path reads.
+/// Attach one controller to one chart. The chart registers itself on mount and
+/// deregisters on unmount, so [exportAsImage] throws rather than returning a
+/// blank image when it is called before the first frame.
+///
+/// **One deliberate simplification, and it deletes the compositor.** Upstream
+/// branches at `:445`: a single plot delegates to `chartRefs[0].compRef.toImage`
+/// (`:446-450`) and a multi-plot figure hands every cell's DOM container to
+/// `exportChartsAsImage` (`:453-462` → `image-export-utils.ts:31-80`), which
+/// re-lays the cells out on one canvas and rebuilds the HTML legend as SVG.
+/// It has to, because each cell is a separate SVG element and the legend is not
+/// an SVG at all. A Flutter grid is already one layer tree with the real legend
+/// painted inside it, so a single [RepaintBoundary] round the whole `Column`
+/// captures what those 46 lines reassemble — and it captures a one-cell figure
+/// just as well, so there is no branch left to write.
+/// // ponytail: one boundary, no compositor and no cell registry; restore the
+/// // per-cell path only if cells ever stop sharing a layer tree.
+///
+/// Two consequences worth stating rather than discovering:
+///
+///  * [FluentChartHandle] is not consulted. No shell chart implements it — the
+///    ones that expose an export handle (`FluentPolarChart`, `FluentSankeyChart`)
+///    do it through a `FluentChartController` parameter, and the transformers in
+///    `internal/plotly/` construct their charts without one. A `_registerHandle`
+///    type-test against the built widget would therefore have matched nothing,
+///    ever, which is precisely the uncalled-helper defect this programme keeps
+///    shipping.
+///  * `FluentSynthesisedLegendPainter` (`internal/image_export.dart`) is not
+///    reached from here, because the legend inside the boundary is the real one.
+///    It is still live for a single chart whose legend sits outside its own
+///    boundary — `FluentPolarChart` and `FluentSankeyChart` both go that way —
+///    so it is not dead and must not be deleted as such.
 class FluentDeclarativeChartController extends ChangeNotifier {
   /// Creates a detached controller.
   FluentDeclarativeChartController();
 
-  /// The chart handles of the rendered cells, in row-major order
-  /// (`DeclarativeChart.tsx:385`, `:615-621`).
-  final List<({FluentChartHandle handle, int row, int col})> cells =
-      <({FluentChartHandle handle, int row, int col})>[];
+  _FluentDeclarativeChartState? _state;
 
-  /// True when the figure resolved to more than one plot
-  /// (`DeclarativeChart.tsx:501`); the export path branches on it at `:445`.
-  bool isMultiPlot = false;
+  void _attach(_FluentDeclarativeChartState state) {
+    _state = state;
+    notifyListeners();
+  }
+
+  void _detach(_FluentDeclarativeChartState state) {
+    if (identical(_state, state)) {
+      _state = null;
+    }
+  }
+
+  /// Rasterises the chart as PNG bytes.
+  ///
+  /// The defaults are the resolved style's
+  /// [FluentDeclarativeChartStyle.exportBackgroundColor] and
+  /// [FluentDeclarativeChartStyle.exportScale] (`DeclarativeChart.tsx:439-441`);
+  /// [options], when given, replaces them. That is a narrow divergence from
+  /// upstream's `{background, scale: 5, ...opts}` spread:
+  /// [FluentChartImageExportOptions] has non-nullable `scale` and `background`,
+  /// so an options object built without a scale carries 1 rather than "absent".
+  /// A fully transparent `background` is still read as unset, because that is
+  /// its own default and no caller asks for a transparent export deliberately.
+  ///
+  /// Throws a [StateError] carrying upstream's own message when nothing is
+  /// registered (`DeclarativeChart.tsx:436`, `:447`).
+  Future<Uint8List> exportAsImage({
+    FluentChartImageExportOptions? options,
+  }) async {
+    final state = _state;
+    if (state == null) {
+      // `:436`'s null container and `:447`'s missing handle collapse to one
+      // condition here, because a mounted state always has both.
+      throw StateError('Chart cannot be exported as image');
+    }
+    return state.exportAsImage(options);
+  }
+
+  @override
+  void dispose() {
+    _state = null;
+    super.dispose();
+  }
 }
 
 /// Supplies a default [FluentDeclarativeChartStyle] to the subtree.
@@ -196,15 +265,31 @@ class _FluentDeclarativeChartState extends State<FluentDeclarativeChart> {
   /// the getter is deliberately part of the tested surface.
   List<String> get activeLegends => _activeLegends;
 
+  /// Wraps the whole grid, so any export is one rasterisation rather than a
+  /// composite of several — see [FluentDeclarativeChartController].
+  final GlobalKey _boundaryKey = GlobalKey();
+
+  /// The last resolved style, so [exportAsImage] can read the export defaults
+  /// without a [BuildContext] of its own.
+  ///
+  /// // ponytail: a build-time cache for the export path only; it is never read
+  /// // during layout, so no `setState` is involved and no frame is scheduled.
+  FluentDeclarativeChartStyle _style = const FluentDeclarativeChartStyle();
+
   @override
   void initState() {
     super.initState();
     _activeLegends = widget.chartSchema.selectedLegends;
+    widget.controller?._attach(this);
   }
 
   @override
   void didUpdateWidget(FluentDeclarativeChart oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?._detach(this);
+      widget.controller?._attach(this);
+    }
     // `DeclarativeChart.tsx:403-410`: the effect depends on `props.chartSchema`,
     // so a new schema identity re-reads `selectedLegends` and resets to `[]`
     // when it is absent.
@@ -214,6 +299,46 @@ class _FluentDeclarativeChartState extends State<FluentDeclarativeChart> {
         _colorMap.clear();
       });
     }
+  }
+
+  @override
+  void dispose() {
+    widget.controller?._detach(this);
+    super.dispose();
+  }
+
+  /// `DeclarativeChart.tsx:433-465`.
+  Future<Uint8List> exportAsImage(
+    FluentChartImageExportOptions? options,
+  ) async {
+    const noStates = <WidgetState>{};
+    // `:440`: `colorNeutralBackground1`, resolved from the theme rather than
+    // from live CSS variables. Fully transparent black is what an unset
+    // `background` computes to, here and in `FluentChartImageExportOptions`.
+    const transparent = Color(0x00000000);
+    final resolved = FluentChartImageExportOptions(
+      width: options?.width,
+      height: options?.height,
+      // `:441`: the fallback is 5, applied only when the caller passes nothing.
+      scale: options?.scale ?? _style.exportScale?.resolve(noStates) ?? 5,
+      background: options == null || options.background.a == 0
+          ? _style.exportBackgroundColor?.resolve(noStates) ?? transparent
+          : options.background,
+    );
+    // `:445-461`, both arms collapsed onto the one boundary. The legend list is
+    // empty because the on-screen legend is already inside it; passing
+    // `allupLegends` here would draw a second, synthesised copy underneath.
+    final dataUrl = await FluentChartImageExporter(
+      boundaryKey: _boundaryKey,
+      legends: const <FluentChartLegendItem>[],
+    ).toImage(resolved);
+    // `FluentChartImageExporter.toImage` returns `data:image/png;base64,…`;
+    // this controller's contract is the raw bytes.
+    final comma = dataUrl.indexOf(',');
+    if (comma < 0) {
+      throw StateError('Chart cannot be exported as image');
+    }
+    return base64Decode(dataUrl.substring(comma + 1));
   }
 
   void _onActiveLegendsChange(List<String> keys) {
@@ -436,16 +561,22 @@ class _FluentDeclarativeChartState extends State<FluentDeclarativeChart> {
     // `DeclarativeChart.tsx:340-351`: the HSL lightness of the two neutral
     // tokens, NOT Flutter's `Brightness`.
     final isDark = fluentChartIsDarkTheme(theme.colors);
+    _style = style;
+    Widget body;
     try {
-      return _buildFigure(context, style, isDark: isDark);
+      body = _buildFigure(context, style, isDark: isDark);
     } on PlotlySchemaException catch (error) {
       // Upstream throws at `:364` and `:370`. The catch is wider than those two
       // sites on purpose: `getGridProperties` rejects a malformed layout
       // (`PlotlySchemaAdapter.ts:3670`) and every transformer re-validates its
       // own traces, and any of those inside `build()` is a red screen for the
       // whole application.
-      return _error(context, style, error.message);
+      body = _error(context, style, error.message);
     }
+    // The boundary sits outside the try so it exists on the failure surface
+    // too: an export of an unroutable figure then returns the rendered message
+    // rather than reporting a missing container.
+    return RepaintBoundary(key: _boundaryKey, child: body);
   }
 
   Widget _buildFigure(
@@ -539,7 +670,6 @@ class _FluentDeclarativeChartState extends State<FluentDeclarativeChart> {
     );
     groupedTraces = collapsed.groups;
     isMultiPlot = collapsed.isMultiPlot;
-    widget.controller?.isMultiPlot = isMultiPlot;
 
     // `:535-541`: BEFORE the render loop, because this is what seeds
     // `_colorMap`.
