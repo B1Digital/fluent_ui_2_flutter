@@ -18,13 +18,21 @@ import 'router.dart';
 /// `NON_PLOT_KEY_PREFIX` at `PlotlySchemaAdapter.ts:102`.
 const String kNonPlotKeyPrefix = 'nonplot_';
 
-/// The CSS template a one-cell grid produces.
+/// The CSS template a *solved* one-cell grid produces.
 ///
-/// `SINGLE_REPEAT` at `PlotlySchemaAdapter.ts:103`. The port carries row and
-/// column *counts* rather than template strings, so this exists only for
-/// `DeclarativeChart.tsx:513-514`'s degenerate-grid comparison, which the
-/// storybook reproduces verbatim.
+/// `SINGLE_REPEAT` at `PlotlySchemaAdapter.ts:103`. Read by
+/// [FluentPlotlyGridProperties.isSingleRepeat], which is the port's spelling of
+/// the degenerate-grid comparison at `DeclarativeChart.tsx:513-514`.
 const String kSingleRepeat = 'repeat(1, 1fr)';
+
+/// The CSS template `PlotlySchemaAdapter.ts:3654-3655` seeds both axes with.
+///
+/// It survives into the result whenever the matching guard at `:3762` or
+/// `:3793` finds an empty domain list, and it is deliberately *not*
+/// [kSingleRepeat]: an unsolved axis and an axis solved to exactly one interval
+/// are the same shape but not the same string, and `:513-514` only collapses
+/// the second.
+const String _unsolvedTemplate = '1fr';
 
 /// The cell key a trace with no explicit `xaxis` falls back to.
 ///
@@ -125,7 +133,8 @@ class FluentPlotlyAxisProperties {
 ///
 /// `GridProperties` at `PlotlySchemaAdapter.ts:124-128`. Upstream carries the
 /// two CSS template strings; the port carries the counts they were formatted
-/// from, because Flutter lays the grid out itself.
+/// from, because Flutter lays the grid out itself — plus [isSingleRepeat],
+/// which is the one thing those counts throw away.
 @immutable
 class FluentPlotlyGridProperties {
   /// Creates a grid.
@@ -133,6 +142,7 @@ class FluentPlotlyGridProperties {
     required this.rowCount,
     required this.columnCount,
     required this.layout,
+    required this.isSingleRepeat,
   });
 
   /// How many rows the grid has — `repeat(rowCount, 1fr)` upstream.
@@ -144,6 +154,20 @@ class FluentPlotlyGridProperties {
   /// Every cell, keyed by `x`, `x2`… for a cartesian axis, `nonplot_1`… for a
   /// non-plot trace, and by the raw `polar*` key for a polar sub-plot.
   final Map<String, FluentPlotlyAxisProperties> layout;
+
+  /// Whether BOTH CSS templates came out as [kSingleRepeat] — the degenerate
+  /// grid `DeclarativeChart.tsx:510-515` collapses to a single plot.
+  ///
+  /// This is **not** `rowCount == 1 && columnCount == 1`. Upstream seeds both
+  /// templates with [_unsolvedTemplate] at `PlotlySchemaAdapter.ts:3654-3655`
+  /// and only overwrites them inside the `domainX.length > 0` / `domainY.length
+  /// > 0` guards at `:3762` and `:3793`. A multi-plot figure that declares no
+  /// `xaxis`/`yaxis`, no `polar*` sub-plot and no non-plot trace therefore ends
+  /// with `1fr` on both axes — which fails `:513-514` and is NOT collapsed —
+  /// while [rowCount] and [columnCount] are 1 exactly as they are for a solved
+  /// one-by-one grid, which IS collapsed. The counts cannot separate the two
+  /// cases; this flag is the bit they drop.
+  final bool isSingleRepeat;
 
   @override
   String toString() =>
@@ -301,12 +325,16 @@ FluentPlotlyGridProperties getGridProperties(
   var columnCount = 1;
   final gridLayout = <String, FluentPlotlyAxisProperties>{};
 
-  // `:3657-3659`: a single plot is one cell and carries no layout at all.
+  // `:3657-3659`: a single plot is one cell and carries no layout at all. It
+  // returns the two seeds untouched, so it is not `SINGLE_REPEAT` either —
+  // moot at `DeclarativeChart.tsx:512`, which tests `isMultiPlot` first, and
+  // recorded rather than rounded off so this stays a transcription.
   if (!isMultiPlot) {
     return FluentPlotlyGridProperties(
       rowCount: rowCount,
       columnCount: columnCount,
       layout: gridLayout,
+      isSingleRepeat: false,
     );
   }
 
@@ -543,9 +571,22 @@ FluentPlotlyGridProperties getGridProperties(
     }
   }
 
+  // `:3774` and `:3807` format the two templates, but only from inside the
+  // `:3762` and `:3793` guards — an empty domain list leaves the `:3654-3655`
+  // seed in place.
+  final templateColumns = domainX.isEmpty
+      ? _unsolvedTemplate
+      : 'repeat($columnCount, 1fr)';
+  final templateRows = domainY.isEmpty
+      ? _unsolvedTemplate
+      : 'repeat($rowCount, 1fr)';
+
   return FluentPlotlyGridProperties(
     rowCount: rowCount,
     columnCount: columnCount,
     layout: gridLayout,
+    // `DeclarativeChart.tsx:513-514`, both templates, verbatim.
+    isSingleRepeat:
+        templateRows == kSingleRepeat && templateColumns == kSingleRepeat,
   );
 }

@@ -25,9 +25,24 @@ void main() {
     ),
   );
 
+  /// The single full-square axis pair that solves to a real one-by-one grid:
+  /// `PlotlySchemaAdapter.ts:3774` and `:3807` both format `repeat(1, 1fr)`,
+  /// which is the `SINGLE_REPEAT` at `:103` that `DeclarativeChart.tsx:513-514`
+  /// collapses on. A layout with no axis keys at all does NOT reach this state
+  /// — it keeps the `1fr` seeded at `:3654-3655`.
+  const oneByOneDomains = <String, Object?>{
+    'xaxis': <String, Object?>{
+      'domain': <Object?>[0, 1],
+      'anchor': 'y',
+    },
+    'yaxis': <String, Object?>{
+      'domain': <Object?>[0, 1],
+      'anchor': 'x',
+    },
+  };
+
   /// The two side-by-side domains `getGridProperties` needs in order to resolve
-  /// a real 1x2 grid (`PlotlySchemaAdapter.ts:3663-3699`); without them the
-  /// grid collapses to one cell and the figure stops being multi-plot.
+  /// a real 1x2 grid (`PlotlySchemaAdapter.ts:3663-3699`).
   const sideBySideDomains = <String, Object?>{
     'xaxis': <String, Object?>{
       'domain': <Object?>[0, 0.45],
@@ -98,14 +113,17 @@ void main() {
     );
   });
 
-  testWidgets('two bar groups with no domains collapse to the FIRST one', (
+  testWidgets('two bar groups on a solved 1x1 collapse to the FIRST one', (
     tester,
   ) async {
     await pump(
       tester,
       const FluentDeclarativeChart(
         chartSchema: FluentPlotlySchema(
-          plotlySchema: <String, Object?>{'data': twoBarTraces},
+          plotlySchema: <String, Object?>{
+            'data': twoBarTraces,
+            'layout': oneByOneDomains,
+          },
         ),
       ),
     );
@@ -127,7 +145,10 @@ void main() {
         chartSchema: FluentPlotlySchema(
           plotlySchema: <String, Object?>{
             'data': twoBarTraces,
-            'layout': <String, Object?>{'title': 'collapsed'},
+            'layout': <String, Object?>{
+              'title': 'collapsed',
+              ...oneByOneDomains,
+            },
           },
         ),
       ),
@@ -138,6 +159,40 @@ void main() {
       reason:
           'DeclarativeChart.tsx:532 forces isMultiPlot false, which suppresses '
           'both the title div at :561 and the all-up legend at :634.',
+    );
+  });
+
+  testWidgets('two bar groups with NO axis layout are not collapsed', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const FluentDeclarativeChart(
+        chartSchema: FluentPlotlySchema(
+          plotlySchema: <String, Object?>{
+            'data': twoBarTraces,
+            'layout': <String, Object?>{'title': 'kept without axes'},
+          },
+        ),
+      ),
+    );
+    expect(
+      find.text('kept without axes'),
+      findsOneWidget,
+      reason:
+          'Neither PlotlySchemaAdapter.ts:3762 nor :3793 runs for a layout '
+          'with no xaxis/yaxis key, so both templates keep the `1fr` seeded '
+          'at :3654-3655. `1fr` is not the SINGLE_REPEAT at :103, so '
+          'DeclarativeChart.tsx:513-514 is false and :532 never forces '
+          'isMultiPlot back off — the title at :561 survives.',
+    );
+    expect(
+      find.byType(FluentVerticalStackedBarChart),
+      findsNWidgets(2),
+      reason:
+          'Both groups are still rendered, each with the row 1 / column 1 '
+          'DeclarativeChart.tsx:623-624 falls back to for a missing cell, '
+          'which :162-165 turns into the same one-cell grid area for both.',
     );
   });
 

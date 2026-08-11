@@ -21,6 +21,91 @@ void main() {
     );
   });
 
+  test('a multi-plot figure that solved no domain is not degenerate', () {
+    final grid = getGridProperties(
+      <String, Object?>{
+        'data': <Object?>[],
+        'layout': <String, Object?>{'title': 'no axes declared'},
+      },
+      isMultiPlot: true,
+      traces: noTraces,
+    );
+    expect(
+      grid.rowCount,
+      1,
+      reason:
+          'PlotlySchemaAdapter.ts:3793 never runs with an empty domainY, so '
+          'the count keeps the value :3654 seeded.',
+    );
+    expect(
+      grid.columnCount,
+      1,
+      reason: 'PlotlySchemaAdapter.ts:3762 never runs either.',
+    );
+    expect(
+      grid.isSingleRepeat,
+      isFalse,
+      reason:
+          'PlotlySchemaAdapter.ts:3654-3655 seeds both templates to `1fr`, '
+          'and only :3774 and :3807 overwrite them with `repeat(N, 1fr)`. '
+          '`1fr` is NOT SINGLE_REPEAT (:103), so DeclarativeChart.tsx:513-514 '
+          'does NOT collapse this figure — a distinction `rowCount == 1 && '
+          'columnCount == 1` cannot draw, because both are 1 here too.',
+    );
+  });
+
+  test('a solved one-by-one grid is degenerate', () {
+    final grid = getGridProperties(
+      <String, Object?>{
+        'data': <Object?>[],
+        'layout': <String, Object?>{
+          'xaxis': <String, Object?>{
+            'domain': <Object?>[0, 1],
+            'anchor': 'y',
+          },
+          'yaxis': <String, Object?>{
+            'domain': <Object?>[0, 1],
+            'anchor': 'x',
+          },
+        },
+      },
+      isMultiPlot: true,
+      traces: noTraces,
+    );
+    expect(
+      grid.isSingleRepeat,
+      isTrue,
+      reason:
+          'PlotlySchemaAdapter.ts:3774 and :3807 both format `repeat(1, 1fr)` '
+          'from one unique interval, which is SINGLE_REPEAT at :103.',
+    );
+  });
+
+  test('solving one axis and not the other is not degenerate', () {
+    final grid = getGridProperties(
+      <String, Object?>{
+        'data': <Object?>[],
+        'layout': <String, Object?>{
+          'xaxis': <String, Object?>{
+            'domain': <Object?>[0, 1],
+            'anchor': 'y',
+          },
+        },
+      },
+      isMultiPlot: true,
+      traces: noTraces,
+    );
+    expect(
+      grid.isSingleRepeat,
+      isFalse,
+      reason:
+          'PlotlySchemaAdapter.ts:3774 formats `repeat(1, 1fr)` for the one x '
+          'interval while :3807 never runs and leaves `1fr`. '
+          'DeclarativeChart.tsx:513-514 is an AND over both templates, so one '
+          'match is not enough.',
+    );
+  });
+
   test('a 1x2 layout numbers its columns left to right', () {
     final grid = getGridProperties(
       <String, Object?>{

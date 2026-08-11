@@ -134,21 +134,17 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'FluentDataVizToken and calls `FluentDataVizPalette.resolve`. A raw '
       'upstream token string only ever arrives from untyped JSON, i.e. in the '
       'same two unported declarative adapters. Unblocks with them.',
-  'shouldResize':
-      'internal/responsive.dart:29, the `(calculatedWidth ?? 0) + '
-      '(calculatedHeight ?? 0)` scalar upstream injects into every child of '
-      'ResponsiveContainer (ResponsiveContainer.tsx:84) for the sole benefit '
-      'of SankeyChart, whose resize effect lists it as a dependency '
-      '(SankeyChart.tsx:608). The host that declares it is mounted by the '
-      'declarative adapters, and FluentDeclarativeChart now mounts one per '
-      'grid cell (declarative_chart.dart) — without reading this, and the '
-      'honest reading is that it never will: the '
-      'shipped FluentSankeyChart states at sankey_chart.dart:606-609 that '
-      '`parentRef` and `shouldResize` are replaced by the widget\'s own '
-      'BoxConstraints, and it exposes no parameter to pass this to. It is '
-      'kept because plan 09 Task 2 specifies it on FluentResponsiveChartMetrics '
-      'and pins it with a test. The likely resolution when the adapters land '
-      'is deletion with that test, not wiring.',
+  // `shouldResize` was here, and it named its own resolution: "the likely
+  // resolution when the adapters land is deletion with that test, not wiring".
+  // The adapter landed and took the wiring instead — `declarative_chart.dart`
+  // mounted a `FluentResponsiveChartHost` per grid cell whose `metrics`
+  // parameter was never read and whose child was built outside the builder, so
+  // THIS GATE SCORED THE WHOLE FILE AS WIRED on the strength of one call site
+  // that discarded everything it was handed. That is the eighth instance of the
+  // defect this file exists to catch, and the first the file itself certified.
+  // Recorded as the rule the ninth will break: a name appearing in `lib/` is
+  // what this scan can see, and it is not the same claim as the value being
+  // used. `internal/responsive.dart` is now deleted — spec §5.1 carries why.
 
   // Eighteen entries were here until plan 09 Task 28 landed
   // `lib/src/charts/declarative_chart.dart`, the one widget every one of them
@@ -158,38 +154,26 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // dispatches each transformer from its own arm, `_buildFigure` calls the
   // router at the `DeclarativeChart.tsx:362` position and the legend builder at
   // the `:535` position, and `build` reads the dark-theme test at `:340-351`.
-  // The sixteenth transformer, `transformPlotlyToVbc`, is below with the reason
-  // it survived.
+  //
+  // The sixteenth, `transformPlotlyToVbc`, outlived them by one task because
+  // its entry named a second blocker: `FluentPlotlyChartKind` spelled no
+  // `verticalBar`, so `internal/plotly/router.dart` sent `histogram` to
+  // `verticalStackedBar` and the binning transformer — with plan 09 Task 16's
+  // `histfunc`/`histnorm` behind it — was reachable from nothing but that
+  // entry's own prose. The enum now spells it (`PlotlySchemaConverter.ts:518`),
+  // the router returns it, `_buildChart` dispatches `transformPlotlyToVbc` from
+  // its own arm and `kPlotlyDefaultCellHeight` carries the 350 at
+  // `PlotlySchemaAdapter.ts:1892`. The route is pinned end to end by
+  // `declarative/router_corpus_test.dart` ('a histogram routes to the vertical
+  // bar chart') and by two mounted-widget tests in
+  // `declarative/declarative_chart_test.dart` that read the bins back off the
+  // rendered `FluentVerticalBarChart`.
   //
   // `getChartAnnotationsFromLayout` was here until plan 09 Task 18 landed the
   // first transformer that calls it: internal/plotly/transform_bar.dart writes
   // `getChartAnnotationsFromLayout(layout, isMultiPlot: isMultiPlot)` at the
   // `PlotlySchemaAdapter.ts:1579` position, which is what its own entry said
   // would remove it.
-  'transformPlotlyToVbc':
-      'internal/plotly/transform_bar.dart, the Plotly vertical-bar and '
-      'histogram transformer (PlotlySchemaAdapter.ts:1793-1906) and plan 09 '
-      'Task 20. Upstream reaches it from the `verticalbar` entry of '
-      "DeclarativeChart's chartMap (DeclarativeChart.tsx:303-306), dispatched "
-      'at :607, and a `histogram` trace is the only thing routed there '
-      '(PlotlySchemaConverter.ts:517-518). The widget that reads the route is '
-      'plan 09 Task 28, which also supplies the enclosing SizedBox this '
-      "transformer deliberately does not build (spec §2.2's constraint-sized "
-      'shell charts, with the 350 from PlotlySchemaAdapter.ts:1892 living in '
-      'kPlotlyDefaultCellHeight). That widget has now landed — plan 09 Task 28, '
-      'declarative_chart.dart — and this entry did NOT go with it, because the '
-      'second of the two blockers it named is still open: FluentPlotlyChartKind '
-      'has no `verticalBar` member, so internal/plotly/router.dart:707-717 '
-      'sends `histogram` to `verticalStackedBar`, which is the one route '
-      'upstream reserves for this transformer, and a histogram bins nothing. '
-      "The widget's `_buildChart` therefore has no arm to dispatch here from "
-      'and kPlotlyDefaultCellHeight carries no entry for the 350 at '
-      'PlotlySchemaAdapter.ts:1892. Closing it means adding the member to the '
-      'enum and to plotlyChartKindName, re-pointing the `histogram` case in '
-      "the router, and re-pinning the router corpus's own expectation at "
-      'test/charts/declarative/router_corpus_test.dart:181-186 — not editing '
-      'this entry. `getNumberAtIndexOrDefault` needs no entry: this function '
-      'calls it.',
   // `getPolarAxisProps` was here until plan 09 Task 26 landed. Its entry said
   // "the moment transformPlotlyToPolar exists it must read this", and it does:
   // internal/plotly/transform_pie.dart calls it once, where
@@ -320,10 +304,22 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // `PlotlySchemaConverter.ts:44-60` a second time.
 
   // --- Plotly ports with no caller, verified against upstream --------------
-  // The three below were left behind by plan 09's thirty tasks, each reported
-  // by a later task as "not mine". They are excused here rather than in a task
-  // file because no single task owns all three, and a red gate blocks the Vega
+  // The two below were left behind by plan 09's thirty tasks, each reported by
+  // a later task as "not mine". They are excused here rather than in a task
+  // file because no single task owns both, and a red gate blocks the Vega
   // half. Each was checked against upstream before being written down.
+  //
+  // `kSingleRepeat` (internal/plotly/grid.dart) was the third, excused on the
+  // claim that `collapseDegenerateGrid`'s `rowCount != 1 || columnCount != 1`
+  // was "the same predicate one step earlier". It was not. Upstream seeds both
+  // CSS templates with `1fr` at PlotlySchemaAdapter.ts:3654-3655 and only
+  // overwrites them inside the `:3762`/`:3793` guards, so a multi-plot figure
+  // that solves no domain ends on `1fr` — not the `repeat(1, 1fr)` that
+  // DeclarativeChart.tsx:513-514 collapses on — while both counts still read 1.
+  // The entry is deleted rather than re-worded: the constant now has a caller,
+  // `FluentPlotlyGridProperties.isSingleRepeat`, and the figures the wrong
+  // predicate was silently collapsing are covered by
+  // test/charts/declarative/declarative_collapse_test.dart.
   'resolveXAxisPoint':
       'internal/plotly/common.dart:348, the per-value x coercion. It is an '
       'orphan UPSTREAM TOO: `grep -rn resolveXAxisPoint` over '
@@ -335,17 +331,6 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'honest resolution is deletion with its five assertions in '
       'test/charts/declarative/common_test.dart:431-459; it is kept for now '
       'only because common.dart belongs to plan 09 Task 5.',
-  'kSingleRepeat':
-      "internal/plotly/grid.dart:27, the `repeat(1, 1fr)` string upstream's "
-      'degenerate-grid test compares against (DeclarativeChart.tsx:513-514). '
-      'The port never formats a CSS template: '
-      '`_FluentDeclarativeChartState.collapseDegenerateGrid` '
-      '(declarative_chart.dart:544) tests `grid.rowCount != 1 || '
-      'grid.columnCount != 1`, the same predicate one step earlier and without '
-      'a string round-trip. Its own doc claims it "stays exported for the '
-      'storybook"; this package has no storybook, so that reason does not '
-      'hold and deletion is the resolution. grid.dart belongs to plan 09 '
-      'Task 4.',
   'isSafePlotlyUrl':
       'internal/plotly/json_guard.dart:156, the URL-scheme allowlist hardened '
       'under spec §5.2 exception 2. Upstream has exactly one caller — '

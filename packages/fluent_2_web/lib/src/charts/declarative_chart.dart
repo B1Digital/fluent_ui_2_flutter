@@ -21,7 +21,6 @@ import 'internal/plotly/router.dart';
 import 'internal/plotly/transform_bar.dart';
 import 'internal/plotly/transform_pie.dart';
 import 'internal/plotly/transform_xy.dart';
-import 'internal/responsive.dart';
 import 'model/chart_common.dart';
 
 /// A Plotly figure plus the legend titles currently selected.
@@ -171,13 +170,10 @@ class FluentDeclarativeChartTheme extends InheritedWidget {
 /// Every shell chart takes its size from its `BoxConstraints` (spec §2.2), so
 /// upstream's `height: input.layout?.height ?? N` becomes the cell's `SizedBox`.
 /// The defaults are `PlotlySchemaAdapter.ts:1584` (VSBC and the fallback),
-/// `:1772` (GVBC), `:2172` (area, line, scatter), `:2263` (HBWA), `:2382`
-/// (gantt), `:2613` (heatmap) and `:2709` (sankey). The shell-free kinds are
-/// absent because their transformers take `height` directly.
-///
-/// `:1892`'s 350 for the vertical bar chart has no entry, because
-/// [FluentPlotlyChartKind] spells no `verticalBar` — see
-/// [FluentDeclarativeChart] for why that route is still closed.
+/// `:1772` (GVBC), `:1892` (the histogram's vertical bar chart), `:2172`
+/// (area, line, scatter), `:2263` (HBWA), `:2382` (gantt), `:2613` (heatmap)
+/// and `:2709` (sankey). The shell-free kinds are absent because their
+/// transformers take `height` directly.
 const Map<FluentPlotlyChartKind, double> kPlotlyDefaultCellHeight =
     <FluentPlotlyChartKind, double>{
       FluentPlotlyChartKind.area: 350,
@@ -189,6 +185,7 @@ const Map<FluentPlotlyChartKind, double> kPlotlyDefaultCellHeight =
       FluentPlotlyChartKind.line: 350,
       FluentPlotlyChartKind.sankey: 468,
       FluentPlotlyChartKind.scatter: 350,
+      FluentPlotlyChartKind.verticalBar: 350,
       FluentPlotlyChartKind.verticalStackedBar: 350,
     };
 
@@ -199,21 +196,15 @@ const Map<FluentPlotlyChartKind, double> kPlotlyDefaultCellHeight =
 /// the chart kinds, groups the traces by axis key, lays the groups out in a
 /// grid and hands each group to its transformer.
 ///
-/// Two upstream behaviours are not reproduced, both recorded here rather than
-/// silently dropped:
-///
-/// * `:412-420` builds a `legendProps` bag — `canSelectMultipleLegends`, the
-///   selection and its change handler — and `:598-603` spreads it into every
-///   non-annotation chart, so a **single**-plot figure round-trips its legend
-///   selection through `onSchemaChange` too. In this port only the polar chart
-///   exposes `selectedLegends`/`onLegendChange` as widget parameters; the other
-///   shells keep the selection in private state, so there is nothing to pass it
-///   to. The all-up legend of a multi-plot figure does round-trip, because this
-///   widget owns that legend.
-/// * `:518` routes a `histogram` trace to `'verticalbar'`, which
-///   [FluentPlotlyChartKind] does not spell — `internal/plotly/router.dart:707`
-///   records that divergence and sends a histogram to the stacked bar instead.
-///   There is therefore no `verticalBar` arm below.
+/// One upstream behaviour is not reproduced, recorded here rather than
+/// silently dropped: `:412-420` builds a `legendProps` bag —
+/// `canSelectMultipleLegends`, the selection and its change handler — and
+/// `:598-603` spreads it into every non-annotation chart, so a **single**-plot
+/// figure round-trips its legend selection through `onSchemaChange` too. In
+/// this port only the polar chart exposes `selectedLegends`/`onLegendChange` as
+/// widget parameters; the other shells keep the selection in private state, so
+/// there is nothing to pass it to. The all-up legend of a multi-plot figure
+/// does round-trip, because this widget owns that legend.
 class FluentDeclarativeChart extends StatefulWidget {
   /// Creates a declarative chart.
   const FluentDeclarativeChart({
@@ -504,6 +495,16 @@ class _FluentDeclarativeChartState extends State<FluentDeclarativeChart> {
           colorwayType: colorwayType,
           isDark: isDark,
         );
+      case FluentPlotlyChartKind.verticalBar:
+        // `:303-306`: the one `chartMap` entry that bins, reached only by a
+        // `histogram` trace (`PlotlySchemaConverter.ts:517-518`).
+        return transformPlotlyToVbc(
+          group,
+          isMultiPlot: isMultiPlot,
+          colorMap: colorMap,
+          colorwayType: colorwayType,
+          isDark: isDark,
+        );
       case FluentPlotlyChartKind.verticalStackedBar:
       case FluentPlotlyChartKind.fallback:
       case FluentPlotlyChartKind.composite:
@@ -531,17 +532,18 @@ class _FluentDeclarativeChartState extends State<FluentDeclarativeChart> {
   /// the figure title at `:561` and the all-up legend at `:634`.
   ///
   /// **Port note:** `:513-514` compares the two formatted CSS strings against
-  /// [kSingleRepeat]; this compares [FluentPlotlyGridProperties.rowCount] and
-  /// [FluentPlotlyGridProperties.columnCount] against one, which is the same
-  /// predicate one step earlier. [kSingleRepeat] stays exported for the
-  /// storybook, which still renders the CSS form.
+  /// `SINGLE_REPEAT`, which is what [FluentPlotlyGridProperties.isSingleRepeat]
+  /// carries. It is deliberately not `grid.rowCount == 1 && grid.columnCount ==
+  /// 1`: that also reads true for a figure whose grid solved no domain at all,
+  /// where both templates keep the `1fr` seeded at
+  /// `PlotlySchemaAdapter.ts:3654-3655` and upstream renders every group.
   ({Map<String, List<int>> groups, bool isMultiPlot}) collapseDegenerateGrid(
     Map<String, List<int>> groups, {
     required bool isMultiPlot,
     required FluentPlotlyGridProperties grid,
     required FluentPlotlyChartKind kind,
   }) {
-    if (!isMultiPlot || grid.rowCount != 1 || grid.columnCount != 1) {
+    if (!isMultiPlot || !grid.isSingleRepeat) {
       return (groups: groups, isMultiPlot: isMultiPlot);
     }
     final key = kind == FluentPlotlyChartKind.donut
@@ -729,15 +731,13 @@ class _FluentDeclarativeChartState extends State<FluentDeclarativeChart> {
               height: (layout?['height'] as num?)?.toDouble() ?? defaultHeight,
               child: chart,
             );
-      cells.add((
-        cellProperties?.row ?? 1,
-        cellProperties?.column ?? 1,
-        // Every one of the renderers is wrapped upstream except `FunnelChart`
-        // (`:85-86`). In Flutter the distinction has no effect — both paths
-        // honour the same `BoxConstraints` — so funnel is wrapped too rather
-        // than special-cased.
-        FluentResponsiveChartHost(builder: (context, metrics) => sized),
-      ));
+      // Fifteen of the sixteen renderers are `withResponsiveContainer(...)`
+      // upstream (`:72-87`; `FunnelChart` is exempted at `:85-86`), and nothing
+      // stands in for that HOC here. It has no work left to do: the box above
+      // IS its container div (`ResponsiveContainer.tsx:97-103`), and the
+      // measure-and-inject cycle it wraps that div in is Flutter's constraint
+      // pass — see the design document, section 5.1.
+      cells.add((cellProperties?.row ?? 1, cellProperties?.column ?? 1, sized));
     }
 
     final titles = getTitles(layout);
@@ -791,7 +791,17 @@ class _FluentDeclarativeChartState extends State<FluentDeclarativeChart> {
     List<(int, int, Widget)> cells,
   ) {
     if (grid.rowCount <= 1 && grid.columnCount <= 1) {
-      return cells.isEmpty ? const SizedBox.shrink() : cells.first.$3;
+      if (cells.length <= 1) {
+        return cells.isEmpty ? const SizedBox.shrink() : cells.first.$3;
+      }
+      // parity: a figure whose grid solved no domain gives every group the
+      // `row 1 / column 1` fallback at `DeclarativeChart.tsx:623-624`, and
+      // `:162-165` turns that into the same one-cell grid area for all of
+      // them — the same React `key` at `:160` included. CSS grid paints them
+      // over one another rather than growing a row, and a `Stack` is that.
+      // Only reachable since the collapse became `SINGLE_REPEAT`-exact; the
+      // predicate it replaced folded this case away.
+      return Stack(children: <Widget>[for (final cell in cells) cell.$3]);
     }
     return Column(
       mainAxisSize: MainAxisSize.min,
