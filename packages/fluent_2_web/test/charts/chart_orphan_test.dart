@@ -634,16 +634,10 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // table at line 134 and nothing in Tasks 40-57, so no unported consumer is
   // coming either. An entry for them could name no exit, which is what makes
   // deletion the resolution rather than an excuse.
-  'getSequentialSchemeColors':
-      'internal/vega/color_adapter.dart:255, the sequential and diverging '
-      'ramps for a continuous colour scale (VegaLiteColorAdapter.ts:318-344). '
-      "Task 49's heatmap transformer is the caller, at the "
-      'VegaLiteSchemaAdapter.ts:3474 position — the `else if (colorScheme)` '
-      'arm of the quantitative colour scale, whose result `:3477` reverses in '
-      "place for a descending sort. Task 49's Step 1 test 'a descending colour "
-      "sort reverses the ramp' (plan 09 lines 18478-18490) drives exactly that "
-      "arm with `'scheme': 'blues'`, so the task cannot pass without this "
-      'function. Goes when Task 49 lands.',
+  // `getSequentialSchemeColors` was here and left by the exit it named: Task
+  // 49's heatmap transformer calls it at `internal/vega/transform_other.dart`,
+  // the `else if (colorScheme)` arm at VegaLiteSchemaAdapter.ts:3474, and the
+  // fresh list it returns is what makes the `:3478` reversal safe.
 
   // Task 41's `internal/vega/common.dart`. Three of its seventeen public
   // symbols are here. Task 42's `internal/vega/context.dart` reads exactly two
@@ -892,6 +886,60 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'Goes when Task 52 lands. This is the same shape as '
       'kPlotlyDefaultCellHeight, which carried the 350 at '
       'PlotlySchemaAdapter.ts:1892 until its own widget landed.',
+
+  // Task 49's `internal/vega/transform_other.dart`. All three of its public
+  // symbols are here, and its two private helpers — `_channel` and
+  // `_polarLineOptions` — are invisible to this scan by their leading
+  // underscore and are called from the transformers below them.
+  'transformVegaToDonut':
+      'internal/vega/transform_other.dart:47, the port of the exported '
+      'VegaLiteSchemaAdapter.ts:3244-3310. Upstream has exactly one caller — '
+      '`grep -n transformVegaLiteToDonutChartProps` over '
+      'crawlers/fluentui-react-charts/out/charts/src/components/'
+      'VegaDeclarativeChart/VegaDeclarativeChart.tsx returns the import at '
+      ':12, the `typeof` in the registry type at :183 and the registry entry '
+      'itself at :206, `donut: { transformer: '
+      'transformVegaLiteToDonutChartProps, renderer: ResponsiveDonutChart }`. '
+      'Task 52 is the caller in this port: `FluentVegaChartKind.donut => '
+      'transformVegaToDonut(spec, _colorMap, isDark: isDark)` is an arm of its '
+      'exhaustive switch (plan 09 line 19474), returned as the widget the '
+      'chart renders rather than computed and dropped. The routing side is '
+      'already live: `internal/vega/routing.dart:287` answers '
+      '`FluentVegaChartKind.donut` for an arc mark with theta and no radius '
+      '(`VegaLiteSchemaAdapter.ts:1682-1684`). Goes when Task 52 lands.',
+  'transformVegaToHeatmap':
+      'internal/vega/transform_other.dart:148, the port of the exported '
+      'VegaLiteSchemaAdapter.ts:3322-3519. Upstream has exactly one caller — '
+      '`grep -n transformVegaLiteToHeatMapChartProps` over '
+      'crawlers/fluentui-react-charts/out/charts/src/components/'
+      'VegaDeclarativeChart/VegaDeclarativeChart.tsx returns the import at '
+      ':13, the `typeof` in the registry type at :184 and the registry entry '
+      'itself at :207, `heatmap: { transformer: '
+      'transformVegaLiteToHeatMapChartProps, renderer: ResponsiveHeatMapChart '
+      '}`. Task 52 is the caller in this port: `FluentVegaChartKind.heatmap => '
+      'transformVegaToHeatmap(spec, _colorMap, isDark: isDark)` is an arm of '
+      'its exhaustive switch (plan 09 line 19476), returned as the widget the '
+      'chart renders rather than computed and dropped. The routing side is '
+      'already live: `internal/vega/routing.dart:308` answers '
+      '`FluentVegaChartKind.heatmap` for a rect mark with x, y and a colour '
+      'field (`VegaLiteSchemaAdapter.ts:1692-1694`). Goes when Task 52 lands.',
+  'transformVegaToPolar':
+      'internal/vega/transform_other.dart:466, the port of the exported '
+      'VegaLiteSchemaAdapter.ts:3706-3861. Upstream has exactly one caller — '
+      '`grep -n transformVegaLiteToPolarChartProps` over '
+      'crawlers/fluentui-react-charts/out/charts/src/components/'
+      'VegaDeclarativeChart/VegaDeclarativeChart.tsx returns the import at '
+      ':15, the `typeof` in the registry type at :186 and the registry entry '
+      'itself at :209, `polar: { transformer: '
+      'transformVegaLiteToPolarChartProps, renderer: ResponsivePolarChart }`. '
+      'Task 52 is the caller in this port: `FluentVegaChartKind.polar => '
+      'transformVegaToPolar(spec, _colorMap, isDark: isDark)` is an arm of its '
+      'exhaustive switch (plan 09 line 19481), returned as the widget the '
+      'chart renders rather than computed and dropped. The routing side is '
+      'already live: `internal/vega/routing.dart:280` and `:298` both answer '
+      '`FluentVegaChartKind.polar` (`VegaLiteSchemaAdapter.ts:1677-1679` for '
+      'an arc with theta and radius, `:1687-1689` for any other mark with the '
+      'same pair). Goes when Task 52 lands.',
 };
 
 /// Files scanned for declarations: every `.dart` file under

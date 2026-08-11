@@ -1,7 +1,8 @@
 /// The Vega-Lite bar-family transformers.
 ///
 /// Ports `VegaLiteSchemaAdapter.ts:2141-2337` (vertical bar),
-/// `:2349-2729` (vertical stacked bar) and `:3524-3695` (histogram).
+/// `:2349-2729` (vertical stacked bar), `:2741-2829` (grouped vertical bar),
+/// `:2841-3009` (horizontal bar) and `:3524-3695` (histogram).
 /// Internal to the package: nothing here is barrel-exported.
 library;
 
@@ -9,6 +10,8 @@ import 'dart:math' as math;
 
 import '../../cartesian/cartesian_chart_props.dart';
 import '../../chrome/legend_shape.dart';
+import '../../grouped_vertical_bar_chart.dart';
+import '../../horizontal_bar_chart_with_axis.dart';
 import '../../model/bar_data.dart';
 import '../../model/chart_common.dart';
 import '../../model/line_options.dart';
@@ -1227,6 +1230,350 @@ FluentVerticalStackedBarChart transformVegaToStackedBar(
       // `:2726`.
       secondaryYAxisTitle: secondaryYAxisTitle,
       secondaryYScaleOptions: secondaryYScaleOptions,
+    ),
+  );
+}
+
+/// Transforms a Vega-Lite bar spec with a colour field into a Fluent grouped
+/// vertical bar chart (`VegaLiteSchemaAdapter.ts:2741-2829`).
+///
+/// The only transformer in the Vega set that requires all three of x, y and
+/// colour (`:2752-2754`); a spec missing any one of them is a hard error rather
+/// than a fallback to a simpler chart.
+///
+/// [spec] is mutated, for the reason [transformVegaToVerticalBar] gives.
+FluentGroupedVerticalBarChart transformVegaToGroupedBar(
+  Map<String, Object?> spec,
+  Map<String, String> colorMap, {
+  required bool isDark,
+}) {
+  // `:2747`.
+  final context = initializeTransformContext(spec);
+  final dataValues = context.data;
+  final encoding = context.encoding;
+
+  // `:2750`.
+  final xField = context.xField;
+  final yField = context.yField;
+  final colorField = context.colorField;
+
+  // `:2752-2754`.
+  if (xField == null || yField == null || colorField == null) {
+    throw const VegaSpecException(
+      'VegaLiteSchemaAdapter: x, y, and color encodings are required for '
+      'grouped bar charts',
+    );
+  }
+
+  // `:2757`.
+  final colorConfig = _colorConfig(encoding);
+
+  // `:2760-2785`: a NESTED map, so a repeated (x, legend) pair OVERWRITES
+  // rather than accumulating — two rows with the same category and group keep
+  // only the last y. // parity: VegaLiteSchemaAdapter.ts:2780
+  //
+  // `:2788` then walks it with `Object.keys`, which lists integer-like keys
+  // first in ascending numeric order; a Dart map is insertion-ordered
+  // throughout, so a spec whose categories are bare digit strings groups in a
+  // different order here. The same divergence `transform_other.dart:247`
+  // records for the heatmap axes. // parity: VegaLiteSchemaAdapter.ts:2788
+  final groupedData = <String, Map<String, double>>{};
+  final colorIndex = <String, int>{};
+  var currentColorIndex = 0;
+  for (final row in dataValues) {
+    final xValue = row[xField];
+    final yValue = row[yField];
+    final groupValue = row[colorField];
+    // `:2769-2771`.
+    if (isInvalidValue(xValue) ||
+        isInvalidValue(yValue) ||
+        yValue is! num ||
+        isInvalidValue(groupValue)) {
+      continue;
+    }
+    final xKey = jsToString(xValue);
+    final legend = jsToString(groupValue);
+    (groupedData[xKey] ??= <String, double>{})[legend] = yValue.toDouble();
+    colorIndex[legend] ??= currentColorIndex++;
+  }
+
+  // `:2788-2809`.
+  final chartData = <FluentGroupedVerticalBarChartData>[
+    for (final group in groupedData.entries)
+      FluentGroupedVerticalBarChartData(
+        name: group.key,
+        series: <FluentGroupedBarSeriesPoint>[
+          for (final entry in group.value.entries)
+            FluentGroupedBarSeriesPoint(
+              // `:2790`: the key and the legend are the same string.
+              key: entry.key,
+              data: entry.value,
+              legend: entry.key,
+              // `:2793-2802`: the scheme and the range ARE forwarded here,
+              // unlike on the scatter and line-overlay paths.
+              color: parseCssColour(
+                resolveVegaSeriesColour(
+                  entry.key,
+                  colorIndex[entry.key]!,
+                  null,
+                  null,
+                  colorMap,
+                  colorScheme: colorConfig.scheme,
+                  colorRange: colorConfig.range,
+                  isDark: isDark,
+                ),
+              ),
+            ),
+        ],
+      ),
+  ];
+
+  // `:2811`.
+  final titles = getVegaLiteTitles(spec);
+  // `:2814`.
+  final yAxisTickFormatSpec = _axisOption(encoding, 'y', 'format');
+  // `:2815`.
+  final bounds = extractYMinMax(encoding, dataValues);
+  // `:2816`.
+  final yAxisType = extractYAxisType(encoding);
+
+  return FluentGroupedVerticalBarChart(
+    // `:2819`.
+    data: chartData,
+    // `:2820`. `FluentGroupedVerticalBarChart` takes the chart title as a named
+    // parameter rather than through the props bag.
+    chartTitle: titles.chartTitle,
+    props: FluentCartesianChartProps(
+      // `:2821-2822`.
+      xAxisTitle: titles.xAxisTitle,
+      yAxisTitle: titles.yAxisTitle,
+      // `:2824`. Upstream forwards the d3 SPEC and the chart resolves it; this
+      // port's prop is the resolved formatter, so it is built here.
+      yAxisTickFormat: createValueFormatter(
+        yAxisTickFormatSpec is String ? yAxisTickFormatSpec : null,
+      ),
+      // `:2825-2826`: conditional spreads upstream, so the shell's own 0 and 0
+      // stand when no domain is declared.
+      yMinValue: bounds.min ?? 0,
+      yMaxValue: bounds.max ?? 0,
+      // `:2827`.
+      yScaleType: yAxisType ?? FluentAxisScaleType.auto,
+    ),
+  );
+}
+
+/// Transforms a Vega-Lite bar spec with a categorical y axis into a Fluent
+/// horizontal bar chart (`VegaLiteSchemaAdapter.ts:2841-3009`).
+///
+/// Three mutually exclusive data paths, in upstream's order: an x aggregate
+/// (`:2871-2897`), an `x`/`x2` range that makes the bars a Gantt-style span
+/// (`:2898-2939`), and the plain row-per-bar case (`:2940-2976`). Note that the
+/// axes are INVERTED relative to every other cartesian chart — `x` is the
+/// dependent value and `y` the independent category (spec §3.5).
+///
+/// [spec] is mutated, for the reason [transformVegaToVerticalBar] gives.
+FluentHorizontalBarChartWithAxis transformVegaToHorizontalBar(
+  Map<String, Object?> spec,
+  Map<String, String> colorMap, {
+  required bool isDark,
+}) {
+  // `:2847`.
+  final context = initializeTransformContext(spec);
+  final dataValues = context.data;
+  final encoding = context.encoding;
+  final markProps = context.markProps;
+
+  // `:2850`.
+  final xField = context.xField;
+  final yField = context.yField;
+  final colorField = context.colorField;
+  final x2Field = context.x2Field;
+  final xAggregate = context.xAggregate;
+
+  // `:2854`: `!!xAggregate`, so an empty string is as absent as no aggregate.
+  final isAggregate = xAggregate != null && xAggregate.isNotEmpty;
+
+  // `:2856-2858`.
+  if (yField == null && !isAggregate) {
+    throw const VegaSpecException(
+      'VegaLiteSchemaAdapter: y encoding is required for horizontal bar charts',
+    );
+  }
+
+  // `:2861-2864`: note the argument order — the CATEGORY is the y field and the
+  // aggregated value is the x field, the reverse of the stacked bar's call.
+  final aggregatedData = isAggregate && yField != null
+      ? computeAggregateData(dataValues, yField, xField, xAggregate)
+      : null;
+
+  final colorChannel = _channel(encoding, 'color');
+  // `:2866`.
+  final colorValue = colorChannel?['value'];
+
+  final barData = <FluentHorizontalBarChartWithAxisDataPoint>[];
+  final colorIndex = <String, int>{};
+  var currentColorIndex = 0;
+
+  // Every one of the three branches resolves its colour with NEITHER the scheme
+  // nor the range (`:2886-2887`, `:2934-2935`, `:2964-2965`), so a declared
+  // `scale.scheme` is ignored on this chart entirely.
+  // // parity: VegaLiteSchemaAdapter.ts:2886
+  String colourFor(String legend) {
+    colorIndex[legend] ??= currentColorIndex++;
+    return resolveVegaSeriesColour(
+      legend,
+      colorIndex[legend]!,
+      colorValue is String ? colorValue : null,
+      markProps.color,
+      colorMap,
+      isDark: isDark,
+    );
+  }
+
+  if (aggregatedData != null) {
+    // `:2871-2897`: one bar per aggregated category, legend equal to the
+    // category.
+    for (final entry in aggregatedData) {
+      final category = jsToString(entry['category']);
+      barData.add(
+        FluentHorizontalBarChartWithAxisDataPoint(
+          x: jsToNumber(entry['value']),
+          y: category,
+          legend: category,
+          color: parseCssColour(colourFor(category)),
+        ),
+      );
+    }
+  } else if (x2Field != null && xField != null && yField != null) {
+    // `:2898-2939`: an `x`/`x2` pair makes each bar a span, and the bar's x is
+    // the span WIDTH rather than either endpoint.
+    // `:2900`.
+    final isXTemporal = _channelType(encoding, 'x') == 'temporal';
+    for (final row in dataValues) {
+      final startVal = row[xField];
+      final endVal = row[x2Field];
+      final yValue = row[yField];
+      // `:2905-2907`: `=== undefined` only, so an explicit null reaches the
+      // arithmetic below and becomes 0 through `Number(null)`.
+      // // parity: VegaLiteSchemaAdapter.ts:2905
+      if (!row.containsKey(xField) ||
+          startVal is JsUndefined ||
+          !row.containsKey(x2Field) ||
+          endVal is JsUndefined ||
+          !row.containsKey(yField) ||
+          yValue is JsUndefined) {
+        continue;
+      }
+
+      final double xNumeric;
+      if (isXTemporal) {
+        // `:2911-2915`.
+        final startDate = parseVegaDateValue(startVal);
+        final endDate = parseVegaDateValue(endVal);
+        if (startDate == null || endDate == null) {
+          continue;
+        }
+        // `:2916`: whole days, rounded with JavaScript's half-up rule — never
+        // Dart's `.round()`, which rounds a negative half away from zero.
+        // `1000 * 60 * 60 * 24` is one day in milliseconds, written as the
+        // product upstream writes rather than as 86400000.
+        xNumeric = d3.jsRound(
+          (endDate.millisecondsSinceEpoch - startDate.millisecondsSinceEpoch) /
+              (1000 * 60 * 60 * 24),
+        );
+      } else {
+        // `:2918-2921`.
+        xNumeric = jsToNumber(endVal) - jsToNumber(startVal);
+        if (xNumeric.isNaN) {
+          continue;
+        }
+      }
+
+      // `:2924`: with no colour field the legend is the CATEGORY, not `'Bar'` —
+      // the plain branch below differs on exactly this point.
+      final legend =
+          colorField != null &&
+              row.containsKey(colorField) &&
+              row[colorField] is! JsUndefined
+          ? jsToString(row[colorField])
+          : jsToString(yValue);
+      barData.add(
+        FluentHorizontalBarChartWithAxisDataPoint(
+          x: xNumeric,
+          // `:2938`: the raw y value, `number | string`.
+          y: yValue is num || yValue is String ? yValue! : jsToString(yValue),
+          legend: legend,
+          color: parseCssColour(colourFor(legend)),
+        ),
+      );
+    }
+  } else if (xField != null && yField != null) {
+    // `:2940-2976`: the plain path. A non-numeric x drops the row outright.
+    for (final row in dataValues) {
+      final xValue = row[xField];
+      final yValue = row[yField];
+      // `:2946-2948`.
+      if (isInvalidValue(xValue) || isInvalidValue(yValue) || xValue is! num) {
+        continue;
+      }
+
+      // `:2951-2952`: three arms. A present colour value wins; with NO colour
+      // field at all every bar is labelled `'Bar'`, which is what stops the
+      // tooltip repeating the y-axis label; and a colour field whose value is
+      // absent on this row falls back to the y value.
+      final String legend;
+      if (colorField != null &&
+          row.containsKey(colorField) &&
+          row[colorField] is! JsUndefined) {
+        legend = jsToString(row[colorField]);
+      } else if (colorField == null) {
+        legend = 'Bar';
+      } else {
+        legend = jsToString(yValue);
+      }
+
+      barData.add(
+        FluentHorizontalBarChartWithAxisDataPoint(
+          x: xValue.toDouble(),
+          // `:2971`.
+          y: yValue is num || yValue is String ? yValue! : jsToString(yValue),
+          legend: legend,
+          color: parseCssColour(colourFor(legend)),
+        ),
+      );
+    }
+  }
+
+  // `:2978-2980`.
+  final titles = getVegaLiteTitles(spec);
+  final annotations = extractVegaAnnotations(spec);
+  final tickConfig = extractTickConfig(spec);
+  // `:2989`.
+  final legendConfig = colorChannel?['legend'];
+  final legendDisabled =
+      legendConfig is Map<String, Object?> && legendConfig['disable'] == true;
+
+  return FluentHorizontalBarChartWithAxis(
+    // `:2983`.
+    data: barData,
+    // `:2984`. `FluentHorizontalBarChartWithAxis` takes the chart title as a
+    // named parameter rather than through the props bag.
+    chartTitle: titles.chartTitle,
+    props: FluentCartesianChartProps(
+      // `:2985-2986`.
+      xAxisTitle: titles.xAxisTitle,
+      yAxisTitle: titles.yAxisTitle,
+      // `:2989`: no colour field hides the legend unconditionally; with one,
+      // the encoding's own `legend.disable` decides, defaulting to `false`.
+      hideLegend: colorField == null || legendDisabled,
+      // `:2992-2994`: assigned only when non-empty, and the shell's own default
+      // is the empty list — which is what an empty list leaves.
+      annotations: annotations,
+      // `:2996-3006`: each assigned only when truthy, so a declared 0 keeps the
+      // shell's defaults of 6 and 4.
+      tickValues: tickConfig.tickValues,
+      xAxisTickCount: tickConfig.xAxisTickCount ?? 6,
+      yAxisTickCount: tickConfig.yAxisTickCount ?? 4,
     ),
   );
 }

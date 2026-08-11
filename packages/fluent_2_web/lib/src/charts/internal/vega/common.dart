@@ -126,6 +126,33 @@ Object parseVegaValue(Object? value, {required bool isTemporal}) {
   return jsToString(value);
 }
 
+/// `new Date(value)` for the `string | number` arms
+/// (`VegaLiteSchemaAdapter.ts:2911-2912`).
+///
+/// Returns null where JavaScript would produce an Invalid Date, which is what
+/// `:2913`'s `isNaN(getTime())` tests for. [parseVegaValue] cannot answer this
+/// question: it returns the EMPTY STRING for an unparseable value rather than
+/// signalling the failure, and `:2913` is the only place in the adapter that
+/// has to branch on it.
+///
+/// A number is milliseconds since the epoch, matching V8; `DateTime.tryParse`
+/// is stricter than V8 for strings, the narrowing [parseVegaValue] already
+/// records.
+DateTime? parseVegaDateValue(Object? value) {
+  if (value is DateTime) {
+    return value;
+  }
+  if (value is num) {
+    return value.isFinite
+        ? DateTime.fromMillisecondsSinceEpoch(value.toInt(), isUtc: true)
+        : null;
+  }
+  if (value is String) {
+    return DateTime.tryParse(value);
+  }
+  return null;
+}
+
 /// Maps a Vega-Lite `interpolate` onto a Fluent curve
 /// (`VegaLiteSchemaAdapter.ts:630-655`).
 ///
