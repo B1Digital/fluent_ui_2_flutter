@@ -292,6 +292,57 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'transformed grid and colour domain back off the delegate it paints '
       'from. Whoever lands DeclarativeChart deletes this entry. '
       'cleanPlotlyText needs no entry: this function is its only caller.',
+  'transformPlotlyToSankey':
+      'internal/plotly/transform_pie.dart, the Plotly sankey transformer '
+      '(PlotlySchemaAdapter.ts:2623-2715) and plan 09 Task 25. Upstream '
+      "reaches it from the `sankey` entry of DeclarativeChart's chartMap "
+      '(DeclarativeChart.tsx:272-275), dispatched at :607, and the router '
+      'already resolves that kind (internal/plotly/router.dart:702-703) — '
+      'what is missing is the widget that reads the route, which is plan 09 '
+      'Task 28. That widget also supplies the enclosing SizedBox this '
+      "transformer deliberately does not build (spec §2.2's constraint-sized "
+      'charts; FluentSankeyChart takes no width or height at all, because '
+      'sankey_chart.dart:606-608 records both props as dead upstream, so '
+      "PlotlySchemaAdapter.ts:2709's 468 belongs with the 350 in "
+      'kPlotlyDefaultCellHeight). So the call site does not exist yet rather '
+      'than having been forgotten, and what this transformer produces is '
+      'proven consumable by the mounted test in '
+      'test/charts/declarative/transform_nonplot_test.dart, which pumps a '
+      'real FluentSankeyChart built from a figure and reads the node and link '
+      'counts back off the semantics the layout pass emits. Whoever lands '
+      'DeclarativeChart deletes this entry.',
+  'transformPlotlyToGauge':
+      'internal/plotly/transform_pie.dart, the Plotly indicator transformer '
+      '(PlotlySchemaAdapter.ts:2717-2838) and plan 09 Task 25. Upstream '
+      "reaches it from the `gauge` entry of DeclarativeChart's chartMap "
+      '(DeclarativeChart.tsx:299-302), dispatched at :607, and the router '
+      'already resolves both trace types to that kind '
+      '(internal/plotly/router.dart:704-706) — what is missing is the widget '
+      'that reads the route, which is plan 09 Task 28. So the call site does '
+      'not exist yet rather than having been forgotten, and what this '
+      'transformer produces is proven consumable by the mounted test in '
+      'test/charts/declarative/transform_nonplot_test.dart, which pumps a '
+      'real FluentGaugeChart built from a figure and finds both the delta '
+      'sublabel and the unformatted chart value painted. Whoever lands '
+      'DeclarativeChart deletes this entry. getGaugeAxisColor needs no entry: '
+      'this function is its only caller.',
+  'transformPlotlyToChartTable':
+      'internal/plotly/transform_pie.dart, the Plotly table transformer '
+      '(PlotlySchemaAdapter.ts:2908-3016) and plan 09 Task 25. Upstream '
+      "reaches it from the `table` entry of DeclarativeChart's chartMap "
+      '(DeclarativeChart.tsx:277-280), dispatched at :607, and the router '
+      'already resolves that kind (internal/plotly/router.dart:720-721) — '
+      'what is missing is the widget that reads the route, which is plan 09 '
+      'Task 28. Unlike its nine cartesian siblings this one really does carry '
+      "the layout's own box, because chart_table.dart:204-212 keeps width and "
+      "height and holds upstream's '100%' and 650 fallbacks inside the "
+      'widget. So the call site does not exist yet rather than having been '
+      'forgotten, and what this transformer produces is proven consumable by '
+      'the mounted test in '
+      'test/charts/declarative/transform_nonplot_test.dart, which pumps a '
+      'real FluentChartTable built from a figure and finds every transformed '
+      'header and body cell painted. Whoever lands DeclarativeChart deletes '
+      'this entry.',
   'getAllupLegendsProps':
       'internal/plotly/legends.dart, the all-up legend a multi-plot figure '
       'draws beneath its grid (PlotlySchemaAdapter.ts:3489-3567) and plan 09 '
