@@ -318,6 +318,48 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // adapter now calls it — `internal/plotly/predicates.dart:62` is `isPlotlyDate`
   // delegating to it, which is what stopped plan 09 Task 5 from transcribing
   // `PlotlySchemaConverter.ts:44-60` a second time.
+
+  // --- Plotly ports with no caller, verified against upstream --------------
+  // The three below were left behind by plan 09's thirty tasks, each reported
+  // by a later task as "not mine". They are excused here rather than in a task
+  // file because no single task owns all three, and a red gate blocks the Vega
+  // half. Each was checked against upstream before being written down.
+  'resolveXAxisPoint':
+      'internal/plotly/common.dart:348, the per-value x coercion. It is an '
+      'orphan UPSTREAM TOO: `grep -rn resolveXAxisPoint` over '
+      'crawlers/fluentui-react-charts/out/charts/src returns exactly one hit, '
+      'the `export const` at PlotlySchemaAdapter.ts:368, and no call anywhere. '
+      'Every landed transformer types its x column as a whole and coerces in '
+      'bulk, which is why none of them reaches for a per-value helper. Nothing '
+      'in the Vega half will call it either — Vega types its own fields. The '
+      'honest resolution is deletion with its five assertions in '
+      'test/charts/declarative/common_test.dart:431-459; it is kept for now '
+      'only because common.dart belongs to plan 09 Task 5.',
+  'kSingleRepeat':
+      "internal/plotly/grid.dart:27, the `repeat(1, 1fr)` string upstream's "
+      'degenerate-grid test compares against (DeclarativeChart.tsx:513-514). '
+      'The port never formats a CSS template: '
+      '`_FluentDeclarativeChartState.collapseDegenerateGrid` '
+      '(declarative_chart.dart:544) tests `grid.rowCount != 1 || '
+      'grid.columnCount != 1`, the same predicate one step earlier and without '
+      'a string round-trip. Its own doc claims it "stays exported for the '
+      'storybook"; this package has no storybook, so that reason does not '
+      'hold and deletion is the resolution. grid.dart belongs to plan 09 '
+      'Task 4.',
+  'isSafePlotlyUrl':
+      'internal/plotly/json_guard.dart:156, the URL-scheme allowlist hardened '
+      'under spec §5.2 exception 2. Upstream has exactly one caller — '
+      'VerticalStackedBarChart.tsx:308, `if (props.href && isSafeUrl('
+      'props.href)) { window.location.href = props.href; }` — and this port '
+      'deliberately has no navigation surface to guard: '
+      'cartesian_chart_props.dart:76 records that `href` is declared upstream '
+      'and never read by the shell, so no chart carries an href and no code '
+      'path reaches a URL. This is the ONE entry on this list that must not be '
+      'resolved by deletion. The moment any task adds an href, a link '
+      'annotation or a tappable label, that call site is this function and '
+      'wiring it is not optional. Its negative tests '
+      '(test/charts/declarative/json_guard_test.dart:117-168) stay green in '
+      'the meantime so the guard is correct on the day it is needed.',
 };
 
 /// Files scanned for declarations: every `.dart` file under
