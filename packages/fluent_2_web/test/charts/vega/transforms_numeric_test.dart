@@ -236,6 +236,30 @@ void main() {
     );
   });
 
+  test('an aggregate mean skips a row that lacks the column', () {
+    final out = applyVegaTransforms(
+      <Map<String, Object?>>[
+        <String, Object?>{'g': 'a', 'v': 10},
+        <String, Object?>{'g': 'a'},
+      ],
+      <Object?>[
+        <String, Object?>{
+          'aggregate': <Object?>[
+            <String, Object?>{'op': 'mean', 'field': 'v', 'as': 'm'},
+          ],
+          'groupby': <Object?>['g'],
+        },
+      ],
+    );
+    expect(
+      out.single['m'],
+      10,
+      reason:
+          'VegaLiteSchemaAdapter.ts:281 filters Number(undefined) out, so the '
+          'mean is over one value; treating the absent cell as 0 would give 5.',
+    );
+  });
+
   test('lookup joins only the named fields from an inline dataset', () {
     final out = applyVegaTransforms(
       <Map<String, Object?>>[

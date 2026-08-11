@@ -63,13 +63,18 @@ String _groupKey(Map<String, Object?> row, List<String> groupby) => groupby
 ///
 /// An op with no `field` reads the EMPTY list, which is why `sum` with no field
 /// is 0 and `min` with no field falls through to its `?? 0`.
+///
+/// A row that simply LACKS the column reads `undefined`, so `:281`'s
+/// `filter(v => !isNaN(v))` drops it — it does not contribute a zero, which
+/// would drag a `mean` towards the origin. Hence [_read] rather than a plain
+/// index.
 List<double> _numericValues(List<Map<String, Object?>> rows, Object? field) {
   if (field is! String) {
     return const <double>[];
   }
   final values = <double>[];
   for (final row in rows) {
-    final value = jsToNumber(row[field]);
+    final value = jsToNumber(_read(row, field));
     if (!value.isNaN) {
       values.add(value);
     }
