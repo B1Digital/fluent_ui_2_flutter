@@ -134,7 +134,13 @@ class FluentCartesianChartPainter extends CustomPainter {
     );
 
     // 4 — the primary y-axis group and its horizontal gridlines (`:836-843`).
-    _paintAxis(canvas, size, yAxisPrimary, Offset(layout.yAxisTranslateX, 0));
+    _paintAxis(
+      canvas,
+      size,
+      yAxisPrimary,
+      Offset(layout.yAxisTranslateX, 0),
+      labelLayout: _yLabelLayout,
+    );
 
     // 5 — the secondary y-axis group and its title (`:844-869`).
     final secondary = yAxisSecondary;
@@ -184,6 +190,43 @@ class FluentCartesianChartPainter extends CustomPainter {
       );
     }
   }
+
+  /// The primary y axis's tick labels, truncated when the axis-label tooltip is
+  /// on.
+  ///
+  /// `CartesianChart.tsx:396-406` calls `createYAxisLabels` on `yScalePrimary`
+  /// alone — never the secondary — guarded by `props.showYAxisLablesTooltip` and
+  /// passing that same flag straight back in as `truncateLabel` (`:404`). The
+  /// guard and the argument therefore always agree, so upstream's
+  /// `truncateLabel: false` arm has no live call site and the blank axis it
+  /// would render (`utilities.ts:1226-1228` sets the tspan text only inside the
+  /// branch) never surfaces there.
+  ///
+  /// The port folds the guard into the argument: one unconditional call whose
+  /// `false` arm fills in the whole label, which is exactly the d3 tick text
+  /// upstream leaves standing when it skips the call. Both settings match
+  /// upstream, and the accessibility arm required by spec section 5.2,
+  /// exception 2 becomes the default path rather than unreachable code.
+  ///
+  /// Without this the left margin and the painted text disagree: `:150-160`
+  /// sizes the margin from `truncateString(label, noOfCharsToTruncate)`, which
+  /// the shell's `startFromX` solve ports verbatim
+  /// (`cartesian_chart.dart:670-686`), so a full label painted into a truncated
+  /// label's reserve overruns the chart's left edge.
+  ///
+  /// A [FluentXAxisLabelLayout] carries the result because that is what
+  /// [FluentAxisPainter] accepts; a y axis is never wrapped, staggered or
+  /// rotated, so the reserve and the rotation it also carries are zero.
+  FluentXAxisLabelLayout get _yLabelLayout => FluentXAxisLabelLayout(
+    labels: createYAxisLabels(
+      yAxisPrimary.tickLabels,
+      props.noOfCharsToTruncate,
+      truncateLabel: props.showYAxisLablesTooltip,
+      isRtl: layout.isRtl,
+    ),
+    reserveHeight: 0,
+    rotationRadians: 0,
+  );
 
   void _paintAxis(
     Canvas canvas,

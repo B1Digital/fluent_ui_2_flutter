@@ -292,6 +292,14 @@ FluentXAxisLabelLayout wrapXLabels(
 /// (`:1226-1228`), so a call with `truncateLabel: false` renders an empty y
 /// axis. That is an accessibility defect rather than a visual quirk, so the port
 /// fills in the full label instead — spec section 5.2, exception 2.
+///
+/// That arm is the port's *normal* path. Upstream guards its only call with
+/// `props.showYAxisLablesTooltip` (`CartesianChart.tsx:396`) and then passes the
+/// same flag back in as `truncateLabel` (`:404`), so the two can never disagree
+/// and the blank-axis branch is unreachable there. `cartesian_painter.dart:137`
+/// folds the guard into the argument and calls this unconditionally, because
+/// the full label this returns when the flag is off is exactly the d3 tick text
+/// upstream leaves standing when it skips the call.
 List<FluentAxisTickLabel> createYAxisLabels(
   List<String> labels,
   int noOfCharsToTruncate, {

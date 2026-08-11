@@ -255,51 +255,74 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // described is still open and is not this list's to hold:
   // domain_range.dart:491-492 still writes `DateTime.utc(2000)` twice under a
   // comment at :490 claiming it falls back to the constant.
-  'kLegendShapeViewportSize':
-      'The 14×14 SVG viewport a legend swatch is drawn into, '
-      'chrome/legend_shape.dart:79, verified against Oracle B as stated '
-      'there. Named only by two doc comments in its own file (:86 and :239) '
-      'and by seventeen lines of test/charts/chrome; no painting code reads '
-      'it, so the swatch box arrives from the legend style instead and the '
-      'two can drift apart silently. Goes when the swatch painter takes its '
-      'viewport from here.',
-  'kPointWidthRatios':
-      'Ports `pointTypes[*].widthRatio` (utilities.ts:1747-1771), '
-      'chrome/legend_shape.dart:93. Its own doc says it is "used by series '
-      'markers, never by the legend swatch" — and no series marker uses it, '
-      'so a pentagon, hexagon or octagon asked for a width of w is drawn at '
-      'w rather than w / ratio and comes out too large. Goes when the marker '
-      'painter divides by it.',
-  'kDefaultForeignObjectWidth':
-      'Ports `DEFAULT_FOREIGN_OBJECT_WIDTH` (ChartAnnotationLayer.tsx:28), '
-      'model/chart_annotation.dart:191. Upstream needs it because a hidden '
-      'div cannot be measured before first paint; the port measures '
-      'synchronously through FluentChartTextMeasurer, so the fallback never '
-      'binds — annotation_layer.dart:507 records exactly that as a contract '
-      'deviation. What keeps this from being a clean deletion is '
-      'chart_annotation.dart:269, whose doc tells a consumer that a null '
-      'width "uses kDefaultForeignObjectWidth". Nothing implements that. '
-      'Either the model applies it as the documented default, or the '
-      'constant and that sentence go together.',
-  'kDefaultForeignObjectHeight':
-      'Ports `DEFAULT_FOREIGN_OBJECT_HEIGHT` (ChartAnnotationLayer.tsx:29), '
-      'model/chart_annotation.dart:196. The height twin of the entry above, '
-      'with the same synchronous-measurement reason and the same resolution.',
+  // `kLegendShapeViewportSize` was here, excused as "no painting code reads it,
+  // so the swatch box arrives from the legend style instead and the two can
+  // drift apart silently", and it named its own exit: "goes when the swatch
+  // painter takes its viewport from here". The painter now does. A viewBox maps
+  // its own width onto the rendered one — `shape.tsx:39-41` is `width={14}` over
+  // `viewBox="-1 -1 14 14"` — and `FluentChartLegendShapePainter.paint` computes
+  // that quotient instead of asserting in a comment that it is 1, so a swatch
+  // box the legend style sizes differently now scales the shape with it rather
+  // than leaving a 14-unit marker adrift in it. `chart_popover.dart:369-370`
+  // reads it as well: `ChartPopover.tsx:211-217` renders the same `<Shape>`, so
+  // the popover swatch box is that svg's own 14 and not the legend row's
+  // border box, which is a different upstream number that merely coincides.
+  //
+  // `kPointWidthRatios` was here, excused as "a pentagon, hexagon or octagon
+  // asked for a width of w is drawn at w rather than w / ratio and comes out too
+  // large. Goes when the marker painter divides by it." The marker painter
+  // already divides by it — by the other copy. `grep -rn widthRatio` over
+  // crawlers/fluentui-react-charts/out/charts/src returns the table
+  // (`utilities.ts:1738`, `:1749-1770`), one use (`LineChart.tsx:493-494`) and an
+  // unrelated local in `funnelGeometry.ts:187`. That one use is inside `_getPath`
+  // and feeds `_getPointPath` (`LineChart.tsx:82-137`), the data-point marker
+  // builder, which `FluentLineMarkerPainter.kWidthRatios`
+  // (`line_chart.dart:312-321`) transcribes in the same `Points` order and
+  // `line_chart.dart:1484` divides by, pinned per shape at
+  // `line_chart_test.dart:727-757`. The legend swatch is `shape.tsx:32-53`: one
+  // ratio-free code path for all nine authored `d` strings. Applying a ratio
+  // there would have HALVED a hexagon swatch against the box Chromium measured,
+  // not corrected it. So the entry was excusing a second transcription of a
+  // table already transcribed and wired, and the constant is deleted rather than
+  // wired — two copies of one table kept equal by hand is the defect, not the
+  // fix.
+  // `kDefaultForeignObjectWidth` and `kDefaultForeignObjectHeight` were here
+  // until the constant and that sentence went together, which is the second of
+  // the two resolutions their entries offered. The first — applying 180 as the
+  // documented default for a null `maxWidth` — was checked against upstream
+  // and rejected: `ChartAnnotationLayer.tsx:493` writes `maxWidth:
+  // layout?.maxWidth` onto the container, so an absent one emits no
+  // `max-width` and the box takes its text's natural width. 180 is third in
+  // the `measuredSize?.width ?? layout?.maxWidth ?? 180` chain at `:535`,
+  // reachable only in the frame before the hidden measurement div reports, and
+  // `:536` reads 60 in the same never-taken branch. Implementing the doc would
+  // therefore have been a regression against upstream, not a fix; the doc was
+  // the wrong half. `chart_annotation.dart` now states what a null maxWidth
+  // does, and two tests in test/charts/chrome/annotation_layer_test.dart pin
+  // it behaviourally — the port already answered 334.96 where the doc promised
+  // no more than 180.
 
   // --- Ported helpers nothing routes through -------------------------------
-  'createYAxisLabels':
-      'Ports `createYAxisLabels` (utilities.ts:1196-1230), '
-      'axis/axis_label_layout.dart:295, including a deliberate divergence: '
-      'upstream sets the tspan text only inside the truncateLabel branch '
-      '(:1226-1228), so `truncateLabel: false` renders an empty y axis, and '
-      'the port fills the full label in instead as an accessibility fix '
-      '(spec 5.2, exception 2). Upstream calls it from one place, '
-      'CartesianChart.tsx:400-406. The port has no equivalent call: y labels '
-      'come from the `orderedYAxisLabels` getters on the delegates '
-      '(scatter_chart.dart:607, vertical_stacked_bar_chart.dart:690, '
-      'gantt_chart.dart:406) and from the axis builders. So the truncation '
-      'behaviour and the accessibility fix are both unreachable. Goes when '
-      'the cartesian y-axis path routes through it.',
+  // `createYAxisLabels` was here until the cartesian y-axis path routed through
+  // it, which is what its own entry asked for. The claim that the delegates'
+  // `orderedYAxisLabels` getters were the y-label source was a half-truth: those
+  // getters feed the band *domain*, and the text that reaches the screen is
+  // `FluentAxisSpec.tickLabels` read by `FluentAxisPainter`. Nothing truncated
+  // it, while the shell's `startFromX` solve (cartesian_chart.dart:670-686,
+  // porting CartesianChart.tsx:150-160) had always sized the left margin off
+  // `truncateString(label, noOfCharsToTruncate)` — so every chart with
+  // `showYAxisLablesTooltip` reserved the truncated width and painted the full
+  // label into it. HorizontalBarChartWithAxis, heat map, gantt and scatter all
+  // ship that flag on from the Plotly transforms
+  // (transform_bar.dart:641, :1412, :1929 and transform_xy.dart:940, :1369),
+  // and their first y label started 66.99 logical pixels off the chart's left
+  // edge. cartesian_painter.dart:137 now calls the helper, unconditionally,
+  // with `truncateLabel: props.showYAxisLablesTooltip` — which also makes the
+  // spec 5.2 exception 2 arm the default path rather than dead code, since
+  // upstream's own guard at CartesianChart.tsx:396 and its `truncateLabel`
+  // argument at :404 are the same flag and its blank-axis branch is therefore
+  // unreachable on both sides. Pinned by
+  // test/charts/cartesian/cartesian_y_axis_labels_test.dart.
   'fluentChartTitleDefaultY':
       'Ports the default `y` of a painted chart title, `ChartTitle.tsx:80-87` '
       '— `max(fontSize + AXIS_TITLE_PADDING, CHART_TITLE_PADDING - '
@@ -308,14 +331,17 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'and no painter does, so a title with no explicit y is placed by '
       'whatever the title painter does instead. Goes when that painter asks '
       'this for its default.',
-  'fluentChartStripePhase':
-      'chrome/legend_shape.dart:354, the distance of a point along the 135° '
-      'gradient axis that decides whether a pixel falls on a stripe. Its own '
-      'file names it twice in comments (:378 and :382) describing how the '
-      'stripe painter below works — the painter computes the phase inline '
-      'rather than calling this, so the shared definition and the painted '
-      'result are two expressions that must be kept equal by hand. Goes when '
-      'the painter calls it.',
+  // `fluentChartStripePhase` was here, excused because "the painter computes
+  // the phase inline rather than calling this, so the shared definition and the
+  // painted result are two expressions that must be kept equal by hand. Goes
+  // when the painter calls it." It calls it: `FluentChartStripePainter.paint`
+  // takes the phase of the box's own far corner as its loop bound, so the band
+  // the painter draws last is the one the shared definition says the box
+  // reaches, and the two expressions are one. The identity the painter's
+  // comment used to assert by hand — pixel (x, y) is coloured iff
+  // `fluentChartStripePhase(Offset(x, y))` falls in a clamped colour band — is
+  // now asserted per pixel over two box shapes in
+  // `test/charts/chrome/legend_shape_test.dart`.
   'rectsFor':
       'horizontal_bar_chart_with_axis.dart:655, the geometry-only view of the '
       'bar rects. Its own doc at :662 explains that the painter and the hit '
@@ -324,16 +350,29 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'is the reason nothing calls this one. It is a convenience overload '
       'with no consumer. The likely resolution is deletion with its four test '
       'references, not wiring.',
-  'hoverValuesFor':
-      'line_chart.dart:144, the popover rows for a hovered x. Declared public '
-      'for the tests by its own doc at :102-103, which names '
-      '`FluentAreaChartState` as the shape it copies — and area_chart.dart:163 '
-      'calls `findCalloutPoints` directly rather than going through any such '
-      'method. So the LineChart popover does not route through this either: '
-      'the isCalloutForStack narrowing it implements '
-      '(LineChart.tsx:1660-1668) is applied nowhere in lib/. Goes when the '
-      'popover path calls it, or by deleting it and pointing the tests at '
-      'findCalloutPoints the way the AreaChart already does.',
+  // `hoverValuesFor` was here, excused as "the isCalloutForStack narrowing it
+  // implements (LineChart.tsx:1660-1668) is applied nowhere in lib/". The entry
+  // understated its own gap: `FluentLineChartDelegate.buildHitRegions` returned
+  // `const <FluentChartHitRegion>[]`, so the LineChart declared no hover target,
+  // no keyboard stop and no popover AT ALL, and `isCalloutForStack` — a public
+  // prop of `FluentLineChart` — chose between two popover bodies that nothing
+  // ever rendered. The delegate now cuts one region per marker at upstream's own
+  // magnetic-latch radius (`LineChart.tsx:1162-1168`) and fills a
+  // `FluentChartPopoverData` per point, which is what `ChartPopover.tsx:56-60`
+  // switches on: the stacked body lists every series at the hovered x
+  // (`:1657`, `:1681`), the single-value body the hovered line alone.
+  //
+  // The method is deleted rather than wired, because the value it computed is
+  // upstream's `hoverDp`, and `hoverDp` reaches NEITHER body — it is passed to
+  // `calloutPropsPerDataPoint` (`:1898`) and `onRenderCalloutPerDataPoint`
+  // (`:307`), two consumer hooks the ported props bag does not carry. The
+  // single-value body's legend, reading and colour come from the hovered circle
+  // instead (`:1682-1684` into `:1877-1879`), which is where the port now reads
+  // them, and which is also correct on the tie the `find` at `:1661` resolves to
+  // the wrong series. `_calloutPoints` and its `didUpdateWidget` memo went with
+  // the method: `buildHitRegions` calls `calloutData` beside the `markersFor`
+  // pass it already makes. Covered by three mounted-hover tests in
+  // test/charts/line_chart_test.dart that read the popover off the widget tree.
 
   // --- Predicates with no caller -------------------------------------------
   // chart_value.dart is where a value is classified before it reaches an axis.
