@@ -52,3 +52,5 @@ packages/*/test/goldens/failures/
 # reference PNGs they are built from live in test/fixtures/charts/react_png/
 # and ARE committed.
 packages/*/test/parity/out/
+
+.claude/worktrees
