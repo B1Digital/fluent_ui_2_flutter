@@ -325,69 +325,86 @@ Widget buildFluentSplitButton(
   FluentSplitButtonStyle style,
   Set<WidgetState> states, {
   required FluentSplitButtonSide side,
-}) {
-  final button = style.button ?? const FluentButtonStyle();
-  final radius = button.borderRadius?.resolve(states) ?? FluentRadius.allMedium;
-  final borderWidth = button.borderWidth?.resolve(states) ?? FluentStroke.none;
-  final borderColor = button.borderColor?.resolve(states);
-  final dividerColor = style.dividerColor?.resolve(states);
+}) => Builder(
+  // The reading direction is read here rather than taken as an argument: the
+  // pair mirrors under RTL and every caller would otherwise have to know that.
+  builder: (BuildContext context) {
+    final roundsLeft = _roundsLeft(side, Directionality.of(context));
+    final button = style.button ?? const FluentButtonStyle();
+    final radius =
+        button.borderRadius?.resolve(states) ?? FluentRadius.allMedium;
+    final borderWidth =
+        button.borderWidth?.resolve(states) ?? FluentStroke.none;
+    final borderColor = button.borderColor?.resolve(states);
+    final dividerColor = style.dividerColor?.resolve(states);
 
-  // Each half keeps only the two corners on its own outer edge. The inner edge
-  // is square, which is what makes the pair read as one container.
-  final halfRadius = switch (side) {
-    FluentSplitButtonSide.primaryAction => BorderRadius.only(
-      topLeft: radius.topLeft,
-      bottomLeft: radius.bottomLeft,
-    ),
-    FluentSplitButtonSide.menu => BorderRadius.only(
-      topRight: radius.topRight,
-      bottomRight: radius.bottomRight,
-    ),
-  };
+    // Each half keeps only the two corners on its own outer edge. The inner
+    // edge is square, which is what makes the pair read as one container.
+    final halfRadius = roundsLeft
+        ? BorderRadius.only(
+            topLeft: radius.topLeft,
+            bottomLeft: radius.bottomLeft,
+          )
+        : BorderRadius.only(
+            topRight: radius.topRight,
+            bottomRight: radius.bottomRight,
+          );
 
-  // The border is painted by FluentSplitButtonEdgePainter, not by the half's
-  // own decoration: three sides plus two rounded corners is not a shape
-  // BoxDecoration can express — Flutter requires a uniform border before it
-  // will accept a border radius.
-  final half = buildFluentButton(
-    state.half(side),
-    button.copyWith(
-      borderRadius: WidgetStatePropertyAll<BorderRadius?>(halfRadius),
-      borderWidth: const WidgetStatePropertyAll<double?>(FluentStroke.none),
-    ),
-    states,
-  );
-
-  // No rule means nothing for the painter to draw: every appearance Figma
-  // leaves undivided — subtle, transparent, and primary while disabled — is
-  // also unbordered, so the half's own decoration is the whole picture.
-  if (dividerColor == null) return half;
-
-  return FluentAnimatedStyle<FluentSplitButtonEdgeColors>(
-    // Upstream transitions `border` alongside `background` and `color` on the
-    // button root, at the same duration and curve — the divider is part of that
-    // border, so it tweens with the surface rather than snapping.
-    value: FluentSplitButtonEdgeColors(
-      // borderWidth is zero on exactly the appearances whose borderColor is
-      // null, so this stand-in is never painted. Keeping the pair non-null
-      // keeps the tween a single value rather than two nested animations.
-      border: borderColor ?? dividerColor,
-      divider: dividerColor,
-    ),
-    spec: FluentMotionSpec.buttonSurface,
-    lerp: FluentSplitButtonEdgeColors.lerp,
-    builder: (context, colors) => CustomPaint(
-      foregroundPainter: FluentSplitButtonEdgePainter(
-        side: side,
-        borderColor: colors.border,
-        borderWidth: borderWidth,
-        dividerColor: colors.divider,
-        radius: halfRadius,
+    // The border is painted by FluentSplitButtonEdgePainter, not by the half's
+    // own decoration: three sides plus two rounded corners is not a shape
+    // BoxDecoration can express — Flutter requires a uniform border before it
+    // will accept a border radius.
+    final half = buildFluentButton(
+      state.half(side),
+      button.copyWith(
+        borderRadius: WidgetStatePropertyAll<BorderRadius?>(halfRadius),
+        borderWidth: const WidgetStatePropertyAll<double?>(FluentStroke.none),
       ),
-      child: half,
-    ),
-  );
-}
+      states,
+    );
+
+    // No rule means nothing for the painter to draw: every appearance Figma
+    // leaves undivided — subtle, transparent, and primary while disabled — is
+    // also unbordered, so the half's own decoration is the whole picture.
+    if (dividerColor == null) return half;
+
+    return FluentAnimatedStyle<FluentSplitButtonEdgeColors>(
+      // Upstream transitions `border` alongside `background` and `color` on the
+      // button root, at the same duration and curve — the divider is part of
+      // that border, so it tweens with the surface rather than snapping.
+      value: FluentSplitButtonEdgeColors(
+        // borderWidth is zero on exactly the appearances whose borderColor is
+        // null, so this stand-in is never painted. Keeping the pair non-null
+        // keeps the tween a single value rather than two nested animations.
+        border: borderColor ?? dividerColor,
+        divider: dividerColor,
+      ),
+      spec: FluentMotionSpec.buttonSurface,
+      lerp: FluentSplitButtonEdgeColors.lerp,
+      builder: (_, colors) => CustomPaint(
+        foregroundPainter: FluentSplitButtonEdgePainter(
+          side: side,
+          borderColor: colors.border,
+          borderWidth: borderWidth,
+          dividerColor: colors.divider,
+          radius: halfRadius,
+          roundsLeft: roundsLeft,
+        ),
+        child: half,
+      ),
+    );
+  },
+);
+
+/// Whether [side] rounds its **left** corners under [textDirection].
+///
+/// One bit the whole divided container falls out of: the rounded corners are
+/// the primary half's leading edge and the menu half's trailing edge, the
+/// divider sits on whichever edge is left over, and under RTL the row lays the
+/// two halves out reversed so both swap physical sides.
+bool _roundsLeft(FluentSplitButtonSide side, TextDirection textDirection) =>
+    (side == FluentSplitButtonSide.primaryAction) ==
+    (textDirection == TextDirection.ltr);
 
 /// The two colours [FluentSplitButtonEdgePainter] tweens together.
 ///
@@ -449,11 +466,18 @@ class FluentSplitButtonEdgePainter extends CustomPainter {
     required this.borderWidth,
     required this.dividerColor,
     required this.radius,
+    required this.roundsLeft,
     this.dividerWidth = FluentStroke.thin,
   });
 
   /// Which half is being painted.
   final FluentSplitButtonSide side;
+
+  /// Whether this half's rounded corners — and so its closed border edge — are
+  /// on the left. False on the primary half under RTL, and on the menu half
+  /// under LTR: the outer edge is a *leading* one for the primary action and a
+  /// *trailing* one for the menu, and both mirror with the reading direction.
+  final bool roundsLeft;
 
   /// Colour of the three outer sides.
   final Color borderColor;
@@ -491,7 +515,9 @@ class FluentSplitButtonEdgePainter extends CustomPainter {
     }
 
     if (side == FluentSplitButtonSide.primaryAction && dividerWidth > 0) {
-      final x = size.width - dividerWidth / 2;
+      // The rule sits on the inner edge, which is whichever one the corners
+      // did not take.
+      final x = roundsLeft ? size.width - dividerWidth / 2 : dividerWidth / 2;
       canvas.drawLine(
         Offset(x, 0),
         Offset(x, size.height),
@@ -503,51 +529,54 @@ class FluentSplitButtonEdgePainter extends CustomPainter {
   }
 
   /// The open three-sided path, rounded on this half's outer edge only.
+  ///
+  /// Keyed off [roundsLeft] rather than [side]: the geometry is the same
+  /// three-sided shape either way, and only which physical edge it opens on
+  /// changes — which is exactly what mirrors under RTL.
   Path _outline(Rect rect) {
     final path = Path();
-    switch (side) {
-      case FluentSplitButtonSide.primaryAction:
-        final top = _clamp(radius.topLeft, rect);
-        final bottom = _clamp(radius.bottomLeft, rect);
-        path.moveTo(rect.right, rect.top);
-        path.lineTo(rect.left + top.x, rect.top);
-        if (top != Radius.zero) {
-          path.arcToPoint(
-            Offset(rect.left, rect.top + top.y),
-            radius: top,
-            clockwise: false,
-          );
-        }
-        path.lineTo(rect.left, rect.bottom - bottom.y);
-        if (bottom != Radius.zero) {
-          path.arcToPoint(
-            Offset(rect.left + bottom.x, rect.bottom),
-            radius: bottom,
-            clockwise: false,
-          );
-        }
-        path.lineTo(rect.right, rect.bottom);
-      case FluentSplitButtonSide.menu:
-        final top = _clamp(radius.topRight, rect);
-        final bottom = _clamp(radius.bottomRight, rect);
-        path.moveTo(rect.left, rect.top);
-        path.lineTo(rect.right - top.x, rect.top);
-        if (top != Radius.zero) {
-          path.arcToPoint(
-            Offset(rect.right, rect.top + top.y),
-            radius: top,
-            clockwise: true,
-          );
-        }
-        path.lineTo(rect.right, rect.bottom - bottom.y);
-        if (bottom != Radius.zero) {
-          path.arcToPoint(
-            Offset(rect.right - bottom.x, rect.bottom),
-            radius: bottom,
-            clockwise: true,
-          );
-        }
-        path.lineTo(rect.left, rect.bottom);
+    if (roundsLeft) {
+      final top = _clamp(radius.topLeft, rect);
+      final bottom = _clamp(radius.bottomLeft, rect);
+      path.moveTo(rect.right, rect.top);
+      path.lineTo(rect.left + top.x, rect.top);
+      if (top != Radius.zero) {
+        path.arcToPoint(
+          Offset(rect.left, rect.top + top.y),
+          radius: top,
+          clockwise: false,
+        );
+      }
+      path.lineTo(rect.left, rect.bottom - bottom.y);
+      if (bottom != Radius.zero) {
+        path.arcToPoint(
+          Offset(rect.left + bottom.x, rect.bottom),
+          radius: bottom,
+          clockwise: false,
+        );
+      }
+      path.lineTo(rect.right, rect.bottom);
+    } else {
+      final top = _clamp(radius.topRight, rect);
+      final bottom = _clamp(radius.bottomRight, rect);
+      path.moveTo(rect.left, rect.top);
+      path.lineTo(rect.right - top.x, rect.top);
+      if (top != Radius.zero) {
+        path.arcToPoint(
+          Offset(rect.right, rect.top + top.y),
+          radius: top,
+          clockwise: true,
+        );
+      }
+      path.lineTo(rect.right, rect.bottom - bottom.y);
+      if (bottom != Radius.zero) {
+        path.arcToPoint(
+          Offset(rect.right - bottom.x, rect.bottom),
+          radius: bottom,
+          clockwise: true,
+        );
+      }
+      path.lineTo(rect.left, rect.bottom);
     }
     return path;
   }
@@ -562,6 +591,7 @@ class FluentSplitButtonEdgePainter extends CustomPainter {
   @override
   bool shouldRepaint(FluentSplitButtonEdgePainter oldDelegate) =>
       oldDelegate.side != side ||
+      oldDelegate.roundsLeft != roundsLeft ||
       oldDelegate.borderColor != borderColor ||
       oldDelegate.borderWidth != borderWidth ||
       oldDelegate.dividerColor != dividerColor ||
@@ -741,16 +771,21 @@ class FluentSplitButton extends StatelessWidget {
       );
     }
 
-    // ponytail: no IntrinsicHeight. Both halves resolve the same minimum height
-    // and the same vertical padding from the same size ramp, so they already
-    // agree; stretching would cost a second layout pass on every frame to
-    // guarantee something the token tables guarantee.
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        half(FluentSplitButtonSide.primaryAction),
-        half(FluentSplitButtonSide.menu),
-      ],
+    // Upstream is a flexbox, so `align-items: stretch` gives the chevron half
+    // the container's height for free. Flutter's Row cannot both size itself to
+    // its children and stretch them, so the height is measured first: without
+    // it a wrapped label makes the primary half taller and the chevron half is
+    // left floating at the size ramp's height, which is what the `With long
+    // text` story shows.
+    return IntrinsicHeight(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          half(FluentSplitButtonSide.primaryAction),
+          half(FluentSplitButtonSide.menu),
+        ],
+      ),
     );
   }
 }

@@ -202,15 +202,26 @@ class _BrandHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 20, 12, 20),
       child: Row(
         children: <Widget>[
-          const Icon(
-            FluentIcons.premium_20_filled,
-            size: 22,
-            color: DocsMetrics.headingText,
+          // Square source, so the box is square too and the image is asked for
+          // at the size it is drawn — a 1254px logo decoded to fill a 22px slot
+          // would cost the same memory as a full-screen image for nothing.
+          const SizedBox(
+            width: 22,
+            height: 22,
+            child: Image(
+              image: ResizeImage(
+                AssetImage('assets/storybook/fluent_2_flutter.png'),
+                width: 44,
+                height: 44,
+              ),
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.medium,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Fluent 2 Flutter',
+              'Fluent UI Flutter v9',
               style: DocsMetrics.sidebarGroup.copyWith(fontSize: 16),
             ),
           ),

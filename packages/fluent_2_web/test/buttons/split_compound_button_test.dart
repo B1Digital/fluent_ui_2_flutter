@@ -449,6 +449,103 @@ void main() {
         );
       }
     });
+
+    testWidgets('the divided container mirrors under RTL', (tester) async {
+      // Upstream styles the pair with CSS logical properties, so under `rtl`
+      // the primary action moves to the right and every piece of geometry that
+      // marks the seam — the rounded corners, the open border edge, the rule —
+      // moves with it. Getting only the row reversed leaves the two halves
+      // rounded on the edges that face each other, which reads as two detached
+      // buttons rather than one container.
+      await pump(
+        tester,
+        Directionality(
+          textDirection: TextDirection.rtl,
+          child: splitButton(
+            appearance: FluentButtonAppearance.outline,
+            onPressed: () {},
+            onMenuPressed: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final primary = sideOf(FluentSplitButtonSide.primaryAction);
+      final menu = sideOf(FluentSplitButtonSide.menu);
+      expect(
+        tester.getTopLeft(primary).dx,
+        greaterThan(tester.getTopLeft(menu).dx),
+        reason: 'the primary action leads, so under RTL it sits on the right',
+      );
+
+      const radius = FluentRadius.medium;
+      final primaryRadius = decorationOf(
+        tester,
+        primary,
+      ).borderRadius!.resolve(TextDirection.rtl);
+      final menuRadius = decorationOf(
+        tester,
+        menu,
+      ).borderRadius!.resolve(TextDirection.rtl);
+      expect(primaryRadius.topRight, radius);
+      expect(primaryRadius.bottomRight, radius);
+      expect(primaryRadius.topLeft, Radius.zero);
+      expect(primaryRadius.bottomLeft, Radius.zero);
+      expect(menuRadius.topLeft, radius);
+      expect(menuRadius.bottomLeft, radius);
+      expect(menuRadius.topRight, Radius.zero);
+      expect(menuRadius.bottomRight, Radius.zero);
+
+      expect(
+        painterOf(tester, FluentSplitButtonSide.primaryAction).roundsLeft,
+        isFalse,
+      );
+      expect(painterOf(tester, FluentSplitButtonSide.menu).roundsLeft, isTrue);
+    });
+
+    testWidgets('a wrapped label takes the chevron half with it', (
+      tester,
+    ) async {
+      // Upstream is a flexbox, so `align-items: stretch` keeps the chevron the
+      // full height of the container however tall the label makes it. The
+      // `With long text` story is the case that catches it: a two-line label
+      // beside a chevron still at the size ramp's height is two buttons, not
+      // one divided container.
+      await pump(tester, splitButton(onPressed: () {}, onMenuPressed: () {}));
+      await tester.pumpAndSettle();
+      final oneLine = tester
+          .getSize(sideOf(FluentSplitButtonSide.primaryAction))
+          .height;
+
+      await pump(
+        tester,
+        FluentSplitButton(
+          key: splitKey,
+          menuSemanticLabel: 'More options',
+          onPressed: () {},
+          onMenuPressed: () {},
+          // The label carries the width, which is what makes it wrap: a Row
+          // hands its children unbounded main-axis space, so a constraint on
+          // the button itself would never reach the text.
+          child: const SizedBox(
+            width: 280,
+            child: Text(
+              'Long text wraps after it hits the max width of the component',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final primary = tester.getSize(
+        sideOf(FluentSplitButtonSide.primaryAction),
+      );
+      final menu = tester.getSize(sideOf(FluentSplitButtonSide.menu));
+      expect(primary.height, greaterThan(oneLine), reason: 'the label wrapped');
+      expect(menu.height, primary.height);
+      // Taller, not wider — the chevron half is pinned at 24 at every size.
+      expect(menu.width, FluentSize.size240);
+    });
   });
 
   group('split button — the two halves are separate controls', () {

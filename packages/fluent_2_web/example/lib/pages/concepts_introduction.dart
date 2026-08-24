@@ -4,7 +4,7 @@ import '../shell/catalog.dart';
 const DocsPage introductionPage = DocsPage(
   id: 'concepts-introduction',
   navTitle: 'Introduction',
-  title: 'Fluent 2 Flutter',
+  title: 'Fluent UI Flutter v9',
   description: '',
   source: 'lib/pages/concepts_introduction.dart',
   sections: <DocsSection>[],
@@ -13,7 +13,7 @@ const DocsPage introductionPage = DocsPage(
 
 /// The page's source, as upstream publishes it.
 const String _markdown =
-    '# Fluent 2 Flutter\n'
+    '# Fluent UI Flutter v9\n'
     '\n'
     '## What\'s new\n'
     '\n'

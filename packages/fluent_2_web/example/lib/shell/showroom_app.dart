@@ -76,7 +76,7 @@ class _ShowroomAppState extends State<ShowroomApp> {
       onToggleFullScreen: () => setState(() => _fullScreen = !_fullScreen),
       onToggleSidebar: () => setState(() => _sidebarVisible = !_sidebarVisible),
       child: FluentApp.router(
-        title: 'Fluent 2 Flutter',
+        title: 'Fluent UI Flutter v9',
         debugShowCheckedModeBanner: false,
         // The chrome is pinned light and never follows the Theme dropdown.
         // Storybook's own chrome does not change with the selected story theme
