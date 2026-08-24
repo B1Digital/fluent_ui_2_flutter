@@ -1,0 +1,1866 @@
+{
+  "charts-areachart--area-chart-all-negative": {
+    "kind": "composed",
+    "why": "`yMinValue={-200}` becomes `props.yMinValue: -200`; `d3.format('$,')` reimplemented as a local `_dollars` formatter."
+  },
+  "charts-areachart--area-chart-basic": {
+    "kind": "reduced",
+    "why": "Upstream's RadioGroup onChange re-sets the flag it already holds, so neither 'Basic Example' nor 'Custom Callout Example' changes what renders; the group is kept as a live selection with the same values and labels. `culture={window.navigator.language}` and `styles={{svgTooltip}}` have no browser equivalent here and are dropped \u2014 the tooltip fill already resolves to colorNeutralBackground2."
+  },
+  "charts-areachart--area-chart-custom-accessibility": {
+    "kind": "composed",
+    "why": "`d3-format` is not part of the port's public surface, so `d3.format('$,')` is a four-line local formatter passed as `props.yAxisTickFormat`. `xAxisCalloutAccessibilityData`/`callOutAccessibilityData` map to `xAxisCalloutSemantics`/`callOutSemantics`, both FluentChartSemantics. `legendsOverflowText` and `allowFocusOnLegends` are not exposed."
+  },
+  "charts-areachart--area-chart-large-data": {
+    "kind": "reduced",
+    "why": "`optimizeLargeData` selects a downsampling branch that LineChart.tsx:1945 never reaches, so FluentAreaChart exposes no such flag and the ten-point series are drawn in full. `legendsOverflowText` and `legendProps.allowFocusOnLegends` are not parameters on FluentAreaChart."
+  },
+  "charts-areachart--area-chart-multiple": {
+    "kind": "composed",
+    "why": "`d3.format('$,')` reimplemented as a local `_dollars` formatter for `props.yAxisTickFormat`; `legendsOverflowText` and `allowFocusOnLegends` are not exposed."
+  },
+  "charts-areachart--area-chart-multiple-negative": {
+    "kind": "composed",
+    "why": "`d3.format('$,')` reimplemented as a local `_dollars` formatter for `props.yAxisTickFormat`; `legendsOverflowText` and `allowFocusOnLegends` are not exposed."
+  },
+  "charts-areachart--area-chart-negative": {
+    "kind": "reduced",
+    "why": "Same dead RadioGroup handler as the basic story, kept as a live selection. `culture` and the `svgTooltip` style override dropped."
+  },
+  "charts-areachart--area-chart-secondary-y-axis": {
+    "kind": "platform",
+    "why": "Upstream offsets series 2 by `Math.floor(Math.random() * 10000)`. `dart:math` is outside this example's three-import budget and a demo that redraws differently on every reload cannot be compared against a screenshot, so the offset is a fixed `(index * 3137) % 10000` cycle over the same range. `secondaryYScaleOptions={{}}` becomes `FluentSecondaryYScaleOptions()` with its 0..100 defaults, and `secondaryYAxistitle` becomes `props.secondaryYAxisTitle`."
+  },
+  "charts-charttable--chart-table-basic": {
+    "kind": "reduced",
+    "why": "Upstream's styled sales cells also carry textAlign:'right' and padding:'8px'. FluentChartTableCell models only the two properties ChartTable itself reads (value colour and background) \u2014 ChartTable.tsx:137-139,:159-161 \u2014 so alignment and padding stay with the widget's own cellPadding. Colour, background and every value are ported exactly."
+  },
+  "charts-declarativechart--declarative-chart-basic-example": {
+    "kind": "nearest-widget",
+    "why": "Four upstream behaviours have no Flutter equivalent and one is blocked by a library defect. (1) The 'Show more' switch fetches 100 schema files from raw.githubusercontent.com; the showroom ships no network client, so the switch runs the same state machine with an empty result and falls through to upstream's own 'Loading...' spinner then 'More examples could not be loaded.' message, with the 'Load more' / 'Loading' button live. (2) Download hands a data URL to an <a download>; a Flutter demo has no document, so FluentDeclarativeChartController.exportAsImage() runs for real and the button reports the PNG byte count. (3) The colour-palette dropdown's third upstream key is 'override', which the React story casts to a ColorwayType that has no such member; it maps to FluentPlotlyColorway.others, keeping the 'Override' label. (4) griffel's dropdownStyles width:200 / inputStyles maxWidth:300 sit on the controls rather than on FluentField, because a fixed-width field clips its own label. (5) The 'Gauge Chart' and 'Funnel Chart' options cannot go through FluentDeclarativeChart: FluentGaugeChart and FluentFunnelChart each put an Expanded inside a Column so they need a bounded height, they are the only routed kinds absent from kPlotlyDefaultCellHeight, and the Column inside FluentDeclarativeChart._buildFigure never passes a height down whatever ancestor supplies one \u2014 so no page-level wrapper can fix it. Those two options render as the widget the Plotly transformer would have built (FluentGaugeChart / FluentFunnelChart in an explicit SizedBox), from the same numbers as the verbatim schemas above them."
+  },
+  "charts-donutchart--donut-chart-basic": {
+    "kind": "reduced",
+    "why": "FluentDonutChart has no `href` parameter, so upstream's click-through to developer.microsoft.com is dropped; `window.navigator.language` has no Flutter equivalent, so its own fallback literal 'en-us' is passed to `culture`."
+  },
+  "charts-donutchart--donut-chart-custom-callout": {
+    "kind": "reduced",
+    "why": "Upstream swaps the hover popover through `calloutPropsPerDataPoint` and `onRenderCalloutPerDataPoint`. FluentDonutChart owns its popover and exposes neither hook, so the 'User Popover Override' switch is live but the popover it would replace stays the built-in one."
+  },
+  "charts-donutchart--donut-chart-dynamic": {
+    "kind": "reduced",
+    "why": "`Math.random` is replaced by a clock-stirred counter because this page may import only fluent_2_web, flutter/widgets and the catalog \u2014 `dart:math` is outside that budget. `legendProps.allowFocusOnLegends` has no counterpart on FluentDonutChart and is omitted; the visually-hidden aria-live paragraph becomes a Semantics live region."
+  },
+  "charts-donutchart--donut-chart-responsive": {
+    "kind": "nearest-widget",
+    "why": "There is no ResponsiveContainer in fluent_2_web. FluentDonutChart already fills its incoming constraints when `width` and `height` are omitted, so a SizedBox that fixes only the height is the equivalent: the plot tracks whatever width it is handed."
+  },
+  "charts-donutchart--donut-chart-styled": {
+    "kind": "composed",
+    "why": "The griffel rule (2px border, border-radius 50%, 10px padding, filled background) becomes a Container decoration. CSS 50% on a wide box is an ellipse, which Flutter needs explicit radii for \u2014 BoxShape.circle would inscribe a circle on the shorter side \u2014 so the frame's height is a named constant and the width comes from a LayoutBuilder."
+  },
+  "charts-funnelchart--funnel-chart-basic": {
+    "kind": "nearest-widget",
+    "why": "Upstream's width/height `<input type=range>` become FluentSlider, its Switches become FluentSwitch, and the orientation Field/RadioGroup becomes FluentField + FluentRadioGroup<FluentFunnelOrientation> so the radio value is the enum the chart takes rather than a string. `legendProps.canSelectMultipleLegends` is a flat `canSelectMultipleLegends` bool on FluentFunnelChart. The controls row is a Wrap so it reflows instead of overflowing."
+  },
+  "charts-funnelchart--funnel-chart-stacked": {
+    "kind": "nearest-widget",
+    "why": "Same control mapping as the basic story; the anonymous `subValues` objects become FluentFunnelSubValue and `getColorFromToken(DataVizPalette.colorN)` becomes FluentDataVizPalette.resolve(FluentDataVizToken.colorN)."
+  },
+  "charts-ganttchart--gantt-chart-basic": {
+    "kind": "local-state",
+    "why": "Upstream's two range inputs and two Switches are React state; ported to a StatefulWidget with FluentSlider (min 0, max 1000, verbatim) and FluentSwitch, feeding a SizedBox(width, height) around FluentGanttChart. The useEffect that injects focus-ring CSS into document.head has no Flutter analogue and is dropped; showYAxisLables moves onto FluentCartesianChartProps."
+  },
+  "charts-ganttchart--gantt-chart-grouped": {
+    "kind": "local-state",
+    "why": "Same slider/switch port, plus legendProps.canSelectMultipleLegends which our API expresses as the top-level legendSelectionMode enum (FluentChartLegendSelectionMode.multiple/single). makeStyles classes translated to Padding(16) + Column/Wrap with explicit 16/20 spacing."
+  },
+  "charts-gaugechart--gauge-chart-basic": {
+    "kind": "reduced",
+    "why": "FluentGaugeChart has no `enableGradient` counterpart \u2014 the port paints flat segment fills. The 'Enable Gradient'/'Disable Gradient' switch is kept live so the section retains upstream's control set, but drives nothing; noted in a comment inside the docregion. The three range inputs become FluentSlider inside SizedBox, and width/height ride on a SizedBox because the chart's own Column needs a bounded box."
+  },
+  "charts-gaugechart--gauge-chart-responsive": {
+    "kind": "nearest-widget",
+    "why": "Upstream's ResponsiveContainer height={128} has no port equivalent; FluentGaugeChart already fills the box it is handed when width/height are omitted, so a SizedBox(height: 128) is the container."
+  },
+  "charts-gaugechart--gauge-chart-single-segment": {
+    "kind": "reduced",
+    "why": "Same `enableGradient` gap: the switch renders and toggles but has no prop to drive. Everything else (chartTitle 'Storage capacity', sublabel 'used', fraction format, single-segment variant, roundCorners) maps one-to-one."
+  },
+  "charts-groupedverticalbarchart--grouped-vertical-bar-default": {
+    "kind": "platform",
+    "why": "Upstream passes culture={window.navigator.language}; Flutter has no navigator, so the demo names the locale the storybook runs in ('en-us')."
+  },
+  "charts-groupedverticalbarchart--grouped-vertical-bar-negative": {
+    "kind": "reduced",
+    "why": "Upstream's useEffect injects a focus-ring stylesheet into document.head, which has no Flutter counterpart and is dropped; the 'Pick one' radio pair is kept with upstream's own inert comparison (isCalloutForStack === 'StackCallout' never matches its 'singleCallout'/'stackedCallout' values), and reflowProps={{mode:'min-width'}} maps to FluentCartesianChartProps(reflowMode: FluentChartReflowMode.minWidth)."
+  },
+  "charts-heatmapchart--heat-map-chart-basic": {
+    "kind": "platform",
+    "why": "Two web-only bindings have Flutter equivalents: `culture={window.navigator.language}` becomes `Localizations.localeOf(context).toLanguageTag()`, and `new Date('2020-03-03')` (UTC midnight, then printed by d3's LOCAL-time '%b/%d' formatter, which is timezone-dependent) becomes a local `DateTime(2020, 3, 3)` so the axis reads Mar/03..Mar/09 in every timezone, matching the capture screenshot. The `<div style={{display:'flex'}}>` control row is a Wrap, and the chart box sits in a horizontal SingleChildScrollView because the width slider reaches 1000px, past the card."
+  },
+  "charts-heatmapchart--heat-map-chart-custom-accessibility": {
+    "kind": "composed",
+    "why": "The story computes its rectText with `d3.formatPrefix('.1', value)(value)` plus a k->K / G->B rename. `src/charts/internal/d3/**` is deliberately not exported from fluent_2_web, so `_getRectText` spells out the three SI stops this data reaches (K/M/B, one decimal). Verified against the capture PNG: 981.2M, 1.1B, 696.8M, 80.6M, 244.0M etc. all match. `callOutAccessibilityData.ariaLabel` maps to `callOutSemantics: FluentChartSemantics(label: ...)`."
+  },
+  "charts-horizontalbarchart--horizontal-bar-benchmark": {
+    "kind": "reduced",
+    "why": "FluentHorizontalBarChart has no hideRatio; showTriangle is a caller-supplied bool here rather than derived from the presence of benchmark data, so it is passed explicitly. The reference PNG renders the fraction on all three rows anyway, so dropping hideRatio changes nothing visible."
+  },
+  "charts-horizontalbarchart--horizontal-bar-custom-callout": {
+    "kind": "reduced",
+    "why": "FluentHorizontalBarChart renders its own popover and takes neither calloutPropsPerDataPoint nor onRenderCalloutPerHorizontalBar. The Switch is live and drives the override through the two per-point fields the popover does read: xAxisCalloutData becomes 'Custom XVal' and yAxisCalloutData gains the ' h' suffix. Upstream's third popover line, 'Custom Legend', has no slot in our one-label/one-value popover."
+  },
+  "charts-horizontalbarchart--horizontal-bar-stacked-annotated-inline-legend": {
+    "kind": "composed",
+    "why": "The chart builds its legend strip from data and takes no legendProps, so legendProps.legends[].legendAnnotation cannot hang off a legend row. Each chart keeps its own legend and the annotations (value badge, cursor-click toggle, Person names) render as their own row beneath it, ported from upstream's AnnotationPopover."
+  },
+  "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-basic": {
+    "kind": "local-state",
+    "why": "Upstream's width/height range inputs and its Field/RadioGroup/Checkbox/Switch knobs become FluentSlider, FluentField+FluentRadioGroup, FluentCheckbox and FluentSwitch driven by State. getColorFromToken(DataVizPalette.colorN) becomes FluentDataVizPalette.resolve(FluentDataVizToken.colorN). enableGradient has no counterpart on FluentHorizontalBarChartWithAxis, which fills bars flat, so the Enable Gradient switch is kept and honestly inert; the radio pair is inert here exactly as upstream, whose handler only toggles a boolean no prop reads. culture={window.navigator.language} becomes the fixed 'en-us' a test environment can reproduce. The width slider reaches 1000, wider than the docs column, so the chart box is a SizedBox inside a horizontal SingleChildScrollView instead of overflowing."
+  },
+  "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-category-order": {
+    "kind": "reduced",
+    "why": "dart:math is outside this example's import budget, so Math.random() is replaced by an inline MINSTD generator (deterministic, web-safe, advanced by the Change data button). Upstream's Dropdown/Option pair becomes FluentDropdown/FluentDropdownOption and the selected string is mapped through FluentAxisCategoryOrder.parse, which covers all sixteen literals. The visually-hidden aria-live <p> becomes Semantics(liveRegion: true)."
+  },
+  "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-dynamic": {
+    "kind": "local-state",
+    "why": "dart:math is outside this page's import allowlist, so Math.random() becomes an inline MINSTD generator kept under 2^53 so it stays exact on web; deterministic, and Change data advances the stream as upstream's button does. yAxisPadding is non-nullable here with upstream's own 0.5 default, so the cleared checkbox passes 0.5 rather than undefined \u2014 the same value React resolves to. hideTickOverlap={true} is already the FluentCartesianChartProps default. The visually-hidden aria-live paragraph becomes Semantics(liveRegion: true), and the width slider's 1000 maximum is absorbed by a horizontal SingleChildScrollView."
+  },
+  "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-negative": {
+    "kind": "reduced",
+    "why": "enableGradient has no counterpart on FluentHorizontalBarChartWithAxis, so the Enable Gradient switch is inert. Upstream's eight categories.map(...) concat calls become one _seriesPoints helper applied to the same eight literal value arrays in the same order, so the point list is identical."
+  },
+  "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-string-axis-tooltip": {
+    "kind": "reduced",
+    "why": "enableGradient has no counterpart on FluentHorizontalBarChartWithAxis, so the Enable Gradient switch is kept for control parity but changes nothing. showYAxisLablesTooltip/showYAxisLables and hideLegend/hideTooltip move onto FluentCartesianChartProps, which is where our port carries the shell props; hideTooltip={false} is already the default so it is not restated."
+  },
+  "charts-legends--legends-basic": {
+    "kind": "local-state",
+    "why": "Upstream's per-legend `action` raises a browser `alert()`; Flutter has no blocking alert, so `onAction` writes the same verbatim message ('Legend1 clicked' ... 'Legend4 clicked') into local state and it renders under the strip. The `hoverAction`/`onMouseOutAction` console.log calls are dropped."
+  },
+  "charts-legends--legends-overflow": {
+    "kind": "reduced",
+    "why": "All 17 legends' `action`, `hoverAction` and `onMouseOutAction` only write to the browser console, which has no Flutter counterpart; left off rather than ported as empty closures. The overflow layout itself (`overflowText: 'Overflow Items'`, single-select, focusable) is ported exactly."
+  },
+  "charts-legends--legends-wrap-lines": {
+    "kind": "reduced",
+    "why": "Same console.log-only callbacks dropped; `enabledWrapLines: true` and all 17 legends are ported exactly."
+  },
+  "charts-linechart--line-chart-all-negative": {
+    "kind": "reduced",
+    "why": "Same drops as Basic: legendsOverflowText, enablePerfOptimization, styles.svgTooltip and the window.navigator culture."
+  },
+  "charts-linechart--line-chart-annotations-example": {
+    "kind": "reduced",
+    "why": "Annotation text is HTML upstream; our annotation layer parses only <b>, <i> and <br />, so <div>, <strong>, <span> and the <ul>/<li> list become emphasis and line breaks with the words unchanged. CSS strings become Flutter types: padding to EdgeInsets, boxShadow to BoxShadow, fontWeight 600 to FontWeight.w600, rgba() to Color.fromRGBO."
+  },
+  "charts-linechart--line-chart-basic": {
+    "kind": "reduced",
+    "why": "legendsOverflowText, enablePerfOptimization and styles.svgTooltip have no counterpart on FluentLineChart, so they are dropped; culture uses upstream's own 'en-us' fallback because there is no window.navigator; the two mutually exclusive LineChart branches upstream renders for showAxisTitles collapse into one chart with conditional axis titles."
+  },
+  "charts-linechart--line-chart-custom-accessibility": {
+    "kind": "nearest-widget",
+    "why": "tickFormat '%m/%d' becomes props.customDateTimeFormatter (our props bag takes a callback, not a d3 format string); legendProps.canSelectMultipleLegends becomes legendSelectionMode: multiple, and allowFocusOnLegends is dropped because our legend rows are always focusable; chart-level strokeWidth={4} moves onto each series' lineOptions.strokeWidth, the field the shell kept."
+  },
+  "charts-linechart--line-chart-custom-locale-date-axis": {
+    "kind": "nearest-widget",
+    "why": "props.timeFormatLocale takes d3.TimeLocaleDefinition, which lives under src/charts/internal/d3/ and is deliberately not exported, so the Italian axis comes from customDateTimeFormatter plus the it-IT abbreviated month names. culture='rs-ss' is also dropped: our popover formats dates through package:intl, which throws LocaleDataException for a locale whose data was never initialised."
+  },
+  "charts-linechart--line-chart-events": {
+    "kind": "reduced",
+    "why": "eventAnnotationProps splits into eventAnnotations + eventAnnotationMergedLabel; labelHeight, labelWidth, strokeColor and labelColor are not forwarded by FluentLineChart, so they are dropped. The '<input type=\"color\">' renders as its FluentLabel only \u2014 upstream's customEventAnnotationColor is a const undefined, so the control is inert there too, and our chart exposes no annotation-colour prop. yAxisTickFormat d3.format('$,') is hand-written as a String Function(double)."
+  },
+  "charts-linechart--line-chart-gaps": {
+    "kind": "reduced",
+    "why": "getCalloutDescriptionMessage has no counterpart: props.popoverBuilder replaces the whole popover body rather than appending a description, so the '* This data was below our confidence threshold.' note is dropped rather than faked."
+  },
+  "charts-linechart--line-chart-large-data": {
+    "kind": "composed",
+    "why": "Upstream's x is a JS millisecond timestamp from `new Date(start).setHours(start.getHours() + i)`; FluentLineChartDataPoint takes num or DateTime, so it is rebuilt as start.add(Duration(hours: i)). The 18000 points are built once in a late final field instead of on every render, so dragging the size sliders does not rebuild them."
+  },
+  "charts-linechart--line-chart-log-axis-example": {
+    "kind": "model",
+    "why": "AxisScaleType 'default' is spelled FluentAxisScaleType.auto because `default` is a Dart keyword; the radio values stay 'default' and 'log'."
+  },
+  "charts-linechart--line-chart-multiple": {
+    "kind": "nearest-widget",
+    "why": "Same tickFormat and legendProps mapping as Custom Accessibility. The eleven series that share the same six months are built by a local helper fed each series' verbatim y row; the First series, which carries per-point callout data, is written out."
+  },
+  "charts-linechart--line-chart-negative": {
+    "kind": "reduced",
+    "why": "Same drops as Basic: legendsOverflowText, enablePerfOptimization, styles.svgTooltip and the window.navigator culture."
+  },
+  "charts-linechart--line-chart-secondary-y-axis": {
+    "kind": "model",
+    "why": "secondaryYScaleOptions={{}} becomes FluentSecondaryYScaleOptions(), whose code-verified defaults are yMinValue 0 and yMaxValue 100."
+  },
+  "charts-linechart--line-chart-styled": {
+    "kind": "nearest-widget",
+    "why": "tickFormat '%m/%d' becomes props.customDateTimeFormatter; chart-level strokeWidth={4} moves onto lineOptions.strokeWidth."
+  },
+  "charts-polarchart--polar-chart-basic": {
+    "kind": "platform",
+    "why": "Upstream's width/height sliders run 0..1000 and a zero-size <div> is harmless in the DOM. FluentPolarChart subtracts the 32px legend strip from the height before sizing its plot, so a box under that would ask for a negative BoxConstraints and assert. The sliders keep the full 0..1000 range and the size handed to the chart is floored at 40."
+  },
+  "charts-sankeychart--sankey-chart-basic": {
+    "kind": "nearest-widget",
+    "why": "Upstream's two `<input type=\"range\">` controls become FluentSlider, with the aria-label carried on `semanticLabel`; the fixed-pixel `<div style={{width,height}}>` becomes a SizedBox inside a horizontal SingleChildScrollView so the 820x412 box cannot overflow a narrower docs column. `shouldResize` has no counterpart \u2014 the widget relays out from its own constraints."
+  },
+  "charts-sankeychart--sankey-chart-inbox": {
+    "kind": "nearest-widget",
+    "why": "Same range-input to FluentSlider and fixed-box-to-scroller mapping. `strings.linkFrom` maps to `linkFromLabel` and the three `accessibility` templates to `emptySemanticLabel`/`nodeSemanticLabel`/`linkSemanticLabel`, verbatim."
+  },
+  "charts-sankeychart--sankey-chart-rebalance": {
+    "kind": "nearest-widget",
+    "why": "The `Switch` becomes FluentSwitch with the same computed label, the two range inputs become FluentSliders, and the fixed box gets the same scroller. The upstream `const enum DataSouce` collapses to the bool the switch already is."
+  },
+  "charts-sankeychart--sankey-chart-responsive": {
+    "kind": "nearest-widget",
+    "why": "`ResponsiveContainer` has no Flutter counterpart because FluentSankeyChart already lays out from its incoming BoxConstraints and falls back to kSankeyDefaultWidth/Height when they are unbounded, so the chart is returned bare."
+  },
+  "charts-scatterchart--scatter-chart-date": {
+    "kind": "platform",
+    "why": "Same navigator.language -> 'en-us' substitution; svgTooltip griffel class dropped."
+  },
+  "charts-scatterchart--scatter-chart-default": {
+    "kind": "platform",
+    "why": "Upstream passes culture={window.navigator.language}; Flutter has no navigator, so the demo passes the library's fallback locale 'en-us'. The svgTooltip griffel class override has no Dart equivalent and is dropped."
+  },
+  "charts-scatterchart--scatter-chart-string": {
+    "kind": "platform",
+    "why": "Same navigator.language -> 'en-us' substitution; svgTooltip griffel class dropped."
+  },
+  "charts-sparkline--sparkline-basic": {
+    "kind": "composed",
+    "why": "Upstream is a `display: inline` prose block with two embedded <Sparkline> elements plus a <table role=\"grid\">. Ported as Text.rich with WidgetSpan(PlaceholderAlignment.middle) for the inline charts and a Flutter Table with IntrinsicColumnWidth for the 8-row grid; the <td> paddingRight/Top/Bottom become EdgeInsets on the label cell."
+  },
+  "charts-sparkline--sparkline-dimensions": {
+    "kind": "composed",
+    "why": "Upstream's flex column with `<span style={{minWidth: 140}}>` labels becomes a Column of Rows with SizedBox(width: 140) labels and 20px gaps; min-width is rendered as a fixed width."
+  },
+  "charts-vegadeclarativechart--default": {
+    "kind": "reduced",
+    "why": "Two of the story's controls need a runtime the docs page does not have. (1) The Vega-Lite JSON pane is read-only: a page file may import only package:fluent_2_web, package:flutter/widgets.dart and ../shell/catalog.dart, so there is no JSON decoder to re-parse the textarea on every keystroke and no way to reach upstream's \"JSON Parse Error:\" branch; the pane prints the selected schema (via a hand-written JSON.stringify equivalent) and the chart is driven by the Dart map beside it. (2) The \"Show more\" switch upstream fetches 100 schemas at a time from raw.githubusercontent.com/microsoft/fluentui-charting-contrib, keeps the non-null results, then renders an \"Additional GitHub Examples:\" count and a \"Load more\" button; the showroom ships no network client, so the switch keeps its label flip and does the one thing left to it \u2014 widens the Category dropdown from `All` alone to every category the 25 inline schemas fall into \u2014 and the Load more button is dropped. Both are named in a comment inside the docregion. Everything else is live: the Chart Type picker over all 25 schemas, the Width/Height inputs (written into the spec as `{...spec, width, height}` and used to size the preview box, as upstream does), the ValueKey remount on `${chart}-${width}-${height}`, the ErrorBoundary's \"Error rendering chart:\" surface wired through `errorBuilder`, the Chart Categories list and the Features Supported list."
+  },
+  "charts-verticalbarchart--vertical-bar-all-negative": {
+    "kind": "reduced",
+    "why": "supportNegativeData has no counterpart \u2014 the port always plots a signed y axis \u2014 and there is no enableGradient prop, so that one switch is left out (its labels are not upstream sample data). roundCorners, useSingleColor, hideLabels, the axis-title switch and both sliders are all kept."
+  },
+  "charts-verticalbarchart--vertical-bar-axis-tooltip": {
+    "kind": "local-state",
+    "why": "Number <Input> controls become FluentSpinButton and range inputs become FluentSlider. Upstream's \"barWidth:&nbsp;\" / \"xAxisInnerPadding:&nbsp;\" / \"xAxisOuterPadding:&nbsp;\" labels render the entity as a trailing space; the literal upstream spelling is named in a comment beside each. showXAxisLablesTooltip and wrapXAxisLables live on FluentCartesianChartProps."
+  },
+  "charts-verticalbarchart--vertical-bar-chart-responsive": {
+    "kind": "nearest-widget",
+    "why": "ResponsiveContainer has no port \u2014 a Flutter chart already fills its constraints \u2014 so the story is the bare chart in a SizedBox(width: double.infinity, height: 350)."
+  },
+  "charts-verticalbarchart--vertical-bar-custom-accessibility": {
+    "kind": "model",
+    "why": "callOutAccessibilityData.ariaLabel is spelled callOutSemantics: FluentChartSemantics(label:) on FluentVerticalBarChartDataPoint; hideLegend/yAxisTickCount move into FluentCartesianChartProps."
+  },
+  "charts-verticalbarchart--vertical-bar-date-axis": {
+    "kind": "nearest-widget",
+    "why": "Our shell has no d3 tickFormat string prop, so \"%m/%d\" is expressed as FluentCartesianChartProps.customDateTimeFormatter. DateTime has no const constructor, so the five dates are locals shared between the points and tickValues."
+  },
+  "charts-verticalbarchart--vertical-bar-default": {
+    "kind": "local-state",
+    "why": "Upstream's width/height range inputs and its Field/RadioGroup/Checkbox/Switch knobs become FluentSlider, FluentField+FluentRadioGroup, FluentCheckbox and FluentSwitch driven by State. The radio pair is inert here exactly as upstream: its onRenderCalloutPerDataPoint branch is commented out in the story source. The width slider reaches 1000, wider than the docs column, so the chart box sits in a horizontal SingleChildScrollView instead of overflowing."
+  },
+  "charts-verticalbarchart--vertical-bar-dynamic": {
+    "kind": "local-state",
+    "why": "getColorFromToken(DataVizPalette.colorN) becomes FluentDataVizPalette.resolve(FluentDataVizToken.colorN). dart:math is outside the page import allowlist, so the random data generator is a five-line Park-Miller LCG kept under 2^53 so it stays exact on web. The tri-state barWidth checkbox maps onto FluentCheckbox's null = mixed, cycling null -> 'auto' -> number as upstream does. The screen-reader-only aria-live status paragraph is dropped: it is a CSS visually-hidden div with no Flutter counterpart here."
+  },
+  "charts-verticalbarchart--vertical-bar-negative": {
+    "kind": "reduced",
+    "why": "Same as all-negative: supportNegativeData is implicit and the Enable Gradient switch has no port equivalent; every other knob is kept."
+  },
+  "charts-verticalbarchart--vertical-bar-secondary-y-axis": {
+    "kind": "model",
+    "why": "secondaryYScaleOptions={{}} becomes props.secondaryYScaleOptions: FluentSecondaryYScaleOptions(), and lineData.useSecondaryYScale stays per point."
+  },
+  "charts-verticalbarchart--vertical-bar-styled": {
+    "kind": "model",
+    "why": "Same prop relocation as custom-accessibility: hideLegend and yAxisTickCount into FluentCartesianChartProps, colors/barWidth/useSingleColor stay on the chart."
+  },
+  "charts-verticalstackedbarchart--vertical-stacked-bar-axis-category-order": {
+    "kind": "reduced",
+    "why": "dart:math is outside this example's import budget, so Math.random() is replaced by an inline MINSTD generator (deterministic, web-safe, advanced by the Change data button). Math.min over an empty value set is Infinity upstream; a data size of zero yields 0 bounds here instead. The visually-hidden aria-live <p> becomes Semantics(liveRegion: true)."
+  },
+  "charts-verticalstackedbarchart--vertical-stacked-bar-axis-tooltip": {
+    "kind": "reduced",
+    "why": "enableGradient has no counterpart on FluentVerticalStackedBarChart \u2014 our port paints flat segment fills \u2014 so the Enable/Disable Gradient switch is kept for control parity and drives nothing. The label literals barWidth:&nbsp;, xAxisInnerPadding:&nbsp; and xAxisOuterPadding:&nbsp; are written as real U+00A0 escapes, since Flutter has no HTML entity syntax."
+  },
+  "charts-verticalstackedbarchart--vertical-stacked-bar-callout": {
+    "kind": "reduced",
+    "why": "onRenderCalloutPerDataPoint and onRenderCalloutPerStack receive the hovered datum and JSON.stringify it; FluentCartesianChartProps.popoverBuilder is a bare WidgetBuilder with no datum argument, so the two custom-content radio arms install a static popover body instead of dumping the point."
+  },
+  "charts-verticalstackedbarchart--vertical-stacked-bar-date-axis": {
+    "kind": "nearest-widget",
+    "why": "tickFormat='%m/%d' is a d3 time-format string; our shell takes props.customDateTimeFormatter, a DateTime->String callback, so the same %m/%d output is produced by a formatter. onBarClick's console.log becomes debugPrint, and svgProps['aria-label'] becomes a Semantics wrapper because the widget writes its own chartTitleForSemantics."
+  },
+  "charts-verticalstackedbarchart--vertical-stacked-bar-default": {
+    "kind": "platform",
+    "why": "Upstream passes culture={window.navigator.language} and a styles.svgTooltip class override; neither has a Flutter analogue, so the chart takes the ambient locale and the theme's tooltip fill. legendProps.allowFocusOnLegends is dropped because FluentChartLegend is always focusable."
+  },
+  "compat-components-calendar--calendar-contiguous-work-week-days": {
+    "kind": "composed",
+    "why": "Neither dateRangeType nor workWeekDays exists, so the Monday-Friday work week is computed locally for the readout while the grid highlights the anchor day."
+  },
+  "compat-components-calendar--calendar-custom-day-cell-ref": {
+    "kind": "nearest-widget",
+    "why": "No per-cell ref escape hatch: the weekend disabling becomes restrictedDates (every Saturday and Sunday within +/-180 days of today) and the element.title becomes a FluentTooltip on the calendar."
+  },
+  "compat-components-calendar--calendar-marked-days": {
+    "kind": "reduced",
+    "why": "No calendarDayProps and no per-cell marker slot, so getMarkedDays has no counterpart; the calendar renders without the dots rather than faking them with a disabled or selected day."
+  },
+  "compat-components-calendar--calendar-month-only": {
+    "kind": "reduced",
+    "why": "FluentCalendar has no dateRangeType, and with isDayPickerVisible: false its month cells navigate rather than call onSelectDate, so the month range is derived locally from the selected day instead of being selected by the grid."
+  },
+  "compat-components-calendar--calendar-month-selection": {
+    "kind": "composed",
+    "why": "No dateRangeType: DateRangeType.Month is emulated by deriving the month range locally; highlightSelectedMonth marks the month cell in the side picker and goPrevious/goNext follow upstream's arithmetic."
+  },
+  "compat-components-calendar--calendar-multiday-day-view": {
+    "kind": "composed",
+    "why": "No calendarDayProps.daysToSelectInDayView, so the positive and negative day runs are computed locally for the Selected range readout; the Dropdown drives that number and the grid highlights only the anchor day."
+  },
+  "compat-components-calendar--calendar-non-contiguous-work-week-days": {
+    "kind": "composed",
+    "why": "firstDayOfWeek is ours, but dateRangeType and workWeekDays are not, so the four scattered work days are computed locally for the readout."
+  },
+  "compat-components-calendar--calendar-six-weeks": {
+    "kind": "reduced",
+    "why": "No showSixWeeksByDefault: fluentCalendarPage sizes the day grid to four, five or six rows, whichever the month needs, so a five-row month cannot be padded to six."
+  },
+  "compat-components-calendar--calendar-week-selection": {
+    "kind": "composed",
+    "why": "No dateRangeType: DateRangeType.Week is emulated by computing the week array locally for the Selected range readout and reproducing upstream's goPrevious/goNext arithmetic; only the anchor day is highlighted in the grid."
+  },
+  "compat-components-datepicker--controlled": {
+    "kind": "reduced",
+    "why": "Upstream wraps the story in AriaLiveAnnouncer and announces each stepped date. SemanticsService lives in package:flutter/semantics.dart, which the showroom's import allowlist excludes, so the announcement is dropped and the Previous/Next stepping is kept intact."
+  },
+  "compat-components-datepicker--date-range": {
+    "kind": "reduced",
+    "why": "Upstream drives calendar.dateRangeType (Day/Work Week/Week/Month), which paints a whole week, work week or month as one selection. FluentCalendar selects a single day and has no range axis, so the DateRangeType control is live and stateful while the calendar keeps single-day selection. Upstream's native <Select> is rendered as FluentDropdown, our nearest equivalent."
+  },
+  "compat-components-datepicker--disabled": {
+    "kind": "nearest-widget",
+    "why": "FluentDatePicker has no `disabled` flag; a null onSelectDate is what disables it, the same contract every other input in this package follows."
+  },
+  "compat-components-datepicker--first-day-of-the-week": {
+    "kind": "nearest-widget",
+    "why": "Upstream pairs a bare <label> with a <Dropdown>. Rendered as FluentField(label:) + FluentDropdown<FluentDayOfWeek>, which is the same label-over-control composition our Field already owns. The day names list is upstream's, verbatim, indexed by FluentDayOfWeek (Sunday = 0)."
+  },
+  "compat-components-timepicker--controlled": {
+    "kind": "local-state",
+    "why": "Upstream contrasts defaultSelectedTime/defaultValue (uncontrolled) against selectedTime/value (controlled). FluentTimePicker has no uncontrolled mode and derives its field text from selectedTime, so both halves are controlled and the separate value/onInput pair has no counterpart. Both labels, both startHour/endHour ranges and the shared 25 November 2023 12:30 seed are kept."
+  },
+  "compat-components-timepicker--default": {
+    "kind": "local-state",
+    "why": "FluentTimePicker selection is controlled and a null onTimeChange disables the widget, so even the plain Default demo owns a selectedTime and writes it back."
+  },
+  "compat-components-timepicker--freeform-custom-parsing": {
+    "kind": "composed",
+    "why": "toLocaleTimeString({hour:'numeric',minute:'2-digit',hourCycle:'h12'}) is fluentFormatTime on FluentHourCycle.h12. parseTimeStringToDate ports the split(' ')[1] + /\\d+/g logic verbatim, including the hours!=12 Afternoon adjustment; where JavaScript would build an Invalid Date from a missing group, the Dart version reports FluentTimePickerErrorType.invalidInput."
+  },
+  "compat-components-timepicker--freeform-with-error-handling": {
+    "kind": "composed",
+    "why": "Upstream's Field validationMessage is a string; FluentField takes a Widget and a separate validationState, so the error-type switch returns String? and the section composes Text + FluentFieldValidationState.error. required is passed to both FluentField (asterisk, semantics) and FluentTimePicker (so an empty commit reports requiredInput)."
+  },
+  "compat-components-timepicker--time-picker-with-date-picker": {
+    "kind": "composed",
+    "why": "The two-column CSS grid (maxWidth 600, columnGap 20, repeat(2,1fr)) becomes SizedBox(width: 600) + Row with two Expanded and a 20 gutter. The readout uses DateTime.toString(), Dart's counterpart to Date.prototype.toString(), so it is ISO-shaped rather than a browser locale string."
+  },
+  "components-avatar--active-appearance": {
+    "kind": "reduced",
+    "why": "FluentAvatarActive carries no appearance axis; Figma's avatar set draws the ring only, so shadow and ring-shadow have no token-backed treatment. All three render with the ring and keep upstream's Ring / Shadow / Ring Shadow labels and order."
+  },
+  "components-avatar--badge": {
+    "kind": "reduced",
+    "why": "Same missing initials derivation: each of the 14 avatars gets its initials spelled out alongside the verbatim name."
+  },
+  "components-avatar--badge-icon": {
+    "kind": "composed",
+    "why": "FluentAvatar.status builds a FluentPresenceBadge, which is presence-only and takes no icon slot. Composed as a Stack of FluentAvatar plus a bottom-right FluentBadge(icon: calendar_month_20_regular), mirroring upstream's Badge-in-a-slot."
+  },
+  "components-avatar--color-colorful": {
+    "kind": "composed",
+    "why": "FluentAvatarColor has no `colorful` mode \u2014 our avatar always takes a concrete colour \u2014 so the name/idForColor hash lives in the docregion as a small _colorful() helper over a const palette list. Same behaviour class, different hash, so individual picks differ from upstream's."
+  },
+  "components-avatar--name": {
+    "kind": "reduced",
+    "why": "FluentAvatar deliberately does not derive initials from name (upstream's getInitials is a locale-sensitive parser), so the example passes initials: 'AM' explicitly."
+  },
+  "components-avatar--size": {
+    "kind": "reduced",
+    "why": "FluentAvatarSize stops at 120 (Figma never draws the 128 variant), so the last avatar keeps upstream's '128' initials at FluentAvatarSize.size120."
+  },
+  "components-avatargroup--default": {
+    "kind": "composed",
+    "why": "FluentAvatarGroup takes a flat `children` list and has no AvatarGroupPopover slot, so the overflow indicator is composed as an ordinary member: a FluentAvatarColor.overflow avatar that owns a FluentPopover plus its open bit. partitionAvatarGroupItems is transcribed as sublist(7) / sublist(0, 7) \u2014 the same 4 inline / 7 overflow split upstream renders. FluentAvatar derives neither initials nor colour from `name`, so both are spelled out per person."
+  },
+  "components-avatargroup--indicator": {
+    "kind": "composed",
+    "why": "Upstream's `indicator=\"count\" | \"icon\"` lives on AvatarGroupPopover, which we do not have; the composed overflow member takes a bool that selects `initials: '+7'` or `icon: Icon(FluentIcons.more_horizontal_20_regular)` on the same FluentAvatarColor.overflow avatar."
+  },
+  "components-avatargroup--layout": {
+    "kind": "composed",
+    "why": "Same overflow composition as Default for spread and stack. For pie, a pie partition sends every name to the popover and upstream draws no trigger beside the pie, so the row is exactly the first three names, which is also what FluentAvatarGroup's pie layout reads."
+  },
+  "components-avatargroup--size-pie": {
+    "kind": "reduced",
+    "why": "Same 128-to-120 substitution. No overflow member at all: a pie partition puts every name in the popover and upstream renders no trigger, so each row is the first three names cut into the pie."
+  },
+  "components-avatargroup--size-spread": {
+    "kind": "reduced",
+    "why": "FluentAvatarSize has no size128 (Figma never draws it), so the 14-row ladder is FluentAvatarSize.values plus a repeat of size120 for upstream's 128 row. Overflow is the same composed popover member, switching to the ellipsis glyph below 24 as upstream's Indicator note describes."
+  },
+  "components-avatargroup--size-stack": {
+    "kind": "reduced",
+    "why": "Same 128-to-120 substitution and same composed overflow member, with layout: FluentAvatarGroupLayout.stack."
+  },
+  "components-avatargroup--tooltip": {
+    "kind": "composed",
+    "why": "Upstream's `tooltip={{ content: 'My custom tooltip', relationship: 'label' }}` on AvatarGroupPopover becomes a FluentTooltip wrapping the composed overflow trigger, with the same string as content and as semanticLabel (relationship: 'label')."
+  },
+  "components-badge-badge--appearance": {
+    "kind": "nearest-widget",
+    "why": "Upstream's `ghost` appearance is `FluentBadgeAppearance.subtle` \u2014 Figma names the no-fill/no-border variant Subtle and React renamed it; the other three map 1:1."
+  },
+  "components-badge-badge--color": {
+    "kind": "reduced",
+    "why": "FluentBadgeColor has seven values; Fluent ships no `Status/Severe/*` ramp, so upstream's `severe` badge cannot be rendered and seven of the eight colours show."
+  },
+  "components-badge-badge--color-and-appearance": {
+    "kind": "reduced",
+    "why": "Same two departures as the Appearance and Color sections: `ghost` is rendered as FluentBadgeAppearance.subtle, and the `severe` column is absent for want of a Severe token ramp. The brand-background wrapper for subtle-on-ghost/outline is kept, using colors.brandBackground and FluentSpacing.xxs padding."
+  },
+  "components-badge-badge--shapes": {
+    "kind": "composed",
+    "why": "FluentBadge has no shape axis \u2014 the Figma Badge set binds one 4px radius to every size \u2014 so square/rounded/circular are composed from the public `style` hook as BorderRadius.zero, FluentRadius.allMedium and FluentRadius.allCircular."
+  },
+  "components-badge-badge--sizes": {
+    "kind": "reduced",
+    "why": "FluentBadgeSize carries the four sizes in Fluent's Figma Badge set (small, medium, large, extraLarge). Upstream's `tiny` and `extra-small` have no Flutter equivalent, so four badges render instead of six."
+  },
+  "components-badge-counter-badge--appearance": {
+    "kind": "nearest-widget",
+    "why": "Upstream's `ghost` appearance is Figma's `Appearance=Subtle`, which fluent_2_web names FluentBadgeAppearance.subtle."
+  },
+  "components-badge-counter-badge--default": {
+    "kind": "composed",
+    "why": "fluent_2_web ships no counter badge widget; the demo is a FluentBadge whose label is the count, with the circular radius supplied through the style slot because Fluent's Figma Badge set has no Shape axis."
+  },
+  "components-badge-counter-badge--dot": {
+    "kind": "composed",
+    "why": "FluentBadge has no `dot` flag; a badge with neither label nor icon is already a bare dot, so the style slot pins minimumSize to 6x6 and zeroes the padding that would otherwise stretch it into an ellipse."
+  },
+  "components-badge-counter-badge--shapes": {
+    "kind": "composed",
+    "why": "FluentBadge has no `shape` parameter \u2014 Figma binds one 4px radius to every size, which is upstream's `rounded`. `circular` is rendered by overriding borderRadius with FluentRadius.allCircular via FluentBadgeStyle.from."
+  },
+  "components-badge-counter-badge--sizes": {
+    "kind": "reduced",
+    "why": "FluentBadgeSize ramps small/medium/large/extraLarge only; Fluent's Figma Badge set has no tiny or extra-small stop, so upstream's first two sizes are omitted rather than invented from untokenised geometry."
+  },
+  "components-badge-presencebadge--default": {
+    "kind": "reduced",
+    "why": "React's `status` defaults to `available`; FluentPresenceBadge requires it, so the default demo names the status explicitly."
+  },
+  "components-breadcrumb--breadcrumb-with-overflow": {
+    "kind": "composed",
+    "why": "Upstream hand-rolls the fold from partitionBreadcrumbItems + Overflow/OverflowItem + a Menu-in-a-Tooltip trigger inside a CSS resize:horizontal box. FluentBreadcrumb has maxDisplayedItems built in \u2014 same 1-pinned-root/visible-tail split, same 5 \u2014 and builds its own overflow trigger and popup, so only the browser's drag-to-resize affordance is unportable; the box is a plain 600-wide SizedBox."
+  },
+  "components-breadcrumb--breadcrumb-with-tooltip": {
+    "kind": "composed",
+    "why": "isTruncatableBreadcrumbContent / truncateBreadcrumbLongName have no Dart port, so the docregion carries a 30-character cut plus a FluentTooltip on the full name. The overflow trigger is built by FluentBreadcrumb and exposes no slot, so upstream's tooltip listing the folded crumbs is replaced by the trail's own overflow popup."
+  },
+  "components-breadcrumb--default": {
+    "kind": "nearest-widget",
+    "why": "Upstream's BreadcrumbButton is an <a href=\"https://www.bing.com/\">; FluentBreadcrumbItem takes onPressed instead of an href, and the trailing chevrons come from the widget rather than explicit BreadcrumbDivider children."
+  },
+  "components-button-button--appearance": {
+    "kind": "reduced",
+    "why": "Upstream bundleIcon(CalendarMonthFilled, CalendarMonthRegular) swaps the glyph to filled on hover and when selected. FluentButton takes a plain icon widget with no state-driven swap, so every button keeps the regular glyph \u2014 which is upstream's rest state."
+  },
+  "components-button-button--disabled": {
+    "kind": "composed",
+    "why": "FluentButton has no disabledFocusable: a null onPressed both disables the button and drops it from the tab order. The third button in each row is wrapped in a Focus node to restore the tab stop that flag exists for."
+  },
+  "components-button-button--loading": {
+    "kind": "composed",
+    "why": "No disabledFocusable and no icon-slot style hook, so the busy button is disabled via null onPressed with a FluentButtonStyle restoring the rest colours, and useTimeout becomes a Future.delayed guarded by a run counter."
+  },
+  "components-button-button--with-long-text": {
+    "kind": "composed",
+    "why": "FluentButton lays its label out in a Row, and a Row gives non-flexible children unbounded width, so a bounded-width button cannot wrap its label. The label is wrapped in Flexible to reach upstream's wrap-at-280px behaviour. This is a fluent_2_web defect, not a porting choice."
+  },
+  "components-button-compoundbutton--appearance": {
+    "kind": "reduced",
+    "why": "Same bundleIcon gap as Button/Appearance: no filled-on-hover glyph swap, so all five buttons show the regular glyph."
+  },
+  "components-button-compoundbutton--disabled": {
+    "kind": "reduced",
+    "why": "Our only disabled state is a null onPressed, which also removes the control from the tab order, so 'Disabled focusable state' renders as plainly disabled."
+  },
+  "components-button-compoundbutton--icon": {
+    "kind": "nearest-widget",
+    "why": "FluentCompoundButton requires a child label, so the icon-only variant is a FluentButton.icon inside a FluentTooltip \u2014 the same geometry upstream's label-less compound button renders."
+  },
+  "components-button-compoundbutton--with-long-text": {
+    "kind": "composed",
+    "why": "Upstream's width:280px on the button wraps its text; a Flutter Row gives non-flex children unbounded width, so the width is applied to the label inset by the medium compound padding to reach the same wrap point."
+  },
+  "components-button-menubutton--appearance": {
+    "kind": "slot",
+    "why": "FluentButton has one icon slot and the chevron occupies it, so upstream's leading icon renders inside the label. Upstream's bundleIcon hover swap also has no FluentButton hook."
+  },
+  "components-button-menubutton--disabled": {
+    "kind": "nearest-widget",
+    "why": "FluentButton has no disabledFocusable, so the third demo wraps the disabled button in Focus to restore the tab stop."
+  },
+  "components-button-menubutton--icon": {
+    "kind": "slot",
+    "why": "Upstream's menuIcon maps to FluentButton's single icon slot with iconPosition after, so upstream's separate leading icon slot has no counterpart and rides inside the label."
+  },
+  "components-button-menubutton--size-large": {
+    "kind": "slot",
+    "why": "Same single-icon-slot gap; the label glyph is pinned to 24 to match the large ramp's icon size, which the label does not inherit."
+  },
+  "components-button-menubutton--size-medium": {
+    "kind": "slot",
+    "why": "Same single-icon-slot gap: the calendar glyph rides inside the label while the chevron holds the icon slot."
+  },
+  "components-button-menubutton--size-small": {
+    "kind": "slot",
+    "why": "Same single-icon-slot gap: the calendar glyph rides inside the label while the chevron holds the icon slot."
+  },
+  "components-button-menubutton--with-long-text": {
+    "kind": "reduced",
+    "why": "Upstream pins the button to 280px; the label is laid out in a Row that hands it unbounded width, so the width is expressed on the label plus the medium ramp's padding, gap and chevron."
+  },
+  "components-button-splitbutton--default": {
+    "kind": "local-state",
+    "why": "Upstream's primary action calls alert(). Flutter has no alert, so the message is held in local state and rendered under the button; nothing renders until clicked, so first paint matches upstream."
+  },
+  "components-button-splitbutton--disabled": {
+    "kind": "reduced",
+    "why": "FluentSplitButton has no disabledFocusable, so 'Disabled focusable state' renders as plain disabled; the disabled buttons drop the menu wrapper since a menu that can never open is dead code."
+  },
+  "components-button-splitbutton--icon": {
+    "kind": "slot",
+    "why": "FluentSplitButton.child is a required non-nullable Widget, so the icon-only variant passes SizedBox.shrink(); upstream's tooltip positioning props have no counterpart, so the tooltip wraps the whole split button."
+  },
+  "components-button-splitbutton--size-large": {
+    "kind": "slot",
+    "why": "Icon-only split button needs an empty child because child is required; the tooltip anchors to the whole button rather than the primary half."
+  },
+  "components-button-splitbutton--size-medium": {
+    "kind": "slot",
+    "why": "Icon-only split button needs an empty child because child is required; the tooltip anchors to the whole button rather than the primary half."
+  },
+  "components-button-splitbutton--size-small": {
+    "kind": "slot",
+    "why": "Icon-only split button needs an empty child because child is required; the tooltip anchors to the whole button rather than the primary half."
+  },
+  "components-button-splitbutton--with-long-text": {
+    "kind": "slot",
+    "why": "Upstream widths the primary half via makeStyles; our API exposes no per-half width, so the SizedBox wraps the label instead, making the half 280px plus its padding."
+  },
+  "components-card-card--appearance": {
+    "kind": "composed",
+    "why": "Header row composed by hand; app_logo.svg not vendored so the 48px logo is a Fluent icon on a neutral tile. onClick maps to FluentCard.onPressed, which is what makes the card interactive."
+  },
+  "components-card-card--default": {
+    "kind": "composed",
+    "why": "FluentCard exposes four slots (preview/header/child/footer) rather than CardHeader/CardPreview/CardFooter widgets, so the header row and footer button row are composed by hand. Upstream's story art (avatar_elvia.svg, docx.png, doc_template.png) is not vendored under assets/storybook, so the avatar renders initials, the document logo is FluentIcons.document_20_regular and the preview uses the showroom's own image.png."
+  },
+  "components-card-card--disabled": {
+    "kind": "composed",
+    "why": "Card content composed into the four slots; the footer buttons are disabled explicitly (as upstream does) because a card's disabled state is not propagated to its contents. The floating checkbox is stacked over the corner for want of a floatingAction slot."
+  },
+  "components-card-card--focus-mode": {
+    "kind": "reduced",
+    "why": "FluentCard has no focusMode; it exposes focusNode and autofocus. Flutter's focus traversal has no equivalent of upstream's off/no-tab/tab-exit/tab-only trapping strategies, so all four titled sections keep their heading, description and position but render the same focusable card."
+  },
+  "components-card-card--orientation": {
+    "kind": "composed",
+    "why": "Header and preview composed into the card's slots; app_logo.svg is not vendored so the 44px/64px app logo is a Fluent icon on a neutralBackground3 tile. The horizontal card hugs its content instead of taking a 360px max-width, because the card's horizontal Row is mainAxisSize.min and a fixed width would need a hand-computed header width."
+  },
+  "components-card-card--selectable": {
+    "kind": "local-state",
+    "why": "FluentCard has no onSelectionChange: the whole surface is the toggle, so selection is driven from onPressed plus local state. office1.png/logo3.svg are not vendored, so the preview is image.png on a neutralBackground3 field with a white-badged Fluent icon."
+  },
+  "components-card-card--selectable-indicator": {
+    "kind": "slot",
+    "why": "FluentCard has no floatingAction slot, so the checkbox is Positioned over the card's top-right corner in a Stack \u2014 the place upstream's slot renders it. The checkbox's accessible name is the card title, as upstream's aria-labelledby does."
+  },
+  "components-card-card--size": {
+    "kind": "composed",
+    "why": "The two app logos (logo.svg, logo2.svg) are not vendored, so they are Fluent icons on neutral tiles; upstream's <header>/<footer> elements map onto the card's header and footer slots and the CardHeader onto the body slot."
+  },
+  "components-card-card--templates": {
+    "kind": "composed",
+    "why": "FluentBadge has no shape axis and no 'severe' colour, so shape=\"rounded\" is dropped and severe becomes FluentBadgeColor.danger (the nearest red). The task checkboxes need local state because FluentCheckbox is controlled. intelligence.png/pptx/xlsx/docx are not vendored, so the preview is image.png and the file logos are Fluent icons."
+  },
+  "components-card-card--with-action": {
+    "kind": "local-state",
+    "why": "Upstream calls alert() and clicks a real <a href>. Neither exists here \u2014 FluentLink takes onPressed, not href, and this package depends on no URL launcher \u2014 so both the card root and the Open button/link report the action in place via local state."
+  },
+  "components-card-cardfooter--default": {
+    "kind": "slot",
+    "why": "There is no FluentCardFooter widget: FluentCard exposes `footer` as a plain Widget slot. Upstream's flex layout is rendered as a 300-wide Row with 8px gaps, and its `action` prop becomes the trailing child pushed to the far end by a Spacer."
+  },
+  "components-card-cardheader--default": {
+    "kind": "composed",
+    "why": "fluent_2_web ships no CardHeader widget \u2014 FluentCard.header takes a plain widget by design \u2014 so upstream's four-slot CSS grid (image spanning both text rows, header over description, action at the far end) is composed in-file as a private _CardHeader, which applies body1Strong to the header and caption1 to the description, matching upstream's Body1/<b> and Caption1. The pptx.png PowerPoint logo is not among the checked-in assets/storybook files, so the image slot renders FluentIcons.slide_layout_24_regular at 32px carrying upstream's 'Microsoft PowerPoint logo' alt text as its Semantics label."
+  },
+  "components-card-cardpreview--default": {
+    "kind": "slot",
+    "why": "No FluentCardPreview widget exists; upstream's bare <CardPreview logo={...}> maps to FluentCard's preview slot (which already bleeds to the edge and clips to the corner radius), with the logo composed as a Stack overlay. The upstream assets doc_template.png and docx.png are not in assets/storybook/, so image.png stands in for the document preview and FluentIcons.document_20_regular for the Word logo; both alt strings are kept verbatim as semanticLabel."
+  },
+  "components-carousel-carousel--alignment-and-whitespace": {
+    "kind": "reduced",
+    "why": "`align` and `whitespace` are embla settings on a multi-card slider. With one slide per page the nearest live equivalent is where the card sits inside its own page and whether leading/trailing space is left around it; both controls drive that, so flipping them still shows something. Field `orientation=\"horizontal\"` is a Row with a fixed-width label cell, since FluentField only stacks."
+  },
+  "components-carousel-carousel--appearance": {
+    "kind": "composed",
+    "why": "No `appearance` axis on FluentCarousel. `appearance=\"elevated\"` is a shadow on the carousel container, so shadow16 is applied to the box wrapping the carousel."
+  },
+  "components-carousel-carousel--autoplay": {
+    "kind": "reduced",
+    "why": "All three controls map onto real parameters (pauseButton / autoplay / autoplayInterval), but our autoplay button is only drawn while `autoplay` is on, and autoplay never runs under reduced motion. `<Input type=\"number\" min step>` becomes FluentSpinButton."
+  },
+  "components-carousel-carousel--controlled": {
+    "kind": "local-state",
+    "why": "FluentCarousel is uncontrolled (initialIndex + onIndexChanged, because autoplay owns the index), so the page reads the index back from the callback and pushes it in by remounting on a ValueKey. The chevron tooltips ('Go To Previous Page' / 'Go To Next Page') are unreachable since the chevrons are built inside the widget; only their accessible names are settable."
+  },
+  "components-carousel-carousel--default": {
+    "kind": "reduced",
+    "why": "Upstream keeps the autoplay button in the nav whenever any autoplay prop is passed, even paused; FluentCarousel only draws it while autoplay is on, so the demo starts playing (pausing on hover, focus and reduced motion). There is also no `announcement` (aria-live) slot, so each slide carries its own '1 of 6' semantic label instead."
+  },
+  "components-carousel-carousel--eventing": {
+    "kind": "reduced",
+    "why": "`onActiveIndexChange` reports both the index and what moved it (click/focus/drag/autoplay); `onIndexChanged` reports the index only, so the log records time + index rather than guessing a cause."
+  },
+  "components-carousel-carousel--first-run-experience": {
+    "kind": "slot",
+    "why": "Upstream keeps the two footer buttons inside the carousel, flanking the nav dots. FluentCarousel owns its strip, so they move to the dialog's `secondaryActions`/`actions` rows. `motion=\"fade\"` has no counterpart \u2014 our slide transition is the transcribed embla slide."
+  },
+  "components-carousel-carousel--image-slideshow": {
+    "kind": "nearest-widget",
+    "why": "`previews` maps CarouselNavImageButton exactly, but `layout=\"overlay-expanded\"` has no counterpart \u2014 `centeredToContent` flanks the slide with chevrons and leaves the thumbnail strip below. A single step cannot be disabled, so upstream's disabled 'bridge' stays live."
+  },
+  "components-carousel-carousel--responsive": {
+    "kind": "reduced",
+    "why": "`autoSize` packs several cards into one view; FluentCarousel's viewport is a PageView, one slide per page. The seven cards keep their upstream widths (100/200/350, auto fills) and sit centred in their own page."
+  },
+  "components-carousel-carousel--top-navigation": {
+    "kind": "slot",
+    "why": "FluentCarousel builds its own nav strip and only places it below the slides or over them; `header` takes content, not controls. 'Carousel Title' moves into `header` and the chevrons and dots stay under the slide."
+  },
+  "components-carousel-carouselnav--default": {
+    "kind": "composed",
+    "why": "Upstream's CarouselNav is a standalone element whose render function emits one CarouselNavButton (or CarouselNavImageButton) per slide. Our nav strip is private to FluentCarousel, but its button is public as FluentCarouselStep, so the demo composes the strip as a Row of FluentCarouselStep over a local index \u2014 the same index-based pagination. appearance=\"brand\" has no Dart axis (the Figma Brand mode of the step colour collection is deliberately unexposed), so the selected step's mark is tinted with brandBackground via FluentCarouselStyle.stepColor; the switch's Field wrapper becomes FluentSwitch's own label because FluentField has no horizontal orientation."
+  },
+  "components-checkbox--checked": {
+    "kind": "local-state",
+    "why": "Same controlled-widget requirement; upstream's React.useState becomes a private StatefulWidget."
+  },
+  "components-checkbox--circular": {
+    "kind": "local-state",
+    "why": "Controlled widget needs owning state to stay interactive."
+  },
+  "components-checkbox--default": {
+    "kind": "local-state",
+    "why": "FluentCheckbox is controlled \u2014 onChanged: null renders it disabled \u2014 so the uncontrolled upstream `<Checkbox {...props} />` becomes a private StatefulWidget holding the value. semanticLabel: 'Checkbox' added because the section renders the bare indicator with no label slot."
+  },
+  "components-checkbox--label-before": {
+    "kind": "local-state",
+    "why": "Controlled widget needs owning state to stay interactive."
+  },
+  "components-checkbox--label-wrapping": {
+    "kind": "composed",
+    "why": "Upstream sets style={{maxWidth:'400px'}} on the root. buildFluentCheckbox lays the label out in a MainAxisSize.min Row, which hands the label unbounded width, so a root-level cap would not wrap it. The cap goes on the label instead: SizedBox(width: 356) = 400 less the 32 indicator margin box and 12 of label padding."
+  },
+  "components-checkbox--large": {
+    "kind": "local-state",
+    "why": "Controlled widget needs owning state to stay interactive."
+  },
+  "components-checkbox--mixed": {
+    "kind": "local-state",
+    "why": "Three option bools in a StatefulWidget. Upstream's checked=\"mixed\" is our checked: null, and onChanged never reports mixed back \u2014 matching upstream's `!!data.checked`."
+  },
+  "components-checkbox--required": {
+    "kind": "slot",
+    "why": "FluentCheckbox has no `required` field. Upstream's prop only forwards to the label slot, so the asterisk comes from FluentLabel(required: true) passed into that same slot."
+  },
+  "components-datagrid--composite-navigation": {
+    "kind": "nearest-widget",
+    "why": "`focusMode=\"composite\"` has no counterpart: roving cell focus with arrow keys is the only navigation model FluentDataGrid has, so the section is the multi-select grid with no sort controls, which is what upstream renders."
+  },
+  "components-datagrid--custom-row-id": {
+    "kind": "local-state",
+    "why": "`getRowId` has no counterpart; the demo holds a Set<String> of file names \u2014 which is the point of the story \u2014 and translates to indices for selectedRows/onSelectionChanged. The bulleted checkbox mirror above the grid is upstream's, read-only (onChanged null)."
+  },
+  "components-datagrid--default": {
+    "kind": "local-state",
+    "why": "Upstream's `getRowId={(item) => item.file.label}` keys selection on the file name so it survives a sort; FluentDataGrid selects by index, so the demo holds a Set<String> of file names and maps to/from indices. Sorting is also caller-owned (sortColumn/sortDirection/onSort) rather than a `sortable` flag the widget acts on."
+  },
+  "components-datagrid--focusable-elements-in-cells": {
+    "kind": "reduced",
+    "why": "`DataGridCell`/`DataGridHeaderCell` `focusMode` (`cell`/`group`/`none`) is not modelled. The controls, their labels and the group-header composition are all present; the per-cell focus trapping is not. `FluentDataGridCellEmphasis.none` stands in for the control-cell layout."
+  },
+  "components-datagrid--multiple-select": {
+    "kind": "local-state",
+    "why": "`defaultSelectedItems` has no analogue: selection is always controlled, so the initial {1} lives in the demo's State."
+  },
+  "components-datagrid--multiple-select-controlled": {
+    "kind": "local-state",
+    "why": "selectedRows is always the truth and the grid never mutates it, so the controlled variant is identical to the uncontrolled one above."
+  },
+  "components-datagrid--resizable-columns": {
+    "kind": "reduced",
+    "why": "No drag handle and no columnSizingOptions. The widget's documented answer is FluentDataGridColumn.width, so upstream's defaultWidth values (file 120, author 180) land there and the two unsized columns share the remainder. Upstream's `Menu openOnContext` header escape hatch is kept as a secondary-tap FluentMenu carrying 'Keyboard Column Resizing'."
+  },
+  "components-datagrid--resizable-columns-disable-auto-fit": {
+    "kind": "reduced",
+    "why": "`resizableColumnsOptions={{autoFitColumns: false}}` has no counterpart. The demo states the total width itself (1100) inside the same horizontal scroller upstream's `overflowX: auto` wrapper provides, so the grid overflows its container the way the story describes."
+  },
+  "components-datagrid--single-select": {
+    "kind": "local-state",
+    "why": "`defaultSelectedItems` has no analogue; the initial {1} lives in the demo's State. Single select honours the lowest index in selectedRows, matching a radio group."
+  },
+  "components-datagrid--single-select-controlled": {
+    "kind": "local-state",
+    "why": "Same as its uncontrolled twin \u2014 FluentDataGrid selection is controlled in every case."
+  },
+  "components-datagrid--sort-controlled": {
+    "kind": "local-state",
+    "why": "FluentDataGrid has no uncontrolled sort mode \u2014 sortColumn, sortDirection and onSort are the whole API \u2014 so this reads the same as the Sort section; upstream's distinction between `defaultSortState` and `sortState` has no analogue."
+  },
+  "components-datagrid--subtle-selection": {
+    "kind": "reduced",
+    "why": "`subtleSelection` (hide the indicator until hover/focus/checked) has no Figma mode and no prop; the selection column stays visible. The rest of the story \u2014 multi-select with row 2 checked \u2014 is intact."
+  },
+  "components-datagrid--virtualization": {
+    "kind": "platform",
+    "why": "Upstream embeds an iframe pointing at @fluentui-contrib/react-data-grid-react-window. There is no iframe, and FluentDataGrid documents virtualisation as out of scope with this exact remedy: a bounded (500px) scroll view over a longer list. The four upstream rows repeat to fill it."
+  },
+  "components-dialog--backdrop-appearance": {
+    "kind": "nearest-widget",
+    "why": "FluentDialog has no `backdrop` slot and no appearance prop. The scrim is a style token, so the radio drives `FluentDialogStyle.scrimColor` \u2014 'transparent' is a fully transparent scrim, 'dimmed' is the theme default. The drawer is FluentDrawerSize.medium rather than upstream's 320-wide OverlayDrawer because the field label and radio labels overflow a 320 panel."
+  },
+  "components-dialog--change-focus": {
+    "kind": "nearest-widget",
+    "why": "Upstream moves focus from a React effect and a ref. Flutter has the affordance built in: `autofocus: true` on the Close button is honoured by the dialog's FocusScope when it takes focus on open."
+  },
+  "components-dialog--confirmation": {
+    "kind": "nearest-widget",
+    "why": "aria-labelledby pointing at the title becomes `semanticLabel` (which drives namesRoute), and the 'focus lands on the action' behaviour becomes autofocus:true on the primary button."
+  },
+  "components-dialog--fluid-actions": {
+    "kind": "nearest-widget",
+    "why": "No `fluid` flag on the actions row. FluentDialogSize.small is the only thing that sets stackActions (full-width column), and it also narrows the surface to 320, so style.maxWidth puts the 600 back \u2014 leaving only the action layout changed."
+  },
+  "components-dialog--keep-rendered-in-the-dom": {
+    "kind": "reduced",
+    "why": "There is no `unmountOnClose`: FluentDialog always removes its OverlayEntry on close, so the content is not retained. A ScrollController owned by the section preserves the scroll position between opens, which is the behaviour the retained DOM node existed to give."
+  },
+  "components-dialog--motion-custom": {
+    "kind": "reduced",
+    "why": "FluentDialog exposes no surfaceMotion/backdropMotion hook \u2014 fluentDialogSurfaceEnter, fluentDialogSurfaceExit, fluentDialogScrim and fluentDialogOutScale are package constants. The four controls are live and the dialog animation is not, rather than dressing up a knob that does nothing as working."
+  },
+  "components-dialog--no-focusable-element": {
+    "kind": "slot",
+    "why": "FluentDialog draws a header close button by default in every modalType, which would give both dialogs a focusable element and defeat the story. showCloseButton:false on both is upstream's `action={null}` plus modal's no-action default."
+  },
+  "components-dialog--scrolling-long-content": {
+    "kind": "nearest-widget",
+    "why": "Upstream's `<p>` stack becomes a Column of Text with 12px spacing; buildFluentDialog already wraps the body in a Flexible SingleChildScrollView under a viewport-height cap, which is upstream's overflowY:auto."
+  },
+  "components-dialog--title-custom-action": {
+    "kind": "slot",
+    "why": "There is no `action` slot to replace. FluentDialog's header close button already is a subtle icon FluentButton carrying the dismiss glyph, in every modalType; only its accessible name is the caller's, so aria-label=\"close\" maps to closeButtonSemanticLabel."
+  },
+  "components-dialog--title-no-action": {
+    "kind": "slot",
+    "why": "Upstream's `action={null}` on DialogTitle maps to showCloseButton:false."
+  },
+  "components-dialog--trigger-outside-dialog": {
+    "kind": "slot",
+    "why": "`child` is the trigger slot, so a dialog opened from elsewhere passes const SizedBox.shrink(). Upstream's useRestoreFocusTarget has no counterpart and needs none \u2014 FluentDialog records the primary focus on open and restores it on close."
+  },
+  "components-dialog--with-form": {
+    "kind": "composed",
+    "why": "There is no `<form>` element between surface and body; the primary action calls the submit handler directly. Label+Input become FluentField(required:) wrapping FluentInput, and upstream's alert('form submitted!') becomes closing the dialog."
+  },
+  "components-divider--custom-styles": {
+    "kind": "reduced",
+    "why": "Upstream's last example is a 2px dashed rule. FluentDividerStyle exposes lineThickness but no dash pattern, so the 2px lands and the dashes do not; noted in a comment inside the docregion."
+  },
+  "components-drawer--default": {
+    "kind": "nearest-widget",
+    "why": "Upstream swaps Button for ToggleButton once type is inline; fluent_2_web ships no toggle button, so the trigger stays a FluentButton whose label flips between 'Open' and 'Toggle'."
+  },
+  "components-drawer--inline": {
+    "kind": "reduced",
+    "why": "FluentDrawerPosition is start/end only, so the third (bottom) inline drawer has no equivalent and 'Toggle bottom' is rendered disabled; ToggleButton is a plain FluentButton."
+  },
+  "components-drawer--keep-rendered-in-the-dom": {
+    "kind": "reduced",
+    "why": "FluentDrawer has no unmountOnClose: a closed drawer is never in the tree, so the long body's scroll position resets on each open."
+  },
+  "components-drawer--motion-custom": {
+    "kind": "reduced",
+    "why": "FluentDrawer has no surfaceMotion slot \u2014 its transition is size-keyed and fixed \u2014 so the demo runs the drawer's own motion in place of the custom keyframes."
+  },
+  "components-drawer--motion-disabled": {
+    "kind": "nearest-widget",
+    "why": "There are no surfaceMotion/backdropMotion props to null out; FluentDrawer honours MediaQuery.disableAnimationsOf and schedules no frames, so the subtree overrides that flag instead."
+  },
+  "components-drawer--multiple-levels": {
+    "kind": "nearest-widget",
+    "why": "The Motion API level swap becomes AnimatedSwitcher; the fade is kept and the slide half of upstream's fade+slide pair is dropped rather than hand-rolled. Toolbar groups become two FluentToolbars separated in a space-between Row."
+  },
+  "components-drawer--overlay-inside-container": {
+    "kind": "composed",
+    "why": "There is no mountNode prop. FluentDrawer inserts into the nearest enclosing Overlay, so the container hosts its own Overlay and the open flag travels through a ValueNotifier because an OverlayEntry builds once."
+  },
+  "components-drawer--overlay-no-modal": {
+    "kind": "reduced",
+    "why": "FluentDrawer has no non-modal mode: an overlay drawer always lays a scrim that swallows pointers. The scrim colour is cleared so the page reads as available, but it is still not interactive while the drawer is open."
+  },
+  "components-drawer--position": {
+    "kind": "reduced",
+    "why": "FluentDrawerPosition is start/end only \u2014 the drawer anchors to a vertical edge in reading order \u2014 so 'Open Bottom' is rendered disabled."
+  },
+  "components-drawer--prevent-close": {
+    "kind": "nearest-widget",
+    "why": "There is no modalType prop; upstream's alert-with-no-handler is expressed by leaving onDismiss null, which inerts Escape and the scrim tap since both route through it."
+  },
+  "components-drawer--resizable": {
+    "kind": "composed",
+    "why": "The type-a-width Dialog is rendered inline instead: a closed FluentDialog throws 'Looking up a deactivated widget's ancestor' on dispose, which a page that mounts every section would hit. Pointer-versus-bounding-rect tracking becomes a horizontal drag delta, and the width is fed through FluentDrawerStyle.width."
+  },
+  "components-drawer--responsive": {
+    "kind": "nearest-widget",
+    "why": "window.matchMedia('(max-width: 720px)') becomes MediaQuery.sizeOf(context).width < 720, which already rebuilds on resize."
+  },
+  "components-drawer--separator": {
+    "kind": "reduced",
+    "why": "Same missing bottom position: the start and end inline drawers carry the separator, the bottom one is dropped and its toggle is disabled."
+  },
+  "components-drawer--with-navigation": {
+    "kind": "slot",
+    "why": "No DrawerHeaderNavigation and no ToolbarButton: the nav row is a Row in the header list, and FluentToolbar takes ordinary subtle FluentButtons as items."
+  },
+  "components-drawer--with-scroll": {
+    "kind": "composed",
+    "why": "DrawerBody's tabIndex/role/aria-label become SingleChildScrollView inside Semantics; the two footer buttons are wrapped in Flexible so they fit a 320-wide panel instead of overflowing its footer Row."
+  },
+  "components-drawer--with-title": {
+    "kind": "slot",
+    "why": "There is no DrawerHeaderTitle component; header is a List<Widget> stacked in a column, and upstream's heading tag prop becomes Semantics.headingLevel. Width 400 comes from FluentDrawerStyle.width."
+  },
+  "components-dropdown--active-option-change": {
+    "kind": "reduced",
+    "why": "No onActiveOptionChange: the active row lives inside FluentDropdown and is never reported out, and rows expose no hover callback. onChanged is the nearest hook, so the line above the field reports the committed option rather than the one passed over."
+  },
+  "components-dropdown--appearance": {
+    "kind": "nearest-widget",
+    "why": "Upstream's `underline` appearance is named `FluentDropdownAppearance.transparent` here (no fill, no border, only the bottom rule); `filled-darker`/`filled-lighter` are `fillDarker`/`fillLighter`. The griffel inverted-surface rules are translated to a Container plus FluentLabelStyle.from."
+  },
+  "components-dropdown--clearable": {
+    "kind": "composed",
+    "why": "FluentDropdown has no `clearable` flag and no clear-button slot inside the trigger, so the clear affordance is composed beside it as a subtle FluentButton.icon that is disabled until something is selected."
+  },
+  "components-dropdown--complex-options": {
+    "kind": "slot",
+    "why": "Our trigger renders the chosen option's `label` (the whole FluentPersona) where upstream's button renders the Option's `text`. `text` is still supplied because it is what assistive technology announces for the row."
+  },
+  "components-dropdown--controlled": {
+    "kind": "local-state",
+    "why": "Every Fluent control in this port is controlled, so upstream's 'default selection' field is the same code as the controlled one with its state seeded to 'eatkins'. There is no uncontrolled mode to contrast it with."
+  },
+  "components-dropdown--controlling-open-and-close": {
+    "kind": "reduced",
+    "why": "FluentDropdown owns its popup: it takes neither `open` nor `onOpenChange`, and focus leaving the trigger closes the list. The checkbox is live but inert \u2014 it holds the state upstream would drive the popup with, while the dropdown opens on click and on Down/Up/Home/End/Enter/Space."
+  },
+  "components-dropdown--custom-options": {
+    "kind": "reduced",
+    "why": "Upstream's CustomOption swaps the row's check glyph for CheckboxChecked24Regular. The checkmark is not a slot \u2014 FluentDropdownOptionStyle tints and sizes it but cannot replace it \u2014 so the row keeps Fluent's checkmark; the animal icon and italic group label are custom as upstream."
+  },
+  "components-dropdown--grouped": {
+    "kind": "model",
+    "why": "There is no OptionGroup widget. FluentDropdownOption is a flat model, so a group is a FluentDropdownOption.header followed by its values; the popup already draws the separator rule above every header but the first."
+  },
+  "components-dropdown--multiselect": {
+    "kind": "local-state",
+    "why": "FluentDropdown models single selection only \u2014 no `multiselect` flag, and `value` is one option's value. The chosen set is held in the demo: each row draws its own checkbox glyph, onChanged toggles membership, and the trigger shows the join through the placeholder slot. The popup still closes on each pick."
+  },
+  "components-dropdown--truncated-value": {
+    "kind": "nearest-widget",
+    "why": "There is no `button` slot to override. The trigger already clamps its value to one line and ellipsizes it, so the port narrows the example to 200 and sets surfaceMaxHeight to 200 for the listbox rule."
+  },
+  "components-field--component-examples": {
+    "kind": "local-state",
+    "why": "Every Fluent control in this port is controlled, while upstream's are uncontrolled (defaultValue). The story owns one piece of state per control so all eight demos stay interactive. Combobox has no port \u2014 FluentDropdown is the nearest select."
+  },
+  "components-field--default": {
+    "kind": "slot",
+    "why": "FluentField ships no default validationMessageIcon (the icon set is not part of the package), so upstream's success default CheckmarkCircle12Filled is passed explicitly."
+  },
+  "components-field--horizontal": {
+    "kind": "composed",
+    "why": "FluentField has no `orientation` \u2014 its label always sits above the control. Rebuilt as a Row with a 33/67 flex split, the label boxed to the 32px medium-input height so it centres on the control, and the field (hint only) as the second cell."
+  },
+  "components-field--info": {
+    "kind": "slot",
+    "why": "Upstream replaces the Label slot with an InfoLabel via a slot render function. FluentField.label takes a plain widget, so a FluentInfoLabel is passed directly. `infoSemanticLabel: 'More information'` has no upstream counterpart but is asserted by FluentInfoLabel whenever `info` is set."
+  },
+  "components-field--render-function": {
+    "kind": "nearest-widget",
+    "why": "Flutter has no FieldContext to opt into, so no render function is needed: FluentField wraps its child in one Semantics container, which associates the label with a control it knows nothing about. The third-party control is a small Row of the cat icon plus a FluentInput."
+  },
+  "components-field--size": {
+    "kind": "composed",
+    "why": "FluentField.size scales only the label; it does not propagate to the control. Each FluentInput is given the matching FluentInputSize by hand."
+  },
+  "components-field--validation-message": {
+    "kind": "slot",
+    "why": "Same missing-default-glyph gap: error/warning/success each name upstream's default icon explicitly, and the error field sets FluentInput(error: true) for the red border upstream gets from aria-invalid."
+  },
+  "components-infolabel--default": {
+    "kind": "nearest-widget",
+    "why": "Upstream's info slot mixes text with a Link that has an href; FluentLink takes onPressed (no URL launcher dependency in this package), so the link is a callback inside a Text.rich WidgetSpan and the upstream URL is kept in a comment."
+  },
+  "components-infolabel--in-field": {
+    "kind": "slot",
+    "why": "Upstream replaces Field's whole label slot with a render function. FluentField.label is a plain widget slot that FluentField wraps in its own FluentLabel, so the FluentInfoLabel goes in as the label's content \u2014 same rendering, one extra nesting level."
+  },
+  "components-input--appearance": {
+    "kind": "composed",
+    "why": "griffel's .field/.filledLighter/.filledDarker rules become a Container with the inverted background plus a FluentLabelStyle.from(foregroundColor: neutralForegroundInverted2); FluentInput has no wrapper slot of its own."
+  },
+  "components-input--content-before-after": {
+    "kind": "composed",
+    "why": "upstream's separate MicButton component is inlined as FluentButton.icon (transparent, small), and Body1 becomes Text styled with typography.body1."
+  },
+  "components-input--controlled": {
+    "kind": "local-state",
+    "why": "Flutter's field applies the edit before onChanged fires, so rejecting a value over 20 characters means writing the last accepted value back to the controller rather than simply not calling setState."
+  },
+  "components-input--disabled": {
+    "kind": "local-state",
+    "why": "FluentInput has no defaultValue; each seeded field owns a TextEditingController created and disposed by the demo, and the Switch drives `enabled: !_disabled`."
+  },
+  "components-input--inline": {
+    "kind": "composed",
+    "why": "an inline <input> is a Text.rich WidgetSpan; FluentInput fills its box rather than sizing itself, so each inline field is given an explicit SizedBox width."
+  },
+  "components-input--type": {
+    "kind": "nearest-widget",
+    "why": "HTML's single `type` attribute is two independent Flutter fields: keyboardType (emailAddress/url) picks the soft keyboard and obscureText masks the password value."
+  },
+  "components-input--uncontrolled": {
+    "kind": "local-state",
+    "why": "no defaultValue prop; the seeded value is a TextEditingController the demo owns and disposes. onChanged logs via debugPrint in place of console.log."
+  },
+  "components-label--required": {
+    "kind": "slot",
+    "why": "Upstream's `required` prop is a bool-or-slot: `required=\"***\"` swaps the asterisk for a custom string or JSX. FluentLabel.required is a plain bool, so the second variant composes a Text('***') beside the label using the same statusDangerForeground3 token FluentLabel paints its own asterisk with."
+  },
+  "components-link--appearance": {
+    "kind": "nearest-widget",
+    "why": "Same href-to-onPressed substitution; appearance=\"subtle\" maps directly to FluentLinkAppearance.subtle."
+  },
+  "components-link--as-button": {
+    "kind": "nearest-widget",
+    "why": "Upstream switches the rendered element on href presence; FluentLink renders one way and always activates through onPressed, so there is nothing to switch."
+  },
+  "components-link--as-span": {
+    "kind": "reduced",
+    "why": "A WidgetSpan is an atomic inline box: the link's text wraps inside it but the box does not break mid-phrase across lines as upstream's span does. Upstream's alert(\"Link rendered as span\") has no docs-demo equivalent, so the tap is inert."
+  },
+  "components-link--default": {
+    "kind": "nearest-widget",
+    "why": "FluentLink has no href (the package takes no URL-launcher dependency); upstream's href=\"https://www.bing.com\" becomes onPressed."
+  },
+  "components-link--disabled": {
+    "kind": "nearest-widget",
+    "why": "FluentLink has no `disabled` flag: a null onPressed is the disabled state."
+  },
+  "components-link--disabled-focusable": {
+    "kind": "composed",
+    "why": "No `disabledFocusable` equivalent; a disabled FluentLink refuses focus, so a plain Focus node wraps it to keep the traversal order consistent, which is what the upstream flag exists for."
+  },
+  "components-link--inline": {
+    "kind": "composed",
+    "why": "A Flutter widget cannot sit inside a paragraph like an <a> in a <div>, so the link rides as a baseline-aligned WidgetSpan inside Text.rich."
+  },
+  "components-list--list-active-element": {
+    "kind": "reduced",
+    "why": "selectionMode=\"single\" with checkmark={null} maps to FluentListSelection.none plus a selected value, which still paints the selected fill; none toggles additively so the newly added row is taken as the whole selection. FluentListItem exposes no focus callback, so upstream's select-on-focus is dropped and keyboard focus moves without selecting."
+  },
+  "components-list--multiple-actions-different-primary": {
+    "kind": "composed",
+    "why": "Same FluentCard composition, plus the single-gesture limit: the custom action runs alongside the selection change rather than instead of it."
+  },
+  "components-list--multiple-actions-selection": {
+    "kind": "composed",
+    "why": "Same FluentCard-in-the-content-slot composition; the checkbox keeps FluentListItem's own leading column rather than floating over the preview's top-left corner as upstream's absolutely positioned checkmark does."
+  },
+  "components-list--multiple-actions-with-primary": {
+    "kind": "composed",
+    "why": "Upstream's ListItem is a CSS grid (preview across the top, then header/action/secondary action). FluentListItem's slots are a fixed row, so the card is composed with FluentCard inside the row's content slot, and the primary action rides on onSelectionChange with nothing kept selected."
+  },
+  "components-list--single-action": {
+    "kind": "reduced",
+    "why": "FluentListItem has no per-row onAction \u2014 the list owns every gesture \u2014 so FluentList.onSelectionChange is the action hook and the selection it returns is discarded. Upstream's alert() is reported in place."
+  },
+  "components-list--single-action-selection": {
+    "kind": "local-state",
+    "why": "FluentList is always controlled, so upstream's defaultSelectedItems becomes local state; disabledSelection has no equivalent, so the last two rows use enabled: false, which also removes them from the arrow order."
+  },
+  "components-list--single-action-selection-different-primary": {
+    "kind": "reduced",
+    "why": "Our row has one gesture \u2014 the checkbox is an inert display of row state, not a second control \u2014 so the custom primary action runs alongside the selection change instead of replacing it via preventDefault(); disabledSelection is enabled: false."
+  },
+  "components-list--virtualized-list": {
+    "kind": "reduced",
+    "why": "FluentList builds every row into one Column and has no virtualising constructor, so all 196 rows are laid out and scrolled inside a 400-high viewport instead of react-window's FixedSizeList."
+  },
+  "components-list--virtualized-list-with-actionable-items": {
+    "kind": "reduced",
+    "why": "Same non-virtualised Column; the row action rides on onSelectionChange because FluentListItem has no onAction."
+  },
+  "components-menu-menu--aligning-with-icons": {
+    "kind": "reduced",
+    "why": "No hasIcons prop. FluentMenu reserves the leading column for the whole surface as soon as any one row carries an icon or checkmark, so alignment is automatic and the flag has nothing to set."
+  },
+  "components-menu-menu--aligning-with-selectable-items": {
+    "kind": "reduced",
+    "why": "No hasCheckmarks prop, for the same reason as hasIcons; the selectable row is a FluentMenuItem with checked + local state rather than a MenuItemCheckbox."
+  },
+  "components-menu-menu--anchor-to-custom-target": {
+    "kind": "composed",
+    "why": "FluentMenu always anchors to the widget its builder returns. The builder renders 'Custom target' so the surface hangs off it, and 'Open menu' calls the same toggle from outside."
+  },
+  "components-menu-menu--checkbox-items": {
+    "kind": "model",
+    "why": "No MenuItemCheckbox. A FluentMenuItem has a checked flag plus onPressed, so selection is the caller's Set. The checkmark shares the leading slot with the icon, so a checked row shows the tick in place of its glyph."
+  },
+  "components-menu-menu--controlled-checkbox-items": {
+    "kind": "model",
+    "why": "checkedValues / onCheckedValueChange have no counterpart because every selectable FluentMenu is already caller-owned; this one just starts with 'cut' and 'paste' ticked."
+  },
+  "components-menu-menu--controlled-radio-items": {
+    "kind": "model",
+    "why": "Same as the controlled checkbox variant: the caller already owns the value, which starts on 'calibri'."
+  },
+  "components-menu-menu--controlling-open-and-close": {
+    "kind": "local-state",
+    "why": "FluentMenu is uncontrolled: no open bool and no onOpenChange. The checkbox holds the state it asks for and calls the same toggle the trigger gets; an outside click closes the menu without telling the checkbox."
+  },
+  "components-menu-menu--custom-trigger": {
+    "kind": "composed",
+    "why": "Ref forwarding has no counterpart: builder hands toggle straight to whatever it returns, so a custom trigger is an ordinary widget taking a VoidCallback."
+  },
+  "components-menu-menu--grouping-items": {
+    "kind": "model",
+    "why": "MenuGroup / MenuGroupHeader / MenuDivider have no widget counterparts. FluentMenuItem.header and FluentMenuItem.divider are rows of the same flat items list, and the menu skips headers in keyboard navigation."
+  },
+  "components-menu-menu--interaction": {
+    "kind": "local-state",
+    "why": "Upstream's rows call alert(). Flutter has no alert, so each row's callback stores the same string ('Cut to clipboard' / 'Copied to clipboard' / 'Pasted from clipboard') in local state and it renders under the trigger."
+  },
+  "components-menu-menu--memoized-menu-items": {
+    "kind": "reduced",
+    "why": "React.memo has no counterpart and needs none: FluentMenuItem is an immutable description, not a widget, so a selection change repaints only the rows whose description differs. A helper stands in for MemoCheckbox."
+  },
+  "components-menu-menu--menu-item-link-navigation": {
+    "kind": "nearest-widget",
+    "why": "No MenuItemLink and no href: fluent_2_web ships no URL launcher, so each row is a plain FluentMenuItem whose onPressed is where navigation to https://www.microsoft.com would go."
+  },
+  "components-menu-menu--motion-custom": {
+    "kind": "reduced",
+    "why": "FluentMenu has no surfaceMotion slot. Its surface always arrives on fluentMenuSurfaceEnter \u2014 the same fade-and-slide pair MenuSurfaceMotion is built from \u2014 so the section renders the default motion."
+  },
+  "components-menu-menu--motion-disabled": {
+    "kind": "platform",
+    "why": "No per-menu surfaceMotion: null. The surface builds inside the app's Overlay, where MediaQuery.disableAnimationsOf clamps the entrance to zero, so the OS reduced-motion setting is the only switch."
+  },
+  "components-menu-menu--multiline-items": {
+    "kind": "slot",
+    "why": "Upstream's subText is FluentMenuItem.secondary here."
+  },
+  "components-menu-menu--nested-submenus": {
+    "kind": "model",
+    "why": "Upstream nests a whole Menu inside a MenuItem and splits each level into its own component. FluentMenuItem carries a submenu list, so the nesting is data rather than three components."
+  },
+  "components-menu-menu--nested-submenus-controlled": {
+    "kind": "reduced",
+    "why": "FluentMenu owns the whole submenu chain, so there is no per-level open / onOpenChange to hand it. Renders identically to the uncontrolled version, which is upstream's own point."
+  },
+  "components-menu-menu--nested-submenus-responsiveness": {
+    "kind": "reduced",
+    "why": "CSS 'resize: both' becomes a drag grip in the corner, and overflowBoundary / flipBoundary have no counterpart \u2014 FluentMenu flips and shifts against the window, not an arbitrary element, so shrinking the box repositions the menus only once it crowds the viewport."
+  },
+  "components-menu-menu--radio-items": {
+    "kind": "model",
+    "why": "No MenuItemRadio. Radio behaviour is one nullable value in the caller's state, painted with the same checked flag."
+  },
+  "components-menu-menu--render-function-trigger": {
+    "kind": "composed",
+    "why": "builder is already upstream's render-function trigger \u2014 it returns a whole row and only the chevron button calls toggle \u2014 but the surface anchors to the entire returned subtree, not just the inner trigger."
+  },
+  "components-menu-menu--secondary-content-for-menu-items": {
+    "kind": "slot",
+    "why": "Upstream's secondaryContent is FluentMenuItem.trailing here."
+  },
+  "components-menu-menu--selection-group": {
+    "kind": "model",
+    "why": "Two selection areas in one flat items list, separated by FluentMenuItem.header and FluentMenuItem.divider instead of MenuGroup / MenuGroupHeader / MenuDivider."
+  },
+  "components-menu-menu--split-menu-item": {
+    "kind": "reduced",
+    "why": "No MenuSplitGroup. A FluentMenuItem with a submenu opens it and ignores its own onPressed, so 'Open' cannot be both main action and submenu trigger; the submenu wins and the 'Open on platform' trigger label has nowhere to go."
+  },
+  "components-menu-menu--switch-item": {
+    "kind": "nearest-widget",
+    "why": "No MenuItemSwitch. The row keeps the interaction and its trailing slot holds an inert FluentSwitch (IgnorePointer + ExcludeFocus) for the switch design, since upstream itself says not to put a focusable control inside a menu item."
+  },
+  "components-menu-menulist--checkbox-items": {
+    "kind": "reduced",
+    "why": "Composed permanent surface, and FluentMenuItem has no checkbox variant: checked paints Fluent's checkmark in the row's single leading slot, so a checked row shows the tick where an unchecked one shows its icon (upstream renders both columns). Upstream's bundleIcon filled/regular swap has no hook, so each glyph keeps its regular weight."
+  },
+  "components-menu-menulist--controlled-checkbox-items": {
+    "kind": "reduced",
+    "why": "Same composition and single-leading-slot limitation as Checkbox Items. FluentMenuItem.checked is always caller-owned, so upstream's checkedValues/onCheckedValueChange pair becomes a Set<String> in State seeded with cut and paste."
+  },
+  "components-menu-menulist--controlled-radio-items": {
+    "kind": "reduced",
+    "why": "Same composition and single-leading-slot limitation as Radio Items; the controlled font value is a String in State seeded with calibri, replaced on every press."
+  },
+  "components-menu-menulist--default": {
+    "kind": "composed",
+    "why": "Upstream MenuList is a permanent surface with no trigger; FluentMenu only ever renders into an overlay, so the card and its rows are composed from the package's public recomposition functions (resolveFluentMenuState/resolveFluentMenuStyle/buildFluentMenu plus the FluentMenuItem counterparts and FluentInteractive). Same tokens, insets, hover ramp and focus ring, rendered inline."
+  },
+  "components-menu-menulist--menu-list-with-nested-submenus": {
+    "kind": "composed",
+    "why": "The permanent rows are composed as above; the Preferences row hands its rendering to a real FluentMenu so the nested surface opens, positions and keyboard-drives itself. FluentMenu anchors a root level under its trigger, so the submenu drops below the row rather than beside it."
+  },
+  "components-menu-menulist--radio-items": {
+    "kind": "reduced",
+    "why": "Composed permanent surface; no radio variant on FluentMenuItem, so the selected row of the font group is marked with the checkmark in the shared leading slot instead of a radio glyph beside its icon. Selection state is held locally and is mutually exclusive, announced via Semantics.inMutuallyExclusiveGroup."
+  },
+  "components-messagebar--animation": {
+    "kind": "reduced",
+    "why": "MessageBarGroup's animate prop has no counterpart. The radio group is live: 'both' fades each bar in on mount via TweenAnimationBuilder, 'exit-only' does not. Neither value can animate a bar out, because removal from the list is immediate. Upstream's horizontal Field is a Row of a FluentLabel and the radios, since FluentField stacks its label above the control."
+  },
+  "components-messagebar--dismiss": {
+    "kind": "composed",
+    "why": "There is no MessageBarGroup in fluent_2_web; the bordered 300-high scrolling container is built from SizedBox + DecoratedBox + SingleChildScrollView, and dismissal removes the bar immediately because the group's exit animation has no Dart counterpart. Random intent selection is replaced by deterministic cycling, since dart:math is outside the allowed imports."
+  },
+  "components-messagebar--intent": {
+    "kind": "composed",
+    "why": "Our FluentMessageBarIntent declares success second, so the upstream order info/warning/error/success and its rendered label strings travel together in a local const list of (enum, String) records rather than being read off the enum."
+  },
+  "components-messagebar--reflow": {
+    "kind": "composed",
+    "why": "FluentMessageBar takes layout as a parameter and never measures itself, so the automatic reflow is done by a LayoutBuilder that switches to multiLine below upstream's 600px compact width. The ::after 'Resizable Area' tag is a Stack-positioned ColoredBox."
+  },
+  "components-nav--basic": {
+    "kind": "local-state",
+    "why": "React's `multiple` prop and `href` rows have no Flutter equivalent: `multiple` is expressed by owning `openCategories` and keeping only the newly-opened one when off, and the Links switch drives `onPressed` because a FluentNavItem is a button rather than an anchor. The demo is also hosted in its own `Overlay` so that choosing `Overlay (Default)` scopes the drawer and scrim to the 600-high demo box instead of the whole docs app \u2014 upstream gets that for free from its story iframe."
+  },
+  "components-nav--controlled": {
+    "kind": "reduced",
+    "why": "Navigate walks `_navItemValueList` instead of picking at random, because `dart:math` is outside this file's allowed imports. FluentNav has no `selectedCategoryValue`, so navigating into a sub-item opens its category instead."
+  },
+  "components-nav--custom-motion": {
+    "kind": "reduced",
+    "why": "`FluentNavDrawer` exposes no `surfaceMotion` slot and the package has no `createPresenceComponent` equivalent, so the section renders the same nav with the drawer's own slide-and-fade and a static content pane. The controls stay live; the custom keyframes do not."
+  },
+  "components-nav--split-nav-items": {
+    "kind": "composed",
+    "why": "There is no `FluentSplitNavItem`. The pin toggle and the More-options menu button are passed as `secondaryActions` on `FluentNavItem`/`FluentNavSubItem`, composed from `FluentButton.icon` at `FluentButtonSize.small` as the nav API prescribes."
+  },
+  "components-nav--variable-density-items": {
+    "kind": "nearest-widget",
+    "why": "`NavDensity` maps to `FluentNavSize`, and there is no `AppItemStatic` widget \u2014 a static app item is a `FluentNavAppItem` with `onPressed: null`, which is exactly what makes it unfocusable in FluentNav."
+  },
+  "components-persona--avatar-size": {
+    "kind": "nearest-widget",
+    "why": "Upstream passes `avatar={{ color: 'colorful' }}`, which hashes the name to a palette family. FluentAvatarColor names families directly and has no hashing mode, so FluentAvatarColor.lavender \u2014 the family 'Kevin Sturgis' hashes to in the reference PNG \u2014 is named explicitly."
+  },
+  "components-persona--presence-previous-behavior": {
+    "kind": "composed",
+    "why": "Upstream overrides the PresenceBadge's `icon` and `className` directly. FluentPersona composes its own FluentPresenceBadge and exposes no icon slot, so the previous v8 look is rebuilt from the same glyph table: `available` + `outOfOffice` already resolves to the presenceAvailableRegular glyph, recoloured to `colors.statusAwayBackground3` (marigold) through a FluentPresenceBadgeTheme, which stands in for `className`. The offline row needs no override at all because `offline` already draws presenceOfflineRegular in neutralForeground3."
+  },
+  "components-popover--anchor-to-custom-target": {
+    "kind": "composed",
+    "why": "There is no positioningRef to retarget imperatively. FluentPopover anchors to whatever it is given as child, so the retarget is structural: the popover wraps the 'Custom target' button and the 'Popover trigger' button only flips the open bool."
+  },
+  "components-popover--controlling-open-and-close": {
+    "kind": "local-state",
+    "why": "FluentPopover is controlled by construction (required open + onOpenChanged), so upstream's 'controlled mode' story is the default mode. The FluentCheckbox labelled 'open' drives the same bool as the trigger."
+  },
+  "components-popover--custom-trigger": {
+    "kind": "composed",
+    "why": "React.forwardRef exists so PopoverTrigger can inject a ref and interaction props into a custom component. A Flutter trigger needs neither \u2014 child is an ordinary widget and the open state is the caller's \u2014 so _CustomPopoverTrigger is just a StatelessWidget taking a VoidCallback."
+  },
+  "components-popover--motion-custom": {
+    "kind": "reduced",
+    "why": "FluentPopover has no surfaceMotion slot; its entrance is FluentPopoverEntrance (Fluent's fade + direction-aware slide) and it is not replaceable, so the copy is kept and the stock entrance plays instead of a fade-in/blur-out."
+  },
+  "components-popover--motion-disabled": {
+    "kind": "composed",
+    "why": "surfaceMotion={null} has no direct field. FluentPopoverEntrance reads MediaQuery.disableAnimationsOf, so the demo wraps the popover in a MediaQuery with disableAnimations: true \u2014 a real, supported way to land the surface with no transition."
+  },
+  "components-popover--nested-popovers": {
+    "kind": "local-state",
+    "why": "Each nesting level is a separate StatefulWidget owning its own open bool, since FluentPopover is controlled. trapFocus is unconditional in our widget, so nothing is passed for it."
+  },
+  "components-popover--non-interactive-content": {
+    "kind": "nearest-widget",
+    "why": "Upstream sets tabIndex={-1} plus aria-labelledby on PopoverSurface. FluentPopover's surface is already its own semantics node, so the port is semanticLabel: 'Popover content' \u2014 there is no tabIndex to set."
+  },
+  "components-popover--trapping-focus": {
+    "kind": "nearest-widget",
+    "why": "There is no trapFocus flag: FluentPopover always puts its content in a FocusScope that takes focus on open and restores it on close, so upstream's opt-in behaviour is unconditional here."
+  },
+  "components-popover--with-arrow-autosize": {
+    "kind": "nearest-widget",
+    "why": "positioning: { autoSize: true } and the overflow-reset on the surface have no FluentPopover equivalent \u2014 our surface never clips, so the arrow cannot be clipped. Ported as a bounded SizedBox(320x300) + SingleChildScrollView supplying the scroll height instead."
+  },
+  "components-popover--without-trigger": {
+    "kind": "trigger-required",
+    "why": "There is no PopoverTrigger component to omit: FluentPopover's child is only the anchor, never the opener. The 'Toggle popover' button is the caller's own, and focus capture/restore is FluentPopover's job either way."
+  },
+  "components-progressbar--color": {
+    "kind": "nearest-widget",
+    "why": "Upstream's `color` prop maps to our `status` (FluentProgressBarStatus); the makeStyles 20px rowGap becomes a Column with explicit SizedBox(height: 20) separators."
+  },
+  "components-progressbar--max": {
+    "kind": "composed",
+    "why": "FluentProgressBar takes a 0..1 fraction and has no `max`, so the count is divided by 42. Upstream's setInterval(100ms) counter is a repeating AnimationController (4300ms = 43 steps x 100ms) instead of a Timer, keeping the file to the three allowed imports and leaking no timer."
+  },
+  "components-progressbar--motion-custom": {
+    "kind": "composed",
+    "why": "FluentProgressBar owns its indeterminate sweep and has no `indeterminateMotion` slot. The swinging bar is composed from the public recomposition functions (resolveFluentProgressBarState/resolveFluentProgressBarStyle) so every colour, radius and thickness is still token-resolved, with only the motion hand-written via an AnimationController repeating with reverse: true (upstream's direction: 'alternate', 2000ms, ease-in-out)."
+  },
+  "components-progressbar--shape": {
+    "kind": "nearest-widget",
+    "why": "No `shape` prop exists; `square` is expressed as a FluentProgressBarStyle borderRadius override of BorderRadius.zero over the default pill radius. `thickness=\"large\"` is size: FluentProgressBarSize.large, and the CSS `margin: 20px 0px` is a Padding.symmetric(vertical: 20)."
+  },
+  "components-progressbar--thickness": {
+    "kind": "nearest-widget",
+    "why": "Upstream's `thickness` (medium/large) is our `size` (FluentProgressBarSize.medium/large \u2014 2 and 4 high). The CSS `margin: 20px 0px` is a Padding.symmetric(vertical: 20)."
+  },
+  "components-radiogroup--controlled-value": {
+    "kind": "local-state",
+    "why": "Cleared selection is null rather than upstream's empty string, and FluentButton has no disabledFocusable \u2014 a null onPressed disables the Clear selection button instead."
+  },
+  "components-radiogroup--default": {
+    "kind": "local-state",
+    "why": "FluentRadioGroup is controlled-only (value + onChanged); it has no uncontrolled mode, so the demo owns the selection in a StatefulWidget to stay interactive."
+  },
+  "components-radiogroup--default-value": {
+    "kind": "local-state",
+    "why": "No defaultValue/defaultChecked prop exists \u2014 the initial selection is expressed by seeding the state field to 'pear'."
+  },
+  "components-radiogroup--disabled": {
+    "kind": "nearest-widget",
+    "why": "disabled: true on FluentRadioGroup with a fixed value: 'apple' \u2014 no state needed since nothing can change."
+  },
+  "components-radiogroup--disabled-item": {
+    "kind": "local-state",
+    "why": "FluentRadio.disabled matches upstream per-item disabled; the group needs local state for the enabled items."
+  },
+  "components-radiogroup--horizontal": {
+    "kind": "local-state",
+    "why": "Same controlled-only group; layout maps 1:1 to FluentRadioGroupLayout.horizontal."
+  },
+  "components-radiogroup--horizontal-stacked": {
+    "kind": "local-state",
+    "why": "Same controlled-only group; layout maps 1:1 to FluentRadioGroupLayout.horizontalStacked."
+  },
+  "components-radiogroup--label-subtext": {
+    "kind": "composed",
+    "why": "Upstream's label is a fragment with <br /> and Text size={200}; here it is a Column of two Texts, the second styled with FluentTheme.of(context).typography.caption1 (12/16, the size-200 ramp step)."
+  },
+  "components-radiogroup--required": {
+    "kind": "local-state",
+    "why": "required comes from FluentField.required as upstream; the group still needs local state to be interactive."
+  },
+  "components-rating--color": {
+    "kind": "local-state",
+    "why": "Three uncontrolled ratings at defaultValue 3; one value per row keeps each independently interactive."
+  },
+  "components-rating--default": {
+    "kind": "local-state",
+    "why": "Upstream Rating is uncontrolled; FluentRating requires `value`, so the demo owns it."
+  },
+  "components-rating--max": {
+    "kind": "local-state",
+    "why": "`defaultValue={5}` has no Flutter counterpart; the demo holds 5 in state."
+  },
+  "components-rating--shape": {
+    "kind": "nearest-widget",
+    "why": "Upstream swaps the glyph via iconFilled/iconOutline (CircleFilled/CircleRegular, SquareFilled/SquareRegular). FluentRating paints its own silhouettes, so the same two rows come from `shape: FluentRatingShape.circle` and `.square`."
+  },
+  "components-rating--size": {
+    "kind": "local-state",
+    "why": "Four uncontrolled ratings at defaultValue 3; one value per row keeps each independently interactive."
+  },
+  "components-rating--step": {
+    "kind": "local-state",
+    "why": "`defaultValue={3.5}` has no Flutter counterpart; the demo holds 3.5 in state."
+  },
+  "components-searchbox--appearance": {
+    "kind": "nearest-widget",
+    "why": "Upstream's appearance=\"underline\" is this port's FluentSearchBoxAppearance.transparent \u2014 the enum's own dartdoc states they are the same thing (no fill, bottom rule only). The griffel inverted-surface wrappers become ColoredBox(colors.neutralBackgroundInverted) with the label recoloured to neutralForegroundInverted2."
+  },
+  "components-searchbox--content-before-after": {
+    "kind": "slot",
+    "why": "FluentSearchBox has one leading slot (icon), laid out as a 20x20 glyph box, and no contentAfter slot at all. The PersonRegular contentBefore maps exactly to icon:. The mic button (contentAfter) and the 'Search:'/'Filter' text values do not fit that slot, so they sit beside the box in a Row instead of inside its border; a comment in the docregion says so."
+  },
+  "components-searchbox--controlled": {
+    "kind": "local-state",
+    "why": "FluentSearchBox has no value prop \u2014 it is controller-driven. Refusing an over-long edit therefore means rolling the controller back to the last accepted value rather than simply not re-rendering, and FluentField takes the warning glyph (warning_12_filled) from the caller because it does not pick one per validation state."
+  },
+  "components-searchbox--disabled": {
+    "kind": "local-state",
+    "why": "React's defaultValue is an uncontrolled starting value; FluentSearchBox takes a TextEditingController, so the section declares a small StatefulWidget that seeds and disposes one with 'disabled value'."
+  },
+  "components-searchbox--typeahead": {
+    "kind": "reduced",
+    "why": "Arrow-key traversal of the results list is dropped: matching keys needs LogicalKeyboardKey from package:flutter/services.dart, which this page may not import. Enter (onSubmitted) selects the first result and Escape clears the box, both of which FluentSearchBox already binds. The listbox also renders in flow under the search box rather than as an absolutely-positioned overlay, and useTypingAnnounce's live-region announcements become a labelled Semantics container."
+  },
+  "components-skeleton--appearance": {
+    "kind": "composed",
+    "why": "FluentSkeleton has no `appearance` axis. Upstream's translucent appearance is exactly a swap of colorNeutralStencil1/2 for their Alpha variants, so it is written as a FluentSkeletonStyle override naming colors.neutralStencil1Alpha / neutralStencil2Alpha \u2014 same tokens, different seat."
+  },
+  "components-skeleton--row": {
+    "kind": "composed",
+    "why": "Upstream's rows are CSS grids whose columns are percentages of the row's own width (min-content 80%, and min-content 20% 20% 15% 15%). A Flutter Row flexes only leftover space, so the fractions are resolved against LayoutBuilder's measured maxWidth. Upstream's shape=\"square\" is rendered as a 24x24 rectangle, which is that shape exactly."
+  },
+  "components-skeleton--shape": {
+    "kind": "nearest-widget",
+    "why": "FluentSkeletonShape has rectangle and circle only. Upstream's third shape, square, is a rectangle with equal sides, so it is a 64x64 rectangle here."
+  },
+  "components-slider--default": {
+    "kind": "local-state",
+    "why": "Upstream uses uncontrolled defaultValue; FluentSlider is controlled (value + onChanged), so the demo owns the value in a StatefulWidget."
+  },
+  "components-slider--disabled": {
+    "kind": "nearest-widget",
+    "why": "No disabled flag: FluentSlider disables by omitting onChanged, which is exactly the docregion's comment."
+  },
+  "components-slider--min-max": {
+    "kind": "local-state",
+    "why": "defaultValue={20} becomes controlled local state; the griffel flex wrapper becomes a Row with the aria-hidden min/max Labels wrapped in ExcludeSemantics."
+  },
+  "components-slider--size": {
+    "kind": "local-state",
+    "why": "Two uncontrolled defaultValue sliders become two controlled values held by one State."
+  },
+  "components-slider--step": {
+    "kind": "local-state",
+    "why": "defaultValue={6} becomes controlled local state."
+  },
+  "components-slider--vertical": {
+    "kind": "nearest-widget",
+    "why": "FluentSlider has no vertical flag; the horizontal rail is rotated a quarter turn anticlockwise inside a 24x120 SizedBox so max sits at the top. Drag and arrow keys still work through the rotation."
+  },
+  "components-spinbutton--appearance": {
+    "kind": "composed",
+    "why": "griffel's `.field` / `.filledLighter` / `.filledDarker` rules become a Container with `colors.neutralBackgroundInverted` plus a FluentLabelStyle carrying `neutralForegroundInverted2`, matching the Input page's translation of the same upstream CSS."
+  },
+  "components-spinbutton--default": {
+    "kind": "local-state",
+    "why": "FluentSpinButton requires `value` and reports every commit through `onChanged`; there is no `defaultValue`, so the seed value 10 lives in the demo's own state."
+  },
+  "components-spinbutton--disabled": {
+    "kind": "nearest-widget",
+    "why": "There is no `disabled` flag; a null `onChanged` is the disabled state (`_enabled => widget.onChanged != null`)."
+  },
+  "components-spinbutton--display-value": {
+    "kind": "reduced",
+    "why": "FluentSpinButton has a `displayValue` slot but no `parser` hook: it commits with `double.tryParse` and restores the committed value when that fails, so typing \"$15\" is rejected while \"15\" is accepted and re-formatted. Clearing the field is the one path that reports null, and that is where upstream's \"(null)\" display value shows."
+  },
+  "components-spinbutton--step": {
+    "kind": "nearest-widget",
+    "why": "React's `stepPage` is named `pageStep` on FluentSpinButton; same Page Up / Page Down jump, value 20 kept."
+  },
+  "components-spinbutton--uncontrolled": {
+    "kind": "local-state",
+    "why": "No uncontrolled mode exists \u2014 `value` is required. The nearest equivalent is a demo that owns the value, which is what React's uncontrolled SpinButton does internally."
+  },
+  "components-spinner--appearance": {
+    "kind": "nearest-widget",
+    "why": "React's appearance=\"inverted\" has no enum counterpart; FluentSpinnerAppearance.subtle is the same white-on-translucent ring, so the section uses it plus a brandBackgroundStatic ColoredBox for the dark overlay wrapper."
+  },
+  "components-swatchpicker--color-swatch-variants": {
+    "kind": "composed",
+    "why": "FluentSwatch takes a single Color, so the CSS linear-gradient(0deg, #E3008C, #fff232) is painted by a DecoratedBox behind a fully transparent swatch \u2014 the ring, states and 28px footprint stay the widget's own."
+  },
+  "components-swatchpicker--empty-swatch-example": {
+    "kind": "reduced",
+    "why": "Upstream opens a Popover holding ColorPicker/ColorArea/ColorSlider/AlphaSlider to dial in the colour that 'Add new color' appends. fluent_2_web ships no colour picker, so the preview is a fixed #2be700 swatch and every added colour is that one; the swatch picker, empty slots, selected-swatch box and both buttons are live. The empty slots also pass disabledIcon: SizedBox.shrink() because a disabled FluentSwatch is otherwise struck through with a prohibited glyph that upstream's dashed empty slots do not draw."
+  },
+  "components-swatchpicker--swatch-picker-focus-mode": {
+    "kind": "reduced",
+    "why": "FluentSwatchPicker has no focusMode: Flutter's traversal already walks a row of focusable children with both Tab and the arrow keys, so the two pickers differ only in the semantic label upstream gives them."
+  },
+  "components-swatchpicker--swatch-picker-image": {
+    "kind": "slot",
+    "why": "Upstream sizes the image swatches 100x100 from CSS, not from the size ramp, so the override goes on FluentSwatchStyle.size (the rung above the picker's own FluentSwatchTheme). The responsive 50x50 breakpoint under 768px is dropped."
+  },
+  "components-swatchpicker--swatch-picker-layout": {
+    "kind": "composed",
+    "why": "Upstream's renderSwatchPickerGrid({columnCount: 3}) buckets items into explicit rows; FluentSwatchPickerLayout.grid is a Wrap, so three columns is expressed as a width (3*28 + 2*4 + 2*10) on a SizedBox around the picker."
+  },
+  "components-swatchpicker--swatch-picker-mixed-swatches": {
+    "kind": "composed",
+    "why": "Grid-as-width as above, and the preview box switches between BoxDecoration.color and BoxDecoration.image instead of upstream's `background: url(...)` string."
+  },
+  "components-swatchpicker--swatch-picker-popup": {
+    "kind": "trigger-required",
+    "why": "FluentPopover is controlled, so the 'Choose color' FluentButton owns the open bool and a selection closes it. The 15 gradient entries of colour set 2 are painted by DecoratedBox behind transparent swatches, five columns expressed as a width."
+  },
+  "components-swatchpicker--swatch-picker-spacing": {
+    "kind": "composed",
+    "why": "Same Wrap-versus-grid difference; the two demos are width-constrained to three columns at the medium (4px) and small (2px) gaps respectively."
+  },
+  "components-swatchpicker--swatch-picker-with-tooltip": {
+    "kind": "composed",
+    "why": "Grid-as-width as above; each swatch is wrapped in FluentTooltip(withArrow: true), which is hover/focus-driven and needs no relationship prop."
+  },
+  "components-switch--default": {
+    "kind": "local-state",
+    "why": "Upstream's Switch is uncontrolled; FluentSwitch is controlled-only (checked + onChanged), and onChanged: null means disabled, so every interactive story owns its own bool."
+  },
+  "components-switch--disabled": {
+    "kind": "reduced",
+    "why": "FluentSwitch has no disabledFocusable equivalent \u2014 onChanged: null is the whole of disabled and it refuses focus \u2014 so the two 'disabled focusable' switches render as plain disabled, labels kept verbatim."
+  },
+  "components-switch--label": {
+    "kind": "nearest-widget",
+    "why": "Upstream's flex row with justify-content: space-around becomes Wrap(alignment: WrapAlignment.spaceAround), which spaces the three the same way but reflows instead of overflowing a narrow demo pane."
+  },
+  "components-switch--label-wrapping": {
+    "kind": "composed",
+    "why": "Upstream caps the control at maxWidth 400px; buildFluentSwitch puts the label in a Row without a Flexible, so the bound goes on the label instead (SizedBox width 332 = 400 - 56 track - 12 label padding). Also local-state for interactivity."
+  },
+  "components-switch--required": {
+    "kind": "composed",
+    "why": "FluentSwitch has no required flag; upstream forwards it to the label slot, so the label is a FluentLabel(required: true), which draws the same red asterisk seen in the reference PNG."
+  },
+  "components-switch--size": {
+    "kind": "local-state",
+    "why": "Same controlled-only reason: the Small and Medium switches each need a state field to stay tappable."
+  },
+  "components-tablist--disabled": {
+    "kind": "nearest-widget",
+    "why": "Upstream's list-wide `disabled` prop has no counterpart; FluentTabList disables every tab by taking a null `onSelect`, so the first list is rendered that way and the second keeps per-tab `enabled: false`."
+  },
+  "components-tablist--select-tab-on-focus": {
+    "kind": "reduced",
+    "why": "FluentTabList has no `selectTabOnFocus` knob because its arrow keys always move the selection (FluentTabMoveIntent calls _select), which is exactly the behaviour the story turns on; the list is rendered plain with a comment pointing at the keyboard."
+  },
+  "components-tablist--size-large": {
+    "kind": "reduced",
+    "why": "FluentTabSize ships only `medium` and `small` \u2014 Fluent 2's tab component set defines no large variant \u2014 so the section renders `medium`, the largest ramp that exists, rather than inventing one."
+  },
+  "components-tablist--with-overflow": {
+    "kind": "composed",
+    "why": "No Flutter equivalent of `Overflow`/`OverflowItem`/`useOverflowMenu`, so the visible/hidden split is declared (5 horizontal, 6 vertical, matching the reference screenshot) instead of measured, and the remainder is composed from FluentMenu + a transparent FluentButton.icon; the selected tab is swapped back into the visible set the way upstream's `priority` does."
+  },
+  "components-tablist--with-panels": {
+    "kind": "composed",
+    "why": "Upstream's three panels are raw `<table>` markup; rendered with Flutter's `Table` and `IntrinsicColumnWidth`, which reproduces the same column alignment, plus a `_Panel` helper for the header-bold and label-column-bold variants."
+  },
+  "components-tag-interactiontag--appearance": {
+    "kind": "reduced",
+    "why": "Upstream bundleIcon swaps the calendar glyph filled-on-hover; the media slot exposes no hover hook, so the regular glyph is used alone."
+  },
+  "components-tag-interactiontag--default": {
+    "kind": "composed",
+    "why": "Upstream's InteractionTag + InteractionTagPrimary pair is one widget here: FluentInteractionTag is the primary half, and a non-null onPressed is what makes it interactive rather than an inert FluentTag."
+  },
+  "components-tag-interactiontag--disabled": {
+    "kind": "composed",
+    "why": "There is no enabled flag: onPressed: null disables both halves, while onDismiss must still be non-null because that is what draws the dismiss half at all."
+  },
+  "components-tag-interactiontag--dismiss": {
+    "kind": "nearest-widget",
+    "why": "No FluentTagGroup exists, so a Semantics-labelled Wrap plays the group and each tag reports its own onDismiss; upstream's ref-based focus management becomes a FocusNode on the reset button plus autofocus on the first tag."
+  },
+  "components-tag-interactiontag--has-primary-action": {
+    "kind": "local-state",
+    "why": "FluentPopover is controlled, so the tag's onPressed toggles local open state; the whole tag is the trigger (upstream wraps only the primary half) and the Tooltip on the secondary half becomes dismissSemanticLabel: 'dismiss'. The <ul>/<li> list is a Column of bullet Rows."
+  },
+  "components-tag-interactiontag--selected": {
+    "kind": "reduced",
+    "why": "Same bundleIcon hover-swap gap as Appearance."
+  },
+  "components-tag-interactiontag--shape": {
+    "kind": "composed",
+    "why": "FluentInteractionTag has no shape axis; circular is expressed as the style's borderRadius (FluentRadius.allCircular), which is exactly what upstream's shape=\"circular\" sets."
+  },
+  "components-tag-interactiontag--size": {
+    "kind": "composed",
+    "why": "Same circular-shape override as Shape; avatar media is sized explicitly (size20 medium, size16 small and extra-small) because FluentAvatar does not inherit the tag's icon size."
+  },
+  "components-tag-tag--disabled": {
+    "kind": "nearest-widget",
+    "why": "React's `disabled` is our `enabled: false`. The dismiss glyph is only drawn when onDismiss is non-null, so a no-op callback is passed to keep the glyph visible; enabled: false already blocks it from firing."
+  },
+  "components-tag-tag--dismiss": {
+    "kind": "local-state",
+    "why": "No TagGroup widget and no onDismiss-by-value collection API, so the demo owns the visible list itself and each FluentTag gets its own onDismiss. Upstream's aria-label='Dismiss example' becomes a Semantics container on the Wrap; dismissIcon aria-label='remove' becomes dismissSemanticLabel. Upstream's ref-based focus management is reproduced with two FocusNodes plus a post-frame requestFocus."
+  },
+  "components-tag-tag--media": {
+    "kind": "slot",
+    "why": "Upstream's separate `media` slot does not exist; FluentTag has one leading `icon` slot, which is what an avatar goes in. FluentAvatar also does not derive initials from `name`, so 'KA' is spelled out alongside the verbatim 'Katri Athokas'."
+  },
+  "components-tag-tag--shape": {
+    "kind": "composed",
+    "why": "FluentTag has no `shape` axis. Circular is composed by overriding FluentTagStyle.borderRadius with FluentRadius.allCircular; the paired avatar switches between FluentAvatarShape.square and .circular to match, as Fluent does."
+  },
+  "components-tag-tag--size": {
+    "kind": "composed",
+    "why": "Same circular-via-borderRadius override as Shape. Avatar sizes are pinned to the tag's Figma glyph ramp (24/20/16) because FluentAvatar defaults to 32 and would otherwise blow past the small and extra-small tag heights."
+  },
+  "components-tag-taggroup--default": {
+    "kind": "composed",
+    "why": "No FluentTagGroup exists; upstream's TagGroup flex container is a Wrap and each tag carries its own size/enabled/callbacks."
+  },
+  "components-tag-taggroup--disabled": {
+    "kind": "nearest-widget",
+    "why": "There is no group-level disabled flag: FluentTag takes enabled: false and FluentInteractionTag is disabled by a null onPressed."
+  },
+  "components-tag-taggroup--dismiss": {
+    "kind": "local-state",
+    "why": "onDismiss is per-tag (VoidCallback) rather than a group-level onDismiss(value), so the visible list and the reset-button focus move live in the demo's State."
+  },
+  "components-tag-taggroup--select": {
+    "kind": "local-state",
+    "why": "No onTagSelect on a group; selection is the per-tag selected bool driven by the demo's State, matching upstream's note that the prop only changes appearance."
+  },
+  "components-tag-taggroup--sizes": {
+    "kind": "nearest-widget",
+    "why": "FluentInteractionTag has no shape axis, so upstream's shape=\"circular\" tag uses style: FluentTagStyle(borderRadius: FluentRadius.allCircular); avatar edge is set explicitly per tag size because FluentAvatar does not inherit the tag ramp."
+  },
+  "components-tag-taggroup--with-overflow": {
+    "kind": "reduced",
+    "why": "Flutter has no Overflow/OverflowItem/useOverflowMenu primitive, so the split is fixed at five visible tags and a +6 InteractionTag that opens a FluentMenu with the rest, instead of measuring the container."
+  },
+  "components-tagpicker--appearance": {
+    "kind": "nearest-widget",
+    "why": "Upstream's `underline` is FluentTagPickerAppearance.transparent (the Figma Tag picker set's name for the bottom-rule-only variant). The griffel `darkBG` class becomes a DecoratedBox on neutralBackgroundInverted with 20px padding and a medium radius, and the inverted label colour is neutralForegroundInverted2."
+  },
+  "components-tagpicker--button": {
+    "kind": "nearest-widget",
+    "why": "`TagPickerButton` (an invisible button in place of the input) has no port: FluentTagPicker always composes a FluentInput. Rendered as the ordinary picker. `TagPickerOption secondaryContent` has no slot either \u2014 the option's `label` doubles as the chip's content, so upstream's 'Microsoft FTE' rides in `FluentTagPickerOption.text`, which assistive technology reads."
+  },
+  "components-tagpicker--default": {
+    "kind": "slot",
+    "why": "FluentAvatar derives neither initials nor a colourful palette family from `name`, so both are spelled out per employee; `TagPickerGroup aria-label=\"Selected Employees\"` has no port because the chips are not a separately labellable group. Upstream's `no-options` guard becomes a disabled option row appended when every value is chosen."
+  },
+  "components-tagpicker--disabled": {
+    "kind": "model",
+    "why": "`onChanged: null` is how the picker is disabled here, which also removes the chips' dismiss affordance; upstream keeps `selectedOptions` editable from outside a disabled TagPicker."
+  },
+  "components-tagpicker--expand-icon": {
+    "kind": "slot",
+    "why": "`TagPickerControl expandIcon` has no port \u2014 FluentTagPicker draws no chevron of its own and `secondaryAction` is the only trailing slot on the control \u2014 so upstream's ArrowDownFilled goes there."
+  },
+  "components-tagpicker--filtering": {
+    "kind": "local-state",
+    "why": "`useTagPickerFilter` and `disableAutoFocus` have no port, so filtering is a comprehension over the picker's own controller. The filtered list is mutated in place WITHOUT setState: FluentTagPicker.didUpdateWidget calls `_entry!.markNeedsBuild()` un-deferred, so a parent rebuild while the popup is open asserts 'setState called during build'. The picker rebuilds itself from the same controller, so the rows are fresh whenever the popup is (re)opened; a popup already on screen keeps its rows. Verified with widget tests."
+  },
+  "components-tagpicker--grouped": {
+    "kind": "model",
+    "why": "`TagPickerOptionGroup` is a wrapper upstream; here a group is a `FluentTagPickerOption.header` row followed by its members in one flat list, so an emptied group is expressed by omitting its header."
+  },
+  "components-tagpicker--no-popover": {
+    "kind": "composed",
+    "why": "`noPopover` has no port, and neither does `TagPickerInput onKeyDown`: FluentTagPicker owns its field and binds Enter to 'commit the active option'. The control is composed from the parts the picker itself uses \u2014 a FluentInput whose onSubmitted adds the typed text, over a Wrap of FluentInteractionTag chips. Verified: typing a name and submitting adds a chip."
+  },
+  "components-tagpicker--secondary-action": {
+    "kind": "slot",
+    "why": "`FluentButton` has no `shape` distinction worth setting here (rounded is the default), so the All Clear button is transparent/small in the picker's `secondaryAction` slot."
+  },
+  "components-tagpicker--single-line": {
+    "kind": "reduced",
+    "why": "`Overflow`/`useOverflowCount`/`OverflowItem` have no port, so the chips wrap onto a second line instead of collapsing into a `+N` tag. The chevron survives in `secondaryAction` and flips between chevron_up_20_regular and chevron_down_20_regular with field focus, which is the closest signal this widget exposes to upstream's `open`."
+  },
+  "components-tagpicker--single-select": {
+    "kind": "local-state",
+    "why": "Single selection is the caller's job: onChanged keeps only `values.last`, so the picker never shows a second chip."
+  },
+  "components-tagpicker--size": {
+    "kind": "composed",
+    "why": "Upstream's `<h4>` headings become Text in typography.subtitle2 above each picker; the three sizes map onto FluentTagPickerSize.extraLarge/large/medium."
+  },
+  "components-tagpicker--truncated-text": {
+    "kind": "composed",
+    "why": "The CSS pair (text-overflow: ellipsis on the container, plus a 50px fixed width) becomes TextOverflow.ellipsis under an explicit ConstrainedBox \u2014 a tag lays its content out in an unbounded Row, so Text alone would never truncate. The container-width case is bounded at 240."
+  },
+  "components-teachingpopover--carousel": {
+    "kind": "local-state",
+    "why": "Upstream declares three TeachingPopoverCarouselCards and lets TeachingPopoverCarousel page between them. FluentTeachingPopover shows one body at a time with FluentTeachingPopoverCarousel(steps/activeStep/onStepSelected) driving the dot strip, so the three cards became a `_pages` list indexed by `_step`. TeachingPopoverCarouselFooter's next/previous/initialStepText/finalStepText became the two footer buttons' labels ('Next'/'Finish', 'Previous'/'Close'); TeachingPopoverCarouselNavButton's `aria-label={`Tip ${index}`}` became `stepSemanticLabel`."
+  },
+  "components-teachingpopover--carousel-brand": {
+    "kind": "local-state",
+    "why": "Same card-list-to-step adaptation as Carousel, with appearance: FluentTeachingPopoverAppearance.brand."
+  },
+  "components-teachingpopover--carousel-text": {
+    "kind": "reduced",
+    "why": "Upstream replaces the nav dots with TeachingPopoverCarouselPageCount rendering `${currentIndex} of ${totalPages}`. FluentTeachingPopoverCarousel draws its `pageCount` widget beside the dot strip rather than instead of it, so this footer shows both the dots and '1 of 3'. Noted in a comment inside the docregion."
+  },
+  "components-teachingpopover--default": {
+    "kind": "trigger-required",
+    "why": "FluentTeachingPopover is controlled (required `open` + `onOpenChanged`), so the demo owns a `_open` bool and the 'TeachingPopover trigger' FluentButton toggles it. Upstream's TeachingPopoverTrigger/Surface/Header/Body/Title/Footer slot tree collapses into the widget's `child`/`header`/`media`/`title`/`body`/`primaryAction`/`secondaryAction` parameters; `onDismiss: () {}` is what draws the header's dismiss button."
+  },
+  "components-textarea--appearance": {
+    "kind": "composed",
+    "why": "griffel classes (inverted background wrapper, inverted label colour, mNudge padding) become Container/Padding with FluentSpacing.mNudge and colors.neutralBackgroundInverted / neutralForegroundInverted2; upstream's resize=\"both\" has no counterpart."
+  },
+  "components-textarea--controlled": {
+    "kind": "local-state",
+    "why": "FluentTextarea is controller-driven rather than value/onChange-driven, so the demo owns a TextEditingController seeded with 'initial value' and the 50-character cap is enforced by maxLength: 50 instead of rejecting the edit inside onChange."
+  },
+  "components-textarea--resize": {
+    "kind": "reduced",
+    "why": "resize toggles the browser's native drag grip on <textarea>. Flutter has no such affordance, so 'none'/'horizontal' pin the height with maxLines: 2 and 'vertical'/'both' keep the default maxLines: null so the field grows with its text."
+  },
+  "components-textarea--size": {
+    "kind": "composed",
+    "why": "React's Field passes size down to the control through FieldContext; FluentField sizes only its own label, so size is set on both FluentField and FluentTextarea to match the rendering."
+  },
+  "components-textarea--uncontrolled": {
+    "kind": "nearest-widget",
+    "why": "console.log becomes debugPrint, keeping the 'New value: \"...\"' format and the 'Check console for new value' hint."
+  },
+  "components-toast--default": {
+    "kind": "slot",
+    "why": "Upstream hangs `action` off ToastTitle and wraps content in Toast/ToastTitle/ToastBody/ToastFooter children. FluentToast is one widget with named slots, so the Undo link goes in `action` with `type: FluentToastType.action`, and body/subtitle/footer are parameters."
+  },
+  "components-toast--default-toast-options": {
+    "kind": "local-state",
+    "why": "position, timeout and pauseOnHover are arguments to FluentToastController.show rather than props on FluentToaster, so 'defaults configured on the Toaster' become three constants the demo passes at dispatch. `pauseOnWindowBlur` has no equivalent at all \u2014 the countdown keeps running when the window loses focus."
+  },
+  "components-toast--dismiss-toast": {
+    "kind": "local-state",
+    "why": "No `onStatusChange`. FluentToastController is a ChangeNotifier, so the Make/Dismiss button state is derived by listening to the queue and checking whether the id is still in `entries`."
+  },
+  "components-toast--dismiss-toast-with-action": {
+    "kind": "composed",
+    "why": "There is no ToastTrigger. FluentToastBuilder is handed the toast's own id, so the link calls controller.dismiss(id) directly."
+  },
+  "components-toast--focus-keyboard-shortcut": {
+    "kind": "reduced",
+    "why": "FluentToaster exposes no `shortcuts` slot. The focus move to the most recent toast is implemented (a FocusNode inside each dispatched toast), but binding it to CTRL+M needs LogicalKeyboardKey from package:flutter/services.dart, which these pages may not import, so it is offered as a second button. Upstream also pauses every toast in the toaster once one is focused; ours pauses on hover only."
+  },
+  "components-toast--inline": {
+    "kind": "composed",
+    "why": "FluentToaster always renders into the nearest Overlay, so `inline` is not a flag \u2014 it is a nearer overlay. Overlay.wrap gives the 500x500 box one of its own and the toasts stack inside it. Upstream's 2px dashed green border is solid here; BoxDecoration has no dash pattern."
+  },
+  "components-toast--intent": {
+    "kind": "slot",
+    "why": "There is no `media` slot on the title. A custom spinner or avatar goes in FluentToast's `icon`, paired with FluentToastIntent.custom \u2014 the one intent that ships no glyph of its own to replace."
+  },
+  "components-toast--inverted-appearance": {
+    "kind": "composed",
+    "why": "FluentToast has no `appearance` axis. The inverted surface is composed by passing the two tokens upstream's inverted rule names \u2014 neutralBackgroundStatic and neutralForegroundStaticInverted \u2014 through `style`, with the links switched to FluentLinkAppearance.overBrand."
+  },
+  "components-toast--multiple-toasters": {
+    "kind": "model",
+    "why": "Upstream needs a toasterId because the DOM gives it no other handle on a particular toaster. A FluentToastController IS the handle, so two toasters are two controllers and two nested FluentToasters, and the per-toaster position is passed at dispatch."
+  },
+  "components-toast--pause-and-play": {
+    "kind": "composed",
+    "why": "There is no pauseToast/playToast pair. Re-showing under the same id with Duration.zero stops the countdown ticker and re-showing with the original timeout resumes it from where it stopped, which is exactly upstream's pause/play. The ToggleButton is a FluentButton wearing the primary appearance while checked, since fluent_2_web ships no toggle button."
+  },
+  "components-toast--pause-on-window-blur": {
+    "kind": "reduced",
+    "why": "FluentToastController.show has no pauseOnWindowBlur and the countdown is a ticker on the scheduler's clock, so it keeps running while another window has focus. The toast is upstream's; the pause is not."
+  },
+  "components-toast--progress-toast": {
+    "kind": "composed",
+    "why": "The 100ms/5-step interval is a TweenAnimationBuilder over the same wall-clock run \u2014 these pages may not import dart:async for a Timer \u2014 and ToastTrigger is replaced by a link that dismisses by id. Dismissal is still driven by the bar's own completion callback, as upstream intends."
+  },
+  "components-toast--toast-lifecycle": {
+    "kind": "local-state",
+    "why": "No onStatusChange hook. The status is derived from the queue: present+visible, present+not-visible and absent give visible/dismissed/unmounted. `queued` is not observable, because our controller renders every toast it is given rather than holding a limit and a queue behind it."
+  },
+  "components-toast--toaster-limit": {
+    "kind": "local-state",
+    "why": "FluentToaster has no `limit` and no queue behind one. The demo dismisses the oldest visible toast once the limit is exceeded \u2014 dropped rather than queued, which is the nearest the public API expresses."
+  },
+  "components-toast--update-toast": {
+    "kind": "local-state",
+    "why": "No updateToast; `show` with an id already queued replaces that toast in place and keeps its slot, which is the same operation. The unmounted flag is again derived from the queue rather than from onStatusChange."
+  },
+  "components-toolbar--controlled-radio": {
+    "kind": "local-state",
+    "why": "Same composition as Radio; upstream's checkedValues/onCheckedValueChange round trip becomes local setState."
+  },
+  "components-toolbar--controlled-toggle-button": {
+    "kind": "local-state",
+    "why": "Upstream's controlled/uncontrolled split is a React prop pair (checkedValues + onCheckedValueChange). In Flutter the demo already owns the state, so the round trip is written out as a Map<String, Set<String>> plus setState, seeded with textOptions: bold, italic."
+  },
+  "components-toolbar--far-group": {
+    "kind": "nearest-widget",
+    "why": "Upstream is one Toolbar with justifyContent: space-between and two ToolbarGroups. FluentToolbar hugs its content (Row with mainAxisSize.min) and has no group widget, so the two groups are two FluentToolbars pushed apart by a spaceBetween Row, wrapped in one Semantics container carrying the 'with Separeted Groups' label."
+  },
+  "components-toolbar--overflow-items": {
+    "kind": "reduced",
+    "why": "FluentToolbar models no overflow \u2014 buildFluentToolbar is a Row with mainAxisSize.min and the widget documents 'supply your own overflow menu as the last item'. There is no Flutter equivalent of upstream's Overflow/useIsOverflowItemVisible measurement, so every button stays visible and the trailing 'More items' FluentMenu lists the same commands in upstream's three divider-separated groups."
+  },
+  "components-toolbar--radio": {
+    "kind": "composed",
+    "why": "No FluentToolbarRadioGroup/RadioButton exists. Single-select is a Map<String, String> of one checked value per group name, rendered as FluentButtons re-resolved with WidgetState.selected."
+  },
+  "components-toolbar--subtle": {
+    "kind": "composed",
+    "why": "No FluentToolbarToggleButton exists; the toggle is a FluentButton re-resolved with WidgetState.selected folded in."
+  },
+  "components-toolbar--transparent": {
+    "kind": "composed",
+    "why": "No FluentToolbarToggleButton exists; the toggle is a FluentButton (appearance transparent) re-resolved with WidgetState.selected folded in."
+  },
+  "components-toolbar--vertical": {
+    "kind": "nearest-widget",
+    "why": "FluentToolbar has no vertical axis \u2014 buildFluentToolbar lays items out in a Row, and nesting a Column inside one item would collapse the three buttons into a single roving-focus stop. Rendered as a Semantics-labelled Column of the same buttons, each keeping its own tab stop."
+  },
+  "components-toolbar--vertical-button": {
+    "kind": "composed",
+    "why": "FluentButton.iconPosition is before/after only. The vertical button is built as the button's label \u2014 an icon stacked over the text \u2014 and because the icon slot is what carries the button's foreground colour, the stacked glyph reads that colour from the button's own resolved style at rest (tracks the theme, not hover)."
+  },
+  "components-toolbar--with-tooltip": {
+    "kind": "composed",
+    "why": "fluent_2_web ships no toggle button. Each ToolbarToggleButton is a FluentButton whose style is the button's own, re-resolved with WidgetState.selected folded into the live interaction states \u2014 the state Fluent's *Selected tokens key on \u2014 so hover, press and disabled still win."
+  },
+  "components-tooltip--controlled": {
+    "kind": "local-state",
+    "why": "FluentTooltip owns its own hover/focus tracking and exposes no visible/onVisibleChange; the checkbox drives enabled, which is the gate upstream's `visible && enabled` actually demonstrates."
+  },
+  "components-tooltip--custom-mount": {
+    "kind": "nearest-widget",
+    "why": "No mountNode. FluentTooltip calls Overlay.of, so the demo wraps the trigger in a local Overlay \u2014 the nearest Overlay is Flutter's portal host."
+  },
+  "components-tooltip--icon": {
+    "kind": "nearest-widget",
+    "why": "FluentInfoLabel requires infoSemanticLabel outright (React derives the info button's name from the label it is wired to); the upstream Link is a callback because this package depends on no URL launcher."
+  },
+  "components-tooltip--overflow-hidden": {
+    "kind": "reduced",
+    "why": "The surface lives in the nearest Overlay, above the scroll view and unclipped by it, so the tip does not hide when the trigger scrolls away \u2014 FluentTooltip has no clip-boundary parameter. Layout and copy kept; gap named in the docregion."
+  },
+  "components-tooltip--positioning": {
+    "kind": "reduced",
+    "why": "FluentTooltipPosition has four sides and no start/end alignment axis, so the four supported placements render and the eight aligned variants are dropped rather than faked."
+  },
+  "components-tooltip--relationship-description": {
+    "kind": "nearest-widget",
+    "why": "No relationship axis; FluentTooltip.semanticLabel is announced alongside the trigger's own name, which is what aria-describedby provides."
+  },
+  "components-tooltip--relationship-label": {
+    "kind": "nearest-widget",
+    "why": "React's relationship=\"label\" writes the tooltip text into the trigger's aria-label; FluentTooltip has no relationship axis, so the same string is passed to FluentButton.icon's required semanticLabel."
+  },
+  "components-tooltip--styled": {
+    "kind": "slot",
+    "why": "griffel className on the content slot has no Flutter equivalent; the same two tokens (brandBackground, neutralForegroundInverted) go through FluentTooltipStyle."
+  },
+  "components-tooltip--target": {
+    "kind": "slot",
+    "why": "No positioning.target. A FluentTooltip always anchors to its own child, so the button's icon slot is what gets wrapped and the surface points at the icon."
+  },
+  "components-tree--actions": {
+    "kind": "trigger-required",
+    "why": "FluentMenu opens from its own trigger and has no openOnContext, so the row keeps the edit button and the overflow menu and drops the duplicate context menu; FluentTreeItem also has no aria-description equivalent."
+  },
+  "components-tree--appearance": {
+    "kind": "composed",
+    "why": "TreeItemPersonaLayout's media slot becomes FluentTreeItem.icon holding a FluentAvatar; Avatar color=\"colorful\" has no counterpart, so a palette family and explicit initials are named per avatar because FluentAvatar deliberately does not derive initials from name. The aria-labels ride on Semantics wrappers."
+  },
+  "components-tree--aside": {
+    "kind": "slot",
+    "why": "FluentTreeItem has one trailing slot (actions) where upstream has two that share a spot (aside/actions); CounterBadge maps to a small danger FluentBadge; the row has no description field, so upstream's aria-description is passed to the aside and announced with it."
+  },
+  "components-tree--customizing-interaction": {
+    "kind": "reduced",
+    "why": "A FluentTree row is one hit target, so onOpenChange cannot distinguish a content click from a chevron click the way data.type does; the row both opens and reports through onInvoke, and Flutter has no alert() so the message renders under the tree."
+  },
+  "components-tree--drag-and-drop": {
+    "kind": "platform",
+    "why": "No dnd-kit and no sortable-list primitive in package:flutter/widgets; the same eight items are reordered from the row's trailing actions so the story \u2014 a tree whose leaves can be rearranged \u2014 still works."
+  },
+  "components-tree--expand-icon": {
+    "kind": "slot",
+    "why": "FluentTree draws its own chevron and exposes no expandIcon slot, so the AddSquare16Regular/SubtractSquare16Regular pair goes in the leading icon slot and tracks the same controlled openItems set."
+  },
+  "components-tree--flat-tree": {
+    "kind": "model",
+    "why": "There is no FlatTree; the same items are nested and aria-level, aria-setsize, aria-posinset and parentValue all fall out of the structure instead of being supplied by hand."
+  },
+  "components-tree--icon-before-and-after": {
+    "kind": "slot",
+    "why": "iconBefore is FluentTreeItem.icon; iconAfter has no counterpart, so it uses the trailing actions slot, which sits at the end of the row rather than immediately after the label."
+  },
+  "components-tree--infinite-scrolling": {
+    "kind": "composed",
+    "why": "A Future and a ScrollNotification stand in for the Promise and the onScroll handler; FluentTree lays its rows out as a column, so the 400px container is a SingleChildScrollView rather than an overflowing tree."
+  },
+  "components-tree--inline-styling-tree-item-level": {
+    "kind": "reduced",
+    "why": "Upstream recurses through useSubtreeContext_unstable for arbitrary depth; FluentTree derives the level from a data tree, so the depth is materialised at twelve levels and the per-level inset is set once through FluentTreeItemStyle.indent."
+  },
+  "components-tree--layouts": {
+    "kind": "composed",
+    "why": "TreeItemPersonaLayout maps to a FluentPersona label, which composes avatar, primary and description lines. \"without media\" is FluentPersona(presenceOnly: true) with no status, whose media slot resolves to nothing."
+  },
+  "components-tree--lazy-loading": {
+    "kind": "reduced",
+    "why": "The captured story references a mockFetch helper it does not include, so no upstream row names exist; the loaded rows are numbered from the branch value rather than invented. The shape \u2014 open, spinner in the expand slot, live-region announcements \u2014 is upstream's."
+  },
+  "components-tree--manipulation": {
+    "kind": "local-state",
+    "why": "Add and remove are written against two flat subtrees as upstream does, but FluentTree owns focus and moves it to the next visible row itself, so the itemToFocusRef bookkeeping is unnecessary."
+  },
+  "components-tree--motion-custom": {
+    "kind": "reduced",
+    "why": "FluentTree exposes no collapseMotion hook, so the duration slider and the animate-opacity switch are live and the collapse animation is not; avatarless personas keep the neutral fill because color=\"colorful\" has no counterpart."
+  },
+  "components-tree--navigation-mode-tree-grid": {
+    "kind": "reduced",
+    "why": "FluentTree has a single navigation model \u2014 arrow keys walk visible rows, Tab reaches the actions \u2014 and no navigationMode field, so the composition is identical to Actions and only the keyboard route differs."
+  },
+  "components-tree--open-item-controlled": {
+    "kind": "local-state",
+    "why": "FluentTree owns the open set for the whole tree; there is no per-item open prop, so the whole set is controlled and 'tree-item-1' starts inside it."
+  },
+  "components-tree--selection": {
+    "kind": "local-state",
+    "why": "FluentTree always takes selectedItems from the caller, so defaultCheckedItems ['1-2'] becomes the initial value of local state."
+  },
+  "components-tree--use-headless-flat-tree": {
+    "kind": "model",
+    "why": "No useHeadlessFlatTree hook: the flat value/parentValue list is kept verbatim (it is what the story is about) and folded into nested items by a local helper; the per-row context menu is dropped for the same reason as Actions."
+  },
+  "components-tree--virtualization": {
+    "kind": "platform",
+    "why": "No react-window equivalent, and Flutter's widgets layer has no drop-in virtualiser for a component that lays itself out as a column; FluentTree already builds only the rows its open set makes visible, so the 600 items are real and the 300x300 viewport just scrolls them."
+  }
+}

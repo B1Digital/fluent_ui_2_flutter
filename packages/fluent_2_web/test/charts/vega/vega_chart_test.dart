@@ -180,15 +180,14 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('legend selection round-trips through onSchemaChange', (
-    tester,
-  ) async {
-    var seen = const <String>[];
+  testWidgets('a single spec keeps the chart-owned legend, and the selection '
+      'does NOT round-trip through onSchemaChange', (tester) async {
+    var fired = false;
     await pump(
       tester,
       FluentVegaDeclarativeChart(
         chartSchema: const FluentVegaSchema(vegaLiteSpec: colouredBarSpec),
-        onSchemaChange: (schema) => seen = schema.selectedLegends,
+        onSchemaChange: (schema) => fired = true,
       ),
     );
     expect(
@@ -196,29 +195,38 @@ void main() {
       findsOneWidget,
       reason:
           'VegaLiteSchemaAdapter.ts:1714 stacks a colour-encoded bar with no '
-          'xOffset, so the tap below lands on the lifted legend of a stacked '
-          'bar.',
+          'xOffset.',
     );
-    // The lifted row is the ONLY legend in the tree: the widget writes
-    // `legend: {disable: true}` into the cloned colour channel, which
-    // `VegaLiteSchemaAdapter.ts:2713` reads as `hideLegend`. The count is
-    // asserted because it is what makes the tap unambiguous.
+    // `VegaDeclarativeChart.tsx:494` renders the shared `<Legends>` inside the
+    // CONCAT branch, and `:472` is the sole writer of the `_hideLegend` flag
+    // `:238` reads — so a single spec goes through `renderSingleChart` and
+    // keeps the chart's own legend. This widget used to lift one here, which
+    // drew the wrong strip: square swatches in first-seen order, centred.
     expect(
-      find.byType(FluentChartLegend),
+      find.descendant(
+        of: find.byType(FluentVerticalStackedBarChart),
+        matching: find.byType(FluentChartLegend),
+      ),
       findsOneWidget,
-      reason:
-          'VegaDeclarativeChart.tsx:238-240 hides the chart-owned legend '
-          'whenever the widget renders one of its own.',
+      reason: 'the chart-owned legend is the only one, and it is inside it.',
     );
     await tester.tap(find.text('P'));
     await tester.pumpAndSettle();
+
+    // GAP, deliberate and measured — see the parity pin on
+    // `charts-vegadeclarativechart--default`. Upstream gets this round-trip for
+    // free by spreading `legendProps` into the chart it renders (`:243`); here
+    // only `FluentAreaChart` and `FluentPolarChart` take `selectedLegends` at
+    // all, so a stacked bar's own legend has nowhere to report to. Closing it
+    // is that parameter on eight widgets plus a pass-through in eleven
+    // transformers — not a change to this file. Asserted rather than deleted so
+    // the day it starts working is a failing test and not a silent change.
     expect(
-      seen,
-      <String>['p'],
+      fired,
+      isFalse,
       reason:
-          'VegaDeclarativeChart.tsx:406-411 fires onSchemaChange with the new '
-          'selection; useLegendsStyles.styles.ts:56 capitalises for display '
-          'only, so the raw title round-trips.',
+          'the tap selects inside the chart. When the eight widgets grow '
+          '`selectedLegends`, wire it back to `onSchemaChange` and flip this.',
     );
   });
 

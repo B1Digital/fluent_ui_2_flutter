@@ -269,16 +269,22 @@ void main() {
       //     sorts the legacy arm on the raw value, which also retires the
       //     `// parity:` note that used to sit on it.
       //
-      // The 2.713% left is 3,585 pixels and none of it is ordering. 3,129 are
-      // the ten scanlines at the five row boundaries: the cell band is
-      // 49.781px tall on a 50.797px pitch (Oracle B `rect` bbox and ctm), so
-      // every horizontal edge falls mid-pixel and Chromium blends it — at
-      // (110, 70) the reference is (101,175,159) against this port's
-      // (64,157,137), and at (110, 71) (211,233,235) against (255,255,255).
-      // The port snaps the cell rect to whole pixels. The remaining ~456 are in
-      // rows 318-350, the legend's "+3 more" overflow button. Neither is this
-      // defect; both are pinned here so the next change to them is visible.
-      maxMismatch: 2.99,
+      // 0.217% since, and the 2.713% it replaced was never this chart's fault.
+      // 3,129 of those pixels were ten scanlines at the five row boundaries —
+      // the port's cell band measured 49.976 on a 50.996 pitch against the
+      // capture's 49.781 on 50.797 — and the cause was the HARNESS, not the
+      // cell geometry. Oracle B records the root box at y 125.21875, height
+      // 350, so the screenshot spans 351 device rows for a 350px box; the
+      // harness sized the chart to the PNG and handed it a pixel the browser
+      // never had, which the y band scale then divided out across all five
+      // rows. `logicalSize` gives it the browser's 350 and the band comes out
+      // at 49.781, Oracle's number exactly. The x axis was always right
+      // (41.111111 / 54.444444 in both, unchanged).
+      //
+      // The rest was the legend's overflow trigger, closed in
+      // `chrome/legend.dart` — see the VerticalBarChart story for that one.
+      logicalSize: const Size(450, 350),
+      maxMismatch: 0.24,
     );
   });
 }

@@ -156,17 +156,29 @@ void main() {
       //     absent. `FluentLineOptions` now reaches the delegate the same way
       //     VerticalStackedBarChart takes it.
       //
-      // What is left, counted off the diff panel: 1,184 of the 1,229 are the
-      // legend's overflow trigger and 45 are antialiasing on the dot rings.
-      // The trigger is a chrome defect and lives outside this widget — the
-      // capture's button is 96px wide (`+3 more` followed by a chevron glyph)
-      // and `chrome/legend.dart:838-841` builds a bare `FluentButton` with no
-      // menu icon, measuring 80px at `:777-782`. Those 16px are exactly the
-      // budget that lets `fluentChartLegendVisibleCount` admit a seventh row,
-      // so the port reads `+2 more` where the capture reads `+3 more`. It is
-      // not a font residual: every visible swatch lands on the reference's to
-      // the pixel (28, 111, 194, 259, 333, 415 in both).
-      maxMismatch: 0.64,
+      // A third closed since, in `chrome/legend.dart` rather than here, taking
+      // 0.580% (1,229 px) to 0.245%: the strip used to render SEVEN legends and
+      // `+2 more` where the capture renders six and `+3 more`. Two causes, both
+      // in the width the overflow budget reserves.
+      //
+      //   * `OverflowMenu.tsx:59` is a MenuButton — a Button carrying
+      //     `<ChevronDownRegular />` after its label — and the port built a bare
+      //     `FluentButton`. The chevron is 12, not the button ramp's 20
+      //     (`useMenuButtonStyles.styles.ts`), so the trigger was short by that
+      //     plus its `sNudge` gap.
+      //   * `Legends.tsx:137` wraps the strip in a bare `<Overflow>`, whose
+      //     `padding` defaults to 10 in BOTH `useOverflowContainer` and
+      //     `@fluentui/priority-overflow`'s `overflowManager`. Nothing overrides
+      //     it, and the port reserved none of it. With rows measuring
+      //     [83.1, 82.5, 65.6, 74.1, 81.9, 78.3, 60.7, …] against an available
+      //     630 and a 99.4 trigger, a seventh row needs 526.3 and the budget is
+      //     520.6 — the ten pixels ARE the seventh row.
+      //
+      // Six swatches now land on the reference's to the pixel (28, 111, 194,
+      // 259, 333, 415 in both) and the trigger box lands within one
+      // (485..582 against 486..581). What is left is that subpixel trigger
+      // edge, antialiasing on the dot rings, and the documented font residual.
+      maxMismatch: 0.30,
     );
   });
 
@@ -428,7 +440,7 @@ void main() {
           roundedTicks: true,
         ),
       ),
-      // Measured 0.175% — 372 pixels of 212,435, down from 11.640% (24,727).
+      // Measured 0.149% — 316 pixels of 212,435, down from 11.640% (24,727).
       // Three defects closed, all in `vertical_stacked_bar_chart.dart`:
       //
       //   * `_getDomainMargins` (`VerticalStackedBarChart.tsx:913-965`) had no
@@ -452,12 +464,11 @@ void main() {
       // Bar widths were measured, not assumed: the capture's rects are 16 wide
       // and so are the port's, before and after. Only their x moved.
       //
-      // What is left: 313 of the 372 are the legend's overflow trigger and 59
-      // are antialiasing on the two overlay lines. The trigger is the same
-      // chrome defect the VerticalBarChart story above documents — no chevron
-      // glyph, so the button measures 16px narrow — and it lives in
-      // `chrome/legend.dart`, outside this widget.
-      maxMismatch: 0.20,
+      // 0.149% since: the trigger defect the VerticalBarChart story above
+      // documents — no chevron glyph and no reserved `<Overflow>` padding — was
+      // closed in `chrome/legend.dart`. What is left is antialiasing on the two
+      // overlay lines and the subpixel trigger edge.
+      maxMismatch: 0.18,
     );
   });
 }

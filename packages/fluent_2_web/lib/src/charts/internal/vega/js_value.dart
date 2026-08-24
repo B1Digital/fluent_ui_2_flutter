@@ -304,3 +304,35 @@ bool jsGreaterOrEqual(Object? a, Object? b) {
   final direct = _relational(a, b);
   return direct == null ? false : !direct;
 }
+
+/// [keys] reordered the way `Object.keys` enumerates them.
+///
+/// ECMA-262 `OrdinaryOwnPropertyKeys` lists ARRAY-INDEX keys first, ascending
+/// *numerically*, and only then every other key in insertion order. An array
+/// index is a string that round-trips a canonical integer in `[0, 2^32 - 2]`,
+/// so `'3'` and `'4'` are indices while `'2.5'`, `'03'`, `'-1'` and `'1e2'` are
+/// ordinary keys. A Dart map is insertion-ordered throughout, so a spec whose
+/// keys are bare digit strings groups in a different order without this — in
+/// `charts-vegadeclarativechart--default` the six `ctr` series enumerate
+/// 3, 4, 2.5, 3.5, 2.4, 4.5 upstream against 2.5, 3.5, 3, 4, 2.4, 4.5 here,
+/// and because the palette is handed out in that order four of the six come
+/// out in the wrong colour.
+List<String> jsObjectKeys(Iterable<String> keys) {
+  // 2^32 - 2, the largest array index. `'4294967295'` is a length, not an
+  // index, and enumerates as an ordinary key.
+  const maxArrayIndex = 4294967294;
+  final indices = <int>[];
+  final rest = <String>[];
+  for (final key in keys) {
+    final n = int.tryParse(key);
+    // `'$n' == key` is the canonical-form test: it rejects `'03'`, `'+3'` and
+    // `' 3'`, which parse but are not the integer's own string.
+    if (n != null && n >= 0 && n <= maxArrayIndex && '$n' == key) {
+      indices.add(n);
+    } else {
+      rest.add(key);
+    }
+  }
+  indices.sort();
+  return <String>[for (final i in indices) '$i', ...rest];
+}

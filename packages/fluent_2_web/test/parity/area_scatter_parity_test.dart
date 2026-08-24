@@ -297,7 +297,7 @@ void main() {
       // promotional bubble at a half-day x — sit on the same pixels, in the
       // same colours, in the same paint order, and the date ticks the
       // reference chose (Feb 28 - Mar 08) are the ticks Flutter chose.
-      maxMismatch: 0.04,
+      maxMismatch: 0.02,
     );
   });
 }

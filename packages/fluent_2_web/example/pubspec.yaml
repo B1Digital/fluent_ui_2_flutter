@@ -1,5 +1,5 @@
 name: fluent_2_web_example
-description: "Storybook for the Fluent 2 web components."
+description: "A Flutter clone of the Fluent UI React Storybook, built from fluent_2_web."
 publish_to: 'none'
 version: 1.0.0+1
 resolution: workspace
@@ -10,13 +10,30 @@ environment:
 dependencies:
   fluent_2_web:
     path: ..
+  # Selawik. `fluent_2_web` lists this as a dev_dependency, which does not
+  # transit, so without naming it here the deployed showroom silently falls back
+  # to the platform sans-serif and every measured type metric is wrong.
+  fluent_2_fonts_web:
+    path: ../../fluent_2_fonts_web
   flutter:
     sdk: flutter
-  storybook_flutter: ^0.14.1
+  # The one third-party package in the app, and only for the preview card's
+  # "Open in new tab": opening a browser tab has no package-free path on web.
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
 flutter:
-  uses-material-design: true
+  # No `uses-material-design`. Every glyph the chrome needs is in
+  # `fluentui_system_icons`, which `fluent_2_web` re-exports, so bundling
+  # MaterialIcons-Regular.otf would be ~1.6 MB of dead weight.
+  assets:
+    # The page sources are assets *of themselves*: the "Show code" panel reads
+    # each page's own `.dart` file back at runtime and slices out the
+    # `#docregion` the section was built from, so the code shown cannot drift
+    # from the code that rendered. The wildcard is not recursive — `lib/pages/`
+    # is deliberately flat.
+    - lib/pages/
+    - assets/storybook/

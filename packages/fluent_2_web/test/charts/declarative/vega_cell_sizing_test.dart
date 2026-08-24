@@ -80,41 +80,54 @@ void main() {
       findsOneWidget,
       reason: 'VegaLiteSchemaAdapter.ts:1700 routes a point mark to scatter.',
     );
-    final legend = tester.getSize(find.byType(FluentChartLegend)).height;
     expect(
       tester.getSize(find.byType(FluentScatterChart)).height,
-      600 - legend,
+      600,
       reason:
           'the scatter transformer forwards no dimensions, so the cell is the '
-          'box it is given less the legend strip — never the spec’s 400.',
+          'whole box it is given — never the spec’s 400. The legend strip comes '
+          'out of it INSIDE the chart, because a single spec keeps the chart’s '
+          'own legend (VegaDeclarativeChart.tsx:494 renders the shared one in '
+          'the concat branch only).',
     );
   });
 
-  testWidgets('the lifted legend row comes out of the chart’s own box, not out '
-      'from under it', (tester) async {
+  testWidgets('a single spec keeps the chart’s own legend and never lifts one', (
+    tester,
+  ) async {
     await pump(
       tester,
       FluentVegaDeclarativeChart(
         chartSchema: FluentVegaSchema(vegaLiteSpec: spec('point')),
       ),
     );
-    final legend = tester.getSize(find.byType(FluentChartLegend)).height;
+    expect(
+      find.descendant(
+        of: find.byType(FluentScatterChart),
+        matching: find.byType(FluentChartLegend),
+      ),
+      findsOneWidget,
+      reason:
+          'VegaDeclarativeChart.tsx:494 renders the shared <Legends> inside the '
+          'CONCAT branch, and :472 is the sole writer of the _hideLegend flag '
+          ':238 reads, so a single spec renders through renderSingleChart with '
+          'the chart’s own legend intact — circular swatches for a scatter '
+          '(ScatterChart.tsx:279), left-aligned, in series order.',
+    );
+    expect(
+      find.byType(FluentChartLegend),
+      findsOneWidget,
+      reason: 'exactly one strip is drawn, not the chart’s plus a lifted row.',
+    );
     expect(
       tester.getSize(find.byType(FluentScatterChart)).height,
-      capturedHeight - legend,
+      capturedHeight,
       reason:
-          'CartesianChart.tsx:499-508 subtracts the legend strip from the '
-          'container height BEFORE the svg is sized, and Oracle B records the '
-          'result: svg 600x310 with the 32-tall legend root eight pixels under '
-          'it, 350 in total.',
+          'the chart takes the whole box and CartesianChart.tsx:499-508 '
+          'subtracts the strip from it internally: Oracle B records svg 600x310 '
+          'with the 32-tall legend root eight pixels under it, 350 in total.',
     );
-    expect(
-      tester.takeException(),
-      isNull,
-      reason:
-          'a chart that keeps the whole box and puts the legend below it '
-          'overflows by exactly the strip.',
-    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('a stacked bar spec still takes the height it declares', (

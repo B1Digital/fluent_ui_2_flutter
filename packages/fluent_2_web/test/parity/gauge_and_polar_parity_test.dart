@@ -7,24 +7,6 @@
 //
 // See `support/react_parity.dart` for why text is masked and why the tolerance
 // is not zero.
-//
-// BOTH stories carry the same suspected legend defect, so it is written once
-// here. Each chart reserves 32 for the strip and hands `FluentChartLegend` a
-// tight 32 (`gauge_chart.dart:1295-1296`, `polar_chart.dart:1306` with
-// `kPolarLegendHeight`). The legend then spends 8 of that 32 on its own
-// `containerMargin` top (`legend_style.dart:266-271`) and lays a
-// `kLegendHeight` = 32 row inside the 24 that are left. A `Row` constrains its
-// children in the cross axis, so the row's `Padding(all: 8)`
-// (`legend.dart:407`) leaves the swatch-and-label line 24 - 16 = **8px** —
-// against upstream's 14px swatch and 16px label. Measured on the reference
-// against the port, per chart:
-//   * gauge:  reference swatch y 105..118 (14px, centred in the 96..128
-//     strip); port y 112..119, 14 wide and 8 tall.
-//   * polar:  reference swatch y 327..340 (14px, centred in the 318..350
-//     strip); port y 334..341, again 8 tall.
-// Every legend label is therefore drawn with its bottom half cut off and sits
-// 7px low. Upstream centres a full-height 32px row in the 32px strip and adds
-// no margin inside it, which is exactly the 105 and 327 the capture recorded.
 import 'package:fluent_2_web/src/charts/gauge_chart.dart';
 import 'package:fluent_2_web/src/charts/internal/data_viz_palette.dart';
 import 'package:fluent_2_web/src/charts/model/polar_data.dart';
@@ -150,12 +132,10 @@ void main() {
         shape: FluentPolarShape.polygon,
         direction: FluentPolarDirection.clockwise,
       ),
-      // Measured 0.233%. The plot itself is all but exact: the two filled
-      // hexagons, the six spokes, the polygon grid rings and the radial axis
-      // land on the reference to within a handful of antialiased pixels at the
-      // six vertices. Everything left is the legend strip — see the note at the
-      // top of this file, which the gauge above reproduces too.
-      maxMismatch: 0.26,
+      // Measured 0.027% — 56px, the four one-column swatch edges (x 248/262
+      // and 312/326, rows 327..340) where Chrome pixel-snaps the legend div
+      // and Skia antialiases the same fractional box. The plot is exact.
+      maxMismatch: 0.03,
     );
   });
 }

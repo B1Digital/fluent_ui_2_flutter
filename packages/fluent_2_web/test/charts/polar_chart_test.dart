@@ -837,6 +837,27 @@ void main() {
       return canvas;
     }
 
+    test('each series paints its own markers before the next series draws', () {
+      final recorded = paint(
+        FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+      );
+      expect(
+        recorded.ops,
+        <String>[
+          // The area series' <g>: fill, outline, then its own three points.
+          'path', 'path', 'circle', 'circle', 'circle',
+          // The line series' <g>: its line, then its own two points.
+          'path', 'circle', 'circle',
+        ],
+        reason:
+            'PolarChart.tsx:655-669 gives each series ONE <g> holding '
+            '{area}{line}{points}, so the next series paints OVER the '
+            "previous series' markers. Draining every marker in one pass at "
+            'the end floats them all above every area — the buried purple '
+            'vertex dots in charts-polarchart--polar-chart-basic',
+      );
+    });
+
     test('the palette survives outside forced colours', () {
       final recorded = paint(
         FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
@@ -1183,6 +1204,51 @@ void main() {
       expect(popover.data.legend, marker.legend, reason: 'PolarChart.tsx:507');
     });
 
+    testWidgets('two markers at one point give the popover to the LATER one', (
+      tester,
+    ) async {
+      const overlapping = <FluentPolarSeries>[
+        FluentAreaPolarSeries(
+          legend: 'Under',
+          data: <FluentPolarDataPoint>[
+            FluentPolarDataPoint(r: 50, theta: 0),
+            FluentPolarDataPoint(r: 50, theta: 120),
+            FluentPolarDataPoint(r: 50, theta: 240),
+          ],
+        ),
+        FluentScatterPolarSeries(
+          legend: 'Over',
+          data: <FluentPolarDataPoint>[FluentPolarDataPoint(r: 50, theta: 0)],
+        ),
+      ];
+      await pump(tester, const FluentPolarChart(data: overlapping));
+      final state = tester.state<FluentPolarChartState>(
+        find.byType(FluentPolarChart),
+      );
+      final marker = state.layout.markers.last;
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer();
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(
+        tester.getTopLeft(find.byType(FluentPolarChart)) +
+            state.layout.centre +
+            marker.position,
+      );
+      await tester.pump();
+
+      expect(
+        tester
+            .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+            .data
+            .legend,
+        'Over',
+        reason:
+            'SVG 1.1 §16.2 hands the event to the topmost circle; '
+            'PolarChart.tsx:458 and :485 keep the area and line '
+            'pointerEvents="none", so the LAST series wins an overlap',
+      );
+    });
+
     testWidgets('leaving the chart closes the popover and clears the marker', (
       tester,
     ) async {
@@ -1412,16 +1478,29 @@ class _Recording implements Canvas {
   /// The two ends and the colour of every `drawLine`, in paint order.
   final List<(Offset, Offset, Color)> lines = <(Offset, Offset, Color)>[];
 
-  @override
-  void drawPath(Path path, Paint paint) => paths.add(paint.color);
+  /// Every mark in paint order, `'path' | 'circle' | 'line'`.
+  ///
+  /// [paths] and [circles] are separate lists, so nothing in them can see a
+  /// marker sitting above or below an area. This one can.
+  final List<String> ops = <String>[];
 
   @override
-  void drawCircle(Offset c, double radius, Paint paint) =>
-      circles.add(paint.color);
+  void drawPath(Path path, Paint paint) {
+    paths.add(paint.color);
+    ops.add('path');
+  }
 
   @override
-  void drawLine(Offset p1, Offset p2, Paint paint) =>
-      lines.add((p1, p2, paint.color));
+  void drawCircle(Offset c, double radius, Paint paint) {
+    circles.add(paint.color);
+    ops.add('circle');
+  }
+
+  @override
+  void drawLine(Offset p1, Offset p2, Paint paint) {
+    lines.add((p1, p2, paint.color));
+    ops.add('line');
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;

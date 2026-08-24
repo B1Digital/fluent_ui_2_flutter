@@ -424,7 +424,15 @@ class _FluentVegaDeclarativeChartState
     if (width == null && height == null) {
       return chart;
     }
-    return SizedBox(width: width, height: height, child: chart);
+    // `Align` so the declared size actually survives: upstream lays the cell
+    // out in normal flow, where a `height` shrinks the box, and a bare
+    // `SizedBox` under this widget's tight incoming constraints is stretched
+    // back to the parent's height instead. Align takes the tight box itself and
+    // hands the child a loose one.
+    return Align(
+      alignment: AlignmentDirectional.topStart,
+      child: SizedBox(width: width, height: height, child: chart),
+    );
   }
 
   /// Turns off the chart-owned legend of every colour channel in [spec].
@@ -524,10 +532,13 @@ class _FluentVegaDeclarativeChartState
     // `onLegendChange`, so a transformer has nowhere to put a caller's
     // selection. Closing the dimming is therefore the parameter on eight
     // widgets plus a pass-through in eleven transformers, not a change here.
-    final canLift = kVegaLiftableLegendKinds.contains(route.kind);
-    if (canLift) {
-      _disableChartLegend(spec);
-    }
+    // NOT lifted on this path. `:494` renders the shared `<Legends>` inside the
+    // CONCAT branch only, and `:472` is the sole writer of the `_hideLegend`
+    // flag `:238` reads, so a single spec keeps the chart's own legend —
+    // circular swatches for a scatter (`ScatterChart.tsx:279`), left-aligned,
+    // and in the series order `Object.keys` produced. Lifting one here drew a
+    // centred strip of square swatches in first-seen order instead.
+
     final chart = _buildCell(route.kind, spec, isDark: isDark);
     // AFTER the chart, unlike `:443`'s concat ordering: `getVegaColorFromMap`
     // is a cache seeded by whoever asks first (`VegaLiteColorAdapter.ts:275`)
@@ -535,10 +546,7 @@ class _FluentVegaDeclarativeChartState
     // (`VegaLiteSchemaAdapter.ts:2029`). Asking it first would repaint a
     // `scheme: tableau10` chart in the plain qualitative cycle; asking it
     // second makes the lifted row agree with the marks.
-    return _withSharedLegend(
-      chart,
-      canLift ? getVegaLiteLegendsProps(spec, _colorMap, isDark: isDark) : null,
-    );
+    return chart;
   }
 
   /// The concat grid and the one legend shared by its cells

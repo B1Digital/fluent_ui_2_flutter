@@ -87,7 +87,7 @@ void main() {
       // and (80, 106) are the 80-wide plots' final column, (197..200, 178..181)
       // the 200-wide one's. Chromium's svg clip drops that fringe and Skia
       // paints it. Nothing else in the four charts differs at all.
-      maxMismatch: 0.03,
+      maxMismatch: 0.015,
     );
   });
 

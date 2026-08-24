@@ -52,6 +52,21 @@ import 'legend_style.dart';
 //   which are selected. Upgrade path: the same `icon`/`checkmark` split
 //   upstream has, if a second widget ever needs it.
 
+/// Slack the overflow manager keeps free beyond the trigger itself.
+///
+/// `Legends.tsx:137` wraps the strip in a bare `<Overflow>`, and both
+/// `useOverflowContainer` and `@fluentui/priority-overflow`'s `overflowManager`
+/// default `padding` to 10. Nothing overrides it, so the last row has to clear
+/// the trigger AND this before it is allowed to stay visible.
+const double kLegendOverflowPadding = 10;
+
+/// Side of the overflow trigger's chevron.
+///
+/// `useMenuButtonStyles.styles.ts` sizes the menu icon 12 at small and medium
+/// and 16 at large — NOT the button ramp's own 20, which is why this is stated
+/// rather than inherited. The trigger is a medium button, so 12.
+const double _kOverflowChevronSize = 12;
+
 /// Whether a legend strip allows one selection or several.
 ///
 /// `Legends.tsx:101` defaults `canSelectMultipleLegends` to `false`, so
@@ -239,7 +254,7 @@ int fluentChartLegendVisibleCount(
   // the trigger costs nothing in that case.
   if (total <= available) return rowWidths.length;
 
-  final budget = available - triggerWidth;
+  final budget = available - triggerWidth - kLegendOverflowPadding;
   var fitted = 0;
   var running = 0.0;
   for (final width in rowWidths) {
@@ -774,13 +789,18 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
             fluentChartLegendRowWidth(item.title, labelStyle, _measurer),
         ];
         // The trigger reads `+{n} {overflowText}`; its widest form is the whole
-        // list in the menu, so measure that (OverflowMenu.tsx:16).
+        // list in the menu, so measure that (OverflowMenu.tsx:16). It is a
+        // MenuButton (`OverflowMenu.tsx:59`), so the chevron and its gap are
+        // part of the width the strip has to budget for — leave them out and
+        // the count admits one row too many.
         final triggerWidth =
             _measurer.width(
               _triggerLabel(widget.legends.length),
               triggerStyle,
             ) +
-            2 * (FluentSpacing.m + FluentStroke.thin);
+            2 * (FluentSpacing.m + FluentStroke.thin) +
+            FluentSpacing.sNudge +
+            _kOverflowChevronSize;
         final visible = fluentChartLegendVisibleCount(
           widths,
           constraints.maxWidth,
@@ -836,6 +856,13 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
                 ],
                 builder: (context, toggle) => FluentButton(
                   onPressed: toggle,
+                  // `OverflowMenu.tsx:59` is a MenuButton, which is a Button
+                  // carrying `<ChevronDownRegular />` after its label.
+                  icon: const Icon(
+                    FluentIcons.chevron_down_20_regular,
+                    size: _kOverflowChevronSize,
+                  ),
+                  iconPosition: FluentButtonIconPosition.after,
                   child: Text(_triggerLabel(rows.length - visible)),
                 ),
               ),

@@ -12,6 +12,7 @@ import 'dart:convert';
 
 import 'package:fluent_2_web/src/charts/declarative_chart.dart';
 import 'package:fluent_2_web/src/charts/vega_declarative_chart.dart';
+import 'package:flutter/widgets.dart' show Offset, Size;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/react_parity.dart';
@@ -90,15 +91,24 @@ void main() {
       //
       // The 104 that remain are all in one place, and none of them is in the
       // plot: they are the 1px outline of the two dimmed legend swatches, at
-      // (135..149, 327..340) and (180..194, 327..340). Upstream keeps the
-      // border at the full series colour and dims only the FILL —
-      // `Legends.tsx:374-378` sets `backgroundColor` from `_getColor` and
-      // `borderColor` from `legend.color`, and the sole `opacity` in
-      // `useLegendsStyles.styles.ts` is `:78`, high-contrast only. This port
-      // wraps the whole swatch, border included, in
-      // `Opacity(opacity: swatchOpacity)` (`chrome/legend.dart:414-421`), so
-      // B's border reads (107,161,208) against upstream's (55,128,191). That
-      // file is outside this change's remit.
+      // (135..149, 327..340) and (180..194, 327..340).
+      //
+      // NOT an opacity bug, though it reads like one. `dimmedSwatchOpacity`
+      // resolves to 1 outside high contrast (`legend_style.dart:271-275`), so
+      // the `Opacity` wrapping the swatch is a no-op here, and the border is
+      // already taken from `item.color` rather than the dimmed fill
+      // (`chrome/legend.dart`, the `Border.all` in `_buildSwatch`). The proof
+      // is a single pixel: at (142, 327) — the middle of the top border, where
+      // coverage is whole — the port reads (55,128,191), upstream's colour
+      // exactly. Only the border's END columns are partial: x=135 reads
+      // (202,222,238) and x=136 (107,161,208), which is one 1px stroke spread
+      // across two columns by a left edge at x≈135.26. Chromium snaps a border
+      // box to whole device pixels and Skia antialiases the true fractional
+      // one, so this is the same subpixel residual the legends and polar
+      // stories record — visible here only because a dimmed swatch is the one
+      // case where the border shows against a white fill instead of against
+      // its own colour. The SELECTED swatch, filled solid, is pixel-identical
+      // at 90..103 in both. Nothing to fix.
       maxMismatch: 0.052,
     );
   });
@@ -215,7 +225,7 @@ void main() {
       FluentVegaDeclarativeChart(
         chartSchema: FluentVegaSchema(vegaLiteSpec: spec),
       ),
-      // Measured 1.960% — 3,902 of 199,098 unmasked pixels, down from 12.515%.
+      // Measured 0.224% — 446 of 199,098 unmasked pixels, down from 12.515%.
       //
       // What closed: the `height: 400` above. Upstream ignores it for a `point`
       // mark — `transformVegaLiteToScatterChartProps` (`:3191-3231`) returns no
@@ -231,16 +241,41 @@ void main() {
       // the lifted row is `Flexible`-fed the way the shell's own row is, which
       // gives 311 + 40 against upstream's 310 + 8 + 32.
       //
-      // What is left is the legend permutation the earlier measurement
-      // predicted: upstream orders the `ctr` series 3, 4, 2.5, 3.5, 2.4, 4.5
-      // and this port orders them 2.5, 3.5, 3, 4, 2.4, 4.5. The port's order is
-      // first-appearance in the data; upstream's is JS object key enumeration,
-      // which hoists the integer-like keys "3" and "4" ahead of the rest in
-      // ascending order. Because the palette is handed out in that order, four
-      // of the seven points and their swatches come out in a different colour —
-      // and that is `groupedData` in `internal/vega/transform_line.dart:148`,
-      // shared vega code outside this change's remit.
-      maxMismatch: 2.16,
+      // 0.224% since, closing the legend permutation the earlier measurement
+      // predicted plus two things it had not spotted. All three:
+      //
+      //   * The series order. Upstream walks the grouped object with
+      //     `Object.keys` (`:3120`), which hoists the integer-like keys "3" and
+      //     "4" ahead of the rest in ascending order — 3, 4, 2.5, 3.5, 2.4, 4.5
+      //     — where a Dart map is insertion-ordered and gave 2.5, 3.5, 3, 4,
+      //     2.4, 4.5. The palette is handed out in that order, so four of the
+      //     six series were painted in the wrong colour. `jsObjectKeys` in
+      //     `internal/vega/js_value.dart` now states that enumeration rule
+      //     once; `transform_bar.dart:1275` and `transform_other.dart:247`
+      //     record the same divergence and can adopt it.
+      //   * The legend was LIFTED on this path at all. `:494` renders the
+      //     shared `<Legends>` inside the concat branch only, and `:472` is the
+      //     sole writer of the `_hideLegend` flag `:238` reads, so a single
+      //     spec keeps the chart's own legend. Upstream's is the ScatterChart's
+      //     — circular swatches (`ScatterChart.tsx:279`), left-aligned at x 29,
+      //     in series order. The port drew a centred strip of square swatches
+      //     at x 136 in first-seen order instead.
+      //   * The harness, see `logicalSize` below.
+      //
+      // COST, deliberate: the lifted row was how a legend selection round-tripped
+      // through `onSchemaChange` for a single spec, because only `FluentAreaChart`
+      // and `FluentPolarChart` take `selectedLegends`. Upstream gets that for free
+      // by spreading `legendProps` into the chart it renders (`:243`); closing it
+      // here is the parameter on eight widgets plus a pass-through in eleven
+      // transformers. Parity is restored and the round-trip is not — file it.
+      // 1.370% since, and 0.590 of the drop was the harness rather than this
+      // chart: Oracle B puts the root box at y 339.5, height 350, so the
+      // screenshot spans 351 rows for a 350px box and Chromium rounds the
+      // origin UP to the second of them. The harness used to size the chart to
+      // the PNG, which both stretched it by a row and started it one row high.
+      logicalSize: const Size(600, 350),
+      logicalOffset: const Offset(0, 1),
+      maxMismatch: 0.25,
     );
     // The overflow that used to be asserted here is gone: `takeException`
     // returns null now, and a rendered chart that silently overflows its own

@@ -531,6 +531,15 @@ class FluentHeatMapChartDelegate extends FluentCartesianSeriesDelegate {
           // `fluentInvertedTextColor` would return for `colors.axisText`.
           foreground = colors.surface;
         }
+        assert(() {
+          // ignore: avoid_print
+          print(
+            'PROBE yrange=${context.yScalePrimary.range} '
+            'xrange=${context.xScale.range} '
+            'bh=${context.yScalePrimary.bandwidth}',
+          );
+          return true;
+        }());
         out.add((
           rect: Rect.fromLTWH(
             left,

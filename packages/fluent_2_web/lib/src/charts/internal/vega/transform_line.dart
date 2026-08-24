@@ -27,7 +27,8 @@ import 'context.dart'
         groupDataBySeries,
         initializeTransformContext,
         resolveVegaSeriesColour;
-import 'js_value.dart' show JsUndefined, jsToNumber, jsToString, jsTruthy;
+import 'js_value.dart'
+    show JsUndefined, jsObjectKeys, jsToNumber, jsToString, jsTruthy;
 import 'routing.dart' show normalizeVegaSpec;
 import 'spec.dart' show VegaSpecException, extractVegaDataValues, getMarkType;
 import 'transforms.dart' show applyVegaTransforms;
@@ -165,7 +166,13 @@ FluentScatterChart transformVegaToScatter(
   final colorIndex = <String, int>{};
   var currentColorIndex = 0;
   final scatterChartData = <FluentScatterChartSeries>[];
-  final seriesEntries = groupedData.entries.toList();
+  // `:3120` walks the grouped object with `Object.keys`, which hoists
+  // integer-like series names ahead of the rest — and the palette below is
+  // handed out in exactly this order, so it decides the colours too.
+  final seriesEntries = <MapEntry<String, List<Map<String, Object?>>>>[
+    for (final key in jsObjectKeys(groupedData.keys))
+      MapEntry<String, List<Map<String, Object?>>>(key, groupedData[key]!),
+  ];
   for (var index = 0; index < seriesEntries.length; index++) {
     final seriesName = seriesEntries[index].key;
     // `:3125-3127`: the colour index is the series ordinal within this chart.

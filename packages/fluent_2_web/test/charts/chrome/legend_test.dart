@@ -1182,13 +1182,15 @@ void main() {
           (texts.last.rect.right + kLegendPadding) -
           (rects.first.rect.left - kLegendPadding);
 
-      // Only the difference `available - triggerWidth` is read, so any trigger
-      // width reproduces the capture as long as the budget is the captured span.
+      // Only `available - triggerWidth - kLegendOverflowPadding` is read, so any
+      // trigger width reproduces the capture as long as the budget is the
+      // captured span. The padding term is upstream's own: `Legends.tsx:137`
+      // wraps the strip in a bare `<Overflow>`, whose `padding` defaults to 10.
       const triggerWidth = 120.0;
       expect(
         fluentChartLegendVisibleCount(
           widths,
-          span + triggerWidth,
+          span + triggerWidth + kLegendOverflowPadding,
           triggerWidth,
         ),
         6,

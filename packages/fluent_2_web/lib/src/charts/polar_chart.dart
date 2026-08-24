@@ -106,6 +106,7 @@ class FluentPolarMarker {
     required this.radius,
     required this.color,
     required this.id,
+    required this.seriesIndex,
     required this.legend,
     required this.semanticLabel,
     required this.popoverXValue,
@@ -124,6 +125,14 @@ class FluentPolarMarker {
 
   /// `seriesIndex-pointIndex`, the identity the active-marker state compares.
   final String id;
+
+  /// Index of the owning series in [FluentPolarLayout.series].
+  ///
+  /// `PolarChart.tsx:655-669` wraps each series' area, line and points in ONE
+  /// `<g>`, so the NEXT series' area paints over THIS series' markers. The
+  /// painter needs that grouping back out of the flat [FluentPolarLayout.markers]
+  /// list, which every other consumer wants flat and in DOM order.
+  final int seriesIndex;
 
   /// Legend title of the owning series.
   final String legend;
@@ -412,6 +421,7 @@ class FluentPolarLayout {
             radius: r,
             color: p.color,
             id: '$si-$pi',
+            seriesIndex: si,
             legend: s.series.legend,
             // `:551-555` — radius first, then legend, then angle.
             semanticLabel:
@@ -815,8 +825,20 @@ class FluentPolarSeriesPainter extends CustomPainter {
     final dimmed = style.dimmedOpacity!.resolve(states)!;
     final areaOpacity = style.areaFillOpacity!.resolve(states)!;
     final defaultStroke = style.lineStrokeWidth!.resolve(states)!;
+    // `:563` inverts the active marker to the canvas colour. Deliberately not
+    // flattened: under forced colours `flattenMark` would send it to the same
+    // system foreground as the marker it is meant to invert, which is the
+    // reasoning `line_chart.dart:1015-1019` records (spec section 5.3).
+    final activeFill = style.activeMarkerFill!.resolve(states)!;
+    final activeStroke = style.activeMarkerStrokeWidth!.resolve(states)!;
 
-    for (final series in layout.series) {
+    // `:655-669` — ONE `<g>` per series holding {area}{line}{points}, so the
+    // NEXT series' area (fillOpacity 0.7) paints over THIS series' markers.
+    // `compute` appends markers series-major (`:383-427`), so one cursor walks
+    // them in step with the series loop.
+    var mi = 0;
+    for (var si = 0; si < layout.series.length; si++) {
+      final series = layout.series[si];
       final highlighted = _highlighted(series.series.legend);
       final isArea = series.series is FluentAreaPolarSeries;
       if (isArea) {
@@ -852,39 +874,44 @@ class FluentPolarSeriesPainter extends CustomPainter {
             ..color = stroke.withValues(alpha: stroke.a * opacity),
         );
       }
-    }
-
-    // `:563` inverts the active marker to the canvas colour. Deliberately not
-    // flattened: under forced colours `flattenMark` would send it to the same
-    // system foreground as the marker it is meant to invert, which is the
-    // reasoning `line_chart.dart:1015-1019` records (spec section 5.3).
-    final activeFill = style.activeMarkerFill!.resolve(states)!;
-    final activeStroke = style.activeMarkerStrokeWidth!.resolve(states)!;
-    for (final marker in layout.markers) {
-      // `:566` — the whole marker, fill and stroke together, drops to 0.1.
-      final opacity = _highlighted(marker.legend) ? 1.0 : dimmed;
-      final isActive = marker.id == activePointId;
-      final fill = isActive ? activeFill : colors.flattenMark(marker.color);
-      canvas.drawCircle(
-        marker.position,
-        marker.radius,
-        Paint()
-          ..style = PaintingStyle.fill
-          ..color = fill.withValues(alpha: fill.a * opacity),
-      );
-      if (isActive) {
-        // `:564-565` — a 2px ring in the point colour replaces the fill.
-        final ring = colors.flattenMarkStroke(marker.color);
+      // `:666` — the series' own points close its `<g>`, UNDER the next
+      // series' area.
+      while (mi < layout.markers.length &&
+          layout.markers[mi].seriesIndex == si) {
+        final marker = layout.markers[mi++];
+        // `:566` — the whole marker, fill and stroke together, drops to 0.1.
+        // `:529` reads the SERIES legend, which is the marker's own.
+        final opacity = highlighted ? 1.0 : dimmed;
+        final isActive = marker.id == activePointId;
+        final fill = isActive ? activeFill : colors.flattenMark(marker.color);
         canvas.drawCircle(
           marker.position,
           marker.radius,
           Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = activeStroke
-            ..color = ring.withValues(alpha: ring.a * opacity),
+            ..style = PaintingStyle.fill
+            ..color = fill.withValues(alpha: fill.a * opacity),
         );
+        if (isActive) {
+          // `:564-565` — a 2px ring in the point colour replaces the fill.
+          final ring = colors.flattenMarkStroke(marker.color);
+          canvas.drawCircle(
+            marker.position,
+            marker.radius,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = activeStroke
+              ..color = ring.withValues(alpha: ring.a * opacity),
+          );
+        }
       }
     }
+    // The cursor must have consumed the whole list: `compute` is the only
+    // producer and it appends series-major, so a leftover means a hand-built
+    // layout would silently lose markers.
+    assert(
+      mi == layout.markers.length,
+      'markers are not grouped by seriesIndex in series order',
+    );
     canvas.restore();
   }
 
@@ -1183,7 +1210,10 @@ class FluentPolarChartState extends State<FluentPolarChart> {
       return;
     }
     final p = local - l.centre;
-    for (final marker in l.markers) {
+    // SVG 1.1 §16.2 hands the event to the TOPMOST element, and `:458`/`:485`
+    // keep the area and line out of hit testing with `pointerEvents="none"`,
+    // so the LAST circle in document order wins an overlap — not the first.
+    for (final marker in l.markers.reversed) {
       if ((marker.position - p).distance <= marker.radius) {
         _showPopover(marker);
         return;

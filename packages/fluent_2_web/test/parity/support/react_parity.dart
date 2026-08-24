@@ -101,6 +101,12 @@ const int _channelTolerance = 24;
 /// what a new story starts at before anyone has looked at its image.
 const double kDefaultMismatchTolerance = 2.0;
 
+/// Below this fraction of its pin a story has measurably improved and the pin
+/// is stale, so the doc above — an *improvement* also fails — is enforced, not
+/// just promised. Exempt for [kDefaultMismatchTolerance]: a brand new story has
+/// no measured figure yet and would fail on its very first run.
+const double _mismatchFloorRatio = 0.5;
+
 const String _pngDir = 'test/fixtures/charts/react_png';
 const String _outDir = 'test/parity/out';
 
@@ -238,15 +244,33 @@ class ParityResult {
 ///
 /// Fails when more than [maxMismatch] percent of the unmasked pixels differ, and
 /// writes `test/parity/out/<id>.png` either way.
+///
+/// [logicalSize] is the box the BROWSER laid the chart out in, when that is not
+/// the size of the PNG. A capture whose root box starts at a fractional y —
+/// `charts-heatmapchart--heat-map-chart-basic` sits at y 125.21875 — spans one
+/// more device row than its own height, and the screenshot rounds outward. Pass
+/// the true box size from Oracle B's `htmlBoxes` in that case; handing the chart
+/// the PNG's height instead gives it a pixel the browser never had, and every
+/// band scale inside divides it out across the plot. Only three captures in the
+/// corpus need it, and each is one row tall in the difference.
+///
+/// [logicalOffset] is which row inside the PNG that box paints from. Chromium
+/// SNAPS a box origin to a whole device pixel rather than translating it
+/// fractionally, so this is the rounded fraction, not the fraction: the heat
+/// map's y 125.21875 rounds down to the capture's first row and needs 0, while
+/// the vega capture's y 339.5 rounds up to the second and needs 1. Measured
+/// both ways — passing the raw fraction instead costs the heat map 2.3 points.
 Future<ParityResult> expectReactParity(
   WidgetTester tester,
   String id,
   Widget chart, {
   double maxMismatch = kDefaultMismatchTolerance,
   FluentThemeData? theme,
+  Size? logicalSize,
+  Offset logicalOffset = Offset.zero,
 }) async {
   final reference = loadReactReference(id);
-  await _pumpChart(tester, reference, chart, theme);
+  await _pumpChart(tester, reference, chart, theme, logicalSize, logicalOffset);
 
   // Everything from here down is engine work — `instantiateImageCodec`,
   // `RenderRepaintBoundary.toImage`, `decodeImageFromPixels`,
@@ -281,6 +305,15 @@ Future<ParityResult> expectReactParity(
         '$result\nLook at $_outDir/$id.png — reference, Flutter, diff. A '
         'number is not a diagnosis.',
   );
+  if (maxMismatch != kDefaultMismatchTolerance) {
+    expect(
+      result.mismatchPercent,
+      greaterThanOrEqualTo(maxMismatch * _mismatchFloorRatio),
+      reason:
+          '$result\n$id improved past its pin. Re-pin it deliberately with '
+          'the measured figure — a stale ceiling hides the next regression.',
+    );
+  }
   return result;
 }
 
@@ -306,6 +339,8 @@ Future<void> _pumpChart(
   ReactReference reference,
   Widget chart,
   FluentThemeData? theme,
+  Size? logicalSize,
+  Offset logicalOffset,
 ) async {
   tester.view.physicalSize = reference.size;
   tester.view.devicePixelRatio = 1;
@@ -320,14 +355,30 @@ Future<void> _pumpChart(
       home: RepaintBoundary(
         key: _boundaryKey,
         // The storybook screenshots the chart over the page background, so an
-        // unpainted Flutter surface would differ from it everywhere. Opaque,
-        // and the same token the storybook's FluentProvider resolves.
+        // unpainted Flutter surface would differ from it everywhere. The
+        // capture surface is #FAFAFA — grey98, i.e. neutralBackground2
+        // (`global_colors.dart:208`, `alias_colors.dart:713-714`) — not the
+        // neutralBackground1 painted here; the 5-per-channel delta is under
+        // `_channelTolerance` (24). A chart that paints its OWN background
+        // must still be compared against neutralBackground1, so keep it.
         child: ColoredBox(
           color: data.colors.neutralBackground1,
-          child: SizedBox(
-            width: reference.size.width,
-            height: reference.size.height,
-            child: chart,
+          // Top-left plus an explicit [logicalOffset], because a capture whose
+          // box starts at a fractional pixel paints from the row Chromium
+          // rounds that origin to, which is not always the PNG's first row.
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: logicalOffset.dx,
+                top: logicalOffset.dy,
+              ),
+              child: SizedBox(
+                width: (logicalSize ?? reference.size).width,
+                height: (logicalSize ?? reference.size).height,
+                child: chart,
+              ),
+            ),
           ),
         ),
       ),
