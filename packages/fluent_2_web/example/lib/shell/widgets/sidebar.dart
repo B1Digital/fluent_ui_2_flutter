@@ -14,10 +14,17 @@ import '../router.dart';
 /// from scratch. That is the whole reason the router is shaped the way it is.
 class Sidebar extends StatefulWidget {
   /// Shows the catalog, highlighting [selectedPageId].
-  const Sidebar({super.key, required this.selectedPageId});
+  const Sidebar({
+    super.key,
+    required this.selectedPageId,
+    this.width = DocsMetrics.sidebarWidth,
+  });
 
   /// The page currently open.
   final String selectedPageId;
+
+  /// The current rail width, which the reader can drag.
+  final double width;
 
   @override
   State<Sidebar> createState() => _SidebarState();
@@ -44,7 +51,7 @@ class _SidebarState extends State<Sidebar> {
     final List<DocsGroup> out = <DocsGroup>[];
     for (final DocsGroup group in catalog) {
       final List<DocsPage> hits = group.pages
-          .where((DocsPage p) => p.title.toLowerCase().contains(query))
+          .where((DocsPage p) => p.sidebarLabel.toLowerCase().contains(query))
           .toList();
       if (hits.isNotEmpty) {
         out.add(DocsGroup(title: group.title, pages: hits));
@@ -107,7 +114,7 @@ class _SidebarState extends State<Sidebar> {
     final List<DocsGroup> groups = _filtered;
 
     return SizedBox(
-      width: DocsMetrics.sidebarWidth,
+      width: widget.width,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
@@ -146,6 +153,18 @@ class _SidebarState extends State<Sidebar> {
                       onToggle: () => setState(() {
                         if (!_collapsed.remove(group.title)) {
                           _collapsed.add(group.title);
+                        }
+                      }),
+                      onToggleAll: () => setState(() {
+                        final Iterable<String> folders = group.pages
+                            .map((DocsPage p) => p.folder)
+                            .whereType<String>()
+                            .map((String f) => '${group.title}/$f')
+                            .toSet();
+                        if (folders.every(_collapsed.contains)) {
+                          _collapsed.removeAll(folders);
+                        } else {
+                          _collapsed.addAll(folders);
                         }
                       }),
                     ),
@@ -211,11 +230,16 @@ class _GroupHeader extends StatelessWidget {
     required this.title,
     required this.collapsed,
     required this.onToggle,
+    required this.onToggleAll,
   });
 
   final String title;
   final bool collapsed;
   final VoidCallback onToggle;
+
+  /// Collapses or expands every folder in the group at once — the small
+  /// chevron-pair on the right of upstream's group headings.
+  final VoidCallback onToggleAll;
 
   @override
   Widget build(BuildContext context) {
@@ -236,7 +260,19 @@ class _GroupHeader extends StatelessWidget {
                 color: DocsMetrics.headingText,
               ),
               const SizedBox(width: 4),
-              Text(title, style: DocsMetrics.sidebarGroup),
+              Expanded(child: Text(title, style: DocsMetrics.sidebarGroup)),
+              GestureDetector(
+                onTap: onToggleAll,
+                behavior: HitTestBehavior.opaque,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Icon(
+                    FluentIcons.chevron_up_down_20_regular,
+                    size: 14,
+                    color: DocsMetrics.sidebarText,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -307,7 +343,7 @@ class _PageRowState extends State<_PageRow> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    widget.page.title,
+                    widget.page.sidebarLabel,
                     overflow: TextOverflow.ellipsis,
                     style: widget.selected
                         ? DocsMetrics.sidebarItem.copyWith(

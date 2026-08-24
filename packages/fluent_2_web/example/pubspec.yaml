@@ -17,8 +17,13 @@ dependencies:
     path: ../../fluent_2_fonts_web
   flutter:
     sdk: flutter
-  # The one third-party package in the app, and only for the preview card's
-  # "Open in new tab": opening a browser tab has no package-free path on web.
+  # A CommonMark parser, not a renderer: pure Dart, depending only on `args` and
+  # `meta`. The rendering is ours, in `shell/widgets/markdown_view.dart`, so the
+  # markdown page keeps the Fluent type ramp and no Material widget enters the
+  # app through the back door.
+  markdown: ^7.3.1
+  # Opening a browser tab has no package-free path on web, and the preview
+  # card's "Open in new tab" and the toolbar's "View as Markdown" both need one.
   url_launcher: ^6.3.1
 
 dev_dependencies:

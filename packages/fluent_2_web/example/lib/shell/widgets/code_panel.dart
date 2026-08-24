@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 
 import '../dart_highlighter.dart';
 import '../source_loader.dart';
+import 'selectable.dart';
 
 /// The dark panel under a preview card, showing the Dart that built it.
 ///
@@ -92,9 +93,11 @@ class _CodePanelState extends State<CodePanel> {
             }
             return Stack(
               children: <Widget>[
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Text.rich(snapshot.data!, style: _codeStyle),
+                Selectable(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Text.rich(snapshot.data!, style: _codeStyle),
+                  ),
                 ),
                 // `SelectableText` lives in Material, which this app no longer
                 // depends on. A copy button is the thing a reader wanted the

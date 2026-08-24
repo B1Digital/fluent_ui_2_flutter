@@ -1,5 +1,7 @@
 import 'shell/catalog.dart';
 
+import 'pages/concepts_introduction.dart';
+import 'pages/concepts_package_maturity_levels.dart';
 import 'pages/theme_border_radii.dart';
 import 'pages/theme_colors.dart';
 import 'pages/theme_fonts.dart';
@@ -95,6 +97,10 @@ import 'pages/charts_verticalstackedbarchart.dart';
 /// re-run the generator rather than editing this list, or the registry and
 /// the reference will drift.
 const List<DocsGroup> catalog = <DocsGroup>[
+  DocsGroup(
+    title: 'Concepts',
+    pages: <DocsPage>[introductionPage, packageMaturityLevelsPage],
+  ),
   DocsGroup(
     title: 'Theme',
     pages: <DocsPage>[

@@ -72,6 +72,8 @@ class DocsPage {
     this.body,
     this.folder,
     this.prose = const <ProseBlock>[],
+    this.navTitle,
+    this.markdown,
   });
 
   /// The upstream docs id with `--docs` stripped, e.g. `components-accordion`.
@@ -80,6 +82,23 @@ class DocsPage {
 
   /// The `<h1>`.
   final String title;
+
+  /// Overrides the sidebar label where it differs from the `<h1>`.
+  ///
+  /// Concepts/Introduction reads "Introduction" in the rail while its heading is
+  /// the package's own name, so the two cannot be one field.
+  final String? navTitle;
+
+  /// What the sidebar actually prints.
+  String get sidebarLabel => navTitle ?? title;
+
+  /// The page's whole content, as a markdown document.
+  ///
+  /// The Concepts pages are prose end to end — tables, nested lists, emoji
+  /// headings — so they carry their source and are rendered by the markdown
+  /// viewer rather than decomposed into [prose] blocks a simpler renderer would
+  /// flatten. When this is set it is also exactly what Copy Page hands over.
+  final String? markdown;
 
   /// The paragraph under the toolbar row.
   final String description;

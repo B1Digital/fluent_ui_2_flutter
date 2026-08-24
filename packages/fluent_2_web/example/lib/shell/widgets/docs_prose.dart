@@ -93,11 +93,11 @@ class DocsProse extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         for (final String block in blocks)
-          if (block.startsWith('#### '))
+          if (block.startsWith('### ') || block.startsWith('#### '))
             Padding(
               padding: const EdgeInsets.only(top: 16, bottom: 6),
               child: Text(
-                block.substring(5),
+                block.substring(block.startsWith('#### ') ? 5 : 4),
                 style: base.copyWith(
                   fontWeight: FontWeight.w600,
                   color: DocsMetrics.headingText,

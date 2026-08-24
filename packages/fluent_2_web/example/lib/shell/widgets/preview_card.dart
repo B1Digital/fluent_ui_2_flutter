@@ -9,6 +9,7 @@ import '../docs_metrics.dart';
 import '../rtl_scope.dart';
 import '../showroom_scope.dart';
 import '../theme_variants.dart';
+import 'canvas_toolbar.dart';
 import 'code_panel.dart';
 
 /// One story section's preview: the bordered card, its zoom controls, its action
@@ -79,25 +80,31 @@ class _PreviewCardState extends State<PreviewCard> {
               borderRadius: BorderRadius.circular(DocsMetrics.cardRadius),
             ),
             clipBehavior: Clip.antiAlias,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                _ZoomBar(
-                  onZoomIn: () => _stepZoom(1),
-                  onZoomOut: () => _stepZoom(-1),
-                  onReset: () => setState(() => _zoom = 1),
-                ),
-                _StoryStage(
-                  variant: scope.variant,
-                  zoom: _zoom,
-                  child: widget.section.builder(context),
-                ),
-                _ActionRow(
-                  showCode: _showCode,
-                  onToggleCode: () => setState(() => _showCode = !_showCode),
-                  onOpenInNewTab: _openInNewTab,
-                ),
-              ],
+            // Controls, not prose. Without this the article's selection region
+            // drags a highlight straight across every button label and every
+            // live demo — which is what a browser avoids by putting
+            // `user-select: none` on its controls.
+            child: SelectionContainer.disabled(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  _ZoomBar(
+                    onZoomIn: () => _stepZoom(1),
+                    onZoomOut: () => _stepZoom(-1),
+                    onReset: () => setState(() => _zoom = 1),
+                  ),
+                  _StoryStage(
+                    variant: scope.variant,
+                    zoom: _zoom,
+                    child: widget.section.builder(context),
+                  ),
+                  _ActionRow(
+                    showCode: _showCode,
+                    onToggleCode: () => setState(() => _showCode = !_showCode),
+                    onOpenInNewTab: _openInNewTab,
+                  ),
+                ],
+              ),
             ),
           ),
           if (_showCode)
@@ -155,16 +162,33 @@ class _StoryStage extends StatelessWidget {
             // dropdown the way upstream's does.
             child: ColoredBox(
               color: data.colors.neutralBackground1,
-              child: ColoredBox(
-                color: data.colors.neutralBackground2,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 48,
-                  ),
-                  child: Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: child,
+              child: CanvasGrid(
+                enabled: scope.grid,
+                child: ColoredBox(
+                  color: scope.background
+                      ? data.colors.neutralBackground2
+                      : const Color(0x00000000),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 48,
+                    ),
+                    child: Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      // The toolbar's viewport menu caps the story's width, and
+                      // its padlock freezes pointer input so a demo can be read
+                      // without being driven.
+                      child: _Constrain(
+                        width: scope.viewport.width,
+                        child: _Outline(
+                          enabled: scope.outlines,
+                          child: IgnorePointer(
+                            ignoring: scope.locked,
+                            child: child,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -350,4 +374,38 @@ class _ActionButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Caps the story's width when the toolbar asks for a viewport size.
+class _Constrain extends StatelessWidget {
+  const _Constrain({required this.width, required this.child});
+
+  final double? width;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) =>
+      width == null ? child : SizedBox(width: width, child: child);
+}
+
+/// Draws a box around the story, which is what "apply outlines" can honestly
+/// mean here: Flutter has no DOM to outline element by element, and
+/// `debugPaintSizeEnabled` is a global that does nothing in a release build.
+class _Outline extends StatelessWidget {
+  const _Outline({required this.enabled, required this.child});
+
+  final bool enabled;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => enabled
+      ? DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: DocsMetrics.railActive.withValues(alpha: 0.6),
+            ),
+          ),
+          child: child,
+        )
+      : child;
 }

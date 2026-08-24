@@ -4,11 +4,15 @@ import 'package:flutter/widgets.dart';
 import '../../pages.dart';
 import '../catalog.dart';
 import '../docs_metrics.dart';
+import '../showroom_scope.dart';
 import 'docs_prose.dart';
 import 'docs_toolbar.dart';
+import 'markdown_view.dart';
 import 'on_this_page.dart';
 import 'preview_card.dart';
 import 'props_table.dart';
+import 'selectable.dart';
+import 'shell_toolbar.dart';
 import 'sidebar.dart';
 
 /// The whole chrome: sidebar, docs body, anchor rail.
@@ -22,19 +26,42 @@ class DocsScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final DocsPage? page = pageById(pageId);
+    final ShowroomScope scope = ShowroomScope.of(context);
+    final Widget body = page == null
+        ? const SizedBox.shrink()
+        // Keyed so switching pages resets scroll position and collapses any
+        // open code panels, instead of carrying one page's scroll offset into
+        // a shorter one.
+        : _DocsBody(key: ValueKey<String>(page.id), page: page);
+
+    // Full screen drops the chrome entirely and hands the window to the page.
+    if (scope.fullScreen) {
+      return ColoredBox(
+        color: DocsMetrics.canvas,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            const ShellToolbar(),
+            Expanded(child: body),
+          ],
+        ),
+      );
+    }
+
     return ColoredBox(
       color: DocsMetrics.canvas,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          Sidebar(selectedPageId: pageId),
+          if (scope.sidebarVisible) _ResizableSidebar(selectedPageId: pageId),
           Expanded(
-            child: page == null
-                ? const SizedBox.shrink()
-                // Keyed so switching pages resets scroll position and collapses
-                // any open code panels, instead of carrying one page's scroll
-                // offset into a shorter one.
-                : _DocsBody(key: ValueKey<String>(page.id), page: page),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                const ShellToolbar(),
+                Expanded(child: body),
+              ],
+            ),
           ),
         ],
       ),
@@ -168,46 +195,74 @@ class _DocsBodyState extends State<_DocsBody> {
             child: SingleChildScrollView(
               key: _viewportKey,
               controller: _scroll,
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth:
-                        DocsMetrics.storyColumnWidth +
-                        DocsMetrics.contentInset * 2,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: DocsMetrics.contentInset,
+              // One region for the whole article, so a selection can run across
+              // section boundaries the way it does in a browser.
+              child: Selectable(
+                child: Center(
+                  child: ConstrainedBox(
+                    // Pages with no sections have no "On this page" rail beside
+                    // them, so the article gets the full content width rather
+                    // than the narrower story column that leaves room for one.
+                    constraints: BoxConstraints(
+                      maxWidth:
+                          (page.sections.isEmpty
+                              ? DocsMetrics.contentMaxWidth
+                              : DocsMetrics.storyColumnWidth) +
+                          DocsMetrics.contentInset * 2,
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        const SizedBox(height: 49),
-                        Text(page.title, style: DocsMetrics.h1),
-                        const SizedBox(height: 16),
-                        DocsToolbar(page: page),
-                        DocsProse(page.description),
-                        const SizedBox(height: DocsMetrics.ruleGap),
-                        const _Rule(),
-                        const SizedBox(height: DocsMetrics.ruleGap),
-                        for (final ProseBlock block in page.prose) ...<Widget>[
-                          const SizedBox(height: 32),
-                          Text(block.title, style: DocsMetrics.h3),
-                          const SizedBox(height: 12),
-                          DocsProse(block.body),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: DocsMetrics.contentInset,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          const SizedBox(height: 49),
+                          Text(page.title, style: DocsMetrics.h1),
+                          const SizedBox(height: 16),
+                          // Theme pages carry neither the toolbar nor the rule
+                          // upstream — they open straight onto their token card,
+                          // because there are no stories for a theme control to
+                          // act on.
+                          if (page.sections.isNotEmpty) ...<Widget>[
+                            DocsToolbar(page: page),
+                            DocsProse(page.description),
+                            const SizedBox(height: DocsMetrics.ruleGap),
+                            const _Rule(),
+                            const SizedBox(height: DocsMetrics.ruleGap),
+                          ] else if (page.description.isNotEmpty) ...<Widget>[
+                            DocsProse(page.description),
+                            const SizedBox(height: 24),
+                          ],
+                          // A page that carries its own markdown is rendered
+                          // by the viewer, which handles the tables and nested
+                          // lists the prose renderer would flatten.
+                          if (page.markdown != null)
+                            MarkdownBody(
+                              source: page.markdown!,
+                              skipLeadingHeading: true,
+                            ),
+                          for (final ProseBlock block
+                              in page.prose) ...<Widget>[
+                            const SizedBox(height: 32),
+                            Text(block.title, style: DocsMetrics.h3),
+                            const SizedBox(height: 12),
+                            DocsProse(block.body),
+                          ],
+                          if (page.prose.isNotEmpty)
+                            const SizedBox(height: DocsMetrics.ruleGap),
+                          if (page.body != null) page.body!(context),
+                          for (final DocsSection section in page.sections)
+                            _Section(
+                              key: _anchors[section.id],
+                              section: section,
+                              assetPath: page.source,
+                            ),
+                          if (page.props.isNotEmpty)
+                            PropsTable(rows: page.props),
+                          const SizedBox(height: 96),
                         ],
-                        if (page.prose.isNotEmpty)
-                          const SizedBox(height: DocsMetrics.ruleGap),
-                        if (page.body != null) page.body!(context),
-                        for (final DocsSection section in page.sections)
-                          _Section(
-                            key: _anchors[section.id],
-                            section: section,
-                            assetPath: page.source,
-                          ),
-                        if (page.props.isNotEmpty) PropsTable(rows: page.props),
-                        const SizedBox(height: 96),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -260,4 +315,94 @@ class _Rule extends StatelessWidget {
     color: DocsMetrics.rule,
     child: SizedBox(height: DocsMetrics.ruleThickness, width: double.infinity),
   );
+}
+
+/// The sidebar plus the divider you can drag to resize it.
+///
+/// Upstream's rail is resizable, and the handle is the divider itself rather
+/// than a separate grip. Width lives here rather than in [Sidebar] so the
+/// sidebar's own scroll position and expanded folders are untouched by a drag.
+class _ResizableSidebar extends StatefulWidget {
+  const _ResizableSidebar({required this.selectedPageId});
+
+  final String selectedPageId;
+
+  @override
+  State<_ResizableSidebar> createState() => _ResizableSidebarState();
+}
+
+class _ResizableSidebarState extends State<_ResizableSidebar> {
+  /// Below this the drag is read as "close it", not "make it narrow".
+  static const double _collapseAt = 170;
+  static const double _minWidth = 220;
+  static const double _maxWidth = 560;
+
+  double _width = DocsMetrics.sidebarWidth;
+
+  /// The drag's own running total, unclamped.
+  ///
+  /// [_width] is clamped for rendering, so accumulating into it would peg at the
+  /// minimum and never reach [_collapseAt] — dragging further left would just
+  /// recompute the same 220 forever, and the rail could never be closed.
+  double _dragWidth = DocsMetrics.sidebarWidth;
+
+  bool _hovered = false;
+  bool _dragging = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool active = _hovered || _dragging;
+    return Row(
+      children: <Widget>[
+        SizedBox(
+          width: _width,
+          child: Sidebar(selectedPageId: widget.selectedPageId, width: _width),
+        ),
+        MouseRegion(
+          cursor: SystemMouseCursors.resizeLeftRight,
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragStart: (_) => setState(() {
+              _dragging = true;
+              _dragWidth = _width;
+            }),
+            onHorizontalDragEnd: (_) => setState(() => _dragging = false),
+            onHorizontalDragCancel: () => setState(() => _dragging = false),
+            onHorizontalDragUpdate: (DragUpdateDetails d) {
+              _dragWidth += d.delta.dx;
+              if (_dragWidth < _collapseAt) {
+                // Hand the rail's visibility to the shared state, so the
+                // toolbar's hamburger and this drag cannot disagree about
+                // whether it is open.
+                setState(() {
+                  _dragging = false;
+                  _width = DocsMetrics.sidebarWidth;
+                  _dragWidth = DocsMetrics.sidebarWidth;
+                });
+                ShowroomScope.of(context).onToggleSidebar();
+                return;
+              }
+              setState(() => _width = _dragWidth.clamp(_minWidth, _maxWidth));
+            },
+            // The hit area is wider than the line it draws: a 1px target is
+            // unhittable, and upstream's is similarly forgiving.
+            child: SizedBox(
+              width: 8,
+              child: Center(
+                child: ColoredBox(
+                  color: active ? DocsMetrics.railActive : DocsMetrics.rule,
+                  child: SizedBox(
+                    width: active ? 2 : 1,
+                    height: double.infinity,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }

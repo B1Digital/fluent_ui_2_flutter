@@ -3,19 +3,29 @@ import 'package:flutter/widgets.dart';
 
 import '../shell/catalog.dart';
 import '../shell/docs_metrics.dart';
-import '../shell/widgets/token_table.dart';
 
 /// The Fonts theme page: family, size, weight and line-height ramps.
 const DocsPage themeFontsPage = DocsPage(
   id: 'theme-fonts',
   title: 'Fonts',
-  description:
-      'The primitive type tokens. Typography styles are built from these; a '
-      'component should normally reach for a style rather than a raw size.',
+  description: '',
   source: 'lib/pages/theme_fonts.dart',
   sections: <DocsSection>[],
   body: _body,
 );
+
+/// Every preview renders in the base family, at the token under discussion.
+const TextStyle _preview = TextStyle(
+  fontFamily: FluentFontFamily.base,
+  fontFamilyFallback: FluentFontFamily.baseFallback,
+  color: DocsMetrics.bodyText,
+  leadingDistribution: TextLeadingDistribution.even,
+);
+
+/// The stacks, spelled the way a CSS `font-family` declaration would be — which
+/// is what upstream prints in this column.
+String _stack(String family, List<String> fallback) =>
+    <String>[family, ...fallback].join(', ');
 
 const List<(String, double)> _sizes = <(String, double)>[
   ('fontSizeBase100', FluentFontSize.base100),
@@ -28,6 +38,13 @@ const List<(String, double)> _sizes = <(String, double)>[
   ('fontSizeHero800', FluentFontSize.hero800),
   ('fontSizeHero900', FluentFontSize.hero900),
   ('fontSizeHero1000', FluentFontSize.hero1000),
+];
+
+const List<(String, FontWeight)> _weights = <(String, FontWeight)>[
+  ('fontWeightRegular', FluentFontWeight.regular),
+  ('fontWeightMedium', FluentFontWeight.medium),
+  ('fontWeightSemibold', FluentFontWeight.semibold),
+  ('fontWeightBold', FluentFontWeight.bold),
 ];
 
 const List<(String, double)> _lineHeights = <(String, double)>[
@@ -43,93 +60,140 @@ const List<(String, double)> _lineHeights = <(String, double)>[
   ('lineHeightHero1000', FluentLineHeight.hero1000),
 ];
 
-const List<(String, FontWeight)> _weights = <(String, FontWeight)>[
-  ('fontWeightRegular', FluentFontWeight.regular),
-  ('fontWeightMedium', FluentFontWeight.medium),
-  ('fontWeightSemibold', FluentFontWeight.semibold),
-  ('fontWeightBold', FluentFontWeight.bold),
-];
+/// A group heading. [top] is 0 for the first group so the card opens flush.
+Widget _heading(String title, {double top = 32}) => Padding(
+  padding: EdgeInsets.only(top: top, bottom: 12),
+  child: Text(title, style: DocsMetrics.h3),
+);
+
+/// Name on the left, preview on the right.
+///
+/// The name column is intrinsic rather than a fixed width: upstream sizes it to
+/// the widest name *in that group*, which is why the previews start at a
+/// different x under every heading.
+Widget _rows(List<(String, Widget)> rows) => Table(
+  columnWidths: const <int, TableColumnWidth>{
+    0: IntrinsicColumnWidth(),
+    1: FlexColumnWidth(),
+  },
+  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+  children: <TableRow>[
+    for (final (String name, Widget preview) in rows)
+      TableRow(
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(0, 5, 16, 5),
+            child: Text(name, style: DocsMetrics.body, softWrap: false),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: preview,
+          ),
+        ],
+      ),
+  ],
+);
 
 Widget _body(BuildContext context) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: <Widget>[
-      TokenTable(
-        title: 'Font family',
-        rows: <TokenRow>[
-          TokenRow(
-            name: 'fontFamilyBase',
-            preview: const Text(
-              'Fluent 2',
-              style: TextStyle(fontFamily: FluentFontFamily.base, fontSize: 16),
+  final FluentColors colors = FluentTheme.of(context).colors;
+  // The line-height band is a swatch of the token itself, so it takes a real
+  // neutral surface rather than a chrome literal.
+  final Color band = colors.neutralBackground4;
+
+  return Container(
+    decoration: BoxDecoration(
+      color: colors.neutralBackground1,
+      border: Border.all(color: DocsMetrics.border),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    padding: const EdgeInsets.all(24),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        _heading('Font family', top: 0),
+        _rows(<(String, Widget)>[
+          (
+            'fontFamilyBase',
+            Text(
+              _stack(FluentFontFamily.base, FluentFontFamily.baseFallback),
+              style: _preview.copyWith(fontSize: FluentFontSize.base300),
             ),
-            value: FluentFontFamily.base,
           ),
-          TokenRow(
-            name: 'fontFamilyMonospace',
-            preview: const Text(
-              'Fluent 2',
-              style: TextStyle(
+          (
+            'fontFamilyMonospace',
+            Text(
+              _stack(
+                FluentFontFamily.monospace,
+                FluentFontFamily.monospaceFallback,
+              ),
+              style: _preview.copyWith(
                 fontFamily: FluentFontFamily.monospace,
                 fontFamilyFallback: FluentFontFamily.monospaceFallback,
-                fontSize: 16,
+                fontSize: FluentFontSize.base300,
               ),
             ),
-            value: FluentFontFamily.monospace,
           ),
-          TokenRow(
-            name: 'fontFamilyNumeric',
-            preview: const Text(
-              '0123456789',
-              style: TextStyle(
+          (
+            'fontFamilyNumeric',
+            Text(
+              _stack(
+                FluentFontFamily.numeric,
+                FluentFontFamily.numericFallback,
+              ),
+              style: _preview.copyWith(
                 fontFamily: FluentFontFamily.numeric,
                 fontFamilyFallback: FluentFontFamily.numericFallback,
-                fontSize: 16,
+                fontSize: FluentFontSize.base300,
               ),
             ),
-            value: FluentFontFamily.numeric,
           ),
-        ],
-      ),
-      TokenTable(
-        title: 'Font size',
-        rows: <TokenRow>[
+        ]),
+        _heading('Font size'),
+        _rows(<(String, Widget)>[
           for (final (String name, double size) in _sizes)
-            TokenRow(
-              name: name,
-              preview: Text('Fluent 2', style: TextStyle(fontSize: size)),
-              value: '${size.toStringAsFixed(0)}px',
+            (
+              name,
+              // Line height 1: this band measures the *size* token, so the box
+              // is exactly one em tall. The row still can't go under 30px —
+              // the name beside it is 14/20 in 5px padding.
+              Text(name, style: _preview.copyWith(fontSize: size, height: 1)),
             ),
-        ],
-      ),
-      TokenTable(
-        title: 'Line height',
-        rows: <TokenRow>[
-          for (final (String name, double height) in _lineHeights)
-            TokenRow(name: name, value: '${height.toStringAsFixed(0)}px'),
-        ],
-      ),
-      TokenTable(
-        title: 'Font weight',
-        rows: <TokenRow>[
+        ]),
+        _heading('Font weight'),
+        _rows(<(String, Widget)>[
           for (final (String name, FontWeight weight) in _weights)
-            TokenRow(
-              name: name,
-              preview: Text(
-                'Fluent 2',
-                style: TextStyle(fontSize: 16, fontWeight: weight),
+            (
+              name,
+              Text(
+                'Font weight $name',
+                style: _preview.copyWith(
+                  fontSize: FluentFontSize.base300,
+                  fontWeight: weight,
+                ),
               ),
-              value: '${weight.value}',
             ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      Text(
-        'Segoe UI is not redistributable, so the base family resolves to '
-        'Selawik — the metric-compatible open substitute this design system '
-        'ships. Sizes and line heights are unchanged.',
-        style: DocsMetrics.body,
-      ),
-    ],
+        ]),
+        _heading('Line height'),
+        _rows(<(String, Widget)>[
+          for (final (String name, double height) in _lineHeights)
+            (
+              name,
+              // The band *is* the measurement: a 14px line in a box exactly one
+              // line-height tall, which is what the token controls.
+              Container(
+                width: double.infinity,
+                color: band,
+                child: Text(
+                  name,
+                  style: _preview.copyWith(
+                    fontSize: FluentFontSize.base300,
+                    height: height / FluentFontSize.base300,
+                  ),
+                ),
+              ),
+            ),
+        ]),
+      ],
+    ),
   );
 }

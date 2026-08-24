@@ -3,23 +3,31 @@ import 'package:flutter/widgets.dart';
 
 import '../pages.dart';
 import 'widgets/docs_scaffold.dart';
+import 'widgets/markdown_view.dart';
 import 'widgets/story_canvas.dart';
 
 /// Where the app is: a docs page, or one story on its own.
 @immutable
 class DocsRoute {
   /// A docs page, by [DocsPage.id].
-  const DocsRoute.docs(this.pageId) : storyId = null;
+  const DocsRoute.docs(this.pageId) : storyId = null, isMarkdown = false;
 
   /// A single story, full-bleed. This is what the preview card's "Open in new
   /// tab" opens, and it exists so that button has something real to point at.
-  const DocsRoute.story(this.storyId) : pageId = null;
+  const DocsRoute.story(this.storyId) : pageId = null, isMarkdown = false;
+
+  /// A page's raw markdown on a bare page. What "View as Markdown" opens, in a
+  /// new tab — upstream navigates to a plain `.txt`, so this has no chrome.
+  const DocsRoute.markdown(this.pageId) : storyId = null, isMarkdown = true;
 
   /// The page id, or null when this is a story route.
   final String? pageId;
 
   /// The story id, or null when this is a docs route.
   final String? storyId;
+
+  /// True when this route renders the page's markdown rather than the page.
+  final bool isMarkdown;
 
   /// True when this route renders one story with no chrome.
   bool get isCanvas => storyId != null;
@@ -40,19 +48,31 @@ class DocsRoute {
       if (segments[0] == 'story') {
         return DocsRoute.story(segments[1]);
       }
+      if (segments[0] == 'markdown' && pageById(segments[1]) != null) {
+        return DocsRoute.markdown(segments[1]);
+      }
     }
     return initial;
   }
 
   /// The location this route occupies in the address bar.
-  Uri get uri => Uri(path: isCanvas ? '/story/$storyId' : '/docs/$pageId');
+  Uri get uri => Uri(
+    path: isCanvas
+        ? '/story/$storyId'
+        : isMarkdown
+        ? '/markdown/$pageId'
+        : '/docs/$pageId',
+  );
 
   @override
   bool operator ==(Object other) =>
-      other is DocsRoute && other.pageId == pageId && other.storyId == storyId;
+      other is DocsRoute &&
+      other.pageId == pageId &&
+      other.storyId == storyId &&
+      other.isMarkdown == isMarkdown;
 
   @override
-  int get hashCode => Object.hash(pageId, storyId);
+  int get hashCode => Object.hash(pageId, storyId, isMarkdown);
 }
 
 /// Translates between the browser location and a [DocsRoute].
@@ -149,9 +169,13 @@ class _ShellPage extends Page<void> {
     reverseTransitionDuration: Duration.zero,
     pageBuilder: (BuildContext context, _, _) {
       final DocsRoute route = DocsRouterScope.of(context).route;
-      return route.isCanvas
-          ? StoryCanvas(storyId: route.storyId!)
-          : DocsScaffold(pageId: route.pageId!);
+      if (route.isCanvas) {
+        return StoryCanvas(storyId: route.storyId!);
+      }
+      if (route.isMarkdown) {
+        return MarkdownView(pageId: route.pageId!);
+      }
+      return DocsScaffold(pageId: route.pageId!);
     },
   );
 }

@@ -3,24 +3,20 @@ import 'package:flutter/widgets.dart';
 
 import '../shell/catalog.dart';
 import '../shell/docs_metrics.dart';
-import '../shell/widgets/token_table.dart';
 
 /// The Stroke Widths theme page.
 const DocsPage themeStrokeWidthsPage = DocsPage(
   id: 'theme-stroke-widths',
   title: 'Stroke Widths',
-  description:
-      'Border and divider thicknesses. Keeping them on a ramp is what stops a '
-      'focus ring, a card outline and a table rule from each picking their own '
-      'hairline.',
+  description: '',
   source: 'lib/pages/theme_stroke_widths.dart',
   sections: <DocsSection>[],
   body: _body,
 );
 
-/// React's web set is the four named below. `FluentStroke` also carries `none`,
-/// `hairline`, `width15` and `width60` for the mobile surfaces, which is why
-/// this list is written out rather than iterated.
+/// The four widths React's web token set exposes, in ramp order. `FluentStroke`
+/// also carries `none`, `hairline`, `width15` and `width60` for the mobile
+/// surfaces; upstream's page does not print them, so neither does this one.
 const List<(String, double)> _ramp = <(String, double)>[
   ('strokeWidthThin', FluentStroke.thin),
   ('strokeWidthThick', FluentStroke.thick),
@@ -28,45 +24,57 @@ const List<(String, double)> _ramp = <(String, double)>[
   ('strokeWidthThickest', FluentStroke.thickest),
 ];
 
-/// Present in `fluent_2_core` but not in React's web token set.
-const List<(String, double)> _extra = <(String, double)>[
-  ('FluentStroke.none', FluentStroke.none),
-  ('FluentStroke.hairline', FluentStroke.hairline),
-  ('FluentStroke.width15', FluentStroke.width15),
-  ('FluentStroke.width60', FluentStroke.width60),
-];
+/// Measured off the reference: the rule starts 132px in from the card's content
+/// edge, whatever the label reads.
+const double _labelWidth = 132;
+
+/// A row is the label's own 14/20 line box; the rule centres in it. The gap
+/// below puts consecutive rules on the reference's 30px pitch and leaves no
+/// slack under the last one.
+const double _rowHeight = 20;
+const double _rowGap = 10;
 
 Widget _body(BuildContext context) {
-  final Color stroke = FluentTheme.of(context).colors.neutralStroke1;
-  Widget rule(double width) => Container(
-    height: width == 0 ? 1 : width,
-    width: 180,
-    color: width == 0 ? const Color(0x00000000) : stroke,
-  );
-
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: <Widget>[
-      TokenTable(
-        rows: <TokenRow>[
-          for (final (String name, double width) in _ramp)
-            TokenRow(name: name, preview: rule(width), value: '${width}px'),
-        ],
-      ),
-      TokenTable(
-        title: 'Beyond the web set',
-        rows: <TokenRow>[
-          for (final (String name, double width) in _extra)
-            TokenRow(name: name, preview: rule(width), value: '${width}px'),
-        ],
-      ),
-      const SizedBox(height: 16),
-      Text(
-        'The second table has no React counterpart; those stops exist for the '
-        'mobile surfaces, where a hairline is a real measurement rather than a '
-        'rounding artefact.',
-        style: DocsMetrics.body,
-      ),
-    ],
+  return Container(
+    padding: const EdgeInsets.all(24),
+    decoration: BoxDecoration(
+      color: FluentTheme.of(context).colors.neutralBackground1,
+      border: Border.all(color: DocsMetrics.border),
+      borderRadius: BorderRadius.circular(DocsMetrics.cardRadius),
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        for (final (int index, (String name, double width)) in _ramp.indexed)
+          Padding(
+            padding: EdgeInsets.only(top: index == 0 ? 0 : _rowGap),
+            child: SizedBox(
+              height: _rowHeight,
+              child: Row(
+                children: <Widget>[
+                  SizedBox(
+                    width: _labelWidth,
+                    child: Text(
+                      name,
+                      style: DocsMetrics.body,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Expanded(
+                    child: Container(
+                      height: width,
+                      // Chrome, not a token: upstream's rule is pure black, and
+                      // headingText is the chrome's black.
+                      color: DocsMetrics.headingText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    ),
   );
 }

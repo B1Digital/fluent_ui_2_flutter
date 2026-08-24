@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:fluent_2_web/fluent_2_web.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../catalog.dart';
 import '../docs_metrics.dart';
+import '../page_markdown.dart';
 import '../showroom_scope.dart';
 import '../theme_variants.dart';
 
@@ -24,103 +26,85 @@ class DocsToolbar extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
-      child: Row(
-        children: <Widget>[
-          SizedBox(
-            width: 208,
-            child: FluentDropdown<ThemeVariant>(
-              value: scope.variant,
-              onChanged: scope.onVariantChanged,
-              options: <FluentDropdownOption<ThemeVariant>>[
-                for (final ThemeVariant variant in ThemeVariant.values)
-                  FluentDropdownOption<ThemeVariant>(
-                    value: variant,
-                    label: Text(variant.label),
-                    text: variant.label,
-                  ),
-              ],
+      // Controls, not prose — see PreviewCard for why.
+      child: SelectionContainer.disabled(
+        child: Row(
+          children: <Widget>[
+            SizedBox(
+              width: 208,
+              child: FluentDropdown<ThemeVariant>(
+                value: scope.variant,
+                onChanged: scope.onVariantChanged,
+                options: <FluentDropdownOption<ThemeVariant>>[
+                  for (final ThemeVariant variant in ThemeVariant.values)
+                    FluentDropdownOption<ThemeVariant>(
+                      value: variant,
+                      label: Text(variant.label),
+                      text: variant.label,
+                    ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 24),
-          Text('LTR', style: DocsMetrics.body),
-          const SizedBox(width: 8),
-          FluentSwitch(
-            checked: rtl,
-            semanticLabel: 'Right to left',
-            onChanged: (bool value) => scope.onTextDirectionChanged(
-              value ? TextDirection.rtl : TextDirection.ltr,
+            const SizedBox(width: 24),
+            Text('LTR', style: DocsMetrics.body),
+            const SizedBox(width: 8),
+            FluentSwitch(
+              checked: rtl,
+              semanticLabel: 'Right to left',
+              onChanged: (bool value) => scope.onTextDirectionChanged(
+                value ? TextDirection.rtl : TextDirection.ltr,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Text('RTL', style: DocsMetrics.body),
-          const Spacer(),
-          _CopyPageButton(page: page),
-        ],
+            const SizedBox(width: 8),
+            Text('RTL', style: DocsMetrics.body),
+            const Spacer(),
+            _CopyPageButton(page: page),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _CopyPageButton extends StatefulWidget {
+/// The split button under the page title.
+///
+/// The primary half copies the page as markdown and reports nothing back — the
+/// upstream button has no "Copied" state. The chevron opens a one-item menu,
+/// "View as Markdown", which opens the raw markdown in a NEW TAB rather than a
+/// dialog: upstream navigates to a plain `llms/<page>.txt`, and a popup would be
+/// a different thing wearing the same label.
+class _CopyPageButton extends StatelessWidget {
   const _CopyPageButton({required this.page});
 
   final DocsPage page;
 
-  @override
-  State<_CopyPageButton> createState() => _CopyPageButtonState();
-}
-
-class _CopyPageButtonState extends State<_CopyPageButton> {
-  bool _copied = false;
-
-  /// The page as markdown: title, description, then every section heading and
-  /// its sentence. Mirrors what upstream's Copy Page puts on the clipboard.
-  String get _markdown {
-    final StringBuffer buffer = StringBuffer()
-      ..writeln('# ${widget.page.title}')
-      ..writeln()
-      ..writeln(widget.page.description)
-      ..writeln();
-    for (final DocsSection section in widget.page.sections) {
-      buffer
-        ..writeln('## ${section.title}')
-        ..writeln();
-      if (section.description != null) {
-        buffer
-          ..writeln(section.description)
-          ..writeln();
-      }
-    }
-    return buffer.toString();
-  }
-
-  Future<void> _copy() async {
-    await Clipboard.setData(ClipboardData(text: _markdown));
-    if (!mounted) {
-      return;
-    }
-    setState(() => _copied = true);
-    await Future<void>.delayed(const Duration(seconds: 2));
-    if (!mounted) {
-      return;
-    }
-    setState(() => _copied = false);
+  Future<void> _openMarkdown() async {
+    final Uri target = Uri.base.replace(fragment: '/markdown/${page.id}');
+    await launchUrl(target, webOnlyWindowName: '_blank');
   }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: DocsMetrics.toolbarButtonHeight,
-      child: FluentButton(
-        icon: Icon(
-          _copied
-              ? FluentIcons.checkmark_20_regular
-              : FluentIcons.copy_20_regular,
-          size: 16,
+    return FluentMenu(
+      items: <FluentMenuItem>[
+        FluentMenuItem(
+          label: const Text('View as Markdown'),
+          icon: const Icon(FluentIcons.markdown_20_regular, size: 16),
+          onPressed: () => unawaited(_openMarkdown()),
         ),
-        appearance: FluentButtonAppearance.outline,
-        onPressed: () => unawaited(_copy()),
-        child: Text(_copied ? 'Copied' : 'Copy Page'),
+      ],
+      builder: (BuildContext context, VoidCallback toggle) => SizedBox(
+        height: DocsMetrics.toolbarButtonHeight,
+        child: FluentSplitButton(
+          appearance: FluentButtonAppearance.outline,
+          menuSemanticLabel: 'More copy options',
+          icon: const Icon(FluentIcons.markdown_20_regular, size: 16),
+          onPressed: () => unawaited(
+            Clipboard.setData(ClipboardData(text: pageAsMarkdown(page))),
+          ),
+          onMenuPressed: toggle,
+          child: const Text('Copy Page'),
+        ),
       ),
     );
   }
