@@ -732,7 +732,12 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
     if (!_enabled) {
       _deferOrRun(_close);
     } else if (_open) {
-      _entry!.markNeedsBuild();
+      // Deferred for the same reason the close above is: `didUpdateWidget` runs
+      // inside the parent's build, and the entry lives in the Overlay's branch,
+      // which that build has already passed. A parent that rebuilds while the
+      // popup is up — anything driving the list from its own state — would
+      // otherwise trip "markNeedsBuild() called during build".
+      _deferOrRun(() => _entry?.markNeedsBuild());
     }
   }
 

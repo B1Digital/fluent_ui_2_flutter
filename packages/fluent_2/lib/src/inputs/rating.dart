@@ -699,10 +699,26 @@ class _FluentRatingState extends State<FluentRating> {
 
   int get _itemCount => widget.compact ? 1 : widget.max;
 
-  /// The rating the pointer at [local] is pointing at.
-  double _valueAt(Offset local) {
+  /// The rating the pointer at [local] is pointing at, or null when no shape is
+  /// under it.
+  ///
+  /// The row of shapes is all the control paints, but the box around it is as
+  /// wide as the caller made it — a rating handed straight to a page takes the
+  /// whole content width. Upstream puts hover and click on the `RatingItem`
+  /// labels, not on the flex row, so that surplus is dead space here too: it
+  /// must not be clamped into the last shape, or a hover past the row would
+  /// preview a maximum the press there never commits.
+  double? _valueAt(Offset local) {
     final extent = _itemSize + _gap;
-    final index = (local.dx / extent).floor().clamp(0, _itemCount - 1);
+    if (!Rect.fromLTWH(
+      0,
+      0,
+      _itemCount * extent - _gap,
+      _itemSize,
+    ).contains(local)) {
+      return null;
+    }
+    final index = (local.dx / extent).floor();
     final within = (local.dx - index * extent) / _itemSize;
     return widget.step == 0.5 && within < 0.5 ? index + 0.5 : index + 1;
   }
@@ -804,6 +820,12 @@ class _FluentRatingState extends State<FluentRating> {
         // position the press landed on, and it must not compete in the gesture
         // arena with the tap FluentInteractive already recognises.
         child: Listener(
+          // Opaque so the press is read off the same surface as the hover: the
+          // row only fills part of the box, and deferring to the painted child
+          // would leave a press on the surplus invisible here while
+          // `FluentInteractive`'s own opaque detector still calls `onPressed`
+          // — committing whatever value the previous press left in `_pending`.
+          behavior: HitTestBehavior.opaque,
           onPointerDown: (event) => _pending = _valueAt(event.localPosition),
           child: buildFluentRating(state, resolved, states),
         ),

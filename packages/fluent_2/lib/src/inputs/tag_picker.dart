@@ -1022,6 +1022,11 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     _setActive(_seek(rows, from, delta));
   }
 
+  void _handleTap() {
+    _focusNode.requestFocus();
+    _openPopup();
+  }
+
   void _activate() {
     if (!_open) {
       _openPopup();
@@ -1245,14 +1250,26 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     final probe = _state(const SizedBox.shrink());
     final style = _resolvedStyle(probe);
 
-    final field = FluentInput(
-      controller: _controller,
-      focusNode: _focusNode,
-      enabled: _enabled,
-      autofocus: widget.autofocus,
-      placeholder: widget.placeholder,
-      style: style.strippedInputStyle(),
-      onSubmitted: (_) => _activate(),
+    // A Listener rather than a tap: the input builds its own
+    // TextSelectionGestureDetector, and being the innermost member of the arena
+    // that one wins every tap over the control's — so a GestureDetector here,
+    // or on any ancestor, never fires over the field, which covers nearly the
+    // whole control. Raw pointers are not arena members, so this sees the
+    // release whoever claims the gesture. Release rather than press, so the
+    // list opens under a finished click, the way every other press here reads.
+    // `_openPopup` self-guards on disabled and on already-open, so a click that
+    // also reaches the control's own tap below opens exactly once.
+    final field = Listener(
+      onPointerUp: (_) => _openPopup(),
+      child: FluentInput(
+        controller: _controller,
+        focusNode: _focusNode,
+        enabled: _enabled,
+        autofocus: widget.autofocus,
+        placeholder: widget.placeholder,
+        style: style.strippedInputStyle(),
+        onSubmitted: (_) => _activate(),
+      ),
     );
 
     final state = _state(field);
@@ -1266,9 +1283,17 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
         onPointerUp: (_) => _set(WidgetState.pressed, value: false),
         onPointerCancel: (_) => _set(WidgetState.pressed, value: false),
         child: GestureDetector(
-          // A tap on the padding, not on the field itself, still focuses.
+          // A tap on the padding, not on the field itself, still focuses — and
+          // opens, because pointing at the control IS how a mouse reaches the
+          // list. `_openPopup` rather than `_activate`: a pointer user has
+          // chosen nothing yet, so a second press must never commit the active
+          // row. Anything in the control that claims taps for itself — a chip,
+          // a `secondaryAction` button — wins the arena over this and so still
+          // does its own thing without opening; a bare `secondaryAction`
+          // chevron, which claims nothing, falls through to here and expands,
+          // which is the only meaning it has.
           behavior: HitTestBehavior.opaque,
-          onTap: _enabled ? _focusNode.requestFocus : null,
+          onTap: _enabled ? _handleTap : null,
           child: buildFluentTagPicker(state, style, states),
         ),
       ),

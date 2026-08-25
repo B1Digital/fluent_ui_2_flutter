@@ -358,9 +358,16 @@ class _FluentAccordionChevron extends StatelessWidget {
 /// [FluentMotionSpec.collapse] is that duration and curve, the collapsed child
 /// is not built at all, and reduced motion is handled by [FluentAnimatedStyle].
 class _FluentAccordionPanel extends StatelessWidget {
-  const _FluentAccordionPanel({required this.expanded, required this.child});
+  const _FluentAccordionPanel({
+    required this.expanded,
+    required this.motion,
+    required this.animateOpacity,
+    required this.child,
+  });
 
   final bool expanded;
+  final FluentMotionSpec motion;
+  final bool animateOpacity;
   final Widget child;
 
   @override
@@ -374,7 +381,7 @@ class _FluentAccordionPanel extends StatelessWidget {
     final content = SizedBox(width: double.infinity, child: child);
     return FluentAnimatedStyle<double>(
       value: expanded ? 1 : 0,
-      spec: FluentMotionSpec.collapse,
+      spec: motion,
       lerp: lerpDouble,
       builder: (context, value) => value <= 0
           ? const SizedBox.shrink()
@@ -382,7 +389,14 @@ class _FluentAccordionPanel extends StatelessWidget {
               child: Align(
                 alignment: AlignmentDirectional.topStart,
                 heightFactor: value.clamp(0, 1),
-                child: Opacity(opacity: value.clamp(0, 1), child: content),
+                // The [Opacity] stays in the tree either way rather than being
+                // swapped out: `animateOpacity: false` is upstream's "grow at
+                // full opacity", not a different subtree, and keeping it means
+                // flipping the switch mid-flight cannot lose the panel's layer.
+                child: Opacity(
+                  opacity: animateOpacity ? value.clamp(0, 1) : 1,
+                  child: content,
+                ),
               ),
             ),
     );
@@ -606,6 +620,8 @@ class FluentAccordionItem extends StatelessWidget {
     this.size = FluentAccordionSize.medium,
     this.expandIconPosition = FluentAccordionExpandIconPosition.start,
     this.enabled = true,
+    this.collapseMotion = FluentMotionSpec.collapse,
+    this.animateOpacity = true,
     this.style,
     this.focusNode,
     this.autofocus = false,
@@ -631,6 +647,18 @@ class FluentAccordionItem extends StatelessWidget {
 
   /// Whether the header responds to input.
   final bool enabled;
+
+  /// The transition the panel opens and closes on.
+  ///
+  /// Upstream's `collapseMotion` slot on `AccordionPanel`, which takes the
+  /// `Collapse` component's own props. The default is `Collapse`'s default,
+  /// which is what [FluentMotionSpec.collapse] transcribes.
+  final FluentMotionSpec collapseMotion;
+
+  /// Whether the panel fades while it grows, rather than growing at full
+  /// opacity. Upstream's `Collapse.animateOpacity`, which likewise defaults to
+  /// true.
+  final bool animateOpacity;
 
   /// Overrides layered over the theme defaults. Merged last, so it wins.
   final FluentAccordionItemStyle? style;
@@ -687,6 +715,8 @@ class FluentAccordionItem extends StatelessWidget {
         ),
         _FluentAccordionPanel(
           expanded: expanded,
+          motion: collapseMotion,
+          animateOpacity: animateOpacity,
           child: Padding(padding: panelPadding, child: child),
         ),
       ],

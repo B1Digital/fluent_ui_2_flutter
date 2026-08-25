@@ -187,6 +187,26 @@ FluentTextareaStyle resolveFluentTextareaStyle(
   // one `State` axis there, so the file has no Error-while-focused variant.
   final invalid = state.invalid && !state.focused;
 
+  // `body2` is the step ABOVE `body1` on the Web and Windows ramps, but the
+  // step BELOW it on the Apple and Android ones — Fluent's mobile specs put
+  // Body1 at 16/17 and Body2 at 14/15, which is faithful and not a bug in the
+  // ramps. So the size axis cannot name `body2` directly; it has to order the
+  // pair by size. Binding `large` straight to `body2` renders Large in SMALLER
+  // type than Medium on every mobile ramp, and a textarea has no height floor
+  // — its box is two lines plus a flat inset — so the inversion arrives as a
+  // Large field visibly SHORTER than the Medium one above it.
+  // fontSize is null only for a supplied ramp with no size at all; 0 then
+  // leaves the Web order, which is the one Figma is drawn against.
+  final rampsUpToBody2 =
+      (theme.typography.body1.fontSize ?? 0) <=
+      (theme.typography.body2.fontSize ?? 0);
+  final mediumBody = rampsUpToBody2
+      ? theme.typography.body1
+      : theme.typography.body2;
+  final largeBody = rampsUpToBody2
+      ? theme.typography.body2
+      : theme.typography.body1;
+
   final background = inert
       ? FluentStateColor.tokens(rest: c.transparentBackground)
       : switch (state.appearance) {
@@ -282,8 +302,8 @@ FluentTextareaStyle resolveFluentTextareaStyle(
     selectionColor: FluentStateColor.tokens(rest: c.brandBackground2),
     textStyle: WidgetStatePropertyAll<TextStyle?>(switch (state.size) {
       FluentTextareaSize.small => theme.typography.caption1,
-      FluentTextareaSize.medium => theme.typography.body1,
-      FluentTextareaSize.large => theme.typography.body2,
+      FluentTextareaSize.medium => mediumBody,
+      FluentTextareaSize.large => largeBody,
     }),
     // Figma splits this across two frames: `Contents` insets 6/10/12 with the
     // size, and the nested `.Text` adds a flat 2 horizontally and 6 vertically

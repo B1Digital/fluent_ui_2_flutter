@@ -1,5 +1,5 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
-import 'package:flutter/gestures.dart' show TapDragUpDetails;
+import 'package:flutter/gestures.dart' show TapDragEndDetails, TapDragUpDetails;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
@@ -565,6 +565,21 @@ class _DatePickerGestures extends TextSelectionGestureDetectorBuilder {
     super.onSingleTapUp(details);
     _owner._handleFieldTap();
   }
+
+  // A press that drifts is not reported as a tap at all: the field's
+  // `TapAndDragGestureRecognizer` gives a PRECISE pointer only
+  // `kPrecisePointerHitSlop` — ONE pixel — before it re-reads the gesture as a
+  // text-selection drag, and a hand moves the mouse two or three between press
+  // and release. Hanging the popup off `onSingleTapUp` alone left the faceplate
+  // — the only affordance there is while `allowTextInput` is false — openable
+  // only by a pixel-perfect click. The browser fires `click` for any
+  // press/release pair over the input, drag-select included, which is what
+  // upstream's own toggle runs on, so this needs no travel threshold.
+  @override
+  void onDragSelectionEnd(TapDragEndDetails details) {
+    super.onDragSelectionEnd(details);
+    _owner._handleFieldTap();
+  }
 }
 
 /// An input that opens a calendar popup for picking a single date.
@@ -932,8 +947,14 @@ class _FluentDatePickerState extends State<FluentDatePicker>
 
   FluentCalendarDateFormatter get _calendarFormatter {
     final locale = _locale;
+    // A caller-supplied `strings` table IS the localization here, and
+    // `fluentCalendarDateFormatter` ignores that table on purpose (see its
+    // doc), so resolving the ambient locale on top of one would put the caption
+    // and the day cells' accessible names in a different language from the
+    // month picker and the "go to today" link standing beside them. The default
+    // formatter routes both back through `strings`.
     return widget.formatter ??
-        (locale == null
+        (locale == null || widget.strings != null
             ? const FluentCalendarDateFormatter()
             : fluentCalendarDateFormatter(locale));
   }

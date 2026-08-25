@@ -580,28 +580,16 @@ class FluentDialog extends StatefulWidget {
 
 class _FluentDialogState extends State<FluentDialog>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: fluentDialogSurfaceEnter.duration,
-    reverseDuration: fluentDialogSurfaceExit.duration,
-  );
-
-  late final CurvedAnimation _surfaceCurve = CurvedAnimation(
-    parent: _controller,
-    curve: fluentDialogSurfaceEnter.curve,
-    reverseCurve: fluentDialogSurfaceExit.curve,
-  );
-
-  late final CurvedAnimation _scrimCurve = CurvedAnimation(
-    parent: _controller,
-    curve: fluentDialogScrim.curve,
-    reverseCurve: fluentDialogScrim.curve,
-  );
-
-  late final Animation<double> _scale = Tween<double>(
-    begin: fluentDialogOutScale,
-    end: 1,
-  ).animate(_surfaceCurve);
+  // Built in initState, not as `late final` initialisers. A lazy field is
+  // constructed on FIRST READ, and dispose() reads all four — so a dialog that
+  // was never opened used to CONSTRUCT an AnimationController(vsync: this)
+  // while unmounting, and createTicker reads TickerMode off a deactivated
+  // element. Eager construction costs one controller per dialog and makes
+  // disposal total.
+  late final AnimationController _controller;
+  late final CurvedAnimation _surfaceCurve;
+  late final CurvedAnimation _scrimCurve;
+  late final Animation<double> _scale;
 
   final FocusScopeNode _scope = FocusScopeNode(debugLabel: 'FluentDialog');
 
@@ -621,6 +609,25 @@ class _FluentDialogState extends State<FluentDialog>
   @override
   void initState() {
     super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: fluentDialogSurfaceEnter.duration,
+      reverseDuration: fluentDialogSurfaceExit.duration,
+    );
+    _surfaceCurve = CurvedAnimation(
+      parent: _controller,
+      curve: fluentDialogSurfaceEnter.curve,
+      reverseCurve: fluentDialogSurfaceExit.curve,
+    );
+    _scrimCurve = CurvedAnimation(
+      parent: _controller,
+      curve: fluentDialogScrim.curve,
+      reverseCurve: fluentDialogScrim.curve,
+    );
+    _scale = Tween<double>(
+      begin: fluentDialogOutScale,
+      end: 1,
+    ).animate(_surfaceCurve);
     if (widget.open) {
       // Never from initState directly: inserting an OverlayEntry is a setState
       // on the Overlay, which is in a different branch and is mid-build.

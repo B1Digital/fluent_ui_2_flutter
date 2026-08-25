@@ -861,6 +861,10 @@ class _FluentDrawerState extends State<FluentDrawer>
         if (t == 0 && !widget.open) return const SizedBox.shrink();
         return Semantics(
           container: true,
+          // Same boundary the overlay branch declares: without it this
+          // annotation is not a stop, so every header and footer control
+          // merges its own label upwards and the panel alone is announced.
+          explicitChildNodes: true,
           label: widget.semanticLabel,
           child: ClipRect(
             // Pinning the far edge and clipping the near one is the same

@@ -912,6 +912,16 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
 
     final showClear = widget.enabled && _focusNode.hasFocus;
 
+    // The leading slot is a fixed `iconSize` box plus a gap, so an empty child
+    // still reserves the full glyph well — only a null icon drops the slot in
+    // `buildFluentSearchBox`. [FluentSearchBox.icon] documents an empty
+    // `SizedBox` as the way to ask for that, and this is the last place that
+    // can still tell "no icon" from "a glyph": below it every icon is a widget
+    // whose emptiness is not known until layout has already reserved the well.
+    final icon = widget.icon;
+    final dropIcon =
+        icon is SizedBox && (icon.width ?? 0) == 0 && (icon.height ?? 0) == 0;
+
     final state = resolveFluentSearchBoxState(
       field: field,
       enabled: widget.enabled,
@@ -921,30 +931,40 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
       placeholder: _controller.text.isEmpty && widget.placeholder != null
           ? Text(widget.placeholder!, maxLines: 1)
           : null,
-      icon:
-          widget.icon ??
-          CustomPaint(
-            painter: FluentSearchBoxGlyphPainter(
-              glyph: FluentSearchBoxGlyph.search,
-              color: iconColor ?? theme.colors.neutralForeground3,
-            ),
-          ),
+      icon: dropIcon
+          ? null
+          : icon ??
+                CustomPaint(
+                  painter: FluentSearchBoxGlyphPainter(
+                    glyph: FluentSearchBoxGlyph.search,
+                    color: iconColor ?? theme.colors.neutralForeground3,
+                  ),
+                ),
       clear: showClear
-          ? Semantics(
-              button: true,
-              label: widget.clearSemanticLabel ?? fluentL10n(context).clear,
-              child: FluentInteractive(
-                onPressed: _clear,
-                focusNode: _clearFocusNode,
-                builder: (context, _, _) =>
-                    widget.clearIcon ??
-                    CustomPaint(
-                      size: Size.square(clearIconSize),
-                      painter: FluentSearchBoxGlyphPainter(
-                        glyph: FluentSearchBoxGlyph.dismiss,
-                        color: iconColor ?? theme.colors.neutralForeground3,
+          // The button only exists while the field has focus, and
+          // `EditableText`'s default tap-outside action drops that focus on
+          // POINTER DOWN for every pointer kind on desktop and on web. Without
+          // this region the button unmounts under the cursor between press and
+          // release: the tap never resolves, the field is never cleared, and
+          // the pointer-up still routed to the gone `FluentInteractive` writes
+          // to its disposed states controller.
+          ? TextFieldTapRegion(
+              child: Semantics(
+                button: true,
+                label: widget.clearSemanticLabel ?? fluentL10n(context).clear,
+                child: FluentInteractive(
+                  onPressed: _clear,
+                  focusNode: _clearFocusNode,
+                  builder: (context, _, _) =>
+                      widget.clearIcon ??
+                      CustomPaint(
+                        size: Size.square(clearIconSize),
+                        painter: FluentSearchBoxGlyphPainter(
+                          glyph: FluentSearchBoxGlyph.dismiss,
+                          color: iconColor ?? theme.colors.neutralForeground3,
+                        ),
                       ),
-                    ),
+                ),
               ),
             )
           : null,

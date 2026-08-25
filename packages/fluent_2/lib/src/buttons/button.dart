@@ -512,6 +512,12 @@ class FluentButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // A declared `semanticLabel` *names* the button, it does not prefix it:
+    // the Semantics below would otherwise concatenate with the label's own
+    // text and the node would read "Install\nInstall". Same rule and same fix
+    // as a breadcrumb crumb's label. `FluentButton.icon` has no label to
+    // exclude, which is why only that constructor already came out right.
+    final label = child;
     final state = resolveFluentButtonState(
       enabled: onPressed != null,
       appearance: appearance,
@@ -519,7 +525,9 @@ class FluentButton extends StatelessWidget {
       shape: shape,
       iconPosition: iconPosition,
       icon: icon,
-      label: child,
+      label: label != null && semanticLabel != null
+          ? ExcludeSemantics(child: label)
+          : label,
     );
 
     // Lowest to highest: defaults, subtree theme, then the caller's own style.

@@ -2016,6 +2016,10 @@ class FluentCalendar extends StatefulWidget {
   final FluentCalendarView initialView;
 
   /// Whether to show the day grid.
+  ///
+  /// With it false the month grid is the whole calendar, so activating a month
+  /// cell reports that month's first day to [onSelectDate] rather than drilling
+  /// anywhere — upstream's `monthPickerOnly` path.
   final bool isDayPickerVisible;
 
   /// Whether to show the month picker beside the day grid.
@@ -2552,6 +2556,14 @@ class _FluentCalendarState extends State<FluentCalendar>
           _restartSlide();
           _focusOnNextBuild = true;
         });
+        // With the day grid hidden there is nothing to drill in to, so the
+        // month cell IS the selection — upstream's `monthPickerOnly` branch in
+        // `onNavigateMonthDate`, which calls `onDateSelected` before it
+        // navigates. Without it the only cells this calendar draws would
+        // merely move focus, and `onSelectDate` could never fire at all.
+        if (!widget.isDayPickerVisible) {
+          widget.onSelectDate!(fluentCalendarLocalDay(cell.date));
+        }
       case FluentCalendarView.decade:
         setState(() {
           _sideView = FluentCalendarView.year;

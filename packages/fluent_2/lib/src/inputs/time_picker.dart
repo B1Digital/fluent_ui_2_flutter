@@ -943,6 +943,11 @@ class _FluentTimePickerState extends State<FluentTimePicker>
 
   void _handleFieldTap() {
     if (!_enabled) return;
+    // Focus is requested here rather than only by the text-selection builder's
+    // `onSingleTapUp`, because a non-freeform picker no longer goes through it:
+    // without this the field would open a listbox the arrow keys cannot reach.
+    // Idempotent on the freeform path, which has already asked.
+    _focusNode.requestFocus();
     _setOpen(next: !_open);
   }
 
@@ -1029,11 +1034,17 @@ class _FluentTimePickerState extends State<FluentTimePicker>
   }
 
   /// Commits typed text, mirroring a browser's `change` event: on blur and on
-  /// Enter, never per keystroke, and only when the text actually moved.
+  /// Enter, never per keystroke, and only when the text actually moved — or
+  /// when the field is empty, which is reported however long it has been so.
   void _commitText() {
     if (!_enabled || !widget.freeform) return;
     final text = _controller.text;
-    if (text == _committedText) return;
+    // An empty field is checked even when the text has not moved: it is an
+    // assertion about absence rather than about what was typed, so a required
+    // picker that was never typed into still has to report on blur — the
+    // section's own "leave the input empty and close the TimePicker" case.
+    // `FluentDatePicker._commitText` orders its guards the same way.
+    if (text.trim().isNotEmpty && text == _committedText) return;
     _committedText = text;
     final result =
         (widget.parseTime ??
@@ -1141,25 +1152,42 @@ class _FluentTimePickerState extends State<FluentTimePicker>
                 // Focus never enters the popup: the field keeps it and the
                 // active row is marked instead, which is the combobox model.
                 child: ExcludeFocus(
-                  child: buildFluentTimePickerSurface(
-                    style,
-                    states,
-                    ValueListenableBuilder<bool>(
-                      valueListenable: FluentInputModality.keyboard,
-                      builder: (context, keyboard, _) => SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          spacing: gap,
-                          children: <Widget>[
-                            for (var i = 0; i < options.length; i++)
-                              _buildRow(
-                                theme,
-                                options[i],
-                                i,
-                                keyboard: keyboard,
+                  // The listbox counts as part of the field when the framework
+                  // asks whether a press landed outside it. `EditableText`
+                  // drops focus for any non-touch press outside its own tap
+                  // region, and the listbox lives in an [Overlay] beyond it —
+                  // so a mouse press on a row blurred the field, and the commit
+                  // and close that blur runs happened before the press had the
+                  // chance to become a tap. A synthetic tap arrives as a touch,
+                  // which is why nothing showed it.
+                  //
+                  // Inside the follower rather than around it: a plain proxy
+                  // box above [CompositedTransformFollower] hit-tests against
+                  // its own untransformed bounds, which is not where the
+                  // surface is painted, so rows past the leader's width would
+                  // stop responding.
+                  child: TextFieldTapRegion(
+                    child: buildFluentTimePickerSurface(
+                      style,
+                      states,
+                      ValueListenableBuilder<bool>(
+                        valueListenable: FluentInputModality.keyboard,
+                        builder: (context, keyboard, _) =>
+                            SingleChildScrollView(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                spacing: gap,
+                                children: <Widget>[
+                                  for (var i = 0; i < options.length; i++)
+                                    _buildRow(
+                                      theme,
+                                      options[i],
+                                      i,
+                                      keyboard: keyboard,
+                                    ),
+                                ],
                               ),
-                          ],
-                        ),
+                            ),
                       ),
                     ),
                   ),
@@ -1298,7 +1326,25 @@ class _FluentTimePickerState extends State<FluentTimePicker>
                   ),
               DismissIntent: _DismissTimePickerAction(this),
             },
-            child: _gestures.buildGestureDetector(child: field),
+            // A picker that cannot select text has nothing for the
+            // text-selection detector to do — with `selectionEnabled` false
+            // every one of its handlers returns early, leaving only the
+            // keyboard request — while the `TapAndPanGestureRecognizer` it
+            // inherits still claims a precise pointer's gesture as a drag after
+            // one logical pixel. A real mouse click wanders two or three, so
+            // the faceplate never saw a tap, and the arena sweep took the clear
+            // glyph's own recogniser down with it. Freeform keeps the detector:
+            // there the drag *is* the text selection.
+            child: selectionEnabled
+                ? _gestures.buildGestureDetector(child: field)
+                : GestureDetector(
+                    // Excluded because the detector it stands in for is:
+                    // announcing a tap action here as well would add a node to
+                    // the tree that the freeform picker does not have.
+                    excludeFromSemantics: true,
+                    onTap: _handleFieldTap,
+                    child: field,
+                  ),
           ),
         ),
       ),

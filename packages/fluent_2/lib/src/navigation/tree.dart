@@ -689,6 +689,8 @@ class FluentTree extends StatefulWidget {
     this.selectedItems = const <Object>{},
     this.onSelectionChange,
     this.onInvoke,
+    this.collapseMotion,
+    this.animateOpacity = true,
     this.style,
     this.semanticLabel,
   });
@@ -726,6 +728,22 @@ class FluentTree extends StatefulWidget {
   /// Invoked when a row is activated by click, Space or Enter, in addition to
   /// whatever the activation did to the open set.
   final ValueChanged<Object>? onInvoke;
+
+  /// The transition every subtree opens and closes on. Null — the default — is
+  /// no transition at all.
+  ///
+  /// Upstream's `collapseMotion` slot, which is likewise opt-in: a React `Tree`
+  /// animates nothing until a `Collapse` is handed to it, and the slot is set
+  /// on the **subtree** elements rather than the root, since a root tree has no
+  /// collapse of its own. There is one `Tree` widget per whole tree here, so
+  /// this covers every subtree in it; the root still never animates, because
+  /// the root has no branch above it to collapse into.
+  final FluentMotionSpec? collapseMotion;
+
+  /// Whether a subtree fades while it grows, rather than growing at full
+  /// opacity. Upstream's `Collapse.animateOpacity`, and dead without
+  /// [collapseMotion].
+  final bool animateOpacity;
 
   /// Overrides layered over the theme defaults. Merged last, so it wins.
   final FluentTreeItemStyle? style;
@@ -923,6 +941,105 @@ class _FluentTreeState extends State<FluentTree> {
     return KeyEventResult.ignored;
   }
 
+  /// One widget per item in [items], each carrying its own subtree.
+  ///
+  /// Nested rather than the flat list of visible rows [_visible] returns,
+  /// because a subtree that collapses has to be **one** box for its height to
+  /// animate — and because the gap between a branch and its first child then
+  /// collapses with it, instead of being left behind by a `Column` still
+  /// counting an emptied child. Traversal stays flat: the keyboard walks
+  /// [_visible], which never includes a subtree that is only still on screen
+  /// because it is animating out.
+  List<Widget> _branch(
+    List<FluentTreeItem> items,
+    int level,
+    Object? parent,
+    Object? active,
+    double rowGap,
+  ) => <Widget>[
+    for (final item in items)
+      if (!item.isBranch)
+        _row(_Row(item: item, level: level, parent: parent), active)
+      else
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          // No spacing: the gap above the first child belongs *inside* the
+          // subtree, so a closed branch is exactly as tall as its own row.
+          children: <Widget>[
+            _row(_Row(item: item, level: level, parent: parent), active),
+            _subtree(item, level, active, rowGap),
+          ],
+        ),
+  ];
+
+  /// The rows under [item], collapsed to nothing while it is closed.
+  Widget _subtree(
+    FluentTreeItem item,
+    int level,
+    Object? active,
+    double rowGap,
+  ) {
+    final open = _open.contains(item.value);
+    Widget children() => Padding(
+      padding: EdgeInsets.only(top: rowGap),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: rowGap,
+        children: _branch(item.children, level + 1, item.value, active, rowGap),
+      ),
+    );
+
+    // Upstream's `Tree` ships no motion of its own — `collapseMotion` is a slot
+    // set per subtree, and without it a branch is simply there on the frame it
+    // opens. Building nothing while closed is that behaviour, and it is also
+    // what keeps a deep tree from paying for rows nobody can see.
+    final motion = widget.collapseMotion;
+    if (motion == null) return open ? children() : const SizedBox.shrink();
+
+    return FluentAnimatedStyle<double>(
+      value: open ? 1 : 0,
+      spec: motion,
+      lerp: lerpDouble,
+      builder: (context, value) => value <= 0
+          ? const SizedBox.shrink()
+          : ClipRect(
+              child: Align(
+                alignment: AlignmentDirectional.topStart,
+                heightFactor: value.clamp(0, 1),
+                child: Opacity(
+                  opacity: widget.animateOpacity ? value.clamp(0, 1) : 1,
+                  child: children(),
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _row(_Row row, Object? active) => _FluentTreeRow(
+    key: ValueKey<Object>(row.item.value),
+    row: row,
+    appearance: widget.appearance,
+    size: widget.size,
+    selectionMode: widget.selectionMode,
+    selected: widget.selectedItems.contains(row.item.value),
+    expanded: _open.contains(row.item.value),
+    listStyle: widget.style,
+    focusNode: _nodeFor(row.item.value),
+    tabStop: row.item.value == active,
+    onSelectionChanged: widget.onSelectionChange == null
+        ? null
+        : (value) => _setSelected(row.item, selected: value),
+    onPressed: row.item.enabled
+        ? () {
+            _focus(row.item.value);
+            _toggle(row.item);
+            widget.onInvoke?.call(row.item.value);
+          }
+        : null,
+  );
+
   static const Map<ShortcutActivator, Intent>
   _shortcuts = <ShortcutActivator, Intent>{
     SingleActivator(LogicalKeyboardKey.arrowUp): FluentTreeMoveIntent(-1),
@@ -1011,31 +1128,7 @@ class _FluentTreeState extends State<FluentTree> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: rowGap,
-              children: <Widget>[
-                for (final row in rows)
-                  _FluentTreeRow(
-                    key: ValueKey<Object>(row.item.value),
-                    row: row,
-                    appearance: widget.appearance,
-                    size: widget.size,
-                    selectionMode: widget.selectionMode,
-                    selected: widget.selectedItems.contains(row.item.value),
-                    expanded: _open.contains(row.item.value),
-                    listStyle: widget.style,
-                    focusNode: _nodeFor(row.item.value),
-                    tabStop: row.item.value == active,
-                    onSelectionChanged: widget.onSelectionChange == null
-                        ? null
-                        : (value) => _setSelected(row.item, selected: value),
-                    onPressed: row.item.enabled
-                        ? () {
-                            _focus(row.item.value);
-                            _toggle(row.item);
-                            widget.onInvoke?.call(row.item.value);
-                          }
-                        : null,
-                  ),
-              ],
+              children: _branch(widget.items, 1, null, active, rowGap),
             ),
           ),
         ),
