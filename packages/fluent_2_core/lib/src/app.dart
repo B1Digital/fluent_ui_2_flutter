@@ -1,6 +1,5 @@
 import 'package:fluent_2_fonts/fluent_2_fonts.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
 import 'theme.dart';
@@ -376,8 +375,15 @@ class FluentScrollBehavior extends ScrollBehavior {
     ScrollableDetails details,
   ) => child;
 
-  @override
-  Set<PointerDeviceKind> get dragDevices => PointerDeviceKind.values.toSet();
+  // No `dragDevices` override. Adding PointerDeviceKind.mouse to the set — which
+  // `PointerDeviceKind.values.toSet()` did — hands every mouse press to the
+  // scrollable's drag recogniser, and a PRECISE pointer's drag slop is
+  // `kPrecisePointerHitSlop`, which is ONE pixel. A real mouse click moves two
+  // or three between press and release, so the drag won the arena, scrolled
+  // nothing, and swallowed the tap: buttons, dropdown rows, switches and menu
+  // items inside any scrolling page fired only on a pixel-perfect click.
+  // The framework default is touch/stylus/trackpad — mouse scrolls with the
+  // wheel, which is what a browser does.
 
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) =>
