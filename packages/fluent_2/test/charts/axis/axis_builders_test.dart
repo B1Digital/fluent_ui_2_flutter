@@ -106,6 +106,38 @@ class _CapturedAxis {
 
 void main() {
   group('createNumericXAxis', () {
+    // `axis.js:82` drops a tick the scale cannot place, and `props.tickValues`
+    // now reaches this builder — so the Vega ordinal path, which names its BAND
+    // LABELS there while plotting their indices, arrives with a list of Strings.
+    // Both halves matter: a String that survives becomes a NaN offset and
+    // `Canvas.drawLine` asserts on it, and a list that filters to EMPTY must not
+    // be mistaken for "this axis wants no ticks".
+    test('drops caller ticks this scale cannot place', () {
+      final spec = createNumericXAxis(
+        _numericParams(),
+        const FluentTickParams(tickValues: <Object>[0, 'b', 50, 100]),
+        FluentChartType.lineChart,
+      );
+
+      expect(spec.tickValues, <Object>[0, 50, 100]);
+      expect(spec.tickLabels, <String>['0', '50', '100']);
+    });
+
+    test('falls back to generated ticks when none of them can be placed', () {
+      final spec = createNumericXAxis(
+        _numericParams(),
+        const FluentTickParams(tickValues: <Object>['a', 'b', 'c']),
+        FluentChartType.lineChart,
+      );
+
+      expect(
+        spec.tickValues,
+        <double>[0, 20, 40, 60, 80, 100],
+        reason: 'an axis with no ticks at all is worse than the generated ones',
+      );
+      expect(spec.tickLabels, isNotEmpty);
+    });
+
     test('produces d3 ticks at the default count of six', () {
       final spec = createNumericXAxis(
         _numericParams(),

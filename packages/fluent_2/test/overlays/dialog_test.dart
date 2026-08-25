@@ -878,6 +878,33 @@ void main() {
     });
   });
 
+  group('lifecycle', () {
+    // Regression: the controller and both curves used to be `late final` field
+    // initialisers, so they were CONSTRUCTED on first read — and dispose() reads
+    // all of them. A dialog that was never opened therefore built an
+    // AnimationController(vsync: this) while unmounting, and createTicker looked
+    // up TickerMode on a deactivated element.
+    testWidgets('a dialog that never opened unmounts cleanly', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        FluentTheme(
+          data: light(),
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: Overlay(initialEntries: <OverlayEntry>[_DialogEntry()]),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('style plumbing', () {
     test('merge is per-property and copyWith round-trips', () {
       const base = FluentDialogStyle(
@@ -899,4 +926,17 @@ void main() {
       );
     });
   });
+}
+
+/// An [OverlayEntry] subclass so the never-opened dialog can be declared const
+/// inside the test above.
+class _DialogEntry extends OverlayEntry {
+  _DialogEntry()
+    : super(
+        builder: (BuildContext context) => const FluentDialog(
+          open: false,
+          content: Text('body'),
+          child: SizedBox.shrink(),
+        ),
+      );
 }
