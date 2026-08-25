@@ -1,4 +1,4 @@
-## Unreleased
+## 0.0.2
 
 ### Added
 
@@ -36,7 +36,7 @@
   unaffected. Anyone who subclassed or instantiated the removed painter should
   use the two widgets instead.
 
-## 0.0.2
+### Publishing
 
 - Use the Fluent 2 project logo as the first pub.dev screenshot and thumbnail.
 - Require `fluent_2_core` and `fluent_2_fonts_web` 0.0.2.
