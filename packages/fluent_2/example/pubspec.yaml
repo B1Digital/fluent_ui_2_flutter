@@ -1,0 +1,44 @@
+name: fluent_2_example
+description: "A Flutter clone of the Fluent UI React Storybook, built from fluent_2."
+publish_to: 'none'
+version: 1.0.0+1
+resolution: workspace
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  fluent_2:
+    path: ..
+  # Selawik. `fluent_2` lists this as a dev_dependency, which does not
+  # transit, so without naming it here the deployed showroom silently falls back
+  # to the platform sans-serif and every measured type metric is wrong.
+  fluent_2_fonts_web:
+    path: ../../fluent_2_fonts_web
+  flutter:
+    sdk: flutter
+  # A CommonMark parser, not a renderer: pure Dart, depending only on `args` and
+  # `meta`. The rendering is ours, in `shell/widgets/markdown_view.dart`, so the
+  # markdown page keeps the Fluent type ramp and no Material widget enters the
+  # app through the back door.
+  markdown: ^7.3.1
+  # Opening a browser tab has no package-free path on web, and the preview
+  # card's "Open in new tab" and the toolbar's "View as Markdown" both need one.
+  url_launcher: ^6.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  # No `uses-material-design`. Every glyph the chrome needs is in
+  # `fluentui_system_icons`, which `fluent_2` re-exports, so bundling
+  # MaterialIcons-Regular.otf would be ~1.6 MB of dead weight.
+  assets:
+    # The page sources are assets *of themselves*: the "Show code" panel reads
+    # each page's own `.dart` file back at runtime and slices out the
+    # `#docregion` the section was built from, so the code shown cannot drift
+    # from the code that rendered. The wildcard is not recursive — `lib/pages/`
+    # is deliberately flat.
+    - lib/pages/
+    - assets/storybook/

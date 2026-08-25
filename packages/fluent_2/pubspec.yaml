@@ -1,0 +1,43 @@
+name: fluent_2
+description: >-
+  Microsoft Fluent 2 components for Flutter web and desktop: 90+ widgets,
+  20 chart types, tokens, theming, a11y and 135 locales. No Material.
+version: 0.0.1
+resolution: workspace
+repository: https://github.com/B1Digital/fluent_ui_2_flutter
+issue_tracker: https://github.com/B1Digital/fluent_ui_2_flutter/issues
+documentation: https://b1digital.github.io/fluent_ui_2_flutter/
+topics:
+  - fluent
+  - design-system
+  - ui
+  - widgets
+  - charts
+
+screenshots:
+  - description: "Fluent 2 buttons in every appearance, size and icon layout."
+    path: screenshots/buttons.png
+  - description: "The Fluent 2 data grid with sorting and selection."
+    path: screenshots/data-grid.png
+  - description: "Fluent 2 charts: bar and donut, with axes and legends."
+    path: screenshots/charts.png
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=3.41.0"
+
+dependencies:
+  fluent_2_core: ^0.0.1
+  flutter:
+    sdk: flutter
+  intl: ^0.20.2
+
+dev_dependencies:
+  fluent_2_fonts_web: ^0.0.1
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  # `flutter gen-l10n` writes lib/src/l10n/ from l10n/*.arb. The output is
+  # checked in, so consumers of the published package need no build step.
+  generate: true
