@@ -8,6 +8,7 @@ import '../buttons/button.dart';
 import '../buttons/button_style.dart';
 import '../internal/animated_style.dart';
 import '../internal/interaction.dart';
+import '../l10n/l10n.dart';
 import 'carousel_style.dart';
 
 /// Where the nav strip sits relative to the slide. Figma's `Layout` axis.
@@ -195,6 +196,10 @@ class FluentCarouselState extends FluentCarouselBaseState {
 /// Separated so a consumer can reuse Fluent's state resolution while
 /// substituting their own styling — the first of the three-function
 /// recomposition contract.
+///
+/// [l10n] supplies [previousLabel], [nextLabel] and [stepLabel] when the caller
+/// names none. Null takes [fluentLocalizationsFallback], which is US English —
+/// [FluentCarousel] passes the ambient catalogue instead.
 FluentCarouselState resolveFluentCarouselState({
   Widget viewport = const SizedBox.shrink(),
   bool enabled = true,
@@ -204,38 +209,42 @@ FluentCarouselState resolveFluentCarouselState({
   FluentCarouselChevronPlacement chevronPlacement =
       FluentCarouselChevronPlacement.flexibleToEdges,
   FluentCarouselNavType navType = FluentCarouselNavType.steps,
-  String previousLabel = 'Previous slide',
-  String nextLabel = 'Next slide',
-  String Function(int index, int count) stepLabel =
-      defaultFluentCarouselStepLabel,
+  String? previousLabel,
+  String? nextLabel,
+  String Function(int index, int count)? stepLabel,
+  FluentLocalizations? l10n,
   Widget? header,
   List<Widget>? previews,
   Widget? autoplayControl,
   VoidCallback? onPrevious,
   VoidCallback? onNext,
   void Function(int index)? onStepSelected,
-}) => FluentCarouselState(
-  enabled: enabled,
-  count: count,
-  index: index,
-  viewport: viewport,
-  layout: layout,
-  chevronPlacement: chevronPlacement,
-  navType: navType,
-  previousLabel: previousLabel,
-  nextLabel: nextLabel,
-  stepLabel: stepLabel,
-  header: header,
-  previews: previews,
-  autoplayControl: autoplayControl,
-  onPrevious: onPrevious,
-  onNext: onNext,
-  onStepSelected: onStepSelected,
-);
-
-/// The default step announcement, e.g. `Slide 2 of 5`.
-String defaultFluentCarouselStepLabel(int index, int count) =>
-    'Slide ${index + 1} of $count';
+}) {
+  // This is a plain function with no BuildContext, so the wording arrives as a
+  // parameter: `FluentCarousel` passes `fluentL10n(context)`, and a
+  // hand-composed carousel passes its own or takes US English.
+  final messages = l10n ?? fluentLocalizationsFallback;
+  return FluentCarouselState(
+    enabled: enabled,
+    count: count,
+    index: index,
+    viewport: viewport,
+    layout: layout,
+    chevronPlacement: chevronPlacement,
+    navType: navType,
+    previousLabel: previousLabel ?? messages.previousSlide,
+    nextLabel: nextLabel ?? messages.nextSlide,
+    // `index` is zero-based here and one-based in the announcement.
+    stepLabel:
+        stepLabel ?? (index, count) => messages.slideOf(index + 1, count),
+    header: header,
+    previews: previews,
+    autoplayControl: autoplayControl,
+    onPrevious: onPrevious,
+    onNext: onNext,
+    onStepSelected: onStepSelected,
+  );
+}
 
 /// Resolves the default style for [state] against [theme].
 ///
@@ -737,11 +746,11 @@ class FluentCarousel extends StatefulWidget {
     this.pauseButton = FluentCarouselPauseButton.onContentClick,
     this.style,
     this.semanticLabel,
-    this.previousLabel = 'Previous slide',
-    this.nextLabel = 'Next slide',
-    this.playLabel = 'Start automatic slide show',
-    this.pauseLabel = 'Pause automatic slide show',
-    this.stepLabel = defaultFluentCarouselStepLabel,
+    this.previousLabel,
+    this.nextLabel,
+    this.playLabel,
+    this.pauseLabel,
+    this.stepLabel,
   });
 
   /// The slides, in order. One page each.
@@ -795,19 +804,23 @@ class FluentCarousel extends StatefulWidget {
   final String? semanticLabel;
 
   /// Announced for the previous-slide chevron.
-  final String previousLabel;
+  ///
+  /// Null takes the wording from the ambient [FluentLocalizations], which falls
+  /// back to English when no delegate is installed. The same is true of
+  /// [nextLabel], [playLabel], [pauseLabel] and [stepLabel].
+  final String? previousLabel;
 
   /// Announced for the next-slide chevron.
-  final String nextLabel;
+  final String? nextLabel;
 
   /// Announced for the autoplay button while paused.
-  final String playLabel;
+  final String? playLabel;
 
   /// Announced for the autoplay button while playing.
-  final String pauseLabel;
+  final String? pauseLabel;
 
   /// Announced for the step at a given index.
-  final String Function(int index, int count) stepLabel;
+  final String Function(int index, int count)? stepLabel;
 
   @override
   State<FluentCarousel> createState() => _FluentCarouselState();
@@ -937,6 +950,7 @@ class _FluentCarouselState extends State<FluentCarousel> {
       );
     }
 
+    final l10n = fluentL10n(context);
     final state = resolveFluentCarouselState(
       enabled: widget.enabled,
       count: count,
@@ -949,9 +963,11 @@ class _FluentCarouselState extends State<FluentCarousel> {
           ? FluentCarouselNavType.steps
           : FluentCarouselNavType.imagePreview,
       previews: widget.previews,
-      previousLabel: widget.previousLabel,
-      nextLabel: widget.nextLabel,
-      stepLabel: widget.stepLabel,
+      previousLabel: widget.previousLabel ?? l10n.previousSlide,
+      nextLabel: widget.nextLabel ?? l10n.nextSlide,
+      // `index` is zero-based here and one-based in the announcement.
+      stepLabel:
+          widget.stepLabel ?? (index, count) => l10n.slideOf(index + 1, count),
       autoplayControl:
           widget.autoplay &&
               widget.pauseButton == FluentCarouselPauseButton.inNav
@@ -959,7 +975,9 @@ class _FluentCarouselState extends State<FluentCarousel> {
               icon: _playing
                   ? FluentIcons.pause_20_regular
                   : FluentIcons.play_20_regular,
-              semanticLabel: _playing ? widget.pauseLabel : widget.playLabel,
+              semanticLabel: _playing
+                  ? widget.pauseLabel ?? l10n.pauseSlideShow
+                  : widget.playLabel ?? l10n.startSlideShow,
               iconSize: FluentSize.size200,
               onPressed: widget.enabled
                   ? () => _setPaused(() => _playing = !_playing)

@@ -5,6 +5,7 @@ import '../../pages.dart';
 import '../catalog.dart';
 import '../docs_metrics.dart';
 import '../showroom_scope.dart';
+import '../theme_variants.dart';
 import 'docs_prose.dart';
 import 'docs_toolbar.dart';
 import 'markdown_view.dart';
@@ -89,6 +90,18 @@ class _DocsBodyState extends State<_DocsBody> {
   String? _active;
   bool _spyLocked = false;
 
+  /// The theme this page — and only this page — renders in, or null to follow
+  /// the shell.
+  ///
+  /// Page-local on purpose. The docs toolbar's dropdown is an override, not a
+  /// second global control, and this State is keyed by page id above, so
+  /// navigating away disposes it and the next page opens on the shell's theme
+  /// again. No save/restore, no dispose code.
+  ThemeVariant? _variantOverride;
+
+  /// The shell theme this page last saw, so a change to it can be noticed.
+  ThemeVariant? _shellVariant;
+
   @override
   void initState() {
     super.initState();
@@ -104,6 +117,19 @@ class _DocsBodyState extends State<_DocsBody> {
         _syncSpy();
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // A pick on the shell's own Theme menu outranks the page override. Without
+    // this the two controls sit there disagreeing about what is on screen —
+    // which is the confusion the override exists to remove, not one to add.
+    final ThemeVariant shell = ShowroomScope.of(context).variant;
+    if (shell != _shellVariant) {
+      _shellVariant = shell;
+      _variantOverride = null;
+    }
   }
 
   @override
@@ -179,89 +205,100 @@ class _DocsBodyState extends State<_DocsBody> {
   @override
   Widget build(BuildContext context) {
     final DocsPage page = widget.page;
+    final ShowroomScope shell = ShowroomScope.of(context);
 
+    // Everything below the shell toolbar reads the page's theme, not the
+    // shell's: the docs toolbar's dropdown writes the override here, and every
+    // PreviewCard reads it back through `ShowroomScope.of`, unchanged.
+    //
     // The rail sits OUTSIDE the scroll view. Upstream's is `position: sticky`,
     // which a child of the scrollable cannot be — it would slide away with the
     // article. It reads the offset instead and parks itself at 64px.
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Expanded(
-          child: RawScrollbar(
-            controller: _scroll,
-            thumbColor: DocsMetrics.bodyText.withValues(alpha: 0.28),
-            radius: const Radius.circular(4),
-            thickness: 8,
-            child: SingleChildScrollView(
-              key: _viewportKey,
+    return ShowroomScope.override(
+      parent: shell,
+      variant: _variantOverride ?? shell.variant,
+      onVariantChanged: (ThemeVariant value) =>
+          setState(() => _variantOverride = value),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Expanded(
+            child: RawScrollbar(
               controller: _scroll,
-              // One region for the whole article, so a selection can run across
-              // section boundaries the way it does in a browser.
-              child: Selectable(
-                child: Center(
-                  child: ConstrainedBox(
-                    // Pages with no sections have no "On this page" rail beside
-                    // them, so the article gets the full content width rather
-                    // than the narrower story column that leaves room for one.
-                    constraints: BoxConstraints(
-                      maxWidth:
-                          (page.sections.isEmpty
-                              ? DocsMetrics.contentMaxWidth
-                              : DocsMetrics.storyColumnWidth) +
-                          DocsMetrics.contentInset * 2,
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: DocsMetrics.contentInset,
+              thumbColor: DocsMetrics.bodyText.withValues(alpha: 0.28),
+              radius: const Radius.circular(4),
+              thickness: 8,
+              child: SingleChildScrollView(
+                key: _viewportKey,
+                controller: _scroll,
+                // One region for the whole article, so a selection can run across
+                // section boundaries the way it does in a browser.
+                child: Selectable(
+                  child: Center(
+                    child: ConstrainedBox(
+                      // Pages with no sections have no "On this page" rail beside
+                      // them, so the article gets the full content width rather
+                      // than the narrower story column that leaves room for one.
+                      constraints: BoxConstraints(
+                        maxWidth:
+                            (page.sections.isEmpty
+                                ? DocsMetrics.contentMaxWidth
+                                : DocsMetrics.storyColumnWidth) +
+                            DocsMetrics.contentInset * 2,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          const SizedBox(height: 49),
-                          Text(page.title, style: DocsMetrics.h1),
-                          const SizedBox(height: 16),
-                          // Theme pages carry neither the toolbar nor the rule
-                          // upstream — they open straight onto their token card,
-                          // because there are no stories for a theme control to
-                          // act on.
-                          if (page.sections.isNotEmpty) ...<Widget>[
-                            DocsToolbar(page: page),
-                            DocsProse(page.description),
-                            const SizedBox(height: DocsMetrics.ruleGap),
-                            const _Rule(),
-                            const SizedBox(height: DocsMetrics.ruleGap),
-                          ] else if (page.description.isNotEmpty) ...<Widget>[
-                            DocsProse(page.description),
-                            const SizedBox(height: 24),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: DocsMetrics.contentInset,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            const SizedBox(height: 49),
+                            Text(page.title, style: DocsMetrics.h1),
+                            const SizedBox(height: 16),
+                            // Theme pages carry neither the toolbar nor the rule
+                            // upstream — they open straight onto their token card,
+                            // because there are no stories for a theme control to
+                            // act on.
+                            if (page.sections.isNotEmpty) ...<Widget>[
+                              DocsToolbar(page: page),
+                              DocsProse(page.description),
+                              const SizedBox(height: DocsMetrics.ruleGap),
+                              const _Rule(),
+                              const SizedBox(height: DocsMetrics.ruleGap),
+                            ] else if (page.description.isNotEmpty) ...<Widget>[
+                              DocsProse(page.description),
+                              const SizedBox(height: 24),
+                            ],
+                            // A page that carries its own markdown is rendered
+                            // by the viewer, which handles the tables and nested
+                            // lists the prose renderer would flatten.
+                            if (page.markdown != null)
+                              MarkdownBody(
+                                source: page.markdown!,
+                                skipLeadingHeading: true,
+                              ),
+                            for (final ProseBlock block
+                                in page.prose) ...<Widget>[
+                              const SizedBox(height: 32),
+                              Text(block.title, style: DocsMetrics.h3),
+                              const SizedBox(height: 12),
+                              DocsProse(block.body),
+                            ],
+                            if (page.prose.isNotEmpty)
+                              const SizedBox(height: DocsMetrics.ruleGap),
+                            if (page.body != null) page.body!(context),
+                            for (final DocsSection section in page.sections)
+                              _Section(
+                                key: _anchors[section.id],
+                                section: section,
+                                assetPath: page.source,
+                              ),
+                            if (page.props.isNotEmpty)
+                              PropsTable(rows: page.props),
+                            const SizedBox(height: 96),
                           ],
-                          // A page that carries its own markdown is rendered
-                          // by the viewer, which handles the tables and nested
-                          // lists the prose renderer would flatten.
-                          if (page.markdown != null)
-                            MarkdownBody(
-                              source: page.markdown!,
-                              skipLeadingHeading: true,
-                            ),
-                          for (final ProseBlock block
-                              in page.prose) ...<Widget>[
-                            const SizedBox(height: 32),
-                            Text(block.title, style: DocsMetrics.h3),
-                            const SizedBox(height: 12),
-                            DocsProse(block.body),
-                          ],
-                          if (page.prose.isNotEmpty)
-                            const SizedBox(height: DocsMetrics.ruleGap),
-                          if (page.body != null) page.body!(context),
-                          for (final DocsSection section in page.sections)
-                            _Section(
-                              key: _anchors[section.id],
-                              section: section,
-                              assetPath: page.source,
-                            ),
-                          if (page.props.isNotEmpty)
-                            PropsTable(rows: page.props),
-                          const SizedBox(height: 96),
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -269,18 +306,18 @@ class _DocsBodyState extends State<_DocsBody> {
               ),
             ),
           ),
-        ),
-        // Only the rail rebuilds as the page scrolls; the article does not.
-        ListenableBuilder(
-          listenable: _scroll,
-          builder: (BuildContext context, _) => OnThisPage(
-            sections: page.sections,
-            activeId: _active,
-            onSelect: _scrollTo,
-            scrollOffset: _scroll.hasClients ? _scroll.offset : 0,
+          // Only the rail rebuilds as the page scrolls; the article does not.
+          ListenableBuilder(
+            listenable: _scroll,
+            builder: (BuildContext context, _) => OnThisPage(
+              sections: page.sections,
+              activeId: _active,
+              onSelect: _scrollTo,
+              scrollOffset: _scroll.hasClients ? _scroll.offset : 0,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

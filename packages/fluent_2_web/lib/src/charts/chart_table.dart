@@ -4,6 +4,7 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
+import '../l10n/l10n.dart';
 import 'chart_table_style.dart';
 import 'chrome/chart_title.dart';
 import 'internal/chart_colors.dart';
@@ -294,7 +295,7 @@ class FluentChartTable extends StatelessWidget {
     // ChartTable.tsx:56-58 — plain text, no live region. Deliberately unlike
     // the other six charts in this plan.
     if (headers.isEmpty) {
-      return const Text('No data available');
+      return Text(fluentL10n(context).chartNoDataAvailable);
     }
 
     final theme = FluentTheme.of(context);

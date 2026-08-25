@@ -46,6 +46,26 @@ melos:
         dirExists: test
       description: Run tests in every package that has them.
 
+    gen-l10n:
+      # Regenerates packages/fluent_2_web/lib/src/l10n/ from l10n/*.arb. The
+      # output is checked in, so this is only run when a message changes.
+      # `expand_l10n_locales.dart` fans the 36 translated files out over the 135
+      # supported locales; `strip_l10n_material.dart` removes the
+      # flutter_localizations coupling gen_l10n emits unconditionally — see
+      # `no-material` below. gen_l10n writes to .dart_tool/ and only this script
+      # copies into lib/, so a plain `flutter pub get` cannot put the Material
+      # import back into the checked-in files.
+      run: |
+        set -e
+        dart tool/expand_l10n_locales.dart
+        (cd packages/fluent_2_web && flutter gen-l10n)
+        out=packages/fluent_2_web/.dart_tool/fluent_l10n
+        dart tool/strip_l10n_material.dart $out/fluent_localizations.dart
+        rm -f packages/fluent_2_web/lib/src/l10n/fluent_localizations*.dart
+        cp $out/*.dart packages/fluent_2_web/lib/src/l10n/
+        dart format packages/fluent_2_web/lib/src/l10n
+      description: Regenerate the Fluent localizations from the ARB files.
+
     no-material:
       # The whole point of the design system: nothing may depend on Material.
       # Anchored to real import/export directives so doc comments mentioning
@@ -53,6 +73,14 @@ melos:
       run: |
         if grep -rnE "^\s*(import|export) 'package:flutter/(material|cupertino)\.dart'" packages/*/lib packages/*/test; then
           echo "ERROR: Material/Cupertino import found — fluent_2 replaces them."
+          exit 1
+        fi
+        # flutter_localizations re-exports GlobalMaterialLocalizations, so it
+        # pulls Material in without naming it. `flutter gen-l10n` emits that
+        # import every time; `melos run gen-l10n` strips it back out.
+        if grep -rnE "^\s*(import|export) 'package:flutter_localizations/" packages/*/lib packages/*/test; then
+          echo "ERROR: flutter_localizations import found — it re-exports Material."
+          echo "Run 'melos run gen-l10n' to regenerate without it."
           exit 1
         fi
         echo "OK: no Material or Cupertino imports."

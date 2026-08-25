@@ -2,6 +2,7 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
 import '../internal/interaction.dart';
+import '../l10n/l10n.dart';
 import 'presence_badge_style.dart';
 
 /// A person's availability. Figma's `Status` axis.
@@ -103,19 +104,29 @@ class FluentPresenceBadgeState extends FluentPresenceBadgeBaseState {
 /// out-of-office glyph, and busy out of office becomes the **unknown** glyph
 /// while keeping the danger colour. Figma and upstream React agree on both.
 ///
-/// [semanticLabel] defaults to an English name for the status; pass your own
-/// for a localised or personalised announcement ("Ada is available").
+/// [semanticLabel] defaults to the status's name in [l10n]; pass your own for a
+/// personalised announcement ("Ada is available"). This is a plain function
+/// with no [BuildContext], so the wording arrives as a parameter:
+/// [FluentPresenceBadge] passes `fluentL10n(context)`, and null takes
+/// [fluentLocalizationsFallback], which is US English.
 FluentPresenceBadgeState resolveFluentPresenceBadgeState({
   required FluentPresenceStatus status,
   bool outOfOffice = false,
   FluentPresenceBadgeSize size = FluentPresenceBadgeSize.medium,
   String? semanticLabel,
+  FluentLocalizations? l10n,
 }) => FluentPresenceBadgeState(
   status: status,
   outOfOffice: outOfOffice,
   size: size,
   glyph: _glyph(status, outOfOffice: outOfOffice, size: size),
-  semanticLabel: semanticLabel ?? _label(status, outOfOffice: outOfOffice),
+  semanticLabel:
+      semanticLabel ??
+      fluentPresenceStatusLabel(
+        status,
+        outOfOffice: outOfOffice,
+        l10n: l10n ?? fluentLocalizationsFallback,
+      ),
 );
 
 /// Resolves the default style for [state] against [theme].
@@ -357,6 +368,7 @@ class FluentPresenceBadge extends StatelessWidget {
       outOfOffice: outOfOffice,
       size: size,
       semanticLabel: semanticLabel,
+      l10n: fluentL10n(context),
     );
 
     // Lowest to highest: defaults, subtree theme, then the caller's own style.
@@ -415,19 +427,29 @@ IconData? _glyph(
   return family[nominal]!;
 }
 
-String _label(FluentPresenceStatus status, {required bool outOfOffice}) {
+/// What a presence badge announces for [status].
+///
+/// The out-of-office *flag* is orthogonal to the status, so it wraps whatever
+/// the status is called — "Busy out of office" — except on
+/// [FluentPresenceStatus.outOfOffice] itself, which would otherwise say it
+/// twice.
+String fluentPresenceStatusLabel(
+  FluentPresenceStatus status, {
+  required bool outOfOffice,
+  required FluentLocalizations l10n,
+}) {
   final name = switch (status) {
-    FluentPresenceStatus.available => 'Available',
-    FluentPresenceStatus.away => 'Away',
-    FluentPresenceStatus.busy => 'Busy',
-    FluentPresenceStatus.doNotDisturb => 'Do not disturb',
-    FluentPresenceStatus.blocked => 'Blocked',
-    FluentPresenceStatus.offline => 'Offline',
-    FluentPresenceStatus.outOfOffice => 'Out of office',
-    FluentPresenceStatus.unknown => 'Unknown',
+    FluentPresenceStatus.available => l10n.presenceAvailable,
+    FluentPresenceStatus.away => l10n.presenceAway,
+    FluentPresenceStatus.busy => l10n.presenceBusy,
+    FluentPresenceStatus.doNotDisturb => l10n.presenceDoNotDisturb,
+    FluentPresenceStatus.blocked => l10n.presenceBlocked,
+    FluentPresenceStatus.offline => l10n.presenceOffline,
+    FluentPresenceStatus.outOfOffice => l10n.presenceOutOfOffice,
+    FluentPresenceStatus.unknown => l10n.presenceUnknown,
   };
   return outOfOffice && status != FluentPresenceStatus.outOfOffice
-      ? '$name out of office'
+      ? l10n.presenceOutOfOfficeStatus(name)
       : name;
 }
 

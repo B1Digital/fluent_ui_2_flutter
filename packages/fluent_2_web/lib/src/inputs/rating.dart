@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 
 import '../internal/focus_ring.dart';
 import '../internal/interaction.dart';
+import '../l10n/l10n.dart';
 import 'rating_style.dart';
 
 /// Whether the rating takes input or only reports a value. Figma's `Type` axis.
@@ -729,8 +730,9 @@ class _FluentRatingState extends State<FluentRating> {
     setState(() => _hovered = value);
   }
 
-  String _announce(double value) =>
-      '${_format(value)} of ${_format(widget.max.toDouble())}';
+  String _announce(BuildContext context, double value) => fluentL10n(
+    context,
+  ).ratingValueOf(_format(value), _format(widget.max.toDouble()));
 
   static String _format(double value) => value == value.roundToDouble()
       ? value.toStringAsFixed(0)
@@ -773,7 +775,7 @@ class _FluentRatingState extends State<FluentRating> {
       // state at all — upstream gives it `role="img"`.
       return widget.type == FluentRatingType.display
           ? Semantics(
-              label: widget.semanticLabel ?? _announce(state.value),
+              label: widget.semanticLabel ?? _announce(context, state.value),
               image: true,
               container: true,
               child: painted,
@@ -782,7 +784,7 @@ class _FluentRatingState extends State<FluentRating> {
               slider: true,
               enabled: false,
               label: widget.semanticLabel,
-              value: _announce(state.value),
+              value: _announce(context, state.value),
               container: true,
               child: painted,
             );
@@ -815,11 +817,13 @@ class _FluentRatingState extends State<FluentRating> {
       slider: true,
       enabled: true,
       label: widget.semanticLabel,
-      value: _announce(state.value),
+      value: _announce(context, state.value),
       increasedValue: _announce(
+        context,
         (widget.value + widget.step).clamp(0, widget.max.toDouble()),
       ),
       decreasedValue: _announce(
+        context,
         (widget.value - widget.step).clamp(0, widget.max.toDouble()),
       ),
       onIncrease: () => _adjust(widget.step),

@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import '../buttons/button.dart';
 import '../buttons/button_style.dart';
 import '../internal/interaction.dart';
+import '../l10n/l10n.dart';
 import 'toast_style.dart';
 
 /// What the toast is about. Figma's `Toast status` variable collection.
@@ -526,7 +527,7 @@ class FluentToast extends StatelessWidget {
     this.icon,
     this.showIcon = true,
     this.onDismiss,
-    this.dismissSemanticLabel = 'Dismiss',
+    this.dismissSemanticLabel,
     this.timestamp,
     this.action,
     this.style,
@@ -567,7 +568,10 @@ class FluentToast extends StatelessWidget {
 
   /// Announced by assistive technology for the dismiss button, which has no
   /// text of its own.
-  final String dismissSemanticLabel;
+  ///
+  /// Null takes the wording from the ambient [FluentLocalizations],
+  /// which falls back to English when no delegate is installed.
+  final String? dismissSemanticLabel;
 
   /// The end slot's label when [type] is [FluentToastType.timestamp].
   final Widget? timestamp;
@@ -609,7 +613,8 @@ class FluentToast extends StatelessWidget {
             : FluentButton.icon(
                 appearance: FluentButtonAppearance.transparent,
                 size: FluentButtonSize.small,
-                semanticLabel: dismissSemanticLabel,
+                semanticLabel:
+                    dismissSemanticLabel ?? fluentL10n(context).dismiss,
                 onPressed: onDismiss,
                 style: resolved.dismissButtonStyle,
                 icon: const Icon(FluentIcons.dismiss_20_regular),

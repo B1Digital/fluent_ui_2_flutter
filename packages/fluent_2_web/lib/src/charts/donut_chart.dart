@@ -6,6 +6,7 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../l10n/l10n.dart';
 import 'axis/axis_label_layout.dart';
 import 'axis/tick_format.dart';
 import 'chrome/chart_popover.dart';
@@ -478,8 +479,7 @@ class FluentDonutChart extends StatefulWidget {
     this.culture,
     this.order = FluentDonutOrder.byDefault,
     this.canSelectMultipleLegends = false,
-    // Legends.tsx:108 — `props.overflowText ? props.overflowText : 'more'`.
-    this.legendsOverflowText = 'more',
+    this.legendsOverflowText,
     this.style,
   });
 
@@ -525,7 +525,11 @@ class FluentDonutChart extends StatefulWidget {
   final bool canSelectMultipleLegends;
 
   /// The word in the legend overflow trigger.
-  final String legendsOverflowText;
+  /// Legends.tsx:108 — `props.overflowText ? props.overflowText : 'more'`.
+  ///
+  /// Null takes the wording from the ambient [FluentLocalizations],
+  /// which falls back to English when no delegate is installed.
+  final String? legendsOverflowText;
 
   /// Style layered over the derived defaults and the nearest
   /// [FluentDonutChartTheme].
@@ -591,7 +595,7 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
       return Semantics(
         container: true,
         liveRegion: true,
-        label: 'Graph has no data to display',
+        label: fluentL10n(context).chartNoData,
         child: const SizedBox.shrink(),
       );
     }
@@ -726,7 +730,9 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
           container: true,
           explicitChildNodes: true,
           // Pie.tsx:104 — the group is a listbox named for its slice count.
-          label: 'Donut chart with ${layout.slices.length} slices',
+          label: fluentL10n(
+            context,
+          ).donutChartDescription(layout.slices.length),
           child: MouseRegion(
             // DonutChart.tsx:344 — onMouseLeave clears the popover.
             onExit: (_) => setState(() {

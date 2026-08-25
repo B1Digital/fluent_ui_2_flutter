@@ -11,6 +11,7 @@ import 'package:flutter/widgets.dart';
 import '../../buttons/button.dart';
 import '../../internal/focus_ring.dart';
 import '../../internal/interaction.dart';
+import '../../l10n/l10n.dart';
 import '../../overlays/menu.dart';
 import '../../overlays/menu_item.dart';
 import '../internal/chart_text_measurer.dart';
@@ -544,8 +545,7 @@ class FluentChartLegend extends StatefulWidget {
     this.allowFocusOnLegends = true,
     this.centerLegends = false,
     this.enabledWrapLines = false,
-    // Legends.tsx:108 — `props.overflowText ? props.overflowText : 'more'`.
-    this.overflowText = 'more',
+    this.overflowText,
     this.selectedLegends,
     this.defaultSelectedLegends,
     this.onChange,
@@ -572,7 +572,11 @@ class FluentChartLegend extends StatefulWidget {
 
   /// The word in the overflow trigger's `+{n} {overflowText}` label.
   /// `OverflowMenu.tsx:16`.
-  final String overflowText;
+  /// Legends.tsx:108 — `props.overflowText ? props.overflowText : 'more'`.
+  ///
+  /// Null takes the wording from the ambient [FluentLocalizations],
+  /// which falls back to English when no delegate is installed.
+  final String? overflowText;
 
   /// Controlled selection. Supplying it makes the widget controlled
   /// (`Legends.tsx:207-209`) and the parent owns every change.
@@ -873,7 +877,8 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
   }
 
   /// `+{n} {overflowText}` — `OverflowMenu.tsx:16`.
-  String _triggerLabel(int count) => '+$count ${widget.overflowText}';
+  String _triggerLabel(int count) =>
+      '+$count ${widget.overflowText ?? fluentL10n(context).overflowMore}';
 
   /// `classes.resizableArea`, which holds the rows in **both** branches
   /// (`Legends.tsx:115` and `:156`).

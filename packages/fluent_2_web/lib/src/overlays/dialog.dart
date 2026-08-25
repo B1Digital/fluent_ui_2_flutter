@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import '../buttons/button.dart';
 import '../internal/animated_style.dart';
 import '../internal/interaction.dart';
+import '../l10n/l10n.dart';
 import 'dialog_style.dart';
 
 /// How much of the screen a dialog claims, and how its actions stack.
@@ -516,7 +517,7 @@ class FluentDialog extends StatefulWidget {
     this.size = FluentDialogSize.medium,
     this.style,
     this.semanticLabel,
-    this.closeButtonSemanticLabel = 'Close',
+    this.closeButtonSemanticLabel,
   });
 
   /// The trigger. Stays in the tree whether the dialog is open or not.
@@ -568,7 +569,10 @@ class FluentDialog extends StatefulWidget {
   final String? semanticLabel;
 
   /// Announced for the header's close button, which has no text of its own.
-  final String closeButtonSemanticLabel;
+  ///
+  /// Null takes the wording from the ambient [FluentLocalizations],
+  /// which falls back to English when no delegate is installed.
+  final String? closeButtonSemanticLabel;
 
   @override
   State<FluentDialog> createState() => _FluentDialogState();
@@ -775,7 +779,8 @@ class _FluentDialogState extends State<FluentDialog>
     closeButton: widget.showCloseButton
         ? FluentButton.icon(
             icon: const Icon(fluentDialogCloseIcon),
-            semanticLabel: widget.closeButtonSemanticLabel,
+            semanticLabel:
+                widget.closeButtonSemanticLabel ?? fluentL10n(context).close,
             appearance: FluentButtonAppearance.subtle,
             onPressed: _dismissible ? _requestClose : null,
           )

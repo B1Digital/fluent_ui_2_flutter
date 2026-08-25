@@ -7,6 +7,7 @@ import 'package:intl/intl.dart' show DateFormat, Intl;
 import '../internal/animated_style.dart';
 import '../internal/focus_ring.dart';
 import '../internal/interaction.dart';
+import '../l10n/l10n.dart';
 import 'calendar_style.dart';
 
 /// The first column of the day grid.
@@ -171,10 +172,55 @@ class FluentCalendarStrings {
   /// Accessible name of the close button, when one is shown.
   final String closeButtonLabel;
 
-  /// US English, the only locale this package ships.
+  /// The chrome labels from [l10n], over US English month and day names.
   ///
-  /// Every other locale is the caller's to supply, for the reason given on the
-  /// class: there is no `intl` here to look one up with.
+  /// A template for [fluentCalendarStrings], which replaces the names but
+  /// copies the chrome. [FluentCalendarStrings.of] composes the two.
+  factory FluentCalendarStrings.fromLocalizations(FluentLocalizations l10n) =>
+      FluentCalendarStrings(
+        months: english.months,
+        shortMonths: english.shortMonths,
+        days: english.days,
+        shortDays: english.shortDays,
+        goToToday: l10n.goToToday,
+        previousMonth: l10n.previousMonth,
+        nextMonth: l10n.nextMonth,
+        previousYear: l10n.previousYear,
+        nextYear: l10n.nextYear,
+        previousYearRange: l10n.previousYearRange,
+        nextYearRange: l10n.nextYearRange,
+        monthPickerHeader: l10n.monthPickerHeader('{0}'),
+        yearPickerHeader: l10n.yearPickerHeader('{0}'),
+        selectedDateFormat: l10n.selectedDate('{0}'),
+        todayDateFormat: l10n.todaysDate('{0}'),
+        weekNumberFormat: l10n.weekNumber('{0}'),
+        closeButtonLabel: l10n.close,
+      );
+
+  /// Every label a calendar draws, resolved against [context].
+  ///
+  /// The chrome comes from the ambient [FluentLocalizations]. The month and day
+  /// names come from intl, but only once the ambient locale's data is loaded —
+  /// [fluentCalendarStrings] throws rather than guessing, so this checks with
+  /// [fluentIntlLocaleAvailable] first and keeps [english]'s names when the
+  /// answer is no. A calendar that announces its chevrons in Greek and draws
+  /// English month names is worse than one that does neither, but it is a great
+  /// deal better than one that throws on the first frame.
+  static FluentCalendarStrings of(BuildContext context) {
+    final template = FluentCalendarStrings.fromLocalizations(
+      fluentL10n(context),
+    );
+    final locale = Localizations.maybeLocaleOf(context);
+    return locale != null && fluentIntlLocaleAvailable(locale)
+        ? fluentCalendarStrings(locale, template: template)
+        : template;
+  }
+
+  /// US English month and day names, with US English chrome.
+  ///
+  /// The template [fluentCalendarStrings] falls back to, and what
+  /// [FluentCalendarStrings.of] degrades to when intl has no data for the
+  /// ambient locale.
   static const FluentCalendarStrings english = FluentCalendarStrings(
     months: <String>[
       'January',
@@ -304,15 +350,26 @@ String fluentIntlLocale(Locale locale) =>
 /// call is false for `de_DE` while `DateFormat.yMd('de_DE')` works perfectly.
 /// `verifiedLocale` applies the same fallback chain a formatter would, so this
 /// answers the question that actually matters — *will formatting throw*.
-bool fluentIntlLocaleAvailable(Locale locale) =>
-    Intl.verifiedLocale(
-      fluentIntlLocale(locale),
-      DateFormat.localeExists,
-      // The empty string stands in for "no match"; `verifiedLocale` throws by
-      // default, and a probe must not.
-      onFailure: (_) => '',
-    )?.isNotEmpty ??
-    false;
+bool fluentIntlLocaleAvailable(Locale locale) {
+  try {
+    return Intl.verifiedLocale(
+          fluentIntlLocale(locale),
+          DateFormat.localeExists,
+          // The empty string stands in for "no match"; `verifiedLocale` throws
+          // by default, and a probe must not.
+          onFailure: (_) => '',
+        )?.isNotEmpty ??
+        false;
+  } on Exception {
+    // `onFailure` covers "this locale is not in the data". It does NOT cover
+    // "there is no data": until `initializeDateFormatting` has run even once,
+    // `DateFormat.localeExists` is a sentinel that throws
+    // `LocaleDataException` on the first lookup. A probe still must not throw,
+    // and "no" is the answer that keeps every caller on its English path
+    // instead of crashing an app that never asked for intl at all.
+    return false;
+  }
+}
 
 /// [FluentCalendarStrings] with [locale]'s month and day names.
 ///
@@ -1912,7 +1969,7 @@ class FluentCalendar extends StatefulWidget {
     this.allFocusable = false,
     this.onDismiss,
     this.showCloseButton = false,
-    this.strings = FluentCalendarStrings.english,
+    this.strings,
     this.formatter = const FluentCalendarDateFormatter(),
     this.style,
     this.autofocus = false,
@@ -2020,7 +2077,10 @@ class FluentCalendar extends StatefulWidget {
   final bool showCloseButton;
 
   /// Every label that is not a number.
-  final FluentCalendarStrings strings;
+  ///
+  /// Null resolves them from the ambient [Localizations] through
+  /// [FluentCalendarStrings.of].
+  final FluentCalendarStrings? strings;
 
   /// How dates are rendered.
   final FluentCalendarDateFormatter formatter;
@@ -2256,6 +2316,11 @@ class _FluentCalendarState extends State<FluentCalendar>
     return false;
   }
 
+  /// [FluentCalendar.strings], or the ambient locale's when the caller named
+  /// none.
+  FluentCalendarStrings get _strings =>
+      widget.strings ?? FluentCalendarStrings.of(context);
+
   // --- pages -----------------------------------------------------------------
 
   List<List<FluentCalendarCell>> _cellsFor(
@@ -2270,7 +2335,7 @@ class _FluentCalendarState extends State<FluentCalendar>
     maxDate: widget.maxDate,
     restrictedDates: widget.restrictedDates,
     firstDayOfWeek: widget.firstDayOfWeek,
-    strings: widget.strings,
+    strings: _strings,
     formatter: widget.formatter,
     highlightCurrentPeriod: widget.highlightCurrentMonth,
     highlightSelectedPeriod: widget.highlightSelectedMonth,
@@ -2524,7 +2589,7 @@ class _FluentCalendarState extends State<FluentCalendar>
   String _captionFor(DateTime page, FluentCalendarView view) => switch (view) {
     FluentCalendarView.month => widget.formatter.formatMonthYear(
       page,
-      widget.strings,
+      _strings,
     ),
     FluentCalendarView.year => widget.formatter.formatYear(page),
     FluentCalendarView.decade =>
@@ -2631,35 +2696,34 @@ class _FluentCalendarState extends State<FluentCalendar>
           ? caption
           : switch (view) {
               FluentCalendarView.month =>
-                widget.strings.monthPickerHeader.replaceFirst('{0}', caption),
-              FluentCalendarView.year =>
-                widget.strings.yearPickerHeader.replaceFirst('{0}', caption),
+                _strings.monthPickerHeader.replaceFirst('{0}', caption),
+              FluentCalendarView.year => _strings.yearPickerHeader.replaceFirst(
+                '{0}',
+                caption,
+              ),
               FluentCalendarView.decade => caption,
             },
       weekdayLabels: month
           ? <String>[
               for (var i = 0; i < 7; i++)
-                widget.strings.shortDays[(i + widget.firstDayOfWeek.index) % 7],
+                _strings.shortDays[(i + widget.firstDayOfWeek.index) % 7],
             ]
           : const <String>[],
       weekdaySemanticLabels: month
           ? <String>[
               for (var i = 0; i < 7; i++)
-                widget.strings.days[(i + widget.firstDayOfWeek.index) % 7],
+                _strings.days[(i + widget.firstDayOfWeek.index) % 7],
             ]
           : const <String>[],
       weekNumbers: weekNumbers.map((week) => '$week').toList(growable: false),
       weekNumberSemanticLabels: weekNumbers
-          .map(
-            (week) =>
-                widget.strings.weekNumberFormat.replaceFirst('{0}', '$week'),
-          )
+          .map((week) => _strings.weekNumberFormat.replaceFirst('{0}', '$week'))
           .toList(growable: false),
       // Only the panel that owns the header gets it, which with two panels is
       // the day grid on the left — the same place upstream's `CalendarDay`
       // renders it.
       onClose: showClose ? widget.onDismiss : null,
-      closeLabel: widget.strings.closeButtonLabel,
+      closeLabel: _strings.closeButtonLabel,
       onPrevious: min == null || !_pageEnd(previousPage, view).isBefore(min)
           ? () => _page(-1, side: side)
           : null,
@@ -2668,14 +2732,14 @@ class _FluentCalendarState extends State<FluentCalendar>
           : null,
       onCaptionPressed: onCaptionPressed,
       previousLabel: switch (view) {
-        FluentCalendarView.month => widget.strings.previousMonth,
-        FluentCalendarView.year => widget.strings.previousYear,
-        FluentCalendarView.decade => widget.strings.previousYearRange,
+        FluentCalendarView.month => _strings.previousMonth,
+        FluentCalendarView.year => _strings.previousYear,
+        FluentCalendarView.decade => _strings.previousYearRange,
       },
       nextLabel: switch (view) {
-        FluentCalendarView.month => widget.strings.nextMonth,
-        FluentCalendarView.year => widget.strings.nextYear,
-        FluentCalendarView.decade => widget.strings.nextYearRange,
+        FluentCalendarView.month => _strings.nextMonth,
+        FluentCalendarView.year => _strings.nextYear,
+        FluentCalendarView.decade => _strings.nextYearRange,
       },
       style: style,
     );
@@ -2828,9 +2892,7 @@ class _FluentCalendarState extends State<FluentCalendar>
               slideProgress: _slide.value,
               slideForwards: _forwards,
               onGoToToday: onToday,
-              goToTodayLabel: widget.showGoToToday
-                  ? widget.strings.goToToday
-                  : null,
+              goToTodayLabel: widget.showGoToToday ? _strings.goToToday : null,
               semanticLabel: widget.semanticLabel,
             ),
             primaryStyle,

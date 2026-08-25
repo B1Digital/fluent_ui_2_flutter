@@ -5,6 +5,7 @@ import '../buttons/button.dart';
 import '../buttons/button_style.dart';
 import '../internal/focus_ring.dart';
 import '../internal/interaction.dart';
+import '../l10n/l10n.dart';
 import 'popover.dart';
 import 'popover_style.dart';
 import 'teaching_popover_style.dart';
@@ -60,13 +61,35 @@ class FluentTeachingPopoverCarousel {
 
   /// Announced for the dot at the given zero-based index.
   ///
-  /// Defaults to `Step <n> of <steps>`. A dot is a shape with no text in it, so
-  /// without a label it is invisible to assistive technology.
+  /// Null takes `Step <n> of <steps>` from the ambient [FluentLocalizations].
+  /// A dot is a shape with no text in it, so without a label it is invisible to
+  /// assistive technology.
   final String Function(int index)? stepSemanticLabel;
 
-  /// The label for the dot at [index], falling back to the default wording.
-  String labelFor(int index) =>
-      stepSemanticLabel?.call(index) ?? 'Step ${index + 1} of $steps';
+  /// The label for the dot at [index].
+  ///
+  /// Only meaningful once [stepSemanticLabel] is filled in — which
+  /// [FluentTeachingPopover] does through [localized] before rendering. Returns
+  /// an empty string otherwise rather than inventing English.
+  String labelFor(int index) => stepSemanticLabel?.call(index) ?? '';
+
+  /// This carousel with [stepSemanticLabel] supplied from [l10n] when the
+  /// caller named none.
+  ///
+  /// [buildFluentTeachingPopover] takes no [BuildContext] — the recomposition
+  /// contract is a pure function of resolved state — so the wording is looked
+  /// up one level up and folded in here.
+  FluentTeachingPopoverCarousel localized(FluentLocalizations l10n) =>
+      stepSemanticLabel != null
+      ? this
+      : FluentTeachingPopoverCarousel(
+          steps: steps,
+          activeStep: activeStep,
+          onStepSelected: onStepSelected,
+          pageCount: pageCount,
+          // `index` is zero-based here and one-based in the announcement.
+          stepSemanticLabel: (index) => l10n.stepOf(index + 1, steps),
+        );
 }
 
 /// Everything needed to render a teaching popover's content, independent of
@@ -158,30 +181,41 @@ class FluentTeachingPopoverState extends FluentTeachingPopoverBaseState {
 /// Builds the state a teaching popover will be styled and rendered from.
 ///
 /// The first of the three-function recomposition contract.
+///
+/// [l10n] supplies [dismissSemanticLabel] and the carousel's dot labels when
+/// the caller names neither. Null takes [fluentLocalizationsFallback], which is
+/// US English — [FluentTeachingPopover] passes the ambient catalogue instead.
 FluentTeachingPopoverState resolveFluentTeachingPopoverState({
   required Widget title,
   required Widget body,
   FluentTeachingPopoverAppearance appearance =
       FluentTeachingPopoverAppearance.normal,
-  String dismissSemanticLabel = 'Close',
+  String? dismissSemanticLabel,
+  FluentLocalizations? l10n,
   Widget? header,
   Widget? media,
   VoidCallback? onDismiss,
   Widget? primaryAction,
   Widget? secondaryAction,
   FluentTeachingPopoverCarousel? carousel,
-}) => FluentTeachingPopoverState(
-  appearance: appearance,
-  title: title,
-  body: body,
-  dismissSemanticLabel: dismissSemanticLabel,
-  header: header,
-  media: media,
-  onDismiss: onDismiss,
-  primaryAction: primaryAction,
-  secondaryAction: secondaryAction,
-  carousel: carousel,
-);
+}) {
+  // This is a plain function with no BuildContext, so the wording arrives as a
+  // parameter: `FluentTeachingPopover` passes `fluentL10n(context)`, and a
+  // hand-composed popover passes its own or takes US English.
+  final messages = l10n ?? fluentLocalizationsFallback;
+  return FluentTeachingPopoverState(
+    appearance: appearance,
+    title: title,
+    body: body,
+    dismissSemanticLabel: dismissSemanticLabel ?? messages.close,
+    header: header,
+    media: media,
+    onDismiss: onDismiss,
+    primaryAction: primaryAction,
+    secondaryAction: secondaryAction,
+    carousel: carousel?.localized(messages),
+  );
+}
 
 /// Width of the content column. See [FluentTeachingPopoverStyle.contentWidth].
 const double _contentWidth = 288;
@@ -726,7 +760,7 @@ class FluentTeachingPopover extends StatelessWidget {
     this.header,
     this.media,
     this.onDismiss,
-    this.dismissSemanticLabel = 'Close',
+    this.dismissSemanticLabel,
     this.primaryAction,
     this.secondaryAction,
     this.carousel,
@@ -785,7 +819,10 @@ class FluentTeachingPopover extends StatelessWidget {
   final VoidCallback? onDismiss;
 
   /// Announced for the dismiss button, which has no text of its own.
-  final String dismissSemanticLabel;
+  ///
+  /// Null takes the wording from the ambient [FluentLocalizations], which falls
+  /// back to English when no delegate is installed.
+  final String? dismissSemanticLabel;
 
   /// The confirming action. Normally a `FluentButton` with
   /// `FluentButtonAppearance.primary`.
@@ -810,11 +847,13 @@ class FluentTeachingPopover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final close = onOpenChanged;
+    final l10n = fluentL10n(context);
     final state = resolveFluentTeachingPopoverState(
       appearance: appearance,
       title: title,
       body: body,
       dismissSemanticLabel: dismissSemanticLabel,
+      l10n: l10n,
       header: header,
       media: media,
       // The dismiss button always closes; `onDismiss` is the caller's hook on

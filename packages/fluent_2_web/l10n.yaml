@@ -1,0 +1,15 @@
+# Fluent 2 component strings. The generated code is checked in — consumers of
+# the published package need no build step of their own — but it is checked in
+# under lib/src/l10n/, NOT here. `flutter: generate: true` in pubspec.yaml makes
+# every `flutter pub get` re-run gen_l10n, and gen_l10n always emits an import
+# of flutter_localizations, which re-exports Material. Pointing `output-dir` at
+# a throwaway directory keeps those runs off the checked-in files;
+# `melos run gen-l10n` is what copies a fresh, stripped build into lib/.
+arb-dir: l10n
+template-arb-file: fluent_en_US.arb
+output-dir: .dart_tool/fluent_l10n
+output-localization-file: fluent_localizations.dart
+output-class: FluentLocalizations
+preferred-supported-locales: [ en_US ]
+nullable-getter: true
+format: true

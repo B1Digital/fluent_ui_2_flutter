@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
+import '../l10n/l10n.dart';
 import 'dropdown_option.dart';
 import 'dropdown_option_style.dart';
 import 'input.dart';
@@ -731,8 +732,8 @@ class FluentTimePicker extends StatefulWidget {
     this.style,
     this.optionStyle,
     this.semanticLabel,
-    this.clearSemanticLabel = 'Clear',
-    this.expandSemanticLabel = 'Open',
+    this.clearSemanticLabel,
+    this.expandSemanticLabel,
   });
 
   /// The chosen time. Null selects nothing.
@@ -814,10 +815,16 @@ class FluentTimePicker extends StatefulWidget {
   final String? semanticLabel;
 
   /// Accessible name of the clear glyph.
-  final String clearSemanticLabel;
+  ///
+  /// Null takes the wording from the ambient [FluentLocalizations],
+  /// which falls back to English when no delegate is installed.
+  final String? clearSemanticLabel;
 
   /// Accessible name of the expand chevron.
-  final String expandSemanticLabel;
+  ///
+  /// Null takes the wording from the ambient [FluentLocalizations],
+  /// which falls back to English when no delegate is installed.
+  final String? expandSemanticLabel;
 
   @override
   State<FluentTimePicker> createState() => _FluentTimePickerState();
@@ -1229,7 +1236,7 @@ class _FluentTimePickerState extends State<FluentTimePicker>
         autofocus: widget.autofocus,
         expandIcon: Semantics(
           button: true,
-          label: widget.expandSemanticLabel,
+          label: widget.expandSemanticLabel ?? fluentL10n(context).open,
           child: Icon(
             fluentTimePickerChevron,
             size: iconSize,
@@ -1238,7 +1245,8 @@ class _FluentTimePickerState extends State<FluentTimePicker>
         ),
         clearIcon: showClear
             ? _ClearButton(
-                semanticLabel: widget.clearSemanticLabel,
+                semanticLabel:
+                    widget.clearSemanticLabel ?? fluentL10n(context).clear,
                 iconColor: iconColor,
                 iconSize: iconSize,
                 onPressed: _clear,

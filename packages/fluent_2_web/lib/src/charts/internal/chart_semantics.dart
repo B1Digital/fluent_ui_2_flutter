@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../../l10n/l10n.dart';
 import '../model/chart_common.dart';
 import '../model/chart_value.dart';
 
@@ -56,10 +57,16 @@ class FluentChartMarkSemantics {
 /// `// parity:` `:554` is `(props.chartTitle || 'Chart. ') + …`, so a real title
 /// runs straight into the first axis clause with no separator between them,
 /// while the `'Chart. '` fallback supplies one. That defect is reproduced.
+///
+/// [l10n] carries the wording. It is a parameter rather than a lookup because
+/// this is a plain function with no [BuildContext]; callers inside the widget
+/// tree pass `fluentL10n(context)`, and callers outside it pass
+/// [fluentLocalizationsFallback].
 String buildFluentCartesianChartDescription({
   required FluentChartAxisType xAxisType,
   required FluentChartAxisType yAxisType,
   required bool hasSecondaryScale,
+  required FluentLocalizations l10n,
   String? chartTitle,
   String? xAxisTitle,
   String? yAxisTitle,
@@ -70,23 +77,27 @@ String buildFluentCartesianChartDescription({
   String subject(String? title, FluentChartAxisType type) =>
       title ??
       switch (type) {
-        FluentChartAxisType.category => 'categories',
-        FluentChartAxisType.date => 'time',
-        FluentChartAxisType.numeric => 'values',
+        FluentChartAxisType.category => l10n.chartAxisCategories,
+        FluentChartAxisType.date => l10n.chartAxisTime,
+        FluentChartAxisType.numeric => l10n.chartAxisValues,
       };
 
   String clause(String axisLabel, String? title, FluentChartAxisType type) =>
-      'The $axisLabel axis displays ${subject(title, type)}. ';
+      l10n.chartAxisDescription(axisLabel, subject(title, type));
 
-  final buffer = StringBuffer(chartTitle ?? 'Chart. ')
-    ..write(clause('X', xAxisTitle, xAxisType))
-    ..write(clause('Y', yAxisTitle, yAxisType));
+  final buffer = StringBuffer(chartTitle ?? l10n.chartFallbackTitle)
+    ..write(clause(l10n.chartAxisX, xAxisTitle, xAxisType))
+    ..write(clause(l10n.chartAxisY, yAxisTitle, yAxisType));
   if (hasSecondaryScale) {
     // CartesianChart.tsx:558 passes YAxisType.NumericAxis outright, so a
     // secondary axis is always described as displaying values unless it is
     // titled.
     buffer.write(
-      clause('secondary Y', secondaryYAxisTitle, FluentChartAxisType.numeric),
+      clause(
+        l10n.chartAxisSecondaryY,
+        secondaryYAxisTitle,
+        FluentChartAxisType.numeric,
+      ),
     );
   }
   return buffer.toString();

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
+import '../l10n/l10n.dart';
 import 'axis/tick_format.dart';
 import 'chrome/chart_popover.dart';
 import 'chrome/chart_title.dart';
@@ -162,6 +163,9 @@ class FluentGaugeLayout {
     required double extraNeedleLength,
     required double legendsHeight,
     required Color unknownColour,
+    // `GaugeChart.tsx:206`'s literal 'Unknown'. Localized by the caller —
+    // `compute` is static and sees no BuildContext.
+    String unknownLegend = 'Unknown',
     required bool isDark,
   }) {
     // GaugeChart.tsx:110-116.
@@ -227,7 +231,7 @@ class FluentGaugeLayout {
     if (maxValue != null && total < maxValue) {
       processed.add(
         FluentGaugeSegment(
-          legend: 'Unknown',
+          legend: unknownLegend,
           size: maxValue - total,
           colour: unknownColour,
           start: total,
@@ -1007,6 +1011,7 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
     final textStyles = FluentChartTextStyles.of(theme);
     final chartColours = FluentChartColors.of(theme);
     final isRtl = Directionality.of(context) == TextDirection.rtl;
+    final l10n = fluentL10n(context);
 
     return Semantics(
       container: true,
@@ -1018,7 +1023,7 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
       // trailing space that upstream also emits.
       label:
           '${widget.chartTitle == null ? '' : '${widget.chartTitle}. '}'
-          'Gauge chart with $_segmentCount segments. ',
+          '${l10n.gaugeChartDescription(_segmentCount)}',
       child: LayoutBuilder(
         builder: (context, constraints) {
           final layout = FluentGaugeLayout.compute(
@@ -1049,6 +1054,7 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
                 ? 0
                 : resolved.legendsHeight!.resolve(states)!,
             unknownColour: resolved.unknownSegmentColor!.resolve(states)!,
+            unknownLegend: l10n.gaugeUnknownSegment,
             isDark: theme.brightness == Brightness.dark,
           );
           final arcs = fluentGaugeArcs(
@@ -1239,7 +1245,7 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
                               layout.origin,
                             ),
                             // GaugeChart.tsx:275-276 — the non-callout form.
-                            label: 'Current value: $valueLabel',
+                            label: l10n.gaugeCurrentValue(valueLabel),
                             focusable: true,
                             onEnter: (bounds) =>
                                 _showPopover(_kNeedleAnchor, bounds, layout),
@@ -1254,9 +1260,9 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
                                 states,
                                 isMaximum: false,
                               ),
-                              label:
-                                  'Min value: '
-                                  '${d3.jsNumberToString(layout.minValue)}',
+                              label: l10n.gaugeMinValue(
+                                d3.jsNumberToString(layout.minValue),
+                              ),
                               focusable: false,
                               onEnter: null,
                             ),
@@ -1267,9 +1273,9 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
                                 states,
                                 isMaximum: true,
                               ),
-                              label:
-                                  'Max value: '
-                                  '${d3.jsNumberToString(layout.maxValue)}',
+                              label: l10n.gaugeMaxValue(
+                                d3.jsNumberToString(layout.maxValue),
+                              ),
                               focusable: false,
                               onEnter: null,
                             ),
@@ -1306,9 +1312,15 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
                                   data: FluentChartPopoverData(
                                     // GaugeChart.tsx:386-387 — the callout inverts
                                     // the painted form.
-                                    xValue:
-                                        'Current value is '
-                                        '${fluentGaugeValueLabel(widget.chartValue, layout.minValue, layout.maxValue, widget.chartValueFormat, forCallout: true)}',
+                                    xValue: l10n.gaugeCurrentValueIs(
+                                      fluentGaugeValueLabel(
+                                        widget.chartValue,
+                                        layout.minValue,
+                                        layout.maxValue,
+                                        widget.chartValueFormat,
+                                        forCallout: true,
+                                      ),
+                                    ),
                                     yValues: _hoverValues,
                                     // GaugeChart.tsx:705-707 passes
                                     // `_multiValueCallout`, which is the stacked

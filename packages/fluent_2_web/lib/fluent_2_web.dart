@@ -19,6 +19,28 @@
 /// repository README for why, and `melos run no-material` for the check that
 /// enforces it.
 ///
+/// ## Localization
+///
+/// Every string these components put in front of a user — accessibility
+/// labels, calendar chrome, chart descriptions, validation messages — comes
+/// from `FluentLocalizations`, in 135 locales. Install the delegate to get all
+/// of them:
+///
+/// ```dart
+/// FluentApp(
+///   localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+///     FluentLocalizations.delegate,
+///   ],
+///   supportedLocales: FluentLocalizations.supportedLocales,
+///   home: const Home(),
+/// )
+/// ```
+///
+/// Install nothing and the components still render: `fluentL10n` falls back to
+/// `fluentLocalizationsFallback`, which is US English. Month and weekday names
+/// are the one exception — they come from `intl`'s CLDR data through
+/// `FluentCalendarStrings.of`, which needs `initializeDateFormatting` first.
+///
 /// ## Status
 ///
 /// Shared primitives are landing first; component work starts against the
@@ -178,6 +200,11 @@ export 'src/internal/animated_style.dart';
 export 'src/internal/focus_ring.dart';
 export 'src/internal/interaction.dart';
 export 'src/internal/text_context_menu.dart';
+// The generated message catalogue. `src/l10n/fluent_localizations_*.dart` —
+// one file per locale — is deliberately NOT exported: the delegate is the only
+// way in, and `fluentLocalizationsFallback` is the one instance a caller ever
+// needs by name.
+export 'src/l10n/l10n.dart';
 export 'src/navigation/breadcrumb.dart';
 export 'src/navigation/breadcrumb_style.dart';
 export 'src/navigation/data_grid.dart';

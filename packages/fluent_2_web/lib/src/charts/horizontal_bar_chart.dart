@@ -2,6 +2,7 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../l10n/l10n.dart';
 import 'axis/tick_format.dart';
 import 'chrome/chart_popover.dart';
 import 'chrome/legend.dart';
@@ -481,7 +482,7 @@ class FluentHorizontalBarChart extends StatefulWidget {
     this.showTriangle = false,
     this.showLegendForSinglePointBar = false,
     this.culture,
-    this.legendsOverflowText = 'more',
+    this.legendsOverflowText,
     this.style,
   });
 
@@ -516,7 +517,10 @@ class FluentHorizontalBarChart extends StatefulWidget {
   final String? culture;
 
   /// Label on the legend overflow control.
-  final String legendsOverflowText;
+  ///
+  /// Null takes the wording from the ambient [FluentLocalizations],
+  /// which falls back to English when no delegate is installed.
+  final String? legendsOverflowText;
 
   /// Style layered over the derived defaults and the nearest
   /// [FluentHorizontalBarChartTheme].
@@ -677,7 +681,7 @@ class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
       return Semantics(
         container: true,
         liveRegion: true,
-        label: 'Graph has no data to display',
+        label: fluentL10n(context).chartNoData,
         child: const SizedBox.shrink(),
       );
     }

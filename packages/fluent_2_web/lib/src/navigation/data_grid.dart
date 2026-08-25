@@ -11,6 +11,7 @@ import '../inputs/radio.dart';
 import '../inputs/radio_style.dart';
 import '../internal/focus_ring.dart';
 import '../internal/interaction.dart';
+import '../l10n/l10n.dart';
 import 'data_grid_style.dart';
 
 /// Row height and type ramp. Figma's four `DataGrid cell - *` component sets.
@@ -995,8 +996,8 @@ class FluentDataGrid extends StatefulWidget {
     this.enabled = true,
     this.style,
     this.semanticLabel,
-    this.selectAllSemanticLabel = 'Select all rows',
-    this.selectRowSemanticLabel = 'Select row',
+    this.selectAllSemanticLabel,
+    this.selectRowSemanticLabel,
   });
 
   /// The columns, in order.
@@ -1054,10 +1055,14 @@ class FluentDataGrid extends StatefulWidget {
   final String? semanticLabel;
 
   /// Announced for the header's select-all checkbox.
-  final String selectAllSemanticLabel;
+  ///
+  /// Null takes the wording from the ambient [FluentLocalizations], which falls
+  /// back to English when no delegate is installed. The same is true of
+  /// [selectRowSemanticLabel].
+  final String? selectAllSemanticLabel;
 
   /// Announced for a row's selection control. The row number is appended.
-  final String selectRowSemanticLabel;
+  final String? selectRowSemanticLabel;
 
   @override
   State<FluentDataGrid> createState() => _FluentDataGridState();
@@ -1345,9 +1350,13 @@ class _FluentDataGridState extends State<FluentDataGrid> {
                   minimumSize: const WidgetStatePropertyAll<Size?>(Size.zero),
                 ),
                 semanticLabel: switch (direction) {
-                  null => 'Sort',
-                  FluentDataGridSortDirection.ascending => 'Sorted ascending',
-                  FluentDataGridSortDirection.descending => 'Sorted descending',
+                  null => fluentL10n(context).sort,
+                  FluentDataGridSortDirection.ascending => fluentL10n(
+                    context,
+                  ).sortedAscending,
+                  FluentDataGridSortDirection.descending => fluentL10n(
+                    context,
+                  ).sortedDescending,
                 },
                 icon: Icon(
                   direction == FluentDataGridSortDirection.descending
@@ -1405,7 +1414,9 @@ class _FluentDataGridState extends State<FluentDataGrid> {
                   ? FluentCheckbox(
                       checked: _selectAllValue,
                       style: _bareCheckbox,
-                      semanticLabel: widget.selectAllSemanticLabel,
+                      semanticLabel:
+                          widget.selectAllSemanticLabel ??
+                          fluentL10n(context).selectAllRows,
                       onChanged: interactive
                           ? (value) => widget.onSelectionChanged!(
                               value ?? false
@@ -1461,7 +1472,7 @@ class _FluentDataGridState extends State<FluentDataGrid> {
                     checked: widget.selectedRows.contains(r),
                     style: _bareCheckbox,
                     semanticLabel:
-                        '${widget.selectRowSemanticLabel} '
+                        '${widget.selectRowSemanticLabel ?? fluentL10n(context).selectRow} '
                         '${r + 1}',
                     onChanged: interactive
                         ? (value) => _toggleRow(r, selected: value ?? false)
@@ -1474,7 +1485,7 @@ class _FluentDataGridState extends State<FluentDataGrid> {
                         : widget.selectedRows.reduce((a, b) => a < b ? a : b),
                     style: _bareRadio,
                     semanticLabel:
-                        '${widget.selectRowSemanticLabel} '
+                        '${widget.selectRowSemanticLabel ?? fluentL10n(context).selectRow} '
                         '${r + 1}',
                     onChanged: interactive
                         ? (value) => _toggleRow(value, selected: true)

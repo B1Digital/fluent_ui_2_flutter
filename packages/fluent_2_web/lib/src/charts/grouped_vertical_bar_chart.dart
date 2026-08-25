@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
+import '../l10n/l10n.dart';
 import 'axis/axis_builders.dart' as builders;
 import 'axis/axis_types.dart';
 import 'axis/domain_range.dart';
@@ -1298,7 +1299,7 @@ class FluentGroupedVerticalBarChartState
       return Semantics(
         container: true,
         liveRegion: true,
-        label: 'Graph has no data to display',
+        label: fluentL10n(context).chartNoData,
         child: const SizedBox.shrink(),
       );
     }
@@ -1320,8 +1321,7 @@ class FluentGroupedVerticalBarChartState
         tickPadding: widget.props.tickPadding ?? 5,
         chartTitleForSemantics:
             '${widget.chartTitle == null ? '' : '${widget.chartTitle}. '}'
-            'Vertical bar chart with ${barLegends.length} grouped bar series'
-            '${lines.isEmpty ? '. ' : ' and ${lines.length} line series. '}',
+            '${lines.isEmpty ? fluentL10n(context).groupedVerticalBarChartDescription(barLegends.length) : fluentL10n(context).groupedVerticalBarChartWithLinesDescription(barLegends.length, lines.length)}',
         // GVBC anchors the popover to the hovered element's rect, not to a
         // virtual element at the pointer (`.tsx:437`, `:970`).
         popoverAnchorsToRegion: true,

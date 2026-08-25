@@ -1,6 +1,7 @@
 import 'package:fluent_2_web/src/charts/internal/chart_semantics.dart';
 import 'package:fluent_2_web/src/charts/model/chart_common.dart';
 import 'package:fluent_2_web/src/charts/model/chart_value.dart';
+import 'package:fluent_2_web/src/l10n/l10n.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -53,6 +54,7 @@ void main() {
     test('describes both axes by their type when neither is titled', () {
       expect(
         buildFluentCartesianChartDescription(
+          l10n: fluentLocalizationsFallback,
           xAxisType: FluentChartAxisType.category,
           yAxisType: FluentChartAxisType.numeric,
           hasSecondaryScale: false,
@@ -67,6 +69,7 @@ void main() {
     test("maps a date axis to 'time'", () {
       expect(
         buildFluentCartesianChartDescription(
+          l10n: fluentLocalizationsFallback,
           xAxisType: FluentChartAxisType.date,
           yAxisType: FluentChartAxisType.numeric,
           hasSecondaryScale: false,
@@ -79,6 +82,7 @@ void main() {
     test('prefers an axis title over the type word', () {
       expect(
         buildFluentCartesianChartDescription(
+          l10n: fluentLocalizationsFallback,
           xAxisTitle: 'Month',
           yAxisTitle: 'Revenue',
           xAxisType: FluentChartAxisType.category,
@@ -93,6 +97,7 @@ void main() {
     test('appends a secondary clause only when there is a secondary scale', () {
       expect(
         buildFluentCartesianChartDescription(
+          l10n: fluentLocalizationsFallback,
           xAxisType: FluentChartAxisType.numeric,
           yAxisType: FluentChartAxisType.numeric,
           secondaryYAxisTitle: 'Rate',
@@ -104,6 +109,7 @@ void main() {
       );
       expect(
         buildFluentCartesianChartDescription(
+          l10n: fluentLocalizationsFallback,
           xAxisType: FluentChartAxisType.numeric,
           yAxisType: FluentChartAxisType.numeric,
           secondaryYAxisTitle: 'Rate',
@@ -120,6 +126,7 @@ void main() {
         'separator', () {
       expect(
         buildFluentCartesianChartDescription(
+          l10n: fluentLocalizationsFallback,
           chartTitle: 'Revenue',
           xAxisType: FluentChartAxisType.numeric,
           yAxisType: FluentChartAxisType.numeric,

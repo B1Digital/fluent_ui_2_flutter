@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
+import '../l10n/l10n.dart';
 import 'axis/axis_builders.dart' as builders;
 import 'axis/axis_types.dart';
 import 'axis/domain_range.dart';
@@ -1622,7 +1623,7 @@ class _FluentVerticalStackedBarChartState
       return Semantics(
         container: true,
         liveRegion: true,
-        label: 'Graph has no data to display',
+        label: fluentL10n(context).chartNoData,
         child: const SizedBox.shrink(),
       );
     }
@@ -1648,8 +1649,7 @@ class _FluentVerticalStackedBarChartState
         // parity: upstream never pluralises "lines".
         chartTitleForSemantics:
             '${widget.chartTitle == null ? '' : '${widget.chartTitle}. '}'
-            'Vertical bar chart with ${widget.data.length} stacked bars'
-            '${_lineCount > 0 ? ' and $_lineCount lines' : ''}. ',
+            '${_lineCount > 0 ? fluentL10n(context).verticalStackedBarChartWithLinesDescription(widget.data.length, _lineCount) : fluentL10n(context).verticalStackedBarChartDescription(widget.data.length)}',
       ),
       legends: _legends(palette),
       delegate: FluentVerticalStackedBarChartDelegate(

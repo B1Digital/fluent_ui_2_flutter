@@ -7,6 +7,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../internal/anchor_metrics.dart';
 import '../internal/animated_style.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
@@ -715,10 +716,13 @@ class _FluentMenuState extends State<FluentMenu> {
     // edge plus the gap; a submenu opens beside its row, top-aligned with it,
     // so it starts at the anchor's top.
     if (style.maxHeight == null) {
-      final anchorTop = level.anchorLink.leader?.offset.dy ?? 0;
+      // A submenu hangs off a row in the overlay, which never scrolls, so its
+      // leader offset is already a screen position. A root level hangs off the
+      // trigger, which can be anywhere in a scrolled page — that one is
+      // measured off its render box, see [fluentAnchorRect].
       final surfaceTop = level.submenu
-          ? anchorTop
-          : anchorTop + (level.anchorLink.leaderSize?.height ?? 0) + offset;
+          ? (level.anchorLink.leader?.offset.dy ?? 0)
+          : (fluentAnchorRect(context)?.bottom ?? 0) + offset;
       style = style.copyWith(
         maxHeight: WidgetStatePropertyAll<double?>(
           math.max(MediaQuery.sizeOf(context).height - surfaceTop, 0),

@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import '../internal/animated_style.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
+import '../l10n/l10n.dart';
 import '../surfaces/interaction_tag.dart';
 import '../surfaces/tag.dart';
 import 'dropdown_option.dart';
@@ -791,7 +792,7 @@ class FluentTagPicker<T> extends StatefulWidget {
     this.optionStyle,
     this.autofocus = false,
     this.semanticLabel,
-    this.dismissSemanticLabel = 'Remove',
+    this.dismissSemanticLabel,
   });
 
   /// Every row the popup can show, in order. Headers are included here.
@@ -840,7 +841,10 @@ class FluentTagPicker<T> extends StatefulWidget {
   final String? semanticLabel;
 
   /// Announced for a chip's dismiss half, which has no text of its own.
-  final String dismissSemanticLabel;
+  ///
+  /// Null takes the wording from the ambient [FluentLocalizations],
+  /// which falls back to English when no delegate is installed.
+  final String? dismissSemanticLabel;
 
   @override
   State<FluentTagPicker<T>> createState() => _FluentTagPickerState<T>();
@@ -1225,7 +1229,8 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
             icon: option.media,
             onPressed: _enabled ? () => _focusNode.requestFocus() : null,
             onDismiss: _enabled ? () => _remove(value) : null,
-            dismissSemanticLabel: widget.dismissSemanticLabel,
+            dismissSemanticLabel:
+                widget.dismissSemanticLabel ?? fluentL10n(context).remove,
             child: option.label,
           ),
     ],

@@ -1,0 +1,496 @@
+{
+  "@@locale": "en",
+  "close": "Close",
+  "@close": {
+    "description": "Accessible name of a control that closes a dialog, popover or calendar."
+  },
+  "dismiss": "Dismiss",
+  "@dismiss": {
+    "description": "Accessible name of a control that dismisses a toast, tag or message bar."
+  },
+  "clear": "Clear",
+  "@clear": {
+    "description": "Accessible name of a control that empties an input."
+  },
+  "open": "Open",
+  "@open": {
+    "description": "Accessible name of a control that opens an input's picker surface."
+  },
+  "remove": "Remove",
+  "@remove": {
+    "description": "Accessible name of a control that removes one selected item from a picker."
+  },
+  "more": "More",
+  "@more": {
+    "description": "Accessible name of a breadcrumb's overflow trigger."
+  },
+  "overflowMore": "more",
+  "@overflowMore": {
+    "description": "Trailing word of a chart legend's overflow trigger, which reads '+3 more'. Lower case because it follows a number in the same phrase."
+  },
+  "selectAllRows": "Select all rows",
+  "@selectAllRows": {
+    "description": "Accessible name of the checkbox in a data grid's header row."
+  },
+  "selectRow": "Select row",
+  "@selectRow": {
+    "description": "Accessible name of the checkbox in a data grid's body row."
+  },
+  "sort": "Sort",
+  "@sort": {
+    "description": "Accessible name of an unsorted column's sort button in a data grid."
+  },
+  "sortedAscending": "Sorted ascending",
+  "@sortedAscending": {
+    "description": "Accessible name of the sort button on a column sorted smallest first."
+  },
+  "sortedDescending": "Sorted descending",
+  "@sortedDescending": {
+    "description": "Accessible name of the sort button on a column sorted largest first."
+  },
+  "previousSlide": "Previous slide",
+  "@previousSlide": {
+    "description": "Accessible name of a carousel's back chevron."
+  },
+  "nextSlide": "Next slide",
+  "@nextSlide": {
+    "description": "Accessible name of a carousel's forward chevron."
+  },
+  "startSlideShow": "Start automatic slide show",
+  "@startSlideShow": {
+    "description": "Accessible name of a carousel's play button."
+  },
+  "pauseSlideShow": "Pause automatic slide show",
+  "@pauseSlideShow": {
+    "description": "Accessible name of a carousel's pause button."
+  },
+  "slideOf": "Slide {index} of {count}",
+  "@slideOf": {
+    "description": "Accessible name of one dot in a carousel's indicator.",
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "stepOf": "Step {index} of {count}",
+  "@stepOf": {
+    "description": "Accessible name of one dot in a teaching popover's step indicator.",
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "ratingValueOf": "{value} of {max}",
+  "@ratingValueOf": {
+    "description": "Announced value of a rating control, such as '3 of 5'.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      },
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "openCalendar": "Open calendar",
+  "@openCalendar": {
+    "description": "Accessible name of a date picker's calendar button."
+  },
+  "invalidDateFormat": "Invalid date format.",
+  "@invalidDateFormat": {
+    "description": "Validation message shown when typed text is not a date."
+  },
+  "dateOutOfRange": "Date is out of the allowed range.",
+  "@dateOutOfRange": {
+    "description": "Validation message shown when a date falls outside the allowed bounds."
+  },
+  "fieldRequired": "This field is required.",
+  "@fieldRequired": {
+    "description": "Validation message shown when a required field is left empty."
+  },
+  "goToToday": "Go to today",
+  "@goToToday": {
+    "description": "Label of the link that returns a calendar to the current month."
+  },
+  "previousMonth": "Previous month",
+  "@previousMonth": {
+    "description": "Accessible name of the back chevron in a calendar's month view."
+  },
+  "nextMonth": "Next month",
+  "@nextMonth": {
+    "description": "Accessible name of the forward chevron in a calendar's month view."
+  },
+  "previousYear": "Previous year",
+  "@previousYear": {
+    "description": "Accessible name of the back chevron in a calendar's year view."
+  },
+  "nextYear": "Next year",
+  "@nextYear": {
+    "description": "Accessible name of the forward chevron in a calendar's year view."
+  },
+  "previousYearRange": "Previous year range",
+  "@previousYearRange": {
+    "description": "Accessible name of the back chevron in a calendar's decade view."
+  },
+  "nextYearRange": "Next year range",
+  "@nextYearRange": {
+    "description": "Accessible name of the forward chevron in a calendar's decade view."
+  },
+  "monthPickerHeader": "{caption}, change year",
+  "@monthPickerHeader": {
+    "description": "Accessible name of the caption button in a calendar's month view, which switches to the year view.",
+    "placeholders": {
+      "caption": {
+        "type": "String"
+      }
+    }
+  },
+  "yearPickerHeader": "{caption}, change month",
+  "@yearPickerHeader": {
+    "description": "Accessible name of the caption button in a calendar's year view, which switches back to the month view.",
+    "placeholders": {
+      "caption": {
+        "type": "String"
+      }
+    }
+  },
+  "selectedDate": "Selected date {date}",
+  "@selectedDate": {
+    "description": "Announced for a calendar's selected day cell.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "todaysDate": "Today's date {date}",
+  "@todaysDate": {
+    "description": "Announced for a calendar's cell for the current day.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "weekNumber": "Week {number}",
+  "@weekNumber": {
+    "description": "Announced for a calendar's week-number cell, which draws the bare number.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "chartNoData": "Graph has no data to display",
+  "@chartNoData": {
+    "description": "Announced in place of a chart that was given no data."
+  },
+  "chartNoDataAvailable": "No data available",
+  "@chartNoDataAvailable": {
+    "description": "Drawn in a chart cell or table that has no value for that position."
+  },
+  "chartFallbackTitle": "Chart. ",
+  "@chartFallbackTitle": {
+    "description": "Opens a cartesian chart's description when the caller gave no title. The trailing space separates it from the sentence that follows."
+  },
+  "chartAxisDescription": "The {axis} axis displays {subject}. ",
+  "@chartAxisDescription": {
+    "description": "One clause of a cartesian chart's description. The trailing space separates it from the next clause.",
+    "placeholders": {
+      "axis": {
+        "type": "String"
+      },
+      "subject": {
+        "type": "String"
+      }
+    }
+  },
+  "chartAxisX": "X",
+  "@chartAxisX": {
+    "description": "Names the horizontal axis inside chartAxisDescription."
+  },
+  "chartAxisY": "Y",
+  "@chartAxisY": {
+    "description": "Names the vertical axis inside chartAxisDescription."
+  },
+  "chartAxisSecondaryY": "secondary Y",
+  "@chartAxisSecondaryY": {
+    "description": "Names the second vertical axis inside chartAxisDescription. Lower case because it appears mid-sentence."
+  },
+  "chartAxisCategories": "categories",
+  "@chartAxisCategories": {
+    "description": "What a band axis displays, used as chartAxisDescription's subject."
+  },
+  "chartAxisTime": "time",
+  "@chartAxisTime": {
+    "description": "What a date axis displays, used as chartAxisDescription's subject."
+  },
+  "chartAxisValues": "values",
+  "@chartAxisValues": {
+    "description": "What a numeric axis displays, used as chartAxisDescription's subject."
+  },
+  "chartLineLegendFallback": "Line",
+  "@chartLineLegendFallback": {
+    "description": "Stands in for an untitled line series in a bar chart's callout."
+  },
+  "funnelChartDescription": "Funnel chart with {count} segments",
+  "@funnelChartDescription": {
+    "description": "Accessible description of a funnel chart.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "donutChartDescription": "Donut chart with {count} slices",
+  "@donutChartDescription": {
+    "description": "Accessible description of a donut chart.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "gaugeChartDescription": "Gauge chart with {count} segments. ",
+  "@gaugeChartDescription": {
+    "description": "Accessible description of a gauge chart. The trailing space matches the upstream string.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "gaugeCurrentValue": "Current value: {value}",
+  "@gaugeCurrentValue": {
+    "description": "Accessible name of a gauge's needle.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "gaugeCurrentValueIs": "Current value is {value}",
+  "@gaugeCurrentValueIs": {
+    "description": "Heading of a gauge's hover callout.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "gaugeMinValue": "Min value: {value}",
+  "@gaugeMinValue": {
+    "description": "Accessible name of a gauge's lower limit.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "gaugeMaxValue": "Max value: {value}",
+  "@gaugeMaxValue": {
+    "description": "Accessible name of a gauge's upper limit.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "gaugeUnknownSegment": "Unknown",
+  "@gaugeUnknownSegment": {
+    "description": "Legend of the band a gauge appends to fill the gap up to its maximum."
+  },
+  "ganttChartDescription": "Gantt chart with {count} data points. ",
+  "@ganttChartDescription": {
+    "description": "Accessible description of a Gantt chart. The trailing space matches the upstream string.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "heatMapChartDescription": "Heat map chart with {count} data points. ",
+  "@heatMapChartDescription": {
+    "description": "Accessible description of a heat map chart. The trailing space matches the upstream string.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "polarChartDescription": "Polar chart with {count} data series.",
+  "@polarChartDescription": {
+    "description": "Accessible description of a polar chart.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sparklineDescription": "Sparkline with label {label}",
+  "@sparklineDescription": {
+    "description": "Accessible description of a sparkline.",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "sankeyChartDescription": "Sankey chart with {nodes} nodes and {links} links",
+  "@sankeyChartDescription": {
+    "description": "Accessible description of a Sankey chart.",
+    "placeholders": {
+      "nodes": {
+        "type": "int"
+      },
+      "links": {
+        "type": "int"
+      }
+    }
+  },
+  "sankeyLinkFrom": "From {node}",
+  "@sankeyLinkFrom": {
+    "description": "Heading of a Sankey link's callout.",
+    "placeholders": {
+      "node": {
+        "type": "String"
+      }
+    }
+  },
+  "sankeyNodeDescription": "node {name} with weight {weight}",
+  "@sankeyNodeDescription": {
+    "description": "Accessible description of one Sankey node. Lower case because it is joined into a longer sentence.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "weight": {
+        "type": "String"
+      }
+    }
+  },
+  "sankeyLinkDescription": "link from {source} to {target} with weight {weight}",
+  "@sankeyLinkDescription": {
+    "description": "Accessible description of one Sankey link. Lower case because it is joined into a longer sentence.",
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      },
+      "weight": {
+        "type": "String"
+      }
+    }
+  },
+  "verticalBarChartDescription": "Vertical bar chart with {count} bars. ",
+  "@verticalBarChartDescription": {
+    "description": "Accessible description of a vertical bar chart with no line overlay. The trailing space matches the upstream string.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "verticalBarChartWithLineDescription": "Vertical bar chart with {count} bars and 1 line. ",
+  "@verticalBarChartWithLineDescription": {
+    "description": "Accessible description of a vertical bar chart carrying a line overlay. Upstream never counts past one here.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupedVerticalBarChartDescription": "Vertical bar chart with {count} grouped bar series. ",
+  "@groupedVerticalBarChartDescription": {
+    "description": "Accessible description of a grouped vertical bar chart with no line series.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupedVerticalBarChartWithLinesDescription": "Vertical bar chart with {count} grouped bar series and {lines} line series. ",
+  "@groupedVerticalBarChartWithLinesDescription": {
+    "description": "Accessible description of a grouped vertical bar chart carrying line series.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "lines": {
+        "type": "int"
+      }
+    }
+  },
+  "verticalStackedBarChartDescription": "Vertical bar chart with {count} stacked bars. ",
+  "@verticalStackedBarChartDescription": {
+    "description": "Accessible description of a vertical stacked bar chart with no line series.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "verticalStackedBarChartWithLinesDescription": "Vertical bar chart with {count} stacked bars and {lines} lines. ",
+  "@verticalStackedBarChartWithLinesDescription": {
+    "description": "Accessible description of a vertical stacked bar chart carrying line series. Upstream does not pluralise 'lines'.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "lines": {
+        "type": "int"
+      }
+    }
+  },
+  "presenceAvailable": "Available",
+  "@presenceAvailable": {
+    "description": "Accessible name of a presence badge showing the person is reachable."
+  },
+  "presenceAway": "Away",
+  "@presenceAway": {
+    "description": "Accessible name of a presence badge showing the person has stepped away."
+  },
+  "presenceBusy": "Busy",
+  "@presenceBusy": {
+    "description": "Accessible name of a presence badge showing the person is busy."
+  },
+  "presenceDoNotDisturb": "Do not disturb",
+  "@presenceDoNotDisturb": {
+    "description": "Accessible name of a presence badge showing the person does not want to be interrupted."
+  },
+  "presenceBlocked": "Blocked",
+  "@presenceBlocked": {
+    "description": "Accessible name of a presence badge showing the person is blocked."
+  },
+  "presenceOffline": "Offline",
+  "@presenceOffline": {
+    "description": "Accessible name of a presence badge showing the person is not signed in."
+  },
+  "presenceOutOfOffice": "Out of office",
+  "@presenceOutOfOffice": {
+    "description": "Accessible name of a presence badge showing the person is away from work."
+  },
+  "presenceUnknown": "Unknown",
+  "@presenceUnknown": {
+    "description": "Accessible name of a presence badge whose status is not known."
+  },
+  "presenceOutOfOfficeStatus": "{status} out of office",
+  "@presenceOutOfOfficeStatus": {
+    "description": "Accessible name of a presence badge carrying the out-of-office flag on top of another status, e.g. 'Busy out of office'.",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  }
+}

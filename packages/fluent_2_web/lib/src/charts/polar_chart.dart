@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../l10n/l10n.dart';
 import 'axis/tick_format.dart';
 import 'chrome/chart_popover.dart';
 import 'chrome/chart_title.dart';
@@ -1464,7 +1465,7 @@ class FluentPolarChartState extends State<FluentPolarChart> {
   String _semanticsLabel(FluentPolarLayout l) {
     final base =
         '${widget.chartTitle != null ? '${widget.chartTitle}. ' : ''}'
-        'Polar chart with ${l.series.length} data series.';
+        '${fluentL10n(context).polarChartDescription(l.series.length)}';
     if (_rovingIndex < 0 || _rovingIndex >= l.markers.length) {
       return base;
     }

@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../internal/anchor_metrics.dart';
 import '../internal/animated_style.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
@@ -917,14 +918,17 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
     // number would clip a long list on a tall screen and overflow a short one.
     // The popup opens under the trigger, so it starts at the trigger's bottom
     // edge plus the 2px gap.
+    //
+    // Measured off the trigger's render box rather than the leader layer — see
+    // [fluentAnchorRect] for why the layer lies once the page has scrolled.
+    final anchor = fluentAnchorRect(context);
     final surfaceStyle = style.surfaceMaxHeight != null
         ? style
         : style.copyWith(
             surfaceMaxHeight: WidgetStatePropertyAll<double?>(
               math.max(
                 MediaQuery.sizeOf(context).height -
-                    (_link.leader?.offset.dy ?? 0) -
-                    (_link.leaderSize?.height ?? 0) -
+                    (anchor?.bottom ?? 0) -
                     offset,
                 0,
               ),

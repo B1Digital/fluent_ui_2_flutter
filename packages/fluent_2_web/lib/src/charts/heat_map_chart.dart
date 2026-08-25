@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
+import '../l10n/l10n.dart';
 import 'axis/axis_builders.dart' as builders;
 import 'axis/axis_types.dart';
 import 'axis/domain_range.dart';
@@ -134,6 +135,7 @@ FluentHeatMapDataSet buildFluentHeatMapDataSet({
   String? yAxisNumberFormat,
   String Function(String)? xAxisStringFormatter,
   String Function(String)? yAxisStringFormatter,
+  String placeholderText = 'No data available',
 }) {
   String formatKey(
     Object raw, {
@@ -268,8 +270,9 @@ FluentHeatMapDataSet buildFluentHeatMapDataSet({
         x: x,
         y: y,
         value: double.nan,
-        // The literal at HeatMapChart.tsx:255.
-        rectText: 'No data available',
+        // The literal at HeatMapChart.tsx:255, which the widget hands over
+        // already localized.
+        rectText: placeholderText,
         legend: '',
         isPlaceholder: true,
       );
@@ -754,9 +757,12 @@ class _FluentHeatMapChartState extends State<FluentHeatMapChart> {
   final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
   late FluentHeatMapDataSet _dataSet;
 
+  // Not initState: the placeholder text comes from the ambient localizations,
+  // and reading an inherited widget there is not allowed. This also rebuilds
+  // the set when the locale changes under a running chart.
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     _rebuild();
   }
 
@@ -783,6 +789,7 @@ class _FluentHeatMapChartState extends State<FluentHeatMapChart> {
       yAxisNumberFormat: widget.yAxisNumberFormatString,
       xAxisStringFormatter: widget.xAxisStringFormatter,
       yAxisStringFormatter: widget.yAxisStringFormatter,
+      placeholderText: fluentL10n(context).chartNoDataAvailable,
     );
   }
 
@@ -799,7 +806,7 @@ class _FluentHeatMapChartState extends State<FluentHeatMapChart> {
       // (`HeatMapChart.tsx:820`).
       return Semantics(
         liveRegion: true,
-        label: 'Graph has no data to display',
+        label: fluentL10n(context).chartNoData,
         child: const SizedBox.shrink(),
       );
     }
@@ -822,7 +829,7 @@ class _FluentHeatMapChartState extends State<FluentHeatMapChart> {
         // `_getChartTitle` (`:635-639`).
         chartTitleForSemantics:
             '${widget.chartTitle == null ? '' : '${widget.chartTitle}. '}'
-            'Heat map chart with $pointCount data points. ',
+            '${fluentL10n(context).heatMapChartDescription(pointCount)}',
       ),
       legends: <FluentChartLegendItem>[
         for (final series in widget.data)

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
+import '../l10n/l10n.dart';
 import 'axis/axis_builders.dart' as builders;
 import 'axis/axis_types.dart';
 import 'axis/domain_range.dart';
@@ -175,7 +176,7 @@ class _FluentVerticalBarChartState extends State<FluentVerticalBarChart> {
       return Semantics(
         container: true,
         liveRegion: true,
-        label: 'Graph has no data to display',
+        label: fluentL10n(context).chartNoData,
         child: const SizedBox.shrink(),
       );
     }
@@ -226,6 +227,7 @@ class _FluentVerticalBarChartState extends State<FluentVerticalBarChart> {
         mode: widget.mode,
         colorsOverride: widget.colors,
         lineLegendText: widget.lineLegendText,
+        lineLegendFallback: fluentL10n(context).chartLineLegendFallback,
         lineLegendColor: widget.lineLegendColor,
         lineOptions: widget.lineOptions,
         xAxisInnerPadding: widget.xAxisInnerPadding,
@@ -240,8 +242,11 @@ class _FluentVerticalBarChartState extends State<FluentVerticalBarChart> {
   /// `_getChartTitle` (`VerticalBarChart.tsx:1066-1074`).
   String _semanticTitle() {
     final prefix = widget.chartTitle == null ? '' : '${widget.chartTitle}. ';
-    return '${prefix}Vertical bar chart with ${widget.data.length} bars'
-        '${_hasLine ? ' and 1 line' : ''}. ';
+    final l10n = fluentL10n(context);
+    return prefix +
+        (_hasLine
+            ? l10n.verticalBarChartWithLineDescription(widget.data.length)
+            : l10n.verticalBarChartDescription(widget.data.length));
   }
 
   /// `_getLegendData` (`VerticalBarChart.tsx:824-863`).
@@ -580,6 +585,7 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
     this.mode,
     this.colorsOverride,
     this.lineLegendText,
+    this.lineLegendFallback = 'Line',
     this.lineLegendColor,
     this.lineOptions,
     // The two band paddings are stored raw and resolved by [innerPadding] and
@@ -643,6 +649,14 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
 
   /// Legend title for the overlaid line, if any.
   final String? lineLegendText;
+
+  /// Stands in for [lineLegendText] in the callout when the caller named none.
+  ///
+  /// Upstream's literal `'Line'` (`VerticalBarChart.tsx:931`). A delegate has no
+  /// [BuildContext], so [FluentVerticalBarChart] hands the localized wording in
+  /// rather than looking it up here; the US English default is what a delegate
+  /// built by hand gets.
+  final String lineLegendFallback;
 
   /// `props.lineLegendColor` — the ink of the line **and** of its dots' rings
   /// (`VerticalBarChart.tsx:165` destructures it once and spends it at `:214`
@@ -1245,9 +1259,10 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
     buffer.write('${p.y}.');
     final lineData = p.lineData;
     if (lineData != null) {
-      // The literal 'Line' fallback at VerticalBarChart.tsx:931.
+      // The literal 'Line' fallback at VerticalBarChart.tsx:931, handed in
+      // localized because a delegate has no BuildContext.
       buffer.write(
-        ' ${lineLegendText ?? 'Line'}, '
+        ' ${lineLegendText ?? lineLegendFallback}, '
         '${lineData.yAxisCalloutData ?? lineData.y}.',
       );
     }

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
+import '../l10n/l10n.dart';
 import 'axis/axis_builders.dart';
 import 'axis/axis_types.dart';
 import 'axis/domain_range.dart';
@@ -179,7 +180,7 @@ class _FluentGanttChartState extends State<FluentGanttChart> {
       return Semantics(
         container: true,
         liveRegion: true,
-        label: 'Graph has no data to display',
+        label: fluentL10n(context).chartNoData,
         child: const SizedBox.shrink(),
       );
     }
@@ -197,7 +198,7 @@ class _FluentGanttChartState extends State<FluentGanttChart> {
         // `Gantt chart with ${n} data points. ` (`GanttChart.tsx:517-519`).
         chartTitleForSemantics:
             '${widget.chartTitle == null ? '' : '${widget.chartTitle}. '}'
-            'Gantt chart with ${widget.data.length} data points. ',
+            '${fluentL10n(context).ganttChartDescription(widget.data.length)}',
         popoverBuilder: widget.popoverBuilder,
       ),
       legends: <FluentChartLegendItem>[
@@ -380,11 +381,10 @@ class FluentGanttChartDelegate extends FluentCartesianSeriesDelegate {
       ? FluentChartAxisType.category
       : getTypeOfAxis(points.first.y, isXAxis: false);
 
-  @override
-  String? get chartTitle =>
-      // GanttChart.tsx:517-519. The caller's own title is prefixed by the
-      // widget, which owns `FluentCartesianChartProps.chartTitleForSemantics`.
-      'Gantt chart with ${points.length} data points. ';
+  // GanttChart.tsx:517-519 is not overridden here. The sentence is localized,
+  // and a delegate has no BuildContext to localize it with; the widget owns it
+  // through `FluentCartesianChartProps.chartTitleForSemantics`, which wins over
+  // `chartTitle` at `CartesianChart` anyway.
 
   /// Ports `_getBarHeight` (`GanttChart.tsx:333-348`).
   ///

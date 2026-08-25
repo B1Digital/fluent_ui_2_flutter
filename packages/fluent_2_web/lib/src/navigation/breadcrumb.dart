@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import '../internal/animated_style.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
+import '../l10n/l10n.dart';
 import 'breadcrumb_style.dart';
 
 /// Crumb height and type ramp. Figma's `Size` axis.
@@ -917,7 +918,7 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
     return Semantics(
       button: true,
       expanded: _open,
-      label: 'More',
+      label: fluentL10n(context).more,
       child: CompositedTransformTarget(
         link: _link,
         // Bound here rather than on the focus node so they sit below the app's

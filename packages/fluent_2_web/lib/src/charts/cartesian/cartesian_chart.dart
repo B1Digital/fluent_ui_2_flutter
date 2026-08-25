@@ -2,6 +2,7 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../l10n/l10n.dart';
 import '../axis/axis_builders.dart';
 import '../axis/axis_label_layout.dart';
 import '../axis/axis_types.dart';
@@ -496,6 +497,7 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
     }
 
     final description = buildFluentCartesianChartDescription(
+      l10n: fluentL10n(context),
       // `props.chartTitle || 'Chart. '` (`CartesianChart.tsx:553`). Each chart
       // composes its own count sentence and passes it down, so the prop wins
       // over the delegate's own title.

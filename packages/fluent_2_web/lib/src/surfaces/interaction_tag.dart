@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 
 import '../internal/focus_ring.dart';
 import '../internal/interaction.dart';
+import '../l10n/l10n.dart';
 import 'tag.dart';
 import 'tag_style.dart';
 
@@ -409,7 +410,7 @@ class FluentInteractionTag extends StatelessWidget {
     this.selected = false,
     this.onDismiss,
     this.dismissIcon,
-    this.dismissSemanticLabel = 'Dismiss',
+    this.dismissSemanticLabel,
     this.style,
     this.focusNode,
     this.dismissFocusNode,
@@ -446,7 +447,10 @@ class FluentInteractionTag extends StatelessWidget {
   final Widget? dismissIcon;
 
   /// Announced for the dismiss half, which has no text of its own.
-  final String dismissSemanticLabel;
+  ///
+  /// Null takes the wording from the ambient [FluentLocalizations],
+  /// which falls back to English when no delegate is installed.
+  final String? dismissSemanticLabel;
 
   /// Overrides layered over the theme defaults. Merged last, so it wins.
   final FluentTagStyle? style;
@@ -539,7 +543,7 @@ class FluentInteractionTag extends StatelessWidget {
           Semantics(
             button: true,
             enabled: enabled,
-            label: dismissSemanticLabel,
+            label: dismissSemanticLabel ?? fluentL10n(context).dismiss,
             child: FluentInteractive(
               onPressed: onDismiss,
               enabled: enabled,

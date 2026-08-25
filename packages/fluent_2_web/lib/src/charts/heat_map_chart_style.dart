@@ -160,7 +160,10 @@ FluentHeatMapChartStyle resolveFluentHeatMapChartStyle(FluentThemeData theme) =>
       popoverMaxWidth: const WidgetStatePropertyAll<double?>(238),
       // HeatMapChart.tsx:211 — `if (contrastRatio < 3)`.
       contrastThreshold: const WidgetStatePropertyAll<double?>(3),
-      // HeatMapChart.tsx:255.
+      // HeatMapChart.tsx:255. US English, and a style token rather than a
+      // message: what a placeholder cell actually announces comes from
+      // `buildFluentHeatMapDataSet`, which `FluentHeatMapChart` calls with the
+      // ambient localizations' wording.
       placeholderText: const WidgetStatePropertyAll<String?>(
         'No data available',
       ),

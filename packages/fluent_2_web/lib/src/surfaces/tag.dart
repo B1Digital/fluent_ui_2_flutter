@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 
 import '../internal/focus_ring.dart';
 import '../internal/interaction.dart';
+import '../l10n/l10n.dart';
 import 'tag_style.dart';
 
 /// How a tag is filled and outlined. Figma's `Style` axis, verbatim.
@@ -492,7 +493,7 @@ class FluentTag extends StatelessWidget {
     this.enabled = true,
     this.onDismiss,
     this.dismissIcon,
-    this.dismissSemanticLabel = 'Dismiss',
+    this.dismissSemanticLabel,
     this.style,
     this.focusNode,
     this.autofocus = false,
@@ -528,7 +529,10 @@ class FluentTag extends StatelessWidget {
   final Widget? dismissIcon;
 
   /// Announced for the dismiss affordance, which has no text of its own.
-  final String dismissSemanticLabel;
+  ///
+  /// Null takes the wording from the ambient [FluentLocalizations],
+  /// which falls back to English when no delegate is installed.
+  final String? dismissSemanticLabel;
 
   /// Overrides layered over the theme defaults. Merged last, so it wins.
   final FluentTagStyle? style;
@@ -579,7 +583,7 @@ class FluentTag extends StatelessWidget {
               builder: (context, dismissStates, _) => Semantics(
                 button: true,
                 enabled: enabled,
-                label: dismissSemanticLabel,
+                label: dismissSemanticLabel ?? fluentL10n(context).dismiss,
                 child: FluentFocusRing(
                   visible: dismissStates.contains(WidgetState.focused),
                   borderRadius: FluentRadius.allSmall,

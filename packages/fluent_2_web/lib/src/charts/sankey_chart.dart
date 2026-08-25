@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart' show NumberFormat;
 
+import '../l10n/l10n.dart';
 import 'chrome/axis_label_tooltip.dart';
 import 'chrome/chart_popover.dart';
 import 'chrome/chart_title.dart';
@@ -636,10 +637,10 @@ class FluentSankeyChart extends StatefulWidget {
     this.colorsForNodes,
     this.borderColorsForNodes,
     this.numberFormat,
-    this.linkFromLabel = 'From {0}',
-    this.emptySemanticLabel = 'Graph has no data to display',
-    this.nodeSemanticLabel = 'node {0} with weight {1}',
-    this.linkSemanticLabel = 'link from {0} to {1} with weight {2}',
+    this.linkFromLabel,
+    this.emptySemanticLabel,
+    this.nodeSemanticLabel,
+    this.linkSemanticLabel,
     this.reflowMode = FluentSankeyReflowMode.none,
     this.controller,
     this.style,
@@ -669,16 +670,20 @@ class FluentSankeyChart extends StatefulWidget {
   final NumberFormat? numberFormat;
 
   /// Template for the popover's description line (`SankeyChart.tsx:1036`).
-  final String linkFromLabel;
+  ///
+  /// Null takes the wording from the ambient [FluentLocalizations], which falls
+  /// back to English when no delegate is installed. The same is true of
+  /// [emptySemanticLabel], [nodeSemanticLabel] and [linkSemanticLabel].
+  final String? linkFromLabel;
 
   /// Announced when there is nothing to draw (`SankeyChart.tsx:1047`).
-  final String emptySemanticLabel;
+  final String? emptySemanticLabel;
 
   /// Template for a node's label (`SankeyChart.tsx:1045`).
-  final String nodeSemanticLabel;
+  final String? nodeSemanticLabel;
 
   /// Template for a stream's label (`SankeyChart.tsx:1044`).
-  final String linkSemanticLabel;
+  final String? linkSemanticLabel;
 
   /// Behaviour when the container is narrower than the diagram's minimum width.
   final FluentSankeyReflowMode reflowMode;
@@ -791,7 +796,7 @@ class FluentSankeyChartState extends State<FluentSankeyChart> {
           color: l.nodeColors[link.source.index],
           yValue: _formatNumber(l.linkUnnormalisedValues[item.index]),
           descriptionMessage: formatSankeyTemplate(
-            widget.linkFromLabel,
+            widget.linkFromLabel ?? fluentL10n(context).sankeyLinkFrom('{0}'),
             <Object?>[l.data.nodes[link.source.index].name],
           ),
         );
@@ -813,11 +818,15 @@ class FluentSankeyChartState extends State<FluentSankeyChart> {
   /// The stream's screen-reader label (`SankeyChart.tsx:1048-1053`).
   String _linkSemanticLabel(FluentSankeyLayoutResult solved, int index) {
     final link = solved.links[index];
-    return formatSankeyTemplate(widget.linkSemanticLabel, <Object?>[
-      solved.data.nodes[link.source.index].name,
-      solved.data.nodes[link.target.index].name,
-      _formatNumber(solved.linkUnnormalisedValues[index]),
-    ]);
+    return formatSankeyTemplate(
+      widget.linkSemanticLabel ??
+          fluentL10n(context).sankeyLinkDescription('{0}', '{1}', '{2}'),
+      <Object?>[
+        solved.data.nodes[link.source.index].name,
+        solved.data.nodes[link.target.index].name,
+        _formatNumber(solved.linkUnnormalisedValues[index]),
+      ],
+    );
   }
 
   @override
@@ -834,7 +843,7 @@ class FluentSankeyChartState extends State<FluentSankeyChart> {
       return Semantics(
         container: true,
         liveRegion: true,
-        label: widget.emptySemanticLabel,
+        label: widget.emptySemanticLabel ?? fluentL10n(context).chartNoData,
         child: const SizedBox.shrink(),
       );
     }
@@ -887,7 +896,8 @@ class FluentSankeyChartState extends State<FluentSankeyChart> {
           )!,
           formatNumber: _formatNumber,
           nodeSemanticLabel: (name, weight) => formatSankeyTemplate(
-            widget.nodeSemanticLabel,
+            widget.nodeSemanticLabel ??
+                fluentL10n(context).sankeyNodeDescription('{0}', '{1}'),
             <Object?>[name, weight],
           ),
         );
@@ -907,9 +917,9 @@ class FluentSankeyChartState extends State<FluentSankeyChart> {
         final canvas = Semantics(
           container: true,
           // `:1157`.
-          label:
-              'Sankey chart with ${solved.nodes.length} nodes and '
-              '${solved.links.length} links',
+          label: fluentL10n(
+            context,
+          ).sankeyChartDescription(solved.nodes.length, solved.links.length),
           // `:1172` and `:1178` give every node and stream its own node, whose
           // labels the painter cannot carry.
           hint: <String>[

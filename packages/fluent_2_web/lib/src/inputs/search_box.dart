@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import '../internal/animated_style.dart';
 import '../internal/interaction.dart';
 import '../internal/text_context_menu.dart';
+import '../l10n/l10n.dart';
 import 'input.dart';
 import 'search_box_style.dart';
 
@@ -691,7 +692,7 @@ class FluentSearchBox extends StatefulWidget {
     this.onSubmitted,
     this.onClear,
     this.semanticLabel,
-    this.clearSemanticLabel = 'Clear',
+    this.clearSemanticLabel,
   });
 
   /// The controller. One is created and disposed internally when omitted.
@@ -759,7 +760,10 @@ class FluentSearchBox extends StatefulWidget {
   final String? semanticLabel;
 
   /// Announced by assistive technology for the clear button.
-  final String clearSemanticLabel;
+  ///
+  /// Null takes the wording from the ambient [FluentLocalizations],
+  /// which falls back to English when no delegate is installed.
+  final String? clearSemanticLabel;
 
   @override
   State<FluentSearchBox> createState() => _FluentSearchBoxState();
@@ -928,7 +932,7 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
       clear: showClear
           ? Semantics(
               button: true,
-              label: widget.clearSemanticLabel,
+              label: widget.clearSemanticLabel ?? fluentL10n(context).clear,
               child: FluentInteractive(
                 onPressed: _clear,
                 focusNode: _clearFocusNode,

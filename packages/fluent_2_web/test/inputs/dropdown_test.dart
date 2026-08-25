@@ -816,6 +816,69 @@ void main() {
       );
     });
 
+    testWidgets('opens under a leader ancestor deep in a scrolled page', (
+      tester,
+    ) async {
+      // The popup caps its height at the room left below the trigger, and used
+      // to measure that off the trigger's own `LeaderLayer`. A `LeaderLayer`
+      // paints its child from its OWN origin, so any ancestor that anchors an
+      // overlay — `SelectableRegion` wraps every selectable page in one — made
+      // the trigger report how far it sat down the *article* rather than down
+      // the screen. Four thousand pixels into a docs page that came out
+      // negative, clamped to zero, and clicking a dropdown moved focus and
+      // showed nothing at all.
+      final link = LayerLink();
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        FluentApp(
+          theme: light(),
+          home: SingleChildScrollView(
+            controller: controller,
+            // Inside the scroll view, the way `SelectableRegion` wraps an
+            // article rather than the viewport around it: the layer's origin
+            // then IS the top of the content.
+            child: CompositedTransformTarget(
+              link: link,
+              child: Column(
+                children: <Widget>[
+                  const SizedBox(height: 4000),
+                  SizedBox(
+                    width: 312,
+                    child: FluentDropdown<String>(
+                      key: key,
+                      options: options,
+                      onChanged: (_) {},
+                    ),
+                  ),
+                  const SizedBox(height: 4000),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      controller.jumpTo(3900);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(key));
+      await tester.pumpAndSettle();
+
+      final surface = find.descendant(
+        of: find.byType(CompositedTransformFollower),
+        matching: find.byType(SingleChildScrollView),
+      );
+      expect(surface, findsOneWidget);
+      expect(
+        tester.getSize(surface).height,
+        greaterThan(0),
+        reason: 'the popup must not be capped at zero height',
+      );
+      expect(find.text('Lisbon'), findsOneWidget);
+    });
+
     testWidgets('tapping an option selects it and closes', (tester) async {
       String? chosen;
       await pump(

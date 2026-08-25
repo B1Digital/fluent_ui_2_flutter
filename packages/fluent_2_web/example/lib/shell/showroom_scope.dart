@@ -62,6 +62,40 @@ class ShowroomScope extends InheritedWidget {
     required super.child,
   });
 
+  /// [parent]'s scope with the theme repointed at page-local state.
+  ///
+  /// The docs toolbar's Theme dropdown is a *page* override, not the shell's
+  /// global one: it themes the open page's previews and nothing else, and it is
+  /// gone as soon as the reader navigates. Re-emitting this scope rather than
+  /// adding a second inherited widget is what makes that free — [of] resolves to
+  /// the nearest one, so every consumer already under the page body picks the
+  /// override up with no change at its call site, and the shell toolbar, which
+  /// is a sibling of the body rather than a descendant, keeps driving the global.
+  ///
+  /// Not const: the forwarded fields are read off [parent] at runtime.
+  ShowroomScope.override({
+    super.key,
+    required ShowroomScope parent,
+    required this.variant,
+    required this.onVariantChanged,
+    required super.child,
+  }) : textDirection = parent.textDirection,
+       grid = parent.grid,
+       background = parent.background,
+       outlines = parent.outlines,
+       viewport = parent.viewport,
+       locked = parent.locked,
+       fullScreen = parent.fullScreen,
+       sidebarVisible = parent.sidebarVisible,
+       onTextDirectionChanged = parent.onTextDirectionChanged,
+       onToggleGrid = parent.onToggleGrid,
+       onToggleBackground = parent.onToggleBackground,
+       onToggleOutlines = parent.onToggleOutlines,
+       onViewportChanged = parent.onViewportChanged,
+       onToggleLocked = parent.onToggleLocked,
+       onToggleFullScreen = parent.onToggleFullScreen,
+       onToggleSidebar = parent.onToggleSidebar;
+
   /// The theme previews render in. The chrome ignores this — see `DocsMetrics`.
   final ThemeVariant variant;
 

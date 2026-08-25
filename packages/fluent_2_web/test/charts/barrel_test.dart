@@ -78,6 +78,7 @@ void main() {
     );
     expect(
       buildFluentCartesianChartDescription(
+        l10n: fluentLocalizationsFallback,
         xAxisType: FluentChartAxisType.numeric,
         yAxisType: FluentChartAxisType.numeric,
         hasSecondaryScale: false,

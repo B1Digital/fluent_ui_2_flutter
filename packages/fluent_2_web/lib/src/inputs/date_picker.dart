@@ -5,7 +5,9 @@ import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart' show DateFormat;
 
+import '../internal/anchor_metrics.dart';
 import '../internal/interaction.dart';
+import '../l10n/l10n.dart';
 import '../overlays/popover.dart';
 import 'calendar.dart';
 import 'calendar_style.dart';
@@ -98,9 +100,25 @@ class FluentDatePickerErrorStrings {
     FluentDatePickerErrorType.requiredInput => requiredInput,
     null => null,
   };
+
+  /// The messages from [l10n].
+  factory FluentDatePickerErrorStrings.fromLocalizations(
+    FluentLocalizations l10n,
+  ) => FluentDatePickerErrorStrings(
+    invalidInput: l10n.invalidDateFormat,
+    outOfBounds: l10n.dateOutOfRange,
+    requiredInput: l10n.fieldRequired,
+  );
+
+  /// The messages for the ambient [FluentLocalizations] at [context].
+  static FluentDatePickerErrorStrings of(BuildContext context) =>
+      FluentDatePickerErrorStrings.fromLocalizations(fluentL10n(context));
 }
 
-/// The default messages.
+/// The US English messages.
+///
+/// What [FluentDatePickerErrorStrings.of] degrades to when an application has
+/// installed no [FluentLocalizations.delegate].
 const FluentDatePickerErrorStrings defaultFluentDatePickerErrorStrings =
     FluentDatePickerErrorStrings();
 
@@ -622,7 +640,7 @@ class FluentDatePicker extends StatefulWidget {
     this.parseDate,
     this.strings,
     this.formatter,
-    this.errorStrings = defaultFluentDatePickerErrorStrings,
+    this.errorStrings,
     this.appearance = FluentDatePickerAppearance.outline,
     this.size = FluentDatePickerSize.medium,
     this.borderless = false,
@@ -635,7 +653,7 @@ class FluentDatePicker extends StatefulWidget {
     this.style,
     this.calendarStyle,
     this.semanticLabel,
-    this.calendarSemanticLabel = 'Open calendar',
+    this.calendarSemanticLabel,
   });
 
   /// The chosen date. Null selects nothing.
@@ -774,7 +792,10 @@ class FluentDatePicker extends StatefulWidget {
   final FluentCalendarDateFormatter? formatter;
 
   /// The messages offered for each error type.
-  final FluentDatePickerErrorStrings errorStrings;
+  ///
+  /// Null takes them from the ambient [FluentLocalizations] — the same set
+  /// [FluentDatePickerErrorStrings.of] returns.
+  final FluentDatePickerErrorStrings? errorStrings;
 
   /// Colours and borders of the faceplate.
   final FluentDatePickerAppearance appearance;
@@ -820,7 +841,10 @@ class FluentDatePicker extends StatefulWidget {
   final String? semanticLabel;
 
   /// Accessible name of the calendar glyph.
-  final String calendarSemanticLabel;
+  ///
+  /// Null takes the wording from the ambient [FluentLocalizations],
+  /// which falls back to English when no delegate is installed.
+  final String? calendarSemanticLabel;
 
   @override
   State<FluentDatePicker> createState() => _FluentDatePickerState();
@@ -897,10 +921,13 @@ class _FluentDatePickerState extends State<FluentDatePicker>
 
   FluentCalendarStrings get _strings {
     final locale = _locale;
+    final template = FluentCalendarStrings.fromLocalizations(
+      fluentL10n(context),
+    );
     return widget.strings ??
         (locale == null
-            ? FluentCalendarStrings.english
-            : fluentCalendarStrings(locale));
+            ? template
+            : fluentCalendarStrings(locale, template: template));
   }
 
   FluentCalendarDateFormatter get _calendarFormatter {
@@ -1237,13 +1264,14 @@ class _FluentDatePickerState extends State<FluentDatePicker>
     final offset = style.surfaceOffset?.resolve(states) ?? FluentSpacing.xxs;
     final estimated = style.surfaceMaxHeight?.resolve(states) ?? 360;
 
-    // Decided in one pass from the link rather than measured and then moved: a
-    // calendar's height is fixed, so there is nothing to wait for.
-    final leader = _link.leader?.offset ?? Offset.zero;
-    final leaderSize = _link.leaderSize ?? Size.zero;
+    // Decided in one pass from the field's own render box rather than measured
+    // and then moved: a calendar's height is fixed, so there is nothing to wait
+    // for. Not from the leader layer — see [fluentAnchorRect] for why that
+    // reads content coordinates once the page has scrolled.
+    final anchor = fluentAnchorRect(context) ?? Rect.zero;
     final viewport = MediaQuery.sizeOf(context).height;
-    final below = viewport - leader.dy - leaderSize.height - offset;
-    final above = leader.dy - offset;
+    final below = viewport - anchor.bottom - offset;
+    final above = anchor.top - offset;
     final flip = below < estimated && above > below;
 
     final (
@@ -1323,7 +1351,9 @@ class _FluentDatePickerState extends State<FluentDatePicker>
             widget.contentAfter ??
             Semantics(
               button: true,
-              label: widget.calendarSemanticLabel,
+              label:
+                  widget.calendarSemanticLabel ??
+                  fluentL10n(context).openCalendar,
               excludeSemantics: true,
               child: Icon(
                 fluentDatePickerIcon,
