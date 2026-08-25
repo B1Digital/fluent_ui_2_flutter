@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
+import '../internal/anchor_metrics.dart';
 import '../l10n/l10n.dart';
 import 'axis/tick_format.dart';
 import 'chrome/chart_popover.dart';
@@ -915,6 +916,12 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
   List<FluentYValueHover> _hoverValues = const <FluentYValueHover>[];
   final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
 
+  /// The plot's own box, which is the space [_anchor] is measured in.
+  final GlobalKey _plotKey = GlobalKey();
+
+  /// Mounts and unmounts the floating callout.
+  final OverlayPortalController _popoverPortal = OverlayPortalController();
+
   @override
   void didUpdateWidget(FluentGaugeChart oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -968,6 +975,9 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
     if (legend != _kNeedleAnchor && _isDimmed(legend)) {
       return;
     }
+    // Before the setState, so the portal and the anchor it reads are already
+    // in agreement by the time either of the two rebuilds runs.
+    _popoverPortal.show();
     setState(() {
       _anchor = bounds.center;
       // GaugeChart.tsx:389-397 — every segment that is not dimmed, in order.
@@ -995,6 +1005,7 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
   }
 
   void _hidePopover() {
+    _popoverPortal.hide();
     setState(() {
       _anchor = null;
       _hoverValues = const <FluentYValueHover>[];
@@ -1194,6 +1205,9 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
                     child: MouseRegion(
                       onExit: (_) => _hidePopover(),
                       child: Stack(
+                        // The box every hit target's bounds, and so [_anchor],
+                        // is measured in.
+                        key: _plotKey,
                         children: <Widget>[
                           Positioned.fill(child: CustomPaint(painter: painter)),
                           if (widget.chartTitle != null)
@@ -1301,14 +1315,35 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
                                   ),
                               FluentChartTitleBaseline.hanging,
                             ),
-                          if (_anchor != null && !widget.hideTooltip)
-                            Positioned.fill(
+                          // GaugeChart.tsx:703-711 renders a `ChartPopover`,
+                          // and that is a `<Popover>` (`ChartPopover.tsx:52`) —
+                          // a portal, laid out against the viewport. Inside
+                          // this Stack the surface is instead capped at the
+                          // plot: the basic section's 252x128 gauge leaves 96px
+                          // of band once the legend strip is taken off, and a
+                          // heading plus one row per live band needs more than
+                          // twice that, so the callout overflowed its own
+                          // Column. Floating it in the app's Overlay is what
+                          // gives it the room upstream's portal has.
+                          if (!widget.hideTooltip)
+                            OverlayPortal(
+                              controller: _popoverPortal,
                               // The popover follows the cursor, so letting it take
                               // the pointer would pull the pointer off the band
                               // that opened it and close it again.
-                              child: IgnorePointer(
+                              overlayChildBuilder: (context) => IgnorePointer(
                                 child: FluentChartPopover(
-                                  anchor: _anchor!,
+                                  // Off the plot's render box rather than a
+                                  // leader layer, because the overlay is a
+                                  // screen-space tree and a gauge scrolled down
+                                  // a page has to anchor where it is drawn —
+                                  // see [fluentAnchorRect].
+                                  anchor:
+                                      _anchor! +
+                                      (fluentAnchorRect(
+                                            _plotKey.currentContext!,
+                                          )?.topLeft ??
+                                          Offset.zero),
                                   data: FluentChartPopoverData(
                                     // GaugeChart.tsx:386-387 — the callout inverts
                                     // the painted form.

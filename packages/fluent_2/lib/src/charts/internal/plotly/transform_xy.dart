@@ -204,11 +204,12 @@ FluentLineChart transformPlotlyToLine(
 /// Transforms a Plotly scatter figure into a Fluent area chart
 /// (`PlotlySchemaAdapter.ts:1908-1923`).
 ///
-/// [selectedLegends] is not part of the transform: upstream spreads it over the
-/// transformed props at the render site (`DeclarativeChart.tsx:598-603`), where
-/// EVERY non-annotation chart gets it. It is a parameter here because a
-/// transformer returns the finished widget rather than a props bag, so this is
-/// the only place left to put it.
+/// [selectedLegends] and [onLegendChange] are not part of the transform:
+/// upstream spreads the whole `legendProps` bag — the selection AND its change
+/// handler — over the transformed props at the render site
+/// (`DeclarativeChart.tsx:598-603`), where EVERY non-annotation chart gets it.
+/// They are parameters here because a transformer returns the finished widget
+/// rather than a props bag, so this is the only place left to put them.
 FluentAreaChart transformPlotlyToArea(
   Map<String, Object?> input, {
   required bool isMultiPlot,
@@ -216,6 +217,7 @@ FluentAreaChart transformPlotlyToArea(
   required FluentPlotlyColorway colorwayType,
   required bool isDark,
   List<String>? selectedLegends,
+  void Function(List<String> selected)? onLegendChange,
 }) {
   final result = _transformScatterTrace(
     input,
@@ -231,6 +233,7 @@ FluentAreaChart transformPlotlyToArea(
     // `:2191`, the one member the area branch adds to commonProps.
     mode: result.mode,
     selectedLegends: selectedLegends,
+    onLegendChange: onLegendChange,
   );
 }
 

@@ -192,6 +192,17 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
   List<FluentChartHitRegion> _regions = const <FluentChartHitRegion>[];
   int _focusedIndex = -1;
   int _hoveredIndex = -1;
+
+  /// The region the press landed in, which is the one the release activates.
+  ///
+  /// A tap targets where it BEGAN: a mark built as a widget — the `onClick`
+  /// donut, heat map and horizontal bar charts hang off theirs — fires for a
+  /// press inside it and a release two pixels out, which is what a hand does
+  /// between pressing and letting go. Hit-testing the release position instead
+  /// makes every mark thinner than that drift unclickable, and a canvas chart
+  /// has plenty: a 3px stacked segment sitting on the plot floor loses the
+  /// release below the axis and can never reach `onBarClick`.
+  int _pressedIndex = -1;
   Offset _pointer = Offset.zero;
 
   FocusNode get _focusNode =>
@@ -233,6 +244,17 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
     if (event is! KeyDownEvent || _regions.isEmpty) {
       return KeyEventResult.ignored;
     }
+    // Enter and Space run the focused mark's own handler — the keyboard half
+    // of the `onClick` upstream hangs off the mark (`LineChart.tsx:1697-1706`),
+    // which a DOM element gets for free and a painted region does not. Claimed
+    // only when a handler actually ran, so Space still reaches an enclosing
+    // scroller on a chart whose marks are inert.
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.space) {
+      return _activate(_focusedIndex)
+          ? KeyEventResult.handled
+          : KeyEventResult.ignored;
+    }
     final step = switch (event.logicalKey) {
       LogicalKeyboardKey.arrowRight => 1,
       LogicalKeyboardKey.arrowLeft => -1,
@@ -259,6 +281,20 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       if (_regions[i].bounds.contains(position)) return i;
     }
     return -1;
+  }
+
+  /// Runs region [index]'s [FluentChartHitRegion.onActivate], and reports
+  /// whether there was one to run.
+  ///
+  /// The pointer and the roving index share it because upstream's marks are
+  /// DOM elements: one `onClick` attribute gives them the click and the
+  /// keyboard activation together (`LineChart.tsx:1701`).
+  bool _activate(int index) {
+    final onActivate = index < 0 || index >= _regions.length
+        ? null
+        : _regions[index].onActivate;
+    onActivate?.call();
+    return onActivate != null;
   }
 
   void _onPointer(Offset position) {
@@ -546,7 +582,18 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
               onExit: (_) => _clearHover(),
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTapDown: (details) => _onPointer(details.localPosition),
+                onTapDown: (details) {
+                  // The press picks the mark; the release only confirms it.
+                  // `_onPointer` alongside is the hover half of what a mark
+                  // does — it opens the callout and nothing more.
+                  _pressedIndex = _regionAt(details.localPosition);
+                  _onPointer(details.localPosition);
+                },
+                // The click itself, on the pressed mark: re-hit-testing the
+                // release would drop a thin mark's click entirely and, on a
+                // stack, hand it to whichever neighbouring segment the drift
+                // ended over.
+                onTapUp: (_) => _activate(_pressedIndex),
                 child: CustomPaint(
                   size: size,
                   painter: FluentCartesianChartPainter(
@@ -752,10 +799,21 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       tickLayout: props.xAxis?.tickLayout ?? delegate.xAxisTickLayout,
     );
 
+    // `CartesianChart.tsx:239-267` builds the tick bag from props before it
+    // hands it to the three x builders; the delegate hook is the fallback for a
+    // chart that sets its ticks in code instead. Without `props.tickValues`
+    // here the prop is spent on the domain solve above and nothing else, so the
+    // explicit-tick branch in every x builder is unreachable and a caller that
+    // named its ticks still gets the generated ones.
+    final tickParams = FluentTickParams(
+      tickValues: props.tickValues ?? delegate.tickParams.tickValues,
+      tickFormat: delegate.tickParams.tickFormat,
+    );
+
     final xAxis = switch (delegate.xAxisType) {
       FluentChartAxisType.date => createDateXAxis(
         xParams,
-        delegate.tickParams,
+        tickParams,
         culture: delegate.culture,
         options: props.dateLocalizeOptions,
         timeFormatLocale: props.timeFormatLocale,
@@ -765,14 +823,14 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       ),
       FluentChartAxisType.category => createStringXAxis(
         xParams,
-        delegate.tickParams,
+        tickParams,
         delegate.datasetForXAxisDomain ?? const <String>[],
         culture: delegate.culture,
       ),
       // `default:` in the switch at `CartesianChart.tsx:269-277` is numeric.
       FluentChartAxisType.numeric => createNumericXAxis(
         xParams,
-        delegate.tickParams,
+        tickParams,
         delegate.chartType,
         culture: delegate.culture,
         scaleType: props.xScaleType,
@@ -793,13 +851,27 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
     );
     final reserve = xLabelLayout?.reserveHeight ?? 0;
 
+    // `props.yAxisTickFormat` is a `String Function(double)`
+    // (`cartesian_chart_props.dart:157`), while the params slot carries
+    // upstream's `string | function` union and `_formatYTick` recognises the
+    // callable arm only at the exact shape `String Function(Object, int)`
+    // (`axis_builders.dart:503`). The raw prop matches neither arm, so every
+    // label would fall through to `defaultYAxisTickFormatter` and a demo that
+    // asked for currency would paint the plain numeric ramp. Both y builders
+    // only ever format numeric ticks, which is why the cast is safe.
+    final yAxisTickFormat = props.yAxisTickFormat;
+    final yTickFormat = yAxisTickFormat == null
+        ? null
+        : (Object value, int index) =>
+              yAxisTickFormat((value as num).toDouble());
+
     final axisData = FluentAxisData();
     final yParams = FluentYAxisParams(
       margins: delegate.yDomainMargins(size.height) ?? margins,
       containerWidth: size.width,
       // `CartesianChart.tsx:298` — the REAL reserve, unlike the x params above.
       containerHeight: size.height - reserve,
-      yAxisTickFormat: props.yAxisTickFormat,
+      yAxisTickFormat: yTickFormat,
       yAxisTickCount: props.yAxisTickCount,
       // `CartesianChart.tsx:311` passes it to both axis builds. Threaded
       // through the params bag rather than the delegate contract — see
@@ -845,7 +917,7 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
             margins: margins,
             containerWidth: size.width,
             containerHeight: size.height - reserve,
-            yAxisTickFormat: props.yAxisTickFormat,
+            yAxisTickFormat: yTickFormat,
             yAxisTickCount: props.yAxisTickCount,
             roundedTicks: props.roundedTicks,
             yMinValue: secondaryOptions.yMinValue,

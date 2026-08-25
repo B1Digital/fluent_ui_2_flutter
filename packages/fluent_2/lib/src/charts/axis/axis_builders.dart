@@ -112,14 +112,24 @@ FluentAxisSpec createNumericXAxis(
         index < tickText.length) {
       return tickText[index];
     }
-    final specifier = tickParams.tickFormat;
-    if (specifier != null) {
-      return d3.format(specifier)(value as num);
-    }
-    // The empty-string short-circuit exists for log scales, where d3 blanks the
-    // ticks between decades (utilities.ts:294).
-    if (defaultFormat != null && defaultFormat(value) == '') {
-      return '';
+    // [formatTick] takes an [Object] because `props.tickValues` is typed
+    // `List<Object>` and now reaches this builder, and both formatters below
+    // coerce with `+value` — which upstream answers `NaN` for and Dart's
+    // `as num` throws on. The isFinite filter at `:167` already drops every
+    // tick a numeric scale cannot place before either loop below runs, so this
+    // is the total-signature belt on that brace and not a second policy: a
+    // non-numeric tick prints through the locale formatter, which renders one
+    // as itself.
+    if (value is num) {
+      final specifier = tickParams.tickFormat;
+      if (specifier != null) {
+        return d3.format(specifier)(value);
+      }
+      // The empty-string short-circuit exists for log scales, where d3 blanks
+      // the ticks between decades (utilities.ts:294).
+      if (defaultFormat != null && defaultFormat(value) == '') {
+        return '';
+      }
     }
     return formatToLocaleString(value, culture: culture);
   }
@@ -155,7 +165,30 @@ FluentAxisSpec createNumericXAxis(
 
   List<Object>? customTickValues;
   if (tickParams.tickValues != null) {
-    customTickValues = tickParams.tickValues;
+    // `axis.js:82` filters the tick list on `isFinite`, so a tick this scale
+    // cannot place is drawn by neither upstream nor here. The filter is live
+    // rather than defensive now that `props.tickValues` reaches the builder
+    // (`cartesian/cartesian_chart.dart:791`): the Vega ordinal path names its
+    // BAND LABELS there while the plotted x values are their indices
+    // (`internal/vega/context.dart:373-374`), and a numeric scale answers null
+    // for a label. `internal/d3/axis_geometry.dart:159-162` keeps that miss as
+    // NaN precisely so a caller can drop it, and dropping it HERE rather than
+    // at paint time is what keeps the spec's values, its labels and the width
+    // the x-label solver reserves for them all describing the same ticks —
+    // `Canvas.drawLine` asserts on a NaN offset, so a tick that survives this
+    // far takes the whole chart down with it.
+    customTickValues = <Object>[
+      for (final value in tickParams.tickValues!)
+        if (scale(value)?.isFinite ?? false) value,
+    ];
+    // Filtering to NOTHING is not "draw no ticks" — it means this scale could
+    // place none of the caller's values, which is what the Vega ordinal path
+    // hands over every time (every label is a String). An axis with no ticks and
+    // no labels is a worse answer than the generated ones, so fall back to them
+    // rather than render a bare line.
+    if (customTickValues.isEmpty) {
+      customTickValues = null;
+    }
   } else if (xAxisParams.tickStep != null) {
     // Upstream's guard is `else if (tickStep)` (`:314`), so a 0 or empty-string
     // step is skipped there and admitted here; `generateNumericTicks` returns

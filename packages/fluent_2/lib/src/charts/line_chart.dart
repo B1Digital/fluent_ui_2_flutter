@@ -105,7 +105,7 @@ class FluentLineChart extends StatefulWidget {
 /// `tester.state`, the shape `FluentAreaChartState` already uses.
 class FluentLineChartState extends State<FluentLineChart> {
   /// LineChart tracks ONE selected legend, not a list (`LineChart.tsx:186`).
-  final String _selectedLegend = '';
+  String _selectedLegend = '';
   String? _activeLegend;
   String? _activePointId;
   (int, int)? _nearestPoint;
@@ -194,6 +194,26 @@ class FluentLineChartState extends State<FluentLineChart> {
             title: _series[i].legend,
             color: _series[i].color ?? FluentDataVizPalette.next(i),
             shape: _series[i].legendShape,
+            // `action` (`:399-405`) runs `_handleSingleLegendSelectionAction`
+            // (`:356-364`), which TOGGLES the single selection. Without it the
+            // shell's own row state moves and nothing else does: the whole
+            // filter below — `highlighted()`, `markerOpacityFor` and the
+            // segment opacity — is fed from `_selectedLegend`.
+            onAction: () {
+              setState(
+                () => _selectedLegend = _selectedLegend == _series[i].legend
+                    ? ''
+                    : _series[i].legend,
+              );
+              // `_handleLegendClick` (`:371-378`) reports the legend that is
+              // now selected, or `null` when the click cleared it — spelt as
+              // the empty list here (`cartesian_series.dart:232`).
+              _series[i].onLegendClick?.call(
+                _selectedLegend.isEmpty
+                    ? const <String>[]
+                    : <String>[_selectedLegend],
+              );
+            },
             onHoverAction: () => setState(() {
               // `hoverAction` clears the hover first (`:432-435`).
               _nearestPoint = null;
@@ -209,6 +229,13 @@ class FluentLineChartState extends State<FluentLineChart> {
             title: bar.legend,
             color: bar.color,
             stripePattern: bar.applyPattern,
+            // A bar's legend runs the same toggle (`:429-436`);
+            // [FluentColorFillBar] carries no `onLegendClick` to report to.
+            onAction: () => setState(
+              () => _selectedLegend = _selectedLegend == bar.legend
+                  ? ''
+                  : bar.legend,
+            ),
             onHoverAction: () => setState(() => _activeLegend = bar.legend),
             onMouseOutAction: ({required bool isLegendFocused}) =>
                 setState(() => _activeLegend = null),
@@ -2034,6 +2061,11 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
         semanticsLabel:
             point.callOutSemantics?.label ??
             '$xValue. ${line.legend}, $yValue.',
+        // `{..._getClickHandler(point.onDataPointClick)}` (`:908`, `:1074`,
+        // `:1151`). `line.onLineClick` is deliberately NOT folded in: upstream
+        // hangs it off the line `<path>` (`:731`, `:1287`), which the marker
+        // circle sits on top of, so a click on a mark never reaches it.
+        onActivate: point.onDataPointClick,
       );
     }
 

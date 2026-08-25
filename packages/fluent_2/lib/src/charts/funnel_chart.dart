@@ -1093,22 +1093,32 @@ class _FluentFunnelChartState extends State<FluentFunnelChart> {
                         ),
                       ),
                       if (_anchor != null && _callout != null)
-                        Positioned(
-                          left: _anchor!.dx,
-                          top: _anchor!.dy,
-                          child: FluentChartPopover(
-                            anchor: _anchor!,
-                            // FunnelChart.tsx:514-527 — the popover carries the
-                            // stage and the value and NO legend, which is why
-                            // upstream's legend row renders empty.
-                            // parity: FunnelChart.tsx:520-521.
-                            data: FluentChartPopoverData(
-                              xValue: '${_callout!.stage}',
-                              yValue: formatToLocaleString(
-                                _callout!.value ?? 0,
-                                culture: widget.culture,
+                        // Fills the stack rather than sitting at `_anchor`:
+                        // `FluentChartPopover` is a `CustomSingleChildLayout`,
+                        // which sizes to `constraints.biggest` and so needs a
+                        // bounded box — and its delegate does the anchoring
+                        // itself, flipping the surface when it would fall off
+                        // the plot. Positioning it here would double the
+                        // offset and lose that flip.
+                        Positioned.fill(
+                          // The popover follows the cursor, so letting it take
+                          // the pointer would pull the pointer off the segment
+                          // that opened it.
+                          child: IgnorePointer(
+                            child: FluentChartPopover(
+                              anchor: _anchor!,
+                              // FunnelChart.tsx:514-527 — the popover carries
+                              // the stage and the value and NO legend, which is
+                              // why upstream's legend row renders empty.
+                              // parity: FunnelChart.tsx:520-521.
+                              data: FluentChartPopoverData(
+                                xValue: '${_callout!.stage}',
+                                yValue: formatToLocaleString(
+                                  _callout!.value ?? 0,
+                                  culture: widget.culture,
+                                ),
+                                color: _callout!.color,
                               ),
-                              color: _callout!.color,
                             ),
                           ),
                         ),

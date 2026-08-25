@@ -12,6 +12,7 @@ import 'cartesian/cartesian_chart.dart';
 import 'cartesian/cartesian_chart_props.dart';
 import 'cartesian/cartesian_layout.dart';
 import 'cartesian/cartesian_series_delegate.dart';
+import 'chrome/chart_popover.dart';
 import 'chrome/legend.dart';
 import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
@@ -21,6 +22,7 @@ import 'internal/d3/array_stats.dart' as d3;
 import 'internal/d3/scale.dart';
 import 'internal/d3/scale_linear.dart';
 import 'model/bar_data.dart';
+import 'model/callout_data.dart';
 import 'model/chart_common.dart';
 import 'model/chart_value.dart';
 import 'model/line_options.dart';
@@ -130,6 +132,7 @@ class FluentStackedBarSegmentLayout {
   /// Creates a segment layout.
   const FluentStackedBarSegmentLayout({
     required this.rect,
+    required this.datum,
     required this.colour,
     required this.opacity,
     required this.stackIndex,
@@ -140,6 +143,15 @@ class FluentStackedBarSegmentLayout {
 
   /// The segment's rectangle.
   final Rect rect;
+
+  /// The segment this layout was solved from.
+  ///
+  /// Carried rather than looked up, because [segmentIndex] indexes the
+  /// **filtered** `barsToDisplay` list (`VerticalStackedBarChart.tsx:1006-1014`)
+  /// and not `chartData`: a caller holding a layout cannot reach its datum
+  /// without re-running that filter, and both the hit regions and the click
+  /// dispatch need it.
+  final FluentStackedBarDatum datum;
 
   /// Resolved fill, already flattened for high contrast.
   final Color colour;
@@ -199,6 +211,9 @@ class FluentVerticalStackedBarChartDelegate
     required this.palette,
     this.activeLegend,
     this.activeXAxisDataPoint,
+    this.isCalloutForStack = false,
+    this.culture,
+    this.onBarClick,
     this.barWidthProp,
     this.maxBarWidth = 24,
     this.barGapMax = 0,
@@ -253,6 +268,22 @@ class FluentVerticalStackedBarChartDelegate
 
   /// The x value whose line dot is enlarged.
   final Object? activeXAxisDataPoint;
+
+  /// Whether hover, focus and click address the whole stack
+  /// (`_toFocusWholeStack`, `VerticalStackedBarChart.tsx:486-489`).
+  final bool isCalloutForStack;
+
+  /// BCP-47 locale the callout's readings are formatted with, `props.culture`.
+  @override
+  final String? culture;
+
+  /// `props.onBarClick`, which every interactive area hangs off.
+  ///
+  /// Upstream attaches it to the mark itself — `onClick` inside
+  /// `rectFocusProps` (`VerticalStackedBarChart.tsx:1046`) and inside
+  /// `stackFocusProps` (`:1150`) — so it has to reach the regions, which are
+  /// the only thing the shell hit-tests.
+  final void Function(Object data)? onBarClick;
 
   /// `number | 'default' | 'auto'`.
   final Object? barWidthProp;
@@ -722,6 +753,7 @@ class FluentVerticalStackedBarChartDelegate
         out.add(
           FluentStackedBarSegmentLayout(
             rect: Rect.fromLTWH(x, topEdge, barWidth, height),
+            datum: visible[k],
             colour: colors.flattenMark(segmentPaletteColour(visible[k], k)),
             opacity: highlighted ? 1 : dim,
             stackIndex: si,
@@ -1045,6 +1077,7 @@ class FluentVerticalStackedBarChartDelegate
         out.add(
           FluentStackedBarSegmentLayout(
             rect: Rect.fromLTWH(x, positiveStart, barWidth, height),
+            datum: visible[k],
             colour: colors.flattenMark(segmentPaletteColour(visible[k], k)),
             opacity: highlighted ? 1 : dim,
             stackIndex: si,
@@ -1056,6 +1089,20 @@ class FluentVerticalStackedBarChartDelegate
     }
     return out;
   }
+
+  /// The segments the chart draws, solved on whichever branch the y axis takes.
+  ///
+  /// `_getGraphData` (`:384-397`) hands `_createBar` the shell's own y scale on
+  /// a category y axis and its private `yBarScale` otherwise; this port splits
+  /// that branch into two solves rather than one. Painting, the hit regions and
+  /// the click dispatch all start here, so none of them can pick the other
+  /// branch's geometry.
+  List<FluentStackedBarSegmentLayout> segmentLayouts(
+    FluentCartesianChildContext context,
+    FluentCartesianLayout layout,
+  ) => yAxisType == FluentChartAxisType.category
+      ? categorySegmentsFor(context, layout)
+      : segmentsFor(context, layout);
 
   /// The total label sitting over each stack in [segments].
   ///
@@ -1399,12 +1446,7 @@ class FluentVerticalStackedBarChartDelegate
     FluentCartesianLayout layout,
     FluentChartColors colors,
   ) {
-    // `_getGraphData` (`:384-397`) hands `_createBar` the shell's own y scale
-    // on a category y axis and its private `yBarScale` otherwise; this port
-    // splits that branch into two solves rather than one.
-    final segments = yAxisType == FluentChartAxisType.category
-        ? categorySegmentsFor(context, layout)
-        : segmentsFor(context, layout);
+    final segments = segmentLayouts(context, layout);
     for (final segment in segments) {
       final paint = Paint()
         ..color = segment.colour.withValues(
@@ -1449,15 +1491,218 @@ class FluentVerticalStackedBarChartDelegate
     _paintLines(canvas, context);
   }
 
-  /// No regions yet.
+  /// `_isLegendHighlighted(legend) || _noLegendHighlighted()` — the
+  /// `shouldHighlight` at `VerticalStackedBarChart.tsx:1038`, which every hover,
+  /// focus and click handler is gated on and which the callout rows filter by
+  /// (`:265-270`).
+  bool isSegmentHighlighted(String legend) =>
+      (selectedLegends.isEmpty &&
+          (activeLegend == null || activeLegend!.isEmpty)) ||
+      isLegendHighlightedMulti(
+        legend,
+        selectedLegends: selectedLegends,
+        activeLegend: activeLegend,
+      );
+
+  /// The segments that carry handlers, which is what [buildHitRegions] walks.
   ///
-  /// A [FluentChartHitRegion] carries a `FluentChartPopoverData`, which this
-  /// chart composes out of its callout props — so the widget declares them.
+  /// `rectFocusProps` is spread onto a rect only when it is highlighted
+  /// (`:1038-1051`), and `stackFocusProps` onto a stack's `<g>` only when
+  /// `someBarsActive` (`:1137-1154`) — so a dimmed segment is not an
+  /// interactive area at all, and a stack keeps every one of its segments as
+  /// long as one of them is lit.
+  List<FluentStackedBarSegmentLayout> interactiveSegmentsFor(
+    FluentCartesianChildContext context,
+    FluentCartesianLayout layout,
+  ) {
+    final segments = segmentLayouts(context, layout);
+    final activeStacks = <int>{
+      for (final segment in segments)
+        if (isSegmentHighlighted(segment.datum.legend)) segment.stackIndex,
+    };
+    return <FluentStackedBarSegmentLayout>[
+      for (final segment in segments)
+        if (isCalloutForStack
+            ? activeStacks.contains(segment.stackIndex)
+            : isSegmentHighlighted(segment.datum.legend))
+          segment,
+    ];
+  }
+
+  /// The x reading a callout and an aria label show for [xAxisPoint].
+  ///
+  /// `xAxisPoint instanceof Date ? formatDateToLocaleString(…) :
+  /// xAxisPoint.toString()` (`:753-757`, `:432-436`) — a number is printed raw
+  /// here rather than grouped, which is upstream's own asymmetry with the y
+  /// reading beside it.
+  String calloutX(Object xAxisPoint) => xAxisPoint is DateTime
+      ? formatToLocaleString(xAxisPoint, culture: culture, useUtc: useUtc)
+      : '$xAxisPoint';
+
+  /// The reading one segment's callout shows — `_onRectFocusHover`
+  /// (`:727-770`).
+  FluentChartPopoverData _segmentPopoverData(
+    FluentStackedBarSegmentLayout segment,
+  ) => FluentChartPopoverData(
+    // `point.xAxisCalloutData || …` (`:752-756`). The stack's own
+    // `xAxisCalloutData` is read by the aria label (`:433`) and not by this.
+    xValue:
+        segment.datum.xAxisCalloutData ??
+        calloutX(stacks[segment.stackIndex].xAxisPoint),
+    legend: segment.datum.legend,
+    color: segment.colour,
+    // `YValue: yCalloutValue ? yCalloutValue : dataForHoverCard` (`:1351-1352`),
+    // formatted the way `ChartPopover.tsx:89` formats it.
+    yValue:
+        segment.datum.yAxisCalloutData ??
+        formatToLocaleString(segment.datum.data, culture: culture),
+  );
+
+  /// The reading a whole stack's callout shows — `_onStackHoverFocus`
+  /// (`:249-294`).
+  FluentChartPopoverData _stackPopoverData(
+    FluentVerticalStackedBarGroup stack,
+  ) {
+    // `[...lineData.sort(desc), ...chartData.reverse()]` (`:282-286`); both
+    // lists are filtered to the highlighted legends first (`:265-270`).
+    final rows = <FluentYValueHover>[
+      for (final line in stack.lineData ?? const <FluentStackedBarLineDatum>[])
+        if (isSegmentHighlighted(line.legend))
+          FluentYValueHover(
+            legend: line.legend,
+            y: _lineValue(line) is num
+                ? (_lineValue(line) as num).toDouble()
+                : null,
+            color: colors.flattenMark(line.color),
+            yAxisCalloutText: line.yAxisCalloutData,
+          ),
+    ]..sort((a, b) => (b.y ?? 0).compareTo(a.y ?? 0));
+    final bars = <FluentYValueHover>[];
+    // `barsToDisplay` (`:1006-1014`) is the list `_createBar` colours by index,
+    // so the swatch is looked up on the index the segment PAINTED with: a stack
+    // holding a zero segment would otherwise shift every colour below it by one.
+    var painted = 0;
+    for (final datum in stack.chartData) {
+      final paletteIndex = painted;
+      if (datum.data != 0 && datum.data != '') {
+        painted++;
+      }
+      if (!isSegmentHighlighted(datum.legend)) {
+        continue;
+      }
+      bars.add(
+        FluentYValueHover(
+          legend: datum.legend,
+          y: datum.data is num ? (datum.data as num).toDouble() : null,
+          color: colors.flattenMark(segmentPaletteColour(datum, paletteIndex)),
+          yAxisCalloutText: datum.yAxisCalloutData,
+        ),
+      );
+    }
+    return FluentChartPopoverData(
+      // `hoverXValue` (`:287-291`), which is what the stacked body heads with.
+      xValue: calloutX(stack.xAxisPoint),
+      isCalloutForStack: true,
+      yValues: rows..addAll(bars.reversed),
+    );
+  }
+
+  /// `item.data = item.data || item.y` (`:277`) — a JS `||`, so a zero or an
+  /// empty `data` falls through to `y`.
+  static Object _lineValue(FluentStackedBarLineDatum line) =>
+      line.data == null || line.data == 0 || line.data == ''
+      ? line.y
+      : line.data!;
+
+  /// `_getAriaLabel` (`:425-472`), on the stack arm when [isCalloutForStack]
+  /// and on the segment arm otherwise.
+  String semanticsLabelFor(FluentStackedBarSegmentLayout segment) {
+    final stack = stacks[segment.stackIndex];
+    final xValue =
+        stack.xAxisCalloutData ??
+        (isCalloutForStack ? null : segment.datum.xAxisCalloutData) ??
+        calloutX(stack.xAxisPoint);
+    if (!isCalloutForStack) {
+      // `${xValue}. ${legend}, ${yValue}.` (`:470`), where the y is the raw
+      // `point.data` — the aria label is not formatted the way the callout is.
+      return segment.datum.callOutSemantics?.label ??
+          '$xValue. ${segment.datum.legend}, '
+              '${segment.datum.yAxisCalloutData ?? segment.datum.data}.';
+    }
+    // `:436-455` — every highlighted segment, then every highlighted line, in
+    // author order and NOT reversed the way the callout rows are.
+    final readings = <String>[
+      for (final datum in stack.chartData)
+        if (isSegmentHighlighted(datum.legend))
+          '${datum.legend}, ${datum.yAxisCalloutData ?? datum.data}.',
+      for (final line in stack.lineData ?? const <FluentStackedBarLineDatum>[])
+        if (isSegmentHighlighted(line.legend))
+          '${line.legend}, ${line.yAxisCalloutData ?? _lineValue(line)}.',
+    ];
+    return stack.stackCallOutSemantics?.label ??
+        '$xValue. ${readings.join(' ')}';
+  }
+
+  /// One region per segment, or one per stack under [isCalloutForStack].
+  ///
+  /// Upstream spreads two mutually exclusive handler sets — `rectFocusProps`
+  /// onto each rect (`:1038-1051`) and `stackFocusProps` onto the stack's `<g>`
+  /// (`:1144-1154`) — so a stack is a single interactive element on the second
+  /// arm, which is why that arm unions its segments here instead of leaving it
+  /// to the shell's [FluentChartHitGranularity.group] coalescing: that pass
+  /// rebuilds a merged region without [FluentChartHitRegion.onActivate]
+  /// (`cartesian_chart.dart:323-329`), which would drop `onBarClick` on every
+  /// stack of more than one lit segment. [FluentChartHitRegion.index] stays the
+  /// stack index either way, because that is what the roving focus and the
+  /// group pass both key on.
   @override
   List<FluentChartHitRegion> buildHitRegions(
     FluentCartesianChildContext context,
     FluentCartesianLayout layout,
-  ) => const <FluentChartHitRegion>[];
+  ) {
+    final segments = interactiveSegmentsFor(context, layout);
+    if (!isCalloutForStack) {
+      return <FluentChartHitRegion>[
+        for (final segment in segments)
+          FluentChartHitRegion(
+            bounds: segment.rect,
+            index: segment.stackIndex,
+            legend: segment.datum.legend,
+            popoverData: _segmentPopoverData(segment),
+            semanticsLabel: semanticsLabelFor(segment),
+            // `onClick={…this._onClick(point)}` (`:1046`) — the segment.
+            onActivate: _activation(segment.datum),
+          ),
+      ];
+    }
+    final merged = <int, FluentChartHitRegion>{};
+    for (final segment in segments) {
+      final stack = stacks[segment.stackIndex];
+      final existing = merged[segment.stackIndex];
+      merged[segment.stackIndex] = FluentChartHitRegion(
+        bounds: existing == null
+            ? segment.rect
+            : existing.bounds.expandToInclude(segment.rect),
+        index: segment.stackIndex,
+        legend: existing?.legend ?? segment.datum.legend,
+        popoverData: _stackPopoverData(stack),
+        semanticsLabel: semanticsLabelFor(segment),
+        // `onClick={…this._onClick(stack)}` (`:1150`) — the whole stack.
+        onActivate: _activation(stack),
+      );
+    }
+    return merged.values.toList(growable: false);
+  }
+
+  /// [onBarClick] bound to [data], or null when the caller passed no handler.
+  ///
+  /// Null and not an empty closure: [FluentChartHitRegion.onActivate] is what
+  /// tells the shell an area is clickable at all, so a chart without a handler
+  /// must not narrate one.
+  VoidCallback? _activation(Object data) {
+    final onBarClick = this.onBarClick;
+    return onBarClick == null ? null : () => onBarClick(data);
+  }
 }
 
 /// A Fluent 2 stacked vertical bar chart.
@@ -1632,6 +1877,37 @@ class _FluentVerticalStackedBarChartState
         .merge(FluentVerticalStackedBarChartTheme.maybeOf(context))
         .merge(widget.style);
     final palette = style.linePalette!.resolve(const <WidgetState>{})!;
+    final delegate = FluentVerticalStackedBarChartDelegate(
+      stacks: widget.data,
+      style: style,
+      colors: FluentChartColors.of(theme),
+      measurer: _measurer,
+      textStyles: FluentChartTextStyles.of(theme),
+      selectedLegends: _selectedLegends,
+      palette: palette,
+      activeLegend: _activeLegend,
+      activeXAxisDataPoint: _activeXAxisDataPoint,
+      isCalloutForStack: widget.isCalloutForStack,
+      culture: widget.culture,
+      onBarClick: widget.onBarClick,
+      barWidthProp: widget.barWidth,
+      maxBarWidth: widget.maxBarWidth,
+      barGapMax: widget.barGapMax,
+      barCornerRadius: widget.barCornerRadius,
+      barMinimumHeight: widget.barMinimumHeight,
+      hideLabels: widget.hideLabels,
+      roundCorners: widget.roundCorners,
+      mode: widget.mode,
+      useUtc: _useUtc,
+      lineOptions: widget.lineOptions,
+      xAxisInnerPadding: widget.xAxisInnerPadding,
+      xAxisOuterPadding: widget.xAxisOuterPadding,
+      xAxisPadding: widget.xAxisPadding,
+      hideTickOverlap: widget.props.hideTickOverlap,
+      xAxisCategoryOrder: widget.xAxisCategoryOrder,
+      yAxisCategoryOrder: widget.yAxisCategoryOrder,
+      yAxisTickFormat: widget.props.yAxisTickFormat,
+    );
     return FluentCartesianChart(
       focusNode: widget.focusNode,
       legendSelectionMode: widget.legendSelectionMode,
@@ -1652,34 +1928,7 @@ class _FluentVerticalStackedBarChartState
             '${_lineCount > 0 ? fluentL10n(context).verticalStackedBarChartWithLinesDescription(widget.data.length, _lineCount) : fluentL10n(context).verticalStackedBarChartDescription(widget.data.length)}',
       ),
       legends: _legends(palette),
-      delegate: FluentVerticalStackedBarChartDelegate(
-        stacks: widget.data,
-        style: style,
-        colors: FluentChartColors.of(theme),
-        measurer: _measurer,
-        textStyles: FluentChartTextStyles.of(theme),
-        selectedLegends: _selectedLegends,
-        palette: palette,
-        activeLegend: _activeLegend,
-        activeXAxisDataPoint: _activeXAxisDataPoint,
-        barWidthProp: widget.barWidth,
-        maxBarWidth: widget.maxBarWidth,
-        barGapMax: widget.barGapMax,
-        barCornerRadius: widget.barCornerRadius,
-        barMinimumHeight: widget.barMinimumHeight,
-        hideLabels: widget.hideLabels,
-        roundCorners: widget.roundCorners,
-        mode: widget.mode,
-        useUtc: _useUtc,
-        lineOptions: widget.lineOptions,
-        xAxisInnerPadding: widget.xAxisInnerPadding,
-        xAxisOuterPadding: widget.xAxisOuterPadding,
-        xAxisPadding: widget.xAxisPadding,
-        hideTickOverlap: widget.props.hideTickOverlap,
-        xAxisCategoryOrder: widget.xAxisCategoryOrder,
-        yAxisCategoryOrder: widget.yAxisCategoryOrder,
-        yAxisTickFormat: widget.props.yAxisTickFormat,
-      ),
+      delegate: delegate,
       onChartMouseLeave: () => setState(() => _activeXAxisDataPoint = null),
     );
   }

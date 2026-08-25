@@ -43,6 +43,7 @@ class FluentAreaChart extends StatefulWidget {
     this.style,
     this.legendSelectionMode = FluentChartLegendSelectionMode.single,
     this.selectedLegends,
+    this.onLegendChange,
     this.focusNode,
   });
 
@@ -82,6 +83,16 @@ class FluentAreaChart extends StatefulWidget {
   /// whenever it changes (`:141-142`), which is what dims every unselected
   /// series and fills only the selected legend's swatch.
   final List<String>? selectedLegends;
+
+  /// Called with the new selection when a legend row is clicked — upstream's
+  /// `legendProps.onChange` (`AreaChart.tsx:608`), which is what lets an owner
+  /// that passes [selectedLegends] echo the click back instead of fighting it.
+  ///
+  /// Without it a controlled owner — `FluentDeclarativeChart`, which feeds
+  /// `selectedLegends` from the schema — never learns the selection moved, so
+  /// its `onSchemaChange` never fires and the next rebuild snaps the chart back
+  /// to the stale schema selection.
+  final void Function(List<String> selected)? onLegendChange;
 
   /// The chart's single focus node.
   final FocusNode? focusNode;
@@ -243,16 +254,22 @@ class FluentAreaChartState extends State<FluentAreaChart> {
       ],
       // `:589`'s spread controls the row from `props.legendProps
       // .selectedLegends`, and upstream can afford that because `:608` echoes
-      // every click back to the owner, which re-sends the prop. This widget
-      // exposes no such callback, so a row controlled by the prop would freeze
-      // on click. Controlled by this State instead: it is seeded from the prop
-      // and re-seeded when it changes, so the first frame is identical and the
-      // click behaves as upstream's echo makes it behave.
+      // every click back to the owner, which re-sends the prop. An owner that
+      // ignores [FluentAreaChart.onLegendChange] would freeze the row if it
+      // were controlled by the prop alone, so the row is controlled by this
+      // State instead: seeded from the prop and re-seeded when it changes, the
+      // first frame is identical and the click behaves as upstream's echo makes
+      // it behave whether or not the owner is listening.
       selectedLegends: _selectedLegends,
-      onLegendChange: (selected) =>
-          // `_onLegendSelectionChange` (`:597-609`) only moves this state;
-          // `_isMultiStackChart` is read off the prop, so the dataset stands.
-          setState(() => _selectedLegends = selected),
+      onLegendChange: (selected) {
+        // `_onLegendSelectionChange` (`:597-609`) only moves this state;
+        // `_isMultiStackChart` is read off the prop, so the dataset stands.
+        setState(() => _selectedLegends = selected);
+        // `:608`'s echo. Report after the local move, so an owner that
+        // re-sends the same list through `selectedLegends` is a no-op rather
+        // than a second rebuild.
+        widget.onLegendChange?.call(selected);
+      },
       delegate: FluentAreaChartDelegate(
         series: _series,
         dataSet: _dataSet,

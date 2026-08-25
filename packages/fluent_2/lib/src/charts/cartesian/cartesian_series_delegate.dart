@@ -22,6 +22,7 @@ class FluentChartHitRegion {
     required this.legend,
     required this.popoverData,
     this.semanticsLabel,
+    this.onActivate,
   });
 
   /// The area, in plot coordinates.
@@ -42,10 +43,21 @@ class FluentChartHitRegion {
   /// node at all, so a chart that wants narration must supply it here.
   final String? semanticsLabel;
 
-  /// [popoverData] is deliberately excluded: it carries a
-  /// [FluentChartPopoverData.customContentBuilder] closure and has no `==` of
-  /// its own, so folding it in would make every region unequal to its own
-  /// rebuild and defeat the point of comparing regions at all.
+  /// What a click or an Enter/Space on this region runs.
+  ///
+  /// Upstream hangs `onClick` off the mark itself and only when the caller
+  /// supplied a handler, so a screen reader announces a mark as clickable
+  /// exactly when it is (`LineChart.tsx:1697-1706`). A region is the only thing
+  /// the shell hit-tests, so a chart with no slot here has no activation at
+  /// all: every `onDataPointClick`, `onBarClick` and `onLineClick` the models
+  /// declare is dead until the region carries it.
+  final VoidCallback? onActivate;
+
+  /// [popoverData] and [onActivate] are deliberately excluded: both carry
+  /// closures — [FluentChartPopoverData.customContentBuilder] and the handler
+  /// itself — minted afresh on every build, so folding them in would make every
+  /// region unequal to its own rebuild and defeat the point of comparing
+  /// regions at all.
   @override
   bool operator ==(Object other) =>
       other is FluentChartHitRegion &&

@@ -217,9 +217,15 @@ const Map<FluentPlotlyChartKind, double> kPlotlyDefaultCellHeight =
 /// writes. So the remaining charts need the parameter before a transformer has
 /// anywhere to put one.
 ///
-/// The **outbound** half has nowhere to start at all: no shell chart widget
-/// exposes an `onLegendChange`, so none can report a click back. The all-up
-/// legend of a multi-plot figure does round-trip, because this widget owns it.
+/// The **outbound** half now reaches the area chart too: `FluentAreaChart`
+/// exposes an `onLegendChange`, `transformPlotlyToArea` threads it and
+/// `_buildChart` hands it `_onActiveLegendsChange`, so a click on a single-plot
+/// area figure round-trips through `onSchemaChange` as `:598-603` makes it.
+/// It reaches no other kind yet, for the same reason the inbound half does not:
+/// besides `FluentPolarChart` (`polar_chart.dart:1124`, which the polar
+/// transformer has nothing to feed a selection from) no other shell chart
+/// widget exposes an `onLegendChange` to hand a handler to. The all-up legend
+/// of a multi-plot figure round-trips regardless, because this widget owns it.
 class FluentDeclarativeChart extends StatefulWidget {
   /// Creates a declarative chart.
   const FluentDeclarativeChart({
@@ -473,6 +479,11 @@ class _FluentDeclarativeChartState extends State<FluentDeclarativeChart> {
           // non-annotation chart, single-plot figures included, so the
           // selection reaches the marks here and not only the all-up legend.
           selectedLegends: _activeLegends,
+          // The outbound half of the same spread. A single-plot figure has no
+          // all-up legend, so this is the only route a click has back to
+          // `onSchemaChange`; without it the owner's selection and the chart's
+          // drift apart and the next rebuild re-sends the stale one.
+          onLegendChange: _onActiveLegendsChange,
         );
       case FluentPlotlyChartKind.line:
         return transformPlotlyToLine(

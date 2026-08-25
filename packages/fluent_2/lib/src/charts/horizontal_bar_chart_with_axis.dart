@@ -185,13 +185,18 @@ class _FluentHorizontalBarChartWithAxisState
       out.add(
         FluentChartLegendItem(
           title: legend,
-          // ponytail: `.tsx:693-731` leaves this undefined when useSingleColor
-          // is false and the point carries no colour, so the swatch renders
-          // blank while the bar is coloured. Deriving it from the same
-          // getNextColor the bar uses is the smaller, correct diff.
-          color:
-              widget.data[i].color ??
-              FluentDataVizPalette.next(widget.useSingleColor ? 1 : i),
+          // `_getLegendData` (`.tsx:693-731`) reads
+          // `useSingleColor ? getNextColor(1, 0) : point.color`, so the flag
+          // discards the point's own colour here too — swatches have to
+          // collapse with the bars or the legend contradicts the chart.
+          //
+          // ponytail: upstream's false arm leaves this undefined when the
+          // point carries no colour, so the swatch renders blank while the bar
+          // is coloured. Deriving it from the same getNextColor the bar uses is
+          // the smaller, correct diff.
+          color: widget.useSingleColor
+              ? FluentDataVizPalette.next(1)
+              : widget.data[i].color ?? FluentDataVizPalette.next(i),
           onHoverAction: () => setState(() => _selectedLegendTitle = legend),
           onMouseOutAction: ({required bool isLegendFocused}) =>
               setState(() => _selectedLegendTitle = null),
@@ -748,12 +753,21 @@ class FluentHorizontalBarChartWithAxisDelegate
   /// directly. Upgrade path: replace the lookup with the ramp when the
   /// declarative adapter starts passing continuous colour scales.
   Color barColour(FluentHorizontalBarChartWithAxisDataPoint point, int index) {
+    // `.tsx:432` is `point.color && !useSingleColor ? point.color : startColor`
+    // and it runs *after* both arms below, so the point's own colour outranks
+    // the ramp — but only while the flag is clear. With it set the colour is
+    // deliberately discarded; a `??` here would let a fully coloured dataset
+    // swallow the flag and leave the checkbox inert.
+    final own = point.color;
+    if (own != null && !useSingleColor) {
+      return own;
+    }
     final ramp = colorsOverride;
     if (ramp != null && ramp.isNotEmpty) {
       // 1 is upstream's own index into the ramp for the single-colour case.
       return ramp[(useSingleColor ? 1 : index) % ramp.length];
     }
-    return point.color ?? FluentDataVizPalette.next(useSingleColor ? 1 : index);
+    return FluentDataVizPalette.next(useSingleColor ? 1 : index);
   }
 
   /// Ports the guard of `_renderBarLabel` (`.tsx:789-791`).

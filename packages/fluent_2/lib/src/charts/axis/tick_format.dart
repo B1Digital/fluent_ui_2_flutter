@@ -189,7 +189,13 @@ String formatDateToLocaleString(
   FluentDateTimeFormatOptions? options,
 }) {
   final bag = options ?? kDefaultDateTimeFormatOptions;
-  final subject = useUtc ? date.toUtc() : date;
+  // `formatter.ts:88` sets `timeZone: 'UTC'` only when useUtc is set and leaves
+  // it undefined otherwise, and an undefined timeZone renders the instant in
+  // the runtime's own zone. A JS `Date` carries no zone flag, but a [DateTime]
+  // does, and [DateFormat.format] prints whichever set of fields the flag
+  // selects — so a caller-supplied `DateTime.utc` would keep printing UTC
+  // wall-clock with useUtc off. `toLocal` is what makes the flag off mean local.
+  final subject = useUtc ? date.toUtc() : date.toLocal();
   final formatted = DateFormat(bag.pattern, culture).format(subject);
   if (!showTZname) {
     return formatted;

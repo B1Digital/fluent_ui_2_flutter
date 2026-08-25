@@ -1279,67 +1279,62 @@ class FluentPolarChartState extends State<FluentPolarChart> {
         // plot is what hands the roving group its focus.
         behavior: HitTestBehavior.opaque,
         onTap: _focusNode.requestFocus,
-        child: MouseRegion(
-          // `:641` — the root div hides the popover on mouse leave.
-          onExit: (_) => _hidePopover(),
-          onHover: (event) => _onHover(event.localPosition),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              // `:102-104` — the legend strip is subtracted from the height
-              // before the plot is sized, whether that height came from the
-              // prop or from the measured container.
-              final legendHeight = widget.hideLegend ? 0.0 : kPolarLegendHeight;
-              final size = Size(
-                widget.width ??
-                    (constraints.hasBoundedWidth
-                        ? constraints.maxWidth
-                        : kPolarDefaultSize),
-                (widget.height ??
-                        (constraints.hasBoundedHeight
-                            ? constraints.maxHeight
-                            : kPolarDefaultSize)) -
-                    legendHeight,
-              );
-              final l = _solve(size);
-              _layout = l;
-              // `hooks.ts:23-41` — the handle is rebuilt whenever the legend
-              // set or the selection changes, because `cloneLegendsToSVG` reads
-              // both. Attached here rather than in `build` because the legend
-              // colours only exist once the layout has been solved, and the
-              // solve needs the constraints.
-              widget.controller?.attach(
-                FluentChartImageExporter(
-                  boundaryKey: _boundaryKey,
-                  legends: widget.hideLegend
-                      ? const <FluentChartLegendItem>[]
-                      : <FluentChartLegendItem>[
-                          for (final entry in l.legendColors.entries)
-                            FluentChartLegendItem(
-                              title: entry.key,
-                              color: entry.value,
-                            ),
-                        ],
-                  measurer: _measurer,
-                  legendTextStyle: FluentChartTextStyles.of(theme).legendLabel,
-                  selectedLegends: _selectedLegends.toSet(),
-                  // `PolarChart.tsx:629` passes centerLegends unconditionally.
-                  centerLegends: true,
-                  isRtl: Directionality.of(context) == TextDirection.rtl,
-                ),
-              );
-              return RepaintBoundary(
-                key: _boundaryKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    _buildPlot(l, size, style, states, chartColors),
-                    if (!widget.hideLegend)
-                      SizedBox(height: legendHeight, child: _buildLegend(l)),
-                  ],
-                ),
-              );
-            },
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // `:102-104` — the legend strip is subtracted from the height
+            // before the plot is sized, whether that height came from the
+            // prop or from the measured container.
+            final legendHeight = widget.hideLegend ? 0.0 : kPolarLegendHeight;
+            final size = Size(
+              widget.width ??
+                  (constraints.hasBoundedWidth
+                      ? constraints.maxWidth
+                      : kPolarDefaultSize),
+              (widget.height ??
+                      (constraints.hasBoundedHeight
+                          ? constraints.maxHeight
+                          : kPolarDefaultSize)) -
+                  legendHeight,
+            );
+            final l = _solve(size);
+            _layout = l;
+            // `hooks.ts:23-41` — the handle is rebuilt whenever the legend
+            // set or the selection changes, because `cloneLegendsToSVG` reads
+            // both. Attached here rather than in `build` because the legend
+            // colours only exist once the layout has been solved, and the
+            // solve needs the constraints.
+            widget.controller?.attach(
+              FluentChartImageExporter(
+                boundaryKey: _boundaryKey,
+                legends: widget.hideLegend
+                    ? const <FluentChartLegendItem>[]
+                    : <FluentChartLegendItem>[
+                        for (final entry in l.legendColors.entries)
+                          FluentChartLegendItem(
+                            title: entry.key,
+                            color: entry.value,
+                          ),
+                      ],
+                measurer: _measurer,
+                legendTextStyle: FluentChartTextStyles.of(theme).legendLabel,
+                selectedLegends: _selectedLegends.toSet(),
+                // `PolarChart.tsx:629` passes centerLegends unconditionally.
+                centerLegends: true,
+                isRtl: Directionality.of(context) == TextDirection.rtl,
+              ),
+            );
+            return RepaintBoundary(
+              key: _boundaryKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  _buildPlot(l, size, style, states, chartColors),
+                  if (!widget.hideLegend)
+                    SizedBox(height: legendHeight, child: _buildLegend(l)),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -1395,66 +1390,80 @@ class FluentPolarChartState extends State<FluentPolarChart> {
       label: _semanticsLabel(l),
       child: SizedBox.fromSize(
         size: size,
-        child: Stack(
-          children: <Widget>[
-            // `:653` — the grid group, under everything.
-            CustomPaint(
-              size: size,
-              painter: FluentPolarGridPainter(
-                layout: l,
-                shape: widget.shape,
-                gridColor: gridColour,
-                gridWidth: style.gridLineWidth!.resolve(states)!,
-                innerOpacity: style.gridLineInnerOpacity!.resolve(states)!,
-                outerOpacity: style.gridLineOuterOpacity!.resolve(states)!,
-              ),
-            ),
-            // Only this layer repaints on a hover or a legend change.
-            RepaintBoundary(
-              child: CustomPaint(
+        child: MouseRegion(
+          // `:641` — the root div hides the popover on mouse leave.
+          //
+          // Mounted INSIDE the plot box rather than around the whole chart
+          // (donut_chart.dart:735 does the same) because `_onHover` measures
+          // from `l.centre`, which is solved in this box's coordinates. The
+          // Column below centres the plot whenever the incoming width exceeds
+          // `widget.width`, so a region wrapped around the chart would hand
+          // every hover a position offset by half that slack and no marker
+          // would ever be hit.
+          onExit: (_) => _hidePopover(),
+          onHover: (event) => _onHover(event.localPosition),
+          child: Stack(
+            children: <Widget>[
+              // `:653` — the grid group, under everything.
+              CustomPaint(
                 size: size,
-                painter: FluentPolarSeriesPainter(
+                painter: FluentPolarGridPainter(
                   layout: l,
-                  activeLegends: _activeLegends,
-                  activePointId: _activePointId,
-                  style: style,
-                  states: states,
-                  colors: chartColors,
+                  shape: widget.shape,
+                  gridColor: gridColour,
+                  gridWidth: style.gridLineWidth!.resolve(states)!,
+                  innerOpacity: style.gridLineInnerOpacity!.resolve(states)!,
+                  outerOpacity: style.gridLineOuterOpacity!.resolve(states)!,
                 ),
               ),
-            ),
-            // `:671` — the ticks last, over the data.
-            CustomPaint(
-              size: size,
-              painter: FluentPolarTickPainter(
-                layout: l,
-                measurer: _measurer,
-                labelStyle: style.tickLabelStyle!.resolve(states)!,
-                gridColor: gridColour,
-                gridWidth: style.gridLineWidth!.resolve(states)!,
-                outerOpacity: style.gridLineOuterOpacity!.resolve(states)!,
-                tickSize: style.tickSize!.resolve(states)!,
-                labelOffset: style.labelOffset!.resolve(states)!,
-              ),
-            ),
-            // `:676` gates the whole popover on `!hideTooltip`.
-            if (!widget.hideTooltip && _popoverMarker != null)
-              Positioned.fill(
-                // The popover follows the cursor, so letting it take the
-                // pointer would pull the pointer off the marker that opened it.
-                child: IgnorePointer(
-                  child: FluentChartPopover(
-                    data: FluentChartPopoverData(
-                      xValue: _popoverMarker!.popoverXValue,
-                      legend: _popoverMarker!.legend,
-                      color: _popoverMarker!.color,
-                      yValue: _popoverMarker!.popoverYValue,
-                    ),
-                    anchor: l.centre + _popoverMarker!.position,
+              // Only this layer repaints on a hover or a legend change.
+              RepaintBoundary(
+                child: CustomPaint(
+                  size: size,
+                  painter: FluentPolarSeriesPainter(
+                    layout: l,
+                    activeLegends: _activeLegends,
+                    activePointId: _activePointId,
+                    style: style,
+                    states: states,
+                    colors: chartColors,
                   ),
                 ),
               ),
-          ],
+              // `:671` — the ticks last, over the data.
+              CustomPaint(
+                size: size,
+                painter: FluentPolarTickPainter(
+                  layout: l,
+                  measurer: _measurer,
+                  labelStyle: style.tickLabelStyle!.resolve(states)!,
+                  gridColor: gridColour,
+                  gridWidth: style.gridLineWidth!.resolve(states)!,
+                  outerOpacity: style.gridLineOuterOpacity!.resolve(states)!,
+                  tickSize: style.tickSize!.resolve(states)!,
+                  labelOffset: style.labelOffset!.resolve(states)!,
+                ),
+              ),
+              // `:676` gates the whole popover on `!hideTooltip`.
+              if (!widget.hideTooltip && _popoverMarker != null)
+                Positioned.fill(
+                  // The popover follows the cursor, so letting it take the
+                  // pointer would pull the pointer off the marker that opened
+                  // it.
+                  child: IgnorePointer(
+                    child: FluentChartPopover(
+                      data: FluentChartPopoverData(
+                        xValue: _popoverMarker!.popoverXValue,
+                        legend: _popoverMarker!.legend,
+                        color: _popoverMarker!.color,
+                        yValue: _popoverMarker!.popoverYValue,
+                      ),
+                      anchor: l.centre + _popoverMarker!.position,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

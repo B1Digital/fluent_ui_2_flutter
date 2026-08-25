@@ -597,6 +597,14 @@ class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
 
   /// `_getAriaLabel` (`HorizontalBarChart.tsx:335-343`).
   String _ariaLabel(FluentChartDataPoint point) {
+    // :342 heads the chain with `point.callOutAccessibilityData?.ariaLabel ||`,
+    // so an author's label replaces the composed sentence outright and an empty
+    // one falls through to it — the same `||` reading as `ariaLabelFor` in
+    // `horizontal_bar_chart_with_axis.dart`.
+    final override = point.callOutSemantics?.label;
+    if (override != null && override.isNotEmpty) {
+      return override;
+    }
     final legend = point.xAxisCalloutData ?? point.legend;
     final bar = point.horizontalBarChartData;
     // :340 is a template literal over raw numbers, not formatToLocaleString:
@@ -610,6 +618,26 @@ class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
                   '${bar.total == null ? '' : d3.jsNumberToString(bar.total!)}');
     return '${legend == null || legend.isEmpty ? '' : '$legend, '}$value.';
   }
+
+  /// `getAccessibleDataObject` (`utilities.ts:1780-1799`), spread onto the row
+  /// title at `HorizontalBarChart.tsx:436` and onto the row value at `:150`.
+  ///
+  /// It hangs `role="text"` beside the `aria-label`, so the element announces
+  /// the author's string INSTEAD of the text inside it — hence
+  /// [Semantics.excludeSemantics]. The container matters just as much: without
+  /// one the annotation is absorbed into the chart's own node and concatenated
+  /// with the visible string rather than replacing it. `aria-describedby`
+  /// (:1797) is dropped for the same reason `FluentChartMarkSemantics` drops
+  /// `aria-labelledby` — these two slots are named, not described.
+  Widget _labelled(String? label, Widget child) =>
+      label == null || label.isEmpty
+      ? child
+      : Semantics(
+          container: true,
+          label: label,
+          excludeSemantics: true,
+          child: child,
+        );
 
   /// `_getDefaultTextData` (`HorizontalBarChart.tsx:142-190`).
   Widget? _valueText(
@@ -894,16 +922,24 @@ class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
                               )!
                             : resolved.titleBottomSpacing!.resolve(states)!,
                       ),
-                      child: Text(
-                        row.chartTitle!,
-                        style: resolved.titleTextStyle!.resolve(states),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
+                      child: _labelled(
+                        row.chartTitleSemantics?.label,
+                        Text(
+                          row.chartTitle!,
+                          style: resolved.titleTextStyle!.resolve(states),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
                       ),
                     ),
                   ),
-                _valueText(row, isSingleBar, resolved) ??
-                    const SizedBox.shrink(),
+                // :150 hangs the accessible data on the value element itself,
+                // so a row that renders no value — absolute scale, or the
+                // hidden mode — carries no label either.
+                if (_valueText(row, isSingleBar, resolved) case final value?)
+                  _labelled(row.chartDataSemantics?.label, value)
+                else
+                  const SizedBox.shrink(),
               ],
             ),
             if (benchmark != null && benchmark > 0 && total != null)
