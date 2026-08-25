@@ -241,6 +241,6 @@ flutter run -d chrome
 
 ## License
 
-MIT © Ali Sinan Cobani. Fluent 2 is a design system by Microsoft; this is an
+MIT © ICITECH Teknoloji A.Ş. Fluent 2 is a design system by Microsoft; this is an
 independent Flutter implementation and is not affiliated with or endorsed by
 Microsoft.

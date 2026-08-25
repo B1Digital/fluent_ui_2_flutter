@@ -1,0 +1,5 @@
+# Figma token dumps and the Python generators that consume them; build-time
+# only, and already gitignored.
+tool/
+coverage/
+test/

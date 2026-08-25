@@ -131,6 +131,27 @@ melos:
         echo "OK: chart invariants hold (1 TextPainter factory, 1 capitalizeLegendLabel, 1 measurer)."
       description: Fail if a charts single-owner invariant is broken.
 
+    licenses:
+      # Every published package carries its own LICENSE and a copy of the root
+      # THIRD_PARTY_NOTICES.md, because a pub.dev tarball is all a consumer
+      # gets. Copies rot silently, so CI diffs them against the root.
+      run: |
+        set -e
+        for d in packages/*/; do
+          for f in LICENSE THIRD_PARTY_NOTICES.md; do
+            if [ ! -f "$d$f" ]; then
+              echo "ERROR: $d is missing $f — pub.dev consumers get only the tarball."
+              exit 1
+            fi
+          done
+          if ! diff -q THIRD_PARTY_NOTICES.md "${d}THIRD_PARTY_NOTICES.md" >/dev/null; then
+            echo "ERROR: ${d}THIRD_PARTY_NOTICES.md has drifted from the root copy."
+            exit 1
+          fi
+        done
+        echo "OK: every package ships a LICENSE and the current notices."
+      description: Fail if a package is missing or has stale license paperwork.
+
     ci:
-      run: melos run analyze && melos run format && melos run no-material && melos run chart-invariants && melos run test
+      run: melos run analyze && melos run format && melos run no-material && melos run chart-invariants && melos run licenses && melos run test
       description: Everything CI runs.

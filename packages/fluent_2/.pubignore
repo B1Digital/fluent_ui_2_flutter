@@ -1,0 +1,14 @@
+# Not shipped to consumers: 13 MB of golden PNGs, storybook fixtures and
+# coverage data that nothing at runtime reads.
+test/
+coverage/
+*.log
+
+# Keep the example on pub.dev, but only its sources.
+example/test/
+example/coverage/
+example/agent/
+example/tool/
+example/skills-lock.json
+example/*.iml
+example/*.log

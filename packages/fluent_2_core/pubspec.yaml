@@ -1,6 +1,8 @@
 name: fluent_2_core
 description: "Shared Fluent 2 design tokens and theming. Consumed by every fluent_2_* UI package."
 version: 0.0.1
+repository: https://github.com/B1Digital/fluent_ui_2_flutter
+issue_tracker: https://github.com/B1Digital/fluent_ui_2_flutter/issues
 resolution: workspace
 
 environment:
