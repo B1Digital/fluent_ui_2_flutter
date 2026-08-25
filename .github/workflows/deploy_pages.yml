@@ -40,13 +40,13 @@ jobs:
 
       - name: Build Web Showroom
         run: |
-          cd packages/fluent_2_web/example
+          cd packages/fluent_2/example
           flutter build web --release --base-href "/${{ github.event.repository.name }}/"
 
       - name: Upload GitHub Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: packages/fluent_2_web/example/build/web
+          path: packages/fluent_2/example/build/web
 
       - name: Deploy to GitHub Pages
         id: deployment

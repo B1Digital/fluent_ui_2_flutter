@@ -1,4 +1,4 @@
-name: fluent_2
+name: fluent_2_workspace
 description: "Fluent 2 design system for Flutter — a Dart pub workspace."
 publish_to: none
 
@@ -15,9 +15,8 @@ workspace:
   - packages/fluent_2_fonts_web
   - packages/fluent_2_fonts_windows
   - packages/fluent_2_core
-  - packages/fluent_2_web
-  - packages/fluent_2_mobile
-  - packages/fluent_2_web/example
+  - packages/fluent_2
+  - packages/fluent_2/example
 
 dev_dependencies:
   flutter_lints: ^6.0.0
@@ -46,8 +45,22 @@ melos:
         dirExists: test
       description: Run tests in every package that has them.
 
+    coverage:
+      # Same suites as `test`, with `--coverage`. Writes packages/*/coverage/
+      # lcov.info; the two library packages' files are checked in so the README
+      # table can be rebuilt without a Flutter toolchain. Summarize with:
+      #   awk '/^LF:/{f+=substr($0,4)} /^LH:/{h+=substr($0,4)} \
+      #        END{printf "%.1f%%\n", h*100/f}' packages/fluent_2/coverage/lcov.info
+      run: flutter test --coverage
+      exec:
+        concurrency: 4
+        failFast: false
+      packageFilters:
+        dirExists: test
+      description: Run every test suite with line coverage.
+
     gen-l10n:
-      # Regenerates packages/fluent_2_web/lib/src/l10n/ from l10n/*.arb. The
+      # Regenerates packages/fluent_2/lib/src/l10n/ from l10n/*.arb. The
       # output is checked in, so this is only run when a message changes.
       # `expand_l10n_locales.dart` fans the 36 translated files out over the 135
       # supported locales; `strip_l10n_material.dart` removes the
@@ -58,12 +71,12 @@ melos:
       run: |
         set -e
         dart tool/expand_l10n_locales.dart
-        (cd packages/fluent_2_web && flutter gen-l10n)
-        out=packages/fluent_2_web/.dart_tool/fluent_l10n
+        (cd packages/fluent_2 && flutter gen-l10n)
+        out=packages/fluent_2/.dart_tool/fluent_l10n
         dart tool/strip_l10n_material.dart $out/fluent_localizations.dart
-        rm -f packages/fluent_2_web/lib/src/l10n/fluent_localizations*.dart
-        cp $out/*.dart packages/fluent_2_web/lib/src/l10n/
-        dart format packages/fluent_2_web/lib/src/l10n
+        rm -f packages/fluent_2/lib/src/l10n/fluent_localizations*.dart
+        cp $out/*.dart packages/fluent_2/lib/src/l10n/
+        dart format packages/fluent_2/lib/src/l10n
       description: Regenerate the Fluent localizations from the ARB files.
 
     no-material:
@@ -92,27 +105,27 @@ melos:
       # to come, they are enforced here instead. Anchored the same way
       # `no-material` is, so a doc comment mentioning a name cannot trip them.
       run: |
-        painters=$(grep -rn 'TextPainter(' packages/fluent_2_web/lib/src/charts | wc -l | tr -d ' ')
+        painters=$(grep -rn 'TextPainter(' packages/fluent_2/lib/src/charts | wc -l | tr -d ' ')
         if [ "$painters" != "1" ]; then
           echo "ERROR: expected exactly ONE TextPainter( under lib/src/charts — the"
           echo "FluentChartTextMeasurer.layoutPainter factory. A painter that builds its own"
           echo "drifts from the configuration its metrics were measured with, and paints at a"
           echo "width the margin solver never reserved. Found $painters:"
-          grep -rn 'TextPainter(' packages/fluent_2_web/lib/src/charts
+          grep -rn 'TextPainter(' packages/fluent_2/lib/src/charts
           exit 1
         fi
-        casers=$(grep -rnE '^\s*String capitalizeLegendLabel' packages/fluent_2_web/lib | wc -l | tr -d ' ')
+        casers=$(grep -rnE '^\s*String capitalizeLegendLabel' packages/fluent_2/lib | wc -l | tr -d ' ')
         if [ "$casers" != "1" ]; then
           echo "ERROR: expected exactly ONE capitalizeLegendLabel declaration. Flutter has no"
           echo "text-transform, so labels are title-cased in Dart before painting AND before"
           echo "measuring; a second copy makes those two disagree. Found $casers:"
-          grep -rnE '^\s*String capitalizeLegendLabel' packages/fluent_2_web/lib
+          grep -rnE '^\s*String capitalizeLegendLabel' packages/fluent_2/lib
           exit 1
         fi
-        measurers=$(grep -rnE '^\s*class FluentChartTextMeasurer' packages/fluent_2_web/lib | wc -l | tr -d ' ')
+        measurers=$(grep -rnE '^\s*class FluentChartTextMeasurer' packages/fluent_2/lib | wc -l | tr -d ' ')
         if [ "$measurers" != "1" ]; then
           echo "ERROR: expected exactly ONE FluentChartTextMeasurer. Found $measurers:"
-          grep -rnE '^\s*class FluentChartTextMeasurer' packages/fluent_2_web/lib
+          grep -rnE '^\s*class FluentChartTextMeasurer' packages/fluent_2/lib
           exit 1
         fi
         echo "OK: chart invariants hold (1 TextPainter factory, 1 capitalizeLegendLabel, 1 measurer)."
