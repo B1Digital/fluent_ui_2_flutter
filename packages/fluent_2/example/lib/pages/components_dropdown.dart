@@ -1090,10 +1090,16 @@ class _ActiveOptionChangeState extends State<_ActiveOptionChange> {
 // #docregion components-dropdown--controlling-open-and-close
 // `FluentDropdown` owns its popup: it takes neither `open` nor `onOpenChange`,
 // and focus leaving the trigger closes the list, which is what makes "focus
-// returns to the trigger on close" structural rather than remembered. The
-// checkbox is therefore live but inert — it holds the state upstream would
-// drive the popup with, while the dropdown still opens on click and on
-// Down / Up / Home / End / Enter / Space.
+// returns to the trigger on close" structural rather than remembered. So the
+// checkbox drives the popup the way the keyboard does — through the trigger's
+// own focus node and the intents the widget already binds Enter and Escape to.
+// Focusing before activating is what a pointer press on the trigger does too:
+// the arrow keys only reach the popup from the trigger's node.
+//
+// One gap remains, the same one `components_menu_menu.dart` documents: a list
+// dismissed by clicking outside closes without telling the checkbox, because
+// that is what an `onOpenChange` would carry and there is no hook for it. A
+// commit is reported, so `onChanged` puts the checkbox back itself.
 Widget _controllingOpenAndClose(BuildContext context) =>
     const _ControllingOpenAndClose();
 
@@ -1119,8 +1125,30 @@ class _ControllingOpenAndCloseState extends State<_ControllingOpenAndClose> {
     'Snake',
   ];
 
+  final FocusNode _trigger = FocusNode(debugLabel: 'Controlled dropdown');
   bool _open = false;
   String? _value;
+
+  @override
+  void dispose() {
+    _trigger.dispose();
+    super.dispose();
+  }
+
+  void _setOpen(bool next) {
+    if (next == _open) return;
+    setState(() => _open = next);
+    final BuildContext? trigger = _trigger.context;
+    if (trigger == null) return;
+    if (next) {
+      _trigger.requestFocus();
+      Actions.maybeInvoke(trigger, const FluentDropdownActivateIntent());
+    } else {
+      // Escape's intent, not activation's: activating an open list commits the
+      // active row, and closing must not pick anything.
+      Actions.maybeInvoke(trigger, const DismissIntent());
+    }
+  }
 
   @override
   Widget build(BuildContext context) => ConstrainedBox(
@@ -1133,14 +1161,18 @@ class _ControllingOpenAndCloseState extends State<_ControllingOpenAndClose> {
         FluentCheckbox(
           checked: _open,
           label: const Text('open'),
-          onChanged: (bool? checked) =>
-              setState(() => _open = checked ?? false),
+          onChanged: (bool? checked) => _setOpen(checked ?? false),
         ),
         const FluentLabel(child: Text('Best pet')),
         FluentDropdown<String>(
           value: _value,
+          focusNode: _trigger,
           placeholder: const Text('Select an animal'),
-          onChanged: (String value) => setState(() => _value = value),
+          onChanged: (String value) => setState(() {
+            _value = value;
+            // Committing closes the popup, so the checkbox has to follow.
+            _open = false;
+          }),
           options: <FluentDropdownOption<String>>[
             for (final String option in _options)
               FluentDropdownOption<String>(

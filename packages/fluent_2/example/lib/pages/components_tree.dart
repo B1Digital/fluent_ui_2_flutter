@@ -397,6 +397,22 @@ const DocsPage treePage = DocsPage(
           'addition to whatever the activation did to the open set.',
     ),
     PropRow(
+      name: 'collapseMotion',
+      type: 'FluentMotionSpec?',
+      defaultValue: 'null',
+      description:
+          'The transition every subtree opens and closes on. Null is no '
+          'transition at all, which is upstream\'s default.',
+    ),
+    PropRow(
+      name: 'animateOpacity',
+      type: 'bool',
+      defaultValue: 'true',
+      description:
+          'Whether a subtree fades while it grows. Dead without '
+          'collapseMotion.',
+    ),
+    PropRow(
       name: 'style',
       type: 'FluentTreeItemStyle?',
       defaultValue: 'null',
@@ -1963,11 +1979,11 @@ class _DragAndDropState extends State<_DragAndDrop> {
 // #enddocregion components-tree--drag-and-drop
 
 // #docregion components-tree--motion-custom
-// Upstream drives each subtree's `collapseMotion` slot from these controls.
-// `FluentTree` exposes no motion hook, so the controls are live and the collapse
-// animation is not. `color="colorful"` also has no counterpart: `FluentAvatar`
-// has the palette families but picks none from a name, so the avatarless
-// personas keep the neutral fill.
+// Upstream drives each subtree's `collapseMotion` slot from these controls;
+// here they are `FluentTree.collapseMotion` and `animateOpacity`, which cover
+// every subtree in the one tree widget. `color="colorful"` has no counterpart:
+// `FluentAvatar` has the palette families but picks none from a name, so the
+// avatarless personas keep the neutral fill.
 Widget _motionCustom(BuildContext context) => const _MotionCustom();
 
 class _MotionPersona {
@@ -2044,7 +2060,10 @@ class _MotionCustom extends StatefulWidget {
 }
 
 class _MotionCustomState extends State<_MotionCustom> {
-  double _duration = 1000;
+  // Starts on `Collapse`'s own duration — `FluentDuration.normal` — rather than
+  // the slider's midpoint, so the first branch a reader opens moves at the rate
+  // upstream's slot defaults to and every later drag is measured against it.
+  double _duration = FluentDuration.normal.inMilliseconds.toDouble();
   bool _animateOpacity = true;
 
   @override
@@ -2071,6 +2090,11 @@ class _MotionCustomState extends State<_MotionCustom> {
       const SizedBox(height: 16),
       FluentTree(
         semanticLabel: 'Motion Custom',
+        collapseMotion: FluentMotionSpec(
+          duration: Duration(milliseconds: _duration.round()),
+          curve: FluentCurve.easyEaseMax,
+        ),
+        animateOpacity: _animateOpacity,
         items: <FluentTreeItem>[
           FluentTreeItem(
             value: 'team-a',

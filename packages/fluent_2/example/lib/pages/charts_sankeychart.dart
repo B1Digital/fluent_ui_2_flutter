@@ -273,7 +273,13 @@ class _SankeyChartBasicState extends State<_SankeyChartBasic> {
               child: FluentSlider(
                 value: _height,
                 min: 312,
-                max: 400,
+                // Upstream opens this demo at 412 but stops its height range at
+                // 400, so the thumb starts pinned past the end and the first
+                // touch of the rail drops the diagram 12px with no way back.
+                // The rail is carried up to the opening height rather than the
+                // opening height down onto the rail, which would change what
+                // the page renders before anything is touched.
+                max: 412,
                 semanticLabel: 'Change Height',
                 onChanged: (double value) => setState(() => _height = value),
               ),

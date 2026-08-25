@@ -702,13 +702,21 @@ class _ToastPositionsState extends State<_ToastPositions> {
     super.dispose();
   }
 
-  void _notify() => _toaster.show(
-    (BuildContext context, Object id) => FluentToast(
-      intent: FluentToastIntent.success,
-      title: Text('This toast is $_position'),
-    ),
-    position: _toastPositionsByName[_position]!,
-  );
+  void _notify() {
+    // Copied before the builder closes over it, exactly as the custom timeout
+    // section does with its own knob. `show` snapshots the position at dispatch
+    // while the builder is re-run on every queue change, so interpolating the
+    // live field would let a standing toast relabel itself to a position it is
+    // demonstrably not at.
+    final String name = _position;
+    _toaster.show(
+      (BuildContext context, Object id) => FluentToast(
+        intent: FluentToastIntent.success,
+        title: Text('This toast is $name'),
+      ),
+      position: _toastPositionsByName[name]!,
+    );
+  }
 
   @override
   Widget build(BuildContext context) => FluentToaster(

@@ -156,7 +156,7 @@ class MarkdownBody extends StatelessWidget {
                       ),
                       Expanded(
                         child: Text.rich(
-                          _inline(item.children, DocsMetrics.body),
+                          _inline(_undent(item.children), DocsMetrics.body),
                           style: DocsMetrics.body,
                         ),
                       ),
@@ -305,6 +305,27 @@ class MarkdownBody extends StatelessWidget {
       .replaceAll('&amp;', '&');
 
   /// Flattens inline nodes into one span tree.
+  /// Drops the indent `package:markdown` leaves on a list item's first line.
+  ///
+  /// CommonMark says a marker followed by one to four spaces starts its content
+  /// after them, so `-   **Customizable**: …` is the label. The parser only eats
+  /// ONE, and hands back the other two as a leading `md.Text('  ')` — so every
+  /// bullet on the Concepts pages rendered two spaces past its own bullet, out
+  /// of line with itself and with the prose around it. Fixed here rather than by
+  /// respacing those two documents: the markdown is captured upstream content,
+  /// and the next capture would bring the indent straight back.
+  List<md.Node>? _undent(List<md.Node>? nodes) {
+    if (nodes == null || nodes.isEmpty) return nodes;
+    final md.Node first = nodes.first;
+    if (first is! md.Text) return nodes;
+    final String trimmed = first.text.trimLeft();
+    if (trimmed == first.text) return nodes;
+    return <md.Node>[
+      if (trimmed.isNotEmpty) md.Text(trimmed),
+      ...nodes.skip(1),
+    ];
+  }
+
   TextSpan _inline(List<md.Node>? nodes, TextStyle base) {
     final List<InlineSpan> spans = <InlineSpan>[];
 

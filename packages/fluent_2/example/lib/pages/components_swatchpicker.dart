@@ -1050,7 +1050,11 @@ const List<_Choice> _colorSet2 = <_Choice>[
     Color(0xFF712F9E),
     Color(0xFF00AFED),
   ]),
-  _Choice('blue-purple', 'gradient pink-purple', <Color>[
+  // `pink-purple`, not the `blue-purple` above it: `value` is the selection
+  // identity — `_selected.value == choice.value` is what draws the ring — so
+  // two choices sharing one value ring together and a reader cannot tell which
+  // of them they are about to get.
+  _Choice('pink-purple', 'gradient pink-purple', <Color>[
     Color(0xFFfA1CBC),
     Color(0xFFA01CFa),
   ]),

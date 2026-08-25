@@ -73,6 +73,20 @@ Widget _default(BuildContext context) => SizedBox(
         icon: const Icon(FluentIcons.more_horizontal_20_regular),
         semanticLabel: 'More options',
         appearance: FluentButtonAppearance.transparent,
+        // Icon-only geometry, supplied here because FluentButton keeps its
+        // width content-driven and has no icon-only branch (button.dart
+        // reverts `useRootIconOnlyStyles` along with the 96px label floor it
+        // belongs to). Figma's Button/icon-only Medium is a 32px square — a
+        // 20px glyph on 6px of inset — where the labelled 12px inset makes
+        // this button 44 wide, and those 12 pixels are exactly what a Reply,
+        // a Share and an 8px gap leave the row short of the 300 the story
+        // declares. Same override the split button's chevron half makes for
+        // the same reason: that half is its own Figma component too.
+        style: const FluentButtonStyle(
+          padding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(
+            EdgeInsets.all(FluentSpacing.sNudge),
+          ),
+        ),
         onPressed: () {},
       ),
     ],

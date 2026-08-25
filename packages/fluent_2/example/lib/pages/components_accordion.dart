@@ -524,10 +524,10 @@ Widget _withIcon(BuildContext context) => const FluentAccordion(
 // #enddocregion components-accordion--with-icon
 
 // #docregion components-accordion--motion-custom
-// Upstream drives `AccordionPanel`'s `collapseMotion` slot from these controls.
-// `FluentAccordionItem` exposes no motion hook, so the controls are live and the
-// panel animation is not — recorded as `reduced` in storybook_adaptations.json
-// rather than dressed up as working.
+// Upstream drives `AccordionPanel`'s `collapseMotion` slot from these controls;
+// here they are `FluentAccordionItem.collapseMotion` and `animateOpacity`. The
+// curve stays `FluentCurve.easyEaseMax` — upstream's `Collapse` default, and
+// the one knob this story does not offer.
 Widget _motionCustom(BuildContext context) => const _MotionCustom();
 
 class _MotionCustom extends StatefulWidget {
@@ -538,7 +538,11 @@ class _MotionCustom extends StatefulWidget {
 }
 
 class _MotionCustomState extends State<_MotionCustom> {
-  double _duration = 1000;
+  // Starts on the duration `FluentAccordionItem` uses when nothing overrides it
+  // — upstream's `Collapse` default, `FluentDuration.normal` — so the first
+  // panel a reader opens is the stock accordion and every later drag of the
+  // slider is measured against it. The slider's own midpoint says nothing.
+  double _duration = FluentDuration.normal.inMilliseconds.toDouble();
   bool _animateOpacity = true;
 
   @override
@@ -563,25 +567,25 @@ class _MotionCustomState extends State<_MotionCustom> {
         onChanged: (bool value) => setState(() => _animateOpacity = value),
       ),
       const SizedBox(height: 16),
-      const FluentAccordion(
+      FluentAccordion(
         multiple: true,
         collapsible: true,
         children: <Widget>[
-          FluentAccordionItem(
-            value: '1',
-            header: Text('Team A'),
-            child: _PersonaList(),
-          ),
-          FluentAccordionItem(
-            value: '2',
-            header: Text('Team B'),
-            child: _PersonaList(),
-          ),
-          FluentAccordionItem(
-            value: '3',
-            header: Text('Team C'),
-            child: _PersonaList(),
-          ),
+          for (final (String value, String team) in const <(String, String)>[
+            ('1', 'Team A'),
+            ('2', 'Team B'),
+            ('3', 'Team C'),
+          ])
+            FluentAccordionItem(
+              value: value,
+              header: Text(team),
+              collapseMotion: FluentMotionSpec(
+                duration: Duration(milliseconds: _duration.round()),
+                curve: FluentCurve.easyEaseMax,
+              ),
+              animateOpacity: _animateOpacity,
+              child: const _PersonaList(),
+            ),
         ],
       ),
     ],

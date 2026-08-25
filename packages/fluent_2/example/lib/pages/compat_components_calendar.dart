@@ -820,6 +820,10 @@ class _CalendarMultidayDayViewState extends State<_CalendarMultidayDayView> {
   List<DateTime>? _selectedDateRange;
   int _daysToSelectInDayView = 4;
 
+  /// Which of the two calendars made the standing pick, so that turning the
+  /// knob re-counts the run the same way round rather than flipping it.
+  bool _countBackwards = false;
+
   static String _dateString(DateTime date) =>
       fluentFormatCalendarMonthDayYear(date, FluentCalendarStrings.english);
 
@@ -830,11 +834,22 @@ class _CalendarMultidayDayViewState extends State<_CalendarMultidayDayView> {
 
   void _onSelectDate(DateTime date, int days) => setState(() {
     _selectedDate = date;
+    _countBackwards = days < 0;
     _selectedDateRange = _range(date, days);
   });
 
-  void _onOptionSelect(String value) =>
-      setState(() => _daysToSelectInDayView = int.parse(value));
+  void _onOptionSelect(String value) => setState(() {
+    _daysToSelectInDayView = int.parse(value);
+    // The knob's whole job is the length of the run, so the readout has to
+    // follow it straight away; leaving it on the old length until the user
+    // happens to pick another day makes the dropdown look inert.
+    final DateTime? selectedDate = _selectedDate;
+    if (selectedDate == null) return;
+    _selectedDateRange = _range(
+      selectedDate,
+      _countBackwards ? -_daysToSelectInDayView : _daysToSelectInDayView,
+    );
+  });
 
   @override
   Widget build(BuildContext context) {

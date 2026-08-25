@@ -745,36 +745,47 @@ class _KeepRenderedInTheDom extends StatefulWidget {
 
 class _KeepRenderedInTheDomState extends State<_KeepRenderedInTheDom> {
   // Upstream's `unmountOnClose={false}` has no counterpart: FluentDialog always
-  // removes its OverlayEntry on close, so the scroll position is not carried
-  // between opens. A ScrollController owned out here is the Flutter way to keep
-  // it, and it does the same job the retained DOM node did.
-  final ScrollController _scroll = ScrollController();
+  // removes its OverlayEntry on close, so the body's viewport — and with it the
+  // ScrollPosition holding the offset — is built fresh on every open. Flutter's
+  // own answer to that is PageStorage: a keyed Scrollable writes its offset
+  // into the bucket when a scroll ends and reads it back when the next position
+  // is created, which is the job the retained DOM node did upstream. A
+  // ScrollController cannot do it — `initialScrollOffset` is fixed at
+  // construction, so a controller held out here hands every fresh viewport the
+  // same zero.
+  //
+  // The height cap is what makes any of it real. `buildFluentDialog` already
+  // wraps `content` in a scroll view of its own, so a body left to grow is
+  // handed unbounded height: it never scrolls, never saves an offset, and the
+  // dialog's own viewport — which has no key and no controller — does the
+  // scrolling instead.
+  final PageStorageBucket _bucket = PageStorageBucket();
   bool _open = false;
-
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) => FluentDialog(
     open: _open,
     onOpenChange: (bool open) => setState(() => _open = open),
     title: const Text('Dialog title'),
-    content: SingleChildScrollView(
-      controller: _scroll,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        spacing: 12,
-        children: <Widget>[
-          for (final String paragraph in <String>[
-            ..._keepRenderedParagraphs,
-            ..._keepRenderedParagraphs.take(3),
-          ])
-            Text(paragraph),
-        ],
+    content: PageStorage(
+      bucket: _bucket,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 400),
+        child: SingleChildScrollView(
+          key: const PageStorageKey<String>('keep-rendered-body'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            spacing: 12,
+            children: <Widget>[
+              for (final String paragraph in <String>[
+                ..._keepRenderedParagraphs,
+                ..._keepRenderedParagraphs.take(3),
+              ])
+                Text(paragraph),
+            ],
+          ),
+        ),
       ),
     ),
     actions: <Widget>[

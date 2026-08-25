@@ -214,6 +214,12 @@ Widget _sizes(BuildContext context) {
 // #enddocregion components-badge-counter-badge--sizes
 
 // #docregion components-badge-counter-badge--color
+// The description names seven colours; six render. Fluent ships no
+// `Status/Severe/*` ramp, so `FluentBadgeColor` has no `severe` member and
+// there is no severe badge to draw — the same gap the Badge page's own Color
+// section records. Success and warning are ordinary members, so leaving them
+// out would show four swatches under a heading promising seven and read as if
+// a counter badge could not take them.
 Widget _color(BuildContext context) {
   final FluentBadgeStyle circular = FluentBadgeStyle.from(
     borderRadius: FluentRadius.allCircular,
@@ -244,6 +250,18 @@ Widget _color(BuildContext context) {
       FluentBadge(
         appearance: FluentBadgeAppearance.filled,
         color: FluentBadgeColor.informative,
+        style: circular,
+        child: const Text('5'),
+      ),
+      FluentBadge(
+        appearance: FluentBadgeAppearance.filled,
+        color: FluentBadgeColor.success,
+        style: circular,
+        child: const Text('5'),
+      ),
+      FluentBadge(
+        appearance: FluentBadgeAppearance.filled,
+        color: FluentBadgeColor.warning,
         style: circular,
         child: const Text('5'),
       ),
