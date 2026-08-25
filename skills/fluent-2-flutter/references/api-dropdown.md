@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 single-select dropdown.
 
-Source: `packages/fluent_2_web/lib/src/inputs/dropdown.dart`
+Source: `packages/fluent_2/lib/src/inputs/dropdown.dart`
 
 #### Constructor: `FluentDropdown`
 
@@ -80,7 +80,7 @@ const FluentDropdown({
 
 Opens the popup, or commits the active option when it is already open.
 
-Source: `packages/fluent_2_web/lib/src/inputs/dropdown.dart`
+Source: `packages/fluent_2/lib/src/inputs/dropdown.dart`
 
 #### Constructor: `FluentDropdownActivateIntent`
 
@@ -92,7 +92,7 @@ const FluentDropdownActivateIntent();
 
 How a dropdown trigger is filled and outlined.
 
-Source: `packages/fluent_2_web/lib/src/inputs/dropdown.dart`
+Source: `packages/fluent_2/lib/src/inputs/dropdown.dart`
 
 ```dart
 enum FluentDropdownAppearance {
@@ -105,7 +105,7 @@ enum FluentDropdownAppearance {
 
 ### `FluentDropdownBaseState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/dropdown.dart`
+Source: `packages/fluent_2/lib/src/inputs/dropdown.dart`
 
 #### Constructor: `FluentDropdownBaseState`
 
@@ -137,7 +137,7 @@ const FluentDropdownBaseState({
 
 Jumps the active option to the first or last selectable row.
 
-Source: `packages/fluent_2_web/lib/src/inputs/dropdown.dart`
+Source: `packages/fluent_2/lib/src/inputs/dropdown.dart`
 
 #### Constructor: `FluentDropdownEdgeIntent`
 
@@ -153,7 +153,7 @@ const FluentDropdownEdgeIntent({required this.last});
 
 Moves the active option by [delta] rows, opening the popup if it is closed.
 
-Source: `packages/fluent_2_web/lib/src/inputs/dropdown.dart`
+Source: `packages/fluent_2/lib/src/inputs/dropdown.dart`
 
 #### Constructor: `FluentDropdownMoveIntent`
 
@@ -167,7 +167,7 @@ const FluentDropdownMoveIntent(this.delta);
 
 ### `FluentDropdownOption<T>`
 
-Source: `packages/fluent_2_web/lib/src/inputs/dropdown_option.dart`
+Source: `packages/fluent_2/lib/src/inputs/dropdown_option.dart`
 
 #### Constructor: `FluentDropdownOption`
 
@@ -207,7 +207,7 @@ const FluentDropdownOption.header({required this.label, this.text});
 
 ### `FluentDropdownOptionBaseState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/dropdown_option.dart`
+Source: `packages/fluent_2/lib/src/inputs/dropdown_option.dart`
 
 #### Constructor: `FluentDropdownOptionBaseState`
 
@@ -236,7 +236,7 @@ const FluentDropdownOptionBaseState({
 
 ### `FluentDropdownOptionState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/dropdown_option.dart`
+Source: `packages/fluent_2/lib/src/inputs/dropdown_option.dart`
 
 #### Constructor: `FluentDropdownOptionState`
 
@@ -262,7 +262,7 @@ const FluentDropdownOptionState({
 
 ### `FluentDropdownOptionStyle`
 
-Source: `packages/fluent_2_web/lib/src/inputs/dropdown_option_style.dart`
+Source: `packages/fluent_2/lib/src/inputs/dropdown_option_style.dart`
 
 #### Constructor: `FluentDropdownOptionStyle`
 
@@ -302,7 +302,7 @@ const FluentDropdownOptionStyle({
 
 Trigger height and type ramp. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/dropdown.dart`
+Source: `packages/fluent_2/lib/src/inputs/dropdown.dart`
 
 ```dart
 enum FluentDropdownSize {
@@ -314,7 +314,7 @@ enum FluentDropdownSize {
 
 ### `FluentDropdownState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/dropdown.dart`
+Source: `packages/fluent_2/lib/src/inputs/dropdown.dart`
 
 #### Constructor: `FluentDropdownState`
 
@@ -342,7 +342,7 @@ const FluentDropdownState({
 
 ### `FluentDropdownStyle`
 
-Source: `packages/fluent_2_web/lib/src/inputs/dropdown_style.dart`
+Source: `packages/fluent_2/lib/src/inputs/dropdown_style.dart`
 
 #### Constructor: `FluentDropdownStyle`
 
@@ -410,7 +410,7 @@ const FluentDropdownStyle({
 
 Overrides the dropdown style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/inputs/dropdown.dart`
+Source: `packages/fluent_2/lib/src/inputs/dropdown.dart`
 
 #### Constructor: `FluentDropdownTheme`
 
@@ -469,9 +469,9 @@ signatures above and verify any new example with Dart analysis and a widget test
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/inputs/dropdown.dart`
-- Tests: `packages/fluent_2_web/test/goldens/dropdown_golden_test.dart`, `packages/fluent_2_web/test/goldens/time_picker_golden_test.dart`, `packages/fluent_2_web/test/inputs/dropdown_test.dart`, `packages/fluent_2_web/test/inputs/tag_picker_test.dart`, `packages/fluent_2_web/test/inputs/time_picker_test.dart`, `packages/fluent_2_web/test/navigation/toolbar_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/inputs/dropdown.dart`
+- Tests: `packages/fluent_2/test/goldens/dropdown_golden_test.dart`, `packages/fluent_2/test/goldens/time_picker_golden_test.dart`, `packages/fluent_2/test/inputs/dropdown_test.dart`, `packages/fluent_2/test/inputs/tag_picker_test.dart`, `packages/fluent_2/test/inputs/time_picker_test.dart`, `packages/fluent_2/test/navigation/toolbar_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/dropdown/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 search box: a single-line text field with a leading magnifier and a trailing clear button.
 
-Source: `packages/fluent_2_web/lib/src/inputs/search_box.dart`
+Source: `packages/fluent_2/lib/src/inputs/search_box.dart`
 
 #### Constructor: `FluentSearchBox`
 
@@ -101,7 +101,7 @@ const FluentSearchBox({
 
 How a search box is filled and outlined. Figma's `Style` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/search_box.dart`
+Source: `packages/fluent_2/lib/src/inputs/search_box.dart`
 
 ```dart
 enum FluentSearchBoxAppearance {
@@ -114,7 +114,7 @@ enum FluentSearchBoxAppearance {
 
 ### `FluentSearchBoxBaseState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/search_box.dart`
+Source: `packages/fluent_2/lib/src/inputs/search_box.dart`
 
 #### Constructor: `FluentSearchBoxBaseState`
 
@@ -146,7 +146,7 @@ const FluentSearchBoxBaseState({
 
 Paints the leading magnifier and the trailing clear cross.
 
-Source: `packages/fluent_2_web/lib/src/inputs/search_box.dart`
+Source: `packages/fluent_2/lib/src/inputs/search_box.dart`
 
 #### Constructor: `FluentSearchBoxGlyphPainter`
 
@@ -163,7 +163,7 @@ const FluentSearchBoxGlyphPainter({required this.glyph, required this.color});
 
 Control height and type ramp. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/search_box.dart`
+Source: `packages/fluent_2/lib/src/inputs/search_box.dart`
 
 ```dart
 enum FluentSearchBoxSize {
@@ -175,7 +175,7 @@ enum FluentSearchBoxSize {
 
 ### `FluentSearchBoxState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/search_box.dart`
+Source: `packages/fluent_2/lib/src/inputs/search_box.dart`
 
 #### Constructor: `FluentSearchBoxState`
 
@@ -205,7 +205,7 @@ const FluentSearchBoxState({
 
 ### `FluentSearchBoxStyle`
 
-Source: `packages/fluent_2_web/lib/src/inputs/search_box_style.dart`
+Source: `packages/fluent_2/lib/src/inputs/search_box_style.dart`
 
 #### Constructor: `FluentSearchBoxStyle`
 
@@ -261,7 +261,7 @@ const FluentSearchBoxStyle({
 
 Overrides the search box style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/inputs/search_box.dart`
+Source: `packages/fluent_2/lib/src/inputs/search_box.dart`
 
 #### Constructor: `FluentSearchBoxTheme`
 
@@ -310,7 +310,7 @@ Widget buildFluentSearchBox(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
 FluentSearchBox(placeholder: 'Search')
@@ -322,9 +322,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/inputs/search_box.dart`
-- Tests: `packages/fluent_2_web/test/goldens/search_box_golden_test.dart`, `packages/fluent_2_web/test/inputs/search_box_test.dart`, `packages/fluent_2_web/test/internal/text_context_menu_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/inputs/search_box.dart`
+- Tests: `packages/fluent_2/test/goldens/search_box_golden_test.dart`, `packages/fluent_2/test/inputs/search_box_test.dart`, `packages/fluent_2/test/internal/text_context_menu_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/searchbox/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

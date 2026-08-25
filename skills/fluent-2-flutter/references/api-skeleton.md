@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 skeleton: the placeholder shown where content has not arrived.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/skeleton.dart`
+Source: `packages/fluent_2/lib/src/surfaces/skeleton.dart`
 
 #### Constructor: `FluentSkeleton`
 
@@ -66,7 +66,7 @@ const FluentSkeleton({
 
 The loop a skeleton runs while content is pending.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/skeleton.dart`
+Source: `packages/fluent_2/lib/src/surfaces/skeleton.dart`
 
 ```dart
 enum FluentSkeletonAnimation {
@@ -78,7 +78,7 @@ enum FluentSkeletonAnimation {
 
 ### `FluentSkeletonBaseState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/skeleton.dart`
+Source: `packages/fluent_2/lib/src/surfaces/skeleton.dart`
 
 #### Constructor: `FluentSkeletonBaseState`
 
@@ -94,7 +94,7 @@ const FluentSkeletonBaseState({required this.animation});
 
 Paints a skeleton: the stencil surface, plus the highlight band clipped to it.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/skeleton.dart`
+Source: `packages/fluent_2/lib/src/surfaces/skeleton.dart`
 
 #### Constructor: `FluentSkeletonPainter`
 
@@ -122,7 +122,7 @@ const FluentSkeletonPainter({
 
 Corner treatment. Figma's `Shape` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/skeleton.dart`
+Source: `packages/fluent_2/lib/src/surfaces/skeleton.dart`
 
 ```dart
 enum FluentSkeletonShape {
@@ -133,7 +133,7 @@ enum FluentSkeletonShape {
 
 ### `FluentSkeletonState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/skeleton.dart`
+Source: `packages/fluent_2/lib/src/surfaces/skeleton.dart`
 
 #### Constructor: `FluentSkeletonState`
 
@@ -148,7 +148,7 @@ const FluentSkeletonState({required super.animation, required this.shape});
 
 ### `FluentSkeletonStyle`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/skeleton_style.dart`
+Source: `packages/fluent_2/lib/src/surfaces/skeleton_style.dart`
 
 #### Constructor: `FluentSkeletonStyle`
 
@@ -172,7 +172,7 @@ const FluentSkeletonStyle({
 
 Overrides the skeleton style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/skeleton.dart`
+Source: `packages/fluent_2/lib/src/surfaces/skeleton.dart`
 
 #### Constructor: `FluentSkeletonTheme`
 
@@ -215,7 +215,7 @@ Widget buildFluentSkeleton(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
 FluentSkeleton(width: 200, height: 16)
@@ -227,9 +227,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/surfaces/skeleton.dart`
-- Tests: `packages/fluent_2_web/test/goldens/skeleton_golden_test.dart`, `packages/fluent_2_web/test/surfaces/skeleton_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/surfaces/skeleton.dart`
+- Tests: `packages/fluent_2/test/goldens/skeleton_golden_test.dart`, `packages/fluent_2/test/surfaces/skeleton_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/skeleton/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

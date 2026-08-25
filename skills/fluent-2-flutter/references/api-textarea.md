@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 multi-line text input.
 
-Source: `packages/fluent_2_web/lib/src/inputs/textarea.dart`
+Source: `packages/fluent_2/lib/src/inputs/textarea.dart`
 
 #### Constructor: `FluentTextarea`
 
@@ -106,7 +106,7 @@ const FluentTextarea({
 
 How a textarea is filled and outlined. Figma's `Style` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/textarea.dart`
+Source: `packages/fluent_2/lib/src/inputs/textarea.dart`
 
 ```dart
 enum FluentTextareaAppearance {
@@ -118,7 +118,7 @@ enum FluentTextareaAppearance {
 
 ### `FluentTextareaBaseState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/textarea.dart`
+Source: `packages/fluent_2/lib/src/inputs/textarea.dart`
 
 #### Constructor: `FluentTextareaBaseState`
 
@@ -146,7 +146,7 @@ const FluentTextareaBaseState({
 
 Type ramp and inset. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/textarea.dart`
+Source: `packages/fluent_2/lib/src/inputs/textarea.dart`
 
 ```dart
 enum FluentTextareaSize {
@@ -158,7 +158,7 @@ enum FluentTextareaSize {
 
 ### `FluentTextareaState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/textarea.dart`
+Source: `packages/fluent_2/lib/src/inputs/textarea.dart`
 
 #### Constructor: `FluentTextareaState`
 
@@ -184,7 +184,7 @@ const FluentTextareaState({
 
 ### `FluentTextareaStyle`
 
-Source: `packages/fluent_2_web/lib/src/inputs/textarea_style.dart`
+Source: `packages/fluent_2/lib/src/inputs/textarea_style.dart`
 
 #### Constructor: `FluentTextareaStyle`
 
@@ -230,7 +230,7 @@ const FluentTextareaStyle({
 
 Overrides the textarea style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/inputs/textarea.dart`
+Source: `packages/fluent_2/lib/src/inputs/textarea.dart`
 
 #### Constructor: `FluentTextareaTheme`
 
@@ -278,7 +278,7 @@ Widget buildFluentTextarea(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
 FluentTextarea(minLines: 3, placeholder: 'Write a message…')
@@ -290,9 +290,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/inputs/textarea.dart`
-- Tests: `packages/fluent_2_web/test/goldens/textarea_golden_test.dart`, `packages/fluent_2_web/test/inputs/textarea_test.dart`, `packages/fluent_2_web/test/internal/text_context_menu_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/inputs/textarea.dart`
+- Tests: `packages/fluent_2/test/goldens/textarea_golden_test.dart`, `packages/fluent_2/test/inputs/textarea_test.dart`, `packages/fluent_2/test/internal/text_context_menu_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/textarea/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

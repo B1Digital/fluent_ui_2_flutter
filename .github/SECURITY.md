@@ -34,7 +34,7 @@ To help us triage and respond to your report as quickly as possible, please incl
 
 - A description of the vulnerability and its potential impact.
 - Step-by-step instructions to reproduce the issue (or a minimal proof-of-concept repository/script).
-- Any affected packages within the workspace (e.g. `fluent_2_core`, `fluent_2_web`, `fluent_2_mobile`).
+- Any affected packages within the workspace (e.g. `fluent_2_core`, `fluent_2`).
 - Any potential remediations or suggested fixes, if known.
 
 ---

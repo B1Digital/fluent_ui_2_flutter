@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 button.
 
-Source: `packages/fluent_2_web/lib/src/buttons/button.dart`
+Source: `packages/fluent_2/lib/src/buttons/button.dart`
 
 #### Constructor: `FluentButton`
 
@@ -107,7 +107,7 @@ const FluentButton.icon({
 
 A Fluent 2 compound button: a button with a second, explanatory line.
 
-Source: `packages/fluent_2_web/lib/src/buttons/compound_button.dart`
+Source: `packages/fluent_2/lib/src/buttons/compound_button.dart`
 
 #### Constructor: `FluentCompoundButton`
 
@@ -156,7 +156,7 @@ const FluentCompoundButton({
 
 A Fluent 2 split button: a default action and a menu, in one container.
 
-Source: `packages/fluent_2_web/lib/src/buttons/split_button.dart`
+Source: `packages/fluent_2/lib/src/buttons/split_button.dart`
 
 #### Constructor: `FluentSplitButton`
 
@@ -214,7 +214,7 @@ const FluentSplitButton({
 
 How a button is filled and outlined.
 
-Source: `packages/fluent_2_web/lib/src/buttons/button.dart`
+Source: `packages/fluent_2/lib/src/buttons/button.dart`
 
 ```dart
 enum FluentButtonAppearance {
@@ -228,7 +228,7 @@ enum FluentButtonAppearance {
 
 ### `FluentButtonBaseState`
 
-Source: `packages/fluent_2_web/lib/src/buttons/button.dart`
+Source: `packages/fluent_2/lib/src/buttons/button.dart`
 
 #### Constructor: `FluentButtonBaseState`
 
@@ -256,7 +256,7 @@ const FluentButtonBaseState({
 
 Which side of the label the icon sits on.
 
-Source: `packages/fluent_2_web/lib/src/buttons/button.dart`
+Source: `packages/fluent_2/lib/src/buttons/button.dart`
 
 ```dart
 enum FluentButtonIconPosition {
@@ -269,7 +269,7 @@ enum FluentButtonIconPosition {
 
 Corner treatment. Figma's `Shape` variable collection.
 
-Source: `packages/fluent_2_web/lib/src/buttons/button.dart`
+Source: `packages/fluent_2/lib/src/buttons/button.dart`
 
 ```dart
 enum FluentButtonShape {
@@ -283,7 +283,7 @@ enum FluentButtonShape {
 
 Button height and type ramp. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/buttons/button.dart`
+Source: `packages/fluent_2/lib/src/buttons/button.dart`
 
 ```dart
 enum FluentButtonSize {
@@ -295,7 +295,7 @@ enum FluentButtonSize {
 
 ### `FluentButtonState`
 
-Source: `packages/fluent_2_web/lib/src/buttons/button.dart`
+Source: `packages/fluent_2/lib/src/buttons/button.dart`
 
 #### Constructor: `FluentButtonState`
 
@@ -323,7 +323,7 @@ const FluentButtonState({
 
 ### `FluentButtonStyle`
 
-Source: `packages/fluent_2_web/lib/src/buttons/button_style.dart`
+Source: `packages/fluent_2/lib/src/buttons/button_style.dart`
 
 #### Constructor: `FluentButtonStyle`
 
@@ -361,7 +361,7 @@ const FluentButtonStyle({
 
 Overrides the button style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/buttons/button.dart`
+Source: `packages/fluent_2/lib/src/buttons/button.dart`
 
 #### Constructor: `FluentButtonTheme`
 
@@ -381,7 +381,7 @@ const FluentButtonTheme({
 
 ### `FluentCompoundButtonBaseState`
 
-Source: `packages/fluent_2_web/lib/src/buttons/compound_button.dart`
+Source: `packages/fluent_2/lib/src/buttons/compound_button.dart`
 
 #### Constructor: `FluentCompoundButtonBaseState`
 
@@ -405,7 +405,7 @@ const FluentCompoundButtonBaseState({
 
 ### `FluentCompoundButtonState`
 
-Source: `packages/fluent_2_web/lib/src/buttons/compound_button.dart`
+Source: `packages/fluent_2/lib/src/buttons/compound_button.dart`
 
 #### Constructor: `FluentCompoundButtonState`
 
@@ -435,7 +435,7 @@ const FluentCompoundButtonState({
 
 ### `FluentCompoundButtonStyle`
 
-Source: `packages/fluent_2_web/lib/src/buttons/compound_button.dart`
+Source: `packages/fluent_2/lib/src/buttons/compound_button.dart`
 
 #### Constructor: `FluentCompoundButtonStyle`
 
@@ -457,7 +457,7 @@ const FluentCompoundButtonStyle({
 
 Overrides the compound button style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/buttons/compound_button.dart`
+Source: `packages/fluent_2/lib/src/buttons/compound_button.dart`
 
 #### Constructor: `FluentCompoundButtonTheme`
 
@@ -477,7 +477,7 @@ const FluentCompoundButtonTheme({
 
 ### `FluentSplitButtonBaseState`
 
-Source: `packages/fluent_2_web/lib/src/buttons/split_button.dart`
+Source: `packages/fluent_2/lib/src/buttons/split_button.dart`
 
 #### Constructor: `FluentSplitButtonBaseState`
 
@@ -503,7 +503,7 @@ const FluentSplitButtonBaseState({
 
 ### `FluentSplitButtonEdgeColors`
 
-Source: `packages/fluent_2_web/lib/src/buttons/split_button.dart`
+Source: `packages/fluent_2/lib/src/buttons/split_button.dart`
 
 #### Constructor: `FluentSplitButtonEdgeColors`
 
@@ -523,7 +523,7 @@ const FluentSplitButtonEdgeColors({
 
 Paints one half's border and, on the primary action half, the divider.
 
-Source: `packages/fluent_2_web/lib/src/buttons/split_button.dart`
+Source: `packages/fluent_2/lib/src/buttons/split_button.dart`
 
 #### Constructor: `FluentSplitButtonEdgePainter`
 
@@ -549,7 +549,7 @@ const FluentSplitButtonEdgePainter({
 
 ### `FluentSplitButtonState`
 
-Source: `packages/fluent_2_web/lib/src/buttons/split_button.dart`
+Source: `packages/fluent_2/lib/src/buttons/split_button.dart`
 
 #### Constructor: `FluentSplitButtonState`
 
@@ -581,7 +581,7 @@ const FluentSplitButtonState({
 
 ### `FluentSplitButtonStyle`
 
-Source: `packages/fluent_2_web/lib/src/buttons/split_button.dart`
+Source: `packages/fluent_2/lib/src/buttons/split_button.dart`
 
 #### Constructor: `FluentSplitButtonStyle`
 
@@ -598,7 +598,7 @@ const FluentSplitButtonStyle({this.button, this.dividerColor});
 
 Overrides the split button style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/buttons/split_button.dart`
+Source: `packages/fluent_2/lib/src/buttons/split_button.dart`
 
 #### Constructor: `FluentSplitButtonTheme`
 
@@ -693,7 +693,7 @@ Widget buildFluentSplitButton(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/button_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/button_stories.dart`:
 
 ```dart
 FluentButton(
@@ -709,9 +709,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/buttons/button.dart`, `packages/fluent_2_web/lib/src/buttons/compound_button.dart`, `packages/fluent_2_web/lib/src/buttons/split_button.dart`
-- Tests: `packages/fluent_2_web/test/buttons/button_test.dart`, `packages/fluent_2_web/test/buttons/split_compound_button_test.dart`, `packages/fluent_2_web/test/goldens/button_golden_test.dart`, `packages/fluent_2_web/test/goldens/dialog_golden_test.dart`, `packages/fluent_2_web/test/goldens/field_golden_test.dart`, `packages/fluent_2_web/test/goldens/message_bar_golden_test.dart`, `packages/fluent_2_web/test/goldens/nav_golden_test.dart`, `packages/fluent_2_web/test/goldens/split_compound_button_golden_test.dart`, `packages/fluent_2_web/test/goldens/teaching_popover_golden_test.dart`, `packages/fluent_2_web/test/goldens/toolbar_golden_test.dart`, `packages/fluent_2_web/test/goldens/tree_golden_test.dart`, `packages/fluent_2_web/test/inputs/field_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/button_stories.dart`, `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`, `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`, `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/buttons/button.dart`, `packages/fluent_2/lib/src/buttons/compound_button.dart`, `packages/fluent_2/lib/src/buttons/split_button.dart`
+- Tests: `packages/fluent_2/test/buttons/button_test.dart`, `packages/fluent_2/test/buttons/split_compound_button_test.dart`, `packages/fluent_2/test/goldens/button_golden_test.dart`, `packages/fluent_2/test/goldens/dialog_golden_test.dart`, `packages/fluent_2/test/goldens/field_golden_test.dart`, `packages/fluent_2/test/goldens/message_bar_golden_test.dart`, `packages/fluent_2/test/goldens/nav_golden_test.dart`, `packages/fluent_2/test/goldens/split_compound_button_golden_test.dart`, `packages/fluent_2/test/goldens/teaching_popover_golden_test.dart`, `packages/fluent_2/test/goldens/toolbar_golden_test.dart`, `packages/fluent_2/test/goldens/tree_golden_test.dart`, `packages/fluent_2/test/inputs/field_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/button_stories.dart`, `packages/fluent_2/example/lib/storybook/components/navigation_stories.dart`, `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`, `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/button/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

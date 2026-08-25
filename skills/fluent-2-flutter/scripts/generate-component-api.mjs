@@ -45,7 +45,7 @@ async function walk(directory) {
 async function isRepository(directory) {
   return (
     (await exists(path.join(directory, 'packages/fluent_2_core/lib'))) &&
-    (await exists(path.join(directory, 'packages/fluent_2_web/lib')))
+    (await exists(path.join(directory, 'packages/fluent_2/lib')))
   );
 }
 
@@ -1008,8 +1008,7 @@ try {
   }
   const libDirectories = [
     path.join(repoDir, 'packages/fluent_2_core/lib'),
-    path.join(repoDir, 'packages/fluent_2_web/lib'),
-    path.join(repoDir, 'packages/fluent_2_mobile/lib'),
+    path.join(repoDir, 'packages/fluent_2/lib'),
   ];
   const packageConfigFile = path.join(repoDir, '.dart_tool/package_config.json');
   if (await exists(packageConfigFile)) {
@@ -1046,10 +1045,9 @@ try {
 
   const usageFiles = (
     await Promise.all([
-      walk(path.join(repoDir, 'packages/fluent_2_web/example/lib')),
-      walk(path.join(repoDir, 'packages/fluent_2_web/test')),
+      walk(path.join(repoDir, 'packages/fluent_2/example/lib')),
+      walk(path.join(repoDir, 'packages/fluent_2/test')),
       walk(path.join(repoDir, 'packages/fluent_2_core/test')),
-      walk(path.join(repoDir, 'packages/fluent_2_mobile/test')),
     ])
   ).flat();
   const fileCache = new Map();

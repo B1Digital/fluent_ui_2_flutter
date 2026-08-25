@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 toast: a raised notification surface with a status glyph, a title, an optional body and an end affordance.
 
-Source: `packages/fluent_2_web/lib/src/overlays/toast.dart`
+Source: `packages/fluent_2/lib/src/overlays/toast.dart`
 
 #### Constructor: `FluentToast`
 
@@ -85,7 +85,7 @@ const FluentToast({
 
 Renders a [FluentToastController]'s toasts into the nearest [Overlay].
 
-Source: `packages/fluent_2_web/lib/src/overlays/toaster.dart`
+Source: `packages/fluent_2/lib/src/overlays/toaster.dart`
 
 #### Constructor: `FluentToaster`
 
@@ -118,7 +118,7 @@ const FluentToaster({
 
 ### `FluentToastBaseState`
 
-Source: `packages/fluent_2_web/lib/src/overlays/toast.dart`
+Source: `packages/fluent_2/lib/src/overlays/toast.dart`
 
 #### Constructor: `FluentToastBaseState`
 
@@ -146,7 +146,7 @@ const FluentToastBaseState({
 
 Enqueues and dismisses toasts for a [FluentToaster].
 
-Source: `packages/fluent_2_web/lib/src/overlays/toaster.dart`
+Source: `packages/fluent_2/lib/src/overlays/toaster.dart`
 
 No public generative constructor is declared on this type.
 
@@ -154,7 +154,7 @@ No public generative constructor is declared on this type.
 
 What the toast is about. Figma's `Toast status` variable collection.
 
-Source: `packages/fluent_2_web/lib/src/overlays/toast.dart`
+Source: `packages/fluent_2/lib/src/overlays/toast.dart`
 
 ```dart
 enum FluentToastIntent {
@@ -168,7 +168,7 @@ enum FluentToastIntent {
 
 ### `FluentToastState`
 
-Source: `packages/fluent_2_web/lib/src/overlays/toast.dart`
+Source: `packages/fluent_2/lib/src/overlays/toast.dart`
 
 #### Constructor: `FluentToastState`
 
@@ -198,7 +198,7 @@ const FluentToastState({
 
 ### `FluentToastStyle`
 
-Source: `packages/fluent_2_web/lib/src/overlays/toast_style.dart`
+Source: `packages/fluent_2/lib/src/overlays/toast_style.dart`
 
 #### Constructor: `FluentToastStyle`
 
@@ -264,7 +264,7 @@ const FluentToastStyle({
 
 Overrides the toast style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/overlays/toast.dart`
+Source: `packages/fluent_2/lib/src/overlays/toast.dart`
 
 #### Constructor: `FluentToastTheme`
 
@@ -286,7 +286,7 @@ const FluentToastTheme({
 
 What sits in the toast's end slot. Figma's `Toast type` variable collection.
 
-Source: `packages/fluent_2_web/lib/src/overlays/toast.dart`
+Source: `packages/fluent_2/lib/src/overlays/toast.dart`
 
 ```dart
 enum FluentToastType {
@@ -328,7 +328,7 @@ Widget buildFluentToast(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`:
 
 ```dart
 FluentToast(
@@ -344,9 +344,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/overlays/toast.dart`, `packages/fluent_2_web/lib/src/overlays/toaster.dart`
-- Tests: `packages/fluent_2_web/test/goldens/toast_golden_test.dart`, `packages/fluent_2_web/test/overlays/toast_test.dart`, `packages/fluent_2_web/test/overlays/toaster_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/overlays/toast.dart`, `packages/fluent_2/lib/src/overlays/toaster.dart`
+- Tests: `packages/fluent_2/test/goldens/toast_golden_test.dart`, `packages/fluent_2/test/overlays/toast_test.dart`, `packages/fluent_2/test/overlays/toaster_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/toast/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

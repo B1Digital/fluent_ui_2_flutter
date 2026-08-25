@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 rating.
 
-Source: `packages/fluent_2_web/lib/src/inputs/rating.dart`
+Source: `packages/fluent_2/lib/src/inputs/rating.dart`
 
 #### Constructor: `FluentRating`
 
@@ -82,7 +82,7 @@ const FluentRating({
 
 ### `FluentRatingBaseState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/rating.dart`
+Source: `packages/fluent_2/lib/src/inputs/rating.dart`
 
 #### Constructor: `FluentRatingBaseState`
 
@@ -113,7 +113,7 @@ const FluentRatingBaseState({
 
 Which colour family the shapes take. Figma's `Rating color` collection.
 
-Source: `packages/fluent_2_web/lib/src/inputs/rating.dart`
+Source: `packages/fluent_2/lib/src/inputs/rating.dart`
 
 ```dart
 enum FluentRatingColor {
@@ -127,7 +127,7 @@ enum FluentRatingColor {
 
 Paints a row of rating shapes, each filled by its own fraction.
 
-Source: `packages/fluent_2_web/lib/src/inputs/rating.dart`
+Source: `packages/fluent_2/lib/src/inputs/rating.dart`
 
 #### Constructor: `FluentRatingPainter`
 
@@ -163,7 +163,7 @@ const FluentRatingPainter({
 
 Which silhouette is drawn. Figma's `Shape` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/rating.dart`
+Source: `packages/fluent_2/lib/src/inputs/rating.dart`
 
 ```dart
 enum FluentRatingShape {
@@ -177,7 +177,7 @@ enum FluentRatingShape {
 
 Shape box edge length. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/rating.dart`
+Source: `packages/fluent_2/lib/src/inputs/rating.dart`
 
 ```dart
 enum FluentRatingSize {
@@ -190,7 +190,7 @@ enum FluentRatingSize {
 
 ### `FluentRatingState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/rating.dart`
+Source: `packages/fluent_2/lib/src/inputs/rating.dart`
 
 #### Constructor: `FluentRatingState`
 
@@ -222,7 +222,7 @@ const FluentRatingState({
 
 ### `FluentRatingStyle`
 
-Source: `packages/fluent_2_web/lib/src/inputs/rating_style.dart`
+Source: `packages/fluent_2/lib/src/inputs/rating_style.dart`
 
 #### Constructor: `FluentRatingStyle`
 
@@ -258,7 +258,7 @@ const FluentRatingStyle({
 
 Overrides the rating style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/inputs/rating.dart`
+Source: `packages/fluent_2/lib/src/inputs/rating.dart`
 
 #### Constructor: `FluentRatingTheme`
 
@@ -280,7 +280,7 @@ const FluentRatingTheme({
 
 Whether the rating takes input or only reports a value. Figma's `Type` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/rating.dart`
+Source: `packages/fluent_2/lib/src/inputs/rating.dart`
 
 ```dart
 enum FluentRatingType {
@@ -321,7 +321,7 @@ Widget buildFluentRating(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
 FluentRating(
@@ -341,9 +341,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/inputs/rating.dart`
-- Tests: `packages/fluent_2_web/test/goldens/rating_golden_test.dart`, `packages/fluent_2_web/test/inputs/rating_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/inputs/rating.dart`
+- Tests: `packages/fluent_2/test/goldens/rating_golden_test.dart`, `packages/fluent_2/test/inputs/rating_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/rating/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

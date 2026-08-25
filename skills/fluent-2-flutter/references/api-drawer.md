@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 drawer.
 
-Source: `packages/fluent_2_web/lib/src/overlays/drawer.dart`
+Source: `packages/fluent_2/lib/src/overlays/drawer.dart`
 
 #### Constructor: `FluentDrawer`
 
@@ -76,7 +76,7 @@ const FluentDrawer({
 
 ### `FluentDrawerBaseState`
 
-Source: `packages/fluent_2_web/lib/src/overlays/drawer.dart`
+Source: `packages/fluent_2/lib/src/overlays/drawer.dart`
 
 #### Constructor: `FluentDrawerBaseState`
 
@@ -106,7 +106,7 @@ const FluentDrawerBaseState({
 
 Which edge the drawer is anchored to, in reading order.
 
-Source: `packages/fluent_2_web/lib/src/overlays/drawer.dart`
+Source: `packages/fluent_2/lib/src/overlays/drawer.dart`
 
 ```dart
 enum FluentDrawerPosition {
@@ -119,7 +119,7 @@ enum FluentDrawerPosition {
 
 Drawer width, and — because upstream keys the transition off it — how long the drawer takes to arrive. Figma's `Size` axis plus React's `full`.
 
-Source: `packages/fluent_2_web/lib/src/overlays/drawer.dart`
+Source: `packages/fluent_2/lib/src/overlays/drawer.dart`
 
 ```dart
 enum FluentDrawerSize {
@@ -132,7 +132,7 @@ enum FluentDrawerSize {
 
 ### `FluentDrawerState`
 
-Source: `packages/fluent_2_web/lib/src/overlays/drawer.dart`
+Source: `packages/fluent_2/lib/src/overlays/drawer.dart`
 
 #### Constructor: `FluentDrawerState`
 
@@ -162,7 +162,7 @@ const FluentDrawerState({
 
 ### `FluentDrawerStyle`
 
-Source: `packages/fluent_2_web/lib/src/overlays/drawer_style.dart`
+Source: `packages/fluent_2/lib/src/overlays/drawer_style.dart`
 
 #### Constructor: `FluentDrawerStyle`
 
@@ -204,7 +204,7 @@ const FluentDrawerStyle({
 
 Overrides the drawer style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/overlays/drawer.dart`
+Source: `packages/fluent_2/lib/src/overlays/drawer.dart`
 
 #### Constructor: `FluentDrawerTheme`
 
@@ -226,7 +226,7 @@ const FluentDrawerTheme({
 
 Whether a drawer floats over the page or sits inside the layout.
 
-Source: `packages/fluent_2_web/lib/src/overlays/drawer.dart`
+Source: `packages/fluent_2/lib/src/overlays/drawer.dart`
 
 ```dart
 enum FluentDrawerType {
@@ -266,7 +266,7 @@ Widget buildFluentDrawer(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`:
 
 ```dart
 FluentDrawer(
@@ -290,9 +290,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/overlays/drawer.dart`
-- Tests: `packages/fluent_2_web/test/goldens/drawer_golden_test.dart`, `packages/fluent_2_web/test/goldens/nav_golden_test.dart`, `packages/fluent_2_web/test/navigation/nav_drawer_test.dart`, `packages/fluent_2_web/test/overlays/drawer_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`, `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/overlays/drawer.dart`
+- Tests: `packages/fluent_2/test/goldens/drawer_golden_test.dart`, `packages/fluent_2/test/goldens/nav_golden_test.dart`, `packages/fluent_2/test/navigation/nav_drawer_test.dart`, `packages/fluent_2/test/overlays/drawer_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/navigation_stories.dart`, `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/drawer/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

@@ -23,13 +23,12 @@ This project is managed as a monorepo using **Dart Pub Workspace** and **Melos 7
 ```text
 packages/
 ├── fluent_2_core/           # Shared foundation: tokens, color ramps, typography, theming & app shell
-├── fluent_2_web/            # Fluent 2 Web components (buttons, inputs, surfaces, etc.)
-├── fluent_2_mobile/         # Fluent 2 Mobile variants (iOS / Android)
+├── fluent_2/                # Fluent 2 components (buttons, inputs, surfaces, etc.)
 ├── fluent_2_fonts/          # Platform-agnostic font facade
 └── fluent_2_fonts_*/        # Platform-specific font packages (web, windows, macos, ios, android)
 ```
 
-Packages are organized by **surface** (e.g., `fluent_2_web`, `fluent_2_mobile`) rather than component category. Each UI surface package depends on and re-exports `fluent_2_core`.
+Packages are organized by **surface** (e.g., `fluent_2`) rather than component category. Each UI surface package depends on and re-exports `fluent_2_core`.
 
 ---
 
@@ -49,7 +48,7 @@ Packages are organized by **surface** (e.g., `fluent_2_web`, `fluent_2_mobile`) 
 1. **Clone the repository**:
    ```bash
    git clone https://github.com/B1Digital/fluent_ui_2_flutter.git
-   cd fluent_2_web
+   cd fluent_2
    ```
 
 2. **Install dependencies across the workspace**:
@@ -59,7 +58,7 @@ Packages are organized by **surface** (e.g., `fluent_2_web`, `fluent_2_mobile`) 
 
 3. **Run the example application**:
    ```bash
-   cd packages/fluent_2_web/example
+   cd packages/fluent_2/example
    flutter run -d chrome
    ```
 
@@ -96,7 +95,7 @@ Make sure `melos run ci` succeeds cleanly before opening or updating a Pull Requ
      FluentCurve.decelerateMid;
      ```
 2. **Component Structure**:
-   - Keep surface components separated into their respective packages (`fluent_2_web` vs `fluent_2_mobile`).
+   - Keep component code in `fluent_2`.
    - Reusable logic and token tables belong in `fluent_2_core`.
 3. **Tests**:
    - Add unit tests under the `test/` folder of the modified package.

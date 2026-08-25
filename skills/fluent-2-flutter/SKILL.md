@@ -1,6 +1,6 @@
 ---
 name: fluent-2-flutter
-description: Build, migrate, review, and troubleshoot Flutter interfaces that follow Microsoft's Fluent 2 design system, component usage, UX frameworks, Responsible AI, and Content Engineering guidance. Use when working with fluent_2_core, fluent_2_web, fluent_2_mobile, Fluent widgets, themes, accessibility, content, prompts, AI output evaluation, tokens, handoffs, onboarding, Wait UX, responsive behavior, or official color, elevation, iconography, layout, material, motion, shapes, typography, component, and design-principle guidance in Dart and Flutter.
+description: Build, migrate, review, and troubleshoot Flutter interfaces that follow Microsoft's Fluent 2 design system, component usage, UX frameworks, Responsible AI, and Content Engineering guidance. Use when working with fluent_2_core, fluent_2, Fluent widgets, themes, accessibility, content, prompts, AI output evaluation, tokens, handoffs, onboarding, Wait UX, responsive behavior, or official color, elevation, iconography, layout, material, motion, shapes, typography, component, and design-principle guidance in Dart and Flutter.
 ---
 
 # Fluent 2 Flutter
@@ -178,10 +178,7 @@ Use these package roles:
 
 - `fluent_2_core`: app shell, theme, semantic tokens, typography, layout,
   elevation, materials, and motion.
-- `fluent_2_web`: pointer-oriented web and desktop widgets. It re-exports core.
-- `fluent_2_mobile`: touch-oriented package. Check its barrel before use; the
-  current repository may expose fewer components than the official mobile
-  guidance.
+- `fluent_2`: pointer-oriented web and desktop widgets. It re-exports core.
 
 Use the shipped gallery stories and widget tests as executable API examples.
 Do not trust stale README status text over the public barrel and source tree.

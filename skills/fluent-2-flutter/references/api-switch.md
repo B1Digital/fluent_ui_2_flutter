@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 switch.
 
-Source: `packages/fluent_2_web/lib/src/inputs/switch.dart`
+Source: `packages/fluent_2/lib/src/inputs/switch.dart`
 
 #### Constructor: `FluentSwitch`
 
@@ -74,7 +74,7 @@ const FluentSwitch({
 
 ### `FluentSwitchBaseState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/switch.dart`
+Source: `packages/fluent_2/lib/src/inputs/switch.dart`
 
 #### Constructor: `FluentSwitchBaseState`
 
@@ -103,7 +103,7 @@ const FluentSwitchBaseState({
 
 Where the label sits relative to the track.
 
-Source: `packages/fluent_2_web/lib/src/inputs/switch.dart`
+Source: `packages/fluent_2/lib/src/inputs/switch.dart`
 
 ```dart
 enum FluentSwitchLabelPosition {
@@ -117,7 +117,7 @@ enum FluentSwitchLabelPosition {
 
 Track height and type ramp. Figma's `Size` axis, upstream's `size` prop.
 
-Source: `packages/fluent_2_web/lib/src/inputs/switch.dart`
+Source: `packages/fluent_2/lib/src/inputs/switch.dart`
 
 ```dart
 enum FluentSwitchSize {
@@ -128,7 +128,7 @@ enum FluentSwitchSize {
 
 ### `FluentSwitchState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/switch.dart`
+Source: `packages/fluent_2/lib/src/inputs/switch.dart`
 
 #### Constructor: `FluentSwitchState`
 
@@ -152,7 +152,7 @@ const FluentSwitchState({
 
 ### `FluentSwitchStyle`
 
-Source: `packages/fluent_2_web/lib/src/inputs/switch_style.dart`
+Source: `packages/fluent_2/lib/src/inputs/switch_style.dart`
 
 #### Constructor: `FluentSwitchStyle`
 
@@ -194,7 +194,7 @@ const FluentSwitchStyle({
 
 Overrides the switch style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/inputs/switch.dart`
+Source: `packages/fluent_2/lib/src/inputs/switch.dart`
 
 #### Constructor: `FluentSwitchTheme`
 
@@ -240,7 +240,7 @@ Widget buildFluentSwitch(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
 FluentSwitch(
@@ -256,9 +256,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/inputs/switch.dart`
-- Tests: `packages/fluent_2_web/test/goldens/switch_golden_test.dart`, `packages/fluent_2_web/test/inputs/switch_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/inputs/switch.dart`
+- Tests: `packages/fluent_2/test/goldens/switch_golden_test.dart`, `packages/fluent_2/test/inputs/switch_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/switch/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

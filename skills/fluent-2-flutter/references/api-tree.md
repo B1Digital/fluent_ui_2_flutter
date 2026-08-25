@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 tree: nested, expandable rows with one indent step per level.
 
-Source: `packages/fluent_2_web/lib/src/navigation/tree.dart`
+Source: `packages/fluent_2/lib/src/navigation/tree.dart`
 
 #### Constructor: `FluentTree`
 
@@ -83,7 +83,7 @@ const FluentTree({
 
 How a tree row is filled. Figma's `Style` axis.
 
-Source: `packages/fluent_2_web/lib/src/navigation/tree.dart`
+Source: `packages/fluent_2/lib/src/navigation/tree.dart`
 
 ```dart
 enum FluentTreeAppearance {
@@ -97,7 +97,7 @@ enum FluentTreeAppearance {
 
 Closes the focused branch, or ascends to its parent when it is already closed.
 
-Source: `packages/fluent_2_web/lib/src/navigation/tree.dart`
+Source: `packages/fluent_2/lib/src/navigation/tree.dart`
 
 #### Constructor: `FluentTreeCollapseIntent`
 
@@ -109,7 +109,7 @@ const FluentTreeCollapseIntent();
 
 Moves focus to the first or last visible row.
 
-Source: `packages/fluent_2_web/lib/src/navigation/tree.dart`
+Source: `packages/fluent_2/lib/src/navigation/tree.dart`
 
 #### Constructor: `FluentTreeEdgeIntent`
 
@@ -125,7 +125,7 @@ const FluentTreeEdgeIntent({required this.last});
 
 Opens the focused branch, or descends into it when it is already open.
 
-Source: `packages/fluent_2_web/lib/src/navigation/tree.dart`
+Source: `packages/fluent_2/lib/src/navigation/tree.dart`
 
 #### Constructor: `FluentTreeExpandIntent`
 
@@ -135,7 +135,7 @@ const FluentTreeExpandIntent();
 
 ### `FluentTreeItem`
 
-Source: `packages/fluent_2_web/lib/src/navigation/tree.dart`
+Source: `packages/fluent_2/lib/src/navigation/tree.dart`
 
 #### Constructor: `FluentTreeItem`
 
@@ -168,7 +168,7 @@ const FluentTreeItem({
 
 ### `FluentTreeItemBaseState`
 
-Source: `packages/fluent_2_web/lib/src/navigation/tree.dart`
+Source: `packages/fluent_2/lib/src/navigation/tree.dart`
 
 #### Constructor: `FluentTreeItemBaseState`
 
@@ -209,7 +209,7 @@ const FluentTreeItemBaseState({
 
 ### `FluentTreeItemState`
 
-Source: `packages/fluent_2_web/lib/src/navigation/tree.dart`
+Source: `packages/fluent_2/lib/src/navigation/tree.dart`
 
 #### Constructor: `FluentTreeItemState`
 
@@ -247,7 +247,7 @@ const FluentTreeItemState({
 
 ### `FluentTreeItemStyle`
 
-Source: `packages/fluent_2_web/lib/src/navigation/tree_style.dart`
+Source: `packages/fluent_2/lib/src/navigation/tree_style.dart`
 
 #### Constructor: `FluentTreeItemStyle`
 
@@ -297,7 +297,7 @@ const FluentTreeItemStyle({
 
 Moves focus [delta] rows through the visible list.
 
-Source: `packages/fluent_2_web/lib/src/navigation/tree.dart`
+Source: `packages/fluent_2/lib/src/navigation/tree.dart`
 
 #### Constructor: `FluentTreeMoveIntent`
 
@@ -313,7 +313,7 @@ const FluentTreeMoveIntent(this.delta);
 
 Whether rows carry a selection control, and how many may be chosen.
 
-Source: `packages/fluent_2_web/lib/src/navigation/tree.dart`
+Source: `packages/fluent_2/lib/src/navigation/tree.dart`
 
 ```dart
 enum FluentTreeSelectionMode {
@@ -327,7 +327,7 @@ enum FluentTreeSelectionMode {
 
 Row height and type ramp. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/navigation/tree.dart`
+Source: `packages/fluent_2/lib/src/navigation/tree.dart`
 
 ```dart
 enum FluentTreeSize {
@@ -371,7 +371,7 @@ Widget buildFluentTreeItem(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/navigation_stories.dart`:
 
 ```dart
 FluentTree(
@@ -397,9 +397,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/navigation/tree.dart`
-- Tests: `packages/fluent_2_web/test/goldens/tree_golden_test.dart`, `packages/fluent_2_web/test/navigation/tree_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/navigation/tree.dart`
+- Tests: `packages/fluent_2/test/goldens/tree_golden_test.dart`, `packages/fluent_2/test/navigation/tree_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/navigation_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/tree/usage/
 - Design decisions: `references/components-navigation-data.md`
 

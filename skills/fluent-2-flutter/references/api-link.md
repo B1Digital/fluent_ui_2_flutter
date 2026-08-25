@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 link.
 
-Source: `packages/fluent_2_web/lib/src/inputs/link.dart`
+Source: `packages/fluent_2/lib/src/inputs/link.dart`
 
 #### Constructor: `FluentLink`
 
@@ -75,7 +75,7 @@ const FluentLink({
 
 How a link is coloured.
 
-Source: `packages/fluent_2_web/lib/src/inputs/link.dart`
+Source: `packages/fluent_2/lib/src/inputs/link.dart`
 
 ```dart
 enum FluentLinkAppearance {
@@ -87,7 +87,7 @@ enum FluentLinkAppearance {
 
 ### `FluentLinkBaseState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/link.dart`
+Source: `packages/fluent_2/lib/src/inputs/link.dart`
 
 #### Constructor: `FluentLinkBaseState`
 
@@ -111,7 +111,7 @@ const FluentLinkBaseState({
 
 ### `FluentLinkState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/link.dart`
+Source: `packages/fluent_2/lib/src/inputs/link.dart`
 
 #### Constructor: `FluentLinkState`
 
@@ -135,7 +135,7 @@ const FluentLinkState({
 
 ### `FluentLinkStyle`
 
-Source: `packages/fluent_2_web/lib/src/inputs/link_style.dart`
+Source: `packages/fluent_2/lib/src/inputs/link_style.dart`
 
 #### Constructor: `FluentLinkStyle`
 
@@ -171,7 +171,7 @@ const FluentLinkStyle({
 
 Overrides the link style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/inputs/link.dart`
+Source: `packages/fluent_2/lib/src/inputs/link.dart`
 
 #### Constructor: `FluentLinkTheme`
 
@@ -213,7 +213,7 @@ Widget buildFluentLink(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
 FluentLink(onPressed: () {}, child: const Text('This is a link'))
@@ -225,9 +225,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/inputs/link.dart`
-- Tests: `packages/fluent_2_web/test/goldens/link_golden_test.dart`, `packages/fluent_2_web/test/goldens/toast_golden_test.dart`, `packages/fluent_2_web/test/inputs/link_test.dart`, `packages/fluent_2_web/test/navigation/data_grid_test.dart`, `packages/fluent_2_web/test/overlays/toast_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/inputs/link.dart`
+- Tests: `packages/fluent_2/test/goldens/link_golden_test.dart`, `packages/fluent_2/test/goldens/toast_golden_test.dart`, `packages/fluent_2/test/inputs/link_test.dart`, `packages/fluent_2/test/navigation/data_grid_test.dart`, `packages/fluent_2/test/overlays/toast_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/link/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

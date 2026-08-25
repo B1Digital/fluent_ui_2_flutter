@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 breadcrumb trail.
 
-Source: `packages/fluent_2_web/lib/src/navigation/breadcrumb.dart`
+Source: `packages/fluent_2/lib/src/navigation/breadcrumb.dart`
 
 #### Constructor: `FluentBreadcrumb`
 
@@ -64,7 +64,7 @@ const FluentBreadcrumb({
 
 Opens the overflow popup, or activates its active row when already open.
 
-Source: `packages/fluent_2_web/lib/src/navigation/breadcrumb.dart`
+Source: `packages/fluent_2/lib/src/navigation/breadcrumb.dart`
 
 #### Constructor: `FluentBreadcrumbActivateIntent`
 
@@ -74,7 +74,7 @@ const FluentBreadcrumbActivateIntent();
 
 ### `FluentBreadcrumbBaseState`
 
-Source: `packages/fluent_2_web/lib/src/navigation/breadcrumb.dart`
+Source: `packages/fluent_2/lib/src/navigation/breadcrumb.dart`
 
 #### Constructor: `FluentBreadcrumbBaseState`
 
@@ -104,7 +104,7 @@ const FluentBreadcrumbBaseState({
 
 ### `FluentBreadcrumbItem`
 
-Source: `packages/fluent_2_web/lib/src/navigation/breadcrumb.dart`
+Source: `packages/fluent_2/lib/src/navigation/breadcrumb.dart`
 
 #### Constructor: `FluentBreadcrumbItem`
 
@@ -136,7 +136,7 @@ const FluentBreadcrumbItem({
 
 Moves the active row of an open overflow popup by [delta].
 
-Source: `packages/fluent_2_web/lib/src/navigation/breadcrumb.dart`
+Source: `packages/fluent_2/lib/src/navigation/breadcrumb.dart`
 
 #### Constructor: `FluentBreadcrumbMoveIntent`
 
@@ -150,7 +150,7 @@ const FluentBreadcrumbMoveIntent(this.delta);
 
 ### `FluentBreadcrumbPartition`
 
-Source: `packages/fluent_2_web/lib/src/navigation/breadcrumb.dart`
+Source: `packages/fluent_2/lib/src/navigation/breadcrumb.dart`
 
 #### Constructor: `FluentBreadcrumbPartition`
 
@@ -170,7 +170,7 @@ factory FluentBreadcrumbPartition(
 
 Crumb height and type ramp. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/navigation/breadcrumb.dart`
+Source: `packages/fluent_2/lib/src/navigation/breadcrumb.dart`
 
 ```dart
 enum FluentBreadcrumbSize {
@@ -182,7 +182,7 @@ enum FluentBreadcrumbSize {
 
 ### `FluentBreadcrumbState`
 
-Source: `packages/fluent_2_web/lib/src/navigation/breadcrumb.dart`
+Source: `packages/fluent_2/lib/src/navigation/breadcrumb.dart`
 
 #### Constructor: `FluentBreadcrumbState`
 
@@ -210,7 +210,7 @@ const FluentBreadcrumbState({
 
 ### `FluentBreadcrumbStyle`
 
-Source: `packages/fluent_2_web/lib/src/navigation/breadcrumb_style.dart`
+Source: `packages/fluent_2/lib/src/navigation/breadcrumb_style.dart`
 
 #### Constructor: `FluentBreadcrumbStyle`
 
@@ -268,7 +268,7 @@ const FluentBreadcrumbStyle({
 
 Overrides the breadcrumb style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/navigation/breadcrumb.dart`
+Source: `packages/fluent_2/lib/src/navigation/breadcrumb.dart`
 
 #### Constructor: `FluentBreadcrumbTheme`
 
@@ -322,7 +322,7 @@ Widget buildFluentBreadcrumbSurface(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/navigation_stories.dart`:
 
 ```dart
 FluentBreadcrumb(
@@ -340,9 +340,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/navigation/breadcrumb.dart`
-- Tests: `packages/fluent_2_web/test/goldens/breadcrumb_golden_test.dart`, `packages/fluent_2_web/test/navigation/breadcrumb_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/navigation/breadcrumb.dart`
+- Tests: `packages/fluent_2/test/goldens/breadcrumb_golden_test.dart`, `packages/fluent_2/test/navigation/breadcrumb_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/navigation_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/breadcrumb/usage/
 - Design decisions: `references/components-navigation-data.md`
 

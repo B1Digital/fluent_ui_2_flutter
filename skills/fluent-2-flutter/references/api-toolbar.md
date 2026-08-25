@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 toolbar: a row of buttons, toggles and dividers on one surface.
 
-Source: `packages/fluent_2_web/lib/src/navigation/toolbar.dart`
+Source: `packages/fluent_2/lib/src/navigation/toolbar.dart`
 
 #### Constructor: `FluentToolbar`
 
@@ -62,7 +62,7 @@ const FluentToolbar({
 
 The vertical rule that separates groups of toolbar items.
 
-Source: `packages/fluent_2_web/lib/src/navigation/toolbar.dart`
+Source: `packages/fluent_2/lib/src/navigation/toolbar.dart`
 
 #### Constructor: `FluentToolbarDivider`
 
@@ -79,7 +79,7 @@ const FluentToolbarDivider({super.key, this.style});
 
 ### `FluentToolbarBaseState`
 
-Source: `packages/fluent_2_web/lib/src/navigation/toolbar.dart`
+Source: `packages/fluent_2/lib/src/navigation/toolbar.dart`
 
 #### Constructor: `FluentToolbarBaseState`
 
@@ -95,7 +95,7 @@ const FluentToolbarBaseState({required this.items});
 
 Moves the roving focus by [FluentToolbarMoveIntent.delta] items.
 
-Source: `packages/fluent_2_web/lib/src/navigation/toolbar.dart`
+Source: `packages/fluent_2/lib/src/navigation/toolbar.dart`
 
 #### Constructor: `FluentToolbarMoveIntent`
 
@@ -111,7 +111,7 @@ const FluentToolbarMoveIntent(this.delta);
 
 Toolbar padding ramp. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/navigation/toolbar.dart`
+Source: `packages/fluent_2/lib/src/navigation/toolbar.dart`
 
 ```dart
 enum FluentToolbarSize {
@@ -123,7 +123,7 @@ enum FluentToolbarSize {
 
 ### `FluentToolbarState`
 
-Source: `packages/fluent_2_web/lib/src/navigation/toolbar.dart`
+Source: `packages/fluent_2/lib/src/navigation/toolbar.dart`
 
 #### Constructor: `FluentToolbarState`
 
@@ -143,7 +143,7 @@ const FluentToolbarState({
 
 ### `FluentToolbarStyle`
 
-Source: `packages/fluent_2_web/lib/src/navigation/toolbar_style.dart`
+Source: `packages/fluent_2/lib/src/navigation/toolbar_style.dart`
 
 #### Constructor: `FluentToolbarStyle`
 
@@ -177,7 +177,7 @@ const FluentToolbarStyle({
 
 Overrides the toolbar style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/navigation/toolbar.dart`
+Source: `packages/fluent_2/lib/src/navigation/toolbar.dart`
 
 #### Constructor: `FluentToolbarTheme`
 
@@ -199,7 +199,7 @@ const FluentToolbarTheme({
 
 Whether the toolbar sits in the page or floats over it. Figma's `Type` axis.
 
-Source: `packages/fluent_2_web/lib/src/navigation/toolbar.dart`
+Source: `packages/fluent_2/lib/src/navigation/toolbar.dart`
 
 ```dart
 enum FluentToolbarType {
@@ -234,7 +234,7 @@ Widget buildFluentToolbar(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/navigation_stories.dart`:
 
 ```dart
 FluentToolbar(
@@ -265,9 +265,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/navigation/toolbar.dart`
-- Tests: `packages/fluent_2_web/test/goldens/toolbar_golden_test.dart`, `packages/fluent_2_web/test/navigation/toolbar_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/navigation/toolbar.dart`
+- Tests: `packages/fluent_2/test/goldens/toolbar_golden_test.dart`, `packages/fluent_2/test/navigation/toolbar_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/navigation_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/toolbar/usage/
 - Design decisions: `references/components-navigation-data.md`
 

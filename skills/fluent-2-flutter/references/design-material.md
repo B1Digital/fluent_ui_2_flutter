@@ -11,7 +11,7 @@ not interchangeable styles.
 | Material | Use | Flutter support in this repository |
 | --- | --- | --- |
 | Solid | Default opaque regions and controls | Compose with theme alias colors and elevation |
-| Acrylic | Transient, light-dismiss menus and popovers | `FluentAcrylicSurface` in `fluent_2_web` |
+| Acrylic | Transient, light-dismiss menus and popovers | `FluentAcrylicSurface` in `fluent_2` |
 | Mica | Windows base layer tied to desktop/window activity | No public Mica widget; report the gap |
 | Smoke | Dim and block content under a modal surface | `backgroundOverlay`; built into modal overlays |
 

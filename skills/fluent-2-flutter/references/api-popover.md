@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 popover: a light-dismiss surface anchored to a trigger.
 
-Source: `packages/fluent_2_web/lib/src/overlays/popover.dart`
+Source: `packages/fluent_2/lib/src/overlays/popover.dart`
 
 #### Constructor: `FluentPopover`
 
@@ -76,7 +76,7 @@ const FluentPopover({
 
 Plays Fluent's popover entrance over [child]: a fade plus a direction-aware slide, once, on the frame the widget is inserted.
 
-Source: `packages/fluent_2_web/lib/src/overlays/popover.dart`
+Source: `packages/fluent_2/lib/src/overlays/popover.dart`
 
 #### Constructor: `FluentPopoverEntrance`
 
@@ -102,7 +102,7 @@ const FluentPopoverEntrance({
 
 Where along the anchor's edge the popover lines up.
 
-Source: `packages/fluent_2_web/lib/src/overlays/popover.dart`
+Source: `packages/fluent_2/lib/src/overlays/popover.dart`
 
 ```dart
 enum FluentPopoverAlign {
@@ -116,7 +116,7 @@ enum FluentPopoverAlign {
 
 How a popover surface is filled. Figma's `Style` axis, verbatim.
 
-Source: `packages/fluent_2_web/lib/src/overlays/popover.dart`
+Source: `packages/fluent_2/lib/src/overlays/popover.dart`
 
 ```dart
 enum FluentPopoverAppearance {
@@ -130,7 +130,7 @@ enum FluentPopoverAppearance {
 
 Paints the popover's pointing arrow.
 
-Source: `packages/fluent_2_web/lib/src/overlays/popover.dart`
+Source: `packages/fluent_2/lib/src/overlays/popover.dart`
 
 #### Constructor: `FluentPopoverArrowPainter`
 
@@ -148,7 +148,7 @@ const FluentPopoverArrowPainter({
 
 ### `FluentPopoverBaseState`
 
-Source: `packages/fluent_2_web/lib/src/overlays/popover.dart`
+Source: `packages/fluent_2/lib/src/overlays/popover.dart`
 
 #### Constructor: `FluentPopoverBaseState`
 
@@ -172,7 +172,7 @@ const FluentPopoverBaseState({
 
 Which side of its anchor a popover sits on.
 
-Source: `packages/fluent_2_web/lib/src/overlays/popover.dart`
+Source: `packages/fluent_2/lib/src/overlays/popover.dart`
 
 ```dart
 enum FluentPopoverPosition {
@@ -187,7 +187,7 @@ enum FluentPopoverPosition {
 
 Surface padding and arrow size.
 
-Source: `packages/fluent_2_web/lib/src/overlays/popover.dart`
+Source: `packages/fluent_2/lib/src/overlays/popover.dart`
 
 ```dart
 enum FluentPopoverSize {
@@ -199,7 +199,7 @@ enum FluentPopoverSize {
 
 ### `FluentPopoverState`
 
-Source: `packages/fluent_2_web/lib/src/overlays/popover.dart`
+Source: `packages/fluent_2/lib/src/overlays/popover.dart`
 
 #### Constructor: `FluentPopoverState`
 
@@ -225,7 +225,7 @@ const FluentPopoverState({
 
 ### `FluentPopoverStyle`
 
-Source: `packages/fluent_2_web/lib/src/overlays/popover_style.dart`
+Source: `packages/fluent_2/lib/src/overlays/popover_style.dart`
 
 #### Constructor: `FluentPopoverStyle`
 
@@ -263,7 +263,7 @@ const FluentPopoverStyle({
 
 Overrides the popover style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/overlays/popover.dart`
+Source: `packages/fluent_2/lib/src/overlays/popover.dart`
 
 #### Constructor: `FluentPopoverTheme`
 
@@ -310,7 +310,7 @@ Widget buildFluentPopover(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`:
 
 ```dart
 FluentPopover(
@@ -330,9 +330,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/overlays/popover.dart`
-- Tests: `packages/fluent_2_web/test/goldens/popover_golden_test.dart`, `packages/fluent_2_web/test/goldens/teaching_popover_golden_test.dart`, `packages/fluent_2_web/test/inputs/info_button_test.dart`, `packages/fluent_2_web/test/overlays/popover_test.dart`, `packages/fluent_2_web/test/overlays/teaching_popover_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/overlays/popover.dart`
+- Tests: `packages/fluent_2/test/goldens/popover_golden_test.dart`, `packages/fluent_2/test/goldens/teaching_popover_golden_test.dart`, `packages/fluent_2/test/inputs/info_button_test.dart`, `packages/fluent_2/test/overlays/popover_test.dart`, `packages/fluent_2/test/overlays/teaching_popover_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/popover/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 avatar: a person or entity as a photo, their initials, or a fallback glyph.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar.dart`
 
 #### Constructor: `FluentAvatar`
 
@@ -70,7 +70,7 @@ const FluentAvatar({
 
 A Fluent 2 presence badge: the availability dot that sits on an avatar.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/presence_badge.dart`
+Source: `packages/fluent_2/lib/src/surfaces/presence_badge.dart`
 
 #### Constructor: `FluentPresenceBadge`
 
@@ -104,7 +104,7 @@ const FluentPresenceBadge({
 
 Whether the person is currently doing something, and therefore whether the activity ring is drawn.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar.dart`
 
 ```dart
 enum FluentAvatarActive {
@@ -116,7 +116,7 @@ enum FluentAvatarActive {
 
 ### `FluentAvatarBaseState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar.dart`
 
 #### Constructor: `FluentAvatarBaseState`
 
@@ -148,7 +148,7 @@ const FluentAvatarBaseState({
 
 Which of Figma's 33 `Avatar color` modes an avatar paints in.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar.dart`
 
 ```dart
 enum FluentAvatarColor {
@@ -190,7 +190,7 @@ enum FluentAvatarColor {
 
 ### `FluentAvatarGroupBaseState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar_group.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar_group.dart`
 
 #### Constructor: `FluentAvatarGroupBaseState`
 
@@ -208,7 +208,7 @@ const FluentAvatarGroupBaseState({
 
 ### `FluentAvatarGroupState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar_group.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar_group.dart`
 
 #### Constructor: `FluentAvatarGroupState`
 
@@ -230,7 +230,7 @@ const FluentAvatarGroupState({
 
 Paints the rules between pie slices.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar_group.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar_group.dart`
 
 #### Constructor: `FluentAvatarPiePainter`
 
@@ -252,7 +252,7 @@ const FluentAvatarPiePainter({
 
 Paints the activity ring — and, with [gap] left at zero, the flat outline an avatar takes inside a stacked `FluentAvatarGroup`.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar.dart`
 
 #### Constructor: `FluentAvatarRingPainter`
 
@@ -280,7 +280,7 @@ const FluentAvatarRingPainter({
 
 Corner treatment. Figma's `Avatar shape` variable collection.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar.dart`
 
 ```dart
 enum FluentAvatarShape {
@@ -293,7 +293,7 @@ enum FluentAvatarShape {
 
 Avatar edge length. Figma's `Size` axis, and identical to upstream's `AvatarSize` union minus `128`, which the design file does not draw.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar.dart`
 
 ```dart
 enum FluentAvatarSize {
@@ -315,7 +315,7 @@ enum FluentAvatarSize {
 
 ### `FluentAvatarState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar.dart`
 
 #### Constructor: `FluentAvatarState`
 
@@ -347,7 +347,7 @@ const FluentAvatarState({
 
 ### `FluentAvatarStyle`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar_style.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar_style.dart`
 
 #### Constructor: `FluentAvatarStyle`
 
@@ -385,7 +385,7 @@ const FluentAvatarStyle({
 
 Overrides the avatar style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar.dart`
 
 #### Constructor: `FluentAvatarTheme`
 
@@ -405,7 +405,7 @@ const FluentAvatarTheme({
 
 ### `FluentPresenceBadgeBaseState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/presence_badge.dart`
+Source: `packages/fluent_2/lib/src/surfaces/presence_badge.dart`
 
 #### Constructor: `FluentPresenceBadgeBaseState`
 
@@ -426,7 +426,7 @@ const FluentPresenceBadgeBaseState({required this.semanticLabel, this.glyph});
 
 Paints a presence badge's disc and cut-out ring.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/presence_badge.dart`
+Source: `packages/fluent_2/lib/src/surfaces/presence_badge.dart`
 
 #### Constructor: `FluentPresenceBadgePainter`
 
@@ -450,7 +450,7 @@ const FluentPresenceBadgePainter({
 
 Badge diameter. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/presence_badge.dart`
+Source: `packages/fluent_2/lib/src/surfaces/presence_badge.dart`
 
 ```dart
 enum FluentPresenceBadgeSize {
@@ -465,7 +465,7 @@ enum FluentPresenceBadgeSize {
 
 ### `FluentPresenceBadgeState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/presence_badge.dart`
+Source: `packages/fluent_2/lib/src/surfaces/presence_badge.dart`
 
 #### Constructor: `FluentPresenceBadgeState`
 
@@ -489,7 +489,7 @@ const FluentPresenceBadgeState({
 
 ### `FluentPresenceBadgeStyle`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/presence_badge_style.dart`
+Source: `packages/fluent_2/lib/src/surfaces/presence_badge_style.dart`
 
 #### Constructor: `FluentPresenceBadgeStyle`
 
@@ -515,7 +515,7 @@ const FluentPresenceBadgeStyle({
 
 Overrides the presence badge style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/presence_badge.dart`
+Source: `packages/fluent_2/lib/src/surfaces/presence_badge.dart`
 
 #### Constructor: `FluentPresenceBadgeTheme`
 
@@ -537,7 +537,7 @@ const FluentPresenceBadgeTheme({
 
 A person's availability. Figma's `Status` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/presence_badge.dart`
+Source: `packages/fluent_2/lib/src/surfaces/presence_badge.dart`
 
 ```dart
 enum FluentPresenceStatus {
@@ -603,7 +603,7 @@ Widget buildFluentPresenceBadge(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
 FluentAvatar(name: 'Kat Larsson', initials: 'KL')
@@ -615,9 +615,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/surfaces/avatar.dart`, `packages/fluent_2_web/lib/src/surfaces/presence_badge.dart`
-- Tests: `packages/fluent_2_web/test/goldens/avatar_golden_test.dart`, `packages/fluent_2_web/test/goldens/list_item_golden_test.dart`, `packages/fluent_2_web/test/goldens/persona_golden_test.dart`, `packages/fluent_2_web/test/goldens/presence_badge_golden_test.dart`, `packages/fluent_2_web/test/inputs/radio_test.dart`, `packages/fluent_2_web/test/surfaces/avatar_group_test.dart`, `packages/fluent_2_web/test/surfaces/avatar_test.dart`, `packages/fluent_2_web/test/surfaces/badge_test.dart`, `packages/fluent_2_web/test/surfaces/persona_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/surfaces/avatar.dart`, `packages/fluent_2/lib/src/surfaces/presence_badge.dart`
+- Tests: `packages/fluent_2/test/goldens/avatar_golden_test.dart`, `packages/fluent_2/test/goldens/list_item_golden_test.dart`, `packages/fluent_2/test/goldens/persona_golden_test.dart`, `packages/fluent_2/test/goldens/presence_badge_golden_test.dart`, `packages/fluent_2/test/inputs/radio_test.dart`, `packages/fluent_2/test/surfaces/avatar_group_test.dart`, `packages/fluent_2/test/surfaces/avatar_test.dart`, `packages/fluent_2/test/surfaces/badge_test.dart`, `packages/fluent_2/test/surfaces/persona_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/avatar/usage/
 - Design decisions: `references/components-identity-content.md`
 

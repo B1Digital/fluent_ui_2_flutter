@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 avatar group: several people shown as one unit.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar_group.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar_group.dart`
 
 #### Constructor: `FluentAvatarGroup`
 
@@ -56,7 +56,7 @@ const FluentAvatarGroup({
 
 ### `FluentAvatarGroupBaseState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar_group.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar_group.dart`
 
 #### Constructor: `FluentAvatarGroupBaseState`
 
@@ -76,7 +76,7 @@ const FluentAvatarGroupBaseState({
 
 How the avatars in a group are arranged. Figma's `Layout` axis on `Avatar/Avatar group`, plus the `Avatar/Avatar pie` set.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar_group.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar_group.dart`
 
 ```dart
 enum FluentAvatarGroupLayout {
@@ -88,7 +88,7 @@ enum FluentAvatarGroupLayout {
 
 ### `FluentAvatarGroupState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar_group.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar_group.dart`
 
 #### Constructor: `FluentAvatarGroupState`
 
@@ -108,7 +108,7 @@ const FluentAvatarGroupState({
 
 ### `FluentAvatarGroupStyle`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar_group_style.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar_group_style.dart`
 
 #### Constructor: `FluentAvatarGroupStyle`
 
@@ -138,7 +138,7 @@ const FluentAvatarGroupStyle({
 
 Overrides the avatar group style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar_group.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar_group.dart`
 
 #### Constructor: `FluentAvatarGroupTheme`
 
@@ -160,7 +160,7 @@ const FluentAvatarGroupTheme({
 
 Avatar edge length. Figma's `Size` axis, and identical to upstream's `AvatarSize` union minus `128`, which the design file does not draw.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar.dart`
 
 ```dart
 enum FluentAvatarSize {
@@ -206,7 +206,7 @@ Widget buildFluentAvatarGroup(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
 FluentAvatarGroup(
@@ -224,9 +224,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/surfaces/avatar_group.dart`
-- Tests: `packages/fluent_2_web/test/goldens/avatar_golden_test.dart`, `packages/fluent_2_web/test/surfaces/avatar_group_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/surfaces/avatar_group.dart`
+- Tests: `packages/fluent_2/test/goldens/avatar_golden_test.dart`, `packages/fluent_2/test/surfaces/avatar_group_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/avatargroup/usage/
 - Design decisions: `references/components-identity-content.md`
 

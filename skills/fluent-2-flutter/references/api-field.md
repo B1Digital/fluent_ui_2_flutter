@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 field: the label, hint and validation message around a control.
 
-Source: `packages/fluent_2_web/lib/src/inputs/field.dart`
+Source: `packages/fluent_2/lib/src/inputs/field.dart`
 
 #### Constructor: `FluentField`
 
@@ -72,7 +72,7 @@ const FluentField({
 
 ### `FluentFieldBaseState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/field.dart`
+Source: `packages/fluent_2/lib/src/inputs/field.dart`
 
 #### Constructor: `FluentFieldBaseState`
 
@@ -104,7 +104,7 @@ const FluentFieldBaseState({
 
 Label ramp and label-to-control gap. Figma's `Size` axis, and the only axis the `Field` component set has.
 
-Source: `packages/fluent_2_web/lib/src/inputs/field.dart`
+Source: `packages/fluent_2/lib/src/inputs/field.dart`
 
 ```dart
 enum FluentFieldSize {
@@ -116,7 +116,7 @@ enum FluentFieldSize {
 
 ### `FluentFieldState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/field.dart`
+Source: `packages/fluent_2/lib/src/inputs/field.dart`
 
 #### Constructor: `FluentFieldState`
 
@@ -146,7 +146,7 @@ const FluentFieldState({
 
 ### `FluentFieldStyle`
 
-Source: `packages/fluent_2_web/lib/src/inputs/field_style.dart`
+Source: `packages/fluent_2/lib/src/inputs/field_style.dart`
 
 #### Constructor: `FluentFieldStyle`
 
@@ -180,7 +180,7 @@ const FluentFieldStyle({
 
 Overrides the field style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/inputs/field.dart`
+Source: `packages/fluent_2/lib/src/inputs/field.dart`
 
 #### Constructor: `FluentFieldTheme`
 
@@ -202,7 +202,7 @@ const FluentFieldTheme({
 
 What the field is reporting about the value of the control it wraps.
 
-Source: `packages/fluent_2_web/lib/src/inputs/field.dart`
+Source: `packages/fluent_2/lib/src/inputs/field.dart`
 
 ```dart
 enum FluentFieldValidationState {
@@ -245,7 +245,7 @@ Widget buildFluentField(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
 FluentField(
@@ -261,9 +261,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/inputs/field.dart`
-- Tests: `packages/fluent_2_web/test/goldens/field_golden_test.dart`, `packages/fluent_2_web/test/inputs/field_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/inputs/field.dart`
+- Tests: `packages/fluent_2/test/goldens/field_golden_test.dart`, `packages/fluent_2/test/inputs/field_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/field/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 divider: a hairline rule, optionally interrupted by a label.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/divider.dart`
+Source: `packages/fluent_2/lib/src/surfaces/divider.dart`
 
 #### Constructor: `FluentDivider`
 
@@ -64,7 +64,7 @@ const FluentDivider({
 
 Where the label sits along the divider. Figma's `Layout` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/divider.dart`
+Source: `packages/fluent_2/lib/src/surfaces/divider.dart`
 
 ```dart
 enum FluentDividerAlignment {
@@ -78,7 +78,7 @@ enum FluentDividerAlignment {
 
 How strongly a divider reads against its surface.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/divider.dart`
+Source: `packages/fluent_2/lib/src/surfaces/divider.dart`
 
 ```dart
 enum FluentDividerAppearance {
@@ -91,7 +91,7 @@ enum FluentDividerAppearance {
 
 ### `FluentDividerBaseState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/divider.dart`
+Source: `packages/fluent_2/lib/src/surfaces/divider.dart`
 
 #### Constructor: `FluentDividerBaseState`
 
@@ -113,7 +113,7 @@ const FluentDividerBaseState({
 
 ### `FluentDividerState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/divider.dart`
+Source: `packages/fluent_2/lib/src/surfaces/divider.dart`
 
 #### Constructor: `FluentDividerState`
 
@@ -139,7 +139,7 @@ const FluentDividerState({
 
 ### `FluentDividerStyle`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/divider_style.dart`
+Source: `packages/fluent_2/lib/src/surfaces/divider_style.dart`
 
 #### Constructor: `FluentDividerStyle`
 
@@ -175,7 +175,7 @@ const FluentDividerStyle({
 
 Overrides the divider style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/divider.dart`
+Source: `packages/fluent_2/lib/src/surfaces/divider.dart`
 
 #### Constructor: `FluentDividerTheme`
 
@@ -222,7 +222,7 @@ Widget buildFluentDivider(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
 FluentDivider(child: Text('OR'))
@@ -234,9 +234,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/surfaces/divider.dart`
-- Tests: `packages/fluent_2_web/test/goldens/divider_golden_test.dart`, `packages/fluent_2_web/test/navigation/nav_test.dart`, `packages/fluent_2_web/test/navigation/toolbar_test.dart`, `packages/fluent_2_web/test/surfaces/divider_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/surfaces/divider.dart`
+- Tests: `packages/fluent_2/test/goldens/divider_golden_test.dart`, `packages/fluent_2/test/navigation/nav_test.dart`, `packages/fluent_2/test/navigation/toolbar_test.dart`, `packages/fluent_2/test/surfaces/divider_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/divider/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 tag picker: a text field whose value is a list of chips, with a filtered listbox underneath.
 
-Source: `packages/fluent_2_web/lib/src/inputs/tag_picker.dart`
+Source: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 
 #### Constructor: `FluentTagPicker`
 
@@ -85,7 +85,7 @@ const FluentTagPicker({
 
 ### `FluentDropdownOptionStyle`
 
-Source: `packages/fluent_2_web/lib/src/inputs/dropdown_option_style.dart`
+Source: `packages/fluent_2/lib/src/inputs/dropdown_option_style.dart`
 
 #### Constructor: `FluentDropdownOptionStyle`
 
@@ -125,7 +125,7 @@ const FluentDropdownOptionStyle({
 
 Commits the active option, or opens the popup when it is closed.
 
-Source: `packages/fluent_2_web/lib/src/inputs/tag_picker.dart`
+Source: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 
 #### Constructor: `FluentTagPickerActivateIntent`
 
@@ -137,7 +137,7 @@ const FluentTagPickerActivateIntent();
 
 How a tag picker's control is filled and outlined. Figma's `Style` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/tag_picker.dart`
+Source: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 
 ```dart
 enum FluentTagPickerAppearance {
@@ -150,7 +150,7 @@ enum FluentTagPickerAppearance {
 
 ### `FluentTagPickerBaseState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/tag_picker.dart`
+Source: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 
 #### Constructor: `FluentTagPickerBaseState`
 
@@ -180,7 +180,7 @@ const FluentTagPickerBaseState({
 
 Moves the active option by [delta] rows, opening the popup if it is closed.
 
-Source: `packages/fluent_2_web/lib/src/inputs/tag_picker.dart`
+Source: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 
 #### Constructor: `FluentTagPickerMoveIntent`
 
@@ -194,7 +194,7 @@ const FluentTagPickerMoveIntent(this.delta);
 
 ### `FluentTagPickerOption<T>`
 
-Source: `packages/fluent_2_web/lib/src/inputs/tag_picker.dart`
+Source: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 
 #### Constructor: `FluentTagPickerOption`
 
@@ -238,7 +238,7 @@ const FluentTagPickerOption.header({required this.label, this.text});
 
 Removes the last chip. Only ever enabled while the field is empty.
 
-Source: `packages/fluent_2_web/lib/src/inputs/tag_picker.dart`
+Source: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 
 #### Constructor: `FluentTagPickerRemoveLastIntent`
 
@@ -250,7 +250,7 @@ const FluentTagPickerRemoveLastIntent();
 
 Control height. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/tag_picker.dart`
+Source: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 
 ```dart
 enum FluentTagPickerSize {
@@ -262,7 +262,7 @@ enum FluentTagPickerSize {
 
 ### `FluentTagPickerState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/tag_picker.dart`
+Source: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 
 #### Constructor: `FluentTagPickerState`
 
@@ -296,7 +296,7 @@ const FluentTagPickerState({
 
 ### `FluentTagPickerStyle`
 
-Source: `packages/fluent_2_web/lib/src/inputs/tag_picker_style.dart`
+Source: `packages/fluent_2/lib/src/inputs/tag_picker_style.dart`
 
 #### Constructor: `FluentTagPickerStyle`
 
@@ -368,7 +368,7 @@ const FluentTagPickerStyle({
 
 Overrides the tag picker style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/inputs/tag_picker.dart`
+Source: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 
 #### Constructor: `FluentTagPickerTheme`
 
@@ -433,9 +433,9 @@ signatures above and verify any new example with Dart analysis and a widget test
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/inputs/tag_picker.dart`
-- Tests: `packages/fluent_2_web/test/goldens/tag_picker_golden_test.dart`, `packages/fluent_2_web/test/inputs/tag_picker_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
+- Tests: `packages/fluent_2/test/goldens/tag_picker_golden_test.dart`, `packages/fluent_2/test/inputs/tag_picker_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/tagpicker/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

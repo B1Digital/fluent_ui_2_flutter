@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 accordion: a stack of headers, each revealing a panel.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/accordion.dart`
+Source: `packages/fluent_2/lib/src/surfaces/accordion.dart`
 
 #### Constructor: `FluentAccordion`
 
@@ -65,7 +65,7 @@ const FluentAccordion({
 
 One header-and-panel pair inside a [FluentAccordion].
 
-Source: `packages/fluent_2_web/lib/src/surfaces/accordion.dart`
+Source: `packages/fluent_2/lib/src/surfaces/accordion.dart`
 
 #### Constructor: `FluentAccordionItem`
 
@@ -112,7 +112,7 @@ const FluentAccordionItem({
 
 Which side of the header the chevron sits on. Figma's `Chevron` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/accordion.dart`
+Source: `packages/fluent_2/lib/src/surfaces/accordion.dart`
 
 ```dart
 enum FluentAccordionExpandIconPosition {
@@ -123,7 +123,7 @@ enum FluentAccordionExpandIconPosition {
 
 ### `FluentAccordionItemBaseState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/accordion.dart`
+Source: `packages/fluent_2/lib/src/surfaces/accordion.dart`
 
 #### Constructor: `FluentAccordionItemBaseState`
 
@@ -152,7 +152,7 @@ const FluentAccordionItemBaseState({
 
 ### `FluentAccordionItemState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/accordion.dart`
+Source: `packages/fluent_2/lib/src/surfaces/accordion.dart`
 
 #### Constructor: `FluentAccordionItemState`
 
@@ -178,7 +178,7 @@ const FluentAccordionItemState({
 
 ### `FluentAccordionItemStyle`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/accordion_style.dart`
+Source: `packages/fluent_2/lib/src/surfaces/accordion_style.dart`
 
 #### Constructor: `FluentAccordionItemStyle`
 
@@ -214,7 +214,7 @@ const FluentAccordionItemStyle({
 
 Overrides the accordion item style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/accordion.dart`
+Source: `packages/fluent_2/lib/src/surfaces/accordion.dart`
 
 #### Constructor: `FluentAccordionItemTheme`
 
@@ -236,7 +236,7 @@ const FluentAccordionItemTheme({
 
 Header height and type ramp. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/accordion.dart`
+Source: `packages/fluent_2/lib/src/surfaces/accordion.dart`
 
 ```dart
 enum FluentAccordionSize {
@@ -277,7 +277,7 @@ Widget buildFluentAccordionItem(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
 FluentAccordion(
@@ -310,9 +310,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/surfaces/accordion.dart`
-- Tests: `packages/fluent_2_web/test/goldens/accordion_golden_test.dart`, `packages/fluent_2_web/test/surfaces/accordion_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/surfaces/accordion.dart`
+- Tests: `packages/fluent_2/test/goldens/accordion_golden_test.dart`, `packages/fluent_2/test/surfaces/accordion_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/accordion/usage/
 - Design decisions: `references/components-navigation-data.md`
 

@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 menu.
 
-Source: `packages/fluent_2_web/lib/src/overlays/menu.dart`
+Source: `packages/fluent_2/lib/src/overlays/menu.dart`
 
 #### Constructor: `FluentMenu`
 
@@ -64,7 +64,7 @@ const FluentMenu({
 
 ### `FluentMenuBaseState`
 
-Source: `packages/fluent_2_web/lib/src/overlays/menu.dart`
+Source: `packages/fluent_2/lib/src/overlays/menu.dart`
 
 #### Constructor: `FluentMenuBaseState`
 
@@ -78,7 +78,7 @@ const FluentMenuBaseState({required this.children});
 
 ### `FluentMenuItem`
 
-Source: `packages/fluent_2_web/lib/src/overlays/menu_item.dart`
+Source: `packages/fluent_2/lib/src/overlays/menu_item.dart`
 
 #### Constructor: `FluentMenuItem`
 
@@ -141,7 +141,7 @@ const FluentMenuItem.divider();
 
 ### `FluentMenuItemBaseState`
 
-Source: `packages/fluent_2_web/lib/src/overlays/menu_item.dart`
+Source: `packages/fluent_2/lib/src/overlays/menu_item.dart`
 
 #### Constructor: `FluentMenuItemBaseState`
 
@@ -177,7 +177,7 @@ const FluentMenuItemBaseState({
 
 ### `FluentMenuItemState`
 
-Source: `packages/fluent_2_web/lib/src/overlays/menu_item.dart`
+Source: `packages/fluent_2/lib/src/overlays/menu_item.dart`
 
 #### Constructor: `FluentMenuItemState`
 
@@ -211,7 +211,7 @@ const FluentMenuItemState({
 
 ### `FluentMenuItemStyle`
 
-Source: `packages/fluent_2_web/lib/src/overlays/menu_item_style.dart`
+Source: `packages/fluent_2/lib/src/overlays/menu_item_style.dart`
 
 #### Constructor: `FluentMenuItemStyle`
 
@@ -259,7 +259,7 @@ const FluentMenuItemStyle({
 
 ### `FluentMenuState`
 
-Source: `packages/fluent_2_web/lib/src/overlays/menu.dart`
+Source: `packages/fluent_2/lib/src/overlays/menu.dart`
 
 #### Constructor: `FluentMenuState`
 
@@ -274,7 +274,7 @@ const FluentMenuState({required super.children, required this.custom});
 
 ### `FluentMenuStyle`
 
-Source: `packages/fluent_2_web/lib/src/overlays/menu_style.dart`
+Source: `packages/fluent_2/lib/src/overlays/menu_style.dart`
 
 #### Constructor: `FluentMenuStyle`
 
@@ -312,7 +312,7 @@ const FluentMenuStyle({
 
 Overrides the menu surface style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/overlays/menu.dart`
+Source: `packages/fluent_2/lib/src/overlays/menu.dart`
 
 #### Constructor: `FluentMenuTheme`
 
@@ -351,7 +351,7 @@ Widget buildFluentMenu(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/button_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/button_stories.dart`:
 
 ```dart
 FluentMenu(
@@ -388,9 +388,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/overlays/menu.dart`
-- Tests: `packages/fluent_2_web/test/goldens/menu_golden_test.dart`, `packages/fluent_2_web/test/overlays/menu_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/button_stories.dart`, `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/overlays/menu.dart`
+- Tests: `packages/fluent_2/test/goldens/menu_golden_test.dart`, `packages/fluent_2/test/overlays/menu_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/button_stories.dart`, `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/menu/usage/
 - Design decisions: `references/components-navigation-data.md`
 

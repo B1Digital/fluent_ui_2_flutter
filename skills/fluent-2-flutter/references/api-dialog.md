@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 dialog.
 
-Source: `packages/fluent_2_web/lib/src/overlays/dialog.dart`
+Source: `packages/fluent_2/lib/src/overlays/dialog.dart`
 
 #### Constructor: `FluentDialog`
 
@@ -80,7 +80,7 @@ const FluentDialog({
 
 ### `FluentDialogBaseState`
 
-Source: `packages/fluent_2_web/lib/src/overlays/dialog.dart`
+Source: `packages/fluent_2/lib/src/overlays/dialog.dart`
 
 #### Constructor: `FluentDialogBaseState`
 
@@ -108,7 +108,7 @@ const FluentDialogBaseState({
 
 Whether a dialog blocks the page, and how it may be dismissed.
 
-Source: `packages/fluent_2_web/lib/src/overlays/dialog.dart`
+Source: `packages/fluent_2/lib/src/overlays/dialog.dart`
 
 ```dart
 enum FluentDialogModalType {
@@ -122,7 +122,7 @@ enum FluentDialogModalType {
 
 How much of the screen a dialog claims, and how its actions stack.
 
-Source: `packages/fluent_2_web/lib/src/overlays/dialog.dart`
+Source: `packages/fluent_2/lib/src/overlays/dialog.dart`
 
 ```dart
 enum FluentDialogSize {
@@ -133,7 +133,7 @@ enum FluentDialogSize {
 
 ### `FluentDialogState`
 
-Source: `packages/fluent_2_web/lib/src/overlays/dialog.dart`
+Source: `packages/fluent_2/lib/src/overlays/dialog.dart`
 
 #### Constructor: `FluentDialogState`
 
@@ -163,7 +163,7 @@ const FluentDialogState({
 
 ### `FluentDialogStyle`
 
-Source: `packages/fluent_2_web/lib/src/overlays/dialog_style.dart`
+Source: `packages/fluent_2/lib/src/overlays/dialog_style.dart`
 
 #### Constructor: `FluentDialogStyle`
 
@@ -211,7 +211,7 @@ const FluentDialogStyle({
 
 Overrides the dialog style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/overlays/dialog.dart`
+Source: `packages/fluent_2/lib/src/overlays/dialog.dart`
 
 #### Constructor: `FluentDialogTheme`
 
@@ -259,7 +259,7 @@ Widget buildFluentDialog(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`:
 
 ```dart
 FluentDialog(
@@ -296,9 +296,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/overlays/dialog.dart`
-- Tests: `packages/fluent_2_web/test/goldens/dialog_golden_test.dart`, `packages/fluent_2_web/test/overlays/dialog_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/overlays/dialog.dart`
+- Tests: `packages/fluent_2/test/goldens/dialog_golden_test.dart`, `packages/fluent_2/test/overlays/dialog_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/dialog/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

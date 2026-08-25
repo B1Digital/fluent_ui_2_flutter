@@ -39,7 +39,7 @@ work around it by inventing an API.
 
 A Fluent 2 radio group: the mutually exclusive set a `FluentRadio` belongs to.
 
-Source: `packages/fluent_2_web/lib/src/inputs/radio_group.dart`
+Source: `packages/fluent_2/lib/src/inputs/radio_group.dart`
 
 #### Constructor: `FluentRadioGroup`
 
@@ -75,7 +75,7 @@ const FluentRadioGroup({
 
 A Fluent 2 radio: one option in a mutually exclusive set.
 
-Source: `packages/fluent_2_web/lib/src/inputs/radio.dart`
+Source: `packages/fluent_2/lib/src/inputs/radio.dart`
 
 #### Constructor: `FluentRadio`
 
@@ -121,7 +121,7 @@ const FluentRadio({
 
 Carries a `FluentRadioGroup`'s selection down to the radios inside it.
 
-Source: `packages/fluent_2_web/lib/src/inputs/radio.dart`
+Source: `packages/fluent_2/lib/src/inputs/radio.dart`
 
 #### Constructor: `FluentRadioGroupScope`
 
@@ -156,7 +156,7 @@ const FluentRadioGroupScope({
 
 How the radios in a group are laid out. Figma's `Direction` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/radio_group.dart`
+Source: `packages/fluent_2/lib/src/inputs/radio_group.dart`
 
 ```dart
 enum FluentRadioGroupLayout {
@@ -170,7 +170,7 @@ enum FluentRadioGroupLayout {
 
 Paints a radio's ring and, when checked, its dot.
 
-Source: `packages/fluent_2_web/lib/src/inputs/radio.dart`
+Source: `packages/fluent_2/lib/src/inputs/radio.dart`
 
 #### Constructor: `FluentRadioIndicatorPainter`
 
@@ -194,7 +194,7 @@ const FluentRadioIndicatorPainter({
 
 Where the label sits relative to the indicator. Figma's `Label position` axis, and upstream's `labelPosition` prop.
 
-Source: `packages/fluent_2_web/lib/src/inputs/radio.dart`
+Source: `packages/fluent_2/lib/src/inputs/radio.dart`
 
 ```dart
 enum FluentRadioLabelPosition {
@@ -205,7 +205,7 @@ enum FluentRadioLabelPosition {
 
 ### `FluentRadioState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/radio.dart`
+Source: `packages/fluent_2/lib/src/inputs/radio.dart`
 
 #### Constructor: `FluentRadioState`
 
@@ -232,7 +232,7 @@ const FluentRadioState({
 
 ### `FluentRadioStyle`
 
-Source: `packages/fluent_2_web/lib/src/inputs/radio_style.dart`
+Source: `packages/fluent_2/lib/src/inputs/radio_style.dart`
 
 #### Constructor: `FluentRadioStyle`
 
@@ -270,7 +270,7 @@ const FluentRadioStyle({
 
 Overrides the radio style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/inputs/radio.dart`
+Source: `packages/fluent_2/lib/src/inputs/radio.dart`
 
 #### Constructor: `FluentRadioTheme`
 
@@ -320,9 +320,9 @@ signatures above and verify any new example with Dart analysis and a widget test
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/inputs/radio_group.dart`, `packages/fluent_2_web/lib/src/inputs/radio.dart`
-- Tests: `packages/fluent_2_web/test/goldens/radio_golden_test.dart`, `packages/fluent_2_web/test/goldens/tree_golden_test.dart`, `packages/fluent_2_web/test/inputs/radio_test.dart`, `packages/fluent_2_web/test/navigation/data_grid_test.dart`, `packages/fluent_2_web/test/navigation/list_item_test.dart`, `packages/fluent_2_web/test/navigation/tree_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/inputs/radio_group.dart`, `packages/fluent_2/lib/src/inputs/radio.dart`
+- Tests: `packages/fluent_2/test/goldens/radio_golden_test.dart`, `packages/fluent_2/test/goldens/tree_golden_test.dart`, `packages/fluent_2/test/inputs/radio_test.dart`, `packages/fluent_2/test/navigation/data_grid_test.dart`, `packages/fluent_2/test/navigation/list_item_test.dart`, `packages/fluent_2/test/navigation/tree_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/radiogroup/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

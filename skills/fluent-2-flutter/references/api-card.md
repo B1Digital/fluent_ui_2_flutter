@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 card: a container that groups a preview, a header, a body and a footer onto one elevated surface.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/card.dart`
+Source: `packages/fluent_2/lib/src/surfaces/card.dart`
 
 #### Constructor: `FluentCard`
 
@@ -86,7 +86,7 @@ const FluentCard({
 
 How a card is filled and outlined.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/card.dart`
+Source: `packages/fluent_2/lib/src/surfaces/card.dart`
 
 ```dart
 enum FluentCardAppearance {
@@ -99,7 +99,7 @@ enum FluentCardAppearance {
 
 ### `FluentCardBaseState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/card.dart`
+Source: `packages/fluent_2/lib/src/surfaces/card.dart`
 
 #### Constructor: `FluentCardBaseState`
 
@@ -136,7 +136,7 @@ const FluentCardBaseState({
 
 Which axis the slots are laid out along. Figma's `Layout` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/card.dart`
+Source: `packages/fluent_2/lib/src/surfaces/card.dart`
 
 ```dart
 enum FluentCardOrientation {
@@ -149,7 +149,7 @@ enum FluentCardOrientation {
 
 Card inset, gap and corner radius. Figma's `Card padding` collection.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/card.dart`
+Source: `packages/fluent_2/lib/src/surfaces/card.dart`
 
 ```dart
 enum FluentCardSize {
@@ -161,7 +161,7 @@ enum FluentCardSize {
 
 ### `FluentCardState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/card.dart`
+Source: `packages/fluent_2/lib/src/surfaces/card.dart`
 
 #### Constructor: `FluentCardState`
 
@@ -195,7 +195,7 @@ const FluentCardState({
 
 ### `FluentCardStyle`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/card_style.dart`
+Source: `packages/fluent_2/lib/src/surfaces/card_style.dart`
 
 #### Constructor: `FluentCardStyle`
 
@@ -229,7 +229,7 @@ const FluentCardStyle({
 
 Overrides the card style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/card.dart`
+Source: `packages/fluent_2/lib/src/surfaces/card.dart`
 
 #### Constructor: `FluentCardTheme`
 
@@ -276,7 +276,7 @@ Widget buildFluentCard(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
 FluentCard(
@@ -293,9 +293,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/surfaces/card.dart`
-- Tests: `packages/fluent_2_web/test/goldens/card_golden_test.dart`, `packages/fluent_2_web/test/surfaces/card_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/surfaces/card.dart`
+- Tests: `packages/fluent_2/test/goldens/card_golden_test.dart`, `packages/fluent_2/test/surfaces/card_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/card/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

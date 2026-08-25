@@ -2,7 +2,7 @@
 
 // Compile-only fixture for the Dart examples in references/flutter-foundations.md.
 // Run: dart analyze skills/fluent-2-flutter/scripts/flutter-examples-smoke.dart
-import 'package:fluent_2_web/fluent_2_web.dart';
+import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/widgets.dart';
 
 void main() {}

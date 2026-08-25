@@ -60,7 +60,7 @@ The official Fluent iOS subset currently indexes activity indicator, avatar,
 avatar group, button, card nudge, heads-up display, navigation bar, progress
 bar, segmented control, shimmer, text field, and tooltip.
 
-Treat these as UIKit/AppKit guidance. Check `fluent_2_mobile.dart` before using a
+Treat these as UIKit/AppKit guidance. Check the `fluent_2` barrel before using a
 Dart equivalent. Preserve iOS navigation, focus, text editing, Dynamic Type,
 VoiceOver, and the 44x44 minimum target when composing a missing control.
 
@@ -69,7 +69,7 @@ VoiceOver, and the 44x44 minimum target when composing a missing control.
 The official Fluent Android subset currently indexes avatar, avatar group,
 button, progress indicator, and shimmer.
 
-Treat these as native Android guidance. Check `fluent_2_mobile.dart` before
+Treat these as native Android guidance. Check the `fluent_2` barrel before
 using a Dart equivalent. Preserve Android back behavior, text scaling,
 TalkBack, keyboard/access-switch input, and the 48x48 minimum target.
 

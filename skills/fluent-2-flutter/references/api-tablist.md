@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 tab list.
 
-Source: `packages/fluent_2_web/lib/src/navigation/tab_list.dart`
+Source: `packages/fluent_2/lib/src/navigation/tab_list.dart`
 
 #### Constructor: `FluentTabList`
 
@@ -70,7 +70,7 @@ const FluentTabList({
 
 One tab of a [FluentTabList].
 
-Source: `packages/fluent_2_web/lib/src/navigation/tab_list.dart`
+Source: `packages/fluent_2/lib/src/navigation/tab_list.dart`
 
 #### Constructor: `FluentTab`
 
@@ -108,7 +108,7 @@ const FluentTab({
 
 Fill and shape treatment. Figma's `Style` axis.
 
-Source: `packages/fluent_2_web/lib/src/navigation/tab_list.dart`
+Source: `packages/fluent_2/lib/src/navigation/tab_list.dart`
 
 ```dart
 enum FluentTabAppearance {
@@ -121,7 +121,7 @@ enum FluentTabAppearance {
 
 ### `FluentTabBaseState`
 
-Source: `packages/fluent_2_web/lib/src/navigation/tab_list.dart`
+Source: `packages/fluent_2/lib/src/navigation/tab_list.dart`
 
 #### Constructor: `FluentTabBaseState`
 
@@ -152,7 +152,7 @@ const FluentTabBaseState({
 
 Moves the selection to the first or last enabled tab.
 
-Source: `packages/fluent_2_web/lib/src/navigation/tab_list.dart`
+Source: `packages/fluent_2/lib/src/navigation/tab_list.dart`
 
 #### Constructor: `FluentTabEdgeIntent`
 
@@ -168,7 +168,7 @@ const FluentTabEdgeIntent({required this.last});
 
 Moves the selection by [delta] tabs, skipping disabled ones.
 
-Source: `packages/fluent_2_web/lib/src/navigation/tab_list.dart`
+Source: `packages/fluent_2/lib/src/navigation/tab_list.dart`
 
 #### Constructor: `FluentTabMoveIntent`
 
@@ -184,7 +184,7 @@ const FluentTabMoveIntent(this.delta);
 
 Which way a tab list runs.
 
-Source: `packages/fluent_2_web/lib/src/navigation/tab_list.dart`
+Source: `packages/fluent_2/lib/src/navigation/tab_list.dart`
 
 ```dart
 enum FluentTabOrientation {
@@ -197,7 +197,7 @@ enum FluentTabOrientation {
 
 Tab height and type ramp. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/navigation/tab_list.dart`
+Source: `packages/fluent_2/lib/src/navigation/tab_list.dart`
 
 ```dart
 enum FluentTabSize {
@@ -208,7 +208,7 @@ enum FluentTabSize {
 
 ### `FluentTabState`
 
-Source: `packages/fluent_2_web/lib/src/navigation/tab_list.dart`
+Source: `packages/fluent_2/lib/src/navigation/tab_list.dart`
 
 #### Constructor: `FluentTabState`
 
@@ -236,7 +236,7 @@ const FluentTabState({
 
 ### `FluentTabStyle`
 
-Source: `packages/fluent_2_web/lib/src/navigation/tab_style.dart`
+Source: `packages/fluent_2/lib/src/navigation/tab_style.dart`
 
 #### Constructor: `FluentTabStyle`
 
@@ -286,7 +286,7 @@ const FluentTabStyle({
 
 Overrides the tab style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/navigation/tab_list.dart`
+Source: `packages/fluent_2/lib/src/navigation/tab_list.dart`
 
 #### Constructor: `FluentTabTheme`
 
@@ -338,9 +338,9 @@ signatures above and verify any new example with Dart analysis and a widget test
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/navigation/tab_list.dart`
-- Tests: `packages/fluent_2_web/test/goldens/tab_list_golden_test.dart`, `packages/fluent_2_web/test/navigation/tab_list_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/navigation/tab_list.dart`
+- Tests: `packages/fluent_2/test/goldens/tab_list_golden_test.dart`, `packages/fluent_2/test/navigation/tab_list_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/navigation_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/tablist/usage/
 - Design decisions: `references/components-navigation-data.md`
 

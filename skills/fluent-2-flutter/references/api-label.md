@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 label — the text naming a form field.
 
-Source: `packages/fluent_2_web/lib/src/inputs/label.dart`
+Source: `packages/fluent_2/lib/src/inputs/label.dart`
 
 #### Constructor: `FluentLabel`
 
@@ -60,7 +60,7 @@ const FluentLabel({
 
 ### `FluentLabelBaseState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/label.dart`
+Source: `packages/fluent_2/lib/src/inputs/label.dart`
 
 #### Constructor: `FluentLabelBaseState`
 
@@ -86,7 +86,7 @@ const FluentLabelBaseState({
 
 Label type ramp step. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/label.dart`
+Source: `packages/fluent_2/lib/src/inputs/label.dart`
 
 ```dart
 enum FluentLabelSize {
@@ -98,7 +98,7 @@ enum FluentLabelSize {
 
 ### `FluentLabelState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/label.dart`
+Source: `packages/fluent_2/lib/src/inputs/label.dart`
 
 #### Constructor: `FluentLabelState`
 
@@ -122,7 +122,7 @@ const FluentLabelState({
 
 ### `FluentLabelStyle`
 
-Source: `packages/fluent_2_web/lib/src/inputs/label_style.dart`
+Source: `packages/fluent_2/lib/src/inputs/label_style.dart`
 
 #### Constructor: `FluentLabelStyle`
 
@@ -146,7 +146,7 @@ const FluentLabelStyle({
 
 Overrides the label style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/inputs/label.dart`
+Source: `packages/fluent_2/lib/src/inputs/label.dart`
 
 #### Constructor: `FluentLabelTheme`
 
@@ -168,7 +168,7 @@ const FluentLabelTheme({
 
 Label font weight. Figma's `Type` axis, values verbatim.
 
-Source: `packages/fluent_2_web/lib/src/inputs/label.dart`
+Source: `packages/fluent_2/lib/src/inputs/label.dart`
 
 ```dart
 enum FluentLabelWeight {
@@ -205,7 +205,7 @@ Widget buildFluentLabel(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
 FluentLabel(
@@ -220,9 +220,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/inputs/label.dart`
-- Tests: `packages/fluent_2_web/test/goldens/info_label_golden_test.dart`, `packages/fluent_2_web/test/goldens/label_golden_test.dart`, `packages/fluent_2_web/test/inputs/field_test.dart`, `packages/fluent_2_web/test/inputs/info_label_test.dart`, `packages/fluent_2_web/test/inputs/label_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`, `packages/fluent_2_web/example/lib/storybook/components/story_kit.dart`
+- Implementation: `packages/fluent_2/lib/src/inputs/label.dart`
+- Tests: `packages/fluent_2/test/goldens/info_label_golden_test.dart`, `packages/fluent_2/test/goldens/label_golden_test.dart`, `packages/fluent_2/test/inputs/field_test.dart`, `packages/fluent_2/test/inputs/info_label_test.dart`, `packages/fluent_2/test/inputs/label_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`, `packages/fluent_2/example/lib/storybook/components/story_kit.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/label/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

@@ -83,8 +83,8 @@ motion contracts when recomposing.
 | Platform | Current repository status |
 | --- | --- |
 | Core | Tokens, themes, icons, typography, material, elevation, motion, app shell |
-| Web/desktop | Broad component implementation through `fluent_2_web` |
-| iOS/Android | `fluent_2_mobile` barrel must be inspected; no component parity should be assumed |
+| Web/desktop | Broad component implementation through `fluent_2` |
+| iOS/Android | No mobile package ships; no component parity should be assumed |
 | Fluent AI | No dedicated AI component API; use explicit composition or report gaps |
 
 ## Keeping the matrix honest

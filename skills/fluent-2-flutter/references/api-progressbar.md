@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 progress bar.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/progressbar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/progressbar.dart`
 
 #### Constructor: `FluentProgressBar`
 
@@ -63,7 +63,7 @@ const FluentProgressBar({
 
 ### `FluentProgressBarBaseState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/progressbar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/progressbar.dart`
 
 #### Constructor: `FluentProgressBarBaseState`
 
@@ -83,7 +83,7 @@ const FluentProgressBarBaseState({this.value});
 
 Bar height. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/progressbar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/progressbar.dart`
 
 ```dart
 enum FluentProgressBarSize {
@@ -94,7 +94,7 @@ enum FluentProgressBarSize {
 
 ### `FluentProgressBarState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/progressbar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/progressbar.dart`
 
 #### Constructor: `FluentProgressBarState`
 
@@ -116,7 +116,7 @@ const FluentProgressBarState({
 
 Which colour family the filled portion takes. Figma's `State` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/progressbar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/progressbar.dart`
 
 ```dart
 enum FluentProgressBarStatus {
@@ -129,7 +129,7 @@ enum FluentProgressBarStatus {
 
 ### `FluentProgressBarStyle`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/progressbar_style.dart`
+Source: `packages/fluent_2/lib/src/surfaces/progressbar_style.dart`
 
 #### Constructor: `FluentProgressBarStyle`
 
@@ -157,7 +157,7 @@ const FluentProgressBarStyle({
 
 Overrides the progress bar style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/progressbar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/progressbar.dart`
 
 #### Constructor: `FluentProgressBarTheme`
 
@@ -201,7 +201,7 @@ Widget buildFluentProgressBar(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
 FluentProgressBar(
@@ -220,9 +220,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/surfaces/progressbar.dart`
-- Tests: `packages/fluent_2_web/test/goldens/progressbar_golden_test.dart`, `packages/fluent_2_web/test/surfaces/message_bar_test.dart`, `packages/fluent_2_web/test/surfaces/progressbar_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/surfaces/progressbar.dart`
+- Tests: `packages/fluent_2/test/goldens/progressbar_golden_test.dart`, `packages/fluent_2/test/surfaces/message_bar_test.dart`, `packages/fluent_2/test/surfaces/progressbar_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/progressbar/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

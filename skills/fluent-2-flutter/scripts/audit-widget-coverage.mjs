@@ -36,7 +36,7 @@ async function walk(directory) {
 async function isRepository(directory) {
   try {
     await access(path.join(directory, 'packages/fluent_2_core/lib'));
-    await access(path.join(directory, 'packages/fluent_2_web/lib'));
+    await access(path.join(directory, 'packages/fluent_2/lib'));
     return true;
   } catch {
     return false;
@@ -68,11 +68,7 @@ function discoverTypes(source, file, repoDir) {
       name: match[1],
       base: match[2].trim(),
       file: path.relative(repoDir, file),
-      package: file.includes('/fluent_2_core/')
-        ? 'fluent_2_core'
-        : file.includes('/fluent_2_mobile/')
-          ? 'fluent_2_mobile'
-          : 'fluent_2_web',
+      package: file.includes('/fluent_2_core/') ? 'fluent_2_core' : 'fluent_2',
     });
   }
   return types;
@@ -150,8 +146,7 @@ try {
   if (repoDir !== null) {
     const libDirectories = [
       path.join(repoDir, 'packages/fluent_2_core/lib'),
-      path.join(repoDir, 'packages/fluent_2_web/lib'),
-      path.join(repoDir, 'packages/fluent_2_mobile/lib'),
+      path.join(repoDir, 'packages/fluent_2/lib'),
     ];
     const dartFiles = (await Promise.all(libDirectories.map(walk))).flat();
     types = [];

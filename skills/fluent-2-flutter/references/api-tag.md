@@ -39,7 +39,7 @@ work around it by inventing an API.
 
 A Fluent 2 tag.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/tag.dart`
+Source: `packages/fluent_2/lib/src/surfaces/tag.dart`
 
 #### Constructor: `FluentTag`
 
@@ -94,7 +94,7 @@ const FluentTag({
 
 A Fluent 2 interaction tag: a tag that is also a control.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/interaction_tag.dart`
+Source: `packages/fluent_2/lib/src/surfaces/interaction_tag.dart`
 
 #### Constructor: `FluentInteractionTag`
 
@@ -151,7 +151,7 @@ const FluentInteractionTag({
 
 Fluent's dismiss glyph, drawn rather than imported.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/tag.dart`
+Source: `packages/fluent_2/lib/src/surfaces/tag.dart`
 
 #### Constructor: `FluentTagDismissGlyph`
 
@@ -167,7 +167,7 @@ const FluentTagDismissGlyph({super.key});
 
 ### `FluentInteractionTagBaseState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/interaction_tag.dart`
+Source: `packages/fluent_2/lib/src/surfaces/interaction_tag.dart`
 
 #### Constructor: `FluentInteractionTagBaseState`
 
@@ -191,7 +191,7 @@ const FluentInteractionTagBaseState({
 
 ### `FluentInteractionTagState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/interaction_tag.dart`
+Source: `packages/fluent_2/lib/src/surfaces/interaction_tag.dart`
 
 #### Constructor: `FluentInteractionTagState`
 
@@ -227,7 +227,7 @@ const FluentInteractionTagState({
 
 Overrides the interaction tag style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/interaction_tag.dart`
+Source: `packages/fluent_2/lib/src/surfaces/interaction_tag.dart`
 
 #### Constructor: `FluentInteractionTagTheme`
 
@@ -249,7 +249,7 @@ const FluentInteractionTagTheme({
 
 How a tag is filled and outlined. Figma's `Style` axis, verbatim.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/tag.dart`
+Source: `packages/fluent_2/lib/src/surfaces/tag.dart`
 
 ```dart
 enum FluentTagAppearance {
@@ -261,7 +261,7 @@ enum FluentTagAppearance {
 
 ### `FluentTagBaseState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/tag.dart`
+Source: `packages/fluent_2/lib/src/surfaces/tag.dart`
 
 #### Constructor: `FluentTagBaseState`
 
@@ -291,7 +291,7 @@ const FluentTagBaseState({
 
 Paints [FluentTagDismissGlyph]'s cross.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/tag.dart`
+Source: `packages/fluent_2/lib/src/surfaces/tag.dart`
 
 #### Constructor: `FluentTagDismissPainter`
 
@@ -307,7 +307,7 @@ const FluentTagDismissPainter({required this.color});
 
 Commits the active option, or opens the popup when it is closed.
 
-Source: `packages/fluent_2_web/lib/src/inputs/tag_picker.dart`
+Source: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 
 #### Constructor: `FluentTagPickerActivateIntent`
 
@@ -317,7 +317,7 @@ const FluentTagPickerActivateIntent();
 
 ### `FluentTagPickerBaseState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/tag_picker.dart`
+Source: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 
 #### Constructor: `FluentTagPickerBaseState`
 
@@ -347,7 +347,7 @@ const FluentTagPickerBaseState({
 
 Moves the active option by [delta] rows, opening the popup if it is closed.
 
-Source: `packages/fluent_2_web/lib/src/inputs/tag_picker.dart`
+Source: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 
 #### Constructor: `FluentTagPickerMoveIntent`
 
@@ -363,7 +363,7 @@ const FluentTagPickerMoveIntent(this.delta);
 
 Removes the last chip. Only ever enabled while the field is empty.
 
-Source: `packages/fluent_2_web/lib/src/inputs/tag_picker.dart`
+Source: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 
 #### Constructor: `FluentTagPickerRemoveLastIntent`
 
@@ -373,7 +373,7 @@ const FluentTagPickerRemoveLastIntent();
 
 ### `FluentTagPickerState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/tag_picker.dart`
+Source: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 
 #### Constructor: `FluentTagPickerState`
 
@@ -409,7 +409,7 @@ const FluentTagPickerState({
 
 Tag height and type ramp. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/tag.dart`
+Source: `packages/fluent_2/lib/src/surfaces/tag.dart`
 
 ```dart
 enum FluentTagSize {
@@ -421,7 +421,7 @@ enum FluentTagSize {
 
 ### `FluentTagState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/tag.dart`
+Source: `packages/fluent_2/lib/src/surfaces/tag.dart`
 
 #### Constructor: `FluentTagState`
 
@@ -455,7 +455,7 @@ const FluentTagState({
 
 ### `FluentTagStyle`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/tag_style.dart`
+Source: `packages/fluent_2/lib/src/surfaces/tag_style.dart`
 
 #### Constructor: `FluentTagStyle`
 
@@ -501,7 +501,7 @@ const FluentTagStyle({
 
 Overrides the tag style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/tag.dart`
+Source: `packages/fluent_2/lib/src/surfaces/tag.dart`
 
 #### Constructor: `FluentTagTheme`
 
@@ -575,7 +575,7 @@ Widget buildFluentTag(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
 FluentTag(
@@ -592,9 +592,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/surfaces/tag.dart`, `packages/fluent_2_web/lib/src/surfaces/interaction_tag.dart`
-- Tests: `packages/fluent_2_web/test/goldens/tag_golden_test.dart`, `packages/fluent_2_web/test/goldens/tag_picker_golden_test.dart`, `packages/fluent_2_web/test/inputs/tag_picker_test.dart`, `packages/fluent_2_web/test/surfaces/tag_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`, `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/surfaces/tag.dart`, `packages/fluent_2/lib/src/surfaces/interaction_tag.dart`
+- Tests: `packages/fluent_2/test/goldens/tag_golden_test.dart`, `packages/fluent_2/test/goldens/tag_picker_golden_test.dart`, `packages/fluent_2/test/inputs/tag_picker_test.dart`, `packages/fluent_2/test/surfaces/tag_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`, `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/tag/usage/
 - Design decisions: `references/components-identity-content.md`
 

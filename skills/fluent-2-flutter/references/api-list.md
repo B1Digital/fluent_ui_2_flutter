@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 list: the rows, and the selection they share.
 
-Source: `packages/fluent_2_web/lib/src/navigation/list_item.dart`
+Source: `packages/fluent_2/lib/src/navigation/list_item.dart`
 
 #### Constructor: `FluentList`
 
@@ -68,7 +68,7 @@ const FluentList({
 
 One row of a [FluentList].
 
-Source: `packages/fluent_2_web/lib/src/navigation/list_item.dart`
+Source: `packages/fluent_2/lib/src/navigation/list_item.dart`
 
 #### Constructor: `FluentListItem`
 
@@ -112,7 +112,7 @@ const FluentListItem({
 
 Moves keyboard focus to the first or last enabled row.
 
-Source: `packages/fluent_2_web/lib/src/navigation/list_item.dart`
+Source: `packages/fluent_2/lib/src/navigation/list_item.dart`
 
 #### Constructor: `FluentListEdgeIntent`
 
@@ -126,7 +126,7 @@ const FluentListEdgeIntent({required this.last});
 
 ### `FluentListItemBaseState`
 
-Source: `packages/fluent_2_web/lib/src/navigation/list_item.dart`
+Source: `packages/fluent_2/lib/src/navigation/list_item.dart`
 
 #### Constructor: `FluentListItemBaseState`
 
@@ -163,7 +163,7 @@ const FluentListItemBaseState({
 
 Row height and title type ramp. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/navigation/list_item.dart`
+Source: `packages/fluent_2/lib/src/navigation/list_item.dart`
 
 ```dart
 enum FluentListItemSize {
@@ -174,7 +174,7 @@ enum FluentListItemSize {
 
 ### `FluentListItemState`
 
-Source: `packages/fluent_2_web/lib/src/navigation/list_item.dart`
+Source: `packages/fluent_2/lib/src/navigation/list_item.dart`
 
 #### Constructor: `FluentListItemState`
 
@@ -206,7 +206,7 @@ const FluentListItemState({
 
 ### `FluentListItemStyle`
 
-Source: `packages/fluent_2_web/lib/src/navigation/list_item_style.dart`
+Source: `packages/fluent_2/lib/src/navigation/list_item_style.dart`
 
 #### Constructor: `FluentListItemStyle`
 
@@ -254,7 +254,7 @@ const FluentListItemStyle({
 
 Overrides the list item style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/navigation/list_item.dart`
+Source: `packages/fluent_2/lib/src/navigation/list_item.dart`
 
 #### Constructor: `FluentListItemTheme`
 
@@ -276,7 +276,7 @@ const FluentListItemTheme({
 
 Moves keyboard focus by [delta] rows, skipping disabled ones.
 
-Source: `packages/fluent_2_web/lib/src/navigation/list_item.dart`
+Source: `packages/fluent_2/lib/src/navigation/list_item.dart`
 
 #### Constructor: `FluentListMoveIntent`
 
@@ -292,7 +292,7 @@ const FluentListMoveIntent(this.delta);
 
 Which affordance a row draws for its selection, and therefore how the list behaves. Figma's `.Selection` `Type` axis, plus [none].
 
-Source: `packages/fluent_2_web/lib/src/navigation/list_item.dart`
+Source: `packages/fluent_2/lib/src/navigation/list_item.dart`
 
 ```dart
 enum FluentListSelection {
@@ -339,9 +339,9 @@ signatures above and verify any new example with Dart analysis and a widget test
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/navigation/list_item.dart`
-- Tests: `packages/fluent_2_web/test/goldens/list_item_golden_test.dart`, `packages/fluent_2_web/test/navigation/list_item_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/navigation/list_item.dart`
+- Tests: `packages/fluent_2/test/goldens/list_item_golden_test.dart`, `packages/fluent_2/test/navigation/list_item_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/navigation_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/list/usage/
 - Design decisions: `references/components-navigation-data.md`
 

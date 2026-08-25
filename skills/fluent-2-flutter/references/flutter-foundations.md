@@ -15,16 +15,14 @@
 | Need | Package |
 | --- | --- |
 | Themes, tokens, icons, typography, motion, or custom Fluent widgets | `fluent_2_core` |
-| Web or desktop components with pointer, hover, focus, and compact density | `fluent_2_web` |
-| Touch-oriented iOS or Android components that are actually exported | `fluent_2_mobile` |
+| Web or desktop components with pointer, hover, focus, and compact density | `fluent_2` |
 
-`fluent_2_web` and `fluent_2_mobile` re-export core. Import one surface package
-unless implementing a shared token-only layer.
+`fluent_2` re-exports core. Import it unless implementing a shared token-only
+layer.
 
-The current `fluent_2_mobile` package may contain no component widgets. Inspect
-its barrel before naming a mobile class. If support is missing, report the gap
-and either scope the work to web/desktop or compose from core and raw Flutter
-primitives with explicit tests.
+There is no separate mobile package. If a touch-oriented component is missing,
+report the gap and either scope the work to web/desktop or compose from core and
+raw Flutter primitives with explicit tests.
 
 ## Start an app
 
@@ -41,7 +39,7 @@ inside a subtree merely to imitate provider behavior.
 Use the Fluent app shell and themes:
 
 ```dart
-import 'package:fluent_2_web/fluent_2_web.dart';
+import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/widgets.dart';
 
 void main() {

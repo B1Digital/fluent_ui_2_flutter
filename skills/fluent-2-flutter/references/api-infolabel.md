@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 info label — a [FluentLabel] with a [FluentInfoButton] after it.
 
-Source: `packages/fluent_2_web/lib/src/inputs/info_label.dart`
+Source: `packages/fluent_2/lib/src/inputs/info_label.dart`
 
 #### Constructor: `FluentInfoLabel`
 
@@ -76,7 +76,7 @@ const FluentInfoLabel({
 
 A Fluent 2 info button — the ⓘ that opens a tip beside a label.
 
-Source: `packages/fluent_2_web/lib/src/inputs/info_button.dart`
+Source: `packages/fluent_2/lib/src/inputs/info_button.dart`
 
 #### Constructor: `FluentInfoButton`
 
@@ -122,7 +122,7 @@ const FluentInfoButton({
 
 ### `FluentInfoButtonBaseState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/info_button.dart`
+Source: `packages/fluent_2/lib/src/inputs/info_button.dart`
 
 #### Constructor: `FluentInfoButtonBaseState`
 
@@ -150,7 +150,7 @@ const FluentInfoButtonBaseState({
 
 Trigger box and glyph size. Figma's `Size` axis on the `.Info button` set.
 
-Source: `packages/fluent_2_web/lib/src/inputs/info_button.dart`
+Source: `packages/fluent_2/lib/src/inputs/info_button.dart`
 
 ```dart
 enum FluentInfoButtonSize {
@@ -162,7 +162,7 @@ enum FluentInfoButtonSize {
 
 ### `FluentInfoButtonState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/info_button.dart`
+Source: `packages/fluent_2/lib/src/inputs/info_button.dart`
 
 #### Constructor: `FluentInfoButtonState`
 
@@ -186,7 +186,7 @@ const FluentInfoButtonState({
 
 ### `FluentInfoButtonStyle`
 
-Source: `packages/fluent_2_web/lib/src/inputs/info_button_style.dart`
+Source: `packages/fluent_2/lib/src/inputs/info_button_style.dart`
 
 #### Constructor: `FluentInfoButtonStyle`
 
@@ -234,7 +234,7 @@ const FluentInfoButtonStyle({
 
 Overrides the info button style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/inputs/info_button.dart`
+Source: `packages/fluent_2/lib/src/inputs/info_button.dart`
 
 #### Constructor: `FluentInfoButtonTheme`
 
@@ -254,7 +254,7 @@ const FluentInfoButtonTheme({
 
 ### `FluentInfoLabelBaseState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/info_label.dart`
+Source: `packages/fluent_2/lib/src/inputs/info_label.dart`
 
 #### Constructor: `FluentInfoLabelBaseState`
 
@@ -278,7 +278,7 @@ const FluentInfoLabelBaseState({
 
 ### `FluentInfoLabelState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/info_label.dart`
+Source: `packages/fluent_2/lib/src/inputs/info_label.dart`
 
 #### Constructor: `FluentInfoLabelState`
 
@@ -300,7 +300,7 @@ const FluentInfoLabelState({
 
 ### `FluentInfoLabelStyle`
 
-Source: `packages/fluent_2_web/lib/src/inputs/info_label_style.dart`
+Source: `packages/fluent_2/lib/src/inputs/info_label_style.dart`
 
 #### Constructor: `FluentInfoLabelStyle`
 
@@ -318,7 +318,7 @@ const FluentInfoLabelStyle({this.gap, this.labelStyle, this.infoButtonStyle});
 
 Overrides the info label style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/inputs/info_label.dart`
+Source: `packages/fluent_2/lib/src/inputs/info_label.dart`
 
 #### Constructor: `FluentInfoLabelTheme`
 
@@ -340,7 +340,7 @@ const FluentInfoLabelTheme({
 
 Label type ramp step. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/label.dart`
+Source: `packages/fluent_2/lib/src/inputs/label.dart`
 
 ```dart
 enum FluentLabelSize {
@@ -354,7 +354,7 @@ enum FluentLabelSize {
 
 Label font weight. Figma's `Type` axis, values verbatim.
 
-Source: `packages/fluent_2_web/lib/src/inputs/label.dart`
+Source: `packages/fluent_2/lib/src/inputs/label.dart`
 
 ```dart
 enum FluentLabelWeight {
@@ -415,7 +415,7 @@ Widget buildFluentInfoTip(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
 FluentInfoLabel(
@@ -430,9 +430,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/inputs/info_label.dart`, `packages/fluent_2_web/lib/src/inputs/info_button.dart`
-- Tests: `packages/fluent_2_web/test/goldens/info_label_golden_test.dart`, `packages/fluent_2_web/test/inputs/info_button_test.dart`, `packages/fluent_2_web/test/inputs/info_label_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/inputs/info_label.dart`, `packages/fluent_2/lib/src/inputs/info_button.dart`
+- Tests: `packages/fluent_2/test/goldens/info_label_golden_test.dart`, `packages/fluent_2/test/inputs/info_button_test.dart`, `packages/fluent_2/test/inputs/info_label_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/infolabel/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

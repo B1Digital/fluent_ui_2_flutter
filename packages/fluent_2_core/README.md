@@ -2,8 +2,8 @@
 
 Fluent 2 design tokens, theming and app shell for Flutter. The shared foundation
 under every `fluent_2_*` UI package — depend on this directly only if you are
-building your own component layer; otherwise use `fluent_2_web` or
-`fluent_2_mobile`, which re-export it.
+building your own component layer; otherwise use `fluent_2`, which re-exports
+it.
 
 ```dart
 import 'package:fluent_2_core/fluent_2_core.dart';

@@ -12,6 +12,8 @@
 <p align="center">
   <a href="https://b1digital.github.io/fluent_ui_2_flutter/"><img src="https://img.shields.io/badge/live-showroom-0F6CBD?logo=googlechrome&logoColor=white" alt="live showroom" /></a>
   <a href="https://github.com/B1Digital/fluent_ui_2_flutter/actions"><img src="https://img.shields.io/github/actions/workflow/status/B1Digital/fluent_ui_2_flutter/test.yml?branch=main&label=CI" alt="CI" /></a>
+  <a href="#-tests--coverage"><img src="https://img.shields.io/badge/coverage-92%25-107C10" alt="line coverage" /></a>
+  <a href="#-tests--coverage"><img src="https://img.shields.io/badge/tests-5426-107C10" alt="tests" /></a>
   <img src="https://img.shields.io/badge/flutter-%E2%89%A53.41-02569B?logo=flutter&logoColor=white" alt="flutter" />
   <img src="https://img.shields.io/badge/material-free-107C10" alt="no material" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT" /></a>
@@ -45,7 +47,7 @@ both themes. Nothing below is a mockup.
 | **Charts** | ![](assets/previews/charts.light.png) | ![](assets/previews/charts.dark.png) |
 | **Bar charts & gauges** | ![](assets/previews/charts_bars.light.png) | ![](assets/previews/charts_bars.dark.png) |
 
-<sub>Regenerate with `cd packages/fluent_2_web/example && flutter test tool/generate_previews.dart`.</sub>
+<sub>Regenerate with `cd packages/fluent_2/example && flutter test tool/generate_previews.dart`.</sub>
 
 ---
 
@@ -56,8 +58,7 @@ packages/
   fluent_2_fonts/    conditional platform-font facade
   fluent_2_fonts_*/  separate Web, Windows, macOS, iOS, Android packages
   fluent_2_core/     tokens + theming + app shell   ← shared foundation
-  fluent_2_web/      Fluent 2 web components & widgets
-  fluent_2_mobile/   iOS / Android variants
+  fluent_2/          Fluent 2 components & widgets
 ```
 
 Split by *surface*, not by component category — buttons/inputs/surfaces are folders inside a package. Surfaces are what actually diverge: a web button and its mobile variant are different widgets. Each UI package depends on `fluent_2_core` and re-exports it, so consumers need one import.
@@ -67,7 +68,7 @@ Split by *surface*, not by component category — buttons/inputs/surfaces are fo
 ## 🚀 Quick Start & Usage
 
 ```dart
-import 'package:fluent_2_web/fluent_2_web.dart';
+import 'package:fluent_2/fluent_2.dart';
 
 void main() => runApp(
   FluentApp(
@@ -153,7 +154,7 @@ The type ramp follows the current Fluent 2 typography tables independently for W
 
 ## 🌍 Localization
 
-Every string `fluent_2_web` puts in front of a user — accessibility labels, calendar chrome, chart descriptions, date-picker validation — comes from an ARB message catalogue, in **135 locales**. Nothing is hardcoded English.
+Every string `fluent_2` puts in front of a user — accessibility labels, calendar chrome, chart descriptions, date-picker validation — comes from an ARB message catalogue, in **135 locales**. Nothing is hardcoded English.
 
 ```dart
 FluentApp(
@@ -209,7 +210,7 @@ Month and weekday names are **not** in the catalogue — they come from `intl`'s
 
 ### Editing a message
 
-`packages/fluent_2_web/l10n/` holds one ARB per locale, but only **36** are written by hand — the sources listed in `tool/expand_l10n_locales.dart`. The rest are country copies of those. Edit a source, then:
+`packages/fluent_2/l10n/` holds one ARB per locale, but only **36** are written by hand — the sources listed in `tool/expand_l10n_locales.dart`. The rest are country copies of those. Edit a source, then:
 
 ```bash
 melos run gen-l10n        # expand → flutter gen-l10n → strip Material → format
@@ -223,10 +224,65 @@ melos run gen-l10n        # expand → flutter gen-l10n → strip Material → f
 
 ```bash
 flutter pub get          # pub workspace handles resolution
-melos run ci             # analyze + format + no-material + test
+melos run ci             # analyze + format + no-material + chart-invariants + test
 melos run test
+melos run coverage       # the same suites, with --coverage
 melos run gen-l10n       # regenerate the 135-locale message catalogue
 ```
+
+---
+
+## 🧪 Tests & Coverage
+
+**5,426 tests. 91.5 % line coverage.** `melos run coverage` runs the same suites
+as `melos run test` with `--coverage`; the two library packages' LCOV files are
+checked in, so the report can be re-derived — or rendered as HTML — without
+running the suite:
+
+```bash
+melos run coverage    # writes packages/*/coverage/lcov.info
+genhtml packages/fluent_2/coverage/lcov.info -o packages/fluent_2/coverage/html
+```
+
+| Package | Tests | Lines covered | Line coverage | Report |
+| :-- | --: | --: | --: | :-- |
+| `fluent_2` | 5,261 | 48,436 / 52,549 | **92.2 %** | [`coverage/lcov.info`](packages/fluent_2/coverage/lcov.info) |
+| `fluent_2_core` | 58 | 1,315 / 1,825 | **72.1 %** | [`coverage/lcov.info`](packages/fluent_2_core/coverage/lcov.info) |
+| `fluent_2/example` | 107 | — | — | showroom contract tests, no library code |
+| **Workspace** | **5,426** | **49,751 / 54,374** | **91.5 %** | |
+
+15,072 of those covered lines are the generated 135-locale message catalogue,
+which is exhaustive by construction. **Excluding `lib/src/l10n/`, `fluent_2`
+sits at 89.0 % (33,365 / 37,477)** — that is the number worth watching.
+
+| Area — `fluent_2/lib/src/` | Lines covered | Line coverage |
+| :-- | --: | --: |
+| `l10n` *(generated)* | 15,071 / 15,072 | 100.0 % |
+| `overlays` | 2,295 / 2,438 | 94.1 % |
+| `internal` | 246 / 264 | 93.2 % |
+| `navigation` | 2,680 / 2,885 | 92.9 % |
+| `charts` | 18,647 / 20,168 | 92.5 % |
+| `buttons` | 499 / 562 | 88.8 % |
+| `surfaces` | 3,031 / 3,665 | 82.7 % |
+| `inputs` | 5,967 / 7,495 | 79.6 % |
+
+Line coverage is the floor, not the claim — a widget that renders is not a
+widget that renders *correctly*. What the percentage does not show:
+
+- **261 golden images** under `test/goldens/`, one per component per theme.
+- **90 React reference PNGs** in `test/fixtures/charts/react_png/`, captured from
+  the upstream Fluent UI Storybook; the parity suite renders the Flutter chart
+  against each one and asserts a per-pixel difference budget.
+- **Numeric spec fixtures** — token, geometry and layout values transcribed from
+  the Fluent spec and asserted directly, so a chart's margins are pinned to the
+  same numbers upstream solves for.
+- **`melos run no-material` and `melos run chart-invariants`**, which fail the
+  build on a Material import or a broken single-owner rule — invariants a test
+  file cannot express.
+
+CI (`.github/workflows/test.yml`) runs `melos run ci` on every push and pull
+request; it runs the suite without `--coverage`, so the table above is refreshed
+by hand from `melos run coverage`.
 
 ---
 
@@ -258,16 +314,15 @@ A harness that implements the Agent Skills standard can also load `skills/fluent
 
 - **`fluent_2_fonts`**: Selects the platform package and supplies the open-source Selawik substitute for Segoe UI on Web and Windows. Apple and Android builds use native system families.
 - **`fluent_2_core`**: Supplies shared tokens, elevation models, typography, and themes.
-- **`fluent_2_web`**: Contains the current web and desktop component implementation and gallery.
-- **`fluent_2_mobile`**: Re-exports core (mobile component widgets in development).
+- **`fluent_2`**: Contains the current web and desktop component implementation and gallery.
 
 ---
 
 ## 🧩 Adding a Component
 
 ```text
-packages/fluent_2_web/lib/src/buttons/fluent_button.dart   one component per file
-packages/fluent_2_web/lib/fluent_2_web.dart                export it here, alphabetically
+packages/fluent_2/lib/src/buttons/fluent_button.dart   one component per file
+packages/fluent_2/lib/fluent_2.dart                export it here, alphabetically
 ```
 
 Conventions, all of them enforced by `melos run ci`:
@@ -287,7 +342,7 @@ The showcase images are real renders, produced from the showroom's own story
 sections with the Selawik and Fluent icon fonts loaded:
 
 ```sh
-cd packages/fluent_2_web/example
+cd packages/fluent_2/example
 flutter test tool/generate_previews.dart   # writes assets/previews/*.png
 ```
 

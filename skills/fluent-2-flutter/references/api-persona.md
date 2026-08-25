@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 persona: a [FluentAvatar] — or a [FluentPresenceBadge] — beside up to four lines of text.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/persona.dart`
+Source: `packages/fluent_2/lib/src/surfaces/persona.dart`
 
 #### Constructor: `FluentPersona`
 
@@ -86,7 +86,7 @@ const FluentPersona({
 
 Whether the person is currently doing something, and therefore whether the activity ring is drawn.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar.dart`
 
 ```dart
 enum FluentAvatarActive {
@@ -100,7 +100,7 @@ enum FluentAvatarActive {
 
 Which of Figma's 33 `Avatar color` modes an avatar paints in.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar.dart`
 
 ```dart
 enum FluentAvatarColor {
@@ -144,7 +144,7 @@ enum FluentAvatarColor {
 
 Corner treatment. Figma's `Avatar shape` variable collection.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/avatar.dart`
+Source: `packages/fluent_2/lib/src/surfaces/avatar.dart`
 
 ```dart
 enum FluentAvatarShape {
@@ -155,7 +155,7 @@ enum FluentAvatarShape {
 
 ### `FluentPersonaBaseState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/persona.dart`
+Source: `packages/fluent_2/lib/src/surfaces/persona.dart`
 
 #### Constructor: `FluentPersonaBaseState`
 
@@ -189,7 +189,7 @@ const FluentPersonaBaseState({
 
 Persona size. Figma's `Size` axis, widened to upstream's six-step ramp.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/persona.dart`
+Source: `packages/fluent_2/lib/src/surfaces/persona.dart`
 
 ```dart
 enum FluentPersonaSize {
@@ -204,7 +204,7 @@ enum FluentPersonaSize {
 
 ### `FluentPersonaState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/persona.dart`
+Source: `packages/fluent_2/lib/src/surfaces/persona.dart`
 
 #### Constructor: `FluentPersonaState`
 
@@ -240,7 +240,7 @@ const FluentPersonaState({
 
 ### `FluentPersonaStyle`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/persona_style.dart`
+Source: `packages/fluent_2/lib/src/surfaces/persona_style.dart`
 
 #### Constructor: `FluentPersonaStyle`
 
@@ -270,7 +270,7 @@ const FluentPersonaStyle({
 
 How the avatar lines up with the text. Figma's `Alignment` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/persona.dart`
+Source: `packages/fluent_2/lib/src/surfaces/persona.dart`
 
 ```dart
 enum FluentPersonaTextAlignment {
@@ -283,7 +283,7 @@ enum FluentPersonaTextAlignment {
 
 Where the text block sits relative to the avatar. Figma's `Layout` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/persona.dart`
+Source: `packages/fluent_2/lib/src/surfaces/persona.dart`
 
 ```dart
 enum FluentPersonaTextPosition {
@@ -297,7 +297,7 @@ enum FluentPersonaTextPosition {
 
 Overrides the persona style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/persona.dart`
+Source: `packages/fluent_2/lib/src/surfaces/persona.dart`
 
 #### Constructor: `FluentPersonaTheme`
 
@@ -319,7 +319,7 @@ const FluentPersonaTheme({
 
 A person's availability. Figma's `Status` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/presence_badge.dart`
+Source: `packages/fluent_2/lib/src/surfaces/presence_badge.dart`
 
 ```dart
 enum FluentPresenceStatus {
@@ -374,7 +374,7 @@ Widget buildFluentPersona(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
 FluentPersona(
@@ -390,9 +390,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/surfaces/persona.dart`
-- Tests: `packages/fluent_2_web/test/goldens/persona_golden_test.dart`, `packages/fluent_2_web/test/surfaces/persona_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/surfaces/persona.dart`
+- Tests: `packages/fluent_2/test/goldens/persona_golden_test.dart`, `packages/fluent_2/test/surfaces/persona_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/persona/usage/
 - Design decisions: `references/components-identity-content.md`
 

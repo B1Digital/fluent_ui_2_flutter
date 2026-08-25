@@ -47,7 +47,7 @@ work around it by inventing an API.
 
 The button that opens and closes a nav.
 
-Source: `packages/fluent_2_web/lib/src/navigation/hamburger.dart`
+Source: `packages/fluent_2/lib/src/navigation/hamburger.dart`
 
 #### Constructor: `FluentHamburger`
 
@@ -87,7 +87,7 @@ const FluentHamburger({
 
 A Fluent 2 side navigation.
 
-Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
+Source: `packages/fluent_2/lib/src/navigation/nav.dart`
 
 #### Constructor: `FluentNav`
 
@@ -133,7 +133,7 @@ const FluentNav({
 
 The product header at the top of a [FluentNav].
 
-Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
+Source: `packages/fluent_2/lib/src/navigation/nav.dart`
 
 #### Constructor: `FluentNavAppItem`
 
@@ -172,7 +172,7 @@ const FluentNavAppItem({
 
 A collapsible group of [FluentNavSubItem]s.
 
-Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
+Source: `packages/fluent_2/lib/src/navigation/nav.dart`
 
 #### Constructor: `FluentNavCategory`
 
@@ -213,7 +213,7 @@ const FluentNavCategory({
 
 A rule between two groups of nav rows.
 
-Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
+Source: `packages/fluent_2/lib/src/navigation/nav.dart`
 
 #### Constructor: `FluentNavDivider`
 
@@ -230,7 +230,7 @@ const FluentNavDivider({super.key, this.appearance});
 
 A [FluentDrawer] shaped for a `FluentNav`.
 
-Source: `packages/fluent_2_web/lib/src/navigation/nav_drawer.dart`
+Source: `packages/fluent_2/lib/src/navigation/nav_drawer.dart`
 
 #### Constructor: `FluentNavDrawer`
 
@@ -276,7 +276,7 @@ const FluentNavDrawer({
 
 A leaf destination in a [FluentNav].
 
-Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
+Source: `packages/fluent_2/lib/src/navigation/nav.dart`
 
 #### Constructor: `FluentNavItem`
 
@@ -320,7 +320,7 @@ const FluentNavItem({
 
 A non-interactive grouping label in a [FluentNav].
 
-Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
+Source: `packages/fluent_2/lib/src/navigation/nav.dart`
 
 #### Constructor: `FluentNavSectionHeader`
 
@@ -337,7 +337,7 @@ const FluentNavSectionHeader({super.key, required this.child});
 
 A destination nested inside a [FluentNavCategory].
 
-Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
+Source: `packages/fluent_2/lib/src/navigation/nav.dart`
 
 #### Constructor: `FluentNavSubItem`
 
@@ -381,7 +381,7 @@ const FluentNavSubItem({
 
 Button height and type ramp. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/buttons/button.dart`
+Source: `packages/fluent_2/lib/src/buttons/button.dart`
 
 ```dart
 enum FluentButtonSize {
@@ -393,7 +393,7 @@ enum FluentButtonSize {
 
 ### `FluentButtonStyle`
 
-Source: `packages/fluent_2_web/lib/src/buttons/button_style.dart`
+Source: `packages/fluent_2/lib/src/buttons/button_style.dart`
 
 #### Constructor: `FluentButtonStyle`
 
@@ -431,7 +431,7 @@ const FluentButtonStyle({
 
 How strongly a divider reads against its surface.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/divider.dart`
+Source: `packages/fluent_2/lib/src/surfaces/divider.dart`
 
 ```dart
 enum FluentDividerAppearance {
@@ -446,7 +446,7 @@ enum FluentDividerAppearance {
 
 Which edge the drawer is anchored to, in reading order.
 
-Source: `packages/fluent_2_web/lib/src/overlays/drawer.dart`
+Source: `packages/fluent_2/lib/src/overlays/drawer.dart`
 
 ```dart
 enum FluentDrawerPosition {
@@ -459,7 +459,7 @@ enum FluentDrawerPosition {
 
 Drawer width, and — because upstream keys the transition off it — how long the drawer takes to arrive. Figma's `Size` axis plus React's `full`.
 
-Source: `packages/fluent_2_web/lib/src/overlays/drawer.dart`
+Source: `packages/fluent_2/lib/src/overlays/drawer.dart`
 
 ```dart
 enum FluentDrawerSize {
@@ -472,7 +472,7 @@ enum FluentDrawerSize {
 
 ### `FluentDrawerStyle`
 
-Source: `packages/fluent_2_web/lib/src/overlays/drawer_style.dart`
+Source: `packages/fluent_2/lib/src/overlays/drawer_style.dart`
 
 #### Constructor: `FluentDrawerStyle`
 
@@ -514,7 +514,7 @@ const FluentDrawerStyle({
 
 Whether a drawer floats over the page or sits inside the layout.
 
-Source: `packages/fluent_2_web/lib/src/overlays/drawer.dart`
+Source: `packages/fluent_2/lib/src/overlays/drawer.dart`
 
 ```dart
 enum FluentDrawerType {
@@ -527,7 +527,7 @@ enum FluentDrawerType {
 
 Requests that the focused category close.
 
-Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
+Source: `packages/fluent_2/lib/src/navigation/nav.dart`
 
 #### Constructor: `FluentNavCollapseIntent`
 
@@ -539,7 +539,7 @@ const FluentNavCollapseIntent();
 
 Requests that focus move to the first or last row of the nav.
 
-Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
+Source: `packages/fluent_2/lib/src/navigation/nav.dart`
 
 #### Constructor: `FluentNavEdgeIntent`
 
@@ -555,7 +555,7 @@ const FluentNavEdgeIntent({required this.last});
 
 Requests that the focused category open.
 
-Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
+Source: `packages/fluent_2/lib/src/navigation/nav.dart`
 
 #### Constructor: `FluentNavExpandIntent`
 
@@ -565,7 +565,7 @@ const FluentNavExpandIntent();
 
 ### `FluentNavItemBaseState`
 
-Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
+Source: `packages/fluent_2/lib/src/navigation/nav.dart`
 
 #### Constructor: `FluentNavItemBaseState`
 
@@ -601,7 +601,7 @@ const FluentNavItemBaseState({
 
 ### `FluentNavItemState`
 
-Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
+Source: `packages/fluent_2/lib/src/navigation/nav.dart`
 
 #### Constructor: `FluentNavItemState`
 
@@ -635,7 +635,7 @@ const FluentNavItemState({
 
 ### `FluentNavItemStyle`
 
-Source: `packages/fluent_2_web/lib/src/navigation/nav_style.dart`
+Source: `packages/fluent_2/lib/src/navigation/nav_style.dart`
 
 #### Constructor: `FluentNavItemStyle`
 
@@ -681,7 +681,7 @@ const FluentNavItemStyle({
 
 Overrides the nav row style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
+Source: `packages/fluent_2/lib/src/navigation/nav.dart`
 
 #### Constructor: `FluentNavItemTheme`
 
@@ -711,7 +711,7 @@ const FluentNavItemTheme({
 
 Requests that focus move [delta] rows through the nav.
 
-Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
+Source: `packages/fluent_2/lib/src/navigation/nav.dart`
 
 #### Constructor: `FluentNavMoveIntent`
 
@@ -727,7 +727,7 @@ const FluentNavMoveIntent(this.delta);
 
 Row height and density. Figma ships this as two component sets rather than a variant axis — `NavNode - medium` and `NavNode - small`.
 
-Source: `packages/fluent_2_web/lib/src/navigation/nav.dart`
+Source: `packages/fluent_2/lib/src/navigation/nav.dart`
 
 ```dart
 enum FluentNavSize {
@@ -768,7 +768,7 @@ Widget buildFluentNavItem(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/navigation_stories.dart`:
 
 ```dart
 FluentHamburger(
@@ -784,9 +784,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/navigation/hamburger.dart`, `packages/fluent_2_web/lib/src/navigation/nav.dart`, `packages/fluent_2_web/lib/src/navigation/nav_drawer.dart`
-- Tests: `packages/fluent_2_web/test/goldens/nav_golden_test.dart`, `packages/fluent_2_web/test/navigation/hamburger_test.dart`, `packages/fluent_2_web/test/navigation/nav_drawer_test.dart`, `packages/fluent_2_web/test/navigation/nav_section_header_test.dart`, `packages/fluent_2_web/test/navigation/nav_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/navigation_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/navigation/hamburger.dart`, `packages/fluent_2/lib/src/navigation/nav.dart`, `packages/fluent_2/lib/src/navigation/nav_drawer.dart`
+- Tests: `packages/fluent_2/test/goldens/nav_golden_test.dart`, `packages/fluent_2/test/navigation/hamburger_test.dart`, `packages/fluent_2/test/navigation/nav_drawer_test.dart`, `packages/fluent_2/test/navigation/nav_section_header_test.dart`, `packages/fluent_2/test/navigation/nav_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/navigation_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/nav/usage/
 - Design decisions: `references/components-navigation-data.md`
 

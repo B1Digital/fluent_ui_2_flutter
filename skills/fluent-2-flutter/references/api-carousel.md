@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 carousel: slides with previous/next chevrons, a step indicator and optional autoplay.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/carousel.dart`
+Source: `packages/fluent_2/lib/src/surfaces/carousel.dart`
 
 #### Constructor: `FluentCarousel`
 
@@ -92,7 +92,7 @@ const FluentCarousel({
 
 One indicator step: a dot, a pill when current, or an image thumbnail.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/carousel.dart`
+Source: `packages/fluent_2/lib/src/surfaces/carousel.dart`
 
 #### Constructor: `FluentCarouselStep`
 
@@ -126,7 +126,7 @@ const FluentCarouselStep({
 
 ### `FluentCarouselBaseState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/carousel.dart`
+Source: `packages/fluent_2/lib/src/surfaces/carousel.dart`
 
 #### Constructor: `FluentCarouselBaseState`
 
@@ -179,7 +179,7 @@ const FluentCarouselBaseState({
 
 Where the previous/next chevrons sit. Figma's `Chevron placement` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/carousel.dart`
+Source: `packages/fluent_2/lib/src/surfaces/carousel.dart`
 
 ```dart
 enum FluentCarouselChevronPlacement {
@@ -193,7 +193,7 @@ enum FluentCarouselChevronPlacement {
 
 Where the nav strip sits relative to the slide. Figma's `Layout` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/carousel.dart`
+Source: `packages/fluent_2/lib/src/surfaces/carousel.dart`
 
 ```dart
 enum FluentCarouselLayout {
@@ -206,7 +206,7 @@ enum FluentCarouselLayout {
 
 Where the autoplay affordance lives. Figma's `Pause Button` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/carousel.dart`
+Source: `packages/fluent_2/lib/src/surfaces/carousel.dart`
 
 ```dart
 enum FluentCarouselPauseButton {
@@ -217,7 +217,7 @@ enum FluentCarouselPauseButton {
 
 ### `FluentCarouselState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/carousel.dart`
+Source: `packages/fluent_2/lib/src/surfaces/carousel.dart`
 
 #### Constructor: `FluentCarouselState`
 
@@ -263,7 +263,7 @@ const FluentCarouselState({
 
 ### `FluentCarouselStyle`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/carousel_style.dart`
+Source: `packages/fluent_2/lib/src/surfaces/carousel_style.dart`
 
 #### Constructor: `FluentCarouselStyle`
 
@@ -319,7 +319,7 @@ const FluentCarouselStyle({
 
 Overrides the carousel style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/carousel.dart`
+Source: `packages/fluent_2/lib/src/surfaces/carousel.dart`
 
 #### Constructor: `FluentCarouselTheme`
 
@@ -378,7 +378,7 @@ Widget buildFluentCarousel(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
 FluentCarousel(
@@ -404,9 +404,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/surfaces/carousel.dart`
-- Tests: `packages/fluent_2_web/test/goldens/carousel_golden_test.dart`, `packages/fluent_2_web/test/surfaces/carousel_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/surfaces/carousel.dart`
+- Tests: `packages/fluent_2/test/goldens/carousel_golden_test.dart`, `packages/fluent_2/test/surfaces/carousel_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/carousel/usage/
 - Design decisions: `references/components-navigation-data.md`
 

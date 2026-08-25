@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 spin button: a numeric field with an up/down stepper column.
 
-Source: `packages/fluent_2_web/lib/src/inputs/spin_button.dart`
+Source: `packages/fluent_2/lib/src/inputs/spin_button.dart`
 
 #### Constructor: `FluentSpinButton`
 
@@ -100,7 +100,7 @@ const FluentSpinButton({
 
 One half of a spin button's stepper column.
 
-Source: `packages/fluent_2_web/lib/src/inputs/spin_button.dart`
+Source: `packages/fluent_2/lib/src/inputs/spin_button.dart`
 
 #### Constructor: `FluentSpinButtonStepper`
 
@@ -130,7 +130,7 @@ const FluentSpinButtonStepper({
 
 How a spin button is filled and outlined. Figma's `Style` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/spin_button.dart`
+Source: `packages/fluent_2/lib/src/inputs/spin_button.dart`
 
 ```dart
 enum FluentSpinButtonAppearance {
@@ -143,7 +143,7 @@ enum FluentSpinButtonAppearance {
 
 ### `FluentSpinButtonBaseState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/spin_button.dart`
+Source: `packages/fluent_2/lib/src/inputs/spin_button.dart`
 
 #### Constructor: `FluentSpinButtonBaseState`
 
@@ -179,7 +179,7 @@ const FluentSpinButtonBaseState({
 
 Paints one stepper's chevron.
 
-Source: `packages/fluent_2_web/lib/src/inputs/spin_button.dart`
+Source: `packages/fluent_2/lib/src/inputs/spin_button.dart`
 
 #### Constructor: `FluentSpinButtonChevronPainter`
 
@@ -203,7 +203,7 @@ const FluentSpinButtonChevronPainter({
 
 Control height and type ramp. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/spin_button.dart`
+Source: `packages/fluent_2/lib/src/inputs/spin_button.dart`
 
 ```dart
 enum FluentSpinButtonSize {
@@ -214,7 +214,7 @@ enum FluentSpinButtonSize {
 
 ### `FluentSpinButtonState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/spin_button.dart`
+Source: `packages/fluent_2/lib/src/inputs/spin_button.dart`
 
 #### Constructor: `FluentSpinButtonState`
 
@@ -248,7 +248,7 @@ const FluentSpinButtonState({
 
 Which way one stepper half moves the value.
 
-Source: `packages/fluent_2_web/lib/src/inputs/spin_button.dart`
+Source: `packages/fluent_2/lib/src/inputs/spin_button.dart`
 
 ```dart
 enum FluentSpinButtonStepperDirection {
@@ -259,7 +259,7 @@ enum FluentSpinButtonStepperDirection {
 
 ### `FluentSpinButtonStyle`
 
-Source: `packages/fluent_2_web/lib/src/inputs/spin_button_style.dart`
+Source: `packages/fluent_2/lib/src/inputs/spin_button_style.dart`
 
 #### Constructor: `FluentSpinButtonStyle`
 
@@ -319,7 +319,7 @@ const FluentSpinButtonStyle({
 
 Overrides the spin button style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/inputs/spin_button.dart`
+Source: `packages/fluent_2/lib/src/inputs/spin_button.dart`
 
 #### Constructor: `FluentSpinButtonTheme`
 
@@ -369,7 +369,7 @@ Widget buildFluentSpinButton(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
 FluentSpinButton(
@@ -393,9 +393,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/inputs/spin_button.dart`
-- Tests: `packages/fluent_2_web/test/goldens/spin_button_golden_test.dart`, `packages/fluent_2_web/test/inputs/spin_button_test.dart`, `packages/fluent_2_web/test/inputs/time_picker_test.dart`, `packages/fluent_2_web/test/internal/text_context_menu_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/inputs/spin_button.dart`
+- Tests: `packages/fluent_2/test/goldens/spin_button_golden_test.dart`, `packages/fluent_2/test/inputs/spin_button_test.dart`, `packages/fluent_2/test/inputs/time_picker_test.dart`, `packages/fluent_2/test/internal/text_context_menu_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/spin/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

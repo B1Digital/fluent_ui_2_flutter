@@ -80,10 +80,9 @@ pages, Content Engineering contained 15 pages, and the component sets contained
 
 - Root workspace: `pubspec.yaml`
 - Core public API: `packages/fluent_2_core/lib/fluent_2_core.dart`
-- Web public API: `packages/fluent_2_web/lib/fluent_2_web.dart`
-- Mobile public API: `packages/fluent_2_mobile/lib/fluent_2_mobile.dart`
-- Executable examples: `packages/fluent_2_web/example/lib/stories/`
-- Behavior tests: `packages/fluent_2_web/test/`
+- Web public API: `packages/fluent_2/lib/fluent_2.dart`
+- Executable examples: `packages/fluent_2/example/lib/stories/`
+- Behavior tests: `packages/fluent_2/test/`
 
 ## Refresh policy
 

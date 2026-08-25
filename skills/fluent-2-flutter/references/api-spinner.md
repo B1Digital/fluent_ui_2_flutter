@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 spinner: an indeterminate progress indicator.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/spinner.dart`
+Source: `packages/fluent_2/lib/src/surfaces/spinner.dart`
 
 #### Constructor: `FluentSpinner`
 
@@ -66,7 +66,7 @@ const FluentSpinner({
 
 How a spinner's ring is coloured. Figma's `Style` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/spinner.dart`
+Source: `packages/fluent_2/lib/src/surfaces/spinner.dart`
 
 ```dart
 enum FluentSpinnerAppearance {
@@ -77,7 +77,7 @@ enum FluentSpinnerAppearance {
 
 ### `FluentSpinnerBaseState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/spinner.dart`
+Source: `packages/fluent_2/lib/src/surfaces/spinner.dart`
 
 #### Constructor: `FluentSpinnerBaseState`
 
@@ -94,7 +94,7 @@ const FluentSpinnerBaseState({required this.labelPosition, this.label});
 
 Where the label sits relative to the ring. Figma's `Layout` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/spinner.dart`
+Source: `packages/fluent_2/lib/src/surfaces/spinner.dart`
 
 ```dart
 enum FluentSpinnerLabelPosition {
@@ -109,7 +109,7 @@ enum FluentSpinnerLabelPosition {
 
 Paints the spinner's track and tail.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/spinner.dart`
+Source: `packages/fluent_2/lib/src/surfaces/spinner.dart`
 
 #### Constructor: `FluentSpinnerPainter`
 
@@ -133,7 +133,7 @@ const FluentSpinnerPainter({
 
 Ring diameter, thickness and type ramp. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/spinner.dart`
+Source: `packages/fluent_2/lib/src/surfaces/spinner.dart`
 
 ```dart
 enum FluentSpinnerSize {
@@ -150,7 +150,7 @@ enum FluentSpinnerSize {
 
 ### `FluentSpinnerState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/spinner.dart`
+Source: `packages/fluent_2/lib/src/surfaces/spinner.dart`
 
 #### Constructor: `FluentSpinnerState`
 
@@ -172,7 +172,7 @@ const FluentSpinnerState({
 
 ### `FluentSpinnerStyle`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/spinner_style.dart`
+Source: `packages/fluent_2/lib/src/surfaces/spinner_style.dart`
 
 #### Constructor: `FluentSpinnerStyle`
 
@@ -202,7 +202,7 @@ const FluentSpinnerStyle({
 
 Overrides the spinner style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/spinner.dart`
+Source: `packages/fluent_2/lib/src/surfaces/spinner.dart`
 
 #### Constructor: `FluentSpinnerTheme`
 
@@ -248,7 +248,7 @@ Widget buildFluentSpinner(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
 FluentSpinner(label: Text('Loading…'))
@@ -260,9 +260,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/surfaces/spinner.dart`
-- Tests: `packages/fluent_2_web/test/goldens/spinner_golden_test.dart`, `packages/fluent_2_web/test/surfaces/spinner_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/surfaces/spinner.dart`
+- Tests: `packages/fluent_2/test/goldens/spinner_golden_test.dart`, `packages/fluent_2/test/surfaces/spinner_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/spinner/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

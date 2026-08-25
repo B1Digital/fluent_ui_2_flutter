@@ -39,7 +39,7 @@ work around it by inventing an API.
 
 A Fluent 2 tooltip.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/tooltip.dart`
+Source: `packages/fluent_2/lib/src/surfaces/tooltip.dart`
 
 #### Constructor: `FluentTooltip`
 
@@ -80,7 +80,7 @@ const FluentTooltip({
 
 How a tooltip surface is filled. Figma's `Style` axis, verbatim.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/tooltip.dart`
+Source: `packages/fluent_2/lib/src/surfaces/tooltip.dart`
 
 ```dart
 enum FluentTooltipAppearance {
@@ -94,7 +94,7 @@ enum FluentTooltipAppearance {
 
 Paints the tooltip's pointing arrow.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/tooltip.dart`
+Source: `packages/fluent_2/lib/src/surfaces/tooltip.dart`
 
 #### Constructor: `FluentTooltipArrowPainter`
 
@@ -112,7 +112,7 @@ const FluentTooltipArrowPainter({
 
 ### `FluentTooltipBaseState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/tooltip.dart`
+Source: `packages/fluent_2/lib/src/surfaces/tooltip.dart`
 
 #### Constructor: `FluentTooltipBaseState`
 
@@ -134,7 +134,7 @@ const FluentTooltipBaseState({
 
 Which side of its target a tooltip sits on.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/tooltip.dart`
+Source: `packages/fluent_2/lib/src/surfaces/tooltip.dart`
 
 ```dart
 enum FluentTooltipPosition {
@@ -147,7 +147,7 @@ enum FluentTooltipPosition {
 
 ### `FluentTooltipState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/tooltip.dart`
+Source: `packages/fluent_2/lib/src/surfaces/tooltip.dart`
 
 #### Constructor: `FluentTooltipState`
 
@@ -169,7 +169,7 @@ const FluentTooltipState({
 
 ### `FluentTooltipStyle`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/tooltip_style.dart`
+Source: `packages/fluent_2/lib/src/surfaces/tooltip_style.dart`
 
 #### Constructor: `FluentTooltipStyle`
 
@@ -207,7 +207,7 @@ const FluentTooltipStyle({
 
 Overrides the tooltip style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/tooltip.dart`
+Source: `packages/fluent_2/lib/src/surfaces/tooltip.dart`
 
 #### Constructor: `FluentTooltipTheme`
 
@@ -252,7 +252,7 @@ Widget buildFluentTooltip(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`:
 
 ```dart
 FluentTooltip(
@@ -271,9 +271,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/surfaces/tooltip.dart`
-- Tests: `packages/fluent_2_web/test/goldens/tooltip_golden_test.dart`, `packages/fluent_2_web/test/overlays/popover_test.dart`, `packages/fluent_2_web/test/surfaces/tooltip_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/overlays_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/surfaces/tooltip.dart`
+- Tests: `packages/fluent_2/test/goldens/tooltip_golden_test.dart`, `packages/fluent_2/test/overlays/popover_test.dart`, `packages/fluent_2/test/surfaces/tooltip_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/tooltip/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

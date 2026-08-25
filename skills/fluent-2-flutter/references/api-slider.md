@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 slider.
 
-Source: `packages/fluent_2_web/lib/src/inputs/slider.dart`
+Source: `packages/fluent_2/lib/src/inputs/slider.dart`
 
 #### Constructor: `FluentSlider`
 
@@ -78,7 +78,7 @@ const FluentSlider({
 
 ### `FluentSliderBaseState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/slider.dart`
+Source: `packages/fluent_2/lib/src/inputs/slider.dart`
 
 #### Constructor: `FluentSliderBaseState`
 
@@ -109,7 +109,7 @@ const FluentSliderBaseState({
 
 Paints a slider's rail, progress, ticks and thumb.
 
-Source: `packages/fluent_2_web/lib/src/inputs/slider.dart`
+Source: `packages/fluent_2/lib/src/inputs/slider.dart`
 
 #### Constructor: `FluentSliderPainter`
 
@@ -155,7 +155,7 @@ const FluentSliderPainter({
 
 Thumb diameter and rail thickness. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/slider.dart`
+Source: `packages/fluent_2/lib/src/inputs/slider.dart`
 
 ```dart
 enum FluentSliderSize {
@@ -166,7 +166,7 @@ enum FluentSliderSize {
 
 ### `FluentSliderState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/slider.dart`
+Source: `packages/fluent_2/lib/src/inputs/slider.dart`
 
 #### Constructor: `FluentSliderState`
 
@@ -192,7 +192,7 @@ const FluentSliderState({
 
 ### `FluentSliderStyle`
 
-Source: `packages/fluent_2_web/lib/src/inputs/slider_style.dart`
+Source: `packages/fluent_2/lib/src/inputs/slider_style.dart`
 
 #### Constructor: `FluentSliderStyle`
 
@@ -236,7 +236,7 @@ const FluentSliderStyle({
 
 Overrides the slider style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/inputs/slider.dart`
+Source: `packages/fluent_2/lib/src/inputs/slider.dart`
 
 #### Constructor: `FluentSliderTheme`
 
@@ -283,7 +283,7 @@ Widget buildFluentSlider(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
 FluentSlider(
@@ -306,9 +306,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/inputs/slider.dart`
-- Tests: `packages/fluent_2_web/test/goldens/slider_golden_test.dart`, `packages/fluent_2_web/test/inputs/slider_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/inputs/slider.dart`
+- Tests: `packages/fluent_2/test/goldens/slider_golden_test.dart`, `packages/fluent_2/test/inputs/slider_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/slider/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

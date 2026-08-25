@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 checkbox, with the mixed (indeterminate) state.
 
-Source: `packages/fluent_2_web/lib/src/inputs/checkbox.dart`
+Source: `packages/fluent_2/lib/src/inputs/checkbox.dart`
 
 #### Constructor: `FluentCheckbox`
 
@@ -76,7 +76,7 @@ const FluentCheckbox({
 
 ### `FluentCheckboxBaseState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/checkbox.dart`
+Source: `packages/fluent_2/lib/src/inputs/checkbox.dart`
 
 #### Constructor: `FluentCheckboxBaseState`
 
@@ -107,7 +107,7 @@ const FluentCheckboxBaseState({
 
 Paints the indicator glyph: the checkmark, the mixed square or the mixed circle.
 
-Source: `packages/fluent_2_web/lib/src/inputs/checkbox.dart`
+Source: `packages/fluent_2/lib/src/inputs/checkbox.dart`
 
 #### Constructor: `FluentCheckboxGlyphPainter`
 
@@ -124,7 +124,7 @@ const FluentCheckboxGlyphPainter({required this.glyph, required this.color});
 
 Which side of the indicator the label sits on.
 
-Source: `packages/fluent_2_web/lib/src/inputs/checkbox.dart`
+Source: `packages/fluent_2/lib/src/inputs/checkbox.dart`
 
 ```dart
 enum FluentCheckboxLabelPosition {
@@ -137,7 +137,7 @@ enum FluentCheckboxLabelPosition {
 
 Corner treatment of the indicator box. Figma's `Style` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/checkbox.dart`
+Source: `packages/fluent_2/lib/src/inputs/checkbox.dart`
 
 ```dart
 enum FluentCheckboxShape {
@@ -150,7 +150,7 @@ enum FluentCheckboxShape {
 
 Indicator box edge length and glyph size.
 
-Source: `packages/fluent_2_web/lib/src/inputs/checkbox.dart`
+Source: `packages/fluent_2/lib/src/inputs/checkbox.dart`
 
 ```dart
 enum FluentCheckboxSize {
@@ -161,7 +161,7 @@ enum FluentCheckboxSize {
 
 ### `FluentCheckboxState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/checkbox.dart`
+Source: `packages/fluent_2/lib/src/inputs/checkbox.dart`
 
 #### Constructor: `FluentCheckboxState`
 
@@ -189,7 +189,7 @@ const FluentCheckboxState({
 
 ### `FluentCheckboxStyle`
 
-Source: `packages/fluent_2_web/lib/src/inputs/checkbox_style.dart`
+Source: `packages/fluent_2/lib/src/inputs/checkbox_style.dart`
 
 #### Constructor: `FluentCheckboxStyle`
 
@@ -231,7 +231,7 @@ const FluentCheckboxStyle({
 
 Overrides the checkbox style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/inputs/checkbox.dart`
+Source: `packages/fluent_2/lib/src/inputs/checkbox.dart`
 
 #### Constructor: `FluentCheckboxTheme`
 
@@ -278,7 +278,7 @@ Widget buildFluentCheckbox(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
 FluentCheckbox(
@@ -294,9 +294,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/inputs/checkbox.dart`
-- Tests: `packages/fluent_2_web/test/goldens/checkbox_golden_test.dart`, `packages/fluent_2_web/test/goldens/tree_golden_test.dart`, `packages/fluent_2_web/test/inputs/checkbox_test.dart`, `packages/fluent_2_web/test/navigation/data_grid_test.dart`, `packages/fluent_2_web/test/navigation/list_item_test.dart`, `packages/fluent_2_web/test/navigation/tree_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/inputs/checkbox.dart`
+- Tests: `packages/fluent_2/test/goldens/checkbox_golden_test.dart`, `packages/fluent_2/test/goldens/tree_golden_test.dart`, `packages/fluent_2/test/inputs/checkbox_test.dart`, `packages/fluent_2/test/navigation/data_grid_test.dart`, `packages/fluent_2/test/navigation/list_item_test.dart`, `packages/fluent_2/test/navigation/tree_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/checkbox/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 single-line text field.
 
-Source: `packages/fluent_2_web/lib/src/inputs/input.dart`
+Source: `packages/fluent_2/lib/src/inputs/input.dart`
 
 #### Constructor: `FluentInput`
 
@@ -98,7 +98,7 @@ const FluentInput({
 
 The brand bar that grows across the bottom of a focused input.
 
-Source: `packages/fluent_2_web/lib/src/inputs/input.dart`
+Source: `packages/fluent_2/lib/src/inputs/input.dart`
 
 #### Constructor: `FluentInputFocusUnderline`
 
@@ -126,7 +126,7 @@ const FluentInputFocusUnderline({
 
 How an input is filled and outlined. Figma's `Style` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/input.dart`
+Source: `packages/fluent_2/lib/src/inputs/input.dart`
 
 ```dart
 enum FluentInputAppearance {
@@ -139,7 +139,7 @@ enum FluentInputAppearance {
 
 ### `FluentInputBaseState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/input.dart`
+Source: `packages/fluent_2/lib/src/inputs/input.dart`
 
 #### Constructor: `FluentInputBaseState`
 
@@ -200,7 +200,7 @@ const FluentInputBaseState({
 
 Input height and type ramp. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/inputs/input.dart`
+Source: `packages/fluent_2/lib/src/inputs/input.dart`
 
 ```dart
 enum FluentInputSize {
@@ -212,7 +212,7 @@ enum FluentInputSize {
 
 ### `FluentInputState`
 
-Source: `packages/fluent_2_web/lib/src/inputs/input.dart`
+Source: `packages/fluent_2/lib/src/inputs/input.dart`
 
 #### Constructor: `FluentInputState`
 
@@ -266,7 +266,7 @@ const FluentInputState({
 
 ### `FluentInputStyle`
 
-Source: `packages/fluent_2_web/lib/src/inputs/input_style.dart`
+Source: `packages/fluent_2/lib/src/inputs/input_style.dart`
 
 #### Constructor: `FluentInputStyle`
 
@@ -320,7 +320,7 @@ const FluentInputStyle({
 
 Overrides the input style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/inputs/input.dart`
+Source: `packages/fluent_2/lib/src/inputs/input.dart`
 
 #### Constructor: `FluentInputTheme`
 
@@ -381,7 +381,7 @@ Widget buildFluentInput(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`:
 
 ```dart
 FluentInput(
@@ -399,9 +399,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/inputs/input.dart`
-- Tests: `packages/fluent_2_web/test/goldens/input_golden_test.dart`, `packages/fluent_2_web/test/inputs/calendar_test.dart`, `packages/fluent_2_web/test/inputs/date_picker_test.dart`, `packages/fluent_2_web/test/inputs/dropdown_test.dart`, `packages/fluent_2_web/test/inputs/input_test.dart`, `packages/fluent_2_web/test/inputs/radio_test.dart`, `packages/fluent_2_web/test/inputs/search_box_test.dart`, `packages/fluent_2_web/test/inputs/spin_button_test.dart`, `packages/fluent_2_web/test/inputs/swatch_test.dart`, `packages/fluent_2_web/test/inputs/tag_picker_test.dart`, `packages/fluent_2_web/test/inputs/textarea_test.dart`, `packages/fluent_2_web/test/inputs/time_picker_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/inputs_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/inputs/input.dart`
+- Tests: `packages/fluent_2/test/goldens/input_golden_test.dart`, `packages/fluent_2/test/inputs/calendar_test.dart`, `packages/fluent_2/test/inputs/date_picker_test.dart`, `packages/fluent_2/test/inputs/dropdown_test.dart`, `packages/fluent_2/test/inputs/input_test.dart`, `packages/fluent_2/test/inputs/radio_test.dart`, `packages/fluent_2/test/inputs/search_box_test.dart`, `packages/fluent_2/test/inputs/spin_button_test.dart`, `packages/fluent_2/test/inputs/swatch_test.dart`, `packages/fluent_2/test/inputs/tag_picker_test.dart`, `packages/fluent_2/test/inputs/textarea_test.dart`, `packages/fluent_2/test/inputs/time_picker_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/input/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

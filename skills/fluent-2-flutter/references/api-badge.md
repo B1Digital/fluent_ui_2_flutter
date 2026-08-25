@@ -30,7 +30,7 @@ properties from the Microsoft site are design evidence, not Flutter fields.
 
 A Fluent 2 badge: a small, non-interactive status or count marker.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/badge.dart`
+Source: `packages/fluent_2/lib/src/surfaces/badge.dart`
 
 #### Constructor: `FluentBadge`
 
@@ -70,7 +70,7 @@ const FluentBadge({
 
 How a badge is filled and outlined. Figma's `Appearance` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/badge.dart`
+Source: `packages/fluent_2/lib/src/surfaces/badge.dart`
 
 ```dart
 enum FluentBadgeAppearance {
@@ -83,7 +83,7 @@ enum FluentBadgeAppearance {
 
 ### `FluentBadgeBaseState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/badge.dart`
+Source: `packages/fluent_2/lib/src/surfaces/badge.dart`
 
 #### Constructor: `FluentBadgeBaseState`
 
@@ -105,7 +105,7 @@ const FluentBadgeBaseState({
 
 The semantic colour family a badge carries. Figma's `Color` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/badge.dart`
+Source: `packages/fluent_2/lib/src/surfaces/badge.dart`
 
 ```dart
 enum FluentBadgeColor {
@@ -123,7 +123,7 @@ enum FluentBadgeColor {
 
 Which side of the label the icon sits on.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/badge.dart`
+Source: `packages/fluent_2/lib/src/surfaces/badge.dart`
 
 ```dart
 enum FluentBadgeIconPosition {
@@ -136,7 +136,7 @@ enum FluentBadgeIconPosition {
 
 Badge height and type ramp. Figma's `Size` axis.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/badge.dart`
+Source: `packages/fluent_2/lib/src/surfaces/badge.dart`
 
 ```dart
 enum FluentBadgeSize {
@@ -149,7 +149,7 @@ enum FluentBadgeSize {
 
 ### `FluentBadgeState`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/badge.dart`
+Source: `packages/fluent_2/lib/src/surfaces/badge.dart`
 
 #### Constructor: `FluentBadgeState`
 
@@ -175,7 +175,7 @@ const FluentBadgeState({
 
 ### `FluentBadgeStyle`
 
-Source: `packages/fluent_2_web/lib/src/surfaces/badge_style.dart`
+Source: `packages/fluent_2/lib/src/surfaces/badge_style.dart`
 
 #### Constructor: `FluentBadgeStyle`
 
@@ -211,7 +211,7 @@ const FluentBadgeStyle({
 
 Overrides the badge style for a subtree.
 
-Source: `packages/fluent_2_web/lib/src/surfaces/badge.dart`
+Source: `packages/fluent_2/lib/src/surfaces/badge.dart`
 
 #### Constructor: `FluentBadgeTheme`
 
@@ -258,7 +258,7 @@ Widget buildFluentBadge(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
 
 ```dart
 FluentBadge(color: color, child: const Text('Badge'))
@@ -270,9 +270,9 @@ copying it into a standalone application.
 
 ## Source and test evidence
 
-- Implementation: `packages/fluent_2_web/lib/src/surfaces/badge.dart`
-- Tests: `packages/fluent_2_web/test/goldens/badge_golden_test.dart`, `packages/fluent_2_web/test/surfaces/badge_test.dart`
-- Stories: `packages/fluent_2_web/example/lib/storybook/components/surfaces_stories.dart`
+- Implementation: `packages/fluent_2/lib/src/surfaces/badge.dart`
+- Tests: `packages/fluent_2/test/goldens/badge_golden_test.dart`, `packages/fluent_2/test/surfaces/badge_test.dart`
+- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/badge/usage/
 - Design decisions: `references/components-identity-content.md`
 
