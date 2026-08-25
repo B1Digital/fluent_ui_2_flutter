@@ -1841,7 +1841,7 @@
   },
   "components-tree--motion-custom": {
     "kind": "reduced",
-    "why": "FluentTree exposes no collapseMotion hook, so the duration slider and the animate-opacity switch are live and the collapse animation is not; avatarless personas keep the neutral fill because color=\"colorful\" has no counterpart."
+    "why": "collapseMotion and animateOpacity are one pair on FluentTree covering every subtree in it, rather than a slot set on each subtree Tree element, because a whole tree is one widget here; avatarless personas keep the neutral fill because color=\"colorful\" has no counterpart."
   },
   "components-tree--navigation-mode-tree-grid": {
     "kind": "reduced",

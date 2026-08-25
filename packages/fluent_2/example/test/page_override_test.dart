@@ -8,10 +8,12 @@ import 'package:fluent_2_example/shell/widgets/docs_scaffold.dart';
 import 'package:fluent_2_example/shell/rtl_scope.dart';
 import 'package:fluent_2_example/shell/widgets/docs_toolbar.dart';
 import 'package:fluent_2_example/shell/widgets/preview_card.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// The docs toolbar's Theme dropdown and RTL switch are *page* overrides.
+/// The docs toolbar's Theme dropdown and RTL switch are *page* overrides, and
+/// they answer a real mouse.
 ///
 /// They used to write the shell's global state — one tap on a page moved the
 /// toolbar at the top of the window and followed the reader to every page
@@ -215,21 +217,41 @@ String _shellLabel(WidgetTester tester, [String prefix = 'Theme: ']) => tester
     .whereType<String>()
     .firstWhere((String s) => s.startsWith(prefix));
 
-Future<void> _pickOnPage(WidgetTester tester, String label) async {
-  await tester.tap(find.byType(FluentDropdown<ThemeVariant>));
-  await tester.pumpAndSettle();
-  await tester.tap(find.text(label));
+/// A click the way a real mouse makes one: press, dwell, drift a pixel or two,
+/// release.
+///
+/// Deliberately NOT `tester.tap`, which synthesises a perfectly still touch and
+/// so passes even when the app is unusable. A `SelectableRegion` puts a pan
+/// recogniser over its whole subtree, and for a mouse a pan is claimed after
+/// only ONE pixel (`kPrecisePointerHitSlop`) — so every control that sat inside
+/// the article's selection region was dead to a real click while every
+/// `tester.tap` test stayed green. Every interaction below goes through here so
+/// that cannot happen again.
+Future<void> _click(WidgetTester tester, Finder target) async {
+  final TestGesture gesture = await tester.startGesture(
+    tester.getCenter(target),
+    kind: PointerDeviceKind.mouse,
+  );
+  await tester.pump(const Duration(milliseconds: 90));
+  await gesture.moveBy(const Offset(1.5, 1.5));
+  await tester.pump(const Duration(milliseconds: 10));
+  await gesture.up();
   await tester.pumpAndSettle();
 }
 
+Future<void> _pickOnPage(WidgetTester tester, String label) async {
+  await _click(tester, find.byType(FluentDropdown<ThemeVariant>));
+  await _click(tester, find.text(label));
+}
+
 Future<void> _toggleRtlOnPage(WidgetTester tester) async {
-  await tester.tap(
+  await _click(
+    tester,
     find.descendant(
       of: find.byType(DocsToolbar),
       matching: find.byType(FluentSwitch),
     ),
   );
-  await tester.pumpAndSettle();
 }
 
 Future<void> _pickOnShell(
@@ -237,11 +259,9 @@ Future<void> _pickOnShell(
   String prefix,
   String label,
 ) async {
-  await tester.tap(find.text(_shellLabel(tester, prefix)));
-  await tester.pumpAndSettle();
+  await _click(tester, find.text(_shellLabel(tester, prefix)));
   // `.last`, not a bare find: the menu is an overlay entry above the page, so
   // it comes last in tree order — and the docs toolbar prints static "LTR" and
   // "RTL" labels of its own that a bare finder would collide with.
-  await tester.tap(find.text(label).last);
-  await tester.pumpAndSettle();
+  await _click(tester, find.text(label).last);
 }
