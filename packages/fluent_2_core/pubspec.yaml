@@ -1,16 +1,20 @@
 name: fluent_2_core
 description: "Shared Fluent 2 design tokens and theming. Consumed by every fluent_2_* UI package."
-version: 0.0.1
+version: 0.0.2
 repository: https://github.com/B1Digital/fluent_ui_2_flutter
 issue_tracker: https://github.com/B1Digital/fluent_ui_2_flutter/issues
 resolution: workspace
+
+screenshots:
+  - description: "The Fluent 2 for Flutter project logo."
+    path: screenshots/fluent_2_flutter.png
 
 environment:
   sdk: ^3.12.2
   flutter: ">=3.41.0"
 
 dependencies:
-  fluent_2_fonts: ^0.0.1
+  fluent_2_fonts: ^0.0.2
   fluentui_system_icons: ^1.1.273
   flutter:
     sdk: flutter

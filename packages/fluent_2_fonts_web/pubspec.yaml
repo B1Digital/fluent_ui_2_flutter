@@ -1,9 +1,13 @@
 name: fluent_2_fonts_web
 description: "Web-only open-source Selawik font assets for Fluent 2."
-version: 0.0.1
+version: 0.0.2
 repository: https://github.com/B1Digital/fluent_ui_2_flutter
 issue_tracker: https://github.com/B1Digital/fluent_ui_2_flutter/issues
 resolution: workspace
+
+screenshots:
+  - description: "The Fluent 2 for Flutter project logo."
+    path: screenshots/fluent_2_flutter.png
 
 environment:
   sdk: ^3.12.2

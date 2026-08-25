@@ -130,7 +130,7 @@ annotations, and a declarative (Plotly-schema) entry point included.
 | | |
 | :-- | :-- |
 | **Buttons** | Button · CompoundButton · MenuButton · SplitButton · ToggleButton |
-| **Inputs** | Input · Textarea · SearchBox · SpinButton · Dropdown · Dropdown options · Slider · Switch · Checkbox · Radio + RadioGroup · Rating · SwatchPicker · TagPicker · Field · Label · InfoLabel · InfoButton · Link |
+| **Inputs** | Input · Textarea · SearchBox · SpinButton · Dropdown · Dropdown options · Slider · Switch · Checkbox · Radio + RadioGroup · Rating · SwatchPicker · ColorPicker (ColorArea · ColorSlider · AlphaSlider) · TagPicker · Field · Label · InfoLabel · InfoButton · Link |
 | **Date &amp; time** | Calendar · DatePicker · TimePicker |
 | **Surfaces** | Card (header/footer/preview) · Accordion · Acrylic · Avatar · AvatarGroup · Badge · CounterBadge · PresenceBadge · Persona · Carousel · Divider · ProgressBar · Skeleton · Spinner · StatusIndicator · Tag · InteractionTag · Tooltip · MessageBar |
 | **Navigation** | Nav · NavDrawer · TabList · Breadcrumb · Tree · Toolbar · ListItem · DataGrid · Hamburger |
@@ -210,8 +210,8 @@ FluentApp(
 | Question | Answered by |
 | :-- | :-- |
 | Does it match the Figma spec? | Numeric fixtures — resolved sizes, paddings, radii, strokes and ARGB fills compared to values extracted from the Fluent 2 Figma file. |
-| Did it change since last commit? | 261 golden images: one per component per theme, light / dark / high contrast. |
-| Does it match Fluent UI React v9? | Story-for-story parity with the React Storybook — 89 documented pages, rebuilt as the showroom you can open above. |
+| Did it change since last commit? | 264 golden images: one per component per theme, light / dark / high contrast. |
+| Does it match Fluent UI React v9? | Story-for-story parity with the React Storybook — 90 documented pages, rebuilt as the showroom you can open above. |
 | Is Material creeping back in? | `melos run no-material` fails the build on any `material.dart` or `cupertino.dart` import. |
 
 ---

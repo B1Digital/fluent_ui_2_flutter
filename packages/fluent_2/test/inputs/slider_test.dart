@@ -376,6 +376,59 @@ void main() {
       await tester.pump();
       expect(reported.single, closeTo(100, 0.001));
     });
+
+    testWidgets('a touch drag inside a horizontal scroll view still reports', (
+      tester,
+    ) async {
+      final reported = <double>[];
+      await tester.pumpWidget(
+        FluentApp(
+          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+          home: Center(
+            child: SizedBox(
+              width: 200,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: <Widget>[
+                  SizedBox(
+                    width: 200,
+                    child: FluentSlider(
+                      key: key,
+                      value: 0,
+                      onChanged: reported.add,
+                    ),
+                  ),
+                  const SizedBox(width: 400),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final origin = tester.getTopLeft(find.byKey(key));
+      final gesture = await tester.startGesture(origin + const Offset(8, 12));
+      await tester.pump();
+      await gesture.moveTo(origin + const Offset(100, 12));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      // The regression this guards: with a GestureDetector's horizontal drag
+      // recognizer the ancestor ListView won the arena for a *touch* pointer
+      // and scrolled instead. Mouse never showed it, because Flutter leaves
+      // mouse out of ScrollBehavior.dragDevices.
+      expect(
+        reported.last,
+        closeTo(50, 0.001),
+        reason: 'the drag reached the slider, not the scroll view',
+      );
+      expect(
+        tester.state<ScrollableState>(find.byType(Scrollable)).position.pixels,
+        0,
+        reason: 'and the list did not scroll under it',
+      );
+    });
   });
 
   group('keyboard', () {

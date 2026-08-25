@@ -1,3 +1,8 @@
+# 0.0.2
+
+- Use the Fluent 2 project logo as the pub.dev thumbnail.
+- Require version 0.0.2 of each platform font package.
+
 # 0.0.1
 
 - Initial release of the platform font facade.

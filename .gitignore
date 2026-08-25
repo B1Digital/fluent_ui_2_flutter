@@ -37,6 +37,10 @@ doc/
 docs/
 tool/
 
+# fluent_2_core's token generators are versioned source inputs. Keep them
+# tracked while its package-level .pubignore excludes them from release archives.
+!/packages/fluent_2_core/tool/
+
 # Crawlers
 #
 # Local tooling, not shipped: the Playwright install, the crawl output, and the

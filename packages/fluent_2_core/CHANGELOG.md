@@ -1,3 +1,8 @@
+## 0.0.2
+
+- Use the Fluent 2 project logo as the pub.dev thumbnail.
+- Require `fluent_2_fonts` 0.0.2.
+
 ## 0.0.1
 
 - Initial release: Fluent 2 token tables (color, typography, spacing, radius,

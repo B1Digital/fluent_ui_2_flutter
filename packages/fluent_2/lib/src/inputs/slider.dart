@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 
 import '../internal/focus_ring.dart';
 import '../internal/interaction.dart';
+import '../internal/pointer_capture.dart';
 import 'slider_style.dart';
 
 /// Thumb diameter and rail thickness. Figma's `Size` axis.
@@ -685,20 +686,18 @@ class _FluentSliderState extends State<FluentSlider> {
       mouseCursor:
           resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
           SystemMouseCursors.click,
-      builder: (context, states, _) => GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        // Deeper than FluentInteractive's own tap recognizer, so it wins the
-        // arena: a tap on the rail jumps the thumb there rather than doing
-        // nothing.
-        onTapDown: enabled
-            ? (details) => _reportAt(details.localPosition.dx, railInset)
-            : null,
-        onHorizontalDragStart: enabled
-            ? (details) => _reportAt(details.localPosition.dx, railInset)
-            : null,
-        onHorizontalDragUpdate: enabled
-            ? (details) => _reportAt(details.localPosition.dx, railInset)
-            : null,
+      // Claims the pointer at down rather than after the drag slop, so a tap on
+      // the rail jumps the thumb there and a drag along it is never handed to
+      // an ancestor scrollable.
+      //
+      // This used to be a GestureDetector with onTapDown + onHorizontalDrag*,
+      // which lost the arena to a horizontally scrolling parent for any touch
+      // drag — invisibly, because Flutter leaves mouse out of
+      // ScrollBehavior.dragDevices and a `tester.drag` synthesises a perfectly
+      // straight line with no competitor in the tree.
+      builder: (context, states, _) => FluentPointerCapture(
+        enabled: enabled,
+        onPointer: (local) => _reportAt(local.dx, railInset),
         child: buildFluentSlider(state, resolved, states),
       ),
     );

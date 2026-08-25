@@ -13,7 +13,7 @@
   <a href="https://b1digital.github.io/fluent_ui_2_flutter/"><img src="https://img.shields.io/badge/live-showroom-0F6CBD?logo=googlechrome&logoColor=white" alt="live showroom" /></a>
   <a href="https://github.com/B1Digital/fluent_ui_2_flutter/actions"><img src="https://img.shields.io/github/actions/workflow/status/B1Digital/fluent_ui_2_flutter/test.yml?branch=main&label=CI" alt="CI" /></a>
   <a href="#-tests--coverage"><img src="https://img.shields.io/badge/coverage-92%25-107C10" alt="line coverage" /></a>
-  <a href="#-tests--coverage"><img src="https://img.shields.io/badge/tests-5426-107C10" alt="tests" /></a>
+  <a href="#-tests--coverage"><img src="https://img.shields.io/badge/tests-7023-107C10" alt="tests" /></a>
   <img src="https://img.shields.io/badge/flutter-%E2%89%A53.41-02569B?logo=flutter&logoColor=white" alt="flutter" />
   <img src="https://img.shields.io/badge/material-free-107C10" alt="no material" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT" /></a>
@@ -246,30 +246,30 @@ genhtml packages/fluent_2/coverage/lcov.info -o packages/fluent_2/coverage/html
 
 | Package | Tests | Lines covered | Line coverage | Report |
 | :-- | --: | --: | --: | :-- |
-| `fluent_2` | 5,261 | 48,436 / 52,549 | **92.2 %** | [`coverage/lcov.info`](packages/fluent_2/coverage/lcov.info) |
-| `fluent_2_core` | 58 | 1,315 / 1,825 | **72.1 %** | [`coverage/lcov.info`](packages/fluent_2_core/coverage/lcov.info) |
-| `fluent_2/example` | 107 | — | — | showroom contract tests, no library code |
-| **Workspace** | **5,426** | **49,751 / 54,374** | **91.5 %** | |
+| `fluent_2` | 5,374 | 49,214 / 53,481 | **92.0 %** | [`coverage/lcov.info`](packages/fluent_2/coverage/lcov.info) |
+| `fluent_2_core` | 67 | 1,322 / 1,823 | **72.5 %** | [`coverage/lcov.info`](packages/fluent_2_core/coverage/lcov.info) |
+| `fluent_2/example` | 1,582 | — | — | showroom contract tests, no library code |
+| **Workspace** | **7,023** | **50,536 / 55,304** | **91.4 %** | |
 
 15,072 of those covered lines are the generated 135-locale message catalogue,
 which is exhaustive by construction. **Excluding `lib/src/l10n/`, `fluent_2`
-sits at 89.0 % (33,365 / 37,477)** — that is the number worth watching.
+sits at 88.9 % (34,143 / 38,409)** — that is the number worth watching.
 
 | Area — `fluent_2/lib/src/` | Lines covered | Line coverage |
 | :-- | --: | --: |
 | `l10n` *(generated)* | 15,071 / 15,072 | 100.0 % |
 | `overlays` | 2,295 / 2,438 | 94.1 % |
-| `internal` | 246 / 264 | 93.2 % |
-| `navigation` | 2,680 / 2,885 | 92.9 % |
-| `charts` | 18,647 / 20,168 | 92.5 % |
-| `buttons` | 499 / 562 | 88.8 % |
-| `surfaces` | 3,031 / 3,665 | 82.7 % |
-| `inputs` | 5,967 / 7,495 | 79.6 % |
+| `internal` | 262 / 280 | 93.6 % |
+| `navigation` | 2,696 / 2,909 | 92.7 % |
+| `charts` | 18,763 / 20,316 | 92.4 % |
+| `buttons` | 500 / 564 | 88.7 % |
+| `surfaces` | 3,035 / 3,669 | 82.7 % |
+| `inputs` | 6,592 / 8,233 | 80.1 % |
 
 Line coverage is the floor, not the claim — a widget that renders is not a
 widget that renders *correctly*. What the percentage does not show:
 
-- **261 golden images** under `test/goldens/`, one per component per theme.
+- **264 golden images** under `test/goldens/`, one per component per theme.
 - **90 React reference PNGs** in `test/fixtures/charts/react_png/`, captured from
   the upstream Fluent UI Storybook; the parity suite renders the Flutter chart
   against each one and asserts a per-pixel difference budget.

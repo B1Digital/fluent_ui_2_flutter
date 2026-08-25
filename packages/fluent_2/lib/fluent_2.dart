@@ -153,6 +153,16 @@ export 'src/inputs/calendar.dart';
 export 'src/inputs/calendar_style.dart';
 export 'src/inputs/checkbox.dart';
 export 'src/inputs/checkbox_style.dart';
+export 'src/inputs/color_area.dart';
+export 'src/inputs/color_area_style.dart';
+export 'src/inputs/color_picker.dart';
+export 'src/inputs/color_picker_style.dart';
+// `FluentAlphaSlider` ships from here too, rather than from an
+// `alpha_slider.dart` that would sort away from its siblings: upstream's
+// AlphaSlider styles hook ends by calling the ColorSlider's, and here it is the
+// same widget on the alpha channel.
+export 'src/inputs/color_slider.dart';
+export 'src/inputs/color_slider_style.dart';
 export 'src/inputs/date_picker.dart';
 export 'src/inputs/date_picker_style.dart';
 export 'src/inputs/dropdown.dart';

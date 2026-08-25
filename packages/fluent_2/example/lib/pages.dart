@@ -28,6 +28,7 @@ import 'pages/components_card_cardpreview.dart';
 import 'pages/components_carousel_carousel.dart';
 import 'pages/components_carousel_carouselnav.dart';
 import 'pages/components_checkbox.dart';
+import 'pages/components_colorpicker.dart';
 import 'pages/components_datagrid.dart';
 import 'pages/components_dialog.dart';
 import 'pages/components_divider.dart';
@@ -135,6 +136,7 @@ const List<DocsGroup> catalog = <DocsGroup>[
       carouselPage,
       carouselNavPage,
       checkboxPage,
+      colorPickerPage,
       dataGridPage,
       dialogPage,
       dividerPage,

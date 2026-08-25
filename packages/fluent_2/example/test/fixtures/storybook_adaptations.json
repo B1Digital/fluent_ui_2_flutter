@@ -699,6 +699,14 @@
     "kind": "slot",
     "why": "FluentCheckbox has no `required` field. Upstream's prop only forwards to the label slot, so the asterisk comes from FluentLabel(required: true) passed into that same slot."
   },
+  "components-colorpicker--color-and-swatch-picker": {
+    "kind": "reduced",
+    "why": "FluentSwatchPicker has no selectedValue/onSelectionChange \u2014 selection is per-swatch `selected` + `onPressed` \u2014 so the controlled-selection model becomes page-local state keyed on the Color itself. There is no ColorSwatch/EmptySwatch type either: FluentSwatch(color:) and FluentSwatch.empty() cover both, and the empty slots pass disabledIcon: SizedBox.shrink() because a disabled FluentSwatch is otherwise struck through with a prohibited glyph that upstream's dashed slots do not draw. Upstream's colorFocusTargetRef.current?.focus() on the newly appended swatch maps onto FluentSwatch.focusNode/autofocus, a different mechanism, and is dropped."
+  },
+  "components-colorpicker--color-picker-popup": {
+    "kind": "trigger-required",
+    "why": "FluentPopover is controlled, so the 'Choose color' FluentButton owns the open bool and Ok / Cancel close it \u2014 upstream's PopoverTrigger + trapFocus have no counterpart. The picker sits inside the popover surface, which RenderStack lays out fully unbounded; buildFluentColorPicker wraps its column in an IntrinsicWidth for exactly that reason. FluentPopover also takes a fixed position rather than flipping like floating-ui, so the surface is placed `below` the trigger and aligned to its `start` edge \u2014 the default `above` + `center` hangs a 300x380 picker off the top of the page and off the left of a narrow button."
+  },
   "components-datagrid--composite-navigation": {
     "kind": "nearest-widget",
     "why": "`focusMode=\"composite\"` has no counterpart: roving cell focus with arrow keys is the only navigation model FluentDataGrid has, so the section is the multi-select grid with no sort controls, which is what upstream renders."
@@ -1413,7 +1421,7 @@
   },
   "components-swatchpicker--empty-swatch-example": {
     "kind": "reduced",
-    "why": "Upstream opens a Popover holding ColorPicker/ColorArea/ColorSlider/AlphaSlider to dial in the colour that 'Add new color' appends. fluent_2 ships no colour picker, so the preview is a fixed #2be700 swatch and every added colour is that one; the swatch picker, empty slots, selected-swatch box and both buttons are live. The empty slots also pass disabledIcon: SizedBox.shrink() because a disabled FluentSwatch is otherwise struck through with a prohibited glyph that upstream's dashed empty slots do not draw."
+    "why": "Upstream opens a Popover holding ColorPicker/ColorArea/ColorSlider/AlphaSlider to dial in the colour that 'Add new color' appends. This page keeps a fixed #2be700 preview instead, so every added colour is that one \u2014 a deliberate choice now that fluent_2 does ship a colour picker; components-colorpicker--color-and-swatch-picker wires the two together in full. The swatch picker, empty slots, selected-swatch box and both buttons are live. The empty slots also pass disabledIcon: SizedBox.shrink() because a disabled FluentSwatch is otherwise struck through with a prohibited glyph that upstream's dashed empty slots do not draw."
   },
   "components-swatchpicker--swatch-picker-focus-mode": {
     "kind": "reduced",

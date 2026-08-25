@@ -4,14 +4,14 @@
     "react": {
       "base": "https://storybooks.fluentui.dev/react",
       "storybookVersion": "9.1.17",
-      "generatedAt": 1787563441494,
+      "generatedAt": 1787659584159,
       "docsCount": 241,
       "storyCount": 844
     },
     "charts": {
       "base": "https://storybooks.fluentui.dev/charts",
       "storybookVersion": "9.1.17",
-      "generatedAt": 1787563432963,
+      "generatedAt": 1787659574299,
       "docsCount": 21,
       "storyCount": 90
     }
@@ -3014,6 +3014,105 @@
           "hasDescription": true,
           "sampleStrings": [
             "Circular"
+          ]
+        }
+      ]
+    },
+    {
+      "pageId": "components-colorpicker--docs",
+      "kind": "component",
+      "sidebarTitle": "Components/ColorPicker",
+      "file": "lib/pages/components_colorpicker.dart",
+      "title": "ColorPicker",
+      "heroStoryId": "components-colorpicker--default",
+      "sections": [
+        {
+          "storyId": "components-colorpicker--default",
+          "title": "Default",
+          "hasDescription": false,
+          "sampleStrings": [
+            "Hue",
+            "Alpha",
+            "Red",
+            "r",
+            "Green",
+            "g",
+            "Blue",
+            "b",
+            "Hex"
+          ]
+        },
+        {
+          "storyId": "components-colorpicker--color-picker-shape",
+          "title": "Color Picker Shape",
+          "hasDescription": true,
+          "sampleStrings": [
+            "Rounded (default)",
+            "Square (default)",
+            "Hue",
+            "Alpha"
+          ]
+        },
+        {
+          "storyId": "components-colorpicker--color-area-default",
+          "title": "Color Area Default",
+          "hasDescription": true,
+          "sampleStrings": [
+            "Reset"
+          ]
+        },
+        {
+          "storyId": "components-colorpicker--color-slider-default",
+          "title": "Color Slider Default",
+          "hasDescription": true,
+          "sampleStrings": [
+            "Reset",
+            "Hue",
+            "Vertical Hue"
+          ]
+        },
+        {
+          "storyId": "components-colorpicker--color-slider-channels",
+          "title": "Color Slider Channels",
+          "hasDescription": true,
+          "sampleStrings": [
+            "Hue",
+            "Saturation",
+            "Value (Brightness)",
+            "Reset"
+          ]
+        },
+        {
+          "storyId": "components-colorpicker--alpha-slider-default",
+          "title": "Alpha Slider Default",
+          "hasDescription": true,
+          "sampleStrings": [
+            "Reset",
+            "Transparency",
+            "Alpha",
+            "Vertical alpha"
+          ]
+        },
+        {
+          "storyId": "components-colorpicker--color-and-swatch-picker",
+          "title": "Color And Swatch Picker",
+          "hasDescription": false,
+          "sampleStrings": [
+            "Selected color",
+            "Hue",
+            "Alpha",
+            "SwatchPicker with empty swatches",
+            "empty swatch"
+          ]
+        },
+        {
+          "storyId": "components-colorpicker--color-picker-popup",
+          "title": "Color Picker Popup",
+          "hasDescription": false,
+          "sampleStrings": [
+            "Choose color",
+            "Hue",
+            "Alpha"
           ]
         }
       ]
