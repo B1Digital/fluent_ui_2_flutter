@@ -22,7 +22,7 @@ enum FluentThemeMode {
 ///
 /// Wraps [WidgetsApp] (not `MaterialApp`), so nothing in the tree pulls in
 /// Material. It supplies the [FluentTheme], a default text style and icon
-/// theme, a scrollbar-free scroll behavior, and Fluent page transitions.
+/// theme, [FluentScrollBehavior] and Fluent page transitions.
 class FluentApp extends StatelessWidget {
   /// Creates a Fluent application.
   const FluentApp({
@@ -365,23 +365,67 @@ class FluentPageRoute<T> extends PageRoute<T> {
   }
 }
 
-/// Scroll behavior with no Material overscroll glow and no auto-scrollbar.
+/// Thickness of the Fluent scrollbar thumb.
 ///
-/// Fluent draws its own scrollbar in the UI packages; the framework default
-/// would paint a second one on desktop and web.
+/// ponytail: not a token. Neither the Fluent 2 Figma libraries nor the React
+/// theme ships a scrollbar metric — the web leaves it to the UA stylesheet, so
+/// there is nothing upstream to transcribe. 6 matches what Edge and Chrome
+/// draw for `scrollbar-width: thin`. Promote it to a token if a design ever
+/// states one.
+const double _fluentScrollbarThickness = 6;
+
+/// Scroll behavior with no Material overscroll glow and a Fluent scrollbar.
+///
+/// The overscroll glow is Material's and is dropped outright. The scrollbar is
+/// [RawScrollbar] — which lives in `package:flutter/widgets.dart`, so it costs
+/// no Material dependency — painted in `colorScrollbarOverlay`.
 class FluentScrollBehavior extends ScrollBehavior {
   /// Creates the default Fluent scroll behaviour.
   const FluentScrollBehavior();
 
+  /// A Fluent-styled [RawScrollbar] on desktop, and nothing elsewhere.
+  ///
+  /// This used to return [child] unchanged on a comment claiming Fluent drew
+  /// its own scrollbar in the UI packages. It did not: `fluent_2` contained no
+  /// scrollbar at all, `FluentColors.scrollbarOverlay` was referenced by
+  /// nothing, and the showroom had to hand-roll a [RawScrollbar] with a
+  /// hardcoded colour to get one. Every consuming app inherited a scrollbar-less
+  /// UI with no way to opt back in short of replacing this class.
+  ///
+  /// The platform split is `MaterialScrollBehavior`'s, for its reasons rather
+  /// than out of deference: a horizontal scroller gets none, because the thumb
+  /// would sit on top of whatever the caller put along the bottom edge; a touch
+  /// platform gets none, because the OS already draws a transient one during
+  /// the fling and two would overlap.
+  ///
+  /// The colour resolves through [FluentTheme.maybeOf], not [FluentTheme.of]:
+  /// this class is public and can be handed to a bare [ScrollConfiguration]
+  /// with no Fluent theme above it, where [RawScrollbar]'s own default stands.
   @override
-  Widget buildOverscrollIndicator(
+  Widget buildScrollbar(
     BuildContext context,
     Widget child,
     ScrollableDetails details,
-  ) => child;
+  ) {
+    if (axisDirectionToAxis(details.direction) == Axis.horizontal) return child;
+    return switch (getPlatform(context)) {
+      TargetPlatform.linux ||
+      TargetPlatform.macOS ||
+      TargetPlatform.windows => RawScrollbar(
+        controller: details.controller,
+        thumbColor: FluentTheme.maybeOf(context)?.colors.scrollbarOverlay,
+        thickness: _fluentScrollbarThickness,
+        radius: const Radius.circular(_fluentScrollbarThickness / 2),
+        child: child,
+      ),
+      TargetPlatform.android ||
+      TargetPlatform.fuchsia ||
+      TargetPlatform.iOS => child,
+    };
+  }
 
   @override
-  Widget buildScrollbar(
+  Widget buildOverscrollIndicator(
     BuildContext context,
     Widget child,
     ScrollableDetails details,
