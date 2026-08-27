@@ -20,11 +20,21 @@ void main() {
     WidgetTester tester,
     Widget tooltip, {
     FluentThemeData? theme,
+    TextDirection? direction,
   }) => tester.pumpWidget(
     FluentApp(
       theme:
           theme ?? FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
-      home: Center(child: tooltip),
+      // Deliberately *inside* `home`, which puts it below the Navigator's
+      // Overlay: the tooltip surface therefore builds in an LTR context even
+      // here, which is exactly the case `Directionality` is not an
+      // InheritedTheme guards against.
+      home: direction == null
+          ? Center(child: tooltip)
+          : Directionality(
+              textDirection: direction,
+              child: Center(child: tooltip),
+            ),
     ),
   );
 
@@ -91,6 +101,21 @@ void main() {
   FluentTooltipArrowPainter arrowOf(WidgetTester tester) =>
       tester.widget<CustomPaint>(arrowFinder).painter!
           as FluentTooltipArrowPainter;
+
+  /// The triangle the arrow painter actually draws, in the arrow's own box.
+  /// Recorded rather than golden-diffed, the way the chart painter tests do it
+  /// (`test/charts/gauge_needle_test.dart:13`).
+  Path arrowPathOf(WidgetTester tester) {
+    final canvas = _RecordingCanvas();
+    arrowOf(tester).paint(canvas, tester.getSize(arrowFinder));
+    return canvas.paths.single;
+  }
+
+  // Two probes inside the arrow's 6 x 12 horizontal box, each falling inside
+  // exactly one of the two triangles: the apex-right one spans {y >= x,
+  // y <= 12 - x}, its mirror {x + y >= 6, y <= x + 6}.
+  const apexRight = Offset(1, 3);
+  const apexLeft = Offset(5, 3);
 
   group('pixel fidelity against Figma', () {
     final spec = loadSpec('tooltip');
@@ -701,6 +726,134 @@ void main() {
         'Saves the document',
       );
     });
+
+    testWidgets('the surface is announced once, not twice', (tester) async {
+      // `IgnorePointer` does NOT drop its subtree from the semantics tree:
+      // `RenderIgnorePointer.visitChildrenForSemantics` only returns early on
+      // the deprecated `ignoringSemantics` (proxy_box.dart:3802), and it is
+      // never set here. Without an `ExcludeSemantics` beside it the overlay
+      // publishes a second, floating node saying the very thing the trigger's
+      // own `tooltip` already says.
+      // Disposed inline, not via addTearDown: the framework verifies no handle
+      // is outstanding *before* tear-downs run.
+      final semantics = tester.ensureSemantics();
+
+      await pump(
+        tester,
+        const FluentTooltip(
+          semanticLabel: 'Saves the document',
+          content: Text('Saves the document', key: tip),
+          child: Text('trigger', key: trigger),
+        ),
+      );
+      await hover(tester, find.byKey(trigger));
+
+      expect(
+        find.byKey(tip),
+        findsOneWidget,
+        reason: 'the surface is visible — this is not a vacuous pass',
+      );
+      expect(
+        tester.getSemantics(find.byType(FluentTooltip)).tooltip,
+        'Saves the document',
+        reason: 'the trigger is still the one thing that announces it',
+      );
+      expect(
+        find.bySemanticsLabel('Saves the document'),
+        findsNothing,
+        reason: 'the overlay copy must not reach the semantics tree at all',
+      );
+      semantics.dispose();
+    });
+  });
+
+  group('reading direction', () {
+    testWidgets('before and after are reading-order sides, arrow and all', (
+      tester,
+    ) async {
+      // Three things have to agree that `before`/`after` are logical: the
+      // follower's anchors (typed `Alignment`, which is not direction-aware —
+      // basic.dart:2054, 2062 — so they only flip because they are resolved
+      // first), the `Row` in `buildFluentTooltip`, which flips on its own, and
+      // the arrow's `Path`, which cannot flip at all without being told. Miss
+      // any one and the surface lands on the far side of the trigger with its
+      // arrow pointing back into its own fill.
+      const cases = <(TextDirection, FluentTooltipPosition, bool)>[
+        // (direction, position, surface sits to the trigger's physical left)
+        (TextDirection.ltr, FluentTooltipPosition.before, true),
+        (TextDirection.ltr, FluentTooltipPosition.after, false),
+        (TextDirection.rtl, FluentTooltipPosition.before, false),
+        (TextDirection.rtl, FluentTooltipPosition.after, true),
+      ];
+
+      for (final (direction, position, onTheLeft) in cases) {
+        await pump(
+          tester,
+          FluentTooltip(
+            position: position,
+            withArrow: true,
+            content: const Text('Tip', key: tip),
+            child: const Text('trigger', key: trigger),
+          ),
+          direction: direction,
+        );
+        await hover(tester, find.byKey(trigger));
+
+        final target = tester.getRect(find.byKey(trigger));
+        final surface = surfaceRect(tester);
+        final arrow = tester.getRect(arrowFinder);
+        final path = arrowPathOf(tester);
+        final label = '${direction.name}/${position.name}';
+
+        expect(
+          onTheLeft ? surface.right : surface.left,
+          onTheLeft
+              ? lessThanOrEqualTo(target.left)
+              : greaterThanOrEqualTo(target.right),
+          reason: '$label: the surface is on the wrong side of the trigger',
+        );
+        expect(
+          onTheLeft ? arrow.left : arrow.right,
+          onTheLeft
+              ? greaterThanOrEqualTo(surface.right)
+              : lessThanOrEqualTo(surface.left),
+          reason: '$label: the arrow is on the wrong edge of the surface',
+        );
+        expect(
+          path.contains(onTheLeft ? apexRight : apexLeft),
+          isTrue,
+          reason: '$label: the apex must point at the trigger',
+        );
+        expect(
+          path.contains(onTheLeft ? apexLeft : apexRight),
+          isFalse,
+          reason: '$label: ...and not back into the surface',
+        );
+
+        await unhover(tester);
+      }
+    });
+
+    testWidgets('above and below never mirror', (tester) async {
+      // Vertical has no reading order — the same rule that keeps the vertical
+      // arrow keys unmirrored in `inputs/slider.dart:700-716`. The arrow's own
+      // apex is at width / 2, so it is symmetric and mirrors to itself.
+      await pump(
+        tester,
+        const FluentTooltip(
+          withArrow: true,
+          content: Text('Tip', key: tip),
+          child: Text('trigger', key: trigger),
+        ),
+        direction: TextDirection.rtl,
+      );
+      await hover(tester, find.byKey(trigger));
+
+      final target = tester.getRect(find.byKey(trigger));
+      final surface = surfaceRect(tester);
+      expect(surface.center.dx, closeTo(target.center.dx, 0.01));
+      expect(target.top - surface.bottom, 10, reason: 'offset 4 plus arrow 6');
+    });
   });
 
   group('recomposition contract', () {
@@ -753,4 +906,17 @@ void main() {
       expect(decorationOf(tester).borderRadius, FluentRadius.allCircular);
     });
   });
+}
+
+/// Captures what a painter draws so the arrow's apex can be probed directly.
+/// Same shape as the chart painter tests use — see
+/// `test/charts/gauge_needle_test.dart:13`.
+class _RecordingCanvas implements Canvas {
+  final List<Path> paths = <Path>[];
+
+  @override
+  void drawPath(Path path, Paint paint) => paths.add(path);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }

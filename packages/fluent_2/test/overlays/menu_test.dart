@@ -626,6 +626,28 @@ void main() {
       expect(surface(tester).color, own);
     });
 
+    testWidgets('an RTL trigger lays the surface out RTL', (tester) async {
+      await pumpMenu(
+        tester,
+        <FluentMenuItem>[
+          FluentMenuItem(label: const Text('Cut'), onPressed: () {}),
+        ],
+        wrap: (child) =>
+            Directionality(textDirection: TextDirection.rtl, child: child),
+      );
+      await open(tester);
+
+      // `_buildLevel` already read the trigger's direction to resolve its
+      // anchors, but the entry is inflated in the Overlay's branch where that
+      // value does not reach — so the placement was computed against one
+      // direction and the rows laid out under another until menu.dart
+      // re-provided it.
+      expect(
+        Directionality.of(tester.element(find.text('Cut'))),
+        TextDirection.rtl,
+      );
+    });
+
     testWidgets('a tap outside closes it', (tester) async {
       await pumpMenu(tester, <FluentMenuItem>[
         FluentMenuItem(label: const Text('Cut'), onPressed: () {}),
@@ -947,6 +969,43 @@ void main() {
       expect(find.text('Cut'), findsOneWidget);
     });
 
+    // A submenu is the only level that proves `didChangeDependencies`:
+    // `didUpdateWidget` repaints `_levels.first` on any rebuild, so a root-only
+    // assertion would pass without it. Level 1 has nothing else marking it.
+    testWidgets('a direction swap repaints an open submenu', (tester) async {
+      Widget Function(Widget) wrapWith(TextDirection direction) =>
+          (child) => Directionality(textDirection: direction, child: child);
+
+      await pumpMenu(
+        tester,
+        items(),
+        triggerFocus: triggerFocus,
+        wrap: wrapWith(TextDirection.ltr),
+      );
+      await openAndSelectSubmenuRow(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(
+        Directionality.of(tester.element(find.text('Values'))),
+        TextDirection.ltr,
+      );
+
+      await pumpMenu(
+        tester,
+        items(),
+        triggerFocus: triggerFocus,
+        wrap: wrapWith(TextDirection.rtl),
+      );
+      await tester.pumpAndSettle();
+      // The submenu re-provides the trigger's direction from inside its own
+      // entry, so it renders whatever it captured on its last build — stale
+      // until something marks that entry dirty.
+      expect(
+        Directionality.of(tester.element(find.text('Values'))),
+        TextDirection.rtl,
+      );
+    });
+
     // Upstream's `submenuOpen` class paints `colorNeutralBackground1Hover` on
     // the parent row for as long as its submenu is showing, however it was
     // opened — the live probe reads #F5F5F5 on a keyboard-opened 'Preferences'
@@ -1250,9 +1309,14 @@ void main() {
       },
     );
 
-    testWidgets('an anchor near the bottom leaves the popup no room', (
+    testWidgets('an anchor near the bottom opens the menu upward', (
       tester,
     ) async {
+      // This used to assert `lessThan(200)`, which the bug satisfied: clamping
+      // to the room below and nothing else gave a bottom-edge trigger a menu of
+      // height ZERO. Focus moved into it and Escape bound to it, so every
+      // keyboard assertion passed while the user saw nothing at all. Upstream's
+      // positioning layer flips rather than collapsing.
       tester.view.physicalSize = const Size(1200, 2000);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -1271,10 +1335,23 @@ void main() {
       );
       await open(tester);
 
+      final surface = tester.getRect(surfaceBox());
+      final trigger = tester.getRect(find.byType(FluentButton).first);
+
       expect(
-        tester.getSize(surfaceBox()).height,
-        lessThan(200),
-        reason: 'the cap follows the free space, it is not just the viewport',
+        surface.height,
+        greaterThan(200),
+        reason: 'a collapsed menu is the bug; it must flip, not shrink to fit',
+      );
+      expect(
+        surface.bottom,
+        lessThanOrEqualTo(trigger.top + 1),
+        reason: 'flipped means the surface sits ABOVE the trigger',
+      );
+      expect(
+        surface.top,
+        greaterThanOrEqualTo(0),
+        reason: 'and still inside the viewport',
       );
     });
   });

@@ -689,6 +689,30 @@ void main() {
       await tester.pumpAndSettle();
     });
 
+    testWidgets('an RTL toaster mirrors the corner and the toast', (
+      tester,
+    ) async {
+      // The stacks build inside the Overlay, outside the toaster's subtree, so
+      // this only passes because toaster.dart re-provides the direction —
+      // `InheritedTheme.capture` carries themes and Directionality is not one.
+      await pump(
+        tester,
+        wrap: (child) =>
+            Directionality(textDirection: TextDirection.rtl, child: child),
+      );
+      show();
+      await tester.pumpAndSettle();
+      expect(
+        Directionality.of(tester.element(find.byKey(bodyKey))),
+        TextDirection.rtl,
+      );
+      // `PositionedDirectional` now resolves against RTL, so the trailing
+      // corner is the LEFT one.
+      expect(tester.getRect(find.byType(FluentToast)).left, FluentSpacing.xl);
+      controller.dismissAll();
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('bottomStart anchors to the bottom leading corner', (
       tester,
     ) async {
@@ -774,9 +798,11 @@ void main() {
     });
 
     testWidgets('the mirrored corner is used in RTL', (tester) async {
-      // The Directionality has to sit ABOVE the Navigator, because the stacks
-      // are built inside its Overlay — an ambient direction is not an
-      // InheritedTheme and does not ride along with the captured themes.
+      // The Directionality here sits ABOVE the Navigator, so the Overlay's own
+      // branch carries it — the case that worked even before toaster.dart
+      // re-provided the direction. 'an RTL toaster mirrors the corner and the
+      // toast' in this group covers the case that did not: a Directionality
+      // BELOW the Navigator, which the captured themes never carry across.
       await tester.pumpWidget(
         FluentApp(
           theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),

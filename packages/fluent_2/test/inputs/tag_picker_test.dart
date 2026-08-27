@@ -5,6 +5,8 @@
 /// actually composes, and the keyboard contract that ties them together.
 library;
 
+import 'dart:math' as math;
+
 import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -464,51 +466,62 @@ void main() {
       }
     });
 
-    testWidgets('the popup sits 2px below the control and clamps to 80vh', (
-      tester,
-    ) async {
-      // `useTagPicker`'s `usePositioning({ offset: { mainAxis: 2 } })` and
-      // `useTagPickerListStyles`' `maxHeight: '80vh'`. Figma models Expanded as
-      // one merged frame with no separate popup node, so it states neither.
-      await tester.pumpWidget(
-        app(
-          FluentTagPicker<String>(
-            key: key,
-            options: options,
-            autofocus: true,
-            onChanged: (_) {},
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
-      await tester.pumpAndSettle();
-
-      final control = find.byKey(key);
-      // The height-clamping box specifically: the popup is also wrapped in a
-      // `minWidth: 160` ConstrainedBox further out, which caps nothing.
-      final surface = find
-          .ancestor(
-            of: find.text('Katri'),
-            matching: find.byWidgetPredicate(
-              (widget) =>
-                  widget is ConstrainedBox &&
-                  widget.constraints.maxHeight.isFinite,
+    testWidgets(
+      'the popup sits 2px below the control and clamps to the room left, capped at 80vh',
+      (tester) async {
+        // `useTagPicker`'s `usePositioning({ offset: { mainAxis: 2 } })` and
+        // `useTagPickerListStyles`' `maxHeight: '80vh'`. Figma models Expanded as
+        // one merged frame with no separate popup node, so it states neither.
+        await tester.pumpWidget(
+          app(
+            FluentTagPicker<String>(
+              key: key,
+              options: options,
+              autofocus: true,
+              onChanged: (_) {},
             ),
-          )
-          .last;
-      expect(
-        tester.getTopLeft(surface).dy - tester.getBottomLeft(control).dy,
-        FluentSpacing.xxs,
-      );
+          ),
+        );
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
 
-      final viewport =
-          tester.view.physicalSize.height / tester.view.devicePixelRatio;
-      expect(
-        tester.widget<ConstrainedBox>(surface).constraints.maxHeight,
-        viewport * 0.8,
-      );
-    });
+        final control = find.byKey(key);
+        // The height-clamping box specifically: the popup is also wrapped in a
+        // `minWidth: 160` ConstrainedBox further out, which caps nothing.
+        final surface = find
+            .ancestor(
+              of: find.text('Katri'),
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is ConstrainedBox &&
+                    widget.constraints.maxHeight.isFinite,
+              ),
+            )
+            .last;
+        expect(
+          tester.getTopLeft(surface).dy - tester.getBottomLeft(control).dy,
+          FluentSpacing.xxs,
+        );
+
+        // 80vh is upstream's CAP, not the whole rule. On its own it says nothing
+        // about where the control sits, so a picker low on the page threw most of
+        // its list off the bottom of the screen. The room actually left below the
+        // control is the other half of the constraint.
+        final viewport =
+            tester.view.physicalSize.height / tester.view.devicePixelRatio;
+        final room = viewport - tester.getBottomLeft(control).dy;
+        expect(
+          room,
+          lessThan(viewport * 0.8),
+          reason: 'else this proves nothing',
+        );
+        expect(
+          tester.widget<ConstrainedBox>(surface).constraints.maxHeight,
+          math.min(viewport * 0.8, room),
+        );
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------

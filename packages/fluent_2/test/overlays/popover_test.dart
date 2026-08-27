@@ -35,6 +35,7 @@ void main() {
     Widget child = const Text('trigger', key: trigger),
     String? semanticLabel,
     bool reducedMotion = false,
+    TextDirection? textDirection,
   }) {
     changes = <bool>[];
     return tester.pumpWidget(
@@ -68,7 +69,17 @@ void main() {
               if (themeStyle != null) {
                 popover = FluentPopoverTheme(style: themeStyle, child: popover);
               }
-              return Center(child: popover);
+              // Deliberately *inside* `home`, which is below the Navigator that
+              // owns the Overlay: the entry therefore does not inherit this, and
+              // an RTL run only passes if the widget carries the direction
+              // across the boundary itself.
+              final Widget centred = Center(child: popover);
+              return textDirection == null
+                  ? centred
+                  : Directionality(
+                      textDirection: textDirection,
+                      child: centred,
+                    );
             },
           ),
         ),
@@ -584,6 +595,88 @@ void main() {
         reason: 'the label must not paint into the surface it sits on',
       );
       expect(decorationOf(tester).border!.top.color.a, 1.0);
+    });
+  });
+
+  group('reading order', () {
+    // `position` and `align` are documented in reading order, and the surface
+    // builds in an OverlayEntry hanging off the Navigator — a branch the
+    // trigger's own Directionality never reaches, and one InheritedTheme.capture
+    // cannot carry it into. Both halves are asserted here: where the surface
+    // lands, and what its content inherits.
+    testWidgets('`before` opens on the reading-start side either way', (
+      tester,
+    ) async {
+      for (final direction in TextDirection.values) {
+        await pump(
+          tester,
+          textDirection: direction,
+          position: FluentPopoverPosition.before,
+          withArrow: true,
+          content: const SizedBox(key: body, width: 60, height: 20),
+          child: const SizedBox(key: trigger, width: 40, height: 20),
+        );
+        await open(tester);
+        await tester.pumpAndSettle();
+
+        final anchor = tester.getRect(find.byKey(trigger));
+        final surface = tester.getRect(find.byKey(body));
+        if (direction == TextDirection.rtl) {
+          expect(
+            surface.left,
+            greaterThan(anchor.right),
+            reason: 'reading runs right to left, so `before` is the right side',
+          );
+        } else {
+          expect(
+            surface.right,
+            lessThan(anchor.left),
+            reason: '`before` is the left side in LTR',
+          );
+        }
+        expect(
+          Directionality.of(tester.element(find.byKey(body))),
+          direction,
+          reason:
+              '$direction: the content sees the direction at the trigger, '
+              'not the one at the Navigator',
+        );
+        expect(
+          arrowOf(tester).textDirection,
+          direction,
+          reason: '$direction: the apex mirrors with the Row carrying it',
+        );
+      }
+    });
+
+    testWidgets('`align: start` pins the edge reading starts at', (
+      tester,
+    ) async {
+      // A surface wider than its anchor hangs off the end, so flush `start`
+      // means the left edges line up in LTR and the right edges in RTL. What is
+      // measured is the content's edge, one surface padding inside the
+      // surface's own.
+      for (final direction in TextDirection.values) {
+        await pump(
+          tester,
+          textDirection: direction,
+          align: FluentPopoverAlign.start,
+          content: const SizedBox(key: body, width: 200, height: 20),
+          child: const SizedBox(key: trigger, width: 40, height: 20),
+        );
+        await open(tester);
+        await tester.pumpAndSettle();
+
+        final anchor = tester.getRect(find.byKey(trigger));
+        final surface = tester.getRect(find.byKey(body));
+        expect(
+          direction == TextDirection.rtl
+              ? anchor.right - surface.right
+              : surface.left - anchor.left,
+          moreOrLessEquals(FluentSpacing.l),
+          reason: '$direction: the start edges are flush',
+        );
+      }
     });
   });
 

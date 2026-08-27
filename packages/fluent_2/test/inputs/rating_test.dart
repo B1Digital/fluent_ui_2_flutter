@@ -53,11 +53,18 @@ void main() {
     WidgetTester tester,
     Widget rating, {
     FluentThemeData? theme,
+    TextDirection direction = TextDirection.ltr,
+    double? width,
   }) => tester.pumpWidget(
     FluentApp(
       theme:
           theme ?? FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
-      home: Center(child: rating),
+      home: Directionality(
+        textDirection: direction,
+        child: Center(
+          child: width == null ? rating : SizedBox(width: width, child: rating),
+        ),
+      ),
     ),
   );
 
@@ -594,6 +601,194 @@ void main() {
       await tester.pump();
 
       expect(painterOf(tester).fills, <double>[1, 0, 0, 0, 0]);
+    });
+  });
+
+  group('RTL', () {
+    // Griffel mirrors `useRatingStyles`' flex row and the `right: 50%` overlay
+    // `useRatingItemStyles` clips the selected glyph with, so shape one is the
+    // RIGHTMOST one and everything that touches it has to follow: the paint,
+    // the focus ring, the pointer maths and the horizontal arrow keys. Figma
+    // models no RTL variant; every sibling input in the package already
+    // mirrors — `slider.dart:640`, `color_area.dart:596`, `switch.dart:337`.
+
+    /// Five XLarge boxes and four XXS gaps: the 148 Figma reports.
+    const rowWidth = 5 * FluentSize.size280 + 4 * FluentSpacing.xxs;
+
+    test('the painter draws shape one against the right edge', () {
+      const painter = FluentRatingPainter(
+        shape: FluentRatingShape.circle,
+        itemSize: FluentSize.size280,
+        gap: FluentSpacing.xxs,
+        fills: <double>[0, 0, 0, 0, 0],
+        selected: null,
+        unselected: Color(0xFFFF0000),
+        unselectedStroke: null,
+        strokeWidth: 0,
+        textDirection: TextDirection.rtl,
+      );
+
+      expect(
+        (Canvas canvas) => painter.paint(canvas, const Size(rowWidth, 28)),
+        paints..path(
+          color: const Color(0xFFFF0000),
+          // The first shape painted covers the rightmost box's centre and not
+          // the leftmost one's, which is where it would land unmirrored.
+          includes: const <Offset>[Offset(rowWidth - 14, 14)],
+          excludes: const <Offset>[Offset(14, 14)],
+        ),
+      );
+    });
+
+    test('a half value fills the right half of its own shape', () {
+      const painter = FluentRatingPainter(
+        shape: FluentRatingShape.star,
+        itemSize: FluentSize.size280,
+        gap: FluentSpacing.xxs,
+        fills: <double>[0.5],
+        selected: Color(0xFF00FF00),
+        unselected: null,
+        unselectedStroke: null,
+        strokeWidth: 0,
+        textDirection: TextDirection.rtl,
+      );
+
+      expect(
+        (Canvas canvas) => painter.paint(canvas, const Size(28, 28)),
+        // `right: 50%` flipped to `left: 50%`: the ink grows from the trailing
+        // edge, so the clip is the right half rather than the left.
+        paints..clipRect(rect: const Rect.fromLTWH(14, 0, 14, 28)),
+      );
+    });
+
+    testWidgets('the focus ring counts items from the right', (tester) async {
+      final ring = find.descendant(
+        of: find.byKey(key),
+        matching: find.byType(FluentFocusRing),
+      );
+
+      await pump(
+        tester,
+        FluentRating(key: key, value: 1, onChanged: (_) {}),
+        direction: TextDirection.rtl,
+      );
+      expect(painterOf(tester).textDirection, TextDirection.rtl);
+      expect(
+        tester.getTopRight(ring).dx,
+        tester.getTopRight(find.byKey(key)).dx,
+        reason: 'value 1 sits on item one, which is the rightmost',
+      );
+
+      await pump(
+        tester,
+        FluentRating(key: key, value: 5, onChanged: (_) {}),
+        direction: TextDirection.rtl,
+      );
+      expect(tester.getTopLeft(ring).dx, tester.getTopLeft(find.byKey(key)).dx);
+    });
+
+    testWidgets('a tap on the visually first shape commits one', (
+      tester,
+    ) async {
+      double? changed;
+      await pump(
+        tester,
+        FluentRating(key: key, value: 3, onChanged: (v) => changed = v),
+        direction: TextDirection.rtl,
+        // Wider than the 148 row on purpose: the Stack aligns to
+        // AlignmentDirectional.topStart, so under RTL the row sits against the
+        // right edge and the dead space is on the LEFT.
+        width: 300,
+      );
+
+      final topRight = tester.getTopRight(find.byKey(key));
+      await tester.tapAt(topRight + const Offset(-14, 14));
+      await tester.pump();
+      expect(changed, 1, reason: 'the rightmost shape is the first one');
+
+      await tester.tapAt(topRight + const Offset(14 - rowWidth, 14));
+      await tester.pump();
+      expect(changed, 5, reason: 'and the leftmost is the last');
+
+      await tester.tapAt(
+        tester.getTopLeft(find.byKey(key)) + const Offset(14, 14),
+      );
+      await tester.pump();
+      expect(changed, 5, reason: 'the surplus is dead space on this side too');
+    });
+
+    testWidgets('with step 0.5 the right half of a shape commits a half', (
+      tester,
+    ) async {
+      double? changed;
+      await pump(
+        tester,
+        FluentRating(
+          key: key,
+          value: 1,
+          step: 0.5,
+          onChanged: (v) => changed = v,
+        ),
+        direction: TextDirection.rtl,
+      );
+
+      // A quarter into the third shape counted from the right — the mirror of
+      // the LTR case, and the half the painter's clip fills. The stride is
+      // item + gap; the quarter is of the item alone, so this is 67 and not
+      // the 63 that `itemSize * 2.25` would put 3px inside the shape.
+      const extent = FluentSize.size280 + FluentSpacing.xxs;
+      await tester.tapAt(
+        tester.getTopRight(find.byKey(key)) +
+            const Offset(-(2 * extent + FluentSize.size280 / 4), 14),
+      );
+      await tester.pump();
+      expect(changed, 2.5);
+    });
+
+    testWidgets('the left arrow increases; the vertical pair never mirrors', (
+      tester,
+    ) async {
+      var current = 2.0;
+      final node = FocusNode();
+      addTearDown(node.dispose);
+
+      await tester.pumpWidget(
+        FluentApp(
+          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Center(
+              child: StatefulBuilder(
+                builder: (context, setState) => FluentRating(
+                  key: key,
+                  value: current,
+                  focusNode: node,
+                  onChanged: (v) => setState(() => current = v),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      node.requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      expect(current, 3, reason: 'left is toward five stars on a mirrored row');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(current, 2);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pump();
+      expect(current, 3, reason: 'up and down are not physical directions');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(current, 2);
     });
   });
 

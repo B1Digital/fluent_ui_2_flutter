@@ -562,6 +562,26 @@ void main() {
     });
   });
 
+  group('directionality across the overlay boundary', () {
+    testWidgets('an RTL trigger lays the surface out RTL', (tester) async {
+      await pump(
+        tester,
+        open: true,
+        wrap: (child) =>
+            Directionality(textDirection: TextDirection.rtl, child: child),
+      );
+
+      // The entry is inflated in the Overlay's branch, which the wrap above
+      // never reaches — `InheritedTheme.capture` carries themes and nothing
+      // else. Without dialog.dart re-providing it, an RTL app got an LTR
+      // dialog: title, close button and actions all on the wrong side.
+      expect(
+        Directionality.of(tester.element(find.byKey(body))),
+        TextDirection.rtl,
+      );
+    });
+  });
+
   group('high contrast', () {
     final highContrast = FluentThemeData.highContrast(
       fontPlatform: FluentFontPlatform.web,

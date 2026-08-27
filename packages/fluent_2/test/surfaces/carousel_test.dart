@@ -844,6 +844,89 @@ void main() {
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // `PageView` is already direction-aware, so RTL is the one place where the
+  // physical arrows and the logical page order can disagree.
+  // ---------------------------------------------------------------------------
+
+  group('RTL', () {
+    Widget mirrored(Widget child) =>
+        Directionality(textDirection: TextDirection.rtl, child: child);
+
+    testWidgets('the arrow keys follow the visible motion, not the page order', (
+      tester,
+    ) async {
+      var index = 0;
+      await pump(tester, mirrored(carousel(onIndexChanged: (i) => index = i)));
+
+      // The next chevron: enabled at slide 0, so it can hold focus and put the
+      // carousel's own shortcuts closest to the focused node.
+      Focus.of(
+        tester.element(
+          find.descendant(
+            of: find.byType(FluentButton).last,
+            matching: find.byType(Icon),
+          ),
+        ),
+        scopeOk: true,
+      ).requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+      expect(index, 1, reason: 'slide 1 is to the left of slide 0 in RTL');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(index, 0, reason: 'right arrow goes back in RTL');
+    });
+
+    testWidgets('the chevrons sit on the reading-order edges', (tester) async {
+      await pump(tester, mirrored(carousel()));
+
+      final carouselRect = tester.getRect(find.byType(FluentCarousel));
+      final buttons = find.byType(FluentButton);
+      expect(
+        carouselRect.right - tester.getRect(buttons.first).right,
+        FluentSpacing.m,
+        reason: 'previous hugs the start edge, which is the right in RTL',
+      );
+      expect(
+        tester.getRect(buttons.last).left - carouselRect.left,
+        FluentSpacing.m,
+      );
+    });
+
+    testWidgets('the flanking chevrons mirror with the slide', (tester) async {
+      await pump(
+        tester,
+        mirrored(
+          carousel(
+            placement: FluentCarouselChevronPlacement.centeredToContent,
+            layout: FluentCarouselLayout.overContent,
+          ),
+        ),
+      );
+
+      // Centered to content puts both chevrons inside the slide's own stack, so
+      // they come before the strip's steps in tree order — `.last` here is the
+      // trailing step, not the next chevron.
+      final slideRect = tester.getRect(find.byType(PageView));
+      final buttons = find.byType(FluentButton);
+      final previous = tester.getRect(buttons.at(0));
+      final next = tester.getRect(buttons.at(1));
+      expect(
+        slideRect.right - previous.right,
+        moreOrLessEquals(FluentSpacing.m, epsilon: 0.5),
+        reason: 'PositionedDirectional.start is the right edge in RTL',
+      );
+      expect(
+        next.left - slideRect.left,
+        moreOrLessEquals(FluentSpacing.m, epsilon: 0.5),
+      );
+    });
+  });
+
   group('semantics', () {
     testWidgets('the carousel, its chevrons and its steps all announce', (
       tester,

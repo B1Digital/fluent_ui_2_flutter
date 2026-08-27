@@ -133,6 +133,60 @@ void main() {
       expect(decoration.color, magenta);
     });
 
+    // The test above mounts the menu directly, so the override is a plain
+    // ancestor and the menu would find it however it was built. This one goes
+    // through `ContextMenuController.show`, which hoists the menu into the root
+    // overlay — above the override, and above everything else between the field
+    // and the Navigator. Only an explicit `InheritedTheme.capture` at the call
+    // site carries the tokens across that jump. The framework does capture, but
+    // from inside its own `OverlayEntry.builder`, where `from:` and `to:` are
+    // both already below the Navigator and the capture comes back empty.
+    testWidgets('a subtree override survives the overlay hop', (tester) async {
+      const magenta = Color(0xFF780510);
+      final controller = TextEditingController(text: 'hello');
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        FluentApp(
+          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+          home: FluentThemeOverride(
+            colors: const {FluentColorToken.neutralBackground1: magenta},
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 300,
+                child: FluentInput(controller: controller),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(FluentInput));
+      await tester.pumpAndSettle();
+
+      // `toggleToolbar`, not `showToolbar`: the latter returns false when no
+      // selection overlay exists yet, which is the state a freshly tapped field
+      // is in. This is the same entry point a right-click takes.
+      tester
+          .state<EditableTextState>(find.byType(EditableText))
+          .toggleToolbar();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FluentTextContextMenu), findsOneWidget);
+      final decoration = tester
+          .widgetList<DecoratedBox>(
+            find.descendant(
+              of: find.byType(FluentTextContextMenu),
+              matching: find.byType(DecoratedBox),
+            ),
+          )
+          .map((d) => d.decoration)
+          .whereType<BoxDecoration>()
+          .firstWhere((d) => d.border != null);
+      expect(decoration.color, magenta);
+    });
+
     testWidgets('high contrast keeps the border opaque', (tester) async {
       await pump(
         tester,
