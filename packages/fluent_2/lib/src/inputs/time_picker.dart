@@ -704,6 +704,18 @@ class _TimePickerGestures extends TextSelectionGestureDetectorBuilder {
 /// | Enter | commit the active row, or the typed text |
 /// | Escape | close and revert |
 ///
+/// ## Light dismiss needs a [TapRegionSurface]
+///
+/// The listbox dismisses through [TapRegion] rather than an invisible
+/// full-screen barrier, so a click outside it dismisses *and* lands — which is
+/// what upstream's document-level `useOnClickOutside` does, and what a barrier
+/// cannot do. That costs one ancestor: [TapRegion] only reports anything to a
+/// [TapRegionSurface] above it. [WidgetsApp] installs one (`app.dart:1836`),
+/// so `FluentApp` and every test built on it are fine — but a consumer
+/// mounting this under a bare [Overlay] with no [WidgetsApp] gets **no
+/// dismissal at all**, silently. Escape and a second click on the field still
+/// close it there.
+///
 /// Transcribed from `@fluentui/react-timepicker-compat` 0.4.37 over
 /// `@fluentui/react-combobox` 9.17.4.
 class FluentTimePicker extends StatefulWidget {
@@ -1150,68 +1162,70 @@ class _FluentTimePickerState extends State<FluentTimePicker>
       math.max(available - offset, 0),
     );
 
-    return Stack(
-      children: <Widget>[
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => _setOpen(next: false),
-          ),
-        ),
-        Positioned(
-          width: _link.leaderSize?.width,
-          child: CompositedTransformFollower(
-            link: _link,
-            showWhenUnlinked: false,
-            targetAnchor: flip ? Alignment.topLeft : Alignment.bottomLeft,
-            followerAnchor: flip ? Alignment.bottomLeft : Alignment.topLeft,
-            offset: Offset(0, flip ? -offset : offset),
-            child: Align(
-              alignment: AlignmentDirectional.topStart,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minWidth: 160,
-                  maxHeight: maxHeight,
-                ),
-                // Focus never enters the popup: the field keeps it and the
-                // active row is marked instead, which is the combobox model.
-                child: ExcludeFocus(
-                  // The listbox counts as part of the field when the framework
-                  // asks whether a press landed outside it. `EditableText`
-                  // drops focus for any non-touch press outside its own tap
-                  // region, and the listbox lives in an [Overlay] beyond it —
-                  // so a mouse press on a row blurred the field, and the commit
-                  // and close that blur runs happened before the press had the
-                  // chance to become a tap. A synthetic tap arrives as a touch,
-                  // which is why nothing showed it.
-                  //
-                  // Inside the follower rather than around it: a plain proxy
-                  // box above [CompositedTransformFollower] hit-tests against
-                  // its own untransformed bounds, which is not where the
-                  // surface is painted, so rows past the leader's width would
-                  // stop responding.
-                  child: TextFieldTapRegion(
-                    child: buildFluentTimePickerSurface(
-                      style,
-                      states,
-                      ValueListenableBuilder<bool>(
-                        valueListenable: FluentInputModality.keyboard,
-                        builder: (context, keyboard, _) =>
-                            SingleChildScrollView(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                spacing: gap,
-                                children: <Widget>[
-                                  for (var i = 0; i < options.length; i++)
-                                    _buildRow(
-                                      theme,
-                                      options[i],
-                                      i,
-                                      keyboard: keyboard,
-                                    ),
-                                ],
+    // No light-dismiss barrier. A `Positioned.fill` over the whole viewport
+    // swallows every press behind it, so a click on a button while the listbox
+    // was open dismissed the listbox and did nothing else, hover never reached
+    // what was underneath, and a `PointerScrollEvent` never reached the
+    // `Scrollable` — the page could not even scroll. Upstream's combobox
+    // dismisses from a document-level `useOnClickOutside` listener, so the
+    // click dismisses *and* lands. [TapRegion] is that listener; the group is
+    // joined at the trigger in [build].
+    return Positioned(
+      width: _link.leaderSize?.width,
+      child: CompositedTransformFollower(
+        link: _link,
+        showWhenUnlinked: false,
+        targetAnchor: flip ? Alignment.topLeft : Alignment.bottomLeft,
+        followerAnchor: flip ? Alignment.bottomLeft : Alignment.topLeft,
+        offset: Offset(0, flip ? -offset : offset),
+        child: Align(
+          alignment: AlignmentDirectional.topStart,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: 160, maxHeight: maxHeight),
+            // Focus never enters the popup: the field keeps it and the
+            // active row is marked instead, which is the combobox model.
+            child: ExcludeFocus(
+              // Same group as the trigger, so a press on a row is "inside" the
+              // picker and does not dismiss it. Inside the follower for the
+              // same reason the tap region below is — `RenderTapRegion` is a
+              // proxy box too, and is classified by whether it appears in the
+              // hit-test path.
+              child: TapRegion(
+                groupId: this,
+                // The listbox counts as part of the field when the framework
+                // asks whether a press landed outside it. `EditableText`
+                // drops focus for any non-touch press outside its own tap
+                // region, and the listbox lives in an [Overlay] beyond it —
+                // so a mouse press on a row blurred the field, and the commit
+                // and close that blur runs happened before the press had the
+                // chance to become a tap. A synthetic tap arrives as a touch,
+                // which is why nothing showed it.
+                //
+                // Inside the follower rather than around it: a plain proxy
+                // box above [CompositedTransformFollower] hit-tests against
+                // its own untransformed bounds, which is not where the
+                // surface is painted, so rows past the leader's width would
+                // stop responding.
+                child: TextFieldTapRegion(
+                  child: buildFluentTimePickerSurface(
+                    style,
+                    states,
+                    ValueListenableBuilder<bool>(
+                      valueListenable: FluentInputModality.keyboard,
+                      builder: (context, keyboard, _) => SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          spacing: gap,
+                          children: <Widget>[
+                            for (var i = 0; i < options.length; i++)
+                              _buildRow(
+                                theme,
+                                options[i],
+                                i,
+                                keyboard: keyboard,
                               ),
-                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -1220,7 +1234,7 @@ class _FluentTimePickerState extends State<FluentTimePicker>
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -1313,62 +1327,78 @@ class _FluentTimePickerState extends State<FluentTimePicker>
       label: widget.semanticLabel,
       textField: true,
       expanded: _open,
-      child: CompositedTransformTarget(
-        link: _link,
-        child: Shortcuts(
-          shortcuts: const <ShortcutActivator, Intent>{
-            SingleActivator(LogicalKeyboardKey.arrowDown):
-                FluentTimePickerMoveIntent(1),
-            SingleActivator(LogicalKeyboardKey.arrowUp):
-                FluentTimePickerMoveIntent(-1),
-            SingleActivator(LogicalKeyboardKey.home):
-                FluentTimePickerEdgeIntent(last: false),
-            SingleActivator(LogicalKeyboardKey.end): FluentTimePickerEdgeIntent(
-              last: true,
-            ),
-            SingleActivator(LogicalKeyboardKey.enter):
-                FluentTimePickerActivateIntent(),
-            SingleActivator(LogicalKeyboardKey.numpadEnter):
-                FluentTimePickerActivateIntent(),
-          },
-          child: Actions(
-            actions: <Type, Action<Intent>>{
-              FluentTimePickerMoveIntent:
-                  CallbackAction<FluentTimePickerMoveIntent>(
-                    onInvoke: (intent) {
-                      _moveActive(intent.delta);
-                      return null;
-                    },
-                  ),
-              FluentTimePickerEdgeIntent: _EdgeAction(this),
-              FluentTimePickerActivateIntent:
-                  CallbackAction<FluentTimePickerActivateIntent>(
-                    onInvoke: (_) {
-                      _activate();
-                      return null;
-                    },
-                  ),
-              DismissIntent: _DismissTimePickerAction(this),
+      // The trigger half of the light-dismiss group the listbox joins in
+      // [_buildPopup]. `groupId: this` — the State — is what ties the two
+      // together across the [Overlay] boundary, so a press on the field or on
+      // a row counts as inside and only a press elsewhere closes the listbox.
+      //
+      // Registered only while open, so nothing is listening the rest of the
+      // time. It fires on pointer *down*, and `RenderTapRegionSurface` "does
+      // not participate in the gesture disambiguation system"
+      // (`tap_region.dart:189-192`), so a press that becomes a drag-scroll
+      // dismisses too. That is the same trade upstream's `useOnClickOutside`
+      // makes on touch, and it costs nothing on a mouse: `FluentScrollBehavior`
+      // deliberately keeps `PointerDeviceKind.mouse` out of `dragDevices`, so a
+      // wheel scroll is not a pointer press at all.
+      child: TapRegion(
+        groupId: this,
+        onTapOutside: _open ? (_) => _setOpen(next: false) : null,
+        child: CompositedTransformTarget(
+          link: _link,
+          child: Shortcuts(
+            shortcuts: const <ShortcutActivator, Intent>{
+              SingleActivator(LogicalKeyboardKey.arrowDown):
+                  FluentTimePickerMoveIntent(1),
+              SingleActivator(LogicalKeyboardKey.arrowUp):
+                  FluentTimePickerMoveIntent(-1),
+              SingleActivator(LogicalKeyboardKey.home):
+                  FluentTimePickerEdgeIntent(last: false),
+              SingleActivator(LogicalKeyboardKey.end):
+                  FluentTimePickerEdgeIntent(last: true),
+              SingleActivator(LogicalKeyboardKey.enter):
+                  FluentTimePickerActivateIntent(),
+              SingleActivator(LogicalKeyboardKey.numpadEnter):
+                  FluentTimePickerActivateIntent(),
             },
-            // A picker that cannot select text has nothing for the
-            // text-selection detector to do — with `selectionEnabled` false
-            // every one of its handlers returns early, leaving only the
-            // keyboard request — while the `TapAndPanGestureRecognizer` it
-            // inherits still claims a precise pointer's gesture as a drag after
-            // one logical pixel. A real mouse click wanders two or three, so
-            // the faceplate never saw a tap, and the arena sweep took the clear
-            // glyph's own recogniser down with it. Freeform keeps the detector:
-            // there the drag *is* the text selection.
-            child: selectionEnabled
-                ? _gestures.buildGestureDetector(child: field)
-                : GestureDetector(
-                    // Excluded because the detector it stands in for is:
-                    // announcing a tap action here as well would add a node to
-                    // the tree that the freeform picker does not have.
-                    excludeFromSemantics: true,
-                    onTap: _handleFieldTap,
-                    child: field,
-                  ),
+            child: Actions(
+              actions: <Type, Action<Intent>>{
+                FluentTimePickerMoveIntent:
+                    CallbackAction<FluentTimePickerMoveIntent>(
+                      onInvoke: (intent) {
+                        _moveActive(intent.delta);
+                        return null;
+                      },
+                    ),
+                FluentTimePickerEdgeIntent: _EdgeAction(this),
+                FluentTimePickerActivateIntent:
+                    CallbackAction<FluentTimePickerActivateIntent>(
+                      onInvoke: (_) {
+                        _activate();
+                        return null;
+                      },
+                    ),
+                DismissIntent: _DismissTimePickerAction(this),
+              },
+              // A picker that cannot select text has nothing for the
+              // text-selection detector to do — with `selectionEnabled` false
+              // every one of its handlers returns early, leaving only the
+              // keyboard request — while the `TapAndPanGestureRecognizer` it
+              // inherits still claims a precise pointer's gesture as a drag after
+              // one logical pixel. A real mouse click wanders two or three, so
+              // the faceplate never saw a tap, and the arena sweep took the clear
+              // glyph's own recogniser down with it. Freeform keeps the detector:
+              // there the drag *is* the text selection.
+              child: selectionEnabled
+                  ? _gestures.buildGestureDetector(child: field)
+                  : GestureDetector(
+                      // Excluded because the detector it stands in for is:
+                      // announcing a tap action here as well would add a node to
+                      // the tree that the freeform picker does not have.
+                      excludeFromSemantics: true,
+                      onTap: _handleFieldTap,
+                      child: field,
+                    ),
+            ),
           ),
         ),
       ),

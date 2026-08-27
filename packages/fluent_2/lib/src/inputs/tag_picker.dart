@@ -774,6 +774,24 @@ class FluentTagPickerRemoveLastIntent extends Intent {
 /// the traversal order, which is what makes "focus returns to the field on
 /// close" structural rather than something this widget has to remember.
 ///
+/// ## Dismissing by pointer needs a [TapRegionSurface]
+///
+/// An open popup is dismissed by a tap outside it via [TapRegion], which does
+/// nothing without a [TapRegionSurface] above it. [WidgetsApp] installs one
+/// (`widgets/app.dart:1836`) and `FluentApp` wraps [WidgetsApp], so an ordinary
+/// app — and the widget tests — are covered. A picker mounted under a bare
+/// [Overlay] with no [WidgetsApp] anywhere above it silently loses outside-tap
+/// dismissal; Escape, choosing a row and moving focus away still close it.
+///
+/// Nothing is drawn over the page while the popup is up, deliberately. A click
+/// on a control behind an open popup dismisses the popup *and* presses that
+/// control, hover still tracks, and the page still scrolls — which is what
+/// upstream's document-level `useOnClickOutside` gives React.
+///
+/// Clicking the control itself while the popup is open does **not** dismiss it:
+/// the field is a text input, so a click there is a caret placement, and the
+/// list has to survive it. That is a combobox, not a toggle.
+///
 /// Customisation follows the usual three rungs. [style] is merged last and
 /// wins; [FluentTagPickerTheme] restyles a subtree; and for anything further,
 /// [resolveFluentTagPickerState], [resolveFluentTagPickerStyle] and
@@ -1110,26 +1128,33 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     final offset = style.surfaceOffset?.resolve(surfaceStates) ?? 0;
     final themeStyle = FluentDropdownOptionTheme.maybeOf(context);
 
-    return Stack(
-      children: <Widget>[
-        // A pointer landing anywhere else dismisses without selecting. Nothing
-        // is painted, so this is invisible; it exists because a click on inert
-        // scenery moves no focus and would otherwise leave the popup open.
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _close,
-          ),
-        ),
-        Positioned(
-          left: 0,
-          top: 0,
-          child: CompositedTransformFollower(
-            link: _link,
-            showWhenUnlinked: false,
-            targetAnchor: Alignment.bottomLeft,
-            followerAnchor: Alignment.topLeft,
-            offset: Offset(0, offset),
+    // Nothing is drawn over the page: the outside-tap barrier this used to
+    // carry is gone, and dismissal lives on the trigger's TapRegion group in
+    // `build`. See the note there.
+    return Positioned(
+      left: 0,
+      top: 0,
+      child: CompositedTransformFollower(
+        link: _link,
+        showWhenUnlinked: false,
+        targetAnchor: Alignment.bottomLeft,
+        followerAnchor: Alignment.topLeft,
+        offset: Offset(0, offset),
+        // Same group as the control, so a pointer landing on a row — or on the
+        // padding between rows, or dragging the list — is "inside" and does not
+        // dismiss. Orthogonal to the ExcludeFocus below: that governs
+        // traversal, this governs taps.
+        child: TapRegion(
+          groupId: this,
+          // And in the *field's* group as well, so a pointer on a row does not
+          // read as a tap outside the text field. Without this, `EditableText`
+          // unfocuses on pointer-down on every desktop platform
+          // (`_EditableTextTapOutsideAction`, `editable_text.dart:6876`), which
+          // trips `_handleFocusChange` and tears the popup down before the
+          // pointer is even released — so a mouse click on a row selected
+          // nothing at all. `TextFieldTapRegion` is the framework's own answer
+          // to "this widget belongs to that text field".
+          child: TextFieldTapRegion(
             // `useListboxStyles` floors the popup at 160 even when
             // `matchTargetSize: 'width'` hands it a narrower trigger — the
             // same pairing `dropdown.dart` already carries.
@@ -1163,7 +1188,7 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -1268,6 +1293,13 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     // list opens under a finished click, the way every other press here reads.
     // `_openPopup` self-guards on disabled and on already-open, so a click that
     // also reaches the control's own tap below opens exactly once.
+    //
+    // This path is only reachable while the popup is OPEN since the dismiss
+    // barrier came out — the barrier used to absorb every pointer over the
+    // control. Both it and the control's `_handleTap` funnel into `_openPopup`,
+    // which no-ops on an already-open picker, so clicking the field while the
+    // list is up moves the caret and leaves the list exactly as it was: no
+    // close, no close-then-reopen.
     final field = Listener(
       onPointerUp: (_) => _openPopup(),
       child: FluentInput(
@@ -1309,6 +1341,39 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     );
 
     control = CompositedTransformTarget(link: _link, child: control);
+
+    // Outside taps dismiss the popup, replacing a full-screen
+    // `HitTestBehavior.opaque` barrier that used to be drawn over the page from
+    // inside the OverlayEntry. That barrier swallowed the click that dismissed:
+    // a button behind an open popup needed two clicks, hover never reached it,
+    // and a wheel event never reached the enclosing Scrollable, so the page
+    // could not scroll either. Upstream's `useOnClickOutside` is a
+    // document-level listener — the click dismisses AND lands — and a TapRegion
+    // group is the same shape.
+    //
+    // `groupId: this` ties the control to the popup across the Overlay
+    // boundary. Everything the user can point at that belongs to this picker is
+    // inside this subtree — the field, every chip including its dismiss half,
+    // and `secondaryAction` — so none of them dismiss.
+    //
+    // Known cost: `RenderTapRegionSurface` "does not participate in the gesture
+    // disambiguation system" (`widgets/tap_region.dart:189-193`), so a
+    // pointer-down outside that turns into a drag-scroll counts as an outside
+    // tap and dismisses. Touch and trackpad only — the wheel is not a
+    // pointer-down, and `FluentScrollBehavior` deliberately keeps the mouse out
+    // of `dragDevices`. Left as is; the browser does the same thing.
+    control = TapRegion(
+      groupId: this,
+      // Registered only while the popup is up, so nothing is listening for
+      // outside taps the rest of the time.
+      onTapOutside: _open ? (_) => _close() : null,
+      // In the field's group too — see the note in `_buildPopup`. The chips and
+      // `secondaryAction` sit beside the `EditableText`, not inside it, so
+      // without this a click on a chip's dismiss half is a tap OUTSIDE the text
+      // field: the field unfocuses, `_handleFocusChange` closes the popup, and
+      // removing one chip collapses the list the user was still picking from.
+      child: TextFieldTapRegion(child: control),
+    );
 
     // Bound here rather than on the focus node so they sit BELOW the app's own
     // text editing shortcuts in lookup order and therefore win — and so that a

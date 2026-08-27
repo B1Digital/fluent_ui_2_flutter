@@ -613,6 +613,20 @@ class _DatePickerGestures extends TextSelectionGestureDetectorBuilder {
 /// | Enter, closed | commit typed text if there is any, else open |
 /// | Escape | close, revert the text, focus the field |
 /// | focus leaves both field and popup | close and validate |
+/// | click outside the field and popup | close; the click also lands |
+///
+/// ## Light dismiss needs a [TapRegionSurface]
+///
+/// The overlay popup dismisses through [TapRegion] rather than an invisible
+/// full-screen barrier, so a click outside it dismisses *and* lands — which is
+/// what upstream's document-level `useOnClickOutside` does, and what a barrier
+/// cannot do. That costs one ancestor: [TapRegion] only reports anything to a
+/// [TapRegionSurface] above it. [WidgetsApp] installs one (`app.dart:1836`), so
+/// `FluentApp` and every test built on it are fine — but a consumer mounting
+/// this under a bare [Overlay] with no [WidgetsApp] gets **no click-outside
+/// dismissal at all**, silently. Escape, a second click on the field and focus
+/// leaving the picker still close it there. [inlinePopup] never light-dismisses
+/// on either path.
 ///
 /// `disableAutoFocus` is deliberately **not** offered: its only non-default
 /// value is documented upstream as *"creates an accessibility violation and is
@@ -1214,42 +1228,56 @@ class _FluentDatePickerState extends State<FluentDatePicker>
       ).merge(FluentDatePickerTheme.maybeOf(context)).merge(widget.style);
 
   /// The focus-trapping calendar surface, shared by both popup strategies.
+  ///
+  /// Wrapped in the same [TapRegion] group as the field, so a press on a day
+  /// cell — or anywhere else on the surface — is "inside" the picker and does
+  /// not light-dismiss it. `groupId: this` is what carries the group across the
+  /// [Overlay] boundary; the inline popup is already inside the field's subtree
+  /// and joins it either way.
+  ///
+  /// Inside [FluentPopoverEntrance] rather than around it: the entrance paints
+  /// through a [Transform], and `RenderTapRegion` is classified by whether it
+  /// appears in the hit-test path, which a proxy box above an animating
+  /// transform does not do at its painted position.
   Widget _surface(FluentDatePickerStyle style, Set<WidgetState> states) =>
-      FocusScope(
-        node: _scope,
-        child: Actions(
-          // Escape belongs here, not to the calendar: FluentCalendar binds no
-          // DismissIntent precisely so this can.
-          actions: <Type, Action<Intent>>{
-            DismissIntent: _DismissDatePickerAction(this),
-          },
-          child: buildFluentDatePickerSurface(
-            style,
-            states,
-            FluentCalendar(
-              value: widget.value,
-              onSelectDate: _handleSelectDate,
-              today: _today,
-              minDate: widget.minDate,
-              maxDate: widget.maxDate,
-              restrictedDates: widget.restrictedDates,
-              firstDayOfWeek: widget.firstDayOfWeek,
-              isDayPickerVisible: widget.isDayPickerVisible,
-              isMonthPickerVisible: widget.isMonthPickerVisible,
-              showMonthPickerAsOverlay: widget.showMonthPickerAsOverlay,
-              highlightCurrentMonth: widget.highlightCurrentMonth,
-              highlightSelectedMonth: widget.highlightSelectedMonth,
-              initialPickerDate: widget.value ?? widget.initialPickerDate,
-              showGoToToday: widget.showGoToToday,
-              showWeekNumbers: widget.showWeekNumbers,
-              firstWeekOfYear: widget.firstWeekOfYear,
-              allFocusable: widget.allFocusable,
-              showCloseButton: widget.showCloseButton,
-              onDismiss: () => _setOpen(next: false),
-              strings: _strings,
-              formatter: _calendarFormatter,
-              style: widget.calendarStyle,
-              autofocus: true,
+      TapRegion(
+        groupId: this,
+        child: FocusScope(
+          node: _scope,
+          child: Actions(
+            // Escape belongs here, not to the calendar: FluentCalendar binds no
+            // DismissIntent precisely so this can.
+            actions: <Type, Action<Intent>>{
+              DismissIntent: _DismissDatePickerAction(this),
+            },
+            child: buildFluentDatePickerSurface(
+              style,
+              states,
+              FluentCalendar(
+                value: widget.value,
+                onSelectDate: _handleSelectDate,
+                today: _today,
+                minDate: widget.minDate,
+                maxDate: widget.maxDate,
+                restrictedDates: widget.restrictedDates,
+                firstDayOfWeek: widget.firstDayOfWeek,
+                isDayPickerVisible: widget.isDayPickerVisible,
+                isMonthPickerVisible: widget.isMonthPickerVisible,
+                showMonthPickerAsOverlay: widget.showMonthPickerAsOverlay,
+                highlightCurrentMonth: widget.highlightCurrentMonth,
+                highlightSelectedMonth: widget.highlightSelectedMonth,
+                initialPickerDate: widget.value ?? widget.initialPickerDate,
+                showGoToToday: widget.showGoToToday,
+                showWeekNumbers: widget.showWeekNumbers,
+                firstWeekOfYear: widget.firstWeekOfYear,
+                allFocusable: widget.allFocusable,
+                showCloseButton: widget.showCloseButton,
+                onDismiss: () => _setOpen(next: false),
+                strings: _strings,
+                formatter: _calendarFormatter,
+                style: widget.calendarStyle,
+                autofocus: true,
+              ),
             ),
           ),
         ),
@@ -1312,32 +1340,30 @@ class _FluentDatePickerState extends State<FluentDatePicker>
             FluentPopoverPosition.below,
           );
 
-    return Stack(
-      children: <Widget>[
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => _setOpen(next: false),
+    // No light-dismiss barrier. A `Positioned.fill` over the whole viewport
+    // swallows every press behind it: a click on a button while the calendar
+    // was open dismissed the calendar and did nothing else, hover never reached
+    // what was underneath, and a `PointerScrollEvent` never reached the
+    // `Scrollable`, so the page could not even scroll. Upstream dismisses from
+    // a document-level `useOnClickOutside` listener, where the click dismisses
+    // *and* lands. The [TapRegion] group in [_surface] and [build] is that
+    // listener.
+    return Positioned(
+      child: CompositedTransformFollower(
+        link: _link,
+        showWhenUnlinked: false,
+        targetAnchor: target,
+        followerAnchor: follower,
+        offset: shift,
+        child: Align(
+          alignment: AlignmentDirectional.topStart,
+          child: FluentPopoverEntrance(
+            position: position,
+            reducedMotion: _reducedMotion,
+            child: _surface(style, states),
           ),
         ),
-        Positioned(
-          child: CompositedTransformFollower(
-            link: _link,
-            showWhenUnlinked: false,
-            targetAnchor: target,
-            followerAnchor: follower,
-            offset: shift,
-            child: Align(
-              alignment: AlignmentDirectional.topStart,
-              child: FluentPopoverEntrance(
-                position: position,
-                reducedMotion: _reducedMotion,
-                child: _surface(style, states),
-              ),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -1389,60 +1415,81 @@ class _FluentDatePickerState extends State<FluentDatePicker>
       label: widget.semanticLabel,
       textField: true,
       expanded: _open,
-      child: CompositedTransformTarget(
-        link: _link,
-        child: Shortcuts(
-          shortcuts: const <ShortcutActivator, Intent>{
-            SingleActivator(LogicalKeyboardKey.enter):
-                _FluentDatePickerOpenIntent(),
-            SingleActivator(LogicalKeyboardKey.numpadEnter):
-                _FluentDatePickerOpenIntent(),
-            SingleActivator(LogicalKeyboardKey.arrowDown):
-                _FluentDatePickerOpenIntent(),
-          },
-          child: Actions(
-            actions: <Type, Action<Intent>>{
-              _FluentDatePickerOpenIntent:
-                  CallbackAction<_FluentDatePickerOpenIntent>(
-                    onInvoke: (_) {
-                      if (!_enabled) return null;
-                      if (_open) return null;
-                      if (widget.allowTextInput &&
-                          _controller.text.trim() != _lastFormatted) {
-                        _commitText();
-                      } else {
-                        _setOpen(next: true);
-                      }
-                      return null;
-                    },
-                  ),
-              DismissIntent: _DismissDatePickerAction(this),
+      // The trigger half of the light-dismiss group [_surface] joins.
+      //
+      // Registered only while an *overlay* popup is open. `inlinePopup` is
+      // excluded deliberately: it is documented as having no light dismiss —
+      // it is a `position: absolute` surface in this widget's own tree, and
+      // focus leaving the picker is what closes it — so attaching an
+      // outside-tap handler there would be a behaviour change, not a fix.
+      //
+      // It fires on pointer *down*, and `RenderTapRegionSurface` "does not
+      // participate in the gesture disambiguation system"
+      // (`tap_region.dart:189-192`), so a press that becomes a drag-scroll
+      // dismisses too. That is the same trade upstream's `useOnClickOutside`
+      // makes on touch, and it costs nothing on a mouse: `FluentScrollBehavior`
+      // deliberately keeps `PointerDeviceKind.mouse` out of `dragDevices`, so a
+      // wheel scroll is not a pointer press at all.
+      child: TapRegion(
+        groupId: this,
+        onTapOutside: _open && !widget.inlinePopup
+            ? (_) => _setOpen(next: false)
+            : null,
+        child: CompositedTransformTarget(
+          link: _link,
+          child: Shortcuts(
+            shortcuts: const <ShortcutActivator, Intent>{
+              SingleActivator(LogicalKeyboardKey.enter):
+                  _FluentDatePickerOpenIntent(),
+              SingleActivator(LogicalKeyboardKey.numpadEnter):
+                  _FluentDatePickerOpenIntent(),
+              SingleActivator(LogicalKeyboardKey.arrowDown):
+                  _FluentDatePickerOpenIntent(),
             },
-            child: widget.inlinePopup
-                ? Stack(
-                    clipBehavior: Clip.none,
-                    children: <Widget>[
-                      // Unpositioned, so the field alone sizes the stack and
-                      // the picker keeps the footprint it has without a popup.
-                      _gestures.buildGestureDetector(child: field),
-                      if (_open && _enabled)
-                        // Only `start` and `bottom` are pinned, which is what
-                        // leaves the surface unbounded in both axes — a 440
-                        // calendar under a 300 field lays out at its own size
-                        // instead of overflowing the field's. The translation
-                        // then drops it by its own height, landing its top on
-                        // the field's bottom edge.
-                        PositionedDirectional(
-                          start: 0,
-                          bottom: 0,
-                          child: FractionalTranslation(
-                            translation: const Offset(0, 1),
-                            child: _buildInlinePopup(),
+            child: Actions(
+              actions: <Type, Action<Intent>>{
+                _FluentDatePickerOpenIntent:
+                    CallbackAction<_FluentDatePickerOpenIntent>(
+                      onInvoke: (_) {
+                        if (!_enabled) return null;
+                        if (_open) return null;
+                        if (widget.allowTextInput &&
+                            _controller.text.trim() != _lastFormatted) {
+                          _commitText();
+                        } else {
+                          _setOpen(next: true);
+                        }
+                        return null;
+                      },
+                    ),
+                DismissIntent: _DismissDatePickerAction(this),
+              },
+              child: widget.inlinePopup
+                  ? Stack(
+                      clipBehavior: Clip.none,
+                      children: <Widget>[
+                        // Unpositioned, so the field alone sizes the stack and
+                        // the picker keeps the footprint it has without a popup.
+                        _gestures.buildGestureDetector(child: field),
+                        if (_open && _enabled)
+                          // Only `start` and `bottom` are pinned, which is what
+                          // leaves the surface unbounded in both axes — a 440
+                          // calendar under a 300 field lays out at its own size
+                          // instead of overflowing the field's. The translation
+                          // then drops it by its own height, landing its top on
+                          // the field's bottom edge.
+                          PositionedDirectional(
+                            start: 0,
+                            bottom: 0,
+                            child: FractionalTranslation(
+                              translation: const Offset(0, 1),
+                              child: _buildInlinePopup(),
+                            ),
                           ),
-                        ),
-                    ],
-                  )
-                : _gestures.buildGestureDetector(child: field),
+                      ],
+                    )
+                  : _gestures.buildGestureDetector(child: field),
+            ),
           ),
         ),
       ),

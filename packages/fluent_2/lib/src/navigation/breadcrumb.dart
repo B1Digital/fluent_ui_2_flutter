@@ -906,45 +906,56 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
       button: true,
       expanded: _open,
       label: fluentL10n(context).more,
-      child: CompositedTransformTarget(
-        link: _link,
-        // Bound here rather than on the focus node so they sit below the app's
-        // own Enter/Space -> ActivateIntent mapping and above the trigger's,
-        // which is the only way Enter can mean "follow the active row" while a
-        // tap still only toggles.
-        child: Shortcuts(
-          shortcuts: const <ShortcutActivator, Intent>{
-            SingleActivator(LogicalKeyboardKey.arrowDown):
-                FluentBreadcrumbMoveIntent(1),
-            SingleActivator(LogicalKeyboardKey.arrowUp):
-                FluentBreadcrumbMoveIntent(-1),
-            SingleActivator(LogicalKeyboardKey.enter):
-                FluentBreadcrumbActivateIntent(),
-            SingleActivator(LogicalKeyboardKey.space):
-                FluentBreadcrumbActivateIntent(),
-          },
-          child: Actions(
-            actions: <Type, Action<Intent>>{
-              FluentBreadcrumbMoveIntent:
-                  CallbackAction<FluentBreadcrumbMoveIntent>(
-                    onInvoke: (intent) {
-                      _move(intent.delta);
-                      return null;
-                    },
-                  ),
-              FluentBreadcrumbActivateIntent:
-                  CallbackAction<FluentBreadcrumbActivateIntent>(
-                    onInvoke: (_) {
-                      _activate();
-                      return null;
-                    },
-                  ),
-              // Only enabled while the popup is open, so Escape still reaches
-              // whatever an ancestor does with it when there is nothing to
-              // dismiss here.
-              DismissIntent: _DismissOverflowAction(this),
+      // Same group as the popup, so a tap on the trigger is "inside" and does
+      // not dismiss — the trigger's own `_toggle` closes it instead, exactly
+      // once. Registered only while open, so nothing listens the rest of the
+      // time. Needs a `TapRegionSurface` ancestor, which `WidgetsApp` installs
+      // (`widgets/app.dart:1836`) and `FluentApp` therefore provides; under a
+      // bare `Overlay` outside-tap dismissal is silently unavailable and Escape
+      // or the trigger are the only ways to close.
+      child: TapRegion(
+        groupId: this,
+        onTapOutside: _open ? (_) => _close() : null,
+        child: CompositedTransformTarget(
+          link: _link,
+          // Bound here rather than on the focus node so they sit below the app's
+          // own Enter/Space -> ActivateIntent mapping and above the trigger's,
+          // which is the only way Enter can mean "follow the active row" while a
+          // tap still only toggles.
+          child: Shortcuts(
+            shortcuts: const <ShortcutActivator, Intent>{
+              SingleActivator(LogicalKeyboardKey.arrowDown):
+                  FluentBreadcrumbMoveIntent(1),
+              SingleActivator(LogicalKeyboardKey.arrowUp):
+                  FluentBreadcrumbMoveIntent(-1),
+              SingleActivator(LogicalKeyboardKey.enter):
+                  FluentBreadcrumbActivateIntent(),
+              SingleActivator(LogicalKeyboardKey.space):
+                  FluentBreadcrumbActivateIntent(),
             },
-            child: trigger,
+            child: Actions(
+              actions: <Type, Action<Intent>>{
+                FluentBreadcrumbMoveIntent:
+                    CallbackAction<FluentBreadcrumbMoveIntent>(
+                      onInvoke: (intent) {
+                        _move(intent.delta);
+                        return null;
+                      },
+                    ),
+                FluentBreadcrumbActivateIntent:
+                    CallbackAction<FluentBreadcrumbActivateIntent>(
+                      onInvoke: (_) {
+                        _activate();
+                        return null;
+                      },
+                    ),
+                // Only enabled while the popup is open, so Escape still reaches
+                // whatever an ancestor does with it when there is nothing to
+                // dismiss here.
+                DismissIntent: _DismissOverflowAction(this),
+              },
+              child: trigger,
+            ),
           ),
         ),
       ),
@@ -978,21 +989,13 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
       ),
     );
 
+    // No full-screen dismiss barrier. An opaque `Positioned.fill` swallowed
+    // every click, hover and scroll behind the popup — dismissing, but leaving
+    // the page inert until a second click. Dismissal is a `TapRegion` group
+    // instead, which is what upstream's document-level `useOnClickOutside`
+    // does: the click dismisses AND lands.
     return Stack(
       children: <Widget>[
-        // A pointer landing anywhere else dismisses. Nothing is painted, so
-        // this is invisible; it exists because a click on inert scenery moves
-        // no focus and would otherwise leave the popup open.
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _close,
-            // Nothing is painted here, but an opaque tap target still lands in
-            // the semantics tree — a screen-reader user swiping the tree hit an
-            // unlabelled full-screen button sitting over the whole page.
-            excludeFromSemantics: true,
-          ),
-        ),
         Positioned(
           left: 0,
           top: 0,
@@ -1002,26 +1005,34 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
             targetAnchor: flip ? Alignment.topLeft : Alignment.bottomLeft,
             followerAnchor: flip ? Alignment.bottomLeft : Alignment.topLeft,
             offset: Offset(0, flip ? -offset : offset),
-            // The rows are outside the traversal order on purpose: focus stays
-            // on the trigger the whole time the popup is open, which is what
-            // makes "focus returns to the trigger on close" structural.
-            child: ExcludeFocus(
-              // The popup hugs its widest row rather than matching the
-              // trigger, which is 24-40 wide and would clip every label.
-              // IntrinsicWidth is what bounds the stretch below.
-              child: IntrinsicWidth(
-                child: buildFluentBreadcrumbSurface(
-                  style,
-                  surfaceStates,
-                  SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      spacing: gap,
-                      children: <Widget>[
-                        for (var i = 0; i < rows.length; i++)
-                          _buildRow(i, rows),
-                      ],
+            // Opaque, not the `deferToChild` default: the only hit-testable
+            // things inside are the rows, so a click on the surface inset or a
+            // row gap would otherwise read as an outside tap and dismiss the
+            // popup under the pointer.
+            child: TapRegion(
+              groupId: this,
+              behavior: HitTestBehavior.opaque,
+              // The rows are outside the traversal order on purpose: focus
+              // stays on the trigger the whole time the popup is open, which is
+              // what makes "focus returns to the trigger on close" structural.
+              child: ExcludeFocus(
+                // The popup hugs its widest row rather than matching the
+                // trigger, which is 24-40 wide and would clip every label.
+                // IntrinsicWidth is what bounds the stretch below.
+                child: IntrinsicWidth(
+                  child: buildFluentBreadcrumbSurface(
+                    style,
+                    surfaceStates,
+                    SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        spacing: gap,
+                        children: <Widget>[
+                          for (var i = 0; i < rows.length; i++)
+                            _buildRow(i, rows),
+                        ],
+                      ),
                     ),
                   ),
                 ),

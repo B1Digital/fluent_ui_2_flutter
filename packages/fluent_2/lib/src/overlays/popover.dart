@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import '../internal/animated_style.dart';
 import '../internal/defer.dart';
 import '../internal/interaction.dart';
+import '../internal/tap_group.dart';
 import 'popover_style.dart';
 
 /// How a popover surface is filled. Figma's `Style` axis, verbatim.
@@ -600,6 +601,24 @@ class FluentPopoverTheme extends InheritedTheme {
 /// within the surface rather than walking off into the page behind it, which is
 /// upstream's `trapFocus` behaviour.
 ///
+/// Nothing is drawn over the page while the surface is up, deliberately. A
+/// click on a control behind an open popover dismisses the popover *and*
+/// presses that control, hover still tracks, and the page still scrolls —
+/// which is what upstream's document-level `useOnClickOutside` gives React.
+/// [child] is in the same tap-region group as the surface, so a trigger that
+/// toggles closes the popover exactly once instead of closing it here and
+/// reopening it in its own handler; a trigger that only ever *opens* does not
+/// dismiss at all, which is `usePopoverTrigger`'s behaviour too.
+///
+/// ## Dismissing by pointer needs a [TapRegionSurface]
+///
+/// An open surface is dismissed by a tap outside it via [TapRegion], which does
+/// nothing without a [TapRegionSurface] above it. [WidgetsApp] installs one
+/// (`widgets/app.dart:1836`) and `FluentApp` wraps [WidgetsApp], so an ordinary
+/// app — and the widget tests — are covered. A popover mounted under a bare
+/// [Overlay] with no [WidgetsApp] anywhere above it silently loses outside-tap
+/// dismissal; Escape still closes it.
+///
 /// ## Motion
 ///
 /// Entrance only, and it is [FluentMotionSpec.popover]. See
@@ -692,6 +711,12 @@ class _FluentPopoverState extends State<FluentPopover> {
 
   bool get _shouldShow => widget.open && _enabled;
 
+  /// The enclosing popover chain's tap group, when this one is nested.
+  Object? _inheritedGroup;
+
+  /// The group this popover's trigger and surface both register in.
+  Object get _tapGroup => _inheritedGroup ?? this;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -700,6 +725,11 @@ class _FluentPopoverState extends State<FluentPopover> {
     // wrapping the trigger would otherwise be invisible to it.
     _theme = FluentTheme.of(context);
     _themeStyle = FluentPopoverTheme.maybeOf(context);
+    // A popover opened from inside another popover's surface joins that
+    // popover's tap group instead of starting its own — see [FluentTapGroup].
+    // Read at the trigger, where the enclosing surface is an ancestor; the
+    // OverlayEntry inherits nothing.
+    _inheritedGroup = FluentTapGroup.maybeOf(context);
     // Same reason, and neither of these is an InheritedTheme, so neither rides
     // along with the `InheritedTheme.capture` in [_show] — they have to be read
     // here, at the trigger, and handed across the boundary by hand.
@@ -760,6 +790,14 @@ class _FluentPopoverState extends State<FluentPopover> {
   void _hide() {
     final entry = _entry;
     if (entry == null) return;
+    // Read before the teardown, because removing the entry unmounts the scope
+    // and drops its focus. Restore only when the surface was the thing holding
+    // focus: now that no barrier is drawn over the page, an outside tap lands
+    // on whatever is behind and focuses it, and handing focus back to the
+    // trigger would undo the click the user just made.
+    // `inputs/date_picker.dart:1119-1123` guards the identical teardown the
+    // same way.
+    final wasInside = _scope.hasFocus;
     _entry = null;
     entry
       ..remove()
@@ -769,7 +807,10 @@ class _FluentPopoverState extends State<FluentPopover> {
     // have been removed from the tree along with the popover that closed it.
     final restore = _restore;
     _restore = null;
-    if (restore != null && restore.context != null && restore.canRequestFocus) {
+    if (wasInside &&
+        restore != null &&
+        restore.context != null &&
+        restore.canRequestFocus) {
       restore.requestFocus();
     }
   }
@@ -835,26 +876,34 @@ class _FluentPopoverState extends State<FluentPopover> {
     // apex, the entrance slide, and the caller's own content — reads it.
     return Directionality(
       textDirection: _direction,
-      child: Stack(
-        children: <Widget>[
-          // A pointer landing anywhere else dismisses. Nothing is painted, so
-          // this is invisible; it exists because a click on inert scenery moves
-          // no focus and would otherwise leave the popover open.
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: _close,
-            ),
-          ),
-          Positioned(
-            left: 0,
-            top: 0,
-            child: CompositedTransformFollower(
-              link: _link,
-              showWhenUnlinked: false,
-              targetAnchor: target,
-              followerAnchor: follower,
-              offset: shift,
+      child: Positioned(
+        left: 0,
+        top: 0,
+        child: CompositedTransformFollower(
+          link: _link,
+          showWhenUnlinked: false,
+          targetAnchor: target,
+          followerAnchor: follower,
+          offset: shift,
+          // Same group as the trigger, so a pointer landing on the surface — or
+          // back on the trigger — is "inside" and does not dismiss.
+          //
+          // `deferToChild` is enough, and is load-bearing rather than lazy:
+          // `RenderTapRegionSurface` classifies by hit-test path
+          // (`widgets/tap_region.dart:320-338`), and the surface's own
+          // [DecoratedBox] is what puts this region on that path —
+          // `RenderDecoratedBox.hitTestSelf` defers to `BoxDecoration.hitTest`,
+          // so the whole rounded rect answers, padding included. The clipped
+          // corners fall outside it and dismiss, which is what a browser does
+          // with a border-radius too.
+          child: TapRegion(
+            groupId: _tapGroup,
+            // Published to everything inside the surface, so a popover opened
+            // from in here adopts this chain's group rather than starting its
+            // own — without it, merely opening a nested popover read as an
+            // outside tap out here and collapsed the whole chain.
+            child: FluentTapGroup(
+              groupId: _tapGroup,
               // Escape. Bound here rather than on the trigger so it is live only
               // while there is something to dismiss, leaving Escape to whatever
               // an ancestor does with it the rest of the time. Outside the
@@ -892,12 +941,31 @@ class _FluentPopoverState extends State<FluentPopover> {
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
   @override
-  Widget build(BuildContext context) =>
-      CompositedTransformTarget(link: _link, child: widget.child);
+  Widget build(BuildContext context) => TapRegion(
+    groupId: _tapGroup,
+    // Registered only while the surface is up, so nothing is listening for
+    // outside taps the rest of the time.
+    //
+    // This replaced a full-screen `HitTestBehavior.opaque` barrier drawn over
+    // the page. The barrier swallowed the click that dismissed: a button behind
+    // an open popover needed two clicks, hover never reached it, and a wheel
+    // event never reached the enclosing Scrollable. Upstream's
+    // `useOnClickOutside` is a document-level listener — the click dismisses AND
+    // lands — and a TapRegion group is the same shape.
+    //
+    // Known cost: `RenderTapRegionSurface` "does not participate in the gesture
+    // disambiguation system" (`widgets/tap_region.dart:189-193`), so a
+    // pointer-down outside that turns into a drag-scroll counts as an outside
+    // tap and dismisses. That is touch and trackpad only — the wheel is not a
+    // pointer-down, and `FluentScrollBehavior` deliberately keeps the mouse out
+    // of `dragDevices`. Left as is; the browser does the same thing.
+    onTapOutside: _shouldShow ? (_) => _close() : null,
+    child: CompositedTransformTarget(link: _link, child: widget.child),
+  );
 }

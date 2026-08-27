@@ -639,6 +639,20 @@ class FluentDropdownActivateIntent extends Intent {
 /// do. The active row is marked with [WidgetState.focused] all the same,
 /// because that is what keyboard-visible focus *means* to the user.
 ///
+/// ## Dismissing by pointer needs a [TapRegionSurface]
+///
+/// An open popup is dismissed by a tap outside it via [TapRegion], which does
+/// nothing without a [TapRegionSurface] above it. [WidgetsApp] installs one
+/// (`widgets/app.dart:1836`) and `FluentApp` wraps [WidgetsApp], so an ordinary
+/// app — and the widget tests — are covered. A dropdown mounted under a bare
+/// [Overlay] with no [WidgetsApp] anywhere above it silently loses outside-tap
+/// dismissal; Escape, Tab and choosing a row still close it.
+///
+/// Nothing is drawn over the page while the popup is up, deliberately. A click
+/// on a control behind an open popup dismisses the popup *and* presses that
+/// control, hover still tracks, and the page still scrolls — which is what
+/// upstream's document-level `useOnClickOutside` gives React.
+///
 /// Customisation follows the usual three rungs. [style] is merged last and
 /// wins; [FluentDropdownTheme] restyles a subtree; and for anything further,
 /// [resolveFluentDropdownState], [resolveFluentDropdownStyle] and
@@ -971,49 +985,42 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
       ],
     ];
 
-    return Stack(
-      children: <Widget>[
-        // A pointer landing anywhere else dismisses without selecting. Nothing
-        // is painted, so this is invisible; it exists because a click on inert
-        // scenery moves no focus and would otherwise leave the popup open.
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _close,
-          ),
-        ),
-        Positioned(
-          left: 0,
-          top: 0,
-          child: CompositedTransformFollower(
-            link: _link,
-            showWhenUnlinked: false,
-            targetAnchor: Alignment.bottomLeft,
-            followerAnchor: Alignment.topLeft,
-            offset: Offset(0, offset),
-            // Upstream positions the listbox with `matchTargetSize: 'width'`,
-            // and Figma draws it exactly as wide as the trigger — but
-            // `useListboxStyles` also floors it at `minWidth: 160px`, which
-            // only shows once the trigger is narrower than that.
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: _listboxMinWidth),
-              child: SizedBox(
-                width: _link.leaderSize?.width,
-                // The rows are outside the traversal order on purpose: focus
-                // stays on the trigger the whole time the popup is open, which
-                // is what makes "focus returns to the trigger on close"
-                // structural.
-                child: ExcludeFocus(
-                  child: buildFluentDropdownSurface(
-                    surfaceStyle,
-                    surfaceStates,
-                    SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: gap,
-                        children: rows,
-                      ),
+    return Positioned(
+      left: 0,
+      top: 0,
+      child: CompositedTransformFollower(
+        link: _link,
+        showWhenUnlinked: false,
+        targetAnchor: Alignment.bottomLeft,
+        followerAnchor: Alignment.topLeft,
+        offset: Offset(0, offset),
+        // Same group as the trigger, so a pointer landing on a row — or on the
+        // padding between rows — is "inside" and does not dismiss. Orthogonal
+        // to the ExcludeFocus below: that governs traversal, this governs taps.
+        child: TapRegion(
+          groupId: this,
+          // Upstream positions the listbox with `matchTargetSize: 'width'`,
+          // and Figma draws it exactly as wide as the trigger — but
+          // `useListboxStyles` also floors it at `minWidth: 160px`, which
+          // only shows once the trigger is narrower than that.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: _listboxMinWidth),
+            child: SizedBox(
+              width: _link.leaderSize?.width,
+              // The rows are outside the traversal order on purpose: focus
+              // stays on the trigger the whole time the popup is open, which
+              // is what makes "focus returns to the trigger on close"
+              // structural.
+              child: ExcludeFocus(
+                child: buildFluentDropdownSurface(
+                  surfaceStyle,
+                  surfaceStates,
+                  SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      spacing: gap,
+                      children: rows,
                     ),
                   ),
                 ),
@@ -1021,7 +1028,7 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -1109,58 +1116,78 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
       enabled: _enabled,
       expanded: _open,
       label: widget.semanticLabel,
-      child: CompositedTransformTarget(
-        link: _link,
-        // Bound here rather than on the focus node so they sit *below* the
-        // app's own Enter/Space -> ActivateIntent mapping and above the
-        // trigger's, which is the only way Enter can mean "commit the active
-        // option" while a tap still only toggles.
-        child: Shortcuts(
-          shortcuts: const <ShortcutActivator, Intent>{
-            SingleActivator(LogicalKeyboardKey.arrowDown):
-                FluentDropdownMoveIntent(1),
-            SingleActivator(LogicalKeyboardKey.arrowUp):
-                FluentDropdownMoveIntent(-1),
-            SingleActivator(LogicalKeyboardKey.home): FluentDropdownEdgeIntent(
-              last: false,
-            ),
-            SingleActivator(LogicalKeyboardKey.end): FluentDropdownEdgeIntent(
-              last: true,
-            ),
-            SingleActivator(LogicalKeyboardKey.enter):
-                FluentDropdownActivateIntent(),
-            SingleActivator(LogicalKeyboardKey.space):
-                FluentDropdownActivateIntent(),
-          },
-          child: Actions(
-            actions: <Type, Action<Intent>>{
-              FluentDropdownMoveIntent:
-                  CallbackAction<FluentDropdownMoveIntent>(
-                    onInvoke: (intent) {
-                      _move(intent.delta);
-                      return null;
-                    },
-                  ),
-              FluentDropdownEdgeIntent:
-                  CallbackAction<FluentDropdownEdgeIntent>(
-                    onInvoke: (intent) {
-                      _edge(last: intent.last);
-                      return null;
-                    },
-                  ),
-              FluentDropdownActivateIntent:
-                  CallbackAction<FluentDropdownActivateIntent>(
-                    onInvoke: (_) {
-                      _activate();
-                      return null;
-                    },
-                  ),
-              // Only enabled while the popup is open, so Escape still reaches
-              // whatever an ancestor does with it when there is nothing to
-              // dismiss here.
-              DismissIntent: _DismissDropdownAction<T>(this),
+      child: TapRegion(
+        groupId: this,
+        // Registered only while the popup is up, so nothing is listening for
+        // outside taps the rest of the time.
+        //
+        // This replaced a full-screen `HitTestBehavior.opaque` barrier drawn
+        // over the page. The barrier swallowed the click that dismissed: a
+        // button behind an open popup needed two clicks, hover never reached
+        // it, and a wheel event never reached the enclosing Scrollable.
+        // Upstream's `useOnClickOutside` is a document-level listener — the
+        // click dismisses AND lands — and a TapRegion group is the same shape.
+        //
+        // Known cost: `RenderTapRegionSurface` "does not participate in the
+        // gesture disambiguation system" (`widgets/tap_region.dart:189-193`),
+        // so a pointer-down outside that turns into a drag-scroll counts as an
+        // outside tap and dismisses. That is touch and trackpad only — the
+        // wheel is not a pointer-down, and `FluentScrollBehavior` deliberately
+        // keeps the mouse out of `dragDevices`. Left as is; the browser does
+        // the same thing.
+        onTapOutside: _open ? (_) => _close() : null,
+        child: CompositedTransformTarget(
+          link: _link,
+          // Bound here rather than on the focus node so they sit *below* the
+          // app's own Enter/Space -> ActivateIntent mapping and above the
+          // trigger's, which is the only way Enter can mean "commit the active
+          // option" while a tap still only toggles.
+          child: Shortcuts(
+            shortcuts: const <ShortcutActivator, Intent>{
+              SingleActivator(LogicalKeyboardKey.arrowDown):
+                  FluentDropdownMoveIntent(1),
+              SingleActivator(LogicalKeyboardKey.arrowUp):
+                  FluentDropdownMoveIntent(-1),
+              SingleActivator(LogicalKeyboardKey.home):
+                  FluentDropdownEdgeIntent(last: false),
+              SingleActivator(LogicalKeyboardKey.end): FluentDropdownEdgeIntent(
+                last: true,
+              ),
+              SingleActivator(LogicalKeyboardKey.enter):
+                  FluentDropdownActivateIntent(),
+              SingleActivator(LogicalKeyboardKey.space):
+                  FluentDropdownActivateIntent(),
             },
-            child: trigger,
+            child: Actions(
+              actions: <Type, Action<Intent>>{
+                FluentDropdownMoveIntent:
+                    CallbackAction<FluentDropdownMoveIntent>(
+                      onInvoke: (intent) {
+                        _move(intent.delta);
+                        return null;
+                      },
+                    ),
+                FluentDropdownEdgeIntent:
+                    CallbackAction<FluentDropdownEdgeIntent>(
+                      onInvoke: (intent) {
+                        _edge(last: intent.last);
+                        return null;
+                      },
+                    ),
+                FluentDropdownActivateIntent:
+                    CallbackAction<FluentDropdownActivateIntent>(
+                      onInvoke: (_) {
+                        _activate();
+                        return null;
+                      },
+                    ),
+                // Only enabled while the popup is open, so Escape still reaches
+                // whatever an ancestor does with it when there is nothing to
+                // dismiss here.
+                DismissIntent: _DismissDropdownAction<T>(this),
+              },
+              child: trigger,
+            ),
           ),
         ),
       ),

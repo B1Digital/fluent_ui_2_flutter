@@ -284,6 +284,33 @@ typedef FluentMenuTriggerBuilder =
 /// frame it is inserted — [FluentAnimatedStyle] clamps the duration to zero, so
 /// reduced motion is honoured without a second code path.
 ///
+/// ## Dismissal
+///
+/// A pointer landing outside the trigger and every open level closes the whole
+/// chain — and *still reaches whatever it landed on*. There is no invisible
+/// full-screen barrier: upstream's `useOnClickOutside` is a document-level
+/// listener, so in React the click that dismisses a menu also presses the
+/// button under it. A [TapRegion] group reproduces that; an opaque
+/// [Positioned.fill] barrier, which is what this used to paint, swallowed every
+/// click, hover and scroll behind an open menu and cost the user a second
+/// click.
+///
+/// Two consequences of that trade, both deliberate:
+///
+/// * **A [TapRegionSurface] ancestor is required.** [WidgetsApp] installs one
+///   (`widgets/app.dart:1836`) and `FluentApp` wraps [WidgetsApp], so an app
+///   and its tests are fine. A menu mounted under a bare [Overlay] with no
+///   [WidgetsApp] above it simply never dismisses on an outside tap — Escape
+///   and the trigger still close it.
+/// * **A touch or trackpad drag-scroll outside the menu dismisses it.**
+///   `RenderTapRegionSurface` "does not participate in the gesture
+///   disambiguation system" (`widgets/tap_region.dart:189-193`), so a pointer
+///   down that later becomes a drag still counts as an outside tap. A mouse
+///   wheel does not — `FluentScrollBehavior` deliberately keeps
+///   `PointerDeviceKind.mouse` out of `dragDevices`
+///   (`fluent_2_core/lib/src/app.dart:434`), so a wheel scroll sends no pointer
+///   down at all.
+///
 /// ## Positioning
 ///
 /// Each level is an [OverlayEntry] anchored with
@@ -806,12 +833,25 @@ class _FluentMenuState extends State<FluentMenu> {
             Offset(0, flipUp ? _menuSurfaceSlide : -_menuSurfaceSlide),
           );
 
-    final surface = Semantics(
-      container: true,
-      label: depth == 0 ? widget.semanticLabel : null,
-      child: _FluentMenuEntrance(
-        from: slide,
-        child: buildFluentMenu(state, style, surfaceStates),
+    // Every level joins the TRIGGER's group. `groupId: this` is the one
+    // `_FluentMenuState` that builds all of them, so a tap on a submenu row is
+    // "inside" the same region as the root surface and the trigger, and
+    // dismisses nothing. Grouping per level instead would make a submenu click
+    // an outside tap for the root and collapse the chain under the pointer.
+    final surface = TapRegion(
+      groupId: this,
+      // Opaque, not the default `deferToChild`: the surface is a solid panel,
+      // but the only hit-testable things inside it are the rows — so a click on
+      // the 4px inset or a 2px row gap would otherwise classify as an OUTSIDE
+      // tap and dismiss the menu the user is aiming at.
+      behavior: HitTestBehavior.opaque,
+      child: Semantics(
+        container: true,
+        label: depth == 0 ? widget.semanticLabel : null,
+        child: _FluentMenuEntrance(
+          from: slide,
+          child: buildFluentMenu(state, style, surfaceStates),
+        ),
       ),
     );
 
@@ -826,18 +866,9 @@ class _FluentMenuState extends State<FluentMenu> {
       textDirection: direction,
       child: Stack(
         children: <Widget>[
-          // A pointer landing anywhere else dismisses the whole chain. Nothing
-          // is painted, so this is invisible; it exists because a click on
-          // inert scenery moves no focus and would otherwise leave the menu
-          // open. Only the root level carries one — a submenu's barrier would
-          // swallow clicks meant for its own parent.
-          if (depth == 0)
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _closeAll,
-              ),
-            ),
+          // No dismiss barrier. Outside taps are handled by the `TapRegion`
+          // group in `build`, which does not consume the pointer — see the
+          // class dartdoc.
           Positioned(
             left: 0,
             top: 0,
@@ -957,16 +988,24 @@ class _FluentMenuState extends State<FluentMenu> {
   Widget build(BuildContext context) {
     return Semantics(
       expanded: _isOpen,
-      child: CompositedTransformTarget(
-        link: _triggerLink,
-        child: Focus(
-          focusNode: _triggerFocus,
-          // Not a Tab stop of its own — the trigger inside it already is. The
-          // node exists so the menu knows which of its descendants to hand
-          // focus back to.
-          skipTraversal: true,
-          child: Builder(
-            builder: (context) => widget.builder(context, _toggle),
+      child: TapRegion(
+        groupId: this,
+        // Registered only while open, so nothing is listening for outside taps
+        // the rest of the time. A tap on the trigger itself is INSIDE this
+        // group, so it never runs — it reaches `_toggle` instead, which closes
+        // the chain exactly once.
+        onTapOutside: _isOpen ? (_) => _closeAll() : null,
+        child: CompositedTransformTarget(
+          link: _triggerLink,
+          child: Focus(
+            focusNode: _triggerFocus,
+            // Not a Tab stop of its own — the trigger inside it already is. The
+            // node exists so the menu knows which of its descendants to hand
+            // focus back to.
+            skipTraversal: true,
+            child: Builder(
+              builder: (context) => widget.builder(context, _toggle),
+            ),
           ),
         ),
       ),
