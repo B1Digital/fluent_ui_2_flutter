@@ -1,4 +1,5 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -146,5 +147,142 @@ void main() {
       greaterThan(0),
       reason: 'the wheel is how a mouse scrolls, and it must keep working',
     );
+  });
+
+  // ---------------------------------------------------------------------------
+  // The scrollbar itself.
+  //
+  // `buildScrollbar` used to return its child unchanged, on a doc comment
+  // claiming Fluent drew its own scrollbar in the UI packages. It did not:
+  // `fluent_2` shipped no scrollbar at all, `FluentColors.scrollbarOverlay` was
+  // referenced by nothing, and the showroom hand-rolled a `RawScrollbar` with a
+  // hardcoded colour to get one. Every consuming app inherited a scrollbar-less
+  // UI with no way to opt back in short of replacing the class.
+  // ---------------------------------------------------------------------------
+
+  /// Runs [body] with [debugDefaultTargetPlatformOverride] set.
+  ///
+  /// Reset inside the body rather than from `addTearDown`: the binding verifies
+  /// that no foundation debug variable is still set the moment the body
+  /// returns, which is *before* tear-downs run.
+  Future<void> withPlatform(
+    TargetPlatform platform,
+    Future<void> Function() body,
+  ) async {
+    debugDefaultTargetPlatformOverride = platform;
+    try {
+      await body();
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  }
+
+  /// A scroller on [axis] under a real [FluentApp].
+  ///
+  /// Settled, not just pumped: on a platform whose font package needs loading
+  /// `FluentApp` renders `SizedBox.shrink()` behind a `FutureBuilder` for the
+  /// first frame, so a bare `pumpWidget` finds an empty tree.
+  Future<void> pumpAxis(
+    WidgetTester tester, {
+    Axis axis = Axis.vertical,
+    FluentThemeData? theme,
+  }) async {
+    await tester.pumpWidget(
+      FluentApp(
+        theme:
+            theme ??
+            FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+        home: SingleChildScrollView(
+          scrollDirection: axis,
+          child: SizedBox(
+            width: axis == Axis.horizontal ? 4000 : 100,
+            height: axis == Axis.vertical ? 4000 : 100,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  for (final platform in <TargetPlatform>[
+    TargetPlatform.macOS,
+    TargetPlatform.windows,
+    TargetPlatform.linux,
+  ]) {
+    testWidgets('a vertical scroller gets a scrollbar on ${platform.name}', (
+      tester,
+    ) async {
+      await withPlatform(platform, () async {
+        await pumpAxis(tester);
+        expect(find.byType(RawScrollbar), findsOneWidget);
+      });
+    });
+  }
+
+  for (final platform in <TargetPlatform>[
+    TargetPlatform.android,
+    TargetPlatform.iOS,
+    TargetPlatform.fuchsia,
+  ]) {
+    testWidgets(
+      'a touch platform gets none — the OS draws its own (${platform.name})',
+      (tester) async {
+        await withPlatform(platform, () async {
+          await pumpAxis(tester);
+          expect(find.byType(RawScrollbar), findsNothing);
+        });
+      },
+    );
+  }
+
+  testWidgets('a horizontal scroller gets none', (tester) async {
+    // The thumb would sit on top of whatever the caller put along the bottom
+    // edge. `FluentBreadcrumb` and the chart table are both horizontal.
+    await withPlatform(TargetPlatform.macOS, () async {
+      await pumpAxis(tester, axis: Axis.horizontal);
+      expect(find.byType(RawScrollbar), findsNothing);
+    });
+  });
+
+  testWidgets('the thumb takes colorScrollbarOverlay from the theme', (
+    tester,
+  ) async {
+    final dark = FluentThemeData.dark(fontPlatform: FluentFontPlatform.web);
+    await withPlatform(TargetPlatform.macOS, () async {
+      await pumpAxis(tester, theme: dark);
+      expect(
+        tester.widget<RawScrollbar>(find.byType(RawScrollbar)).thumbColor,
+        dark.colors.scrollbarOverlay,
+        reason:
+            'the token exists upstream as colorScrollbarOverlay; a hardcoded '
+            'thumb would not follow a dark or high-contrast theme',
+      );
+    });
+  });
+
+  testWidgets('with no FluentTheme above it, RawScrollbar keeps its default', (
+    tester,
+  ) async {
+    // `FluentScrollBehavior` is public and can be handed to a bare
+    // `ScrollConfiguration`, so the colour must resolve through `maybeOf`.
+    await withPlatform(TargetPlatform.macOS, () async {
+      await tester.pumpWidget(
+        const Directionality(
+          textDirection: TextDirection.ltr,
+          child: MediaQuery(
+            data: MediaQueryData(),
+            child: ScrollConfiguration(
+              behavior: FluentScrollBehavior(),
+              child: SingleChildScrollView(child: SizedBox(height: 4000)),
+            ),
+          ),
+        ),
+      );
+      expect(
+        tester.widget<RawScrollbar>(find.byType(RawScrollbar)).thumbColor,
+        isNull,
+        reason: 'null lets RawScrollbar fall back rather than throwing',
+      );
+    });
   });
 }
