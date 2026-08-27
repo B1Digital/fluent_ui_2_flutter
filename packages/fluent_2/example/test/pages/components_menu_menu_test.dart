@@ -106,8 +106,8 @@ void main() {
 
       // The whole point of a menu is a click on a row, and a real pointer is the
       // only way to catch a surface that opens but whose rows are unreachable —
-      // swallowed by a drag recogniser, or covered by the dismiss barrier the
-      // root level paints behind itself.
+      // swallowed by a drag recogniser, or classified as an outside tap by the
+      // `TapRegion` group and dismissed under the cursor.
       await mouseClick(tester, find.text('Edit content'));
       await settle(tester, frames: 10);
       expect(find.text('Copy'), findsOneWidget);

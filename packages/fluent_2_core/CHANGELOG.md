@@ -1,5 +1,19 @@
 ## Unreleased
 
+### Added
+
+- **`FluentScrollBehavior` now supplies a scrollbar.** `buildScrollbar` returned
+  its child unchanged, on a doc comment claiming Fluent drew its own scrollbar in
+  the UI packages — it did not. `fluent_2` contained no scrollbar at all,
+  `FluentColors.scrollbarOverlay` (upstream `colorScrollbarOverlay`) was
+  referenced by nothing, and the showroom had to hand-roll a `RawScrollbar` with
+  a hardcoded thumb colour to get one. Every consuming app inherited a
+  scrollbar-less UI with no way to opt back in short of replacing the class.
+  It is now a `RawScrollbar` — from `package:flutter/widgets.dart`, so still no
+  Material dependency — painted in `colorScrollbarOverlay`, on vertical
+  scrollers on desktop platforms only. **This is a visible change in every app
+  using `FluentApp`.** Pass your own `scrollBehavior` to opt out.
+
 ### Fixed
 
 - **`FluentPageRoute` no longer allocates a `CurvedAnimation` per frame.**

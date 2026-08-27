@@ -381,9 +381,12 @@ Future<void> openOverlay(WidgetTester tester, Finder trigger) async {
 
 /// Clicks the far corner of the viewport, which is how a user dismisses one.
 ///
-/// Every Fluent overlay paints an opaque full-screen barrier behind its surface,
-/// so a click on the scenery is both the dismissal and — deliberately — the last
-/// click the page underneath will see.
+/// A Fluent overlay no longer paints an opaque full-screen barrier behind its
+/// surface — dismissal is a `TapRegion` group, so the click that dismisses also
+/// **lands on whatever is under it**, the way upstream's document-level
+/// `useOnClickOutside` behaves. The far corner is chosen because it is the one
+/// spot no showroom page puts a control; if a page ever does, this will press it
+/// as well as dismissing, and should aim somewhere else instead.
 Future<void> dismissOverlay(WidgetTester tester) async {
   final Size view = tester.view.physicalSize / tester.view.devicePixelRatio;
   await tester.tapAt(Offset(view.width - 10, view.height - 10));

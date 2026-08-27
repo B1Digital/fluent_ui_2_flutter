@@ -12,6 +12,25 @@
 
 ### Fixed
 
+- **Every popup swallowed the click, hover and scroll behind it.** All seven —
+  `FluentPopover`, `FluentMenu`, `FluentDropdown`, `FluentTagPicker`,
+  `FluentTimePicker`, `FluentDatePicker` and `FluentBreadcrumb`'s overflow —
+  painted an opaque full-screen `Positioned.fill` barrier to catch outside taps.
+  It caught everything else too: a button behind an open popup needed two
+  clicks, hover never reached it, and the page could not be scrolled. Dismissal
+  is now a `TapRegion` group, matching upstream's document-level
+  `useOnClickOutside` — the click dismisses *and* lands. Two consequences worth
+  knowing: a `TapRegionSurface` ancestor is required, which `WidgetsApp` (and so
+  `FluentApp`) provides but a bare `Overlay` does not; and on touch or trackpad a
+  drag-scroll now dismisses, because `RenderTapRegionSurface` does not take part
+  in gesture disambiguation. Mouse wheel is unaffected.
+- **A popover opened from inside another popover collapsed the chain.** The
+  inner surface lives in its own `OverlayEntry`, so it fell outside the outer
+  popover's tap group and merely opening it read as an outside tap. Nested
+  popups now share one group via `FluentTapGroup`.
+- **Closing a popover no longer steals focus** from the control an outside tap
+  just landed on — it restores to the trigger only when the popover itself held
+  focus, the rule `FluentDatePicker` already documented.
 - **Text controls had no context menu at all.** `FluentTextSelectionControls`
   extended `TextSelectionControls` rather than mixing in
   `TextSelectionHandleControls`, so `TextSelectionOverlay.showToolbar` took the

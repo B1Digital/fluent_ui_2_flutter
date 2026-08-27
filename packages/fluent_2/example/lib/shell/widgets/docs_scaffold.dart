@@ -245,107 +245,103 @@ class _DocsBodyState extends State<_DocsBody> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Expanded(
-            child: RawScrollbar(
+            // No RawScrollbar here any more: `FluentScrollBehavior` supplies one
+            // for every vertical scroller now, so a hand-rolled wrapper would
+            // paint a second thumb on top of it.
+            child: SingleChildScrollView(
+              key: _viewportKey,
               controller: _scroll,
-              thumbColor: DocsMetrics.bodyText.withValues(alpha: 0.28),
-              radius: const Radius.circular(4),
-              thickness: 8,
-              child: SingleChildScrollView(
-                key: _viewportKey,
-                controller: _scroll,
-                // Prose is made selectable block by block rather than in one
-                // region around the whole article. A `SelectableRegion` puts a
-                // pan recogniser over everything inside it, and for a mouse a
-                // pan is claimed after only ONE pixel of movement
-                // (`kPrecisePointerHitSlop`) — so a real click, which always
-                // drifts a pixel or two between press and release, was being
-                // taken by the selection instead of by the control under the
-                // cursor. Every button, switch and dropdown in the article was
-                // dead unless clicked perfectly still. It is not a Fluent bug:
-                // a bare GestureDetector inside a bare SelectableRegion behaves
-                // the same, and `SelectionContainer.disabled` does not help
-                // because it governs selection, not gestures.
-                //
-                // The cost is that a drag can no longer select across two
-                // blocks. Controls that work beat selection that spans
-                // headings, and "Copy Page" already covers taking the whole
-                // thing.
-                child: Center(
-                  child: ConstrainedBox(
-                    // Pages with no sections have no "On this page" rail beside
-                    // them, so the article gets the full content width rather
-                    // than the narrower story column that leaves room for one.
-                    constraints: BoxConstraints(
-                      maxWidth:
-                          (page.sections.isEmpty
-                              ? DocsMetrics.contentMaxWidth
-                              : DocsMetrics.storyColumnWidth) +
-                          DocsMetrics.contentInset * 2,
+              // Prose is made selectable block by block rather than in one
+              // region around the whole article. A `SelectableRegion` puts a
+              // pan recogniser over everything inside it, and for a mouse a
+              // pan is claimed after only ONE pixel of movement
+              // (`kPrecisePointerHitSlop`) — so a real click, which always
+              // drifts a pixel or two between press and release, was being
+              // taken by the selection instead of by the control under the
+              // cursor. Every button, switch and dropdown in the article was
+              // dead unless clicked perfectly still. It is not a Fluent bug:
+              // a bare GestureDetector inside a bare SelectableRegion behaves
+              // the same, and `SelectionContainer.disabled` does not help
+              // because it governs selection, not gestures.
+              //
+              // The cost is that a drag can no longer select across two
+              // blocks. Controls that work beat selection that spans
+              // headings, and "Copy Page" already covers taking the whole
+              // thing.
+              child: Center(
+                child: ConstrainedBox(
+                  // Pages with no sections have no "On this page" rail beside
+                  // them, so the article gets the full content width rather
+                  // than the narrower story column that leaves room for one.
+                  constraints: BoxConstraints(
+                    maxWidth:
+                        (page.sections.isEmpty
+                            ? DocsMetrics.contentMaxWidth
+                            : DocsMetrics.storyColumnWidth) +
+                        DocsMetrics.contentInset * 2,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: DocsMetrics.contentInset,
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: DocsMetrics.contentInset,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          const SizedBox(height: 49),
-                          Selectable(
-                            child: Text(page.title, style: DocsMetrics.h1),
-                          ),
-                          const SizedBox(height: 16),
-                          // Theme pages carry neither the toolbar nor the rule
-                          // upstream — they open straight onto their token card,
-                          // because there are no stories for a theme control to
-                          // act on.
-                          if (page.sections.isNotEmpty) ...<Widget>[
-                            DocsToolbar(page: page),
-                            Selectable(child: DocsProse(page.description)),
-                            const SizedBox(height: DocsMetrics.ruleGap),
-                            const _Rule(),
-                            const SizedBox(height: DocsMetrics.ruleGap),
-                          ] else if (page.description.isNotEmpty) ...<Widget>[
-                            Selectable(child: DocsProse(page.description)),
-                            const SizedBox(height: 24),
-                          ],
-                          // A page that carries its own markdown is rendered
-                          // by the viewer, which handles the tables and nested
-                          // lists the prose renderer would flatten.
-                          if (page.markdown != null)
-                            Selectable(
-                              child: MarkdownBody(
-                                source: page.markdown!,
-                                skipLeadingHeading: true,
-                              ),
-                            ),
-                          for (final ProseBlock block
-                              in page.prose) ...<Widget>[
-                            const SizedBox(height: 32),
-                            Selectable(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  Text(block.title, style: DocsMetrics.h3),
-                                  const SizedBox(height: 12),
-                                  DocsProse(block.body),
-                                ],
-                              ),
-                            ),
-                          ],
-                          if (page.prose.isNotEmpty)
-                            const SizedBox(height: DocsMetrics.ruleGap),
-                          if (page.body != null) page.body!(context),
-                          for (final DocsSection section in page.sections)
-                            _Section(
-                              key: _anchors[section.id],
-                              section: section,
-                              assetPath: page.source,
-                            ),
-                          if (page.props.isNotEmpty)
-                            Selectable(child: PropsTable(rows: page.props)),
-                          const SizedBox(height: 96),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        const SizedBox(height: 49),
+                        Selectable(
+                          child: Text(page.title, style: DocsMetrics.h1),
+                        ),
+                        const SizedBox(height: 16),
+                        // Theme pages carry neither the toolbar nor the rule
+                        // upstream — they open straight onto their token card,
+                        // because there are no stories for a theme control to
+                        // act on.
+                        if (page.sections.isNotEmpty) ...<Widget>[
+                          DocsToolbar(page: page),
+                          Selectable(child: DocsProse(page.description)),
+                          const SizedBox(height: DocsMetrics.ruleGap),
+                          const _Rule(),
+                          const SizedBox(height: DocsMetrics.ruleGap),
+                        ] else if (page.description.isNotEmpty) ...<Widget>[
+                          Selectable(child: DocsProse(page.description)),
+                          const SizedBox(height: 24),
                         ],
-                      ),
+                        // A page that carries its own markdown is rendered
+                        // by the viewer, which handles the tables and nested
+                        // lists the prose renderer would flatten.
+                        if (page.markdown != null)
+                          Selectable(
+                            child: MarkdownBody(
+                              source: page.markdown!,
+                              skipLeadingHeading: true,
+                            ),
+                          ),
+                        for (final ProseBlock block in page.prose) ...<Widget>[
+                          const SizedBox(height: 32),
+                          Selectable(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(block.title, style: DocsMetrics.h3),
+                                const SizedBox(height: 12),
+                                DocsProse(block.body),
+                              ],
+                            ),
+                          ),
+                        ],
+                        if (page.prose.isNotEmpty)
+                          const SizedBox(height: DocsMetrics.ruleGap),
+                        if (page.body != null) page.body!(context),
+                        for (final DocsSection section in page.sections)
+                          _Section(
+                            key: _anchors[section.id],
+                            section: section,
+                            assetPath: page.source,
+                          ),
+                        if (page.props.isNotEmpty)
+                          Selectable(child: PropsTable(rows: page.props)),
+                        const SizedBox(height: 96),
+                      ],
                     ),
                   ),
                 ),

@@ -133,58 +133,51 @@ class _SidebarState extends State<Sidebar> {
             ),
           ),
           Expanded(
-            // `FluentScrollBehavior` strips the framework scrollbar app-wide,
-            // so the chrome has to bring its own. `RawScrollbar` lives in
-            // `package:flutter/widgets.dart` — the Material one would drag in
-            // exactly the dependency this app just shed.
-            child: RawScrollbar(
+            // No RawScrollbar here any more: `FluentScrollBehavior` supplies one
+            // for every vertical scroller now, so a hand-rolled wrapper would
+            // paint a second thumb on top of it.
+            child: ListView(
               controller: _scroll,
-              thumbColor: DocsMetrics.bodyText.withValues(alpha: 0.28),
-              radius: const Radius.circular(4),
-              thickness: 6,
-              child: ListView(
-                controller: _scroll,
-                padding: const EdgeInsets.only(bottom: 24),
-                children: <Widget>[
-                  for (final DocsGroup group in groups) ...<Widget>[
-                    _GroupHeader(
-                      title: group.title,
-                      collapsed: !searching && _collapsed.contains(group.title),
-                      onToggle: () => setState(() {
-                        if (!_collapsed.remove(group.title)) {
-                          _collapsed.add(group.title);
-                        }
-                      }),
-                      onToggleAll: () => setState(() {
-                        final Iterable<String> folders = group.pages
-                            .map((DocsPage p) => p.folder)
-                            .whereType<String>()
-                            .map((String f) => '${group.title}/$f')
-                            .toSet();
-                        if (folders.every(_collapsed.contains)) {
-                          _collapsed.removeAll(folders);
-                        } else {
-                          _collapsed.addAll(folders);
-                        }
-                      }),
-                    ),
-                    if (searching || !_collapsed.contains(group.title))
-                      // Six upstream groups nest a folder level — Badge,
-                      // Button, Card, Carousel, Menu, Tag — so a page's rows
-                      // are emitted through the folder walker rather than
-                      // flat.
-                      ..._rowsFor(context, group, searching),
-                  ],
-                  if (groups.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(22, 12, 12, 12),
-                      child: Text(
-                        'No components found.',
-                        style: DocsMetrics.sidebarItem,
-                      ),
-                    ),
+              padding: const EdgeInsets.only(bottom: 24),
+              children: <Widget>[
+                for (final DocsGroup group in groups) ...<Widget>[
+                  _GroupHeader(
+                    title: group.title,
+                    collapsed: !searching && _collapsed.contains(group.title),
+                    onToggle: () => setState(() {
+                      if (!_collapsed.remove(group.title)) {
+                        _collapsed.add(group.title);
+                      }
+                    }),
+                    onToggleAll: () => setState(() {
+                      final Iterable<String> folders = group.pages
+                          .map((DocsPage p) => p.folder)
+                          .whereType<String>()
+                          .map((String f) => '${group.title}/$f')
+                          .toSet();
+                      if (folders.every(_collapsed.contains)) {
+                        _collapsed.removeAll(folders);
+                      } else {
+                        _collapsed.addAll(folders);
+                      }
+                    }),
+                  ),
+                  if (searching || !_collapsed.contains(group.title))
+                    // Six upstream groups nest a folder level — Badge,
+                    // Button, Card, Carousel, Menu, Tag — so a page's rows
+                    // are emitted through the folder walker rather than
+                    // flat.
+                    ..._rowsFor(context, group, searching),
                 ],
-              ),
+                if (groups.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 12, 12, 12),
+                    child: Text(
+                      'No components found.',
+                      style: DocsMetrics.sidebarItem,
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
