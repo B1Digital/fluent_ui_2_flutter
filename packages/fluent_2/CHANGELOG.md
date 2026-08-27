@@ -2,6 +2,25 @@
 
 ### Changed
 
+- **BREAKING: `FluentRadioGroupScope` no longer carries `value` or `onChanged`.**
+  Selection now travels through the framework's `RadioGroup<T>` /
+  `RadioGroupRegistry` instead, so the scope keeps only `disabled` and
+  `labelPosition`. Code constructing or reading the scope directly breaks at
+  compile time; code using `FluentRadioGroup` and `FluentRadio` is unaffected.
+- **`FluentRadio<T>` is now a `StatefulWidget`.** Its constructor is unchanged,
+  so ordinary callers are unaffected — only subclasses and `is StatelessWidget`
+  checks break.
+- **Two radios sharing one value in a group now assert.** The framework's
+  `RadioGroupPolicy` rejects it (*"can't be used for a radio group that allows
+  multiple selection"*) where it previously just painted two checked dots. That
+  is a caller bug the framework is now diagnosing; suppressing it would mean not
+  registering with the group at all.
+- **A determinate `FluentProgressBar` announces `50`, not `50%`.** The role
+  requires a parseable number: at the declared floor of Flutter 3.41 the
+  framework's own `double.parse` throws a `FlutterError` on a trailing `%`
+  (3.47 later relaxed this). The `progressBar` role plus the new
+  `minValue`/`maxValue` is what makes a screen reader say "percent"; upstream
+  Flutter's own `ProgressIndicator` emits a bare number for the same reason.
 - **BREAKING: `FluentPopoverArrowPainter` now requires `textDirection`.** The
   painter drew a fixed physical apex while `buildFluentPopover` lays its arrow
   out with a direction-aware `Row`, so in an RTL subtree the arrow appeared on
@@ -31,6 +50,20 @@
 - **Closing a popover no longer steals focus** from the control an outside tap
   just landed on — it restores to the trigger only when the popover itself held
   focus, the rule `FluentDatePicker` already documented.
+- **`FluentRadioGroup` was N tab stops, not one.** A radio group is a single
+  composite control: Tab enters it once and arrows move within it. It now adopts
+  the framework's `RadioGroup`/`RadioClient`, which also fixes a group whose
+  *selected* radio is disabled becoming entirely unreachable by Tab.
+- **`FluentTabList` and `FluentList` were N tab stops each**, contradicting the
+  `SemanticsRole.tab`/`tabBar` they already declared. Both now use the roving
+  tabindex `FluentToolbar` already implemented.
+- **Semantics roles.** `FluentDataGrid` now exposes `table`/`row`/`cell`/
+  `columnHeader`; `FluentSpinner` `loadingSpinner`; `FluentPresenceBadge` and
+  `FluentStatusIndicator` `status`; `FluentProgressBar` `progressBar` with a
+  range. `FluentNav`, `FluentNavDrawer` and `FluentBreadcrumb` take the
+  `navigation` landmark role **only when given a non-empty `semanticLabel`** —
+  two unnamed landmarks on one page is a framework assertion, and an unnamed
+  nav beside an unnamed breadcrumb is the ordinary case.
 - **Text controls had no context menu at all.** `FluentTextSelectionControls`
   extended `TextSelectionControls` rather than mixing in
   `TextSelectionHandleControls`, so `TextSelectionOverlay.showToolbar` took the
