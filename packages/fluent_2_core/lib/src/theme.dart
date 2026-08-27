@@ -235,8 +235,11 @@ class FluentThemeOverride extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = FluentTheme.of(context);
+    // The early return comes first: reading the theme before it would register
+    // a dependency on every ancestor theme change for an override that does
+    // nothing, rebuilding the whole subtree for free.
     if (colors.isEmpty && typography == null) return child;
+    final base = FluentTheme.of(context);
 
     final palette = colors.isEmpty
         ? base.colors

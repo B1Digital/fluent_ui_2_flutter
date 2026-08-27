@@ -328,6 +328,14 @@ class FluentPageRoute<T> extends PageRoute<T> {
     Animation<double> secondaryAnimation,
   ) => builder(context);
 
+  // Built once, not per call. `buildTransitions` runs from the route's
+  // AnimatedBuilder, so it is invoked on every frame of the transition, and a
+  // CurvedAnimation allocated there registers a listener on its parent that
+  // nothing ever disposes. The parent animation is fixed for a route's
+  // lifetime, so caching is safe.
+  CurvedAnimation? _curved;
+  Animation<Offset>? _slide;
+
   @override
   Widget buildTransitions(
     BuildContext context,
@@ -335,21 +343,25 @@ class FluentPageRoute<T> extends PageRoute<T> {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    final curved = CurvedAnimation(
+    final curved = _curved ??= CurvedAnimation(
       parent: animation,
       curve: FluentCurve.decelerateMid,
       reverseCurve: FluentCurve.accelerateMid,
     );
+    final slide = _slide ??= Tween(
+      begin: const Offset(0, 0.02),
+      end: Offset.zero,
+    ).animate(curved);
     return FadeTransition(
       opacity: curved,
-      child: SlideTransition(
-        position: Tween(
-          begin: const Offset(0, 0.02),
-          end: Offset.zero,
-        ).animate(curved),
-        child: child,
-      ),
+      child: SlideTransition(position: slide, child: child),
     );
+  }
+
+  @override
+  void dispose() {
+    _curved?.dispose();
+    super.dispose();
   }
 }
 
