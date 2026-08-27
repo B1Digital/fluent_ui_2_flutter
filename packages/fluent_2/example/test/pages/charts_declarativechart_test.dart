@@ -344,14 +344,26 @@ void main() {
       // `RenderRepaintBoundary.toImage`: its future is driven by the real event
       // loop, and a press dispatched under the fake one starts a rasterisation
       // that can never complete.
-      await tester.runAsync(() async {
-        await tester.tap(find.text('Download'));
-        await Future<void>.delayed(const Duration(milliseconds: 300));
-      });
-      await settle(tester);
+      await tester.runAsync(() => tester.tap(find.text('Download')));
+
+      // Polled, not slept. A fixed wait here was flaky: the rasterisation runs
+      // on the REAL event loop, so its latency scales with machine load, and a
+      // 300ms budget that is ample for this file alone is not ample inside a
+      // full-suite run. Each turn of the loop has to leave `runAsync` to pump,
+      // because the result arrives via `setState` and the tree does not rebuild
+      // while real async work is in flight.
+      final exported = find.textContaining(
+        RegExp(r'^Exported [1-9]\d* bytes$'),
+      );
+      for (var i = 0; i < 60 && exported.evaluate().isEmpty; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)),
+        );
+        await settle(tester);
+      }
 
       expect(
-        find.textContaining(RegExp(r'^Exported [1-9]\d* bytes$')),
+        exported,
         findsOneWidget,
         reason: 'the export must produce real PNG bytes, not an empty buffer',
       );
