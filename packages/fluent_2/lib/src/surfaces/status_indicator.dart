@@ -1,4 +1,5 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/semantics.dart' show SemanticsRole;
 import 'package:flutter/widgets.dart';
 
 import '../internal/interaction.dart';
@@ -438,6 +439,20 @@ class FluentStatusIndicator extends StatelessWidget {
     if (semanticLabel == null) return indicator;
     return Semantics(
       label: semanticLabel,
+      // The component reports a state that changes without the user acting, so
+      // upstream gives it `role="status"`. No `liveRegion` here — a node cannot
+      // carry both (3.41.0 `semantics.dart:176-177`, `_noLiveRegion`).
+      role: SemanticsRole.status,
+      // `container` is load-bearing, not tidiness. Without it this annotation
+      // is not a semantic boundary, so an ancestor `Semantics(liveRegion: true)`
+      // absorbs the role into its own node — `isCompatibleWith` rejects two
+      // roles or two values but says nothing about a role meeting a live region
+      // (`semantics.dart:6776`) — and the framework then throws
+      // "A node can not have SemanticsRole.status and be live region at the same
+      // time". `FluentField` wraps its `validationMessage` in exactly such a
+      // node (`inputs/field.dart:345-349`), which is where this bit first.
+      // `FluentPresenceBadge` already carries `container` for the same reason.
+      container: true,
       child: ExcludeSemantics(child: indicator),
     );
   }

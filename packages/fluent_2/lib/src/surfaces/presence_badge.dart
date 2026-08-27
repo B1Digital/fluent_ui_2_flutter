@@ -1,4 +1,5 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/semantics.dart' show SemanticsRole;
 import 'package:flutter/widgets.dart';
 
 import '../internal/interaction.dart';
@@ -379,6 +380,13 @@ class FluentPresenceBadge extends StatelessWidget {
 
     return Semantics(
       label: state.semanticLabel,
+      // Upstream renders the badge with `role="status"`: presence changes on
+      // its own, so a screen reader has to be able to treat it as a status
+      // rather than as decoration. No `liveRegion` here — a node cannot carry
+      // both (3.41.0 `semantics.dart:176-177`, `_noLiveRegion`), and
+      // `container` is what stops an ancestor's live region from absorbing the
+      // role into its node and tripping that check.
+      role: SemanticsRole.status,
       container: true,
       child: buildFluentPresenceBadge(state, resolved, const <WidgetState>{}),
     );

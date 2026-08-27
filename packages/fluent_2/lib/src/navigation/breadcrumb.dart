@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/semantics.dart' show SemanticsRole;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -706,7 +707,9 @@ class FluentBreadcrumb extends StatefulWidget {
   /// Announced by assistive technology for the trail as a whole.
   ///
   /// The counterpart of upstream's `<nav aria-label>`. Defaults to nothing,
-  /// because a page with one trail needs no label to disambiguate it.
+  /// because a page with one trail needs no label to disambiguate it. It also
+  /// gates `SemanticsRole.navigation`: an unnamed trail is left without the
+  /// role, because two unnamed navigation landmarks on one page assert.
   final String? semanticLabel;
 
   @override
@@ -1105,6 +1108,15 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
       container: true,
       explicitChildNodes: true,
       label: widget.semanticLabel,
+      // Upstream's `<nav>`, but only once the caller has named it: two
+      // unlabelled navigation landmarks anywhere in one tree throw
+      // (`_DebugSemanticsRoleChecks._semanticsNavigation`, semantics.dart:543),
+      // and a FluentBreadcrumb beside a FluentNav is the ordinary page. That
+      // check tests `label.isEmpty`, not nullness, so `semanticLabel: ''` has
+      // to be treated as unnamed too or it re-arms the throw it dodges.
+      role: (widget.semanticLabel?.isEmpty ?? true)
+          ? null
+          : SemanticsRole.navigation,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         // Figma binds `Spacing/Horizontal/None` on the `Breadcrumb` frame: the

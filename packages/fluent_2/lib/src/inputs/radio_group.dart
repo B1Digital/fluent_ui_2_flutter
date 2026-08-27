@@ -32,14 +32,22 @@ enum FluentRadioGroupLayout {
 /// ```
 ///
 /// [children] is a plain widget list rather than a list of `FluentRadio`,
-/// because the selection reaches each radio through [FluentRadioGroupScope]
-/// rather than by being passed down — so a radio may sit at any depth, wrapped
-/// in whatever layout the caller needs.
+/// because nothing is passed down positionally: the selection reaches each
+/// radio through the framework's [RadioGroup] and the presentation through
+/// [FluentRadioGroupScope], both inherited — so a radio may sit at any depth,
+/// wrapped in whatever layout the caller needs.
 ///
 /// The group paints nothing. It has no style struct and no theme for the same
 /// reason upstream's `useRadioGroupStyles` binds no token: its entire
 /// contribution is a flex direction, and the spacing between rows is the
 /// indicator margin each radio already carries.
+///
+/// Keyboard behaviour is the framework's [RadioGroup], which is the WAI-ARIA
+/// [radio group pattern](https://www.w3.org/WAI/ARIA/apg/patterns/radio/):
+/// Tab moves into the group *once*, landing on the selected radio (or the first
+/// one when nothing is selected), and the arrow keys move the selection from
+/// there, wrapping at both ends. Before adopting it every radio was its own tab
+/// stop, which is the violation this closes.
 class FluentRadioGroup<T> extends StatelessWidget {
   /// Creates a group around [children].
   const FluentRadioGroup({
@@ -97,14 +105,29 @@ class FluentRadioGroup<T> extends StatelessWidget {
             children: children,
           );
 
-    return FluentRadioGroupScope<T>(
-      value: value,
-      onChanged: onChanged,
-      disabled: disabled || onChanged == null,
-      labelPosition: layout == FluentRadioGroupLayout.horizontalStacked
-          ? FluentRadioLabelPosition.below
-          : FluentRadioLabelPosition.after,
-      child: Semantics(container: true, label: semanticLabel, child: content),
+    // The name goes on the OUTSIDE. `RadioGroup` contributes its own
+    // `Semantics(container: true, role: radioGroup)` node, so a label placed
+    // under it would be the inner of two nested containers and would no longer
+    // be what a reader — or `WidgetTester.getSemantics` — finds for this widget.
+    return Semantics(
+      container: true,
+      label: semanticLabel,
+      child: RadioGroup<T>(
+        groupValue: value,
+        // `RadioGroup` reports `T?` because a toggleable `RawRadio` can clear
+        // the selection. No Fluent radio is toggleable, so the null never
+        // arrives; dropping it here is what keeps the public API non-nullable.
+        onChanged: (selected) {
+          if (selected != null) onChanged?.call(selected);
+        },
+        child: FluentRadioGroupScope<T>(
+          disabled: disabled || onChanged == null,
+          labelPosition: layout == FluentRadioGroupLayout.horizontalStacked
+              ? FluentRadioLabelPosition.below
+              : FluentRadioLabelPosition.after,
+          child: content,
+        ),
+      ),
     );
   }
 }

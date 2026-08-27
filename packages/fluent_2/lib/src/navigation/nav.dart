@@ -3,6 +3,7 @@ import 'dart:ui' show lerpDouble;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/foundation.dart' show setEquals;
+import 'package:flutter/semantics.dart' show SemanticsRole;
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 
@@ -882,6 +883,9 @@ class FluentNav extends StatefulWidget {
   final ValueChanged<Set<Object>>? onOpenChange;
 
   /// Announced by assistive technology as the name of this navigation region.
+  ///
+  /// It also gates `SemanticsRole.navigation`: an unnamed nav is left without
+  /// the role, because two unnamed navigation landmarks on one page assert.
   final String? semanticLabel;
 
   @override
@@ -1085,6 +1089,15 @@ class _FluentNavState extends State<FluentNav> {
     container: true,
     explicitChildNodes: true,
     label: widget.semanticLabel,
+    // Upstream's `<nav>`, but only once the caller has named it: two unlabelled
+    // navigation landmarks anywhere in one tree throw
+    // (`_DebugSemanticsRoleChecks._semanticsNavigation`, semantics.dart:543),
+    // and a FluentNav beside a FluentBreadcrumb is the ordinary page. That
+    // check tests `label.isEmpty`, not nullness, so `semanticLabel: ''` has to
+    // be treated as unnamed too or it re-arms the throw it is meant to dodge.
+    role: (widget.semanticLabel?.isEmpty ?? true)
+        ? null
+        : SemanticsRole.navigation,
     child: _FluentNavScope(
       size: widget.size,
       tabbable: widget.tabbable,

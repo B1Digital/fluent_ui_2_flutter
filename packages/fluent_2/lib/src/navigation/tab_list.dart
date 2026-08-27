@@ -818,7 +818,12 @@ class FluentTab<T extends Object> extends StatelessWidget {
 /// )
 /// ```
 ///
-/// ## Keyboard
+/// ## Keyboard: one tab stop, arrows inside
+///
+/// The whole list is a single stop in the Tab order — the WAI-ARIA
+/// composite-widget rule a `tablist` is held to, and upstream's roving tabindex
+/// via `useArrowNavigationGroup`. Tab moves in and straight back out; the stop
+/// sits on the selected tab, so Tabbing away and back returns to it.
 ///
 /// Arrow keys along the list's own axis move the selection — Fluent selects on
 /// arrow rather than only moving focus — and `Home` and `End` jump to the first
@@ -919,6 +924,11 @@ class _FluentTabListState<T extends Object> extends State<FluentTabList<T>>
   void didUpdateWidget(FluentTabList<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
     _prune();
+    // [_tabStop] is derived, so it can move on any update — a new selection, or
+    // the tab that held it being disabled out from under it. Either way the tab
+    // that gains it has to be un-latched once the frame that reopens its gate
+    // has been built. See [_unlatch].
+    WidgetsBinding.instance.addPostFrameCallback((_) => _unlatch());
     final from = oldWidget.selectedValue;
     final to = widget.selectedValue;
     if (from == to || from == null || to == null) return;
@@ -959,6 +969,50 @@ class _FluentTabListState<T extends Object> extends State<FluentTabList<T>>
 
   FocusNode _focusNodeFor(Object value) =>
       _focusNodes.putIfAbsent(value, () => FocusNode(debugLabel: 'FluentTab'));
+
+  /// The value of the tab that owns the list's single tab stop.
+  ///
+  /// WAI-ARIA parks a composite widget's roving tabindex on its selected item,
+  /// and here that is also where focus already is — an arrow *selects*, so
+  /// focus and selection never disagree and there is no second index to carry.
+  /// Derived rather than stored for the same reason: a Tab round trip lands
+  /// back on the selected tab because it is the selected tab.
+  ///
+  /// The fallback to the first live tab is not a nicety. Without it a list with
+  /// nothing selected yet would have zero tab stops, and disabling the selected
+  /// tab would strand the whole control outside the Tab order.
+  Object? get _tabStop {
+    // A list with no callback has no live tab, and a control nobody can operate
+    // is not a tab stop.
+    if (widget.onSelect == null) return null;
+    for (final tab in widget.tabs) {
+      if (tab.enabled && tab.value == widget.selectedValue) return tab.value;
+    }
+    for (final tab in widget.tabs) {
+      if (tab.enabled) return tab.value;
+    }
+    return null;
+  }
+
+  /// Clears the `skipTraversal` the tab holding the stop latched onto its own
+  /// node while its gate was shut.
+  ///
+  /// `Focus.skipTraversal` falls back to `focusNode.skipTraversal` when the
+  /// widget passes none — and *that* getter is derived
+  /// (`focus_manager.dart:489`): it reports true while any ancestor has
+  /// `descendantsAreTraversable: false`. A tab is built on
+  /// `FocusableActionDetector`, which passes none, so any rebuild under a shut
+  /// gate writes the derived true back onto the tab's own node as a hard flag
+  /// (`focus_scope.dart:663`) and the tab then stays out of the Tab order for
+  /// good, gate or no gate. One assignment per update undoes it, and the tab's
+  /// next build writes the cleared value straight back, so it sticks.
+  /// `_FluentNavState._unlatch` and `_FluentToolbarState._unlatch` are the same
+  /// fix for the same framework behaviour.
+  void _unlatch() {
+    if (!mounted) return;
+    final stop = _tabStop;
+    if (stop != null) _focusNodes[stop]?.skipTraversal = false;
+  }
 
   /// The tab's start and length along the list's own axis, in global
   /// coordinates, or null when it is not laid out.
@@ -1083,9 +1137,25 @@ class _FluentTabListState<T extends Object> extends State<FluentTabList<T>>
               : FluentSpacing.sNudge)
         : FluentSpacing.none;
 
+    final stop = _tabStop;
     final children = <Widget>[
       for (final tab in widget.tabs)
-        KeyedSubtree(key: _keyFor(tab.value), child: tab),
+        KeyedSubtree(
+          key: _keyFor(tab.value),
+          // One traversable subtree at a time — that is what a roving tabindex
+          // *is*, and what the SemanticsRole.tabBar below already claims. A
+          // handle, not a stop: it never takes focus itself, and it gates only
+          // *traversal*, so the arrows' own requestFocus still reaches a tab
+          // whose gate is shut. Semantics are left off it for the same reason —
+          // it is not a control, and the tab under it already announces itself.
+          child: Focus(
+            canRequestFocus: false,
+            skipTraversal: true,
+            descendantsAreTraversable: tab.value == stop,
+            includeSemantics: false,
+            child: tab,
+          ),
+        ),
     ];
 
     final Widget row = horizontal

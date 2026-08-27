@@ -1,4 +1,6 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/semantics.dart' show SemanticsRole;
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 
 import '../internal/focus_ring.dart';
@@ -338,7 +340,13 @@ class FluentRadioTheme extends InheritedTheme {
       FluentRadioTheme(style: style, child: child);
 }
 
-/// Carries a `FluentRadioGroup`'s selection down to the radios inside it.
+/// Carries a `FluentRadioGroup`'s *presentation* down to the radios inside it.
+///
+/// The **selection** does not travel this way: it rides the framework's
+/// [RadioGroup] / [RadioGroupRegistry] instead, which is what buys the group a
+/// single tab stop and arrow-key navigation. This scope carries only the two
+/// things `RadioGroup` has no concept of — Fluent's `disabled` axis and the
+/// label position the group's layout implies.
 ///
 /// Public because a `FluentRadio` is free to live anywhere under the group —
 /// inside a card, a row, someone else's layout widget — so the link has to be
@@ -350,18 +358,10 @@ class FluentRadioGroupScope<T> extends InheritedWidget {
   /// Creates a scope. Normally created by `FluentRadioGroup`.
   const FluentRadioGroupScope({
     super.key,
-    required this.value,
-    required this.onChanged,
     required this.disabled,
     required this.labelPosition,
     required super.child,
   });
-
-  /// The group's selected value, or null when nothing is selected.
-  final T? value;
-
-  /// Invoked with the newly selected value. Null disables the whole group.
-  final ValueChanged<T>? onChanged;
 
   /// Whether every radio in the group is disabled.
   final bool disabled;
@@ -375,11 +375,26 @@ class FluentRadioGroupScope<T> extends InheritedWidget {
 
   @override
   bool updateShouldNotify(FluentRadioGroupScope<T> oldWidget) =>
-      value != oldWidget.value ||
-      onChanged != oldWidget.onChanged ||
       disabled != oldWidget.disabled ||
       labelPosition != oldWidget.labelPosition;
 }
+
+// A radio inside a framework `RadioGroup` would otherwise never see Space at
+// all: `RadioGroup` installs a `Shortcuts.manager` that binds Space to its own
+// `_toggleFocusedRadio` (`radio_group.dart:96` in the SDK), and that manager
+// sits NEARER the focus node than `WidgetsApp`'s defaults, so it consumes the
+// key before `ActivateIntent` is ever dispatched. Worse, `_toggleFocusedRadio`
+// silently no-ops when the focused radio is already the selected one and is not
+// tristate — which would quietly break the contract documented on
+// [FluentRadio.onChanged], that re-selecting the selection still reports it.
+//
+// Re-binding Space here, one `Shortcuts` closer to the radio's focus node than
+// `RadioGroup`'s, restores the documented behaviour. It is a no-op outside a
+// group: it maps Space to exactly what `WidgetsApp` already maps it to.
+const Map<ShortcutActivator, Intent> _spaceActivates =
+    <ShortcutActivator, Intent>{
+      SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+    };
 
 /// A Fluent 2 radio: one option in a mutually exclusive set.
 ///
@@ -407,13 +422,21 @@ class FluentRadioGroupScope<T> extends InheritedWidget {
 /// reporting hover and press, refuses focus, and resolves
 /// `Neutral/Stroke/Disabled` rather than fading its enabled colour.
 ///
+/// Inside a `FluentRadioGroup` the *whole group* is a single tab stop and the
+/// arrow keys move the selection, wrapping at both ends — the WAI-ARIA radio
+/// group pattern, supplied by the framework's [RadioGroup] via [RadioClient].
+/// A radio that overrides [groupValue] or [onChanged] has opted out of the
+/// enclosing group's selection model and is therefore left out of that
+/// navigation; it keeps its own tab stop and reports only through its own
+/// callback.
+///
 /// Nothing about a radio animates; see [buildFluentRadio].
 ///
 /// Customisation follows the usual three rungs: [style] is merged last and
 /// wins, [FluentRadioTheme] restyles a subtree, and [resolveFluentRadioState],
 /// [resolveFluentRadioStyle] and [buildFluentRadio] are public so any one of
 /// them can be replaced without forking this widget.
-class FluentRadio<T> extends StatelessWidget {
+class FluentRadio<T> extends StatefulWidget {
   /// Creates a radio for [value].
   const FluentRadio({
     super.key,
@@ -467,52 +490,144 @@ class FluentRadio<T> extends StatelessWidget {
   final String? semanticLabel;
 
   @override
+  State<FluentRadio<T>> createState() => _FluentRadioState<T>();
+}
+
+/// Stateful only to be a [RadioClient]: the framework's [RadioGroupRegistry]
+/// navigates by focus node, so it needs a long-lived object per radio that owns
+/// one and can be registered and unregistered.
+class _FluentRadioState<T> extends State<FluentRadio<T>> with RadioClient<T> {
+  FocusNode? _internalNode;
+
+  /// Owned here rather than left to [FluentInteractive] to create, because the
+  /// registry asks each client which node it has and moves focus between them.
+  @override
+  FocusNode get focusNode =>
+      widget.focusNode ??
+      (_internalNode ??= FocusNode(debugLabel: 'FluentRadio'));
+
+  @override
+  T get radioValue => widget.value;
+
+  /// A Fluent radio cannot be deselected by re-activating it, so the framework
+  /// never takes its `onChanged(null)` path. See [FluentRadio.onChanged].
+  @override
+  bool get tristate => false;
+
+  /// Only enabled radios are ever registered — see the registration in [build]
+  /// — so a client the registry can see is by definition enabled.
+  @override
+  bool get enabled => registry != null;
+
+  @override
+  void dispose() {
+    registry = null;
+    _internalNode?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scope = FluentRadioGroupScope.maybeOf<T>(context);
-    final selection = groupValue ?? scope?.value;
-    final callback = onChanged ?? scope?.onChanged;
+    // Read unconditionally, register conditionally: a DISABLED radio still has
+    // to know the group's selection so it can paint the checked-and-disabled
+    // tokens. Only the `registry` assignment below is gated.
+    final group = RadioGroup.maybeOf<T>(context);
+
+    final selection = widget.groupValue ?? group?.groupValue;
+    // `RadioGroupRegistry.onChanged` is `ValueChanged<T?>` because `RawRadio`
+    // may be toggleable; ours never is, so the nullable parameter is simply
+    // wider than needed and Dart's contravariance accepts it here. The public
+    // API stays non-nullable.
+    final callback = widget.onChanged ?? group?.onChanged;
     final enabled =
-        !disabled && !(scope?.disabled ?? false) && callback != null;
-    final checked = selection == value;
+        !widget.disabled && !(scope?.disabled ?? false) && callback != null;
+    final checked = selection == widget.value;
+
+    // Three traps ride on this one line.
+    //
+    // 1. `enabled` — the SDK's `_SkipUnselectedRadioPolicy` skips every radio
+    //    except the SELECTED one, and does *not* filter on enabled. Registering
+    //    a disabled radio that happens to be the selection therefore leaves the
+    //    group with one focus candidate that refuses focus, i.e. entirely
+    //    unreachable by Tab. Unregistered, it is invisible to the policy, which
+    //    falls back to the first registered radio in reading order.
+    // 2. The overrides — a radio carrying its own `groupValue` or `onChanged`
+    //    is not part of this group's mutually exclusive set, and the registry's
+    //    keyboard paths (`_toggleFocusedRadio`, `_selectRadioInDirection`) all
+    //    report through the GROUP's callback, which would bypass the override.
+    //    Staying out of the registry keeps the override authoritative.
+    // 3. `group` being null — a standalone `FluentRadio` (a tree row, a list
+    //    item, a data-grid selector) has no `RadioGroup` above it and keeps
+    //    working exactly as before, unregistered.
+    registry = enabled && widget.groupValue == null && widget.onChanged == null
+        ? group
+        : null;
 
     final state = resolveFluentRadioState(
       enabled: enabled,
       checked: checked,
       labelPosition:
-          labelPosition ??
+          widget.labelPosition ??
           scope?.labelPosition ??
           FluentRadioLabelPosition.after,
-      label: label,
+      label: widget.label,
     );
 
     // Lowest to highest: defaults, subtree theme, then the caller's own style.
     final resolved = resolveFluentRadioStyle(
       state,
       FluentTheme.of(context),
-    ).merge(FluentRadioTheme.maybeOf(context)).merge(style);
+    ).merge(FluentRadioTheme.maybeOf(context)).merge(widget.style);
 
-    final radio = FluentInteractive(
-      enabled: enabled,
-      // Re-selecting the selected radio still reports the value. Harmless and
-      // idempotent, and it keeps the callback contract "this is the selection
-      // now" rather than "the selection changed", which is what a caller
-      // assigning straight to state wants.
-      onPressed: enabled ? () => callback(value) : null,
-      focusNode: focusNode,
-      autofocus: autofocus,
-      mouseCursor:
-          resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
-          SystemMouseCursors.click,
-      builder: (context, states, _) =>
-          buildFluentRadio(state, resolved, states),
+    final radio = Shortcuts(
+      // No semantics of its own: this node exists only to intercept a key, and
+      // a `focusable: false` annotation between the radio's own `Semantics` and
+      // its `FocusableActionDetector` would split the radio into two nodes.
+      includeSemantics: false,
+      shortcuts: _spaceActivates,
+      child: FluentInteractive(
+        enabled: enabled,
+        // Re-selecting the selected radio still reports the value. Harmless and
+        // idempotent, and it keeps the callback contract "this is the selection
+        // now" rather than "the selection changed", which is what a caller
+        // assigning straight to state wants.
+        onPressed: enabled ? () => callback(widget.value) : null,
+        focusNode: focusNode,
+        autofocus: widget.autofocus,
+        mouseCursor:
+            resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
+            SystemMouseCursors.click,
+        builder: (context, states, _) =>
+            buildFluentRadio(state, resolved, states),
+      ),
     );
 
-    return Semantics(
+    final semantics = Semantics(
       inMutuallyExclusiveGroup: true,
       checked: checked,
       enabled: enabled,
-      label: semanticLabel,
+      label: widget.semanticLabel,
       child: radio,
+    );
+
+    // A fourth consequence of the same opt-out. `RadioGroup` contributes a
+    // `SemanticsRole.radioGroup` node, and the framework validates it: two
+    // checked `inMutuallyExclusiveGroup` descendants under one radiogroup throw
+    // "Radio groups must not have multiple checked children"
+    // (`semantics.dart:338` at 3.41, from the assert at `semantics.dart:4011`).
+    // A radio with its own `groupValue` can be checked at the same time as the
+    // group's own selection, so before this the documented override crashed any
+    // debug build with a screen reader running.
+    //
+    // The validator is not wrong — it is wrong ARIA — so give the opted-out
+    // radio the nested radiogroup it actually is. That is also exactly what the
+    // validator looks for to stop descending (`semantics.dart:328`).
+    if (group == null || widget.groupValue == null) return semantics;
+    return Semantics(
+      container: true,
+      role: SemanticsRole.radioGroup,
+      child: semantics,
     );
   }
 }

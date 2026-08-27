@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/semantics.dart' show SemanticsRole;
 import 'package:flutter/widgets.dart';
 
 import '../internal/animated_style.dart';
@@ -686,6 +687,12 @@ class _FluentSpinnerState extends State<FluentSpinner>
 
     return Semantics(
       label: widget.semanticLabel,
+      // Upstream's `role="progressbar"` on an indeterminate spinner, which is
+      // what Flutter's own indeterminate indicator uses
+      // (`material/progress_indicator.dart:155`). It is the one status-family
+      // role that does not collide with `liveRegion`
+      // (`semantics.dart:186` — `_noCheckRequired`).
+      role: SemanticsRole.loadingSpinner,
       liveRegion: true,
       child: spinner,
     );

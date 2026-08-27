@@ -1,5 +1,6 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/semantics.dart' show SemanticsRole;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -525,21 +526,38 @@ Widget buildFluentDataGrid(
 ) {
   final headerCells = state.headerCells;
 
-  return Column(
-    mainAxisSize: MainAxisSize.min,
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: <Widget>[
-      if (headerCells != null)
-        _surface(
-          state,
-          style,
-          <WidgetState>{...states, if (!state.enabled) WidgetState.disabled},
-          headerCells,
-          header: true,
-        ),
-      for (final row in state.rows)
-        _InteractiveRow(state: state, style: style, grid: states, row: row),
-    ],
+  // The `table` node is emitted HERE rather than from `FluentDataGrid`'s own
+  // `Semantics` because this function is public: `_DebugSemanticsRoleChecks`
+  // asserts "A row must be a child of a table" (semantics.dart:295), so a
+  // consumer who calls this directly has to get the table along with the rows.
+  return Semantics(
+    container: true,
+    role: SemanticsRole.table,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        if (headerCells != null)
+          // The header needs a row node of its own; without it the header cells
+          // would be direct children of the table, which asserts.
+          Semantics(
+            container: true,
+            role: SemanticsRole.row,
+            child: _surface(
+              state,
+              style,
+              <WidgetState>{
+                ...states,
+                if (!state.enabled) WidgetState.disabled,
+              },
+              headerCells,
+              header: true,
+            ),
+          ),
+        for (final row in state.rows)
+          _InteractiveRow(state: state, style: style, grid: states, row: row),
+      ],
+    ),
   );
 }
 
@@ -583,16 +601,33 @@ Widget _surface(
         children: <Widget>[
           for (var i = 0; i < cells.length; i++)
             if (i < offset)
-              SizedBox(width: selectionWidth, child: cells[i])
+              SizedBox(width: selectionWidth, child: _cell(cells[i], header))
             else if (state.columnWidths[i - offset] != null)
-              SizedBox(width: state.columnWidths[i - offset], child: cells[i])
+              SizedBox(
+                width: state.columnWidths[i - offset],
+                child: _cell(cells[i], header),
+              )
             else
-              Expanded(child: cells[i]),
+              Expanded(child: _cell(cells[i], header)),
         ],
       ),
     ),
   );
 }
+
+/// One cell's role node.
+///
+/// This is the single point every cell passes through, which is why the role
+/// lives here and not in `FluentDataGridCell` or in the grid's own cell wrapper:
+/// the selection column holds a bare `FluentCheckbox`/`FluentRadio`, and a
+/// caller of [buildFluentDataGrid] may pass anything at all. Both would
+/// otherwise leave a roleless child under a `row`, which asserts
+/// (semantics.dart:298).
+Widget _cell(Widget cell, bool header) => Semantics(
+  container: true,
+  role: header ? SemanticsRole.columnHeader : SemanticsRole.cell,
+  child: cell,
+);
 
 /// A body row: hover and press from [FluentInteractive], the selected flag from
 /// the row itself, and the surface from [_surface].
@@ -666,6 +701,7 @@ class _InteractiveRowState extends State<_InteractiveRow> {
 
     return Semantics(
       container: true,
+      role: SemanticsRole.row,
       selected: row.selected,
       label: row.semanticLabel,
       child: surface,
@@ -1236,6 +1272,9 @@ class _FluentDataGridState extends State<FluentDataGrid> {
   }
 
   /// Wraps one cell in its roving handle and its fallback stop.
+  ///
+  /// Carries no `cell` role: [_surface] puts that on every cell it lays out, so
+  /// it also covers cells a caller hands to [buildFluentDataGrid] directly.
   Widget _wrap(int r, int c, Widget cell) => Focus(
     focusNode: _wrappers[r][c],
     // A handle, not a stop: never focusable itself, and it hides its subtree

@@ -730,7 +730,12 @@ class FluentListItem<T extends Object> extends StatelessWidget {
 /// )
 /// ```
 ///
-/// ## Keyboard
+/// ## Keyboard: one tab stop, arrows inside
+///
+/// The whole list is a single stop in the Tab order — the WAI-ARIA
+/// composite-widget rule the `SemanticsRole.list` of `listItem`s below is held
+/// to. Tab moves in and straight back out, and the index is remembered, so
+/// Tabbing away and back returns to the row you left.
 ///
 /// Arrow up and down move **focus**, and `Home` and `End` jump to the first and
 /// last enabled row. `Space` — and `Enter`, and a tap — toggle the focused
@@ -792,6 +797,11 @@ class FluentList<T extends Object> extends StatefulWidget {
 class _FluentListState<T extends Object> extends State<FluentList<T>> {
   final Map<Object, FocusNode> _focusNodes = <Object, FocusNode>{};
 
+  /// The row focus last reached. Only a *preference*: [_tabStop] is what
+  /// actually holds the stop, and it re-parks whenever this row has gone away
+  /// or been disabled.
+  Object? _roving;
+
   @override
   void didUpdateWidget(FluentList<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -799,6 +809,10 @@ class _FluentListState<T extends Object> extends State<FluentList<T>> {
     for (final value in _focusNodes.keys.toList()) {
       if (!live.contains(value)) _focusNodes.remove(value)!.dispose();
     }
+    // Disabling or removing the row that held the stop moves it, and the row
+    // that gains it has to be un-latched once the frame that reopens its gate
+    // has been built. See [_unlatch].
+    _scheduleUnlatch();
   }
 
   @override
@@ -813,6 +827,59 @@ class _FluentListState<T extends Object> extends State<FluentList<T>> {
     value,
     () => FocusNode(debugLabel: 'FluentListItem'),
   );
+
+  /// The value of the row that owns the list's single tab stop.
+  ///
+  /// [_roving] when that row is still there and still live, and the first live
+  /// row otherwise. That fallback is not a nicety: without it a list opening on
+  /// a disabled first row would have zero tab stops, and disabling the row
+  /// holding the stop would strand the whole control outside the Tab order.
+  Object? get _tabStop {
+    // A list with no callback has no live row, and a control nobody can operate
+    // is not a tab stop.
+    if (widget.onSelectionChange == null) return null;
+    for (final item in widget.items) {
+      if (item.enabled && item.value == _roving) return item.value;
+    }
+    for (final item in widget.items) {
+      if (item.enabled) return item.value;
+    }
+    return null;
+  }
+
+  /// Keeps the roving index on whichever row the *keyboard* actually reached,
+  /// so an arrow press and a Tab round trip agree on where the list is. A tap
+  /// does not move it: [_toggle] never requests focus — unlike
+  /// `_FluentTabListState._select`, which does — so a pointer selection leaves
+  /// the keyboard's place where it was.
+  void _rowFocused(Object value, {required bool hasFocus}) {
+    if (!hasFocus || !mounted || value == _roving) return;
+    setState(() => _roving = value);
+    _scheduleUnlatch();
+  }
+
+  void _scheduleUnlatch() =>
+      WidgetsBinding.instance.addPostFrameCallback((_) => _unlatch());
+
+  /// Clears the `skipTraversal` the row holding the stop latched onto its own
+  /// node while its gate was shut.
+  ///
+  /// `Focus.skipTraversal` falls back to `focusNode.skipTraversal` when the
+  /// widget passes none — and *that* getter is derived
+  /// (`focus_manager.dart:489`): it reports true while any ancestor has
+  /// `descendantsAreTraversable: false`. A row is built on
+  /// `FocusableActionDetector`, which passes none, so any rebuild under a shut
+  /// gate writes the derived true back onto the row's own node as a hard flag
+  /// (`focus_scope.dart:663`) and the row then stays out of the Tab order for
+  /// good, gate or no gate. One assignment per move undoes it, and the row's
+  /// next build writes the cleared value straight back, so it sticks.
+  /// `_FluentNavState._unlatch` and `_FluentToolbarState._unlatch` are the same
+  /// fix for the same framework behaviour.
+  void _unlatch() {
+    if (!mounted) return;
+    final stop = _tabStop;
+    if (stop != null) _focusNodes[stop]?.skipTraversal = false;
+  }
 
   void _toggle(T value) {
     final callback = widget.onSelectionChange;
@@ -870,6 +937,7 @@ class _FluentListState<T extends Object> extends State<FluentList<T>> {
 
   @override
   Widget build(BuildContext context) {
+    final stop = _tabStop;
     return Shortcuts(
       shortcuts: _shortcuts,
       // Deliberately outside any FocusScope: an Actions that sits *inside* one
@@ -907,7 +975,25 @@ class _FluentListState<T extends Object> extends State<FluentList<T>> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: widget.items,
+              children: <Widget>[
+                for (final item in widget.items)
+                  // One traversable subtree at a time — that is what a roving
+                  // tabindex *is*. A handle, not a stop: it never takes focus
+                  // itself, and it gates only *traversal*, so the arrows' own
+                  // requestFocus still reaches a row whose gate is shut.
+                  // Semantics are left off it for the same reason — it is not a
+                  // control, and `explicitChildNodes` above would otherwise
+                  // wrap every row in a second, empty node.
+                  Focus(
+                    canRequestFocus: false,
+                    skipTraversal: true,
+                    descendantsAreTraversable: item.value == stop,
+                    includeSemantics: false,
+                    onFocusChange: (value) =>
+                        _rowFocused(item.value, hasFocus: value),
+                    child: item,
+                  ),
+              ],
             ),
           ),
         ),

@@ -50,9 +50,11 @@ const double fluentNavDrawerWidth = 260;
 ///
 /// ## Divergence
 ///
-/// Upstream sets `role="navigation"` on the panel. Flutter's `SemanticsRole`
-/// has no `navigation` member, so [semanticLabel] and the drawer's existing
-/// route semantics stand in for it.
+/// Upstream sets `role="navigation"` on the panel. Here that role lives on the
+/// `FluentNav` passed as [child], and only when *it* is given a semantic label.
+/// The panel's own node already carries [semanticLabel] and the drawer's route
+/// semantics; a second labelled node wrapped around it would only announce the
+/// drawer twice.
 class FluentNavDrawer extends StatelessWidget {
   /// Creates a nav drawer around [child].
   const FluentNavDrawer({

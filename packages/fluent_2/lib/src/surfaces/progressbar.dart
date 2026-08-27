@@ -2,6 +2,7 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 // For clampDouble, which widgets.dart re-exports the rest of foundation but
 // not this one helper.
 import 'package:flutter/foundation.dart';
+import 'package:flutter/semantics.dart' show SemanticsRole;
 import 'package:flutter/widgets.dart';
 
 import '../internal/animated_style.dart';
@@ -436,11 +437,27 @@ class FluentProgressBar extends StatelessWidget {
     final progress = value;
     return Semantics(
       label: semanticLabel,
+      // Determinate only. `SemanticsRole.progressBar` requires a value inside a
+      // min/max range and throws without one (`semantics.dart:209-247`), and an
+      // indeterminate bar has no value to give.
+      role: progress == null ? null : SemanticsRole.progressBar,
+      // A bare `50` is uninterpretable without the range it sits in. Flutter's
+      // own bar reports the same 0-100 scale
+      // (`material/progress_indicator.dart:156-157`).
+      minValue: progress == null ? null : '0',
+      maxValue: progress == null ? null : '100',
       // Null while indeterminate: announcing 0% would be a claim about progress
       // that has not been made.
+      //
+      // No `%` suffix, which this used to carry. At the package's Flutter
+      // floor the role check parses the value with a bare `double.parse` and
+      // reports `must be valid numbers` on anything else (3.41.0
+      // `semantics.dart:228`); 3.47 relaxed that to accept a percent sign, but
+      // the floor is what ships. The role plus the 0-100 range is what makes a
+      // platform announce a percentage now, so nothing is lost.
       value: progress == null
           ? null
-          : '${(clampDouble(progress, 0, 1) * 100).round()}%',
+          : '${(clampDouble(progress, 0, 1) * 100).round()}',
       // Empty, not the ambient set: nothing above a progress bar should be able
       // to repaint it as hovered or pressed by accident.
       child: buildFluentProgressBar(state, resolved, const <WidgetState>{}),
