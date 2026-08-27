@@ -1,3 +1,72 @@
+## Unreleased
+
+### Changed
+
+- **BREAKING: `FluentPopoverArrowPainter` now requires `textDirection`.** The
+  painter drew a fixed physical apex while `buildFluentPopover` lays its arrow
+  out with a direction-aware `Row`, so in an RTL subtree the arrow appeared on
+  the wrong edge pointing into its own surface. Pass
+  `Directionality.of(context)`. Required rather than defaulted to LTR so the
+  same silent mirroring bug cannot be reintroduced by omission — the convention
+  `FluentSliderPainter` and the chart painters already follow.
+
+### Fixed
+
+- **Text controls had no context menu at all.** `FluentTextSelectionControls`
+  extended `TextSelectionControls` rather than mixing in
+  `TextSelectionHandleControls`, so `TextSelectionOverlay.showToolbar` took the
+  legacy `buildToolbar` path — which returned an empty widget — and never
+  consulted `EditableText.contextMenuBuilder`. Right-click and long-press
+  produced nothing on `FluentInput`, `FluentTextarea`, `FluentSearchBox` and
+  `FluentSpinButton`.
+- **A subtree `FluentThemeOverride` no longer leaks out of the text context
+  menu.** `ContextMenuController.show` captures inherited themes from inside its
+  own `OverlayEntry.builder`, where `from:` and `to:` are both already below the
+  `Navigator`, so the capture came back empty; `fluentTextContextMenuBuilder`
+  now captures at the call site.
+- **`FluentNav` and `FluentToolbar` could become permanently unreachable by
+  Tab.** Disabling the row or item holding the roving tab stop left the control
+  with zero tab stops, and no registration event fired to re-park it. The
+  toolbar additionally had to clear the derived `skipTraversal` its item latched
+  onto its own node while its gate was shut.
+- **`FluentDataGrid` painted no focus ring on the first cell reached by Tab** —
+  the rebuild was gated on the cell having moved, and the cell you enter is
+  always the one already holding the roving index.
+- **Popups no longer open off-screen.** `FluentTagPicker`, `FluentTimePicker`,
+  `FluentBreadcrumb`'s overflow, `FluentInfoButton` and `FluentMenu` now clamp
+  to the room actually left beside their anchor and flip to the other side
+  rather than collapsing. A bottom-edge `FluentMenu` trigger previously rendered
+  a surface of height zero — focus moved into it, Escape bound to it, and
+  nothing painted. Submenus measured their anchor row's position inside the
+  parent surface and read it as a screen coordinate, overhanging the viewport by
+  exactly the parent's own `y`.
+- **Open popups no longer go stale.** `FluentDropdown`, `FluentTagPicker` and
+  `FluentTimePicker` rebuild their overlay when a dependency moves, so resizing
+  the window re-measures the maximum height and a theme swap repaints the popup.
+- **RTL.** `FluentPopover` implemented its documented reading-order positioning
+  physically; `FluentTooltip` picked the wrong side and mirrored its arrow
+  wrongly; `FluentCarousel`'s arrow keys ran opposite to its visible motion and
+  its buttons were pinned to physical edges; `FluentRating` painted, hit-tested
+  and arrow-keyed left-to-right only. `Directionality` also does not cross an
+  `OverlayEntry` boundary and is now carried explicitly into the popover,
+  dialog, toast and menu overlays.
+- **Leaks and lifecycle.** Four `OverlayEntry`s were removed without being
+  disposed (`FluentDatePicker`, `FluentTimePicker`); `FluentDatePicker` disposed
+  its `FocusScope` node before removing the entry that builds under it;
+  `FluentTree` never pruned focus nodes for removed items; `FluentTabList` never
+  disposed its flip `CurvedAnimation`; `FluentSpinButton` left a focus listener
+  on its internal node.
+- **`FluentMenu` no longer closes an open submenu on an unrelated rebuild.** It
+  compared its `items` list by identity, which is false for any caller passing a
+  fresh list literal.
+- **A right-click no longer paints the pressed token** on every control built on
+  `FluentInteractive`.
+- **An overlay `FluentDrawer` now hides the page behind it from assistive
+  technology**, and `FluentBreadcrumb`'s invisible dismiss scrim no longer
+  appears in the semantics tree as an unlabelled full-screen button.
+- **`FluentTooltip` no longer announces its content twice** when a
+  `semanticLabel` is set.
+
 ## 0.0.2
 
 ### Added

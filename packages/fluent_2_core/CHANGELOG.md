@@ -1,3 +1,15 @@
+## Unreleased
+
+### Fixed
+
+- **`FluentPageRoute` no longer allocates a `CurvedAnimation` per frame.**
+  `buildTransitions` runs from the route's own `AnimatedBuilder`, so every frame
+  of a transition built — and never disposed — a new curve holding a status
+  listener on its parent. It is now built once and disposed with the route.
+- **`FluentThemeOverride` no longer takes a theme dependency when it has nothing
+  to override.** It read the ancestor theme before its own early return, so a
+  no-op override rebuilt its whole subtree on any ancestor theme change.
+
 ## 0.0.2
 
 - Use the Fluent 2 project logo as the pub.dev thumbnail.
