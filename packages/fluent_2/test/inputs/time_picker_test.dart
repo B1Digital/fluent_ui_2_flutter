@@ -17,6 +17,7 @@ Future<void> _pump(
   int increment = 60,
   FluentTimePickerAppearance appearance = FluentTimePickerAppearance.outline,
   Widget? placeholder,
+  ValueChanged<bool>? onOpenChange,
 }) async {
   await tester.pumpWidget(
     FluentApp(
@@ -35,6 +36,7 @@ Future<void> _pump(
             increment: increment,
             appearance: appearance,
             placeholder: placeholder,
+            onOpenChange: onOpenChange,
             hourCycle: FluentHourCycle.h23,
           ),
         ),
@@ -267,6 +269,108 @@ void main() {
       await tester.tap(find.byType(FluentTimePicker));
       await tester.pumpAndSettle();
       expect(find.text('09:00'), findsNothing);
+    });
+  });
+
+  group('FluentTimePicker — light dismiss', () {
+    // The regression this pins: the listbox used to hang a full-screen
+    // `HitTestBehavior.opaque` barrier under itself, so a click on anything
+    // behind an open listbox dismissed the listbox and went nowhere else — the
+    // user had to click twice. Upstream's combobox dismisses from a
+    // document-level `useOnClickOutside`, where the click dismisses AND lands.
+    testWidgets('an outside click dismisses the listbox and still lands', (
+      tester,
+    ) async {
+      var taps = 0;
+      await tester.pumpWidget(
+        FluentApp(
+          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+          home: Stack(
+            children: <Widget>[
+              Positioned(
+                top: 0,
+                left: 0,
+                width: 280,
+                child: FluentTimePicker(
+                  dateAnchor: _anchor,
+                  onTimeChange: _noop,
+                  startHour: 8,
+                  endHour: 11,
+                  increment: 60,
+                  hourCycle: FluentHourCycle.h23,
+                ),
+              ),
+              // Far enough down that the listbox never covers it.
+              Positioned(
+                bottom: 0,
+                left: 0,
+                width: 200,
+                height: 80,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => taps++,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(FluentTimePicker));
+      await tester.pumpAndSettle();
+      expect(find.text('09:00'), findsOneWidget);
+
+      await tester.tapAt(const Offset(100, 560));
+      await tester.pumpAndSettle();
+
+      expect(find.text('09:00'), findsNothing, reason: 'the click dismissed');
+      expect(taps, 1, reason: 'and the click also landed');
+    });
+
+    // Nothing covered this before: the barrier sat ABOVE the trigger, so the
+    // field's own toggle could not fire while the listbox was open and this
+    // path was dead. With the barrier gone the click reaches the field, and it
+    // has to close exactly once rather than close-then-reopen.
+    testWidgets('clicking the field while open closes it exactly once', (
+      tester,
+    ) async {
+      final opens = <bool>[];
+      await _pump(tester, onOpenChange: opens.add);
+
+      await tester.tap(find.byType(FluentTimePicker));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(FluentTimePicker));
+      await tester.pumpAndSettle();
+
+      expect(opens, <bool>[true, false]);
+      expect(find.text('09:00'), findsNothing);
+    });
+
+    // The other half of the group, and the only part of it a click cannot
+    // show: a press that lands on the listbox has to count as *inside*. A
+    // scroll drag starts with a press, and `RenderTapRegionSurface` reads
+    // presses, not taps — so a listbox outside the trigger's group would
+    // dismiss itself the moment the user reached in to scroll it. A row click
+    // would not reveal that: the recogniser keeps the pointer route it
+    // captured on the press, so the row still commits either way.
+    testWidgets('a scroll drag inside the listbox does not dismiss it', (
+      tester,
+    ) async {
+      await _pump(tester, startHour: 0, endHour: 24, increment: 15);
+
+      await tester.tap(find.byType(FluentTimePicker));
+      await tester.pumpAndSettle();
+      expect(find.text('00:15'), findsOneWidget);
+
+      await tester.drag(find.text('00:15'), const Offset(0, -120));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byType(SingleChildScrollView),
+        findsOneWidget,
+        reason: 'the listbox is still open',
+      );
     });
   });
 

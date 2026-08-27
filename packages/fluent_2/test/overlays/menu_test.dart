@@ -660,6 +660,77 @@ void main() {
       expect(find.text('Cut'), findsNothing);
     });
 
+    // The reason the full-screen `HitTestBehavior.opaque` barrier had to go.
+    // Upstream dismisses from a document-level `useOnClickOutside` listener, so
+    // the click that closes a menu also presses the button under it; the
+    // barrier swallowed it and cost the user a second click.
+    testWidgets('a tap outside dismisses AND still reaches what it landed on', (
+      tester,
+    ) async {
+      const behindKey = Key('behind');
+      var pressed = 0;
+      await tester.pumpWidget(
+        FluentApp(
+          theme: light(),
+          home: Stack(
+            children: <Widget>[
+              Align(
+                alignment: Alignment.topLeft,
+                child: FluentMenu(
+                  items: <FluentMenuItem>[
+                    FluentMenuItem(label: const Text('Cut'), onPressed: () {}),
+                  ],
+                  builder: (context, toggle) => FluentButton(
+                    key: triggerKey,
+                    onPressed: toggle,
+                    child: const Text('Edit'),
+                  ),
+                ),
+              ),
+              Align(
+                alignment: Alignment.bottomRight,
+                child: FluentButton(
+                  key: behindKey,
+                  onPressed: () => pressed++,
+                  child: const Text('Behind'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      await open(tester);
+      expect(find.text('Cut'), findsOneWidget);
+
+      await tester.tap(find.byKey(behindKey));
+      await tester.pumpAndSettle();
+      expect(find.text('Cut'), findsNothing);
+      expect(pressed, 1);
+    });
+
+    // A dead path until the barrier came out: the barrier sat ABOVE the
+    // trigger, so the trigger's own toggle could never fire while the menu was
+    // open. Now the click reaches it, and it has to close the chain once —
+    // not close it and let a second handler reopen it.
+    testWidgets('clicking the trigger while open closes it exactly once', (
+      tester,
+    ) async {
+      await pumpMenu(tester, <FluentMenuItem>[
+        FluentMenuItem(label: const Text('Cut'), onPressed: () {}),
+      ]);
+      await open(tester);
+      expect(find.text('Cut'), findsOneWidget);
+
+      await tester.tap(find.byKey(triggerKey));
+      await tester.pumpAndSettle();
+      expect(find.text('Cut'), findsNothing);
+
+      // And the trigger is still a toggle afterwards, which is what a stuck
+      // `onTapOutside` registration would break.
+      await open(tester);
+      expect(find.text('Cut'), findsOneWidget);
+    });
+
     testWidgets('an empty item list never opens', (tester) async {
       await pumpMenu(tester, const <FluentMenuItem>[]);
       await open(tester);
@@ -744,23 +815,6 @@ void main() {
       // not a hardcoded transparent colour.
       expect(light().colors.transparentStroke.a, 0.0);
       expect(border.top.color, highContrast().colors.transparentStroke);
-    });
-
-    testWidgets('the dismiss barrier paints nothing at all', (tester) async {
-      await pumpMenu(tester, <FluentMenuItem>[
-        FluentMenuItem(label: const Text('Cut'), onPressed: () {}),
-      ], theme: highContrast());
-      await open(tester);
-      // A menu has no scrim — a hardcoded transparent one would turn opaque in
-      // high contrast, so the barrier is a bare hit-test region.
-      expect(
-        find.descendant(
-          of: find.byType(GestureDetector),
-          matching: find.byType(ColoredBox),
-          matchRoot: true,
-        ),
-        findsNothing,
-      );
     });
 
     testWidgets('every theme resolves a visible row label', (tester) async {
@@ -1058,6 +1112,35 @@ void main() {
       expect(invoked, <String>['Values']);
       expect(find.text('Cut'), findsNothing);
       expect(triggerFocus.hasPrimaryFocus, isTrue);
+    });
+
+    // Every level joins the TRIGGER's tap-region group. Group them per level
+    // instead and a click inside a submenu reads as an outside tap for the
+    // root, collapsing the chain under the pointer. The header is the probe
+    // because it is inert: it neither invokes nor opens anything, so the only
+    // thing that could close the menu here is a misclassified outside tap.
+    testWidgets('a click inside a submenu dismisses nothing', (tester) async {
+      await pumpMenu(tester, <FluentMenuItem>[
+        FluentMenuItem(
+          label: const Text('Paste special'),
+          submenu: <FluentMenuItem>[
+            const FluentMenuItem.header(label: Text('Formats')),
+            FluentMenuItem(
+              label: const Text('Values'),
+              onPressed: () => invoked.add('Values'),
+            ),
+          ],
+        ),
+      ], triggerFocus: triggerFocus);
+      await openAndSelectSubmenuRow(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(find.text('Formats'), findsOneWidget);
+
+      await tester.tap(find.text('Formats'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(find.text('Formats'), findsOneWidget);
+      expect(find.text('Paste special'), findsOneWidget);
     });
 
     testWidgets('hover opens after the upstream delay, not before', (

@@ -18,6 +18,7 @@ Future<void> _pump(
   ValueChanged<FluentDatePickerValidationResult>? onValidationResult,
   bool reducedMotion = false,
   Widget? placeholder,
+  ValueChanged<bool>? onOpenChange,
   Widget Function(Widget child)? wrap,
 }) async {
   final picker = FluentDatePicker(
@@ -31,6 +32,7 @@ Future<void> _pump(
     maxDate: maxDate,
     onValidationResult: onValidationResult,
     placeholder: placeholder,
+    onOpenChange: onOpenChange,
   );
   await tester.pumpWidget(
     FluentApp(
@@ -353,6 +355,9 @@ void main() {
       expect(find.byType(FluentCalendar), findsNothing);
     });
 
+    // Load-bearing for the TapRegion, not just for closing: focus is inside
+    // the calendar here, and a tap on empty canvas moves it nowhere, so the
+    // focus-leaves-the-picker path cannot be what closes this.
     testWidgets('a light-dismiss tap closes it', (tester) async {
       await _pump(tester);
       await tester.tap(find.byType(FluentDatePicker));
@@ -361,6 +366,112 @@ void main() {
       await tester.tapAt(const Offset(5, 5));
       await tester.pumpAndSettle();
       expect(find.byType(FluentCalendar), findsNothing);
+    });
+
+    // The regression this pins: the popup used to hang a full-screen
+    // `HitTestBehavior.opaque` barrier under itself, so a click on anything
+    // behind an open calendar dismissed the calendar and went nowhere else —
+    // the user had to click twice. Upstream dismisses from a document-level
+    // `useOnClickOutside`, where the click dismisses AND lands.
+    testWidgets('an outside click dismisses the popup and still lands', (
+      tester,
+    ) async {
+      var taps = 0;
+      final behind = FocusNode();
+      addTearDown(behind.dispose);
+
+      await tester.pumpWidget(
+        FluentApp(
+          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+          home: Stack(
+            children: <Widget>[
+              Positioned(
+                top: 0,
+                left: 0,
+                width: 300,
+                child: FluentDatePicker(today: _today, onSelectDate: _noop),
+              ),
+              // Far enough down that the calendar never covers it.
+              Positioned(
+                bottom: 0,
+                left: 0,
+                width: 200,
+                height: 80,
+                child: Focus(
+                  focusNode: behind,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      taps++;
+                      behind.requestFocus();
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(FluentDatePicker));
+      await tester.pumpAndSettle();
+      expect(find.byType(FluentCalendar), findsOneWidget);
+
+      await tester.tapAt(const Offset(100, 560));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byType(FluentCalendar),
+        findsNothing,
+        reason: 'the click dismissed',
+      );
+      expect(taps, 1, reason: 'and the click also landed');
+      // `_syncEntry` restores focus only when the surface being torn down was
+      // holding it. The tap-outside now fires on pointer *down*, before the
+      // thing behind takes focus on pointer up, so that restore must not steal
+      // the focus back off it.
+      expect(behind.hasFocus, isTrue, reason: 'and the focus was not stolen');
+    });
+
+    // Nothing covered this before: the barrier sat ABOVE the trigger, so the
+    // field's own toggle could not fire while the calendar was open and this
+    // path was dead. With the barrier gone the click reaches the field, and it
+    // has to close exactly once rather than close-then-reopen.
+    testWidgets('clicking the field while open closes it exactly once', (
+      tester,
+    ) async {
+      final opens = <bool>[];
+      await _pump(tester, onOpenChange: opens.add);
+
+      await tester.tap(find.byType(FluentDatePicker));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(FluentDatePicker));
+      await tester.pumpAndSettle();
+
+      expect(opens, <bool>[true, false]);
+      expect(find.byType(FluentCalendar), findsNothing);
+    });
+
+    // `inlinePopup` is documented as having no light dismiss — it is a surface
+    // in this widget's own tree, closed by focus leaving the picker — so no
+    // outside-tap handler is registered for it.
+    testWidgets('inlinePopup does not light-dismiss', (tester) async {
+      await _pump(
+        tester,
+        wrap: (_) => FluentDatePicker(
+          today: _today,
+          onSelectDate: _noop,
+          inlinePopup: true,
+        ),
+      );
+      await tester.tap(find.byType(FluentDatePicker));
+      await tester.pumpAndSettle();
+      expect(find.byType(FluentCalendar), findsOneWidget);
+
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+      expect(find.byType(FluentCalendar), findsOneWidget);
     });
   });
 

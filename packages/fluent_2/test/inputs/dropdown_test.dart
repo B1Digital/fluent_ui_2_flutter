@@ -937,6 +937,127 @@ void main() {
       expect(find.text('Lisbon'), findsNothing);
     });
 
+    testWidgets('a click BEHIND the popup lands, and still dismisses', (
+      tester,
+    ) async {
+      // The popup used to paint a `Positioned.fill` `HitTestBehavior.opaque`
+      // barrier over the whole viewport, so the click that dismissed it was
+      // also swallowed by it: a button behind an open dropdown took two
+      // clicks, and hover and wheel events never reached anything back there
+      // either. Upstream has no barrier — `useOnClickOutside` is a
+      // document-level listener, so the click dismisses AND lands.
+      var behind = 0;
+      await tester.pumpWidget(
+        FluentApp(
+          theme: light(),
+          home: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                // Above the trigger, because the popup itself legitimately
+                // covers what is below it.
+                GestureDetector(
+                  key: const Key('behind'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => behind++,
+                  child: const SizedBox(width: 312, height: 40),
+                ),
+                const SizedBox(
+                  width: 312,
+                  child: FluentDropdown<String>(
+                    key: key,
+                    options: options,
+                    onChanged: _ignore,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byKey(key));
+      await tester.pumpAndSettle();
+      expect(find.text('Lisbon'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('behind')));
+      await tester.pumpAndSettle();
+      expect(find.text('Lisbon'), findsNothing, reason: 'dismissed');
+      expect(behind, 1, reason: 'and the click landed on the first attempt');
+    });
+
+    testWidgets('a wheel scroll behind the popup scrolls, and does NOT '
+        'dismiss', (tester) async {
+      // The other half of the barrier's damage: a PointerScrollEvent never
+      // reached the Scrollable, so the page froze while a dropdown was open.
+      // A wheel event is not a pointer-down, so it is not an outside tap
+      // either — unlike a touch or trackpad drag, which `TapRegion` cannot
+      // tell apart from a tap (`widgets/tap_region.dart:189-193`) and which
+      // therefore does dismiss.
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        FluentApp(
+          theme: light(),
+          home: SingleChildScrollView(
+            controller: controller,
+            child: const Column(
+              children: <Widget>[
+                SizedBox(height: 200),
+                SizedBox(
+                  width: 312,
+                  child: FluentDropdown<String>(
+                    key: key,
+                    options: options,
+                    onChanged: _ignore,
+                  ),
+                ),
+                SizedBox(height: 2000),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byKey(key));
+      await tester.pumpAndSettle();
+      expect(find.text('Lisbon'), findsOneWidget);
+
+      final pointer = TestPointer(1, PointerDeviceKind.mouse);
+      pointer.hover(const Offset(400, 100));
+      await tester.sendEventToBinding(pointer.scroll(const Offset(0, 120)));
+      await tester.pumpAndSettle();
+
+      expect(controller.offset, 120);
+      expect(find.text('Lisbon'), findsOneWidget, reason: 'still open');
+    });
+
+    testWidgets('clicking the trigger while open closes it exactly once', (
+      tester,
+    ) async {
+      // Dead code until the barrier went: the barrier sat ABOVE the trigger,
+      // so the trigger's own toggle could never fire while the popup was up.
+      // Now the click reaches it, and it must close — not close and reopen on
+      // the same click, which is what a second dismissal path would cause.
+      await pump(
+        tester,
+        const FluentDropdown<String>(
+          key: key,
+          options: options,
+          onChanged: _ignore,
+        ),
+      );
+      await tester.tap(find.byKey(key));
+      await tester.pumpAndSettle();
+      expect(find.text('Lisbon'), findsOneWidget);
+
+      await tester.tap(find.byKey(key));
+      await tester.pumpAndSettle();
+      expect(find.text('Lisbon'), findsNothing, reason: 'closed, not reopened');
+
+      await tester.tap(find.byKey(key));
+      await tester.pumpAndSettle();
+      expect(find.text('Lisbon'), findsOneWidget, reason: 'and it reopens');
+    });
+
     testWidgets('opening by TAP still lets the arrows move the active row', (
       tester,
     ) async {

@@ -19,6 +19,10 @@ void main() {
   late void Function({required bool show}) setOpen;
   late List<bool> changes;
 
+  /// The `open` the popover was last built with, so a test trigger can *toggle*
+  /// rather than only ever close.
+  late bool currentOpen;
+
   Future<void> pump(
     WidgetTester tester, {
     bool open = false,
@@ -36,6 +40,7 @@ void main() {
     String? semanticLabel,
     bool reducedMotion = false,
     TextDirection? textDirection,
+    Widget? behind,
   }) {
     changes = <bool>[];
     return tester.pumpWidget(
@@ -48,6 +53,7 @@ void main() {
           child: StatefulBuilder(
             builder: (context, setState) {
               setOpen = ({required bool show}) => setState(() => open = show);
+              currentOpen = open;
               Widget popover = FluentPopover(
                 open: open,
                 onOpenChanged: enabled
@@ -73,7 +79,28 @@ void main() {
               // owns the Overlay: the entry therefore does not inherit this, and
               // an RTL run only passes if the widget carries the direction
               // across the boundary itself.
-              final Widget centred = Center(child: popover);
+              Widget centred = Center(child: popover);
+              if (behind != null) {
+                // Pinned to the top-left corner, well clear of the centred
+                // trigger and of the surface above it, so `tapAt(5, 5)` is
+                // unambiguously a tap on the page *behind* an open popover.
+                // `Alignment.topLeft` rather than the default
+                // `AlignmentDirectional.topStart` so the Stack needs no
+                // ambient [Directionality] on the LTR runs.
+                centred = Stack(
+                  alignment: Alignment.topLeft,
+                  children: <Widget>[
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      width: 80,
+                      height: 40,
+                      child: behind,
+                    ),
+                    centred,
+                  ],
+                );
+              }
               return textDirection == null
                   ? centred
                   : Directionality(
@@ -747,6 +774,93 @@ void main() {
       expect(changes, isEmpty);
       expect(find.byKey(body), findsOneWidget);
     });
+
+    testWidgets('a tap on the surface\'s own padding does not dismiss', (
+      tester,
+    ) async {
+      // The barrier used to catch anything that fell through the surface.
+      // Now the surface has to answer the hit test itself or the tap reads as
+      // "outside" — it does, because `RenderDecoratedBox.hitTestSelf` covers
+      // the whole rounded rect, padding included.
+      await pump(tester);
+      await open(tester);
+      await tester.pumpAndSettle();
+
+      final surface = tester.getRect(
+        find
+            .ancestor(of: find.byKey(body), matching: find.byType(Padding))
+            .first,
+      );
+      await tester.tapAt(surface.topLeft + const Offset(4, 4));
+      await tester.pump();
+      await tester.pump();
+      expect(changes, isEmpty);
+      expect(find.byKey(body), findsOneWidget);
+    });
+
+    testWidgets('an outside tap lands on the control behind it', (
+      tester,
+    ) async {
+      // The defect this replaced: a full-screen `HitTestBehavior.opaque`
+      // barrier over the page dismissed *and* ate the click, so a button behind
+      // an open popover took two clicks. Upstream's document-level
+      // `useOnClickOutside` dismisses without consuming, and so does a
+      // TapRegion group.
+      var behind = 0;
+      await pump(
+        tester,
+        behind: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => behind++,
+          child: const SizedBox.expand(),
+        ),
+      );
+      await open(tester);
+      await tester.pumpAndSettle();
+
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pump();
+      await tester.pump();
+      expect(behind, 1, reason: 'the click dismisses and still lands');
+      expect(changes, <bool>[false]);
+      expect(find.byKey(body), findsNothing);
+    });
+
+    testWidgets('a tap on a toggling trigger while open closes it once', (
+      tester,
+    ) async {
+      // A path that could not run before: the barrier sat above the trigger, so
+      // the trigger's own handler never fired while the popover was open. Now
+      // it does — and because the trigger shares the surface's group, the
+      // outside-tap path stays quiet, so the popover closes once rather than
+      // closing here and reopening in the handler.
+      var taps = 0;
+      await pump(
+        tester,
+        child: GestureDetector(
+          key: trigger,
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            taps++;
+            setOpen(show: !currentOpen);
+          },
+          child: const SizedBox(width: 60, height: 24),
+        ),
+      );
+      await open(tester);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(trigger));
+      await tester.pump();
+      await tester.pump();
+      expect(taps, 1, reason: 'the barrier used to swallow this click whole');
+      expect(
+        changes,
+        isEmpty,
+        reason: 'the trigger is inside the group, so no outside tap fires',
+      );
+      expect(find.byKey(body), findsNothing);
+    });
   });
 
   group('keyboard and focus', () {
@@ -807,6 +921,50 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(node.hasPrimaryFocus, isTrue);
+    });
+
+    testWidgets('an outside tap onto a focusable control keeps it focused', (
+      tester,
+    ) async {
+      // Only reachable now that no barrier is drawn over the page: the tap
+      // dismisses *and* lands, so the control behind takes focus. Handing
+      // focus back to the trigger at that point would undo the click the user
+      // just made, so the restore is guarded on the surface having held focus.
+      final node = FocusNode(debugLabel: 'trigger');
+      addTearDown(node.dispose);
+      final behindNode = FocusNode(debugLabel: 'behind');
+      addTearDown(behindNode.dispose);
+
+      await pump(
+        tester,
+        child: Focus(
+          focusNode: node,
+          child: const SizedBox(key: trigger, width: 40, height: 20),
+        ),
+        behind: Focus(
+          focusNode: behindNode,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: behindNode.requestFocus,
+            child: const SizedBox.expand(),
+          ),
+        ),
+      );
+      node.requestFocus();
+      await tester.pump();
+
+      await open(tester);
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pump();
+      await tester.pump();
+      expect(changes, <bool>[false], reason: 'it still dismisses');
+      expect(
+        behindNode.hasPrimaryFocus,
+        isTrue,
+        reason: 'the control the tap landed on keeps the focus it just took',
+      );
+      expect(node.hasPrimaryFocus, isFalse);
     });
 
     testWidgets('Escape reaches an ancestor while the popover is closed', (

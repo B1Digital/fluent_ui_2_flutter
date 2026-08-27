@@ -8,6 +8,7 @@ library;
 import 'dart:math' as math;
 
 import 'package:fluent_2/fluent_2.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -934,6 +935,225 @@ void main() {
       // Once in the control as a chip, never again in the popup.
       expect(find.text('Katri'), findsOneWidget);
       expect(find.text('Ben'), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Pointer dismissal.
+  //
+  // The popup used to paint a full-screen `HitTestBehavior.opaque` barrier from
+  // inside its OverlayEntry to catch outside taps. It caught everything else
+  // too: a click on a control behind an open list dismissed the list and did
+  // nothing else, hover never arrived, and no wheel event reached the enclosing
+  // Scrollable, so the page could not scroll. Upstream's `useOnClickOutside` is
+  // a document-level listener — the click dismisses AND lands — and a
+  // `TapRegion` group is the framework's version of that.
+  // ---------------------------------------------------------------------------
+
+  group('pointer dismissal', () {
+    /// A real mouse click: press, let a frame or two pass, release.
+    ///
+    /// `tester.tap` fires both ends without a frame in between, which hides
+    /// anything that tears the target down on pointer-DOWN — and that is
+    /// exactly the class of failure this group exists to catch. The device kind
+    /// matters as much: `EditableText` drops focus on a pointer-down outside
+    /// itself for every kind except touch (`editable_text.dart:6876`), so a
+    /// touch-only suite never exercises the desktop path this package ships on.
+    Future<void> click(WidgetTester tester, Finder target) async {
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.down(tester.getCenter(target));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      await mouse.up();
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> openWith(WidgetTester tester, Widget child) async {
+      await tester.pumpWidget(app(child));
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(find.text('Ben'), findsOneWidget);
+    }
+
+    testWidgets('an outside click dismisses AND lands on what is behind it', (
+      tester,
+    ) async {
+      var taps = 0;
+      var hovers = 0;
+      await openWith(
+        tester,
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            MouseRegion(
+              onEnter: (_) => hovers++,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => taps++,
+                child: const SizedBox(height: 40, child: Text('behind')),
+              ),
+            ),
+            const FluentTagPicker<String>(
+              key: key,
+              options: options,
+              autofocus: true,
+              onChanged: _noop,
+            ),
+          ],
+        ),
+      );
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(find.text('behind')));
+      await tester.pump();
+      expect(hovers, 1, reason: 'the barrier swallowed hover as well');
+
+      await mouse.down(tester.getCenter(find.text('behind')));
+      await tester.pump();
+      await mouse.up();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ben'), findsNothing, reason: 'the click must dismiss');
+      expect(taps, 1, reason: 'and the same click must land');
+    });
+
+    testWidgets('clicking the field while open neither closes nor reopens', (
+      tester,
+    ) async {
+      // Dead code until the barrier came out: the barrier sat above the whole
+      // control, so the field's own pointer handlers could never fire while the
+      // popup was up. Both of them route into `_openPopup`, which no-ops on an
+      // already-open picker — the list must survive untouched, not be torn down
+      // and rebuilt, because the field is a text input and this click is a
+      // caret placement.
+      await openWith(
+        tester,
+        const FluentTagPicker<String>(
+          key: key,
+          options: options,
+          autofocus: true,
+          onChanged: _noop,
+        ),
+      );
+      final before = tester.element(find.text('Ben'));
+
+      await click(tester, find.byType(EditableText));
+
+      expect(find.text('Ben'), findsOneWidget);
+      expect(
+        tester.element(find.text('Ben')),
+        same(before),
+        reason: 'a close-then-reopen would rebuild the overlay from scratch',
+      );
+    });
+
+    testWidgets('a mouse click on a row still selects it', (tester) async {
+      var selected = <String>[];
+      await openWith(
+        tester,
+        StatefulBuilder(
+          builder: (context, setState) => FluentTagPicker<String>(
+            key: key,
+            options: options,
+            selected: selected,
+            autofocus: true,
+            onChanged: (value) => setState(() => selected = value),
+          ),
+        ),
+      );
+
+      await click(tester, find.text('Ben'));
+
+      expect(selected, <String>['ben']);
+    });
+
+    testWidgets('a chip dismiss counts as inside: chip goes, list stays', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      var selected = <String>['kat'];
+      await openWith(
+        tester,
+        StatefulBuilder(
+          builder: (context, setState) => FluentTagPicker<String>(
+            key: key,
+            options: options,
+            selected: selected,
+            autofocus: true,
+            dismissSemanticLabel: 'Remove Katri',
+            onChanged: (value) => setState(() => selected = value),
+          ),
+        ),
+      );
+
+      await click(tester, find.bySemanticsLabel('Remove Katri'));
+
+      expect(selected, isEmpty);
+      expect(
+        find.text('Ben'),
+        findsOneWidget,
+        reason: 'removing a chip must not collapse the list being picked from',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('the page behind still scrolls with the popup open', (
+      tester,
+    ) async {
+      // The third symptom the barrier caused, and the one the other tests in
+      // this group do not reach: an opaque `Positioned.fill` is the first hit
+      // in the Overlay's reverse-order hit test, so the page's `Scrollable`
+      // was never in the path and no `PointerScrollEvent` reached it. A wheel
+      // is not a `PointerDownEvent`, so it must scroll WITHOUT dismissing.
+      final scrollController = ScrollController();
+      addTearDown(scrollController.dispose);
+      await tester.pumpWidget(
+        app(
+          SingleChildScrollView(
+            controller: scrollController,
+            child: const Column(
+              children: <Widget>[
+                SizedBox(height: 400, child: Text('above')),
+                FluentTagPicker<String>(
+                  key: key,
+                  options: options,
+                  autofocus: true,
+                  onChanged: _noop,
+                ),
+                SizedBox(height: 2000),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(find.text('Ben'), findsOneWidget);
+
+      // Read after opening: autofocus lets `EditableText` bring its caret on
+      // screen, which legitimately moves this offset before the wheel turns.
+      final before = scrollController.offset;
+      final wheel = TestPointer(1, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(
+        wheel.hover(tester.getCenter(find.text('above'))),
+      );
+      await tester.sendEventToBinding(wheel.scroll(const Offset(0, 120)));
+      await tester.pump();
+
+      expect(
+        scrollController.offset,
+        greaterThan(before),
+        reason: 'the barrier swallowed the wheel too',
+      );
+      expect(
+        find.text('Ben'),
+        findsOneWidget,
+        reason: 'a wheel is not a tap and must not dismiss',
+      );
     });
   });
 
