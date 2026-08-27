@@ -21,13 +21,13 @@
   (3.47 later relaxed this). The `progressBar` role plus the new
   `minValue`/`maxValue` is what makes a screen reader say "percent"; upstream
   Flutter's own `ProgressIndicator` emits a bare number for the same reason.
-- **BREAKING: `FluentPopoverArrowPainter` now requires `textDirection`.** The
-  painter drew a fixed physical apex while `buildFluentPopover` lays its arrow
-  out with a direction-aware `Row`, so in an RTL subtree the arrow appeared on
-  the wrong edge pointing into its own surface. Pass
-  `Directionality.of(context)`. Required rather than defaulted to LTR so the
-  same silent mirroring bug cannot be reintroduced by omission — the convention
-  `FluentSliderPainter` and the chart painters already follow.
+- **`FluentPopoverArrowPainter` takes a `textDirection`.** The painter drew a
+  fixed physical apex while `buildFluentPopover` lays its arrow out with a
+  direction-aware `Row`, so in an RTL subtree the arrow appeared on the wrong
+  edge, pointing into its own surface. Pass `Directionality.of(context)`.
+  Optional, defaulting to `TextDirection.ltr` — which is precisely the behaviour
+  the painter had before the field existed, so this is **not** a breaking
+  change and callers that omit it are unaffected.
 
 ### Fixed
 
