@@ -1,5 +1,6 @@
 import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/semantics.dart' show SemanticsRole;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -942,6 +943,11 @@ void main() {
         find.bySemanticsLabel('Breadcrumb'),
         findsWidgets,
         reason: 'the trail carries the counterpart of <nav aria-label>',
+      );
+      expect(
+        tester.getSemantics(find.byType(FluentBreadcrumb)).role,
+        SemanticsRole.navigation,
+        reason: 'and the <nav> itself, which the label makes safe to attach',
       );
       handle.dispose();
     });

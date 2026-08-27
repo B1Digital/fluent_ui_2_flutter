@@ -1230,6 +1230,80 @@ void main() {
       expect(row.getSemanticsData().hasAction(SemanticsAction.tap), isFalse);
       handle.dispose();
     });
+
+    testWidgets('the grid is a real table: table > row > cell', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(
+        tester,
+        grid(
+          selectionMode: FluentDataGridSelectionMode.multiple,
+          onSelectionChanged: (_) {},
+        ),
+      );
+
+      // A malformed role tree does not merely read badly, it throws:
+      // `_DebugSemanticsRoleChecks` asserts on every one of these edges.
+      final row = tester.getSemantics(find.bySemanticsLabel('Row 1'));
+      expect(row.role, SemanticsRole.row);
+      expect(row.parent?.role, SemanticsRole.table);
+
+      // The header is a row of its own, not a fistful of loose cells hanging
+      // off the table.
+      final headerCell = tester.getSemantics(find.text('Author'));
+      expect(headerCell.role, SemanticsRole.columnHeader);
+      expect(headerCell.parent?.role, SemanticsRole.row);
+      expect(headerCell.parent?.parent?.role, SemanticsRole.table);
+
+      expect(tester.getSemantics(find.text('Name 0')).role, SemanticsRole.cell);
+
+      // The selection column is a bare checkbox, not a `FluentDataGridCell` —
+      // it still has to be a cell, and in the header a column header.
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Select row 1')).role,
+        SemanticsRole.cell,
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Select all rows')).role,
+        SemanticsRole.columnHeader,
+      );
+
+      handle.dispose();
+    });
+
+    testWidgets('buildFluentDataGrid emits its own table, so a direct caller '
+        'does not trip "A row must be a child of a table"', (tester) async {
+      final handle = tester.ensureSemantics();
+      final state = resolveFluentDataGridState(
+        columnWidths: const <double?>[null],
+        headerCells: const <Widget>[Text('H')],
+        rows: <FluentDataGridRenderRow>[
+          FluentDataGridRenderRow(
+            selected: false,
+            // A cell of the caller's own that raises a semantics node. Without
+            // a role from the render function this is a roleless child of a
+            // row, which asserts.
+            cells: <Widget>[Semantics(container: true, child: const Text('x'))],
+          ),
+        ],
+      );
+      // Pumping is the assertion: the role checks run during semantics
+      // compilation, so a row emitted without a table ancestor fails here.
+      await pump(
+        tester,
+        Builder(
+          builder: (context) => buildFluentDataGrid(
+            state,
+            resolveFluentDataGridStyle(state, FluentTheme.of(context)),
+            const <WidgetState>{},
+          ),
+        ),
+      );
+      final theirs = tester.getSemantics(find.text('x'));
+      expect(theirs.parent?.role, SemanticsRole.cell);
+      expect(theirs.parent?.parent?.role, SemanticsRole.row);
+      expect(theirs.parent?.parent?.parent?.role, SemanticsRole.table);
+      handle.dispose();
+    });
   });
 
   group('the three-function recomposition contract', () {

@@ -1148,5 +1148,312 @@ void main() {
         contains('Favourite'),
       );
     });
+
+    // --- WAI-ARIA radio group keyboard pattern ---------------------------
+    //
+    // https://www.w3.org/WAI/ARIA/apg/patterns/radio/ — one tab stop for the
+    // whole group, arrows move the selection and wrap. Supplied by the
+    // framework's RadioGroup, which FluentRadio joins as a RadioClient.
+
+    const values = <String>['a', 'b', 'c'];
+
+    /// Three radios, fenced between two plain focus stops so that "tabbed out
+    /// of the group" is distinguishable from "wrapped back to the only radio".
+    Future<void> pumpFenced(
+      WidgetTester tester, {
+      required List<FocusNode> nodes,
+      required FocusNode before,
+      required FocusNode after,
+      String? value = 'b',
+      ValueChanged<String>? onChanged,
+      Set<String> disabledValues = const <String>{},
+    }) => tester.pumpWidget(
+      FluentApp(
+        theme: light(),
+        home: Column(
+          children: <Widget>[
+            Focus(
+              focusNode: before,
+              child: const SizedBox.square(dimension: 8),
+            ),
+            FluentRadioGroup<String>(
+              value: value,
+              onChanged: onChanged ?? (_) {},
+              children: <Widget>[
+                for (var i = 0; i < values.length; i++)
+                  FluentRadio<String>(
+                    value: values[i],
+                    focusNode: nodes[i],
+                    disabled: disabledValues.contains(values[i]),
+                    label: Text(values[i].toUpperCase()),
+                  ),
+              ],
+            ),
+            Focus(focusNode: after, child: const SizedBox.square(dimension: 8)),
+          ],
+        ),
+      ),
+    );
+
+    List<FocusNode> nodesFor(String label, int count) {
+      final nodes = <FocusNode>[
+        for (var i = 0; i < count; i++) FocusNode(debugLabel: '$label$i'),
+      ];
+      for (final node in nodes) {
+        addTearDown(node.dispose);
+      }
+      return nodes;
+    }
+
+    testWidgets('the whole group is a single tab stop', (tester) async {
+      final nodes = nodesFor('radio', 3);
+      final before = FocusNode(debugLabel: 'before');
+      final after = FocusNode(debugLabel: 'after');
+      addTearDown(before.dispose);
+      addTearDown(after.dispose);
+
+      await pumpFenced(
+        tester,
+        nodes: nodes,
+        before: before,
+        after: after,
+        value: 'b',
+      );
+      before.requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(
+        nodes[1].hasFocus,
+        isTrue,
+        reason: 'tabbing in lands on the SELECTED radio, not the first',
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(
+        after.hasFocus,
+        isTrue,
+        reason: 'one more Tab leaves the group entirely',
+      );
+      expect(
+        nodes.any((node) => node.hasFocus),
+        isFalse,
+        reason: 'a group of three is one tab stop, not three',
+      );
+    });
+
+    testWidgets('the arrow keys move the selection and wrap both ways', (
+      tester,
+    ) async {
+      final nodes = nodesFor('radio', 3);
+      var selected = 'a';
+      await tester.pumpWidget(
+        FluentApp(
+          theme: light(),
+          home: StatefulBuilder(
+            builder: (context, setState) => FluentRadioGroup<String>(
+              value: selected,
+              onChanged: (value) => setState(() => selected = value),
+              children: <Widget>[
+                for (var i = 0; i < values.length; i++)
+                  FluentRadio<String>(
+                    value: values[i],
+                    focusNode: nodes[i],
+                    label: Text(values[i].toUpperCase()),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+      nodes[0].requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(selected, 'b');
+      expect(nodes[1].hasFocus, isTrue, reason: 'selection drags focus along');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(selected, 'c');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(selected, 'a', reason: 'the last radio wraps to the first');
+      expect(nodes[0].hasFocus, isTrue);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pump();
+      expect(selected, 'c', reason: 'and the first wraps back to the last');
+    });
+
+    testWidgets('a disabled selected radio does not strand the group', (
+      tester,
+    ) async {
+      // The SDK's `_SkipUnselectedRadioPolicy` hides every radio but the
+      // selected one and never filters on `enabled`, so a registered disabled
+      // selection would leave the group with exactly one focus candidate that
+      // refuses focus — i.e. unreachable by Tab. FluentRadio registers only
+      // enabled radios, so the policy falls back to reading order instead.
+      final nodes = nodesFor('radio', 3);
+      final before = FocusNode(debugLabel: 'before');
+      final after = FocusNode(debugLabel: 'after');
+      addTearDown(before.dispose);
+      addTearDown(after.dispose);
+
+      await pumpFenced(
+        tester,
+        nodes: nodes,
+        before: before,
+        after: after,
+        value: 'b',
+        disabledValues: const <String>{'b'},
+      );
+      before.requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(
+        nodes[0].hasFocus,
+        isTrue,
+        reason: 'the group stays reachable via the first radio that can focus',
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(after.hasFocus, isTrue, reason: 'and is still one tab stop');
+    });
+
+    testWidgets('Space still reports the radio it is sitting on', (
+      tester,
+    ) async {
+      // `RadioGroup` binds Space to its own `_toggleFocusedRadio`, which sits
+      // nearer the focus node than WidgetsApp's ActivateIntent AND no-ops when
+      // the focused radio is already the selection. Left alone it would
+      // silently break the contract documented on `FluentRadio.onChanged`.
+      final chosen = <String>[];
+      final nodes = nodesFor('radio', 3);
+      final before = FocusNode(debugLabel: 'before');
+      final after = FocusNode(debugLabel: 'after');
+      addTearDown(before.dispose);
+      addTearDown(after.dispose);
+
+      await pumpFenced(
+        tester,
+        nodes: nodes,
+        before: before,
+        after: after,
+        value: 'b',
+        onChanged: chosen.add,
+      );
+      nodes[1].requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pump();
+      expect(chosen, <String>[
+        'b',
+      ], reason: 're-selecting the selection still reports it');
+    });
+
+    testWidgets('Space reports through a radio that overrides the group', (
+      tester,
+    ) async {
+      // The group's arrow and Space handlers both call the GROUP's onChanged,
+      // so an overriding radio has to stay out of the registry entirely. The
+      // sibling test above uses `tester.tap`, which never exercises this.
+      final own = <String>[];
+      final groupChoices = <String>[];
+      final node = FocusNode(debugLabel: 'override');
+      addTearDown(node.dispose);
+
+      await tester.pumpWidget(
+        FluentApp(
+          theme: light(),
+          home: FluentRadioGroup<String>(
+            value: 'a',
+            onChanged: groupChoices.add,
+            children: <Widget>[
+              FluentRadio<String>(
+                value: 'a',
+                groupValue: 'a',
+                onChanged: own.add,
+                focusNode: node,
+                label: const Text('A'),
+              ),
+              const FluentRadio<String>(value: 'b', label: Text('B')),
+            ],
+          ),
+        ),
+      );
+      node.requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pump();
+      expect(own, <String>['a']);
+      expect(
+        groupChoices,
+        isEmpty,
+        reason: 'the group must not answer for a radio that overrode it',
+      );
+
+      // Same trap, the other key path: `_selectRadioInDirection` reports
+      // through the group too, so an overriding radio has to be outside the
+      // registry rather than merely handled specially on the Space path.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(own, <String>['a']);
+      expect(
+        groupChoices,
+        isEmpty,
+        reason: 'nor may an arrow key drag it into the group selection',
+      );
+    });
+
+    testWidgets('an overriding radio may be checked alongside the group', (
+      tester,
+    ) async {
+      // `RadioGroup` contributes a `SemanticsRole.radioGroup` node, and the
+      // framework's role check throws "Radio groups must not have multiple
+      // checked children" for two checked `inMutuallyExclusiveGroup`
+      // descendants of one. A radio overriding `groupValue` can be checked
+      // while the group's own selection is, so this crashed any debug build
+      // with a screen reader on. Only reproduces with semantics enabled.
+      final handle = tester.ensureSemantics();
+
+      await tester.pumpWidget(
+        FluentApp(
+          theme: light(),
+          home: FluentRadioGroup<String>(
+            value: 'a',
+            onChanged: (_) {},
+            children: const <Widget>[
+              FluentRadio<String>(value: 'a', label: Text('A')),
+              // Its own groupValue makes it checked too.
+              FluentRadio<String>(
+                key: key,
+                value: 'b',
+                groupValue: 'b',
+                label: Text('B'),
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(
+        painterOf(tester).dot,
+        isNotNull,
+        reason: 'and it really is painted checked',
+      );
+      handle.dispose();
+    });
   });
 }

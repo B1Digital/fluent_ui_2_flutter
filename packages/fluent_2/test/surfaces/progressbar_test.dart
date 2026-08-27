@@ -1,4 +1,5 @@
 import 'package:fluent_2/fluent_2.dart';
+import 'package:flutter/semantics.dart' show SemanticsRole;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -594,7 +595,18 @@ void main() {
   });
 
   group('accessibility', () {
-    testWidgets('a determinate bar announces its value', (tester) async {
+    // Rewritten: this used to pin `value: '50%'`. At the package's Flutter
+    // floor `SemanticsRole.progressBar` parses the value with a bare
+    // `double.parse` and rejects the suffix (3.41.0 `semantics.dart:228`), so
+    // the percent sign had to go. Upstream made the same trade
+    // (`material/progress_indicator.dart:150`). The check that would have
+    // caught it is not this matcher but the `pump` above it: the binding
+    // reports `semanticsEnabled`, so every frame builds a `SemanticsUpdate`
+    // and runs the role assert in `SemanticsNode._addToUpdate` (3.41.0
+    // `semantics.dart:4012`).
+    testWidgets('a determinate bar announces its value against a range', (
+      tester,
+    ) async {
       await pump(
         tester,
         const FluentProgressBar(
@@ -603,21 +615,35 @@ void main() {
           semanticLabel: 'Uploading',
         ),
       );
+      final node = tester.getSemantics(find.byKey(key));
       expect(
-        tester.getSemantics(find.byKey(key)),
-        matchesSemantics(label: 'Uploading', value: '50%'),
+        node,
+        matchesSemantics(
+          label: 'Uploading',
+          value: '50',
+          minValue: '0',
+          maxValue: '100',
+        ),
       );
+      // `matchesSemantics` gained a `role` argument after this package's
+      // Flutter floor, so the role is read off the node instead.
+      expect(node.role, SemanticsRole.progressBar);
     });
 
-    testWidgets('an indeterminate bar announces no value', (tester) async {
+    testWidgets('an indeterminate bar announces no value and no role', (
+      tester,
+    ) async {
       await pump(
         tester,
         const FluentProgressBar(key: key, semanticLabel: 'Loading'),
       );
-      expect(
-        tester.getSemantics(find.byKey(key)),
-        matchesSemantics(label: 'Loading'),
-      );
+      final node = tester.getSemantics(find.byKey(key));
+      expect(node, matchesSemantics(label: 'Loading'));
+      expect(node.minValue, isNull);
+      expect(node.maxValue, isNull);
+      // A progress bar with no value must not claim the role: the role's own
+      // contract requires a value inside a range.
+      expect(node.role, SemanticsRole.none);
     });
   });
 }

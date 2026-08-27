@@ -1055,6 +1055,280 @@ void main() {
     });
   });
 
+  /// The WAI-ARIA composite-widget rule the `SemanticsRole.tab` /
+  /// `SemanticsRole.tabBar` pair above already claims: a tab list is ONE stop
+  /// in the Tab order, and the arrows move inside it.
+  group('roving focus', () {
+    /// The tab that holds primary focus, by value.
+    ///
+    /// Read off the focus tree rather than off the ring, so it does not depend
+    /// on the focus-visible heuristics the ring is gated on.
+    String? focusedTab() => FocusManager.instance.primaryFocus?.context
+        ?.findAncestorWidgetOfExactType<FluentTab<String>>()
+        ?.value;
+
+    /// The list between two ordinary buttons, which is what makes "Tab leaves"
+    /// and "Tab comes back" observable at all.
+    Widget roving({
+      required FocusNode before,
+      required FocusNode after,
+      required String selected,
+      required ValueChanged<String> onSelect,
+      bool secondEnabled = true,
+    }) => Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        FluentButton(
+          focusNode: before,
+          onPressed: () {},
+          child: const Text('before'),
+        ),
+        FluentTabList<String>(
+          selectedValue: selected,
+          onSelect: onSelect,
+          tabs: <FluentTab<String>>[
+            const FluentTab<String>(key: tabKey, value: 'a', child: Text('A')),
+            FluentTab<String>(
+              key: otherKey,
+              value: 'b',
+              enabled: secondEnabled,
+              child: const Text('B'),
+            ),
+            const FluentTab<String>(value: 'c', child: Text('C')),
+          ],
+        ),
+        FluentButton(
+          focusNode: after,
+          onPressed: () {},
+          child: const Text('after'),
+        ),
+      ],
+    );
+
+    /// A list whose selection actually moves, so the stop can be watched
+    /// following it.
+    Future<void> pumpRoving(
+      WidgetTester tester, {
+      required FocusNode before,
+      required FocusNode after,
+      String initial = 'a',
+    }) async {
+      var selected = initial;
+      await tester.pumpWidget(
+        FluentApp(
+          theme: light,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: StatefulBuilder(
+              builder: (context, setState) => roving(
+                before: before,
+                after: after,
+                selected: selected,
+                onSelect: (value) => setState(() => selected = value),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the whole list is one tab stop', (tester) async {
+      final before = FocusNode(debugLabel: 'before');
+      final after = FocusNode(debugLabel: 'after');
+      addTearDown(before.dispose);
+      addTearDown(after.dispose);
+
+      await pumpRoving(tester, before: before, after: after);
+
+      before.requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(focusedTab(), 'a', reason: 'Tab enters at the selected tab');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(
+        focusedTab(),
+        isNull,
+        reason: 'the second tab is not a second tab stop',
+      );
+      expect(after.hasFocus, isTrue, reason: 'Tab leaves the list');
+    });
+
+    testWidgets('arrowing inside the list does not add a stop', (tester) async {
+      final before = FocusNode(debugLabel: 'before');
+      final after = FocusNode(debugLabel: 'after');
+      addTearDown(before.dispose);
+      addTearDown(after.dispose);
+
+      await pumpRoving(tester, before: before, after: after);
+
+      before.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(focusedTab(), 'b', reason: 'the arrows still move inside');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(after.hasFocus, isTrue, reason: 'and it is still one stop');
+    });
+
+    testWidgets('a Tab round trip returns to the tab that was left', (
+      tester,
+    ) async {
+      final before = FocusNode(debugLabel: 'before');
+      final after = FocusNode(debugLabel: 'after');
+      addTearDown(before.dispose);
+      addTearDown(after.dispose);
+
+      await pumpRoving(tester, before: before, after: after);
+
+      before.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(focusedTab(), 'b');
+
+      before.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+
+      expect(focusedTab(), 'b', reason: 'back to the tab that was left');
+    });
+
+    testWidgets('disabling the tab that holds the stop does not strand the '
+        'list', (tester) async {
+      final before = FocusNode(debugLabel: 'before');
+      addTearDown(before.dispose);
+      final after = FocusNode(debugLabel: 'after');
+      addTearDown(after.dispose);
+      final picked = <String>[];
+
+      // A stable callback and const tabs on purpose: with them, the only thing
+      // that rebuilds a tab is the list's own scope changing. That is what lets
+      // the second pump below latch `skipTraversal` onto tab 'a' while its gate
+      // is shut, and the third one open the gate without tab 'a' rebuilding to
+      // clear the latch itself.
+      Widget build({required FluentThemeData theme, required bool second}) =>
+          FluentApp(
+            theme: theme,
+            home: Align(
+              alignment: Alignment.topLeft,
+              child: roving(
+                before: before,
+                after: after,
+                // Pinned: the stop starts on 'b' and has to leave it when 'b'
+                // is disabled, or the list has no tab stop at all.
+                selected: 'b',
+                onSelect: picked.add,
+                secondEnabled: second,
+              ),
+            ),
+          );
+
+      await tester.pumpWidget(
+        build(
+          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+          second: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // A theme change rebuilds every tab without touching the list's scope —
+      // tab 'a' therefore rebuilds under a shut gate, which is what makes it
+      // write the derived `skipTraversal: true` onto its own node as a hard
+      // flag.
+      await tester.pumpWidget(
+        build(
+          theme: FluentThemeData.dark(fontPlatform: FluentFontPlatform.web),
+          second: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.pumpWidget(
+        build(
+          theme: FluentThemeData.dark(fontPlatform: FluentFontPlatform.web),
+          second: false,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      before.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+
+      expect(
+        focusedTab(),
+        'a',
+        reason: 'the stop re-parks on the first tab that can hold it',
+      );
+    });
+
+    testWidgets('a null onSelect leaves no tab stop at all', (tester) async {
+      final before = FocusNode(debugLabel: 'before');
+      final after = FocusNode(debugLabel: 'after');
+      addTearDown(before.dispose);
+      addTearDown(after.dispose);
+
+      await tester.pumpWidget(
+        FluentApp(
+          theme: light,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                FluentButton(
+                  focusNode: before,
+                  onPressed: () {},
+                  child: const Text('before'),
+                ),
+                const FluentTabList<String>(
+                  selectedValue: 'a',
+                  tabs: <FluentTab<String>>[
+                    FluentTab<String>(value: 'a', child: Text('A')),
+                    FluentTab<String>(value: 'b', child: Text('B')),
+                  ],
+                ),
+                FluentButton(
+                  focusNode: after,
+                  onPressed: () {},
+                  child: const Text('after'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      before.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+
+      expect(
+        after.hasFocus,
+        isTrue,
+        reason:
+            'zero live tabs means zero tab stops, not one forced onto a tab '
+            'nobody can select',
+      );
+    });
+  });
+
   group('behaviour', () {
     testWidgets('a tap selects, and a disabled tab does nothing at all', (
       tester,

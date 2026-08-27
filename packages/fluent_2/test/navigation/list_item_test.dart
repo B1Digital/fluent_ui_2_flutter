@@ -477,13 +477,16 @@ void main() {
         <String>{'a'},
       ]);
 
-      // And the checkbox contributes no focus stop of its own: three rows in,
-      // three traversable nodes out.
+      // And the checkbox contributes no focus stop of its own. It used to be
+      // three rows, three traversable nodes; the list is now one composite tab
+      // stop, so the assertion that the affordance adds nothing is that the
+      // count is still exactly the list's own one — a focusable checkbox would
+      // show up as a second.
       final scope = FocusScope.of(tester.element(find.byKey(itemKey)));
       expect(
         scope.traversalDescendants.length,
-        3,
-        reason: 'three rows, three focus stops',
+        1,
+        reason: 'three rows, one roving tab stop, and no checkbox stop',
       );
     });
   });
@@ -967,6 +970,238 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.home);
       await tester.pump();
       expect(focused(tester, itemKey), isTrue);
+    });
+  });
+
+  /// The WAI-ARIA composite-widget rule the `SemanticsRole.list` /
+  /// `SemanticsRole.listItem` pair above already claims: the list is ONE stop
+  /// in the Tab order, and the arrows move inside it.
+  group('roving focus', () {
+    /// The row that holds primary focus, by value.
+    ///
+    /// Read off the focus tree rather than off the ring, so it does not depend
+    /// on the focus-visible heuristics the ring is gated on.
+    String? focusedRow() => FocusManager.instance.primaryFocus?.context
+        ?.findAncestorWidgetOfExactType<FluentListItem<String>>()
+        ?.value;
+
+    /// The list between two ordinary buttons, which is what makes "Tab leaves"
+    /// and "Tab comes back" observable at all.
+    Widget roving({
+      required FocusNode before,
+      required FocusNode after,
+      required ValueChanged<Set<String>>? onSelectionChange,
+      bool secondEnabled = true,
+    }) => Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        FluentButton(
+          focusNode: before,
+          onPressed: () {},
+          child: const Text('before'),
+        ),
+        FluentList<String>(
+          onSelectionChange: onSelectionChange,
+          items: <FluentListItem<String>>[
+            const FluentListItem<String>(
+              key: itemKey,
+              value: 'a',
+              child: Text('First'),
+            ),
+            FluentListItem<String>(
+              key: otherKey,
+              value: 'b',
+              enabled: secondEnabled,
+              child: const Text('Second'),
+            ),
+            const FluentListItem<String>(
+              key: thirdKey,
+              value: 'c',
+              child: Text('Third'),
+            ),
+          ],
+        ),
+        FluentButton(
+          focusNode: after,
+          onPressed: () {},
+          child: const Text('after'),
+        ),
+      ],
+    );
+
+    Future<void> pumpRoving(
+      WidgetTester tester,
+      Widget child, {
+      FluentThemeData? theme,
+    }) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme ?? light,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(width: 340, child: child),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the whole list is one tab stop', (tester) async {
+      final before = FocusNode(debugLabel: 'before');
+      final after = FocusNode(debugLabel: 'after');
+      addTearDown(before.dispose);
+      addTearDown(after.dispose);
+
+      await pumpRoving(
+        tester,
+        roving(before: before, after: after, onSelectionChange: (_) {}),
+      );
+
+      before.requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(focusedRow(), 'a', reason: 'Tab enters at the first live row');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(
+        focusedRow(),
+        isNull,
+        reason: 'the second row is not a second tab stop',
+      );
+      expect(after.hasFocus, isTrue, reason: 'Tab leaves the list');
+    });
+
+    testWidgets('arrowing inside the list does not add a stop', (tester) async {
+      final before = FocusNode(debugLabel: 'before');
+      final after = FocusNode(debugLabel: 'after');
+      addTearDown(before.dispose);
+      addTearDown(after.dispose);
+
+      await pumpRoving(
+        tester,
+        roving(before: before, after: after, onSelectionChange: (_) {}),
+      );
+
+      before.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(focusedRow(), 'b', reason: 'the arrows still move inside');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(after.hasFocus, isTrue, reason: 'and it is still one stop');
+    });
+
+    testWidgets('a Tab round trip returns to the row that was left', (
+      tester,
+    ) async {
+      final before = FocusNode(debugLabel: 'before');
+      final after = FocusNode(debugLabel: 'after');
+      addTearDown(before.dispose);
+      addTearDown(after.dispose);
+
+      await pumpRoving(
+        tester,
+        roving(before: before, after: after, onSelectionChange: (_) {}),
+      );
+
+      before.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(focusedRow(), 'c');
+
+      before.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+
+      expect(focusedRow(), 'c', reason: 'back to the row that was left');
+    });
+
+    testWidgets('disabling the row that holds the stop does not strand the '
+        'list', (tester) async {
+      final before = FocusNode(debugLabel: 'before');
+      final after = FocusNode(debugLabel: 'after');
+      addTearDown(before.dispose);
+      addTearDown(after.dispose);
+      final picked = <Set<String>>[];
+
+      // A stable callback and const rows on purpose: with them the list's own
+      // scope stops notifying, so a row only rebuilds when its own widget
+      // changes. That is what leaves row 'a' holding the `skipTraversal: true`
+      // it latched while its gate was shut, and makes the re-park below a real
+      // test of the un-latch rather than of an incidental rebuild.
+      await pumpRoving(
+        tester,
+        roving(before: before, after: after, onSelectionChange: picked.add),
+      );
+
+      before.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(focusedRow(), 'b', reason: 'the stop is on the second row');
+
+      await pumpRoving(
+        tester,
+        roving(
+          before: before,
+          after: after,
+          onSelectionChange: picked.add,
+          secondEnabled: false,
+        ),
+      );
+
+      before.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+
+      expect(
+        focusedRow(),
+        'a',
+        reason: 'the stop re-parks on the first row that can hold it',
+      );
+    });
+
+    testWidgets('a null onSelectionChange leaves no tab stop at all', (
+      tester,
+    ) async {
+      final before = FocusNode(debugLabel: 'before');
+      final after = FocusNode(debugLabel: 'after');
+      addTearDown(before.dispose);
+      addTearDown(after.dispose);
+
+      await pumpRoving(
+        tester,
+        roving(before: before, after: after, onSelectionChange: null),
+      );
+
+      before.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+
+      expect(
+        after.hasFocus,
+        isTrue,
+        reason:
+            'zero live rows means zero tab stops, not one forced onto a row '
+            'nobody can operate',
+      );
     });
   });
 

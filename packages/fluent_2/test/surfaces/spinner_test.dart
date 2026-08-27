@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:fluent_2/fluent_2.dart';
+import 'package:flutter/semantics.dart' show SemanticsRole;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -592,10 +593,11 @@ void main() {
         ),
         findsNothing,
       );
-      expect(
-        tester.getSemantics(find.byKey(key)),
-        matchesSemantics(label: 'Loading', isLiveRegion: true),
-      );
+      final node = tester.getSemantics(find.byKey(key));
+      expect(node, matchesSemantics(label: 'Loading', isLiveRegion: true));
+      // `matchesSemantics` gained a `role` argument after this package's
+      // Flutter floor, so the role is read off the node instead.
+      expect(node.role, SemanticsRole.loadingSpinner);
     });
   });
 }

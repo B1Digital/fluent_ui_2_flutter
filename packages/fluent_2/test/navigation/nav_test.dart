@@ -1,5 +1,6 @@
 import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/semantics.dart' show SemanticsRole;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1914,6 +1915,113 @@ void main() {
           isFocusable: true,
           label: 'Group',
         ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('a named nav is a navigation landmark', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(
+        tester,
+        nav(
+          semanticLabel: 'Main',
+          children: const <Widget>[FluentNavItem(value: 'a', child: Text('A'))],
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(FluentNav)).role,
+        SemanticsRole.navigation,
+        reason: 'upstream renders the nav as <nav aria-label>',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('an unnamed nav beside an unnamed breadcrumb does not throw', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pump(
+        tester,
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            FluentBreadcrumb(
+              items: <FluentBreadcrumbItem>[
+                FluentBreadcrumbItem(
+                  label: const Text('Home'),
+                  onPressed: () {},
+                ),
+                const FluentBreadcrumbItem(label: Text('Q3')),
+              ],
+            ),
+            nav(
+              children: const <Widget>[
+                FluentNavItem(value: 'a', child: Text('A')),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        tester.takeException(),
+        isNull,
+        reason:
+            'two unlabelled navigation landmarks in one tree are a '
+            'FlutterError from _DebugSemanticsRoleChecks._semanticsNavigation '
+            '(semantics.dart:543), and a nav under a breadcrumb is the '
+            'ordinary page, so neither takes the role unnamed',
+      );
+      expect(
+        tester.getSemantics(find.byType(FluentNav)).role,
+        SemanticsRole.none,
+      );
+      expect(
+        tester.getSemantics(find.byType(FluentBreadcrumb)).role,
+        SemanticsRole.none,
+      );
+      handle.dispose();
+    });
+
+    testWidgets('an empty semanticLabel names nothing, so takes no role', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pump(
+        tester,
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const FluentNav(
+              semanticLabel: 'Main',
+              children: <Widget>[FluentNavItem(value: 'a', child: Text('A'))],
+            ),
+            FluentBreadcrumb(
+              semanticLabel: '',
+              items: <FluentBreadcrumbItem>[
+                FluentBreadcrumbItem(
+                  label: const Text('Home'),
+                  onPressed: () {},
+                ),
+                const FluentBreadcrumbItem(label: Text('Q3')),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        tester.takeException(),
+        isNull,
+        reason:
+            '_semanticsNavigation tests `label.isEmpty`, not nullness, so a '
+            "role attached on `semanticLabel: ''` throws next to any other "
+            'navigation landmark — here the named nav above it',
+      );
+      expect(
+        tester.getSemantics(find.byType(FluentBreadcrumb)).role,
+        SemanticsRole.none,
       );
       handle.dispose();
     });

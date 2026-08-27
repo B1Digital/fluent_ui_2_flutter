@@ -1,4 +1,5 @@
 import 'package:fluent_2/fluent_2.dart';
+import 'package:flutter/semantics.dart' show SemanticsRole;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -442,9 +443,49 @@ void main() {
           semanticLabel: 'Failed',
         ),
       );
+      final node = tester.getSemantics(find.byKey(key));
+      expect(node, matchesSemantics(label: 'Failed'));
+      // `matchesSemantics` gained a `role` argument after this package's
+      // Flutter floor, so the role is read off the node instead.
+      expect(node.role, SemanticsRole.status);
+    });
+
+    testWidgets('the status role survives a live-region ancestor', (
+      tester,
+    ) async {
+      // `SemanticsRole.status` and a live region cannot share a node, and
+      // `isCompatibleWith` does not stop an ancestor's live region from
+      // absorbing a descendant's role (`semantics.dart:6776`) — only a
+      // semantic boundary does. `FluentField` wraps its `validationMessage` in
+      // `Semantics(container: true, liveRegion: true)`, so a status indicator
+      // used there is the shipping shape of this. Without `container: true` on
+      // the indicator the framework throws while building the update.
+      //
+      // No `ensureSemantics` needed: the role checks live in an assert inside
+      // `SemanticsNode._addToUpdate` (3.41.0 `semantics.dart:4012`), which runs
+      // whenever a `SemanticsUpdate` is built, and this binding reports
+      // `semanticsEnabled` already — so every `pump` here validates the tree.
+      await pump(
+        tester,
+        Semantics(
+          container: true,
+          liveRegion: true,
+          child: const FluentStatusIndicator(
+            key: key,
+            message: FluentStatusIndicatorMessage.failed,
+            icon: SizedBox.shrink(),
+            semanticLabel: 'Failed',
+          ),
+        ),
+      );
+      final node = tester.getSemantics(find.byKey(key));
+      expect(node.role, SemanticsRole.status);
       expect(
-        tester.getSemantics(find.byKey(key)),
-        matchesSemantics(label: 'Failed'),
+        node,
+        matchesSemantics(label: 'Failed', isLiveRegion: false),
+        reason:
+            'the indicator keeps a node of its own, so the ancestor '
+            'live region never lands on the role',
       );
     });
   });
