@@ -18,13 +18,29 @@ import 'package:flutter/widgets.dart';
 /// Without a builder the control still selects, drags and responds to the
 /// keyboard shortcuts — [EditableText] handles those itself — but right-click
 /// and long-press produce nothing at all, which is easy to miss.
+///
+/// The themes are captured here rather than left to the framework.
+/// `ContextMenuController.show` does call [InheritedTheme.capture], but from
+/// inside its own `OverlayEntry.builder`, where the `context` parameter shadows
+/// the one passed to `show` — so `from:` and `to:` are both already below the
+/// [Navigator] and the capture comes back empty. A `FluentThemeOverride`
+/// wrapping the field would otherwise be dropped and the menu would paint in
+/// the app theme. Capturing from [EditableTextState.context] is correct on
+/// every Flutter version, including ones where the framework's own capture
+/// works, because the second capture then simply finds nothing left to lift.
 Widget fluentTextContextMenuBuilder(
   BuildContext context,
   EditableTextState state,
-) => FluentTextContextMenu(
-  anchor: state.contextMenuAnchors.primaryAnchor,
-  items: state.contextMenuButtonItems,
-);
+) =>
+    InheritedTheme.capture(
+      from: state.context,
+      to: Navigator.maybeOf(state.context)?.context,
+    ).wrap(
+      FluentTextContextMenu(
+        anchor: state.contextMenuAnchors.primaryAnchor,
+        items: state.contextMenuButtonItems,
+      ),
+    );
 
 /// A Fluent-styled text selection toolbar.
 class FluentTextContextMenu extends StatelessWidget {

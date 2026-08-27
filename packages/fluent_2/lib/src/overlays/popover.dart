@@ -3,6 +3,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import '../internal/animated_style.dart';
+import '../internal/defer.dart';
 import '../internal/interaction.dart';
 import 'popover_style.dart';
 
@@ -297,19 +298,39 @@ Widget buildFluentPopover(
   final vertical =
       state.position == FluentPopoverPosition.above ||
       state.position == FluentPopoverPosition.below;
+  // [FluentPopoverAlign] is reading order, not geometry, so the inset that pins
+  // the arrow to one end of a *horizontal* edge mirrors under [Directionality]
+  // — `EdgeInsetsDirectional` does that for us. The vertical pair never
+  // mirrors: top stays top in both directions, the same rule the arrow keys
+  // follow in `inputs/slider.dart:700-716`.
   final arrow = Padding(
     padding: switch ((vertical, state.align)) {
       (_, FluentPopoverAlign.center) => EdgeInsets.zero,
-      (true, FluentPopoverAlign.start) => EdgeInsets.only(left: arrowInset),
-      (true, FluentPopoverAlign.end) => EdgeInsets.only(right: arrowInset),
+      (true, FluentPopoverAlign.start) => EdgeInsetsDirectional.only(
+        start: arrowInset,
+      ),
+      (true, FluentPopoverAlign.end) => EdgeInsetsDirectional.only(
+        end: arrowInset,
+      ),
       (false, FluentPopoverAlign.start) => EdgeInsets.only(top: arrowInset),
       (false, FluentPopoverAlign.end) => EdgeInsets.only(bottom: arrowInset),
     },
-    child: CustomPaint(
-      size: vertical ? arrowSize : Size(arrowSize.height, arrowSize.width),
-      painter: FluentPopoverArrowPainter(
-        color: background ?? const Color(0x00000000),
-        position: state.position,
+    // A [Builder] only so the painter can be handed a direction: this function
+    // takes no `BuildContext` — teaching_popover.dart and chart_popover.dart
+    // both call it — and the [Row] below already mirrors the arrow to the
+    // correct *side*, leaving only the apex to be mirrored by hand.
+    child: Builder(
+      builder: (context) => CustomPaint(
+        size: vertical ? arrowSize : Size(arrowSize.height, arrowSize.width),
+        painter: FluentPopoverArrowPainter(
+          color: background ?? const Color(0x00000000),
+          position: state.position,
+          // maybeOf: a centred `above`/`below` surface is a plain [Column] and
+          // imposes no direction requirement of its own, so refusing to build
+          // one outside a [Directionality] would be a new constraint on a
+          // public function. LTR is what such a tree renders as anyway.
+          textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
+        ),
       ),
     ),
   );
@@ -357,6 +378,7 @@ class FluentPopoverArrowPainter extends CustomPainter {
   const FluentPopoverArrowPainter({
     required this.color,
     required this.position,
+    required this.textDirection,
   });
 
   /// The arrow fill — always the surface's own background token.
@@ -366,8 +388,23 @@ class FluentPopoverArrowPainter extends CustomPainter {
   /// way, towards the anchor.
   final FluentPopoverPosition position;
 
+  /// The reading direction the surface is laid out in.
+  ///
+  /// [FluentPopoverPosition.before] and [FluentPopoverPosition.after] name the
+  /// side in *reading* order, so which physical way the apex points is only
+  /// settled here; `above` and `below` never mirror. Passed in rather than read
+  /// from an ancestor because a painter has no context of its own — the same
+  /// arrangement as `FluentSliderPainter` at `inputs/slider.dart:306`.
+  final TextDirection textDirection;
+
   @override
   void paint(Canvas canvas, Size size) {
+    // The apex sits at the arrow box's trailing edge for `before` — pointing
+    // away from the surface, at the anchor — and at its leading edge for
+    // `after`. In RTL both are the opposite physical edge.
+    final leading = textDirection == TextDirection.rtl ? size.width : 0.0;
+    final trailing = size.width - leading;
+
     final path = Path();
     switch (position) {
       case FluentPopoverPosition.above:
@@ -382,21 +419,23 @@ class FluentPopoverArrowPainter extends CustomPainter {
           ..lineTo(0, size.height);
       case FluentPopoverPosition.before:
         path
-          ..moveTo(0, 0)
-          ..lineTo(size.width, size.height / 2)
-          ..lineTo(0, size.height);
+          ..moveTo(leading, 0)
+          ..lineTo(trailing, size.height / 2)
+          ..lineTo(leading, size.height);
       case FluentPopoverPosition.after:
         path
-          ..moveTo(size.width, 0)
-          ..lineTo(0, size.height / 2)
-          ..lineTo(size.width, size.height);
+          ..moveTo(trailing, 0)
+          ..lineTo(leading, size.height / 2)
+          ..lineTo(trailing, size.height);
     }
     canvas.drawPath(path..close(), Paint()..color = color);
   }
 
   @override
   bool shouldRepaint(FluentPopoverArrowPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.position != position;
+      oldDelegate.color != color ||
+      oldDelegate.position != position ||
+      oldDelegate.textDirection != textDirection;
 }
 
 /// Plays Fluent's popover entrance over [child]: a fade plus a
@@ -415,7 +454,10 @@ class FluentPopoverArrowPainter extends CustomPainter {
 ///
 /// The slide starts 10 logical pixels towards the anchor and settles at zero,
 /// which is what upstream's positioning direction vector times `distance = 10`
-/// resolves to on each of the four sides.
+/// resolves to on each of the four sides. [FluentPopoverPosition.before] and
+/// [FluentPopoverPosition.after] are reading-order sides, so their vector is
+/// read off the ambient [Directionality] — upstream's `getPositionTransform`
+/// flips on `dir` for the same reason.
 ///
 /// ## Reduced motion
 ///
@@ -451,11 +493,17 @@ class FluentPopoverEntrance extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // `before`/`after` are reading-order sides, so the vector towards the
+    // anchor mirrors with the direction — `overlays/menu.dart:738-746` flips a
+    // submenu's slide the same way. The vertical pair never mirrors.
+    final beside = Directionality.maybeOf(context) == TextDirection.rtl
+        ? -_slideDistance
+        : _slideDistance;
     final from = switch (position) {
       FluentPopoverPosition.above => const Offset(0, _slideDistance),
       FluentPopoverPosition.below => const Offset(0, -_slideDistance),
-      FluentPopoverPosition.before => const Offset(_slideDistance, 0),
-      FluentPopoverPosition.after => const Offset(-_slideDistance, 0),
+      FluentPopoverPosition.before => Offset(beside, 0),
+      FluentPopoverPosition.after => Offset(-beside, 0),
     };
 
     // TweenAnimationBuilder rather than an AnimationController of our own: it
@@ -537,7 +585,12 @@ class FluentPopoverTheme extends InheritedTheme {
 /// in, so tokens resolve against the trigger's theme rather than the app root's.
 ///
 /// [position] and [align] together are upstream's `positioning` shorthand, and
-/// the reason Figma draws twelve hidden arrow layers rather than four.
+/// the reason Figma draws twelve hidden arrow layers rather than four. Both are
+/// stated in reading order, so both mirror under [Directionality]. The overlay
+/// is a different branch of the tree and `InheritedTheme.capture` cannot carry
+/// that one — [Directionality] is a plain [InheritedWidget], not an
+/// [InheritedTheme] — so the trigger's direction is read here and re-established
+/// inside the entry, the way `overlays/drawer.dart` does it.
 ///
 /// ## Dismissal and focus
 ///
@@ -633,6 +686,7 @@ class _FluentPopoverState extends State<FluentPopover> {
   late FluentThemeData _theme;
   FluentPopoverStyle? _themeStyle;
   bool _reducedMotion = false;
+  TextDirection _direction = TextDirection.ltr;
 
   bool get _enabled => widget.onOpenChanged != null;
 
@@ -646,16 +700,21 @@ class _FluentPopoverState extends State<FluentPopover> {
     // wrapping the trigger would otherwise be invisible to it.
     _theme = FluentTheme.of(context);
     _themeStyle = FluentPopoverTheme.maybeOf(context);
-    // Same reason, and MediaQuery is not an InheritedTheme, so it cannot ride
-    // along with the capture below.
+    // Same reason, and neither of these is an InheritedTheme, so neither rides
+    // along with the `InheritedTheme.capture` in [_show] — they have to be read
+    // here, at the trigger, and handed across the boundary by hand.
     _reducedMotion = MediaQuery.disableAnimationsOf(context);
-    _deferOrRun(_sync);
+    // Without this an RTL subtree would open its popover at the physical left,
+    // because the OverlayEntry's ancestors are the Navigator's, not ours.
+    // `overlays/drawer.dart:755` documents and fixes exactly this.
+    _direction = Directionality.of(context);
+    deferOrRun(_sync);
   }
 
   @override
   void didUpdateWidget(FluentPopover oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _deferOrRun(_sync);
+    deferOrRun(_sync);
   }
 
   @override
@@ -666,23 +725,6 @@ class _FluentPopoverState extends State<FluentPopover> {
     _entry = null;
     _scope.dispose();
     super.dispose();
-  }
-
-  /// Runs [action] now, unless a build is in flight.
-  ///
-  /// Inserting, removing or invalidating an [OverlayEntry] is a `setState` on
-  /// the [Overlay], which sits in a different branch of the tree and has already
-  /// been built by the time this widget rebuilds. Doing it from
-  /// [didUpdateWidget] or [didChangeDependencies] would therefore assert.
-  void _deferOrRun(VoidCallback action) {
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted) action();
-      });
-      return;
-    }
-    action();
   }
 
   void _sync() {
@@ -756,87 +798,102 @@ class _FluentPopoverState extends State<FluentPopover> {
       FluentPopoverAlign.center => 0.0,
       FluentPopoverAlign.end => 1.0,
     };
+    // [position] and [align] are both reading order, so every x here is a
+    // *start* coordinate until it is resolved. `CompositedTransformFollower`
+    // types its two anchors as [Alignment], which does not resolve on its own
+    // (`basic.dart:2054, 2062`), so the resolve happens at this call site —
+    // `overlays/menu.dart:731-751` does the identical pair of moves. `edge` is
+    // the y coordinate for `before`/`after`, and the vertical axis never
+    // mirrors.
+    final beside = _direction == TextDirection.rtl ? -offset : offset;
     final (target, follower, shift) = switch (widget.position) {
       FluentPopoverPosition.above => (
-        Alignment(edge, -1),
-        Alignment(edge, 1),
+        AlignmentDirectional(edge, -1).resolve(_direction),
+        AlignmentDirectional(edge, 1).resolve(_direction),
         Offset(0, -offset),
       ),
       FluentPopoverPosition.below => (
-        Alignment(edge, 1),
-        Alignment(edge, -1),
+        AlignmentDirectional(edge, 1).resolve(_direction),
+        AlignmentDirectional(edge, -1).resolve(_direction),
         Offset(0, offset),
       ),
       FluentPopoverPosition.before => (
-        Alignment(-1, edge),
-        Alignment(1, edge),
-        Offset(-offset, 0),
+        AlignmentDirectional(-1, edge).resolve(_direction),
+        AlignmentDirectional(1, edge).resolve(_direction),
+        Offset(-beside, 0),
       ),
       FluentPopoverPosition.after => (
-        Alignment(1, edge),
-        Alignment(-1, edge),
-        Offset(offset, 0),
+        AlignmentDirectional(1, edge).resolve(_direction),
+        AlignmentDirectional(-1, edge).resolve(_direction),
+        Offset(beside, 0),
       ),
     };
 
-    return Stack(
-      children: <Widget>[
-        // A pointer landing anywhere else dismisses. Nothing is painted, so
-        // this is invisible; it exists because a click on inert scenery moves
-        // no focus and would otherwise leave the popover open.
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _close,
+    // Re-established rather than inherited: the entry builds under the
+    // Navigator's Overlay, so the trigger's own [Directionality] never reaches
+    // it. Everything below it — the surface's [Row], the arrow's inset and
+    // apex, the entrance slide, and the caller's own content — reads it.
+    return Directionality(
+      textDirection: _direction,
+      child: Stack(
+        children: <Widget>[
+          // A pointer landing anywhere else dismisses. Nothing is painted, so
+          // this is invisible; it exists because a click on inert scenery moves
+          // no focus and would otherwise leave the popover open.
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _close,
+            ),
           ),
-        ),
-        Positioned(
-          left: 0,
-          top: 0,
-          child: CompositedTransformFollower(
-            link: _link,
-            showWhenUnlinked: false,
-            targetAnchor: target,
-            followerAnchor: follower,
-            offset: shift,
-            // Escape. Bound here rather than on the trigger so it is live only
-            // while there is something to dismiss, leaving Escape to whatever
-            // an ancestor does with it the rest of the time. Outside the
-            // FocusScope, not inside it: an Actions lookup walks up from the
-            // focused node's own context, and when the scope itself holds the
-            // focus — which it does whenever the content has nothing focusable
-            // — that context is the FocusScope's, above anything nested under
-            // it.
-            child: Actions(
-              actions: <Type, Action<Intent>>{
-                DismissIntent: CallbackAction<DismissIntent>(
-                  onInvoke: (_) {
-                    _close();
-                    return null;
-                  },
-                ),
-              },
-              child: FocusScope(
-                node: _scope,
-                child: FluentPopoverEntrance(
-                  position: widget.position,
-                  reducedMotion: _reducedMotion,
-                  // container, so the surface lands on a node of its own
-                  // rather than merging into the overlay; explicitChildNodes,
-                  // so a labelled popover still exposes its content separately
-                  // instead of flattening it into the label.
-                  child: Semantics(
-                    container: true,
-                    explicitChildNodes: true,
-                    label: widget.semanticLabel,
-                    child: buildFluentPopover(state, style, states),
+          Positioned(
+            left: 0,
+            top: 0,
+            child: CompositedTransformFollower(
+              link: _link,
+              showWhenUnlinked: false,
+              targetAnchor: target,
+              followerAnchor: follower,
+              offset: shift,
+              // Escape. Bound here rather than on the trigger so it is live only
+              // while there is something to dismiss, leaving Escape to whatever
+              // an ancestor does with it the rest of the time. Outside the
+              // FocusScope, not inside it: an Actions lookup walks up from the
+              // focused node's own context, and when the scope itself holds the
+              // focus — which it does whenever the content has nothing focusable
+              // — that context is the FocusScope's, above anything nested under
+              // it.
+              child: Actions(
+                actions: <Type, Action<Intent>>{
+                  DismissIntent: CallbackAction<DismissIntent>(
+                    onInvoke: (_) {
+                      _close();
+                      return null;
+                    },
+                  ),
+                },
+                child: FocusScope(
+                  node: _scope,
+                  child: FluentPopoverEntrance(
+                    position: widget.position,
+                    reducedMotion: _reducedMotion,
+                    // container, so the surface lands on a node of its own
+                    // rather than merging into the overlay; explicitChildNodes,
+                    // so a labelled popover still exposes its content separately
+                    // instead of flattening it into the label.
+                    child: Semantics(
+                      container: true,
+                      explicitChildNodes: true,
+                      label: widget.semanticLabel,
+                      child: buildFluentPopover(state, style, states),
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

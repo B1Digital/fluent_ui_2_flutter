@@ -1226,7 +1226,11 @@ class _FluentDataGridState extends State<FluentDataGrid> {
   }
 
   void _handleFocusChange(int r, int c, {required bool hasFocus}) {
-    if (hasFocus && (r != _row || c != _column) && mounted) {
+    // Not gated on the cell having moved. The cell you Tab into is, by
+    // definition, the one already holding the roving index — so a `r != _row`
+    // guard skips the rebuild on exactly the entry that needs it, and the
+    // fallback node's focus ring never paints on the first cell you reach.
+    if (hasFocus && mounted) {
       setState(() => (_row = r, _column = c));
     }
   }

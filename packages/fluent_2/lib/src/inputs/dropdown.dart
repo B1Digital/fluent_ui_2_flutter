@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 
 import '../internal/anchor_metrics.dart';
 import '../internal/animated_style.dart';
+import '../internal/defer.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
 import 'dropdown_option.dart';
@@ -723,6 +724,19 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The popup builds from *this* State's context but lives in the Overlay's
+    // branch of the tree, so nothing rebuilds it when a dependency here moves.
+    // Two visible bugs came out of that: the max height was measured once at
+    // open and never again, so resizing the window left the list running off
+    // the screen; and a `FluentThemeOverride` swapped under a const subtree
+    // left the open popup painting the old tokens. `FluentInfoButton` already
+    // does this.
+    deferOrRun(() => _entry?.markNeedsBuild());
+  }
+
+  @override
   void didUpdateWidget(FluentDropdown<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.focusNode != oldWidget.focusNode) {
@@ -730,14 +744,14 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
       _focusNode.addListener(_handleFocusChange);
     }
     if (!_enabled) {
-      _deferOrRun(_close);
+      deferOrRun(_close);
     } else if (_open) {
       // Deferred for the same reason the close above is: `didUpdateWidget` runs
       // inside the parent's build, and the entry lives in the Overlay's branch,
       // which that build has already passed. A parent that rebuilds while the
       // popup is up — anything driving the list from its own state — would
       // otherwise trip "markNeedsBuild() called during build".
-      _deferOrRun(() => _entry?.markNeedsBuild());
+      deferOrRun(() => _entry?.markNeedsBuild());
     }
   }
 
@@ -752,26 +766,10 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
     super.dispose();
   }
 
-  /// Runs [action] now, unless a build is in flight.
-  ///
-  /// Inserting or removing an [OverlayEntry] is a `setState` on the [Overlay],
-  /// which sits in a different branch of the tree and has usually been built by
-  /// the time this widget rebuilds.
-  void _deferOrRun(VoidCallback action) {
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted) action();
-      });
-      return;
-    }
-    action();
-  }
-
   void _handleFocusChange() {
     // Tab, or a click on something else, takes focus away; the popup must not
     // outlive it.
-    if (!_focusNode.hasFocus && _open) _deferOrRun(_close);
+    if (!_focusNode.hasFocus && _open) deferOrRun(_close);
   }
 
   int? get _selectedIndex {

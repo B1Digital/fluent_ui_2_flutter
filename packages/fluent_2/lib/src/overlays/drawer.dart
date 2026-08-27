@@ -3,6 +3,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import '../internal/animated_style.dart';
+import '../internal/defer.dart';
 import '../internal/interaction.dart';
 import 'drawer_style.dart';
 
@@ -612,17 +613,17 @@ class _FluentDrawerState extends State<FluentDrawer>
 
     if (!_started) {
       _started = true;
-      if (widget.open) _deferOrRun(_show);
+      if (widget.open) deferOrRun(_show);
       return;
     }
-    _deferOrRun(() => _entry?.markNeedsBuild());
+    deferOrRun(() => _entry?.markNeedsBuild());
   }
 
   @override
   void didUpdateWidget(FluentDrawer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.type != oldWidget.type) {
-      _deferOrRun(() {
+      deferOrRun(() {
         _removeEntry();
         if (widget.open) {
           _show();
@@ -633,10 +634,10 @@ class _FluentDrawerState extends State<FluentDrawer>
       return;
     }
     if (widget.open != oldWidget.open) {
-      _deferOrRun(widget.open ? _show : _dismiss);
+      deferOrRun(widget.open ? _show : _dismiss);
       return;
     }
-    _deferOrRun(() => _entry?.markNeedsBuild());
+    deferOrRun(() => _entry?.markNeedsBuild());
   }
 
   @override
@@ -648,22 +649,6 @@ class _FluentDrawerState extends State<FluentDrawer>
     _controller.dispose();
     _scope.dispose();
     super.dispose();
-  }
-
-  /// Runs [action] now, unless a build is in flight.
-  ///
-  /// Inserting, removing or invalidating an [OverlayEntry] is a `setState` on
-  /// the [Overlay], which sits in a different branch of the tree and has
-  /// usually been built by the time this widget rebuilds.
-  void _deferOrRun(VoidCallback action) {
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted) action();
-      });
-      return;
-    }
-    action();
   }
 
   void _applyReducedMotion() {
@@ -797,42 +782,50 @@ class _FluentDrawerState extends State<FluentDrawer>
               },
             ),
           },
-          child: FocusScope(
-            node: _scope,
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, _) {
-                final t = _controller.value;
-                return Stack(
-                  children: <Widget>[
-                    Positioned.fill(
-                      child: Opacity(
-                        opacity: t,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: widget.onDismiss,
-                          child: ColoredBox(
-                            color: scrim ?? const Color(0x00000000),
+          // An overlay drawer is modal: the scrim behind it is an opaque
+          // hit-test barrier, and the focus scope keeps Tab inside the panel.
+          // Neither of those reaches the semantics tree, so without this the
+          // whole page behind stays readable — and swipeable — to a screen
+          // reader while it is visually and physically unreachable.
+          // `FluentDialog` does the same at dialog.dart:837.
+          child: BlockSemantics(
+            child: FocusScope(
+              node: _scope,
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, _) {
+                  final t = _controller.value;
+                  return Stack(
+                    children: <Widget>[
+                      Positioned.fill(
+                        child: Opacity(
+                          opacity: t,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: widget.onDismiss,
+                            child: ColoredBox(
+                              color: scrim ?? const Color(0x00000000),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    PositionedDirectional(
-                      top: 0,
-                      bottom: 0,
-                      start: leading || full ? 0 : null,
-                      end: !leading || full ? 0 : null,
-                      child: FractionalTranslation(
-                        translation: Offset(sign * (1 - t), 0),
-                        // Opacity carries the shadow with it, which is what
-                        // upstream's keyframes do explicitly — they tween
-                        // boxShadow from transparent up to shadow64.
-                        child: Opacity(opacity: t, child: panel),
+                      PositionedDirectional(
+                        top: 0,
+                        bottom: 0,
+                        start: leading || full ? 0 : null,
+                        end: !leading || full ? 0 : null,
+                        child: FractionalTranslation(
+                          translation: Offset(sign * (1 - t), 0),
+                          // Opacity carries the shadow with it, which is what
+                          // upstream's keyframes do explicitly — they tween
+                          // boxShadow from transparent up to shadow64.
+                          child: Opacity(opacity: t, child: panel),
+                        ),
                       ),
-                    ),
-                  ],
-                );
-              },
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ),

@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 
 import '../internal/anchor_metrics.dart';
 import '../internal/animated_style.dart';
+import '../internal/defer.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
 import 'menu_item.dart';
@@ -336,6 +337,7 @@ class _MenuLevel {
     required this.items,
     required this.anchorLink,
     required this.submenu,
+    this.anchorKey,
   });
 
   final List<FluentMenuItem> items;
@@ -344,11 +346,23 @@ class _MenuLevel {
   /// row for a submenu.
   final LayerLink anchorLink;
 
+  /// The parent row's element, for a submenu. Null on the root.
+  ///
+  /// [anchorLink] positions this level but cannot measure it:
+  /// `LeaderLayer.offset` is recorded inside the leader's own layer, and a
+  /// row's layer is its surface's follower — so the offset is where the row
+  /// sits *within the parent menu*, not on the screen. Reading it as a screen
+  /// position made every submenu overhang the bottom of the viewport by exactly
+  /// the parent surface's own `y`. A key gives the render box, which
+  /// [fluentAnchorRect] turns into real screen coordinates.
+  final GlobalKey? anchorKey;
+
   /// Whether this level opens beside its anchor rather than below it.
   final bool submenu;
 
   final FocusNode focusNode = FocusNode(debugLabel: 'FluentMenu');
   final Map<int, LayerLink> rowLinks = <int, LayerLink>{};
+  final Map<int, GlobalKey> rowKeys = <int, GlobalKey>{};
 
   OverlayEntry? entry;
   int? active;
@@ -374,10 +388,35 @@ class _FluentMenuState extends State<FluentMenu> {
   bool get _isOpen => _levels.isNotEmpty;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // An open level reads its theme and its reading direction from THIS
+    // context inside the entry's builder, but `build` below returns only the
+    // trigger — so a dependency change marks this element dirty and stops
+    // there, never reaching the entry over in the Overlay's branch. A theme or
+    // direction swap driven from inside an open menu would otherwise keep
+    // rendering the old one until it was reopened. `dialog.dart:651` and
+    // `drawer.dart:619` repaint the same way.
+    for (final level in _levels) {
+      deferOrRun(() => level.entry?.markNeedsBuild());
+    }
+  }
+
+  @override
   void didUpdateWidget(FluentMenu oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.items != oldWidget.items && _isOpen) {
-      _deferOrRun(() {
+    if (!_isOpen) return;
+    // `List` has no value equality and `FluentMenuItem` declares no `==`, so
+    // `widget.items != oldWidget.items` was true on *every* parent rebuild that
+    // passed a fresh list literal — which is all but 6 of the 104 call sites in
+    // the example app. Every unrelated rebuild collapsed the open submenu.
+    //
+    // ponytail: the length is the gate because it is what actually invalidates
+    // an open submenu — the submenu is keyed to an index. A same-length swap
+    // with different content still rebuilds the root but keeps the submenu
+    // open; give the items real value equality if that ever matters.
+    if (widget.items.length != oldWidget.items.length) {
+      deferOrRun(() {
         if (widget.items.isEmpty) {
           _closeAll();
         } else {
@@ -385,7 +424,9 @@ class _FluentMenuState extends State<FluentMenu> {
           _levels.first.entry?.markNeedsBuild();
         }
       });
+      return;
     }
+    deferOrRun(() => _levels.firstOrNull?.entry?.markNeedsBuild());
   }
 
   @override
@@ -396,22 +437,6 @@ class _FluentMenuState extends State<FluentMenu> {
     _levels.clear();
     _triggerFocus.dispose();
     super.dispose();
-  }
-
-  /// Runs [action] now, unless a build is in flight.
-  ///
-  /// Inserting or removing an [OverlayEntry] is a `setState` on the [Overlay],
-  /// which sits in a different branch of the tree and has usually been built by
-  /// the time this widget rebuilds.
-  void _deferOrRun(VoidCallback action) {
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted) action();
-      });
-      return;
-    }
-    action();
   }
 
   // --- opening and closing -------------------------------------------------
@@ -500,6 +525,7 @@ class _FluentMenuState extends State<FluentMenu> {
       _MenuLevel(
         items: item.submenu,
         anchorLink: level.rowLinks.putIfAbsent(index, LayerLink.new),
+        anchorKey: level.rowKeys.putIfAbsent(index, GlobalKey.new),
         submenu: true,
       ),
     );
@@ -715,18 +741,38 @@ class _FluentMenuState extends State<FluentMenu> {
     // A root level opens under its trigger, so it starts at the anchor's bottom
     // edge plus the gap; a submenu opens beside its row, top-aligned with it,
     // so it starts at the anchor's top.
+    // Whether this level opens upward instead of downward. Only the root can:
+    // a submenu top-aligns with its row and flipping it would uncouple the two.
+    var flipUp = false;
     if (style.maxHeight == null) {
-      // A submenu hangs off a row in the overlay, which never scrolls, so its
-      // leader offset is already a screen position. A root level hangs off the
-      // trigger, which can be anywhere in a scrolled page — that one is
-      // measured off its render box, see [fluentAnchorRect].
-      final surfaceTop = level.submenu
-          ? (level.anchorLink.leader?.offset.dy ?? 0)
-          : (fluentAnchorRect(context)?.bottom ?? 0) + offset;
+      // Both levels are measured off a render box. A submenu's leader offset
+      // looks like a screen position and is not — `LeaderLayer.offset` is
+      // recorded inside its own layer, and a row's layer is its surface's
+      // follower, so the value is where the row sits *within the parent menu*.
+      // Every submenu therefore overhung the bottom of the viewport by exactly
+      // the parent surface's own `y`. See [_MenuLevel.anchorKey].
+      final anchorContext = level.submenu
+          ? (level.anchorKey?.currentContext ?? context)
+          : context;
+      final anchor = fluentAnchorRect(anchorContext);
+      final viewport = MediaQuery.sizeOf(context).height;
+
+      // A submenu opens beside its row, top-aligned with it; a root level opens
+      // below its trigger, so it starts at the anchor's bottom plus the gap.
+      final below = level.submenu
+          ? math.max(viewport - (anchor?.top ?? 0), 0.0)
+          : math.max(viewport - ((anchor?.bottom ?? 0) + offset), 0.0);
+      final above = level.submenu
+          ? 0.0
+          : math.max((anchor?.top ?? 0) - offset, 0.0);
+
+      // `max(viewport - top, 0)` on its own gave a trigger at the bottom edge a
+      // menu of height ZERO: focus moved into it, Escape bound to it, and
+      // nothing painted. Upstream's positioning layer flips rather than
+      // collapsing, and so does this.
+      flipUp = above > below;
       style = style.copyWith(
-        maxHeight: WidgetStatePropertyAll<double?>(
-          math.max(MediaQuery.sizeOf(context).height - surfaceTop, 0),
-        ),
+        maxHeight: WidgetStatePropertyAll<double?>(flipUp ? above : below),
       );
     }
 
@@ -746,10 +792,18 @@ class _FluentMenuState extends State<FluentMenu> {
             ),
           )
         : (
-            AlignmentDirectional.bottomStart.resolve(direction),
-            AlignmentDirectional.topStart.resolve(direction),
-            Offset(0, offset),
-            const Offset(0, -_menuSurfaceSlide),
+            (flipUp
+                    ? AlignmentDirectional.topStart
+                    : AlignmentDirectional.bottomStart)
+                .resolve(direction),
+            (flipUp
+                    ? AlignmentDirectional.bottomStart
+                    : AlignmentDirectional.topStart)
+                .resolve(direction),
+            Offset(0, flipUp ? -offset : offset),
+            // The surface always travels *from* its anchor, so a menu opening
+            // upward slides down into place rather than up.
+            Offset(0, flipUp ? _menuSurfaceSlide : -_menuSurfaceSlide),
           );
 
     final surface = Semantics(
@@ -761,37 +815,47 @@ class _FluentMenuState extends State<FluentMenu> {
       ),
     );
 
-    return Stack(
-      children: <Widget>[
-        // A pointer landing anywhere else dismisses the whole chain. Nothing is
-        // painted, so this is invisible; it exists because a click on inert
-        // scenery moves no focus and would otherwise leave the menu open. Only
-        // the root level carries one — a submenu's barrier would swallow clicks
-        // meant for its own parent.
-        if (depth == 0)
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: _closeAll,
+    // `direction` above is the TRIGGER's, read from this State's context, but
+    // the entry is inflated in the Overlay's branch where that value does not
+    // reach — Directionality is NOT an InheritedTheme, so the capture at :456
+    // leaves it behind. Without this the anchors are resolved against one
+    // direction and the surface laid out under another, so an RTL app got an
+    // LTR menu whose submenus opened off the wrong edge of their rows. Same
+    // fix, same reason, as `drawer.dart:765`.
+    return Directionality(
+      textDirection: direction,
+      child: Stack(
+        children: <Widget>[
+          // A pointer landing anywhere else dismisses the whole chain. Nothing
+          // is painted, so this is invisible; it exists because a click on
+          // inert scenery moves no focus and would otherwise leave the menu
+          // open. Only the root level carries one — a submenu's barrier would
+          // swallow clicks meant for its own parent.
+          if (depth == 0)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _closeAll,
+              ),
+            ),
+          Positioned(
+            left: 0,
+            top: 0,
+            child: CompositedTransformFollower(
+              link: level.anchorLink,
+              showWhenUnlinked: false,
+              targetAnchor: target,
+              followerAnchor: follower,
+              offset: shift,
+              child: Focus(
+                focusNode: level.focusNode,
+                onKeyEvent: (_, event) => _handleKey(depth, event),
+                child: surface,
+              ),
             ),
           ),
-        Positioned(
-          left: 0,
-          top: 0,
-          child: CompositedTransformFollower(
-            link: level.anchorLink,
-            showWhenUnlinked: false,
-            targetAnchor: target,
-            followerAnchor: follower,
-            offset: shift,
-            child: Focus(
-              focusNode: level.focusNode,
-              onKeyEvent: (_, event) => _handleKey(depth, event),
-              child: surface,
-            ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -841,6 +905,7 @@ class _FluentMenuState extends State<FluentMenu> {
     final row = MouseRegion(
       onEnter: (_) => _hoverRow(depth, index),
       child: CompositedTransformTarget(
+        key: level.rowKeys.putIfAbsent(index, GlobalKey.new),
         link: level.rowLinks.putIfAbsent(index, LayerLink.new),
         child: FluentInteractive(
           enabled: item.selectable,

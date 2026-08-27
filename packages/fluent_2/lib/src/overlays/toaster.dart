@@ -1,9 +1,9 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../internal/animated_style.dart';
+import '../internal/defer.dart';
 import '../internal/focus_ring.dart';
 import '../internal/input_modality.dart';
 import 'toast.dart';
@@ -381,7 +381,7 @@ class _FluentToasterState extends State<FluentToaster> {
     // every dependency change, so a theme swap repaints live toasts.
     final overlay = Overlay.of(context, debugRequiredFor: widget);
     _captured = InheritedTheme.capture(from: context, to: overlay.context);
-    _deferOrRun(_sync);
+    deferOrRun(_sync);
   }
 
   @override
@@ -391,7 +391,7 @@ class _FluentToasterState extends State<FluentToaster> {
       oldWidget.controller.removeListener(_handleChange);
       widget.controller.addListener(_handleChange);
     }
-    _deferOrRun(_sync);
+    deferOrRun(_sync);
   }
 
   @override
@@ -404,23 +404,7 @@ class _FluentToasterState extends State<FluentToaster> {
     super.dispose();
   }
 
-  void _handleChange() => _deferOrRun(_sync);
-
-  /// Runs [action] now, unless a build is in flight.
-  ///
-  /// Inserting, removing or invalidating an [OverlayEntry] is a `setState` on
-  /// the [Overlay], which sits in a different branch of the tree and has
-  /// already been built by the time this widget rebuilds.
-  void _deferOrRun(VoidCallback action) {
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted) action();
-      });
-      return;
-    }
-    action();
-  }
+  void _handleChange() => deferOrRun(_sync);
 
   void _sync() {
     if (!mounted) return;
@@ -440,7 +424,7 @@ class _FluentToasterState extends State<FluentToaster> {
   }
 
   void _handleExitDone(Object id) =>
-      _deferOrRun(() => widget.controller.remove(id));
+      deferOrRun(() => widget.controller.remove(id));
 
   Widget _buildStacks() {
     final entries = widget.controller.entries;
@@ -458,7 +442,16 @@ class _FluentToasterState extends State<FluentToaster> {
     if (style != null) {
       content = FluentToastTheme(style: style, child: content);
     }
-    return content;
+    // Directionality is NOT an InheritedTheme, so the capture at :383 leaves it
+    // behind and the entry builds under the Overlay's own direction — the
+    // `PositionedDirectional` in `_buildStack` would then pin an RTL app's
+    // toasts to the LTR corner, and every toast's own content would read LTR.
+    // Read from *this* widget's context, not the overlay's, exactly as
+    // `drawer.dart:755` does for its panel.
+    return Directionality(
+      textDirection: Directionality.of(context),
+      child: content,
+    );
   }
 
   Widget _buildStack(
@@ -689,7 +682,17 @@ class _FluentToastContainerState extends State<_FluentToastContainer>
 
   /// Hands focus back to the trigger, then drops the toast.
   void _finishExit() {
-    if (_focusNode.hasFocus) widget.entry.trigger?.requestFocus();
+    // `context != null` before requesting: a toast routinely outlives whatever
+    // opened it, and requesting focus on a detached node is a silent no-op that
+    // also keeps the unmounted widget's node alive for the toast's lifetime.
+    // The other three overlays guard the same way.
+    final trigger = widget.entry.trigger;
+    if (_focusNode.hasFocus &&
+        trigger != null &&
+        trigger.context != null &&
+        trigger.canRequestFocus) {
+      trigger.requestFocus();
+    }
     widget.onExitDone(widget.entry.id);
   }
 

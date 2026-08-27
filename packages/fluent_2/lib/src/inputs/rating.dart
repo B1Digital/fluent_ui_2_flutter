@@ -311,43 +311,54 @@ Widget buildFluentRating(
   // is the one the value sits on.
   final focused = count <= 1 ? 0 : (state.value.ceil() - 1).clamp(0, count - 1);
 
-  return Stack(
-    // The ring paints 2px outside its item, which at either end of the row is
-    // outside the Stack too.
-    clipBehavior: Clip.none,
-    children: <Widget>[
-      SizedBox(
-        width: count * itemSize + (count - 1) * gap,
-        height: itemSize,
-        child: CustomPaint(
-          painter: FluentRatingPainter(
-            shape: shape,
-            itemSize: itemSize,
-            gap: gap,
-            fills: <double>[for (var i = 0; i < count; i++) state.fillOf(i)],
-            selected: style.selectedColor?.resolve(states),
-            unselected: style.unselectedColor?.resolve(states),
-            unselectedStroke: style.unselectedStrokeColor?.resolve(states),
-            strokeWidth:
-                style.strokeWidth?.resolve(states) ?? FluentStroke.none,
+  // A Builder purely for the reading direction: griffel mirrors
+  // `useRatingStyles`' flex row, so both the painter and the ring's offset need
+  // it, and a bare function has no context of its own. Reading it here rather
+  // than taking it as an argument keeps a consumer who supplies their own style
+  // mirrored for free — the ring below is directional either way.
+  return Builder(
+    builder: (context) => Stack(
+      // The ring paints 2px outside its item, which at either end of the row is
+      // outside the Stack too.
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        SizedBox(
+          width: count * itemSize + (count - 1) * gap,
+          height: itemSize,
+          child: CustomPaint(
+            painter: FluentRatingPainter(
+              shape: shape,
+              itemSize: itemSize,
+              gap: gap,
+              fills: <double>[for (var i = 0; i < count; i++) state.fillOf(i)],
+              selected: style.selectedColor?.resolve(states),
+              unselected: style.unselectedColor?.resolve(states),
+              unselectedStroke: style.unselectedStrokeColor?.resolve(states),
+              strokeWidth:
+                  style.strokeWidth?.resolve(states) ?? FluentStroke.none,
+              textDirection: Directionality.of(context),
+            ),
           ),
         ),
-      ),
-      Positioned(
-        left: focused * (itemSize + gap),
-        top: 0,
-        width: itemSize,
-        height: itemSize,
-        // `createFocusOutlineStyle`'s `::after` carries a flat
-        // `border-radius: 4px` at inset -2, and the concentric painter adds its
-        // own 2px width back, so 2 going in is the 4 the browser reports.
-        child: FluentFocusRing(
-          visible: states.contains(WidgetState.focused),
-          borderRadius: FluentRadius.allSmall,
-          child: const SizedBox.expand(),
+        // Directional: the row runs right to left under RTL, so the focused
+        // item is the nth from the trailing edge. Same trade as
+        // `switch.dart:337`'s thumb.
+        PositionedDirectional(
+          start: focused * (itemSize + gap),
+          top: 0,
+          width: itemSize,
+          height: itemSize,
+          // `createFocusOutlineStyle`'s `::after` carries a flat
+          // `border-radius: 4px` at inset -2, and the concentric painter adds
+          // its own 2px width back, so 2 going in is the 4 the browser reports.
+          child: FluentFocusRing(
+            visible: states.contains(WidgetState.focused),
+            borderRadius: FluentRadius.allSmall,
+            child: const SizedBox.expand(),
+          ),
         ),
-      ),
-    ],
+      ],
+    ),
   );
 }
 
@@ -385,6 +396,7 @@ class FluentRatingPainter extends CustomPainter {
     required this.unselected,
     required this.unselectedStroke,
     required this.strokeWidth,
+    this.textDirection = TextDirection.ltr,
   });
 
   /// Which silhouette every shape in the row takes.
@@ -411,6 +423,18 @@ class FluentRatingPainter extends CustomPainter {
 
   /// Outline width. Zero suppresses the outline entirely.
   final double strokeWidth;
+
+  /// Which edge the first shape sits against: the left in [TextDirection.ltr].
+  ///
+  /// Optional, and LTR by default, because this painter is public API and a
+  /// required field would break every existing construction. Under
+  /// [TextDirection.rtl] two things mirror, both because griffel mirrors them
+  /// upstream: the row is laid out from the right edge of the canvas, since
+  /// `useRatingStyles`' root is a plain `display: flex`, and a half fill grows
+  /// from its own shape's right edge, since `useRatingItemStyles` clips the
+  /// selected glyph with `right: 50%`. The silhouettes themselves are
+  /// axis-symmetric, so no path is mirrored.
+  final TextDirection textDirection;
 
   // See the class doc for provenance.
 
@@ -469,8 +493,17 @@ class FluentRatingPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final rtl = textDirection == TextDirection.rtl;
     for (var i = 0; i < fills.length; i++) {
-      final box = Rect.fromLTWH(i * (itemSize + gap), 0, itemSize, itemSize);
+      final start = i * (itemSize + gap);
+      // Shape 0 is the one a reader meets first, which under RTL is against the
+      // right edge of the canvas.
+      final box = Rect.fromLTWH(
+        rtl ? size.width - start - itemSize : start,
+        0,
+        itemSize,
+        itemSize,
+      );
       final path = pathFor(shape, box);
 
       final fill = unselected;
@@ -493,11 +526,18 @@ class FluentRatingPainter extends CustomPainter {
       if (fraction <= 0 || tint == null) continue;
       // Clipping the whole shape rather than building a half path is what
       // upstream does too: the selected icon is a complete glyph in a box with
-      // `overflow: hidden` and `right: 50%`.
+      // `overflow: hidden` and `right: 50%` — which griffel flips to
+      // `left: 50%` under RTL, so the fill grows from the other edge there.
+      final ink = box.width * fraction;
       canvas
         ..save()
         ..clipRect(
-          Rect.fromLTWH(box.left, box.top, box.width * fraction, box.height),
+          Rect.fromLTWH(
+            rtl ? box.right - ink : box.left,
+            box.top,
+            ink,
+            box.height,
+          ),
         )
         ..drawPath(path, Paint()..color = tint)
         ..restore();
@@ -556,7 +596,8 @@ class FluentRatingPainter extends CustomPainter {
       oldDelegate.selected != selected ||
       oldDelegate.unselected != unselected ||
       oldDelegate.unselectedStroke != unselectedStroke ||
-      oldDelegate.strokeWidth != strokeWidth;
+      oldDelegate.strokeWidth != strokeWidth ||
+      oldDelegate.textDirection != textDirection;
 }
 
 /// Overrides the rating style for a subtree.
@@ -602,6 +643,11 @@ class FluentRatingTheme extends InheritedTheme {
 /// clicking commits it, and the arrow keys move by one [step] once the control
 /// has keyboard focus. Pass `type: FluentRatingType.display` for the inert
 /// rendering, which reports a value and takes no input at all.
+///
+/// The whole control mirrors under [TextDirection.rtl] — the row runs right to
+/// left, a half value fills the right half of its shape, and the *left* arrow
+/// is the one that moves toward five, since the horizontal keys are physical
+/// directions. Up and Down never mirror.
 ///
 /// `onChanged: null` disables it — a real state, not a visual treatment: the
 /// rating stops previewing on hover, refuses focus, ignores the arrow keys and
@@ -710,16 +756,22 @@ class _FluentRatingState extends State<FluentRating> {
   /// preview a maximum the press there never commits.
   double? _valueAt(Offset local) {
     final extent = _itemSize + _gap;
-    if (!Rect.fromLTWH(
-      0,
-      0,
-      _itemCount * extent - _gap,
-      _itemSize,
-    ).contains(local)) {
+    final row = _itemCount * extent - _gap;
+    // The painter lays the row out from the reading-start edge and the Stack
+    // holding it aligns to `AlignmentDirectional.topStart`, so under RTL both
+    // the shapes and the surplus above are mirrored: measure from the right
+    // edge of the box and every line below stays as it was.
+    // `slider.dart:640` and `color_area.dart:596` mirror the same way.
+    final dx = Directionality.of(context) == TextDirection.rtl
+        ? (context.size?.width ?? row) - local.dx
+        : local.dx;
+    if (!Rect.fromLTWH(0, 0, row, _itemSize).contains(Offset(dx, local.dy))) {
       return null;
     }
-    final index = (local.dx / extent).floor();
-    final within = (local.dx - index * extent) / _itemSize;
+    final index = (dx / extent).floor();
+    // The near half of a shape is the half a half-value fills, which is the
+    // right one under RTL — the same edge the painter's clip starts from.
+    final within = (dx - index * extent) / _itemSize;
     return widget.step == 0.5 && within < 0.5 ? index + 0.5 : index + 1;
   }
 
@@ -853,16 +905,31 @@ class _FluentRatingState extends State<FluentRating> {
       container: true,
       child: Shortcuts(
         shortcuts: const <ShortcutActivator, Intent>{
-          SingleActivator(LogicalKeyboardKey.arrowRight): _AdjustIntent(1),
+          SingleActivator(LogicalKeyboardKey.arrowRight): _AdjustIntent(
+            1,
+            mirrored: true,
+          ),
           SingleActivator(LogicalKeyboardKey.arrowUp): _AdjustIntent(1),
-          SingleActivator(LogicalKeyboardKey.arrowLeft): _AdjustIntent(-1),
+          SingleActivator(LogicalKeyboardKey.arrowLeft): _AdjustIntent(
+            -1,
+            mirrored: true,
+          ),
           SingleActivator(LogicalKeyboardKey.arrowDown): _AdjustIntent(-1),
         },
         child: Actions(
           actions: <Type, Action<Intent>>{
             _AdjustIntent: CallbackAction<_AdjustIntent>(
               onInvoke: (intent) {
-                _adjust(intent.direction * widget.step);
+                // Arrow keys are physical: on an RTL row the shapes run the
+                // other way, so the left arrow is the one that moves toward
+                // five stars. The vertical pair never mirrors. Same trade as
+                // `slider.dart:645-655`.
+                final flip =
+                    intent.mirrored &&
+                    Directionality.of(context) == TextDirection.rtl;
+                _adjust(
+                  (flip ? -intent.direction : intent.direction) * widget.step,
+                );
                 return null;
               },
             ),
@@ -876,9 +943,13 @@ class _FluentRatingState extends State<FluentRating> {
 
 /// Move the rating by one step in [direction].
 class _AdjustIntent extends Intent {
-  const _AdjustIntent(this.direction);
+  const _AdjustIntent(this.direction, {this.mirrored = false});
 
   /// 1 to increase, -1 to decrease. Multiplied by the widget's own step, so a
   /// half-step rating moves by a half.
   final double direction;
+
+  /// Whether RTL reverses [direction]: true for the horizontal pair, which is
+  /// physical and so swaps with the row, false for the vertical one.
+  final bool mirrored;
 }

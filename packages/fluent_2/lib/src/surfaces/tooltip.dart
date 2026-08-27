@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import 'package:fluent_2_core/fluent_2_core.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
+import '../internal/defer.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
 import 'tooltip_style.dart';
@@ -254,11 +254,19 @@ Widget buildFluentTooltip(
   final vertical =
       state.position == FluentTooltipPosition.above ||
       state.position == FluentTooltipPosition.below;
-  final arrow = CustomPaint(
-    size: vertical ? arrowSize : Size(arrowSize.height, arrowSize.width),
-    painter: FluentTooltipArrowPainter(
-      color: background ?? const Color(0x00000000),
-      position: state.position,
+  // The Row below IS direction-aware and a Path is not, so the painter has to
+  // be told which way it is reading. Taken from the ambient Directionality
+  // through a Builder rather than added as a fourth parameter: that keeps this
+  // function's three-argument recomposition shape, and it makes the apex
+  // physically incapable of disagreeing with the Row that places it.
+  final arrow = Builder(
+    builder: (context) => CustomPaint(
+      size: vertical ? arrowSize : Size(arrowSize.height, arrowSize.width),
+      painter: FluentTooltipArrowPainter(
+        color: background ?? const Color(0x00000000),
+        position: state.position,
+        textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
+      ),
     ),
   );
 
@@ -295,6 +303,7 @@ class FluentTooltipArrowPainter extends CustomPainter {
   const FluentTooltipArrowPainter({
     required this.color,
     required this.position,
+    this.textDirection = TextDirection.ltr,
   });
 
   /// The arrow fill — always the surface's own background token.
@@ -304,10 +313,33 @@ class FluentTooltipArrowPainter extends CustomPainter {
   /// way, towards the target.
   final FluentTooltipPosition position;
 
+  /// The reading direction [position] is resolved against.
+  ///
+  /// [FluentTooltipPosition.before] and [FluentTooltipPosition.after] are
+  /// reading-order sides, but the [Path] painted here is physical, so under
+  /// [TextDirection.rtl] the two swap. Without that the surface — laid out by a
+  /// direction-aware [Row] in [buildFluentTooltip] — lands on the far edge and
+  /// the arrow points into it rather than at the target.
+  /// [FluentTooltipPosition.above] and [FluentTooltipPosition.below] are
+  /// symmetric about the centre and never mirror.
+  ///
+  /// Optional, and defaulting to [TextDirection.ltr], because this painter is
+  /// public API: a required field would break every existing caller.
+  /// [buildFluentTooltip] always passes the ambient direction.
+  final TextDirection textDirection;
+
   @override
   void paint(Canvas canvas, Size size) {
+    // The logical side made physical. Only the inline pair moves.
+    final side = switch ((position, textDirection)) {
+      (FluentTooltipPosition.before, TextDirection.rtl) =>
+        FluentTooltipPosition.after,
+      (FluentTooltipPosition.after, TextDirection.rtl) =>
+        FluentTooltipPosition.before,
+      _ => position,
+    };
     final path = Path();
-    switch (position) {
+    switch (side) {
       case FluentTooltipPosition.above:
         path
           ..moveTo(0, 0)
@@ -334,7 +366,9 @@ class FluentTooltipArrowPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(FluentTooltipArrowPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.position != position;
+      oldDelegate.color != color ||
+      oldDelegate.position != position ||
+      oldDelegate.textDirection != textDirection;
 }
 
 /// Overrides the tooltip style for a subtree.
@@ -486,13 +520,13 @@ class _FluentTooltipState extends State<FluentTooltip> {
     // wrapping the trigger would otherwise be invisible to it.
     _theme = FluentTheme.of(context);
     _themeStyle = FluentTooltipTheme.maybeOf(context);
-    _deferOrRun(_repaint);
+    deferOrRun(_repaint);
   }
 
   @override
   void didUpdateWidget(FluentTooltip oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _deferOrRun(() {
+    deferOrRun(() {
       _repaint();
       // Immediate: `enabled` going false must tear the surface down now, not a
       // quarter second from now.
@@ -558,25 +592,6 @@ class _FluentTooltipState extends State<FluentTooltip> {
 
   void _repaint() => _entry?.markNeedsBuild();
 
-  /// Runs [action] now, unless a build is in flight.
-  ///
-  /// Inserting, removing or invalidating an [OverlayEntry] is a `setState` on
-  /// the [Overlay], which sits in a different branch of the tree and has
-  /// already been built by the time this widget rebuilds. Doing it from
-  /// [didUpdateWidget] or [didChangeDependencies] would therefore assert. Hover
-  /// and focus changes never arrive during a build, so they take the direct
-  /// path — focus on the very next frame, hover once [_hoverDelay] has run.
-  void _deferOrRun(VoidCallback action) {
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted) action();
-      });
-      return;
-    }
-    action();
-  }
-
   void _show() {
     if (_entry != null) return;
     final overlay = Overlay.of(context, debugRequiredFor: widget);
@@ -614,26 +629,35 @@ class _FluentTooltipState extends State<FluentTooltip> {
 
     const states = <WidgetState>{};
     final offset = style.offset?.resolve(states) ?? FluentSpacing.none;
+    // Read from *this* widget's context, not the overlay's: Directionality is
+    // not an InheritedTheme, so InheritedTheme.capture does not carry it, and
+    // an RTL subtree would otherwise anchor its tooltip on the wrong edge.
+    // `FluentDrawer` reads its own the same way, at drawer.dart:758.
+    final direction = Directionality.of(context);
+    // `before`/`after` are reading-order sides, so the physical direction the
+    // surface is pushed in flips with the reading direction. `above`/`below`
+    // never do — vertical never mirrors.
+    final inline = direction == TextDirection.rtl ? -offset : offset;
     final (target, follower, shift) = switch (widget.position) {
       FluentTooltipPosition.above => (
-        Alignment.topCenter,
-        Alignment.bottomCenter,
+        AlignmentDirectional.topCenter,
+        AlignmentDirectional.bottomCenter,
         Offset(0, -offset),
       ),
       FluentTooltipPosition.below => (
-        Alignment.bottomCenter,
-        Alignment.topCenter,
+        AlignmentDirectional.bottomCenter,
+        AlignmentDirectional.topCenter,
         Offset(0, offset),
       ),
       FluentTooltipPosition.before => (
-        Alignment.centerLeft,
-        Alignment.centerRight,
-        Offset(-offset, 0),
+        AlignmentDirectional.centerStart,
+        AlignmentDirectional.centerEnd,
+        Offset(-inline, 0),
       ),
       FluentTooltipPosition.after => (
-        Alignment.centerRight,
-        Alignment.centerLeft,
-        Offset(offset, 0),
+        AlignmentDirectional.centerEnd,
+        AlignmentDirectional.centerStart,
+        Offset(inline, 0),
       ),
     };
 
@@ -643,12 +667,34 @@ class _FluentTooltipState extends State<FluentTooltip> {
       child: CompositedTransformFollower(
         link: _link,
         showWhenUnlinked: false,
-        targetAnchor: target,
-        followerAnchor: follower,
+        // Both anchors are typed `Alignment` (basic.dart:2054, 2062), which is
+        // NOT direction-aware — an AlignmentDirectional handed to either would
+        // be rejected by the analyser, and a raw Alignment would silently stay
+        // physical. Resolving here is the only place that can flip them.
+        targetAnchor: target.resolve(direction),
+        followerAnchor: follower.resolve(direction),
         offset: shift,
-        // A tooltip that swallowed pointer events would flicker: the surface
-        // can overlap its own trigger, and stealing the hover would hide it.
-        child: IgnorePointer(child: buildFluentTooltip(state, style, states)),
+        // Re-provided because the surface builds inside the Overlay, outside
+        // this subtree: the Row in `buildFluentTooltip` and the arrow painter
+        // under it both read it, and both have to agree with the anchors
+        // resolved just above.
+        child: Directionality(
+          textDirection: direction,
+          // A tooltip that swallowed pointer events would flicker: the surface
+          // can overlap its own trigger, and stealing the hover would hide it.
+          // ExcludeSemantics as *well*, not instead: IgnorePointer suppresses
+          // hit-testing only (`RenderIgnorePointer.hitTest`,
+          // proxy_box.dart:3797) and leaves its subtree in the semantics tree
+          // (`visitChildrenForSemantics`, proxy_box.dart:3802 — the early
+          // return is gated on the deprecated `ignoringSemantics`), so the
+          // content would be read out a second time, next to the `tooltip`
+          // already announced on the trigger below.
+          child: IgnorePointer(
+            child: ExcludeSemantics(
+              child: buildFluentTooltip(state, style, states),
+            ),
+          ),
+        ),
       ),
     );
   }

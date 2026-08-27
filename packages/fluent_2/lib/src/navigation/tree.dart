@@ -778,6 +778,12 @@ class _FluentTreeState extends State<FluentTree> {
   Set<Object> get _open => widget.openItems ?? _uncontrolledOpen;
 
   @override
+  void didUpdateWidget(FluentTree oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(widget.items, oldWidget.items)) _pruneNodes();
+  }
+
+  @override
   void dispose() {
     for (final node in _nodes.values) {
       node.dispose();
@@ -787,6 +793,30 @@ class _FluentTreeState extends State<FluentTree> {
 
   FocusNode _nodeFor(Object value) =>
       _nodes.putIfAbsent(value, () => FocusNode(debugLabel: 'FluentTree'));
+
+  /// Disposes the focus nodes of items that have left the tree.
+  ///
+  /// [_nodeFor] is a `putIfAbsent` and nothing else ever removes from [_nodes],
+  /// so without this every item the caller drops leaks a [FocusNode] for the
+  /// tree's lifetime. `FluentTabList` and `FluentList` both prune; this is the
+  /// same bookkeeping, except the walk has to recurse — [FluentTreeItem.children]
+  /// is nested rather than flattened, and a collapsed branch still owns nodes.
+  void _pruneNodes() {
+    final live = <Object>{};
+    void walk(List<FluentTreeItem> items) {
+      for (final item in items) {
+        live.add(item.value);
+        walk(item.children);
+      }
+    }
+
+    walk(widget.items);
+    _nodes.removeWhere((value, node) {
+      if (live.contains(value)) return false;
+      node.dispose();
+      return true;
+    });
+  }
 
   /// The visible rows, in traversal order: an item, then its subtree if open.
   List<_Row> _visible() {

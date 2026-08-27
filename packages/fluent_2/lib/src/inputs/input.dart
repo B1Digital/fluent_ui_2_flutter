@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -822,7 +821,15 @@ double _maxRadius(BorderRadius radius) => math.max(
 ///
 /// ponytail: a plain disc, not Material's teardrop. Give it a directional point
 /// if a design ever specifies one.
-class FluentTextSelectionControls extends TextSelectionControls {
+/// The [TextSelectionHandleControls] mixin is load-bearing, not decoration.
+/// `TextSelectionOverlay.showToolbar` branches on it: with plain
+/// [TextSelectionControls] it takes the legacy path and builds the toolbar from
+/// [buildToolbar], and `EditableText.contextMenuBuilder` — where Fluent's menu
+/// actually lives — is never consulted. Painting handles but no toolbar has to
+/// be declared by *type*; returning an empty widget from [buildToolbar] is not
+/// enough, and leaves every Fluent text control with no context menu at all.
+class FluentTextSelectionControls extends TextSelectionControls
+    with TextSelectionHandleControls {
   /// Creates a handle painter. Prefer [fluentTextSelectionControls].
   FluentTextSelectionControls();
 
@@ -864,25 +871,10 @@ class FluentTextSelectionControls extends TextSelectionControls {
     );
   }
 
-  @Deprecated(
-    'Use `contextMenuBuilder` instead. '
-    'This feature was deprecated after v3.3.0-0.5.pre.',
-  )
-  @override
-  Widget buildToolbar(
-    BuildContext context,
-    Rect globalEditableRegion,
-    double textLineHeight,
-    Offset selectionMidpoint,
-    List<TextSelectionPoint> endpoints,
-    TextSelectionDelegate delegate,
-    ValueListenable<ClipboardStatus>? clipboardStatus,
-    Offset? lastSecondaryTapDownPosition,
-  ) =>
-      // Fluent's context menu is a Menu surface, not a text-selection toolbar,
-      // and the framework routes that through `EditableText.contextMenuBuilder`
-      // now. Nothing to build here.
-      const SizedBox.shrink();
+  // No `buildToolbar` override: the mixin already returns an empty widget, and
+  // does it without reaching for a deprecated member. Fluent's context menu is
+  // a Menu surface, not a text-selection toolbar, so it arrives through
+  // `EditableText.contextMenuBuilder`.
 }
 
 /// The shared [FluentTextSelectionControls], mirroring Material's

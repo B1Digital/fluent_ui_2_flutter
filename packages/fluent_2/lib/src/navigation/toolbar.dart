@@ -392,10 +392,12 @@ class _FluentToolbarState extends State<FluentToolbar> {
   @override
   void didUpdateWidget(FluentToolbar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.items.length != oldWidget.items.length) {
-      _syncWrappers();
-      WidgetsBinding.instance.addPostFrameCallback((_) => _settleActive());
-    }
+    if (widget.items.length != oldWidget.items.length) _syncWrappers();
+    // Not gated on the length: disabling the item that holds the tab stop
+    // leaves the list exactly as long and the toolbar with zero tab stops.
+    // The settle is cheap and idempotent — it early-returns unless the active
+    // item has actually lost its focusable descendant.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _settleActive());
   }
 
   @override
@@ -447,10 +449,28 @@ class _FluentToolbarState extends State<FluentToolbar> {
   /// Without this a toolbar whose first item is a divider or a disabled button
   /// would have zero tab stops instead of one.
   void _settleActive() {
-    if (!mounted || _focusable(_active) != null) return;
-    final target = _seek(_active, 1);
-    if (target != null && target != _active) setState(() => _active = target);
+    if (!mounted) return;
+    if (_focusable(_active) == null) {
+      final target = _seek(_active, 1);
+      if (target != null && target != _active) setState(() => _active = target);
+    }
+    _unlatch();
   }
+
+  /// Clears the `skipTraversal` the active item latched onto its own node while
+  /// its gate was shut.
+  ///
+  /// Re-parking the index is not enough on its own. `Focus.skipTraversal` falls
+  /// back to `focusNode.skipTraversal` when the widget passes none, and *that*
+  /// getter is derived: it reports true while any ancestor has
+  /// `descendantsAreTraversable: false`. An item built on
+  /// `FocusableActionDetector` passes none, so the first shut gate makes the
+  /// item write the derived true back onto its own node as a hard flag, and the
+  /// item then stays out of the Tab order for good, gate or no gate. One
+  /// assignment per settle undoes it, and the item's next build writes the
+  /// cleared value straight back, so it sticks. `_FluentNavState._unlatch` is
+  /// the same fix for the same framework behaviour.
+  void _unlatch() => _focusable(_active)?.skipTraversal = false;
 
   void _move(int delta) {
     final target = _seek(_active + delta, delta);

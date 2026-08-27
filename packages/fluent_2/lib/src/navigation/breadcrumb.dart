@@ -1,9 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:fluent_2_core/fluent_2_core.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../internal/anchor_metrics.dart';
 import '../internal/animated_style.dart';
+import '../internal/defer.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
 import '../l10n/l10n.dart';
@@ -734,7 +737,7 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
     super.didUpdateWidget(oldWidget);
     if (_open) {
       if (_partition.overflow.isEmpty) {
-        _deferOrRun(_close);
+        deferOrRun(_close);
       } else {
         _entry!.markNeedsBuild();
       }
@@ -753,26 +756,10 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
     super.dispose();
   }
 
-  /// Runs [action] now, unless a build is in flight.
-  ///
-  /// Inserting or removing an [OverlayEntry] is a `setState` on the [Overlay],
-  /// which sits in a different branch of the tree and has usually been built by
-  /// the time this widget rebuilds.
-  void _deferOrRun(VoidCallback action) {
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted) action();
-      });
-      return;
-    }
-    action();
-  }
-
   void _handleFocusChange() {
     // Tab, or a click on something else, takes focus away; the popup must not
     // outlive it.
-    if (!_overflowFocus.hasFocus && _open) _deferOrRun(_close);
+    if (!_overflowFocus.hasFocus && _open) deferOrRun(_close);
   }
 
   void _openPopup({int? active}) {
@@ -965,11 +952,31 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
   }
 
   Widget _buildPopup() {
-    final style = _styleFor(_overflowState());
+    final resolved = _styleFor(_overflowState());
     const surfaceStates = <WidgetState>{};
-    final gap = style.surfaceGap?.resolve(surfaceStates) ?? FluentSpacing.xxs;
-    final offset = style.surfaceOffset?.resolve(surfaceStates) ?? 0;
+    final gap =
+        resolved.surfaceGap?.resolve(surfaceStates) ?? FluentSpacing.xxs;
+    final offset = resolved.surfaceOffset?.resolve(surfaceStates) ?? 0;
     final rows = _partition.overflow;
+
+    // The 300 in `resolveFluentBreadcrumbStyle` is a cap, not a fit: a trigger
+    // low on the page opened a 300-tall popup straight off the bottom of the
+    // screen, where it was clipped and hit-tested against nothing. This is the
+    // viewport clamp upstream's positioning layer does — the same arithmetic
+    // `FluentDropdown` uses, flipping above the trigger when there is more room
+    // there. Measured off the render box rather than the leader layer; see
+    // [fluentAnchorRect] for why the layer lies once the page has scrolled.
+    final room = fluentAnchorRoom(context);
+    final flip = room.above > room.below;
+    final available = math.max((flip ? room.above : room.below) - offset, 0.0);
+    final style = resolved.copyWith(
+      surfaceMaxHeight: WidgetStatePropertyAll<double?>(
+        math.min(
+          resolved.surfaceMaxHeight?.resolve(surfaceStates) ?? double.infinity,
+          available,
+        ),
+      ),
+    );
 
     return Stack(
       children: <Widget>[
@@ -980,6 +987,10 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: _close,
+            // Nothing is painted here, but an opaque tap target still lands in
+            // the semantics tree — a screen-reader user swiping the tree hit an
+            // unlabelled full-screen button sitting over the whole page.
+            excludeFromSemantics: true,
           ),
         ),
         Positioned(
@@ -988,9 +999,9 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
           child: CompositedTransformFollower(
             link: _link,
             showWhenUnlinked: false,
-            targetAnchor: Alignment.bottomLeft,
-            followerAnchor: Alignment.topLeft,
-            offset: Offset(0, offset),
+            targetAnchor: flip ? Alignment.topLeft : Alignment.bottomLeft,
+            followerAnchor: flip ? Alignment.bottomLeft : Alignment.topLeft,
+            offset: Offset(0, flip ? -offset : offset),
             // The rows are outside the traversal order on purpose: focus stays
             // on the trigger the whole time the popup is open, which is what
             // makes "focus returns to the trigger on close" structural.
@@ -1050,10 +1061,13 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
               buildFluentBreadcrumb(state, style, <WidgetState>{
                 ...states,
                 // The active row is where the keyboard is, even though the
-                // framework's focus never leaves the trigger. `_active` is set
-                // by hover too, so on its own it means "active descendant" —
-                // upstream's `data-activedescendant`. The ring belongs to its
-                // focus-visible sibling, which is this AND.
+                // framework's focus never leaves the trigger — upstream's
+                // `data-activedescendant`. `_active` only ever moves by
+                // keyboard (`:770`, `:780`, `:814`); hover does not touch it.
+                // The AND with the modality is therefore about *modality*, not
+                // about disambiguating hover: it keeps the ring off when the
+                // row was reached by pointer, matching every other Fluent
+                // control's focus-visible rule.
                 if (index == _active && keyboard) WidgetState.focused,
               }),
         ),

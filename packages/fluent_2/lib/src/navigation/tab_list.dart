@@ -888,7 +888,9 @@ class _FluentTabListState<T extends Object> extends State<FluentTabList<T>>
     vsync: this,
     duration: FluentMotionSpec.tabIndicator.duration,
   );
-  late final Animation<double> _flipAnimation = CurvedAnimation(
+  // Typed as CurvedAnimation, not Animation<double>: it holds a status listener
+  // on [_controller] and has to be disposed, which the supertype does not offer.
+  late final CurvedAnimation _flipAnimation = CurvedAnimation(
     parent: _controller,
     curve: FluentMotionSpec.tabIndicator.curve,
   );
@@ -928,6 +930,8 @@ class _FluentTabListState<T extends Object> extends State<FluentTabList<T>>
 
   @override
   void dispose() {
+    // Child before parent: the CurvedAnimation is a listener on _controller.
+    _flipAnimation.dispose();
     _controller
       ..removeStatusListener(_onFlipStatus)
       ..dispose();

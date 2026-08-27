@@ -1,9 +1,13 @@
+import 'dart:math' as math;
+
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../internal/anchor_metrics.dart';
 import '../internal/animated_style.dart';
+import '../internal/defer.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
 import '../l10n/l10n.dart';
@@ -882,6 +886,19 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The popup builds from *this* State's context but lives in the Overlay's
+    // branch of the tree, so nothing rebuilds it when a dependency here moves.
+    // Two visible bugs came out of that: the max height was measured once at
+    // open and never again, so resizing the window left the list running off
+    // the screen; and a `FluentThemeOverride` swapped under a const subtree
+    // left the open popup painting the old tokens. `FluentInfoButton` already
+    // does this.
+    deferOrRun(() => _entry?.markNeedsBuild());
+  }
+
+  @override
   void didUpdateWidget(FluentTagPicker<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.focusNode != oldWidget.focusNode) {
@@ -900,9 +917,11 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
       _states
         ..update(WidgetState.hovered, false)
         ..update(WidgetState.pressed, false);
-      _deferOrRun(_close);
+      deferOrRun(_close);
     } else if (_open) {
-      _entry!.markNeedsBuild();
+      // `markNeedsBuild` is a `setState` on the Overlay, same as an insert —
+      // deferred for the same reason the branch above is.
+      deferOrRun(() => _entry?.markNeedsBuild());
     }
     _states.update(WidgetState.disabled, !_enabled);
   }
@@ -927,24 +946,8 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     if (mounted) setState(() {});
   }
 
-  /// Runs [action] now, unless a build is in flight.
-  ///
-  /// Inserting or removing an [OverlayEntry] is a `setState` on the [Overlay],
-  /// which sits in a different branch of the tree and has usually been built by
-  /// the time this widget rebuilds.
-  void _deferOrRun(VoidCallback action) {
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted) action();
-      });
-      return;
-    }
-    action();
-  }
-
   void _handleFocusChange() {
-    if (!_focusNode.hasFocus && _open) _deferOrRun(_close);
+    if (!_focusNode.hasFocus && _open) deferOrRun(_close);
     _rebuild();
   }
 
@@ -1081,12 +1084,18 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     // cannot read a viewport; it is applied here, below the theme and the
     // caller's style, so either can still override it. With no `MediaQuery` in
     // scope the resolver's own fallback stands.
+    //
+    // 80vh is a CAP, not a fit: on its own it says nothing about where the
+    // field sits, so a picker low on the page threw most of the list off the
+    // bottom of the screen. The room left below the trigger is the other half
+    // of the constraint, exactly as `FluentDropdown` computes it.
     final viewport = MediaQuery.maybeSizeOf(context)?.height;
+    final room = fluentAnchorRoom(context).below;
     return resolveFluentTagPickerStyle(state, FluentTheme.of(context))
         .copyWith(
           surfaceMaxHeight: viewport == null
               ? null
-              : WidgetStatePropertyAll<double?>(viewport * 0.8),
+              : WidgetStatePropertyAll<double?>(math.min(viewport * 0.8, room)),
         )
         .merge(FluentTagPickerTheme.maybeOf(context))
         .merge(widget.style);

@@ -726,6 +726,7 @@ class _FluentNavScope extends InheritedWidget {
     required this.register,
     required this.unregister,
     required this.rowFocused,
+    required this.scheduleSettle,
     required super.child,
   });
 
@@ -743,6 +744,7 @@ class _FluentNavScope extends InheritedWidget {
   final void Function(FocusNode gate) register;
   final void Function(FocusNode gate, {required bool hadFocus}) unregister;
   final void Function(FocusNode gate) rowFocused;
+  final VoidCallback scheduleSettle;
 
   static _FluentNavScope of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<_FluentNavScope>();
@@ -1094,6 +1096,7 @@ class _FluentNavState extends State<FluentNav> {
       register: _register,
       unregister: _unregister,
       rowFocused: _rowFocused,
+      scheduleSettle: _scheduleSettle,
       // Shortcuts and Actions must be siblings on the same path, and outside
       // any FocusScope: ShortcutManager resolves the action from
       // `primaryFocus`, not from the Shortcuts context, so an Actions that is
@@ -1209,6 +1212,17 @@ class _FluentNavRowState extends State<_FluentNavRow> {
   @override
   Widget build(BuildContext context) {
     final scope = _FluentNavScope.of(context);
+
+    // A row is focusable only while it is enabled and has something to invoke.
+    // When it stops being either, its focusable descendant disappears — and if
+    // this row held the tab stop the nav is left with *zero* stops, because
+    // every other row gates its subtree out of the traversal. No registration
+    // event fires to catch it: the gate set never changed, only the row's own
+    // `enabled`. Settling has to be asked for here.
+    if (!(widget.enabled && widget.onPressed != null) &&
+        identical(scope.tabStop, _gate)) {
+      scope.scheduleSettle();
+    }
 
     final state = resolveFluentNavItemState(
       kind: widget.kind,

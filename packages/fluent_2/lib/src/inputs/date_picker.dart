@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart' show DateFormat;
 
 import '../internal/anchor_metrics.dart';
+import '../internal/defer.dart';
 import '../internal/interaction.dart';
 import '../l10n/l10n.dart';
 import '../overlays/popover.dart';
@@ -991,7 +992,7 @@ class _FluentDatePickerState extends State<FluentDatePicker>
     if (widget.value != oldWidget.value || widget.locale != oldWidget.locale) {
       _reformat();
     }
-    _deferOrRun(_syncEntry);
+    deferOrRun(_syncEntry);
   }
 
   @override
@@ -1014,25 +1015,20 @@ class _FluentDatePickerState extends State<FluentDatePicker>
   @override
   void dispose() {
     _focusNode.removeListener(_handleFocusChange);
+    // Entry before scope. `OverlayEntry.remove` defers its `_markDirty` to a
+    // post-frame callback, so the popup — which builds inside
+    // `FocusScope(node: _scope)` — can still be mounted for a moment after the
+    // node it depends on has been disposed.
+    _entry
+      ?..remove()
+      ..dispose();
+    _entry = null;
     _scope
       ..removeListener(_handleFocusChange)
       ..dispose();
-    _entry?.remove();
-    _entry = null;
     _controller.dispose();
     _internalNode?.dispose();
     super.dispose();
-  }
-
-  void _deferOrRun(VoidCallback action) {
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted) action();
-      });
-      return;
-    }
-    action();
   }
 
   /// Closes and validates once focus has genuinely left both the field and the
@@ -1073,7 +1069,7 @@ class _FluentDatePickerState extends State<FluentDatePicker>
       setState(() => _uncontrolledOpen = next);
     }
     widget.onOpenChange?.call(next);
-    _deferOrRun(_syncEntry);
+    deferOrRun(_syncEntry);
   }
 
   void _syncEntry() {
@@ -1110,7 +1106,9 @@ class _FluentDatePickerState extends State<FluentDatePicker>
       // light-dismiss tap onto another field is not stolen back. FluentPopover
       // restores unconditionally; that is a bug this does not copy.
       final wasInside = _scope.hasFocus;
-      _entry!.remove();
+      _entry!
+        ..remove()
+        ..dispose();
       _entry = null;
       final restore = _restore;
       _restore = null;

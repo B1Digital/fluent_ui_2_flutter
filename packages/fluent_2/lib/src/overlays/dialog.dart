@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 
 import '../buttons/button.dart';
 import '../internal/animated_style.dart';
+import '../internal/defer.dart';
 import '../internal/interaction.dart';
 import '../l10n/l10n.dart';
 import 'dialog_style.dart';
@@ -647,16 +648,16 @@ class _FluentDialogState extends State<FluentDialog>
     _themeStyle = FluentDialogTheme.maybeOf(context);
     _reducedMotion = MediaQuery.disableAnimationsOf(context);
     _applyReducedMotion();
-    _deferOrRun(_repaint);
+    deferOrRun(_repaint);
   }
 
   @override
   void didUpdateWidget(FluentDialog oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.open != oldWidget.open) {
-      _deferOrRun(widget.open ? _show : _hide);
+      deferOrRun(widget.open ? _show : _hide);
     } else {
-      _deferOrRun(_repaint);
+      deferOrRun(_repaint);
     }
   }
 
@@ -691,22 +692,6 @@ class _FluentDialogState extends State<FluentDialog>
       if (!_open) return;
       if (_controller.value == _controller.lowerBound) _remove();
     }
-  }
-
-  /// Runs [action] now, unless a build is in flight.
-  ///
-  /// Inserting, removing or invalidating an [OverlayEntry] is a `setState` on
-  /// the [Overlay], which sits in a different branch of the tree and has
-  /// already been built by the time this widget rebuilds.
-  void _deferOrRun(VoidCallback action) {
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted) action();
-      });
-      return;
-    }
-    action();
   }
 
   void _repaint() => _entry?.markNeedsBuild();
@@ -864,12 +849,20 @@ class _FluentDialogState extends State<FluentDialog>
       child: content,
     );
 
-    return Semantics(
-      scopesRoute: _traps,
-      namesRoute: _traps && widget.semanticLabel != null,
-      explicitChildNodes: true,
-      label: widget.semanticLabel,
-      child: content,
+    // Directionality is NOT an InheritedTheme, so the capture at :706 does not
+    // carry it across the overlay boundary — an RTL app would otherwise get an
+    // LTR-laid-out dialog, with its title, close button and actions all on the
+    // wrong side. Read from *this* widget's context, not the overlay's, exactly
+    // as `drawer.dart:755` does for its panel.
+    return Directionality(
+      textDirection: Directionality.of(context),
+      child: Semantics(
+        scopesRoute: _traps,
+        namesRoute: _traps && widget.semanticLabel != null,
+        explicitChildNodes: true,
+        label: widget.semanticLabel,
+        child: content,
+      ),
     );
   }
 

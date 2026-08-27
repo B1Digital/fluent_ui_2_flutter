@@ -463,18 +463,22 @@ Widget buildFluentCarousel(
           Center(child: next),
         ],
       ),
+      // `PositionedDirectional`, not `Positioned.directional`: this builder is
+      // context-free, so it has no ambient direction to hand over — the widget
+      // reads it itself, one frame lower. `overlays/toaster.dart:499` and
+      // `navigation/tab_list.dart:584` do the same inside a Stack. The
+      // `flexibleToEdges` and `groupedToSteps` strips need no such care: a Row
+      // already lays out in reading order.
       FluentCarouselLayout.overContent => Stack(
         children: <Widget>[
           body,
-          Positioned.directional(
-            textDirection: TextDirection.ltr,
+          PositionedDirectional(
             start: navGap,
             top: 0,
             bottom: 0,
             child: Center(child: leading),
           ),
-          Positioned.directional(
-            textDirection: TextDirection.ltr,
+          PositionedDirectional(
             end: navGap,
             top: 0,
             bottom: 0,
@@ -930,6 +934,7 @@ class _FluentCarouselState extends State<FluentCarousel> {
   @override
   Widget build(BuildContext context) {
     final count = widget.slides.length;
+    final rtl = Directionality.of(context) == TextDirection.rtl;
 
     Widget viewport = PageView.builder(
       controller: _controller,
@@ -1021,10 +1026,17 @@ class _FluentCarouselState extends State<FluentCarousel> {
           ),
         },
         child: Shortcuts(
-          shortcuts: const <ShortcutActivator, Intent>{
-            SingleActivator(LogicalKeyboardKey.arrowLeft):
-                _PreviousSlideIntent(),
-            SingleActivator(LogicalKeyboardKey.arrowRight): _NextSlideIntent(),
+          // Arrow keys are physical; the page order is logical. `PageView` is
+          // itself direction-aware — in an RTL subtree slide 1 sits to the
+          // *left* of slide 0 — so the arrows are what must bend, exactly as in
+          // `navigation/toolbar.dart:492` and `inputs/slider.dart:645`.
+          shortcuts: <ShortcutActivator, Intent>{
+            const SingleActivator(LogicalKeyboardKey.arrowLeft): rtl
+                ? const _NextSlideIntent()
+                : const _PreviousSlideIntent(),
+            const SingleActivator(LogicalKeyboardKey.arrowRight): rtl
+                ? const _PreviousSlideIntent()
+                : const _NextSlideIntent(),
           },
           child: Focus(
             canRequestFocus: false,
@@ -1042,12 +1054,14 @@ class _FluentCarouselState extends State<FluentCarousel> {
   }
 }
 
-/// Moves to the previous slide. Bound to the left arrow.
+/// Moves to the previous slide. Bound to the arrow pointing against the reading
+/// direction — left in LTR, right in RTL.
 class _PreviousSlideIntent extends Intent {
   const _PreviousSlideIntent();
 }
 
-/// Moves to the next slide. Bound to the right arrow.
+/// Moves to the next slide. Bound to the arrow pointing along the reading
+/// direction — right in LTR, left in RTL.
 class _NextSlideIntent extends Intent {
   const _NextSlideIntent();
 }

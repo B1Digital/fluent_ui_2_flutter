@@ -1,9 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/gestures.dart' show TapDragUpDetails;
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 
+import '../internal/anchor_metrics.dart';
+import '../internal/defer.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
 import '../l10n/l10n.dart';
@@ -893,6 +896,19 @@ class _FluentTimePickerState extends State<FluentTimePicker>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The popup builds from *this* State's context but lives in the Overlay's
+    // branch of the tree, so nothing rebuilds it when a dependency here moves.
+    // Two visible bugs came out of that: the max height was measured once at
+    // open and never again, so resizing the window left the list running off
+    // the screen; and a `FluentThemeOverride` swapped under a const subtree
+    // left the open popup painting the old tokens. `FluentInfoButton` already
+    // does this.
+    deferOrRun(() => _entry?.markNeedsBuild());
+  }
+
+  @override
   void didUpdateWidget(FluentTimePicker oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.focusNode != oldWidget.focusNode) {
@@ -905,30 +921,23 @@ class _FluentTimePickerState extends State<FluentTimePicker>
       _controller.text = text;
       _committedText = text;
     }
-    _syncEntry();
+    // Deferred: `_syncEntry` inserts into the Overlay, which is a `setState` on
+    // a branch that has already been built by the time `didUpdateWidget` runs.
+    // A parent flipping a controlled `open:` from false to true would otherwise
+    // throw.
+    deferOrRun(_syncEntry);
   }
 
   @override
   void dispose() {
     _focusNode.removeListener(_handleFocusChange);
-    _entry?.remove();
+    _entry
+      ?..remove()
+      ..dispose();
     _entry = null;
     _controller.dispose();
     _internalNode?.dispose();
     super.dispose();
-  }
-
-  /// Inserting or removing an [OverlayEntry] is a `setState` on the [Overlay],
-  /// which is illegal while the framework is already building.
-  void _deferOrRun(VoidCallback action) {
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted) action();
-      });
-      return;
-    }
-    action();
   }
 
   void _handleFocusChange() {
@@ -937,7 +946,7 @@ class _FluentTimePickerState extends State<FluentTimePicker>
     setState(() => _focused = focused);
     if (!focused) {
       _commitText();
-      _deferOrRun(() => _setOpen(next: false));
+      deferOrRun(() => _setOpen(next: false));
     }
   }
 
@@ -968,7 +977,7 @@ class _FluentTimePickerState extends State<FluentTimePicker>
     } else {
       _active = null;
     }
-    _deferOrRun(_syncEntry);
+    deferOrRun(_syncEntry);
   }
 
   void _syncEntry() {
@@ -983,7 +992,9 @@ class _FluentTimePickerState extends State<FluentTimePicker>
       _entry = OverlayEntry(builder: (_) => captured.wrap(_buildPopup()));
       overlay.insert(_entry!);
     } else if (!shouldShow && _entry != null) {
-      _entry!.remove();
+      _entry!
+        ..remove()
+        ..dispose();
       _entry = null;
     }
     _entry?.markNeedsBuild();
@@ -1123,8 +1134,21 @@ class _FluentTimePickerState extends State<FluentTimePicker>
     final theme = FluentTheme.of(context);
     final options = _options;
     final offset = style.surfaceOffset?.resolve(states) ?? FluentSpacing.xxs;
-    final maxHeight = style.surfaceMaxHeight?.resolve(states) ?? 416;
     final gap = style.surfaceGap?.resolve(states) ?? FluentSpacing.xxs;
+
+    // 416 is upstream's `min(80vh, 416px)` cap — twelve rows plus the surface
+    // inset. A cap is not a fit: on its own it says nothing about where the
+    // field sits, so a picker in the lower half of the page ran off the bottom
+    // of the screen. Clamp to the room actually left, and open upward when
+    // there is more of it there — which is what upstream's positioning layer
+    // does rather than clipping.
+    final room = fluentAnchorRoom(context);
+    final flip = room.above > room.below;
+    final available = flip ? room.above : room.below;
+    final double maxHeight = math.min(
+      style.surfaceMaxHeight?.resolve(states) ?? 416,
+      math.max(available - offset, 0),
+    );
 
     return Stack(
       children: <Widget>[
@@ -1139,9 +1163,9 @@ class _FluentTimePickerState extends State<FluentTimePicker>
           child: CompositedTransformFollower(
             link: _link,
             showWhenUnlinked: false,
-            targetAnchor: Alignment.bottomLeft,
-            followerAnchor: Alignment.topLeft,
-            offset: Offset(0, offset),
+            targetAnchor: flip ? Alignment.topLeft : Alignment.bottomLeft,
+            followerAnchor: flip ? Alignment.bottomLeft : Alignment.topLeft,
+            offset: Offset(0, flip ? -offset : offset),
             child: Align(
               alignment: AlignmentDirectional.topStart,
               child: ConstrainedBox(

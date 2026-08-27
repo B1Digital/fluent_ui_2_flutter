@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show kPrimaryButton;
 import 'package:flutter/widgets.dart';
 
 import 'input_modality.dart';
@@ -77,6 +78,12 @@ class FluentInteractive extends StatefulWidget {
   });
 
   /// Builds the visuals from the live state set.
+  ///
+  /// The set is the controller's own, mutated in place by
+  /// [WidgetStatesController]. Every build therefore hands out the *same*
+  /// `Set` instance, so a `oldStates != states` comparison in a
+  /// `didUpdateWidget` downstream is silently always false. Read it during the
+  /// build; copy it if it has to outlive one.
   final FluentInteractiveBuilder builder;
 
   /// Invoked on tap and on Space/Enter. Never invoked while disabled.
@@ -207,7 +214,14 @@ class _FluentInteractiveState extends State<FluentInteractive> {
         onEnter: (_) => _set(WidgetState.hovered, value: true),
         onExit: (_) => _set(WidgetState.hovered, value: false),
         child: Listener(
-          onPointerDown: (_) => _set(WidgetState.pressed, value: true),
+          // Primary button only. `Listener` reports every button, so an
+          // unfiltered handler paints the *Pressed token on a right-click —
+          // which then has no matching onPointerUp path in the gesture arena
+          // and can stick. `FluentPointerCapture` guards the same way.
+          onPointerDown: (event) {
+            if (event.buttons & kPrimaryButton == 0) return;
+            _set(WidgetState.pressed, value: true);
+          },
           onPointerUp: (_) => _set(WidgetState.pressed, value: false),
           onPointerCancel: (_) => _set(WidgetState.pressed, value: false),
           child: GestureDetector(

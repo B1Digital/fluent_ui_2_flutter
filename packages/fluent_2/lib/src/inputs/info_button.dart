@@ -1,10 +1,18 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
+import '../internal/anchor_metrics.dart';
+import '../internal/defer.dart';
 import '../internal/focus_ring.dart';
 import '../internal/interaction.dart';
 import 'info_button_style.dart';
+
+/// Below this much room above the trigger, an info tip flips underneath.
+///
+/// A tip squeezed into a sliver of space is worse than one on the other side:
+/// it wraps to a column of single words. 64 is two lines of `caption1` plus the
+/// surface inset.
+const double _kMinUsableTip = 64;
 
 /// Trigger box and glyph size. Figma's `Size` axis on the `.Info button` set.
 ///
@@ -472,7 +480,7 @@ class _FluentInfoButtonState extends State<FluentInfoButton> {
     // wrapping the trigger would otherwise be invisible to it.
     _theme = FluentTheme.of(context);
     _themeStyle = FluentInfoButtonTheme.maybeOf(context);
-    _deferOrRun(() => _entry?.markNeedsBuild());
+    deferOrRun(() => _entry?.markNeedsBuild());
   }
 
   @override
@@ -485,7 +493,7 @@ class _FluentInfoButtonState extends State<FluentInfoButton> {
       _open = false;
       widget.onOpenChanged?.call(false);
     }
-    _deferOrRun(() {
+    deferOrRun(() {
       _entry?.markNeedsBuild();
       _syncEntry();
     });
@@ -495,25 +503,6 @@ class _FluentInfoButtonState extends State<FluentInfoButton> {
   void dispose() {
     _removeEntry();
     super.dispose();
-  }
-
-  /// Runs [action] now, unless a build is in flight.
-  ///
-  /// Inserting, removing or invalidating an [OverlayEntry] is a `setState` on
-  /// the [Overlay], which sits in a different branch of the tree and has
-  /// already been built by the time this widget rebuilds. Doing it from
-  /// [didUpdateWidget] or [didChangeDependencies] would therefore assert. A tap
-  /// or a key press never arrives during a build, so those take the direct path
-  /// and the tip appears on the very next frame.
-  void _deferOrRun(VoidCallback action) {
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted) action();
-      });
-      return;
-    }
-    action();
   }
 
   void _toggle() => _setOpen(open: !_open);
@@ -561,17 +550,23 @@ class _FluentInfoButtonState extends State<FluentInfoButton> {
     const states = <WidgetState>{};
     final offset = style.infoOffset?.resolve(states) ?? FluentSpacing.none;
 
+    // Upstream's `positioning: 'above-start'` is a *preference*, not a fixed
+    // side — its positioning layer flips to below when the tip would be clipped.
+    // Hardcoding above meant an info button near the top of the page opened its
+    // tip off-screen entirely. `_kMinUsableTip` keeps a tip from flipping into a
+    // sliver of room; `autocomplete.dart:614-618` uses the same heuristic.
+    final room = fluentAnchorRoom(context);
+    final below = room.above < _kMinUsableTip && room.below > room.above;
+
     return Positioned(
       left: 0,
       top: 0,
       child: CompositedTransformFollower(
         link: _link,
         showWhenUnlinked: false,
-        // Upstream's `positioning: 'above-start'`: the surface sits above the
-        // trigger with their start edges flush.
-        targetAnchor: Alignment.topLeft,
-        followerAnchor: Alignment.bottomLeft,
-        offset: Offset(0, -offset),
+        targetAnchor: below ? Alignment.bottomLeft : Alignment.topLeft,
+        followerAnchor: below ? Alignment.topLeft : Alignment.bottomLeft,
+        offset: Offset(0, below ? offset : -offset),
         // Same group as the trigger, so tapping the tip does not dismiss it.
         child: TapRegion(
           groupId: this,

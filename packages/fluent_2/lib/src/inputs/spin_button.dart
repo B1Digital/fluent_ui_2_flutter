@@ -925,7 +925,11 @@ class _FluentSpinButtonState extends State<FluentSpinButton>
   void didUpdateWidget(FluentSpinButton oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.focusNode != widget.focusNode) {
-      oldWidget.focusNode?.removeListener(_onFocusChanged);
+      // `?? _internalNode`: when the old widget had no node the listener is on
+      // the internal one, and `oldWidget.focusNode?.` skips it entirely —
+      // leaving a live listener behind and adding a second one the next time
+      // the internal node comes back into use.
+      (oldWidget.focusNode ?? _internalNode)?.removeListener(_onFocusChanged);
       if (widget.focusNode == null) _internalNode ??= FocusNode();
       _focusNode.addListener(_onFocusChanged);
       _focused = _focusNode.hasFocus;
