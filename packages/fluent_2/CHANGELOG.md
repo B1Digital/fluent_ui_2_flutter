@@ -1,4 +1,4 @@
-## Unreleased
+## 0.0.3
 
 ### Changed
 
@@ -50,6 +50,29 @@
 - **Closing a popover no longer steals focus** from the control an outside tap
   just landed on — it restores to the trigger only when the popover itself held
   focus, the rule `FluentDatePicker` already documented.
+- **A `FluentSwitch` inside a `FluentField` rendered a stretched track.**
+  With no label the switch's content was a bare `SizedBox.fromSize`, and
+  `FluentField` lays its children out with `CrossAxisAlignment.stretch`
+  (deliberately, matching upstream's `display: grid` root) — so a tight width
+  constraint forced the 40x20 track to the full field width, measured at 584px
+  on the Field page's component example. Upstream's switch root is
+  `display: inline-flex` and never stretches, so the switch now always wraps in
+  a `mainAxisSize: min` row, exactly as `FluentCheckbox` already did.
+- **`FluentSwatchPicker` was N tab stops with dead arrow keys**, while telling
+  assistive technology it was a mutually-exclusive group. It now has a roving
+  tabindex: one tab stop, arrows move within it. The arrow model follows
+  upstream's `useArrowNavigationGroup` — a row wraps on all four arrows; a grid
+  steps Left/Right across row boundaries and wraps, moves Up/Down by row without
+  wrapping, and Home/End reach the ends of the current row.
+- **An open popup no longer keeps a stale height when the page scrolls under
+  it.** `FluentDropdown`, `FluentTagPicker`, `FluentTimePicker`,
+  `FluentDatePicker`, `FluentInfoButton`, `FluentBreadcrumb` and `FluentMenu`
+  all cap their surface at the room left beside the anchor, and nothing
+  re-measured it once open: the surface correctly followed its trigger up the
+  viewport while keeping the height it was given near the bottom. They now
+  re-measure on scroll, matching upstream's reposition-rather-than-close
+  behaviour. Gated on `ScrollPosition.isScrollingNotifier`, so it re-measures at
+  scroll start and stop rather than every frame.
 - **`FluentRadioGroup` was N tab stops, not one.** A radio group is a single
   composite control: Tab enters it once and arrows move within it. It now adopts
   the framework's `RadioGroup`/`RadioClient`, which also fixes a group whose
@@ -118,6 +141,10 @@
   appears in the semantics tree as an unlabelled full-screen button.
 - **`FluentTooltip` no longer announces its content twice** when a
   `semanticLabel` is set.
+
+### Publishing
+
+- Require `fluent_2_core` 0.0.3.
 
 ## 0.0.2
 

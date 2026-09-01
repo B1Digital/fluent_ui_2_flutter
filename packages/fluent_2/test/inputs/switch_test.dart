@@ -76,6 +76,50 @@ void main() {
     await tester.pump();
   }
 
+  testWidgets('the track keeps its own width under a stretching parent', (
+    WidgetTester tester,
+  ) async {
+    // Regression: an unlabelled switch inside a `FluentField` rendered a
+    // 584px-wide track instead of 40. `FluentField` lays its children out with
+    // `CrossAxisAlignment.stretch` — deliberately, matching upstream's
+    // `display: grid` root — and the track is a `SizedBox.fromSize`, which a
+    // tight width constraint forces wide. Upstream's switch root is
+    // `display: inline-flex` and never stretches, so the fix belongs here and
+    // not in the field. Nothing caught it because every other test mounts the
+    // switch under a loose parent.
+    await tester.pumpWidget(
+      FluentApp(
+        theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+        home: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 600,
+            child: FluentField(
+              label: const Text('Switch'),
+              child: FluentSwitch(checked: false, onChanged: (_) {}),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final track = tester.getSize(
+      find
+          .descendant(
+            of: find.byType(FluentSwitch),
+            matching: find.byType(DecoratedBox),
+          )
+          .first,
+    );
+    expect(
+      track.width,
+      40,
+      reason: 'the track is a fixed 40x20; a tight parent must not stretch it',
+    );
+    expect(track.height, 20);
+  });
+
   group('geometry', () {
     testWidgets('track, thumb and travel per size', (tester) async {
       // Medium is Figma's: a 40x20 track and a 14 thumb, pinned against the

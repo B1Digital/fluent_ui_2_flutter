@@ -1486,7 +1486,7 @@ class FluentColors {
   /// Upstream `colorStatusSuccessForegroundInverted`.
   Color get statusSuccessForegroundInverted => applyOverride(
     FluentColorToken.statusSuccessForegroundInverted,
-    _d ? const Color(0xFF107C10) : const Color(0xFF359B35),
+    _d ? const Color(0xFF0E700E) : const Color(0xFF54B054),
   );
 
   /// Upstream `colorStatusSuccessBorderActive`.
@@ -1528,7 +1528,7 @@ class FluentColors {
   /// Upstream `colorStatusWarningForeground1`.
   Color get statusWarningForeground1 => applyOverride(
     FluentColorToken.statusWarningForeground1,
-    _d ? const Color(0xFFF98845) : const Color(0xFFBC4B09),
+    _d ? const Color(0xFFFAA06B) : const Color(0xFFBC4B09),
   );
 
   /// Upstream `colorStatusWarningForeground2`.
@@ -1540,7 +1540,7 @@ class FluentColors {
   /// Upstream `colorStatusWarningForeground3`.
   Color get statusWarningForeground3 => applyOverride(
     FluentColorToken.statusWarningForeground3,
-    _d ? const Color(0xFFFDCFB4) : const Color(0xFFBC4B09),
+    _d ? const Color(0xFFF98845) : const Color(0xFFBC4B09),
   );
 
   /// Upstream `colorStatusWarningForegroundInverted`.
@@ -1558,7 +1558,7 @@ class FluentColors {
   /// Upstream `colorStatusWarningBorder1`.
   Color get statusWarningBorder1 => applyOverride(
     FluentColorToken.statusWarningBorder1,
-    _d ? const Color(0xFFDE590B) : const Color(0xFFFDCFB4),
+    _d ? const Color(0xFFF7630C) : const Color(0xFFFDCFB4),
   );
 
   /// Upstream `colorStatusWarningBorder2`.

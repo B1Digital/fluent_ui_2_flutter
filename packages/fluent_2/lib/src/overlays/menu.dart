@@ -411,6 +411,26 @@ class _FluentMenuState extends State<FluentMenu> {
   final List<_MenuLevel> _levels = <_MenuLevel>[];
 
   FocusNode? _restore;
+  ScrollPosition? _scrollPosition;
+
+  /// Re-measures every open level against the room left after the page moved.
+  ///
+  /// A menu caps each level's height at the space beside its anchor, so a page
+  /// scrolling under an open chain leaves that measurement stale — the surface
+  /// follows its trigger up the viewport keeping the height it was given when
+  /// the trigger sat near the bottom. Upstream `@fluentui/react-positioning`
+  /// repositions rather than closing; `raw_menu_anchor.dart:543-551` uses this
+  /// same notifier to CLOSE, which would be wrong for a menu whose submenu the
+  /// user is reaching for.
+  ///
+  /// Deferred because `isScrollingNotifier` can flip during layout — a viewport
+  /// whose content shrinks goes ballistic from `applyContentDimensions` — and
+  /// invalidating an entry is a `setState` on the Overlay.
+  void _handleScroll() {
+    for (final level in _levels) {
+      deferOrRun(() => level.entry?.markNeedsBuild());
+    }
+  }
 
   bool get _isOpen => _levels.isNotEmpty;
 
@@ -427,6 +447,20 @@ class _FluentMenuState extends State<FluentMenu> {
     for (final level in _levels) {
       deferOrRun(() => level.entry?.markNeedsBuild());
     }
+
+    // Attached here rather than at open so a Scrollable swapped under the
+    // trigger is picked up for free.
+    //
+    // ponytail: gated on `isScrollingNotifier`, so heights re-measure when a
+    // scroll starts and stops rather than on every frame between — a long menu
+    // would otherwise rebuild every row for the length of a fling. Wheel and
+    // trackpad flip the notifier once per tick
+    // (scroll_position_with_single_context.dart:222-235), so the desktop and web
+    // case this package targets re-measures continuously anyway; a programmatic
+    // `jumpTo` flips it not at all.
+    _scrollPosition?.isScrollingNotifier.removeListener(_handleScroll);
+    _scrollPosition = Scrollable.maybeOf(context)?.position;
+    _scrollPosition?.isScrollingNotifier.addListener(_handleScroll);
   }
 
   @override
@@ -458,6 +492,7 @@ class _FluentMenuState extends State<FluentMenu> {
 
   @override
   void dispose() {
+    _scrollPosition?.isScrollingNotifier.removeListener(_handleScroll);
     for (final level in _levels) {
       level.dispose();
     }

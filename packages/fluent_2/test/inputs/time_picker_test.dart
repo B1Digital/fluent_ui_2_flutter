@@ -1,5 +1,6 @@
 import 'package:fluent_2/fluent_2.dart';
 import 'package:fluent_2/src/internal/input_modality.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -269,6 +270,78 @@ void main() {
       await tester.tap(find.byType(FluentTimePicker));
       await tester.pumpAndSettle();
       expect(find.text('09:00'), findsNothing);
+    });
+
+    testWidgets('re-measures its max height when the page scrolls under it', (
+      tester,
+    ) async {
+      // The room around the field is measured once at open, and the entry
+      // lives in the Overlay, so nothing rebuilt it when the page moved: a
+      // listbox clamped to the 300 of room a mid-page field left stayed 300
+      // tall after the page carried the field to the top, where the full 416
+      // cap fits. `@fluentui/react-positioning` repositions on scroll rather
+      // than closing, so the entry re-measures.
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        FluentApp(
+          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+          home: SingleChildScrollView(
+            controller: controller,
+            child: const Column(
+              children: <Widget>[
+                SizedBox(height: 900),
+                SizedBox(
+                  width: 280,
+                  child: FluentTimePicker(
+                    startHour: 8,
+                    endHour: 11,
+                    increment: 60,
+                    onTimeChange: _noop,
+                    hourCycle: FluentHourCycle.h23,
+                  ),
+                ),
+                SizedBox(height: 900),
+              ],
+            ),
+          ),
+        ),
+      );
+      // Puts the field 250 down a 600 viewport, so neither side of it has the
+      // 416 the cap wants and the clamp is what decides the height.
+      controller.jumpTo(650);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(FluentTimePicker));
+      await tester.pumpAndSettle();
+
+      final surface = find.descendant(
+        of: find.byType(CompositedTransformFollower),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is ConstrainedBox && widget.constraints.maxHeight.isFinite,
+        ),
+      );
+      expect(surface, findsOneWidget);
+      double cap() =>
+          tester.widget<ConstrainedBox>(surface).constraints.maxHeight;
+
+      expect(cap(), lessThan(416), reason: 'else this proves nothing');
+
+      // A wheel, not a drag: `TapRegion` cannot tell a drag from a tap, so a
+      // touch drag dismisses (see the light-dismiss group), and `jumpTo` never
+      // flips `isScrollingNotifier`, which the rebuild is gated on.
+      final wheel = TestPointer(1, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(wheel.hover(const Offset(400, 100)));
+      await tester.sendEventToBinding(wheel.scroll(const Offset(0, 200)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('09:00'), findsOneWidget, reason: 'still open');
+      expect(controller.offset, 850, reason: 'the wheel has to have landed');
+      // 200 further down the page leaves 518 below the field, so upstream's
+      // `min(80vh, 416px)` is now the binding half.
+      expect(cap(), 416);
     });
   });
 

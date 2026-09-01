@@ -358,7 +358,20 @@ Widget buildFluentSwitch(
   );
 
   final label = state.label;
-  Widget content = indicator;
+  // A `Row`, even with nothing but the track in it — the same shape
+  // `buildFluentCheckbox` uses for the same reason (`inputs/checkbox.dart:393`).
+  // The track is a `SizedBox.fromSize`, so a parent that hands down a TIGHT
+  // width stretches it: `FluentField` lays its children out with
+  // `CrossAxisAlignment.stretch` (matching upstream's `display: grid` root), and
+  // an unlabelled switch inside one rendered a 584px-wide track instead of 40.
+  // A `mainAxisSize: min` row is still forced to the tight width, but it packs
+  // its child at the start and leaves the track its own size — which is what
+  // upstream's `display: inline-flex` root does.
+  Widget content = Row(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: <Widget>[indicator],
+  );
   if (label != null) {
     final text = Padding(
       padding: labelPadding,

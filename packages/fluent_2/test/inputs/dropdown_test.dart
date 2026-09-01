@@ -879,6 +879,82 @@ void main() {
       expect(find.text('Lisbon'), findsOneWidget);
     });
 
+    testWidgets('re-measures its max height when the page scrolls under it', (
+      tester,
+    ) async {
+      // The room below the trigger is measured at open, and the entry lives in
+      // the Overlay, so nothing used to rebuild it when the page moved: a
+      // dropdown opened 28 tall against the bottom edge stayed 28 tall after
+      // the page scrolled it back up to the top, with the whole viewport free
+      // beneath it. `@fluentui/react-positioning` repositions on scroll rather
+      // than closing, so the entry re-measures.
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        FluentApp(
+          theme: light(),
+          home: SingleChildScrollView(
+            controller: controller,
+            child: const Column(
+              children: <Widget>[
+                SizedBox(height: 900),
+                SizedBox(
+                  width: 312,
+                  child: FluentDropdown<String>(
+                    key: key,
+                    options: options,
+                    onChanged: _ignore,
+                  ),
+                ),
+                SizedBox(height: 900),
+              ],
+            ),
+          ),
+        ),
+      );
+      // Puts the trigger 540 down a 600 viewport: about one row of room left.
+      controller.jumpTo(360);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(key));
+      await tester.pumpAndSettle();
+
+      // The height-clamping box specifically: the popup also carries a
+      // `minWidth: 160` box, whose maxHeight is infinite.
+      final surface = find.descendant(
+        of: find.byType(CompositedTransformFollower),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is ConstrainedBox && widget.constraints.maxHeight.isFinite,
+        ),
+      );
+      expect(surface, findsOneWidget);
+      double cap() =>
+          tester.widget<ConstrainedBox>(surface).constraints.maxHeight;
+
+      final opened = cap();
+      expect(opened, lessThan(40), reason: 'else this proves nothing');
+
+      // A wheel, not a drag: `TapRegion` cannot tell a drag from a tap, so a
+      // touch drag dismisses (see the light-dismiss group), and `jumpTo` never
+      // flips `isScrollingNotifier`, which the rebuild is gated on.
+      final before = controller.offset;
+      final wheel = TestPointer(1, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(wheel.hover(const Offset(400, 100)));
+      await tester.sendEventToBinding(wheel.scroll(const Offset(0, 460)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lisbon'), findsOneWidget, reason: 'still open');
+      // Without this the assertion below reads 0 == 0 and proves nothing.
+      expect(controller.offset - before, 460);
+      expect(
+        cap() - opened,
+        moreOrLessEquals(controller.offset - before, epsilon: 0.5),
+        reason: 'every pixel the trigger climbed is a pixel of room below it',
+      );
+    });
+
     testWidgets('tapping an option selects it and closes', (tester) async {
       String? chosen;
       await pump(

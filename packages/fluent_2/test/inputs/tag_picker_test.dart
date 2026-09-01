@@ -523,6 +523,82 @@ void main() {
         );
       },
     );
+
+    testWidgets('re-measures its max height when the page scrolls under it', (
+      tester,
+    ) async {
+      // `min(80vh, room below)` was measured once at open, and the entry lives
+      // in the Overlay, so nothing rebuilt it when the page moved: a picker
+      // opened a row tall against the bottom edge stayed that tall after the
+      // page carried it back to the top, with the whole viewport free beneath
+      // it. `@fluentui/react-positioning` repositions on scroll rather than
+      // closing, so the entry re-measures.
+      final scrollController = ScrollController();
+      addTearDown(scrollController.dispose);
+
+      await tester.pumpWidget(
+        app(
+          SingleChildScrollView(
+            controller: scrollController,
+            child: const Column(
+              children: <Widget>[
+                SizedBox(height: 900, child: Text('above')),
+                FluentTagPicker<String>(
+                  key: key,
+                  options: options,
+                  autofocus: true,
+                  onChanged: _noop,
+                ),
+                SizedBox(height: 900),
+              ],
+            ),
+          ),
+        ),
+      );
+      // Puts the control 540 down a 600 viewport: about one row of room left.
+      scrollController.jumpTo(360);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+
+      // The height-clamping box specifically, as above.
+      final surface = find.descendant(
+        of: find.byType(CompositedTransformFollower),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is ConstrainedBox && widget.constraints.maxHeight.isFinite,
+        ),
+      );
+      expect(surface, findsOneWidget);
+      double cap() =>
+          tester.widget<ConstrainedBox>(surface).constraints.maxHeight;
+
+      final opened = cap();
+      expect(opened, lessThan(40), reason: 'else this proves nothing');
+
+      // A wheel, not a drag: `TapRegion` cannot tell a drag from a tap, so a
+      // touch drag dismisses (see `pointer dismissal`), and `jumpTo` never
+      // flips `isScrollingNotifier`, which the rebuild is gated on. 300 keeps
+      // the room below under 80vh, so this measures the clamp and not the cap.
+      // Read after opening: autofocus lets `EditableText` bring its caret on
+      // screen, which may legitimately move the offset first.
+      final before = scrollController.offset;
+      final wheel = TestPointer(1, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(
+        wheel.hover(tester.getCenter(find.text('above'))),
+      );
+      await tester.sendEventToBinding(wheel.scroll(const Offset(0, 300)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ben'), findsOneWidget, reason: 'still open');
+      // Without this the assertion below reads 0 == 0 and proves nothing.
+      expect(scrollController.offset - before, 300);
+      expect(
+        cap() - opened,
+        moreOrLessEquals(scrollController.offset - before, epsilon: 0.5),
+        reason: 'every pixel the control climbed is a pixel of room below it',
+      );
+    });
   });
 
   // ---------------------------------------------------------------------------

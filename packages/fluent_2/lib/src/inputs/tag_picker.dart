@@ -880,6 +880,7 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
   TextEditingController? _internalController;
   FocusNode? _internalNode;
   int? _active;
+  ScrollPosition? _scrollPosition;
 
   TextEditingController get _controller =>
       widget.controller ?? (_internalController ??= TextEditingController());
@@ -914,7 +915,42 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     // left the open popup painting the old tokens. `FluentInfoButton` already
     // does this.
     deferOrRun(() => _entry?.markNeedsBuild());
+
+    // The other half of the same bug, and the half no dependency can catch: the
+    // page scrolling under an open popup slides the control up the screen
+    // without touching a single InheritedWidget, so the `min(80vh, room below)`
+    // measured at open is stale the moment the page moves — a picker opened a
+    // few rows tall at the bottom edge stayed that tall with the whole viewport
+    // free beneath it. `@fluentui/react-positioning` repositions on scroll
+    // rather than closing, so re-measuring is the faithful answer —
+    // `RawMenuAnchor` reads this same notifier to CLOSE
+    // (raw_menu_anchor.dart:499-503, 544-550), which a combobox must not do.
+    //
+    // Attached here rather than at open so a Scrollable swapped under the
+    // control is picked up for free: `Scrollable.maybeOf` takes a dependency on
+    // `_ScrollableScope`, which notifies when its position changes identity,
+    // and `_handleScroll` is a null check while the popup is closed.
+    //
+    // ponytail: gated on `isScrollingNotifier`, so the height re-measures when
+    // a scroll starts and stops rather than on every frame between — a long
+    // list would otherwise rebuild every row a frame for the length of a fling,
+    // and those rows are exactly what the constraint exists to clip. Wheel and
+    // trackpad scrolling flips the notifier once per tick
+    // (scroll_position_with_single_context.dart:222-235), so the desktop and
+    // web case this package targets does re-measure continuously; a
+    // programmatic `jumpTo` flips it not at all. Listen to `_scrollPosition`
+    // itself if a touch fling ever has to be frame-accurate.
+    _scrollPosition?.isScrollingNotifier.removeListener(_handleScroll);
+    _scrollPosition = Scrollable.maybeOf(context)?.position;
+    _scrollPosition?.isScrollingNotifier.addListener(_handleScroll);
   }
+
+  /// Re-measures the popup against the room left after the page moved under it.
+  ///
+  /// Deferred because `isScrollingNotifier` can flip during layout — a viewport
+  /// whose content shrinks goes ballistic from `applyContentDimensions` — and
+  /// invalidating an entry is a `setState` on the Overlay.
+  void _handleScroll() => deferOrRun(() => _entry?.markNeedsBuild());
 
   @override
   void didUpdateWidget(FluentTagPicker<T> oldWidget) {
@@ -951,6 +987,10 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
       ..dispose();
     (widget.focusNode ?? _internalNode)?.removeListener(_handleFocusChange);
     (widget.controller ?? _internalController)?.removeListener(_rebuild);
+    // The listener is what would outlive this State; the position itself is the
+    // Scrollable's to dispose, and `removeListener` is documented as safe to
+    // call on a notifier that has already gone.
+    _scrollPosition?.isScrollingNotifier.removeListener(_handleScroll);
     _entry
       ?..remove()
       ..dispose();

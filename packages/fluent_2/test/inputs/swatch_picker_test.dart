@@ -1,4 +1,5 @@
 import 'package:fluent_2/fluent_2.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -30,14 +31,20 @@ void main() {
     Widget picker, {
     FluentThemeData? theme,
     double? width,
-  }) => tester.pumpWidget(
-    FluentApp(
-      theme: theme ?? lightTheme(),
-      home: Center(
-        child: width == null ? picker : SizedBox(width: width, child: picker),
+    TextDirection? direction,
+  }) {
+    final Widget body = Center(
+      child: width == null ? picker : SizedBox(width: width, child: picker),
+    );
+    return tester.pumpWidget(
+      FluentApp(
+        theme: theme ?? lightTheme(),
+        home: direction == null
+            ? body
+            : Directionality(textDirection: direction, child: body),
       ),
-    ),
-  );
+    );
+  }
 
   List<Widget> swatches(int count) => <Widget>[
     for (var i = 0; i < count; i++)
@@ -48,6 +55,51 @@ void main() {
         onPressed: () {},
       ),
   ];
+
+  /// One node per swatch, disposed with the test.
+  List<FocusNode> focusNodes(int count) {
+    final nodes = <FocusNode>[
+      for (var i = 0; i < count; i++) FocusNode(debugLabel: 'swatch $i'),
+    ];
+    addTearDown(() {
+      for (final node in nodes) {
+        node.dispose();
+      }
+    });
+    return nodes;
+  }
+
+  /// A picker whose swatches each carry a node, so a test can name the one that
+  /// should hold focus. Swatches in [disabled] take `onPressed: null`, which is
+  /// what makes a swatch refuse focus.
+  FluentSwatchPicker keyboardPicker(
+    List<FocusNode> nodes, {
+    FluentSwatchPickerLayout layout = FluentSwatchPickerLayout.row,
+    Set<int> disabled = const <int>{},
+    void Function(int index)? onPressed,
+  }) => FluentSwatchPicker(
+    key: key,
+    layout: layout,
+    semanticLabel: 'Palette',
+    children: <Widget>[
+      for (var i = 0; i < nodes.length; i++)
+        FluentSwatch(
+          key: Key('swatch-$i'),
+          color: _hotPink,
+          semanticLabel: 'Swatch $i',
+          focusNode: nodes[i],
+          onPressed: disabled.contains(i) ? null : () => onPressed?.call(i),
+        ),
+    ],
+  );
+
+  /// The index of the swatch holding focus, or null when none does.
+  int? focused(List<FocusNode> nodes) {
+    for (var i = 0; i < nodes.length; i++) {
+      if (nodes[i].hasFocus) return i;
+    }
+    return null;
+  }
 
   BoxDecoration childDecoration(WidgetTester tester) => tester
       .widgetList<DecoratedBox>(
@@ -393,6 +445,26 @@ void main() {
       );
     });
 
+    testWidgets('a swatch stays selectable by click and by Space and Enter', (
+      tester,
+    ) async {
+      final pressed = <int>[];
+      final nodes = focusNodes(2);
+      await pump(tester, keyboardPicker(nodes, onPressed: pressed.add));
+
+      await tester.tap(find.byKey(const Key('swatch-1')));
+      await tester.pump();
+      expect(pressed, <int>[1], reason: 'the roving gate is not a hit barrier');
+
+      nodes[0].requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(pressed, <int>[1, 0, 0]);
+    });
+
     testWidgets('the group carries a name and keeps its children announced', (
       tester,
     ) async {
@@ -410,6 +482,336 @@ void main() {
       expect(find.bySemanticsLabel('Swatch 0'), findsOneWidget);
       expect(find.bySemanticsLabel('Swatch 1'), findsOneWidget);
       handle.dispose();
+    });
+  });
+
+  /// A swatch publishes `inMutuallyExclusiveGroup`, so the picker owes
+  /// assistive technology a composite widget: **one** tab stop with the arrows
+  /// moving inside it.
+  ///
+  /// The oracle is `useSwatchPicker_unstable`
+  /// (`@fluentui/react-swatch-picker@9.6.1`, recovered from the published
+  /// sourcemap), which wraps the root in
+  /// `useArrowNavigationGroup({circular: true, axis: isGrid ? 'grid-linear' :
+  /// 'both', memorizeCurrent: true})`, and Tabster's `Mover._moveFocus`, which
+  /// is what those options mean.
+  group('keyboard', () {
+    /// Two 10-square stops around the picker, to prove where Tab goes.
+    Widget between(
+      FocusNode before,
+      Widget picker, [
+      FocusNode? after,
+    ]) => Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Focus(focusNode: before, child: const SizedBox(width: 10, height: 10)),
+        picker,
+        if (after != null)
+          Focus(focusNode: after, child: const SizedBox(width: 10, height: 10)),
+      ],
+    );
+
+    /// Four medium swatches in a grid this wide wrap two to a row: the
+    /// picker's own `Spacing/MNudge` inset plus two 28s and the 4 gap —
+    /// 10 + 28 + 4 + 28 + 10 = 80 — where a third would need 32 more.
+    const gridWidth = 80.0;
+
+    /// Three to a row: 10 + 28 + 4 + 28 + 4 + 28 + 10 = 112.
+    ///
+    /// Home and End need this and [gridWidth] will not do. Two to a row, the
+    /// end of the run is also one step along it, so a picker that had never
+    /// heard of Home and End would answer both the same way and the test would
+    /// pass on a coincidence. Three wide, the two answers differ.
+    const wideGridWidth = 112.0;
+
+    testWidgets('the whole picker is one tab stop', (tester) async {
+      final nodes = focusNodes(3);
+      final outer = focusNodes(2);
+      await pump(tester, between(outer[0], keyboardPicker(nodes), outer[1]));
+
+      outer[0].requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(focused(nodes), 0, reason: 'Tab enters at the roving swatch');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(focused(nodes), isNull, reason: 'no second stop inside');
+      expect(outer[1].hasFocus, isTrue, reason: 'Tab leaves the picker');
+    });
+
+    testWidgets('a row layout walks the line on all four arrows and wraps', (
+      tester,
+    ) async {
+      final nodes = focusNodes(3);
+      await pump(tester, keyboardPicker(nodes));
+
+      nodes[0].requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(focused(nodes), 1);
+
+      // `axis: 'both'` — the vertical arrows walk the same line.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(focused(nodes), 2);
+
+      // `circular: true`.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(focused(nodes), 0, reason: 'wraps to the first swatch');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      expect(focused(nodes), 2, reason: 'and wraps back to the last');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pump();
+      expect(focused(nodes), 1);
+    });
+
+    testWidgets('the horizontal arrows follow the reading direction', (
+      tester,
+    ) async {
+      // Three swatches, starting in the middle: with two, "one forwards" and
+      // "one backwards" wrap to the same swatch and the test proves nothing.
+      final nodes = focusNodes(3);
+      await pump(tester, keyboardPicker(nodes), direction: TextDirection.rtl);
+
+      nodes[1].requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      expect(focused(nodes), 2, reason: 'Left is forwards in RTL');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(focused(nodes), 1, reason: 'and Right is backwards');
+    });
+
+    testWidgets('a grid steps Left and Right across the row boundary', (
+      tester,
+    ) async {
+      final nodes = focusNodes(4);
+      await pump(
+        tester,
+        keyboardPicker(nodes, layout: FluentSwatchPickerLayout.grid),
+        width: gridWidth,
+      );
+
+      nodes[1].requestFocus();
+      await tester.pump();
+
+      // What `grid-linear` adds over plain `grid`: the horizontal arrows are
+      // findNext/findPrev over the whole list, not clamped to the row.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(focused(nodes), 2, reason: 'off the end of row 0 into row 1');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      expect(focused(nodes), 1, reason: 'and back again');
+
+      nodes[3].requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(focused(nodes), 0, reason: 'circular at the end of the grid');
+    });
+
+    testWidgets('a grid moves Up and Down by a row, keeping the column', (
+      tester,
+    ) async {
+      final nodes = focusNodes(4);
+      await pump(
+        tester,
+        keyboardPicker(nodes, layout: FluentSwatchPickerLayout.grid),
+        width: gridWidth,
+      );
+
+      nodes[1].requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(focused(nodes), 3, reason: 'the same column, one row down');
+
+      // Tabster's cyclic fallback lives only on the horizontal branch, so the
+      // vertical axis stops at the edge rather than wrapping.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(focused(nodes), 3, reason: 'no wrap off the bottom row');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pump();
+      expect(focused(nodes), 1);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pump();
+      expect(focused(nodes), 1, reason: 'nor off the top');
+    });
+
+    testWidgets('Home and End take the whole line in a row layout', (
+      tester,
+    ) async {
+      final nodes = focusNodes(4);
+      await pump(tester, keyboardPicker(nodes));
+
+      nodes[2].requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.home);
+      await tester.pump();
+      expect(focused(nodes), 0);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.end);
+      await tester.pump();
+      expect(focused(nodes), 3);
+    });
+
+    testWidgets('Home and End take the current row in a grid', (tester) async {
+      // Six swatches three to a row: rows 0-1-2 and 3-4-5.
+      final nodes = focusNodes(6);
+      await pump(
+        tester,
+        keyboardPicker(nodes, layout: FluentSwatchPickerLayout.grid),
+        width: wideGridWidth,
+      );
+
+      nodes[0].requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.end);
+      await tester.pump();
+      expect(
+        focused(nodes),
+        2,
+        reason: 'the end of row 0 — not of the grid, and not one step along',
+      );
+
+      nodes[5].requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.home);
+      await tester.pump();
+      expect(focused(nodes), 3, reason: 'the start of row 1');
+    });
+
+    testWidgets('a disabled swatch is stepped over', (tester) async {
+      final nodes = focusNodes(3);
+      await pump(tester, keyboardPicker(nodes, disabled: <int>{1}));
+
+      nodes[0].requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(focused(nodes), 2, reason: 'a disabled swatch refuses focus');
+    });
+
+    testWidgets('disabling the active swatch does not strand the picker', (
+      tester,
+    ) async {
+      final nodes = focusNodes(3);
+      final outer = focusNodes(1);
+
+      await pump(tester, between(outer[0], keyboardPicker(nodes)));
+      // Swatch 0 holds the tab stop, and is then the one taken away.
+      await pump(
+        tester,
+        between(outer[0], keyboardPicker(nodes, disabled: <int>{0})),
+      );
+      await tester.pump();
+
+      outer[0].requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+
+      expect(
+        focused(nodes),
+        1,
+        reason: 'the tab stop re-parks instead of vanishing',
+      );
+    });
+
+    testWidgets('a swatch that was gated shut comes back into the Tab order', (
+      tester,
+    ) async {
+      final nodes = focusNodes(2);
+      final outer = focusNodes(2);
+
+      Widget tree() => between(outer[0], keyboardPicker(nodes), outer[1]);
+
+      await pump(tester, tree());
+
+      // Move the roving index off swatch 0, which shuts its gate.
+      nodes[0].requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(focused(nodes), 1);
+
+      // Rebuild from above while the gate is shut. This is the trap: the
+      // swatch's own `Focus` reads `skipTraversal` off its node — where it is
+      // *derived* from the shut gate — and writes it back as a hard flag.
+      await pump(tester, tree());
+      await tester.pump();
+
+      // Move back. The gate reopens, but the latched flag would not.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      expect(focused(nodes), 0);
+
+      outer[0].requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+
+      expect(
+        focused(nodes),
+        0,
+        reason: 'Tab still finds the swatch that was gated shut',
+      );
+    });
+
+    testWidgets('the roving index is remembered across a Tab round trip', (
+      tester,
+    ) async {
+      final nodes = focusNodes(3);
+      final outer = focusNodes(1);
+      await pump(tester, between(outer[0], keyboardPicker(nodes)));
+
+      nodes[0].requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(focused(nodes), 1);
+
+      outer[0].requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+
+      expect(focused(nodes), 1, reason: '`memorizeCurrent: true` upstream');
+    });
+
+    testWidgets('an arrow moves focus without selecting', (tester) async {
+      final pressed = <int>[];
+      final nodes = focusNodes(2);
+      await pump(tester, keyboardPicker(nodes, onPressed: pressed.add));
+
+      nodes[0].requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+
+      expect(focused(nodes), 1);
+      expect(pressed, isEmpty, reason: 'selection is Space, Enter or a click');
     });
   });
 }

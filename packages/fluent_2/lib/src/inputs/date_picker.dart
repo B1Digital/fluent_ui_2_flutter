@@ -906,6 +906,14 @@ class _FluentDatePickerState extends State<FluentDatePicker>
   Locale? _ambientLocale;
   FocusNode? _internalNode;
   OverlayEntry? _entry;
+  ScrollPosition? _scrollPosition;
+
+  /// Re-measures the popup against the room left after the page moved under it.
+  ///
+  /// Deferred because `isScrollingNotifier` can flip during layout — a viewport
+  /// whose content shrinks goes ballistic from `applyContentDimensions` — and
+  /// invalidating an entry is a `setState` on the Overlay.
+  void _handleScroll() => deferOrRun(() => _entry?.markNeedsBuild());
   FocusNode? _restore;
   bool _uncontrolledOpen = false;
   bool _focused = false;
@@ -1012,6 +1020,28 @@ class _FluentDatePickerState extends State<FluentDatePicker>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // The popup's height is measured against the room left beside its anchor,
+    // so a page that scrolls under an open popup leaves that measurement stale:
+    // the surface correctly follows its trigger up the viewport and keeps the
+    // height it was given when the trigger was still near the bottom. Upstream
+    // `@fluentui/react-positioning` repositions on scroll rather than closing,
+    // which is what a combobox needs — `raw_menu_anchor.dart:543-551` uses this
+    // same notifier to CLOSE, which would be wrong here.
+    //
+    // Attached here rather than at open so a Scrollable swapped under the
+    // trigger is picked up for free, and `_handleScroll` is a null check while
+    // the popup is closed.
+    //
+    // ponytail: gated on `isScrollingNotifier`, so the height re-measures when a
+    // scroll starts and stops rather than on every frame between. Wheel and
+    // trackpad flip the notifier once per tick
+    // (scroll_position_with_single_context.dart:222-235), so the desktop and web
+    // case this package targets re-measures continuously anyway; a programmatic
+    // `jumpTo` flips it not at all. Listen to `_scrollPosition` itself if a
+    // touch fling ever has to be frame-accurate.
+    _scrollPosition?.isScrollingNotifier.removeListener(_handleScroll);
+    _scrollPosition = Scrollable.maybeOf(context)?.position;
+    _scrollPosition?.isScrollingNotifier.addListener(_handleScroll);
     // Read at the trigger and handed across the overlay boundary explicitly:
     // MediaQuery does not ride along with InheritedTheme.capture.
     _reducedMotion = MediaQuery.disableAnimationsOf(context);
@@ -1028,6 +1058,7 @@ class _FluentDatePickerState extends State<FluentDatePicker>
 
   @override
   void dispose() {
+    _scrollPosition?.isScrollingNotifier.removeListener(_handleScroll);
     _focusNode.removeListener(_handleFocusChange);
     // Entry before scope. `OverlayEntry.remove` defers its `_markDirty` to a
     // post-frame callback, so the popup — which builds inside

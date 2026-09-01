@@ -1,4 +1,4 @@
-## Unreleased
+## 0.0.3
 
 ### Added
 
@@ -14,7 +14,44 @@
   scrollers on desktop platforms only. **This is a visible change in every app
   using `FluentApp`.** Pass your own `scrollBehavior` to opt out.
 
+### Added
+
+- **React parity is now pinned by a test.** `test/token_parity_test.dart`
+  checks all 228 alias tokens across the four theme variants against a
+  machine-generated snapshot of the real `@fluentui/react-theme` themes
+  (`test/fixtures/react_tokens.json`, regenerated with
+  `node tool/dump_react_tokens.js`). It asserts three things: every token with a
+  React counterpart matches it; the **deliberate** divergences are exactly the
+  pinned ones — a divergence that *disappears* fails just as loudly as one that
+  appears, so nobody diffing against React can quietly restore the
+  black-on-black high contrast foregrounds; and the Dart-only tokens are pinned,
+  so adding one is a conscious act rather than a typo that is never compared
+  against anything.
+
 ### Fixed
+
+- **Four status colours did not match Fluent UI React v9.** Diffed all 228 alias
+  tokens across the four theme variants against `@fluentui/react-theme` (9.2.1,
+  re-checked against 9.2.2): 860 of 864 values matched. The four that did not
+  were transcription slips in the **dark** column only —
+  `colorStatusSuccessForegroundInverted` (both brightnesses),
+  `colorStatusWarningForeground1`, `colorStatusWarningForeground3` and
+  `colorStatusWarningBorder1` — where the dark warning ramp had values in the
+  wrong slots (dark `WarningForeground3` held React's *light* `WarningBorder1`
+  value). Now matches React exactly.
+
+  The remaining four differences are deliberate and stay: in high contrast,
+  `colorNeutralForegroundInverted` and its hover/pressed/selected siblings are
+  white where React is `#000000`. React's value pairs black on a black
+  `colorNeutralBackgroundInverted`, which renders every inverted surface —
+  tooltip, popover, teaching popover — outlined but empty. See the note at
+  `tokens/theme_variants.dart:252`.
+
+  Also confirmed: 12 Dart tokens have no React counterpart
+  (`colorStatusSevere*`, `colorStatusAvailableForeground3`,
+  `colorStatusAwayBackground3`, `colorStatusOofForeground3`). These are genuine
+  extensions backing `FluentPresenceBadge` and the severe ramp — React sources
+  those at component level rather than promoting them to theme aliases.
 
 - **`FluentPageRoute` no longer allocates a `CurvedAnimation` per frame.**
   `buildTransitions` runs from the route's own `AnimatedBuilder`, so every frame
