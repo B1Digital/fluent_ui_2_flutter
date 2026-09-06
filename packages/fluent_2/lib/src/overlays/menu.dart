@@ -12,6 +12,7 @@ import '../internal/animated_style.dart';
 import '../internal/defer.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
+import '../internal/tap_group.dart';
 import 'menu_item.dart';
 import 'menu_item_style.dart';
 import 'menu_style.dart';
@@ -434,9 +435,18 @@ class _FluentMenuState extends State<FluentMenu> {
 
   bool get _isOpen => _levels.isNotEmpty;
 
+  /// The enclosing popup chain's group, or null when this popup is top-level.
+  ///
+  /// Read at THIS context and cached, never inside the [OverlayEntry] builder:
+  /// an entry is inflated in the [Overlay]'s branch and [FluentTapGroup] is a
+  /// plain [InheritedWidget], so it does not ride across on the entry's
+  /// `InheritedTheme.capture`. Handed to [adoptFluentTapGroup] in the popup.
+  Object? _hostTapGroup;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _hostTapGroup = FluentTapGroup.maybeOf(context);
     // An open level reads its theme and its reading direction from THIS
     // context inside the entry's builder, but `build` below returns only the
     // trigger — so a dependency change marks this element dirty and stops
@@ -873,19 +883,22 @@ class _FluentMenuState extends State<FluentMenu> {
     // "inside" the same region as the root surface and the trigger, and
     // dismisses nothing. Grouping per level instead would make a submenu click
     // an outside tap for the root and collapse the chain under the pointer.
-    final surface = TapRegion(
-      groupId: this,
-      // Opaque, not the default `deferToChild`: the surface is a solid panel,
-      // but the only hit-testable things inside it are the rows — so a click on
-      // the 4px inset or a 2px row gap would otherwise classify as an OUTSIDE
-      // tap and dismiss the menu the user is aiming at.
-      behavior: HitTestBehavior.opaque,
-      child: Semantics(
-        container: true,
-        label: depth == 0 ? widget.semanticLabel : null,
-        child: _FluentMenuEntrance(
-          from: slide,
-          child: buildFluentMenu(state, style, surfaceStates),
+    final surface = adoptFluentTapGroup(
+      _hostTapGroup,
+      TapRegion(
+        groupId: this,
+        // Opaque, not the default `deferToChild`: the surface is a solid panel,
+        // but the only hit-testable things inside it are the rows — so a click on
+        // the 4px inset or a 2px row gap would otherwise classify as an OUTSIDE
+        // tap and dismiss the menu the user is aiming at.
+        behavior: HitTestBehavior.opaque,
+        child: Semantics(
+          container: true,
+          label: depth == 0 ? widget.semanticLabel : null,
+          child: _FluentMenuEntrance(
+            from: slide,
+            child: buildFluentMenu(state, style, surfaceStates),
+          ),
         ),
       ),
     );

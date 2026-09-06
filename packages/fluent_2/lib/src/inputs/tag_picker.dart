@@ -10,6 +10,7 @@ import '../internal/animated_style.dart';
 import '../internal/defer.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
+import '../internal/tap_group.dart';
 import '../l10n/l10n.dart';
 import '../surfaces/interaction_tag.dart';
 import '../surfaces/tag.dart';
@@ -904,9 +905,18 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     _controller.addListener(_rebuild);
   }
 
+  /// The enclosing popup chain's group, or null when this popup is top-level.
+  ///
+  /// Read at THIS context and cached, never inside the [OverlayEntry] builder:
+  /// an entry is inflated in the [Overlay]'s branch and [FluentTapGroup] is a
+  /// plain [InheritedWidget], so it does not ride across on the entry's
+  /// `InheritedTheme.capture`. Handed to [adoptFluentTapGroup] in the popup.
+  Object? _hostTapGroup;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _hostTapGroup = FluentTapGroup.maybeOf(context);
     // The popup builds from *this* State's context but lives in the Overlay's
     // branch of the tree, so nothing rebuilds it when a dependency here moves.
     // Two visible bugs came out of that: the max height was measured once at
@@ -1184,42 +1194,45 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
         // padding between rows, or dragging the list — is "inside" and does not
         // dismiss. Orthogonal to the ExcludeFocus below: that governs
         // traversal, this governs taps.
-        child: TapRegion(
-          groupId: this,
-          // And in the *field's* group as well, so a pointer on a row does not
-          // read as a tap outside the text field. Without this, `EditableText`
-          // unfocuses on pointer-down on every desktop platform
-          // (`_EditableTextTapOutsideAction`, `editable_text.dart:6876`), which
-          // trips `_handleFocusChange` and tears the popup down before the
-          // pointer is even released — so a mouse click on a row selected
-          // nothing at all. `TextFieldTapRegion` is the framework's own answer
-          // to "this widget belongs to that text field".
-          child: TextFieldTapRegion(
-            // `useListboxStyles` floors the popup at 160 even when
-            // `matchTargetSize: 'width'` hands it a narrower trigger — the
-            // same pairing `dropdown.dart` already carries.
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: _listboxMinWidth),
-              child: SizedBox(
-                width: _link.leaderSize?.width,
-                // The rows are outside the traversal order on purpose: focus
-                // stays on the field the whole time the popup is open.
-                child: ExcludeFocus(
-                  child: buildFluentTagPickerSurface(
-                    style,
-                    surfaceStates,
-                    SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: gap,
-                        children: <Widget>[
-                          for (var i = 0; i < rows.length; i++)
-                            KeyedSubtree(
-                              key: _rowKeys.putIfAbsent(i, GlobalKey.new),
-                              child: _buildRow(rows, i, theme, themeStyle),
-                            ),
-                        ],
+        child: adoptFluentTapGroup(
+          _hostTapGroup,
+          TapRegion(
+            groupId: this,
+            // And in the *field's* group as well, so a pointer on a row does not
+            // read as a tap outside the text field. Without this, `EditableText`
+            // unfocuses on pointer-down on every desktop platform
+            // (`_EditableTextTapOutsideAction`, `editable_text.dart:6876`), which
+            // trips `_handleFocusChange` and tears the popup down before the
+            // pointer is even released — so a mouse click on a row selected
+            // nothing at all. `TextFieldTapRegion` is the framework's own answer
+            // to "this widget belongs to that text field".
+            child: TextFieldTapRegion(
+              // `useListboxStyles` floors the popup at 160 even when
+              // `matchTargetSize: 'width'` hands it a narrower trigger — the
+              // same pairing `dropdown.dart` already carries.
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: _listboxMinWidth),
+                child: SizedBox(
+                  width: _link.leaderSize?.width,
+                  // The rows are outside the traversal order on purpose: focus
+                  // stays on the field the whole time the popup is open.
+                  child: ExcludeFocus(
+                    child: buildFluentTagPickerSurface(
+                      style,
+                      surfaceStates,
+                      SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          spacing: gap,
+                          children: <Widget>[
+                            for (var i = 0; i < rows.length; i++)
+                              KeyedSubtree(
+                                key: _rowKeys.putIfAbsent(i, GlobalKey.new),
+                                child: _buildRow(rows, i, theme, themeStyle),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

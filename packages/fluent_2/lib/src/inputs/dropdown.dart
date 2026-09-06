@@ -10,6 +10,7 @@ import '../internal/animated_style.dart';
 import '../internal/defer.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
+import '../internal/tap_group.dart';
 import 'dropdown_option.dart';
 import 'dropdown_option_style.dart';
 import 'dropdown_style.dart';
@@ -738,9 +739,18 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
     _focusNode.addListener(_handleFocusChange);
   }
 
+  /// The enclosing popup chain's group, or null when this popup is top-level.
+  ///
+  /// Read at THIS context and cached, never inside the [OverlayEntry] builder:
+  /// an entry is inflated in the [Overlay]'s branch and [FluentTapGroup] is a
+  /// plain [InheritedWidget], so it does not ride across on the entry's
+  /// `InheritedTheme.capture`. Handed to [adoptFluentTapGroup] in the popup.
+  Object? _hostTapGroup;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _hostTapGroup = FluentTapGroup.maybeOf(context);
     // The popup builds from *this* State's context but lives in the Overlay's
     // branch of the tree, so nothing rebuilds it when a dependency here moves.
     // Two visible bugs came out of that: the max height was measured once at
@@ -1037,30 +1047,33 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
         // Same group as the trigger, so a pointer landing on a row — or on the
         // padding between rows — is "inside" and does not dismiss. Orthogonal
         // to the ExcludeFocus below: that governs traversal, this governs taps.
-        child: TapRegion(
-          groupId: this,
-          // Upstream positions the listbox with `matchTargetSize: 'width'`,
-          // and Figma draws it exactly as wide as the trigger — but
-          // `useListboxStyles` also floors it at `minWidth: 160px`, which
-          // only shows once the trigger is narrower than that.
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: _listboxMinWidth),
-            child: SizedBox(
-              width: _link.leaderSize?.width,
-              // The rows are outside the traversal order on purpose: focus
-              // stays on the trigger the whole time the popup is open, which
-              // is what makes "focus returns to the trigger on close"
-              // structural.
-              child: ExcludeFocus(
-                child: buildFluentDropdownSurface(
-                  surfaceStyle,
-                  surfaceStates,
-                  SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      spacing: gap,
-                      children: rows,
+        child: adoptFluentTapGroup(
+          _hostTapGroup,
+          TapRegion(
+            groupId: this,
+            // Upstream positions the listbox with `matchTargetSize: 'width'`,
+            // and Figma draws it exactly as wide as the trigger — but
+            // `useListboxStyles` also floors it at `minWidth: 160px`, which
+            // only shows once the trigger is narrower than that.
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: _listboxMinWidth),
+              child: SizedBox(
+                width: _link.leaderSize?.width,
+                // The rows are outside the traversal order on purpose: focus
+                // stays on the trigger the whole time the popup is open, which
+                // is what makes "focus returns to the trigger on close"
+                // structural.
+                child: ExcludeFocus(
+                  child: buildFluentDropdownSurface(
+                    surfaceStyle,
+                    surfaceStates,
+                    SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        spacing: gap,
+                        children: rows,
+                      ),
                     ),
                   ),
                 ),

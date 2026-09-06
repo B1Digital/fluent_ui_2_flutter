@@ -5,6 +5,7 @@ import '../internal/anchor_metrics.dart';
 import '../internal/defer.dart';
 import '../internal/focus_ring.dart';
 import '../internal/interaction.dart';
+import '../internal/tap_group.dart';
 import 'info_button_style.dart';
 
 /// Below this much room above the trigger, an info tip flips underneath.
@@ -480,9 +481,18 @@ class _FluentInfoButtonState extends State<FluentInfoButton> {
 
   bool _open = false;
 
+  /// The enclosing popup chain's group, or null when this popup is top-level.
+  ///
+  /// Read at THIS context and cached, never inside the [OverlayEntry] builder:
+  /// an entry is inflated in the [Overlay]'s branch and [FluentTapGroup] is a
+  /// plain [InheritedWidget], so it does not ride across on the entry's
+  /// `InheritedTheme.capture`. Handed to [adoptFluentTapGroup] in the popup.
+  Object? _hostTapGroup;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _hostTapGroup = FluentTapGroup.maybeOf(context);
     // The popup's height is measured against the room left beside its anchor,
     // so a page that scrolls under an open popup leaves that measurement stale:
     // the surface correctly follows its trigger up the viewport and keeps the
@@ -599,11 +609,14 @@ class _FluentInfoButtonState extends State<FluentInfoButton> {
         followerAnchor: below ? Alignment.topLeft : Alignment.bottomLeft,
         offset: Offset(0, below ? offset : -offset),
         // Same group as the trigger, so tapping the tip does not dismiss it.
-        child: TapRegion(
-          groupId: this,
-          child: Semantics(
-            container: true,
-            child: buildFluentInfoTip(state, style, states),
+        child: adoptFluentTapGroup(
+          _hostTapGroup,
+          TapRegion(
+            groupId: this,
+            child: Semantics(
+              container: true,
+              child: buildFluentInfoTip(state, style, states),
+            ),
           ),
         ),
       ),

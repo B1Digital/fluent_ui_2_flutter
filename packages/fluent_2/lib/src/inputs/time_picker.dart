@@ -9,6 +9,7 @@ import '../internal/anchor_metrics.dart';
 import '../internal/defer.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
+import '../internal/tap_group.dart';
 import '../l10n/l10n.dart';
 import 'dropdown_option.dart';
 import 'dropdown_option_style.dart';
@@ -908,9 +909,18 @@ class _FluentTimePickerState extends State<FluentTimePicker>
     _focusNode.addListener(_handleFocusChange);
   }
 
+  /// The enclosing popup chain's group, or null when this popup is top-level.
+  ///
+  /// Read at THIS context and cached, never inside the [OverlayEntry] builder:
+  /// an entry is inflated in the [Overlay]'s branch and [FluentTapGroup] is a
+  /// plain [InheritedWidget], so it does not ride across on the entry's
+  /// `InheritedTheme.capture`. Handed to [adoptFluentTapGroup] in the popup.
+  Object? _hostTapGroup;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _hostTapGroup = FluentTapGroup.maybeOf(context);
     // The popup builds from *this* State's context but lives in the Overlay's
     // branch of the tree, so nothing rebuilds it when a dependency here moves.
     // Two visible bugs came out of that: the max height was measured once at
@@ -1231,42 +1241,46 @@ class _FluentTimePickerState extends State<FluentTimePicker>
               // same reason the tap region below is — `RenderTapRegion` is a
               // proxy box too, and is classified by whether it appears in the
               // hit-test path.
-              child: TapRegion(
-                groupId: this,
-                // The listbox counts as part of the field when the framework
-                // asks whether a press landed outside it. `EditableText`
-                // drops focus for any non-touch press outside its own tap
-                // region, and the listbox lives in an [Overlay] beyond it —
-                // so a mouse press on a row blurred the field, and the commit
-                // and close that blur runs happened before the press had the
-                // chance to become a tap. A synthetic tap arrives as a touch,
-                // which is why nothing showed it.
-                //
-                // Inside the follower rather than around it: a plain proxy
-                // box above [CompositedTransformFollower] hit-tests against
-                // its own untransformed bounds, which is not where the
-                // surface is painted, so rows past the leader's width would
-                // stop responding.
-                child: TextFieldTapRegion(
-                  child: buildFluentTimePickerSurface(
-                    style,
-                    states,
-                    ValueListenableBuilder<bool>(
-                      valueListenable: FluentInputModality.keyboard,
-                      builder: (context, keyboard, _) => SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          spacing: gap,
-                          children: <Widget>[
-                            for (var i = 0; i < options.length; i++)
-                              _buildRow(
-                                theme,
-                                options[i],
-                                i,
-                                keyboard: keyboard,
+              child: adoptFluentTapGroup(
+                _hostTapGroup,
+                TapRegion(
+                  groupId: this,
+                  // The listbox counts as part of the field when the framework
+                  // asks whether a press landed outside it. `EditableText`
+                  // drops focus for any non-touch press outside its own tap
+                  // region, and the listbox lives in an [Overlay] beyond it —
+                  // so a mouse press on a row blurred the field, and the commit
+                  // and close that blur runs happened before the press had the
+                  // chance to become a tap. A synthetic tap arrives as a touch,
+                  // which is why nothing showed it.
+                  //
+                  // Inside the follower rather than around it: a plain proxy
+                  // box above [CompositedTransformFollower] hit-tests against
+                  // its own untransformed bounds, which is not where the
+                  // surface is painted, so rows past the leader's width would
+                  // stop responding.
+                  child: TextFieldTapRegion(
+                    child: buildFluentTimePickerSurface(
+                      style,
+                      states,
+                      ValueListenableBuilder<bool>(
+                        valueListenable: FluentInputModality.keyboard,
+                        builder: (context, keyboard, _) =>
+                            SingleChildScrollView(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                spacing: gap,
+                                children: <Widget>[
+                                  for (var i = 0; i < options.length; i++)
+                                    _buildRow(
+                                      theme,
+                                      options[i],
+                                      i,
+                                      keyboard: keyboard,
+                                    ),
+                                ],
                               ),
-                          ],
-                        ),
+                            ),
                       ),
                     ),
                   ),

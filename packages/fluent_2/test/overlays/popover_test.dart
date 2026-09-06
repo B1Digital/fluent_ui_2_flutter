@@ -1,4 +1,5 @@
 import 'package:fluent_2/fluent_2.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -860,6 +861,126 @@ void main() {
         reason: 'the trigger is inside the group, so no outside tap fires',
       );
       expect(find.byKey(body), findsNothing);
+    });
+
+    /// A popup opened from INSIDE the popover must not collapse it.
+    ///
+    /// The inner popup's surface is inflated into its own `OverlayEntry`, a
+    /// SIBLING of this popover's entry rather than a descendant, so a click on
+    /// it lands on a hit-test path carrying none of the popover's regions.
+    /// Before `adoptFluentTapGroup`, `RenderTapRegionSurface` therefore
+    /// classified this popover as outside and the trigger's `onTapOutside`
+    /// tore the whole thing down mid-interaction — which made the app's grid
+    /// filter panel unusable, since its column, operator, value, date and time
+    /// editors are all popups of this kind.
+    ///
+    /// A real mouse gesture with a frame between down and up, not
+    /// `tester.tap`: `onTapOutside` fires on pointer-DOWN, and `tap` sends
+    /// down and up inside one frame, which hides exactly the teardown under
+    /// test.
+    Future<void> click(WidgetTester tester, Finder target) async {
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.down(tester.getCenter(target));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      await mouse.up();
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('a nested dropdown option does not dismiss the popover', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        content: SizedBox(
+          key: body,
+          width: 200,
+          // `onChanged` is what ENABLES the dropdown (`_enabled` is
+          // `onChanged != null`); without it the popup never opens at all.
+          child: FluentDropdown<String>(
+            key: const Key('inner'),
+            onChanged: (_) {},
+            options: const <FluentDropdownOption<String>>[
+              FluentDropdownOption<String>(
+                value: 'alpha',
+                label: Text('Alpha'),
+                text: 'Alpha',
+              ),
+            ],
+          ),
+        ),
+      );
+      await open(tester);
+      await tester.pumpAndSettle();
+
+      await click(tester, find.byKey(const Key('inner')));
+      expect(
+        find.text('Alpha'),
+        findsOneWidget,
+        reason: 'the dropdown popup is up',
+      );
+      expect(changes, isEmpty, reason: 'opening it was already safe');
+
+      await click(tester, find.text('Alpha'));
+
+      expect(
+        changes,
+        isEmpty,
+        reason: 'picking a value must not dismiss the host popover',
+      );
+      expect(find.byKey(body), findsOneWidget);
+    });
+
+    testWidgets('a tap on the popover itself still closes the dropdown', (
+      tester,
+    ) async {
+      // The half a coarser fix loses. Folding the popup into the host's group
+      // outright — `groupId: host ?? this` — keeps the popover alive but also
+      // makes the whole panel "inside" the dropdown, so an open dropdown never
+      // closes when the user clicks the panel behind it.
+      await pump(
+        tester,
+        content: SizedBox(
+          key: body,
+          width: 200,
+          height: 120,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: 160,
+              child: FluentDropdown<String>(
+                key: const Key('inner'),
+                onChanged: (_) {},
+                options: const <FluentDropdownOption<String>>[
+                  FluentDropdownOption<String>(
+                    value: 'alpha',
+                    label: Text('Alpha'),
+                    text: 'Alpha',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await open(tester);
+      await tester.pumpAndSettle();
+
+      await click(tester, find.byKey(const Key('inner')));
+      expect(find.text('Alpha'), findsOneWidget);
+
+      // The popover's own surface, well below the trigger and clear of the
+      // dropdown's popup.
+      final box = tester.getRect(find.byKey(body));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.down(box.bottomCenter - const Offset(0, 4));
+      await tester.pump();
+      await mouse.up();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Alpha'), findsNothing, reason: 'the dropdown closes');
+      expect(changes, isEmpty, reason: 'the popover does not');
     });
   });
 

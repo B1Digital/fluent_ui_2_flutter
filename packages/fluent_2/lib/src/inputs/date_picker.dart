@@ -8,6 +8,7 @@ import 'package:intl/intl.dart' show DateFormat;
 import '../internal/anchor_metrics.dart';
 import '../internal/defer.dart';
 import '../internal/interaction.dart';
+import '../internal/tap_group.dart';
 import '../l10n/l10n.dart';
 import '../overlays/popover.dart';
 import 'calendar.dart';
@@ -1017,9 +1018,18 @@ class _FluentDatePickerState extends State<FluentDatePicker>
     deferOrRun(_syncEntry);
   }
 
+  /// The enclosing popup chain's group, or null when this popup is top-level.
+  ///
+  /// Read at THIS context and cached, never inside the [OverlayEntry] builder:
+  /// an entry is inflated in the [Overlay]'s branch and [FluentTapGroup] is a
+  /// plain [InheritedWidget], so it does not ride across on the entry's
+  /// `InheritedTheme.capture`. Handed to [adoptFluentTapGroup] in the popup.
+  Object? _hostTapGroup;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _hostTapGroup = FluentTapGroup.maybeOf(context);
     // The popup's height is measured against the room left beside its anchor,
     // so a page that scrolls under an open popup leaves that measurement stale:
     // the surface correctly follows its trigger up the viewport and keeps the
@@ -1270,49 +1280,54 @@ class _FluentDatePickerState extends State<FluentDatePicker>
   /// through a [Transform], and `RenderTapRegion` is classified by whether it
   /// appears in the hit-test path, which a proxy box above an animating
   /// transform does not do at its painted position.
-  Widget _surface(FluentDatePickerStyle style, Set<WidgetState> states) =>
-      TapRegion(
-        groupId: this,
-        child: FocusScope(
-          node: _scope,
-          child: Actions(
-            // Escape belongs here, not to the calendar: FluentCalendar binds no
-            // DismissIntent precisely so this can.
-            actions: <Type, Action<Intent>>{
-              DismissIntent: _DismissDatePickerAction(this),
-            },
-            child: buildFluentDatePickerSurface(
-              style,
-              states,
-              FluentCalendar(
-                value: widget.value,
-                onSelectDate: _handleSelectDate,
-                today: _today,
-                minDate: widget.minDate,
-                maxDate: widget.maxDate,
-                restrictedDates: widget.restrictedDates,
-                firstDayOfWeek: widget.firstDayOfWeek,
-                isDayPickerVisible: widget.isDayPickerVisible,
-                isMonthPickerVisible: widget.isMonthPickerVisible,
-                showMonthPickerAsOverlay: widget.showMonthPickerAsOverlay,
-                highlightCurrentMonth: widget.highlightCurrentMonth,
-                highlightSelectedMonth: widget.highlightSelectedMonth,
-                initialPickerDate: widget.value ?? widget.initialPickerDate,
-                showGoToToday: widget.showGoToToday,
-                showWeekNumbers: widget.showWeekNumbers,
-                firstWeekOfYear: widget.firstWeekOfYear,
-                allFocusable: widget.allFocusable,
-                showCloseButton: widget.showCloseButton,
-                onDismiss: () => _setOpen(next: false),
-                strings: _strings,
-                formatter: _calendarFormatter,
-                style: widget.calendarStyle,
-                autofocus: true,
-              ),
+  Widget _surface(
+    FluentDatePickerStyle style,
+    Set<WidgetState> states,
+  ) => adoptFluentTapGroup(
+    _hostTapGroup,
+    TapRegion(
+      groupId: this,
+      child: FocusScope(
+        node: _scope,
+        child: Actions(
+          // Escape belongs here, not to the calendar: FluentCalendar binds no
+          // DismissIntent precisely so this can.
+          actions: <Type, Action<Intent>>{
+            DismissIntent: _DismissDatePickerAction(this),
+          },
+          child: buildFluentDatePickerSurface(
+            style,
+            states,
+            FluentCalendar(
+              value: widget.value,
+              onSelectDate: _handleSelectDate,
+              today: _today,
+              minDate: widget.minDate,
+              maxDate: widget.maxDate,
+              restrictedDates: widget.restrictedDates,
+              firstDayOfWeek: widget.firstDayOfWeek,
+              isDayPickerVisible: widget.isDayPickerVisible,
+              isMonthPickerVisible: widget.isMonthPickerVisible,
+              showMonthPickerAsOverlay: widget.showMonthPickerAsOverlay,
+              highlightCurrentMonth: widget.highlightCurrentMonth,
+              highlightSelectedMonth: widget.highlightSelectedMonth,
+              initialPickerDate: widget.value ?? widget.initialPickerDate,
+              showGoToToday: widget.showGoToToday,
+              showWeekNumbers: widget.showWeekNumbers,
+              firstWeekOfYear: widget.firstWeekOfYear,
+              allFocusable: widget.allFocusable,
+              showCloseButton: widget.showCloseButton,
+              onDismiss: () => _setOpen(next: false),
+              strings: _strings,
+              formatter: _calendarFormatter,
+              style: widget.calendarStyle,
+              autofocus: true,
             ),
           ),
         ),
-      );
+      ),
+    ),
+  );
 
   /// The popup rendered in the widget tree rather than the [Overlay].
   ///

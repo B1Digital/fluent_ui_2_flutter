@@ -10,6 +10,7 @@ import '../internal/animated_style.dart';
 import '../internal/defer.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
+import '../internal/tap_group.dart';
 import '../l10n/l10n.dart';
 import 'breadcrumb_style.dart';
 
@@ -755,9 +756,18 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
     }
   }
 
+  /// The enclosing popup chain's group, or null when this popup is top-level.
+  ///
+  /// Read at THIS context and cached, never inside the [OverlayEntry] builder:
+  /// an entry is inflated in the [Overlay]'s branch and [FluentTapGroup] is a
+  /// plain [InheritedWidget], so it does not ride across on the entry's
+  /// `InheritedTheme.capture`. Handed to [adoptFluentTapGroup] in the popup.
+  Object? _hostTapGroup;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _hostTapGroup = FluentTapGroup.maybeOf(context);
     // The popup's height is measured against the room left beside its anchor,
     // so a page that scrolls under an open popup leaves that measurement stale:
     // the surface correctly follows its trigger up the viewport and keeps the
@@ -1048,29 +1058,32 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
             // things inside are the rows, so a click on the surface inset or a
             // row gap would otherwise read as an outside tap and dismiss the
             // popup under the pointer.
-            child: TapRegion(
-              groupId: this,
-              behavior: HitTestBehavior.opaque,
-              // The rows are outside the traversal order on purpose: focus
-              // stays on the trigger the whole time the popup is open, which is
-              // what makes "focus returns to the trigger on close" structural.
-              child: ExcludeFocus(
-                // The popup hugs its widest row rather than matching the
-                // trigger, which is 24-40 wide and would clip every label.
-                // IntrinsicWidth is what bounds the stretch below.
-                child: IntrinsicWidth(
-                  child: buildFluentBreadcrumbSurface(
-                    style,
-                    surfaceStates,
-                    SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: gap,
-                        children: <Widget>[
-                          for (var i = 0; i < rows.length; i++)
-                            _buildRow(i, rows),
-                        ],
+            child: adoptFluentTapGroup(
+              _hostTapGroup,
+              TapRegion(
+                groupId: this,
+                behavior: HitTestBehavior.opaque,
+                // The rows are outside the traversal order on purpose: focus
+                // stays on the trigger the whole time the popup is open, which is
+                // what makes "focus returns to the trigger on close" structural.
+                child: ExcludeFocus(
+                  // The popup hugs its widest row rather than matching the
+                  // trigger, which is 24-40 wide and would clip every label.
+                  // IntrinsicWidth is what bounds the stretch below.
+                  child: IntrinsicWidth(
+                    child: buildFluentBreadcrumbSurface(
+                      style,
+                      surfaceStates,
+                      SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          spacing: gap,
+                          children: <Widget>[
+                            for (var i = 0; i < rows.length; i++)
+                              _buildRow(i, rows),
+                          ],
+                        ),
                       ),
                     ),
                   ),

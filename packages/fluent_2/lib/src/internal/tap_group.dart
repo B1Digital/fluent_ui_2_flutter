@@ -20,10 +20,11 @@ import 'package:flutter/widgets.dart';
 /// every level open, and a click outside dismisses all of them at once, which
 /// is what upstream's document-level `useOnClickOutside` does.
 ///
-/// ponytail: one shared id for the whole chain, not a nested list of them.
-/// The refinement it gives up is closing *only* the inner levels when the click
-/// lands on an outer surface — rare, and it costs a `TapRegion` per level to
-/// express. Nest the ids if a design ever asks for it.
+/// `FluentPopover` does that by *replacing* its own id with the enclosing one.
+/// Every other popup — dropdown, tag picker, date and time picker, info button,
+/// menu, breadcrumb overflow — instead keeps its own id and ADDS the enclosing
+/// one around it, via [adoptFluentTapGroup]. Both keep the chain alive; only
+/// the second also keeps per-level dismissal, and the note there says why.
 class FluentTapGroup extends InheritedWidget {
   /// Publishes [groupId] to everything built inside a popup surface.
   const FluentTapGroup({
@@ -48,3 +49,41 @@ class FluentTapGroup extends InheritedWidget {
   bool updateShouldNotify(FluentTapGroup oldWidget) =>
       groupId != oldWidget.groupId;
 }
+
+/// Registers a popup surface in the enclosing chain's group as well as its own.
+///
+/// Wrap the popup's existing `TapRegion(groupId: this, …)` in this. Both
+/// regions then sit on the same hit-test path, and
+/// `RenderTapRegionSurface._classifyRegions` unions the groups of every region
+/// it hits — so one pointer-down produces all three behaviours at once:
+///
+///  * on this popup — inside for BOTH groups, so neither level dismisses;
+///  * on the host popover's own surface — inside for the host's group only, so
+///    this popup closes and the host stays. That is the refinement a bare
+///    `groupId: [groupId] ?? this` throws away, and it is not cosmetic: it is
+///    what closes an open dropdown when the user clicks the panel behind it;
+///  * outside everything — inside is empty, so every level dismisses together.
+///
+/// Two placement rules, both of which fail SILENTLY:
+///
+///  * This must sit immediately outside the popup's own `TapRegion` and
+///    **inside** the `CompositedTransformFollower` that positions the surface.
+///    Above the follower, `RenderFollowerLayer.hitTest` forwards through the
+///    layer transform while a proxy above it tests `size.contains(position)`
+///    against its untransformed rect at `Positioned(left: 0, top: 0)` — the
+///    region is never hit, and every existing test still passes.
+///  * [groupId] must come from [FluentTapGroup.maybeOf] read at the TRIGGER's
+///    context and cached. An [OverlayEntry] is inflated in the [Overlay]'s
+///    branch, and `FluentTapGroup` is a plain [InheritedWidget], so it is not
+///    carried across by the `InheritedTheme.capture` that wraps the entry.
+///
+/// Returns [child] untouched at the top level. A `groupId: null` region would
+/// still register with the surface and pay a register/unregister cycle per
+/// layout to do nothing.
+///
+/// ponytail: adoption only — the popup does not republish. That covers a
+/// two-level chain, which is every case in the library today. A third level
+/// would need [FluentTapGroup] to carry a LIST of ids, because publishing
+/// `this` from here would drop the host's group and collapse it again.
+Widget adoptFluentTapGroup(Object? groupId, Widget child) =>
+    groupId == null ? child : TapRegion(groupId: groupId, child: child);
