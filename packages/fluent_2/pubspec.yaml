@@ -2,7 +2,7 @@ name: fluent_2
 description: >-
   Microsoft Fluent 2 components for Flutter web and desktop: 90+ widgets,
   20 chart types, tokens, theming, a11y and 135 locales. No Material.
-version: 0.0.3
+version: 0.0.4
 resolution: workspace
 repository: https://github.com/B1Digital/fluent_ui_2_flutter
 issue_tracker: https://github.com/B1Digital/fluent_ui_2_flutter/issues

@@ -1,3 +1,28 @@
+## 0.0.4
+
+### Fixed
+
+- **A popup opened from inside a `FluentPopover` collapsed the popover on the
+  first click.** Every popup light-dismisses through a `TapRegion` group; the
+  seven non-popover popups hardcoded `groupId: this` and inflated their surface
+  into a sibling `OverlayEntry`, so a pointer-down on the popup carried none of
+  the popover's regions and its `onTapOutside` fired on the down, tearing down
+  the subtree the popup lived in. This broke five controls in popover-hosted
+  panels: the column and operator dropdowns, the value tag picker, and the date
+  and time pickers. Popups now adopt the enclosing chain's group around their
+  own via `adoptFluentTapGroup` — a click on the popup is inside both, a click
+  on the host's surface closes just the popup, and a click outside closes both.
+  Placement and caching are documented at each call site; the wrapper must sit
+  inside the `CompositedTransformFollower` and the group must be read at the
+  trigger's context, both of which fail silently if wrong.
+
+### Changed
+
+- **`adoptFluentTapGroup` is new.** An internal helper in
+  `lib/src/internal/tap_group.dart` that wraps a popup surface in a second
+  `TapRegion` carrying the enclosing chain's id. Returns the child untouched
+  when there is no enclosing group.
+
 ## 0.0.3
 
 ### Changed
