@@ -9,6 +9,7 @@ import '../internal/anchor_metrics.dart';
 import '../internal/defer.dart';
 import '../internal/interaction.dart';
 import '../internal/tap_group.dart';
+import '../internal/text_selection_dismiss.dart';
 import '../l10n/l10n.dart';
 import '../overlays/popover.dart';
 import 'calendar.dart';
@@ -1106,6 +1107,10 @@ class _FluentDatePickerState extends State<FluentDatePicker>
       if (inside) return;
       if (_open) _setOpen(next: false);
       _commitText();
+      // Keyed to `inside`, not to the field's own node: focus sitting in the
+      // open calendar is still focus in this control, and collapsing then
+      // would clear the range out from under a live picker.
+      collapseFluentSelectionOnBlur(_focusNode, _controller);
     });
   }
 

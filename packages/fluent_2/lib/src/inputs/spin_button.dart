@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 
 import '../internal/interaction.dart';
 import '../internal/text_context_menu.dart';
+import '../internal/text_selection_dismiss.dart';
 import 'input.dart';
 import 'spin_button_style.dart';
 
@@ -974,7 +975,14 @@ class _FluentSpinButtonState extends State<FluentSpinButton>
     if (focused == _focused) return;
     setState(() => _focused = focused);
     // Losing focus commits, the way a browser's number input does.
-    if (!focused) _commit(_controller.text);
+    if (!focused) {
+      _commit(_controller.text);
+      // Ordered after the commit for readability rather than necessity: a
+      // commit that rewrites the field lands an already-collapsed selection
+      // (`_syncText`, `_report`), which the helper then no-ops on, and a commit
+      // that changes nothing leaves the range for it to clear.
+      collapseFluentSelectionOnBlur(_focusNode, _controller);
+    }
   }
 
   void _setState(WidgetState state, {required bool value}) {
@@ -1198,7 +1206,14 @@ class _FluentSpinButtonState extends State<FluentSpinButton>
           // A tap anywhere on the chrome puts the caret in the field, the way
           // clicking a browser input's padding does.
           onTap: _enabled ? _focusNode.requestFocus : null,
-          child: buildFluentSpinButton(resolvedState, resolved, states),
+          // The steppers and the faceplate are chrome, outside the region
+          // `EditableText` installs for itself — so every chevron click read as
+          // a tap outside the field and dropped focus on pointer down, which
+          // now also collapses the selection. `buildFluentInput` carries the
+          // same wrapper.
+          child: TextFieldTapRegion(
+            child: buildFluentSpinButton(resolvedState, resolved, states),
+          ),
         ),
       ),
     );

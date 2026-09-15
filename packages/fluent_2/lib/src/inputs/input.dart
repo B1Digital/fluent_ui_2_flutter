@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import '../internal/animated_style.dart';
 import '../internal/interaction.dart';
 import '../internal/text_context_menu.dart';
+import '../internal/text_selection_dismiss.dart';
 import 'input_style.dart';
 
 /// How an input is filled and outlined. Figma's `Style` axis.
@@ -469,6 +470,12 @@ FluentInputStyle resolveFluentInputStyle(
 /// [TextSelectionGestureDetectorBuilder] the way [FluentInput] does, or taps
 /// will not move the caret.
 ///
+/// It does carry a [TextFieldTapRegion] around the whole faceplate, so the
+/// chrome counts as part of the field for tap-outside purposes. The selection
+/// highlight is gated on [FluentInputBaseState.focused]; a caller driving this
+/// function by hand must keep that flag honest or a blurred field will stay
+/// lit.
+///
 /// [states] is the live interaction set: hovered, pressed and disabled.
 Widget buildFluentInput(
   FluentInputBaseState state,
@@ -513,7 +520,13 @@ Widget buildFluentInput(
     // iOS floating-cursor ghost. Deliberately the placeholder tone rather than
     // a computed grey.
     backgroundCursorColor: placeholderColor ?? const Color(0x00000000),
-    selectionColor: selectionColor,
+    // Gated on focus, because nulling this colour is the ONLY way Flutter stops
+    // painting a selection: blur leaves `controller.selection` alone and the
+    // highlight painter has no focus term, so an ungated colour keeps the
+    // selection lit after the user has clicked away. `TextField` does the same
+    // at `material/text_field.dart:1714`, `CupertinoTextField` at
+    // `cupertino/text_field.dart:1597`.
+    selectionColor: state.focused ? selectionColor : null,
     selectionControls: fluentTextSelectionControls,
     contextMenuBuilder: fluentTextContextMenuBuilder,
     enableInteractiveSelection: state.enabled,
@@ -591,54 +604,70 @@ Widget buildFluentInput(
     bottomRight: radius.bottomRight,
   );
 
-  return Stack(
-    children: <Widget>[
-      ConstrainedBox(
-        constraints: BoxConstraints(
-          minHeight: minimumSize.height,
-          minWidth: minimumSize.width,
-        ),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: radius,
-            border: borderWidth > 0 && borderColor != null
-                ? Border.all(color: borderColor, width: borderWidth)
-                : null,
+  // The chrome is built AROUND the `EditableText`, so it sits outside the
+  // region `EditableText` installs for itself (`editable_text.dart:5849`).
+  // Without this wrapper a pointer landing on the padding, the border or a
+  // `contentBefore`/`contentAfter` slot reads as a tap *outside* the field and
+  // `_EditableTextTapOutsideAction` drops focus on pointer-down — the gesture
+  // detector then takes it back on pointer-up, so today it only flickers, but
+  // an interactive trailing slot would unmount under the cursor between press
+  // and release. `TextField` wraps its whole decorated field the same way
+  // (`material/text_field.dart:1801`), and `textarea.dart`, `search_box.dart`
+  // and `spin_button.dart` each carry the same wrapper around their own
+  // faceplate. Every one of them uses the default group id — the `EditableText`
+  // Type — so nesting is a no-op, which is what lets the pickers wrap this
+  // result again for their popups.
+  return TextFieldTapRegion(
+    child: Stack(
+      children: <Widget>[
+        ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: minimumSize.height,
+            minWidth: minimumSize.width,
           ),
-          child: Padding(padding: padding, child: row),
-        ),
-      ),
-      if (bottomColor != null && bottomWidth > 0)
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: bottomWidth,
-          // The radius has to be painted on a TALLER box and clipped back.
-          // Setting it on a 1px-high DecoratedBox looks right and does nothing:
-          // Skia scales every corner by `min(edge / sum-of-radii-on-that-edge)`,
-          // so a 4px corner on a 1px rule ships as 0.5 and the ends read square
-          // against a rounded field. FluentInputUnderline is that clip.
-          child: FluentInputUnderline(
-            color: bottomColor,
-            thickness: bottomWidth,
-            borderRadius: ruleRadius,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: radius,
+              border: borderWidth > 0 && borderColor != null
+                  ? Border.all(color: borderColor, width: borderWidth)
+                  : null,
+            ),
+            child: Padding(padding: padding, child: row),
           ),
         ),
-      if (focusColor != null)
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: FluentStroke.thick,
-          child: FluentInputFocusUnderline(
-            focused: state.focused,
-            color: focusColor,
-            borderRadius: ruleRadius,
+        if (bottomColor != null && bottomWidth > 0)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: bottomWidth,
+            // The radius has to be painted on a TALLER box and clipped back.
+            // Setting it on a 1px-high DecoratedBox looks right and does
+            // nothing: Skia scales every corner by
+            // `min(edge / sum-of-radii-on-that-edge)`, so a 4px corner on a 1px
+            // rule ships as 0.5 and the ends read square against a rounded
+            // field. FluentInputUnderline is that clip.
+            child: FluentInputUnderline(
+              color: bottomColor,
+              thickness: bottomWidth,
+              borderRadius: ruleRadius,
+            ),
           ),
-        ),
-    ],
+        if (focusColor != null)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: FluentStroke.thick,
+            child: FluentInputFocusUnderline(
+              focused: state.focused,
+              color: focusColor,
+              borderRadius: ruleRadius,
+            ),
+          ),
+      ],
+    ),
   );
 }
 
@@ -1067,6 +1096,9 @@ class _FluentInputState extends State<FluentInput>
   TextEditingController? _internalController;
   FocusNode? _internalNode;
 
+  /// Mirrors the node, so a property-only notification is not read as a blur.
+  bool _focused = false;
+
   TextEditingController get _controller =>
       widget.controller ?? (_internalController ??= TextEditingController());
 
@@ -1079,7 +1111,8 @@ class _FluentInputState extends State<FluentInput>
     _states
       ..update(WidgetState.disabled, !widget.enabled)
       ..addListener(_rebuild);
-    _focusNode.addListener(_rebuild);
+    _focusNode.addListener(_onFocusChanged);
+    _focused = _focusNode.hasFocus;
     // The placeholder's visibility is a function of the value, so the field has
     // to rebuild on the first and last character typed.
     _controller.addListener(_rebuild);
@@ -1089,8 +1122,9 @@ class _FluentInputState extends State<FluentInput>
   void didUpdateWidget(FluentInput oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.focusNode != oldWidget.focusNode) {
-      (oldWidget.focusNode ?? _internalNode)?.removeListener(_rebuild);
-      _focusNode.addListener(_rebuild);
+      (oldWidget.focusNode ?? _internalNode)?.removeListener(_onFocusChanged);
+      _focusNode.addListener(_onFocusChanged);
+      _focused = _focusNode.hasFocus;
     }
     if (widget.controller != oldWidget.controller) {
       (oldWidget.controller ?? _internalController)?.removeListener(_rebuild);
@@ -1111,7 +1145,7 @@ class _FluentInputState extends State<FluentInput>
     _states
       ..removeListener(_rebuild)
       ..dispose();
-    (widget.focusNode ?? _internalNode)?.removeListener(_rebuild);
+    (widget.focusNode ?? _internalNode)?.removeListener(_onFocusChanged);
     (widget.controller ?? _internalController)?.removeListener(_rebuild);
     _internalNode?.dispose();
     _internalController?.dispose();
@@ -1120,6 +1154,24 @@ class _FluentInputState extends State<FluentInput>
 
   void _rebuild() {
     if (mounted) setState(() {});
+  }
+
+  /// Focus needs its own listener rather than sharing [_rebuild] with the value
+  /// and the interaction states: leaving a selection behind is a focus event,
+  /// and running it on every keystroke would write to the caller's controller
+  /// from inside that controller's own notification.
+  ///
+  /// Guarded on a real transition, because a [FocusNode] notifies for property
+  /// writes too — `canRequestFocus`, `skipTraversal`, `descendantsAreFocusable`
+  /// all reach `notifyListeners` — and on those `hasFocus` is simply still
+  /// false. Without the guard, a host locking a never-focused field would erase
+  /// a selection it had set itself. Every other Fluent text control latches the
+  /// same way.
+  void _onFocusChanged() {
+    if (_focused == _focusNode.hasFocus) return;
+    _focused = _focusNode.hasFocus;
+    collapseFluentSelectionOnBlur(_focusNode, _controller);
+    _rebuild();
   }
 
   void _set(WidgetState state, {required bool value}) {

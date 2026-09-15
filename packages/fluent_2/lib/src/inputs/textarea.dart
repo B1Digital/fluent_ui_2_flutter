@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import '../internal/animated_style.dart';
 import '../internal/interaction.dart';
 import '../internal/text_context_menu.dart';
+import '../internal/text_selection_dismiss.dart';
 import 'input.dart';
 import 'textarea_style.dart';
 
@@ -687,6 +688,7 @@ class _FluentTextareaState extends State<FluentTextarea>
 
   void _onFocusChanged() {
     if (_focused == _focusNode.hasFocus) return;
+    collapseFluentSelectionOnBlur(_focusNode, _controller);
     setState(() => _focused = _focusNode.hasFocus);
   }
 
@@ -732,7 +734,11 @@ class _FluentTextareaState extends State<FluentTextarea>
       // The floating (iOS drag) caret. Fluent has no token for it either; the
       // muted placeholder tone is the closest honest choice.
       backgroundCursorColor: theme.colors.neutralForeground4,
-      selectionColor: resolved.selectionColor?.resolve(states),
+      // Focus-gated: see the note on the same argument in `buildFluentInput`.
+      // Nulling the colour is what dismisses the highlight on blur.
+      selectionColor: _focused
+          ? resolved.selectionColor?.resolve(states)
+          : null,
       selectionControls:
           widget.selectionControls ?? fluentTextSelectionControls,
       showSelectionHandles: true,
@@ -812,7 +818,15 @@ class _FluentTextareaState extends State<FluentTextarea>
           onPointerDown: (_) => _set(WidgetState.pressed, value: true),
           onPointerUp: (_) => _set(WidgetState.pressed, value: false),
           onPointerCancel: (_) => _set(WidgetState.pressed, value: false),
-          child: IgnorePointer(ignoring: !_enabled, child: chrome),
+          // The chrome is built around the `EditableText`, so it falls outside
+          // the region `EditableText` installs for itself and a press on the
+          // field's own padding read as a tap *outside* it — dropping focus on
+          // pointer down, and taking the selection with it now that blur
+          // collapses the range. `buildFluentInput` carries the same wrapper.
+          child: IgnorePointer(
+            ignoring: !_enabled,
+            child: TextFieldTapRegion(child: chrome),
+          ),
         ),
       ),
     );

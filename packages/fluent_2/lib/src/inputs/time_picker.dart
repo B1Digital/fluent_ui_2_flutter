@@ -10,6 +10,7 @@ import '../internal/defer.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
 import '../internal/tap_group.dart';
+import '../internal/text_selection_dismiss.dart';
 import '../l10n/l10n.dart';
 import 'dropdown_option.dart';
 import 'dropdown_option_style.dart';
@@ -1009,6 +1010,7 @@ class _FluentTimePickerState extends State<FluentTimePicker>
     setState(() => _focused = focused);
     if (!focused) {
       _commitText();
+      collapseFluentSelectionOnBlur(_focusNode, _controller);
       deferOrRun(() => _setOpen(next: false));
     }
   }

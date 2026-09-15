@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import '../internal/animated_style.dart';
 import '../internal/interaction.dart';
 import '../internal/text_context_menu.dart';
+import '../internal/text_selection_dismiss.dart';
 import '../l10n/l10n.dart';
 import 'input.dart';
 import 'search_box_style.dart';
@@ -785,6 +786,9 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
   FocusNode? _internalFocusNode;
   bool _hovered = false;
 
+  /// Mirrors the node, so a property-only notification is not read as a blur.
+  bool _focused = false;
+
   @override
   final GlobalKey<EditableTextState> editableTextKey =
       GlobalKey<EditableTextState>();
@@ -807,7 +811,8 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
   void initState() {
     super.initState();
     _controller.addListener(_onChanged);
-    _focusNode.addListener(_onChanged);
+    _focusNode.addListener(_onFocusChanged);
+    _focused = _focusNode.hasFocus;
   }
 
   @override
@@ -818,8 +823,11 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
       _controller.addListener(_onChanged);
     }
     if (oldWidget.focusNode != widget.focusNode) {
-      (oldWidget.focusNode ?? _internalFocusNode)?.removeListener(_onChanged);
-      _focusNode.addListener(_onChanged);
+      (oldWidget.focusNode ?? _internalFocusNode)?.removeListener(
+        _onFocusChanged,
+      );
+      _focusNode.addListener(_onFocusChanged);
+      _focused = _focusNode.hasFocus;
     }
     // Disabling mid-hover must not leave a stale hover behind.
     if (!widget.enabled && _hovered) _hovered = false;
@@ -828,7 +836,7 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
   @override
   void dispose() {
     _controller.removeListener(_onChanged);
-    _focusNode.removeListener(_onChanged);
+    _focusNode.removeListener(_onFocusChanged);
     _internalController?.dispose();
     _internalFocusNode?.dispose();
     _clearFocusNode.dispose();
@@ -839,6 +847,20 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
   // button and the underline all depend on one or the other.
   void _onChanged() {
     if (mounted) setState(() {});
+  }
+
+  /// Focus splits off from [_onChanged] so that leaving a selection behind
+  /// happens on blur only, never from inside the controller's own notification.
+  ///
+  /// Latched on a real transition: a [FocusNode] also notifies when properties
+  /// like `canRequestFocus` are written, and `hasFocus` is still false on those,
+  /// so an unguarded collapse would erase a selection a host had set on a field
+  /// the user never focused.
+  void _onFocusChanged() {
+    if (_focused == _focusNode.hasFocus) return;
+    _focused = _focusNode.hasFocus;
+    collapseFluentSelectionOnBlur(_focusNode, _controller);
+    _onChanged();
   }
 
   void _clear() {
@@ -902,7 +924,11 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
             resolved.cursorColor?.resolve(states) ??
             theme.colors.neutralForeground1,
         backgroundCursorColor: theme.colors.neutralForeground3,
-        selectionColor: _interactive
+        // `_interactive` alone was never the dismissal signal: `enabled &&
+        // !readOnly` does not change when focus leaves, so the highlight stayed
+        // lit after a click away. Focus is the term that was missing; both are
+        // kept, so a disabled or read-only box still paints nothing.
+        selectionColor: _interactive && _focusNode.hasFocus
             ? resolved.selectionColor?.resolve(states)
             : null,
         onChanged: widget.onChanged,
@@ -970,7 +996,14 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
           : null,
     );
 
-    var searchBox = buildFluentSearchBox(state, resolved, states);
+    // Wrapped so the faceplate counts as part of the field: the chrome sits
+    // outside the region `EditableText` installs for itself, so a press on the
+    // leading glyph or the padding read as a tap outside and dropped focus on
+    // pointer down. The clear button has carried its own region for this reason
+    // since it was written; this is the same fix for the rest of the surface.
+    Widget searchBox = TextFieldTapRegion(
+      child: buildFluentSearchBox(state, resolved, states),
+    );
 
     searchBox = MouseRegion(
       cursor: resolved.mouseCursor?.resolve(states) ?? SystemMouseCursors.basic,
