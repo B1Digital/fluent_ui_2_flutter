@@ -1,3 +1,50 @@
+## 0.0.5
+
+### Fixed
+
+- **Selected text stayed highlighted after clicking away from a field.** Flutter
+  hides a selection in exactly one way — by handing `EditableText` a null
+  `selectionColor`. Blur does none of the work itself: `_handleFocusChanged`
+  leaves `controller.selection` alone and `RenderEditable`'s highlight painter
+  draws from (range, colour) with no focus term, so a control that keeps passing
+  a colour keeps painting the selection after the pointer has gone elsewhere.
+  Focus was dropping correctly all along; only the paint outlived it.
+  `FluentInput` (and so `FluentDatePicker`, `FluentTimePicker` and
+  `FluentTagPicker`, which share `buildFluentInput`), `FluentTextarea` and
+  `FluentSearchBox` now gate the colour on real focus, the way `TextField` and
+  `CupertinoTextField` both do and `FluentSpinButton` already did.
+  `FluentSearchBox` had a guard on `enabled && !readOnly`, which is true for an
+  ordinary field's whole lifetime — it read as a gate in a diff and did nothing
+  at runtime; both terms are now applied.
+- **Pressing a field's own chrome dropped its focus.** The padding, the border
+  and the `contentBefore`/`contentAfter` slots are built *around* the
+  `EditableText`, so they fall outside the `TextFieldTapRegion` it installs for
+  itself and a pointer-down there ran `_EditableTextTapOutsideAction`. The
+  selection gesture detector handed focus back on pointer-up, so it read as a
+  flicker rather than a fault — but a focus-reactive slot unmounts under the
+  cursor between press and release, and a spin button's steppers are outside
+  the field too, so every increment blurred it. `buildFluentInput`,
+  `FluentTextarea`, `FluentSearchBox` and `FluentSpinButton` now each wrap their
+  faceplate, as `TextField` wraps its decoration. All use the default group id,
+  so the pickers wrapping the result again for their popups stays a no-op.
+
+### Changed
+
+- **Blurring a Fluent text control now collapses its selection**, rather than
+  only hiding the highlight. Material and Cupertino keep the range and restore
+  it on refocus; these controls deliberately do not, so returning to a field
+  lands a caret where the selection ended. The value is never touched — only
+  `controller.selection` — but an application that reads a selection back from
+  its own controller after the field has lost focus will now find it collapsed.
+- **`collapseFluentSelectionOnBlur` is new.** An internal helper in
+  `lib/src/internal/text_selection_dismiss.dart`, called from the focus listener
+  each control already owned. It writes as little as it can: nothing while
+  focused, nothing for an invalid or already-collapsed range, and it clamps the
+  caret to the current text — `TextEditingController.selection`'s setter throws
+  rather than asserts past `text.length`, so that guard holds in release too.
+  `FluentDatePicker` and `FluentTimePicker` key it to focus leaving the *whole
+  control*, not just the field, so an open calendar or listbox keeps its range.
+
 ## 0.0.4
 
 ### Fixed
