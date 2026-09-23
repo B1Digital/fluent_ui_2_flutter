@@ -318,8 +318,8 @@ Widget _default(BuildContext context) => SizedBox(
     chevronPlacement: FluentCarouselChevronPlacement.groupedToSteps,
     previousLabel: 'Go to prev',
     nextLabel: 'Go to next',
-    playLabel: 'Autoplay',
-    pauseLabel: 'Autoplay',
+    playLabel: 'Start autoplay',
+    pauseLabel: 'Pause autoplay',
     stepLabel: (int index, int count) => 'Carousel Nav Button $index',
     slides: <Widget>[
       for (int index = 0; index < _defaultImages.length; index++)
@@ -557,8 +557,8 @@ Widget _appearance(BuildContext context) => DecoratedBox(
       chevronPlacement: FluentCarouselChevronPlacement.groupedToSteps,
       previousLabel: 'Go to prev',
       nextLabel: 'Go to next',
-      playLabel: 'Autoplay',
-      pauseLabel: 'Autoplay',
+      playLabel: 'Start autoplay',
+      pauseLabel: 'Pause autoplay',
       stepLabel: (int index, int count) => 'Carousel Nav Button $index',
       slides: <Widget>[
         for (int index = 0; index < _appearanceImages.length; index++)
@@ -911,7 +911,9 @@ class _ControlledState extends State<_Controlled> {
                         ? FluentIcons.pause_20_regular
                         : FluentIcons.play_20_regular,
                   ),
-                  semanticLabel: 'Enable autoplay',
+                  semanticLabel: _autoplaying
+                      ? 'Pause autoplay'
+                      : 'Enable autoplay',
                   appearance: FluentButtonAppearance.subtle,
                   onPressed: () => setState(() => _autoplaying = !_autoplaying),
                 ),
@@ -1588,7 +1590,7 @@ class _AutoplayState extends State<_Autoplay> {
                 previousLabel: 'go to prev',
                 nextLabel: 'go to next',
                 playLabel: 'Enable autoplay',
-                pauseLabel: 'Enable autoplay',
+                pauseLabel: 'Pause autoplay',
                 stepLabel: (int index, int count) =>
                     'Carousel Nav Button $index',
                 slides: <Widget>[
@@ -1911,8 +1913,8 @@ class _EventingState extends State<_Eventing> {
                 chevronPlacement: FluentCarouselChevronPlacement.groupedToSteps,
                 previousLabel: 'go to prev',
                 nextLabel: 'go to next',
-                playLabel: 'Carousel autoplay',
-                pauseLabel: 'Carousel autoplay',
+                playLabel: 'Start carousel autoplay',
+                pauseLabel: 'Pause carousel autoplay',
                 stepLabel: (int index, int count) =>
                     'Carousel Nav Button $index',
                 onIndexChanged: (int index) => setState(
