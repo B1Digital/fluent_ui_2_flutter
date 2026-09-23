@@ -68,9 +68,10 @@ enum FluentSpinnerLabelPosition {
 /// One keyframe of the tail animation: where the arc starts and how far it
 /// sweeps, both in radians.
 ///
-/// Upstream expresses these as `strokeDasharray` and `strokeDashoffset` on an
-/// SVG circle; a Flutter arc wants an angle pair, so the conversion happens
-/// once, here, rather than in the painter every frame.
+/// Upstream builds the tail from conic-gradient wedges turning behind a mask,
+/// but what shows at any instant is always one arc, so an angle pair is all
+/// the painter needs. The conversion happens once, in
+/// [FluentSpinnerMotion.tailKeyframes], rather than in the painter every frame.
 @immutable
 class FluentSpinnerTailKeyframe {
   /// Creates a keyframe.
@@ -110,12 +111,12 @@ class FluentSpinnerTailKeyframe {
 ///
 /// ## Where the numbers come from
 ///
-/// [rotation] and [tail] are upstream's `spinner` and `spinner-tail`
-/// `@keyframes`. Figma's `.SpinnerBase` set *appears* to encode the tail
-/// keyframes as its `<size> 01/02/03` variants, but all four variants in each
-/// size group carry identical arc geometry — so the Figma file records the
-/// keyframes' existence and nothing else. The values below are upstream's;
-/// `doc/token-divergences.md` has the note.
+/// [rotation] and [tail] are the animations of `@fluentui/react-spinner`
+/// 9.8.6's `useSpinnerBaseClassName` and `useSpinnerTailBaseClassName`
+/// (`useSpinnerStyles.styles.ts`). Figma's `.SpinnerBase` set *appears* to
+/// encode the tail keyframes as its `<size> 01/02/03` variants, but each is
+/// identical to its base size — so the Figma file records the keyframes'
+/// existence and nothing else.
 abstract final class FluentSpinnerMotion {
   /// The whole ring turning once. Linear, so the rotation reads as constant.
   static const FluentMotionSpec rotation = FluentMotionSpec(
@@ -135,21 +136,21 @@ abstract final class FluentSpinnerMotion {
 
   /// The three keyframes of [tail], at 0%, 50% and 100% of the cycle.
   ///
-  /// Converted from upstream's `strokeDasharray` / `strokeDashoffset` triple —
-  /// `(1, 150) @ 0`, `(90, 150) @ -35`, `(90, 150) @ -124` — over the
-  /// 124-unit circumference that upstream's own final offset implies. A dash
-  /// length becomes [FluentSpinnerTailKeyframe.sweep] and a negative offset
-  /// becomes [FluentSpinnerTailKeyframe.start], both scaled by `2π / 124`.
+  /// Upstream paints two 135° conic wedges, the tail's `::before` and
+  /// `::after`, turning 0 → 105° → 0 and 0 → 225° → 0 inside a tail that
+  /// turns -135° → 0 → 225°, all behind a mask hiding the tail's first 105°.
+  /// All three share one eased value per half, so the visible arc's start and
+  /// sweep are linear in it: from 12 o'clock, (-30°, 30°), (105°, 255°) and
+  /// (330°, 30°). These are those, turned a quarter back to Flutter's
+  /// 3 o'clock.
+  ///
+  /// The arc grows from 30° to 255° and shrinks back. The last start is the
+  /// first plus a whole turn rather than the first itself, so 100% lands
+  /// exactly where 0% begins and the cycle closes without a jump.
   static const List<FluentSpinnerTailKeyframe> tailKeyframes = [
-    FluentSpinnerTailKeyframe(start: 0, sweep: 2 * math.pi * 1 / 124),
-    FluentSpinnerTailKeyframe(
-      start: 2 * math.pi * 35 / 124,
-      sweep: 2 * math.pi * 90 / 124,
-    ),
-    FluentSpinnerTailKeyframe(
-      start: 2 * math.pi * 124 / 124,
-      sweep: 2 * math.pi * 90 / 124,
-    ),
+    FluentSpinnerTailKeyframe(start: -2 * math.pi / 3, sweep: math.pi / 6),
+    FluentSpinnerTailKeyframe(start: math.pi / 12, sweep: 17 * math.pi / 12),
+    FluentSpinnerTailKeyframe(start: 4 * math.pi / 3, sweep: math.pi / 6),
   ];
 
   /// The tail as Figma draws it standing still: a quarter arc starting at
@@ -248,6 +249,7 @@ class FluentSpinnerPainter extends CustomPainter {
     required this.indicatorColor,
     required this.strokeWidth,
     required this.pose,
+    this.textDirection = TextDirection.ltr,
   });
 
   /// The full-circle rail.
@@ -262,6 +264,10 @@ class FluentSpinnerPainter extends CustomPainter {
   /// Where the tail currently is.
   final FluentSpinnerPose pose;
 
+  /// Which way the ring turns. Right-to-left mirrors the whole drawing, so the
+  /// ring turns anticlockwise, as upstream's does under `dir="rtl"`.
+  final TextDirection textDirection;
+
   /// How far the whole ring has turned, in radians. Convenience for [pose].
   double get rotation => pose.rotation;
 
@@ -273,11 +279,14 @@ class FluentSpinnerPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // The stroke is centred on the path, so the circle has to be inset by half
-    // the width or the ring would paint outside the box the layout reserved.
-    final radius = (math.min(size.width, size.height) - strokeWidth) / 2;
+    // The stroke is centred on the path, so the circle is inset by half the
+    // width, plus the half pixel by which upstream's ring mask — a
+    // radial-gradient whose edges fade over 1px — stops short of the box.
+    final radius =
+        math.min(size.width, size.height) / 2 - strokeWidth / 2 - 0.5;
     if (radius <= 0) return;
     final center = size.center(Offset.zero);
+    final start = rotation + tailStart;
 
     canvas.drawCircle(
       center,
@@ -290,16 +299,19 @@ class FluentSpinnerPainter extends CustomPainter {
 
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
-      rotation + tailStart,
+      // Mirroring about the vertical axis takes an angle θ to π − θ, so the
+      // arc [start, start + sweep] becomes [π − start − sweep, π − start].
+      textDirection == TextDirection.rtl ? math.pi - start - tailSweep : start,
       tailSweep,
       false,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = strokeWidth
-        // Figma binds the Tail ellipse's cornerRadius to `Corner radius/Medium`
-        // (4), which on a 2–4px ring clamps to half the thickness — exactly a
-        // round cap.
-        ..strokeCap = StrokeCap.round
+        // Upstream cuts both ends with conic-gradient hard stops, which are
+        // radial lines: on a circle, exactly a butt cap. Figma rounds the Tail
+        // ellipse's corners (`Corner radius/Medium`); the shipped component's
+        // flat ends win.
+        ..strokeCap = StrokeCap.butt
         ..color = indicatorColor,
     );
   }
@@ -309,7 +321,8 @@ class FluentSpinnerPainter extends CustomPainter {
       oldDelegate.trackColor != trackColor ||
       oldDelegate.indicatorColor != indicatorColor ||
       oldDelegate.strokeWidth != strokeWidth ||
-      oldDelegate.pose != pose;
+      oldDelegate.pose != pose ||
+      oldDelegate.textDirection != textDirection;
 }
 
 /// Everything needed to render a spinner, independent of appearance and size.
@@ -483,17 +496,27 @@ Widget buildFluentSpinner(
   final labelColor = style.labelColor?.resolve(states);
   final textStyle = style.textStyle?.resolve(states);
 
-  final ring = SizedBox(
-    width: diameter,
-    height: diameter,
-    child: CustomPaint(
-      painter: FluentSpinnerPainter(
-        trackColor:
-            style.trackColor?.resolve(states) ?? const Color(0x00000000),
-        indicatorColor:
-            style.indicatorColor?.resolve(states) ?? const Color(0x00000000),
-        strokeWidth: strokeWidth,
-        pose: pose,
+  // A layer of its own: the ring repaints every frame, and without a boundary
+  // each frame would repaint everything up to the page's nearest one.
+  final ring = RepaintBoundary(
+    child: SizedBox(
+      width: diameter,
+      height: diameter,
+      // Direction is read here rather than taken as a parameter, so a spinner
+      // composed from this function still mirrors under right-to-left.
+      child: Builder(
+        builder: (context) => CustomPaint(
+          painter: FluentSpinnerPainter(
+            trackColor:
+                style.trackColor?.resolve(states) ?? const Color(0x00000000),
+            indicatorColor:
+                style.indicatorColor?.resolve(states) ??
+                const Color(0x00000000),
+            strokeWidth: strokeWidth,
+            pose: pose,
+            textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
+          ),
+        ),
       ),
     ),
   );
@@ -578,11 +601,14 @@ class FluentSpinnerTheme extends InheritedTheme {
 /// ## Motion
 ///
 /// Two 1.5s animations run together off one controller: the ring turns once,
-/// linearly, while the tail grows and travels through
-/// [FluentSpinnerMotion.tailKeyframes] on `curveEasyEase`. Under
-/// [MediaQuery.disableAnimationsOf] the controller never starts and the ring
-/// holds [FluentSpinnerPose.resting], the pose Figma draws — so reduced motion
-/// gets a legible static indicator rather than a blank box.
+/// linearly, while the tail grows from 30° to 255° and back through
+/// [FluentSpinnerMotion.tailKeyframes] on `curveEasyEase`. Under a
+/// right-to-left [Directionality] the drawing mirrors and the ring turns
+/// anticlockwise. Under [MediaQuery.disableAnimationsOf] the controller never
+/// starts and the ring holds [FluentSpinnerPose.resting], the pose Figma draws
+/// — so reduced motion gets a legible static indicator rather than a blank
+/// box. Upstream instead keeps turning at 1.8s; this package starts no ticker
+/// at all.
 ///
 /// ## Customisation
 ///

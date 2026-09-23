@@ -119,6 +119,7 @@ const FluentSpinnerPainter({
     required this.indicatorColor,
     required this.strokeWidth,
     required this.pose,
+    this.textDirection = TextDirection.ltr,
   });
 ```
 
@@ -128,6 +129,7 @@ const FluentSpinnerPainter({
 | `indicatorColor` | `Color` | Yes | — | The moving arc drawn over the rail. |
 | `strokeWidth` | `double` | Yes | — | Thickness of both, in logical pixels. |
 | `pose` | `FluentSpinnerPose` | Yes | — | Where the tail currently is. |
+| `textDirection` | `TextDirection` | No | `TextDirection.ltr` | Which way the ring turns. Right-to-left mirrors the whole drawing, so the ring turns anticlockwise, as upstream's does under `dir="rtl"`. |
 
 ### `FluentSpinnerSize`
 

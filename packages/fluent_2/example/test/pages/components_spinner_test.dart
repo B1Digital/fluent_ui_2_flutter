@@ -53,9 +53,9 @@ void main() {
           reason: 'sample $i left the tail where it was',
         );
       }
-      // Not "every sample differs": the two keyframes bounding the second half
-      // of the cycle carry the same 90-unit dash, so the sweep is deliberately
-      // constant there. What must be true is that it grew at all.
+      // The arc grows from 30° to 255° and shrinks back within each cycle, so
+      // a sweep can repeat across samples. What must be true is that it
+      // changed at all.
       expect(
         poses.map((FluentSpinnerPose p) => p.tailSweep).toSet().length,
         greaterThan(1),

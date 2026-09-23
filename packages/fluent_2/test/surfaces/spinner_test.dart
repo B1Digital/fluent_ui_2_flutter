@@ -331,6 +331,57 @@ void main() {
       );
     });
 
+    test('the cycle closes without a jump', () {
+      // At 100% the arc must be exactly where it was at 0%, whole turns apart,
+      // or the tail pops once every cycle.
+      final end = FluentSpinnerPose.at(1);
+      final start = FluentSpinnerPose.at(0);
+      final turns =
+          (end.rotation + end.tailStart - start.rotation - start.tailStart) /
+          (2 * math.pi);
+      expect(turns, closeTo(turns.roundToDouble(), 1e-9));
+      expect(end.tailSweep, closeTo(start.tailSweep, 1e-9));
+    });
+
+    test('the arc tracks upstream through the cycle', () {
+      // Trailing and leading edge, degrees clockwise from 12 o'clock, of
+      // @fluentui/react-spinner 9.8.6's compiled CSS
+      // (useSpinnerStyles.styles.ts — useSpinnerBaseClassName and
+      // useSpinnerTailBaseClassName), which Chrome renders within 0.2° of
+      // these: 30° at both ends of the cycle, 255° at the middle. At the
+      // quarter points any symmetric curve lands on the same values, so the
+      // 0.1 and 0.6 rows, read off Chrome, are what pin `curveEasyEase`.
+      const upstream = [
+        (0.0, 330.0, 0.0),
+        (0.1, 20.15, 73.67),
+        (0.25, 127.5, 270.0),
+        (0.5, 285.0, 180.0),
+        (0.6, 344.58, 215.89),
+        (0.75, 127.5, 270.0),
+        (1.0, 330.0, 0.0),
+      ];
+      double clockFace(double radians) => radians * 180 / math.pi + 90;
+      double gap(double a, double b) {
+        final d = (a - b) % 360;
+        return math.min(d, 360 - d);
+      }
+
+      for (final (progress, trail, lead) in upstream) {
+        final pose = FluentSpinnerPose.at(progress);
+        final start = pose.rotation + pose.tailStart;
+        expect(
+          gap(clockFace(start), trail),
+          lessThan(0.5),
+          reason: 'trailing edge at $progress',
+        );
+        expect(
+          gap(clockFace(start + pose.tailSweep), lead),
+          lessThan(0.5),
+          reason: 'leading edge at $progress',
+        );
+      }
+    });
+
     testWidgets('the ring is a quarter turn behind at 750ms', (tester) async {
       await pump(tester, const FluentSpinner(key: key));
       expect(painterOf(tester).rotation, 0);
@@ -362,6 +413,63 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1500));
       expect(painterOf(tester).rotation, before.rotation);
       expect(painterOf(tester).tailSweep, before.tailSweep);
+    });
+  });
+
+  group('ring geometry against upstream', () {
+    final ring = find.byWidgetPredicate(
+      (widget) =>
+          widget is CustomPaint && widget.painter is FluentSpinnerPainter,
+    );
+
+    testWidgets('the ends are cut flat and the ring sits half a pixel in', (
+      tester,
+    ) async {
+      await pump(tester, const FluentSpinner(key: key), reducedMotion: true);
+      // Medium is 32 across and 3 thick. Upstream's radial-gradient mask fades
+      // each edge over 1px, which centres the ring on 16 − 1.5 − 0.5 = 14, and
+      // its conic-gradient hard stops are radial lines: a butt cap.
+      expect(
+        ring,
+        paints
+          ..circle(x: 16, y: 16, radius: 14, strokeWidth: 3)
+          ..arc(
+            rect: Rect.fromCircle(center: const Offset(16, 16), radius: 14),
+            startAngle: 0,
+            sweepAngle: math.pi / 2,
+            strokeCap: StrokeCap.butt,
+          ),
+      );
+    });
+
+    testWidgets('right-to-left mirrors the ring, as upstream does', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const Directionality(
+          textDirection: TextDirection.rtl,
+          child: FluentSpinner(key: key),
+        ),
+        reducedMotion: true,
+      );
+      expect(painterOf(tester).textDirection, TextDirection.rtl);
+      // The resting quarter arc, 3 to 6 o'clock, mirrors to 6 to 9 o'clock.
+      expect(
+        ring,
+        paints..arc(startAngle: math.pi / 2, sweepAngle: math.pi / 2),
+      );
+    });
+
+    testWidgets('the ring repaints on a layer of its own', (tester) async {
+      await pump(tester, const FluentSpinner(key: key));
+      expect(
+        find.descendant(
+          of: find.byKey(key),
+          matching: find.byType(RepaintBoundary),
+        ),
+        findsOneWidget,
+      );
     });
   });
 
