@@ -366,7 +366,7 @@ class _TopNavigationBannerCard extends StatelessWidget {
     return Semantics(
       label: '${index + 1} of ${_topNavigationImages.length}',
       child: DecoratedBox(
-        decoration: BoxDecoration(
+        decoration: FluentBoxDecoration(
           borderRadius: FluentRadius.allXLarge,
           boxShadow: theme.shadow(FluentElevation.shadow16),
         ),
@@ -892,8 +892,7 @@ class _ControlledState extends State<_Controlled> {
         Align(
           child: Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: theme.colors.neutralBackground1,
+            decoration: FluentBoxDecoration(
               border: Border.all(
                 color: theme.colors.neutralStroke1,
                 width: FluentStroke.thin,
@@ -944,6 +943,14 @@ class _ControlledState extends State<_Controlled> {
                   child: FluentDivider(vertical: true),
                 ),
                 FluentToolbar(
+                  // Upstream's Toolbar has no background; ours defaults to
+                  // neutralBackground1, which would sit as a white box inside
+                  // the footer.
+                  style: const FluentToolbarStyle(
+                    backgroundColor: WidgetStatePropertyAll<Color?>(
+                      Color(0x00000000),
+                    ),
+                  ),
                   items: <Widget>[
                     for (int index = 0; index < _slideCount; index++)
                       FluentButton(
@@ -1180,8 +1187,7 @@ class _AlignmentActionCard extends StatelessWidget {
       child: Container(
         width: 350,
         margin: const EdgeInsets.symmetric(horizontal: 6),
-        decoration: BoxDecoration(
-          color: theme.colors.neutralBackground1,
+        decoration: FluentBoxDecoration(
           borderRadius: FluentRadius.allLarge,
           boxShadow: theme.shadow(FluentElevation.shadow16),
         ),
@@ -1193,6 +1199,7 @@ class _AlignmentActionCard extends StatelessWidget {
             Stack(
               children: <Widget>[
                 SizedBox(
+                  width: double.infinity,
                   height: 200,
                   child: Image(
                     image: const AssetImage(
@@ -1276,8 +1283,7 @@ class _AlignmentAndWhitespaceState extends State<_AlignmentAndWhitespace> {
     );
 
     return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colors.neutralBackground1,
+      decoration: FluentBoxDecoration(
         boxShadow: theme.shadow(FluentElevation.shadow16),
       ),
       child: Column(
@@ -1496,8 +1502,7 @@ class _AutoplayState extends State<_Autoplay> {
     );
 
     return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colors.neutralBackground1,
+      decoration: FluentBoxDecoration(
         boxShadow: theme.shadow(FluentElevation.shadow16),
       ),
       child: Column(
@@ -1895,8 +1900,7 @@ class _EventingState extends State<_Eventing> {
           child: Container(
             margin: const EdgeInsets.only(top: 24),
             padding: const EdgeInsets.symmetric(vertical: 20),
-            decoration: BoxDecoration(
-              color: theme.colors.neutralBackground1,
+            decoration: FluentBoxDecoration(
               border: Border.all(
                 color: theme.colors.neutralStroke1,
                 width: FluentStroke.thick,
@@ -2093,8 +2097,7 @@ class _EventingState extends State<_Eventing> {
                   maxHeight: 250,
                 ),
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: theme.colors.neutralBackground1,
+                decoration: FluentBoxDecoration(
                   border: Border.all(
                     color: theme.colors.brandBackground,
                     width: FluentStroke.thick,

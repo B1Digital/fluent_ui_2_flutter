@@ -254,6 +254,7 @@ export 'src/surfaces/avatar_group_style.dart';
 export 'src/surfaces/avatar_style.dart';
 export 'src/surfaces/badge.dart';
 export 'src/surfaces/badge_style.dart';
+export 'src/surfaces/box_decoration.dart';
 export 'src/surfaces/card.dart';
 export 'src/surfaces/card_style.dart';
 export 'src/surfaces/carousel.dart';
