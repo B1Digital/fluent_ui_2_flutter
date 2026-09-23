@@ -476,7 +476,7 @@ class _GroupedVerticalBarDefaultState
               max: 1000,
               semanticLabel: 'Change Width',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _width = value),
             ),
@@ -490,7 +490,7 @@ class _GroupedVerticalBarDefaultState
               max: 1000,
               semanticLabel: 'Change Height',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _height = value),
             ),
@@ -792,7 +792,7 @@ class _GroupedVerticalBarNegativeState
               max: 1000,
               semanticLabel: 'Change Width',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _width = value),
             ),
@@ -806,7 +806,7 @@ class _GroupedVerticalBarNegativeState
               max: 1000,
               semanticLabel: 'Change Height',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _height = value),
             ),
@@ -1022,7 +1022,7 @@ class _GroupedVerticalBarSecondaryYAxisState
               max: 1000,
               semanticLabel: 'Change Width',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _width = value),
             ),
@@ -1036,7 +1036,7 @@ class _GroupedVerticalBarSecondaryYAxisState
               max: 1000,
               semanticLabel: 'Change Height',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _height = value),
             ),
@@ -1170,7 +1170,7 @@ class _GroupedVerticalBarChartLineState
               max: 1000,
               semanticLabel: 'Change Width',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _width = value),
             ),
@@ -1184,7 +1184,7 @@ class _GroupedVerticalBarChartLineState
               max: 1000,
               semanticLabel: 'Change Height',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _height = value),
             ),

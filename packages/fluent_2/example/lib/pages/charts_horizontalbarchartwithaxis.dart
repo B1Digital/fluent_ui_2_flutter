@@ -308,7 +308,7 @@ class _HorizontalBarWithAxisBasicState
               max: 1000,
               semanticLabel: 'Change Width',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _width = value),
             ),
@@ -322,7 +322,7 @@ class _HorizontalBarWithAxisBasicState
               max: 1000,
               semanticLabel: 'Change Height',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _height = value),
             ),

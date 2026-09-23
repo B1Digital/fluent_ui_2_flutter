@@ -557,7 +557,7 @@ class _HeatMapChartBasicState extends State<_HeatMapChartBasic> {
               step: 1,
               semanticLabel: 'Change Width',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _width = value),
             ),
@@ -759,7 +759,7 @@ class _HeatMapChartCustomAccessibilityState
                 step: 1,
                 semanticLabel: 'Change Width',
                 semanticFormatter: (double value) =>
-                    "current value ${value.round()}', Minimum 200 and Maximum "
+                    'current value ${value.round()}, Minimum 200 and Maximum '
                     '1000',
                 onChanged: (double value) => setState(() => _width = value),
               ),
@@ -774,7 +774,7 @@ class _HeatMapChartCustomAccessibilityState
                 step: 1,
                 semanticLabel: 'Change Height',
                 semanticFormatter: (double value) =>
-                    "current value ${value.round()}', Minimum 200 and Maximum "
+                    'current value ${value.round()}, Minimum 200 and Maximum '
                     '1000',
                 onChanged: (double value) => setState(() => _height = value),
               ),
