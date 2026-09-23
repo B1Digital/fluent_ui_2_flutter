@@ -1988,6 +1988,23 @@ class _DefaultState extends State<_Default> {
     return _showMore ? _schemaCategories[category]!.length : 0;
   }
 
+  // The Chart Type list for the selected category. Upstream reads the
+  // selection and then never filters on it — `const filteredOptions =
+  // currentOptions` — which leaves the counts in the Category labels
+  // promising a list that never arrives; the port filters.
+  Iterable<String> get _chartKeys => _selectedCategory == 'All'
+      ? _allSchemas.keys
+      : _schemaCategories[_selectedCategory]!;
+
+  // A category that no longer holds the selected chart moves the selection to
+  // its first schema, or the Chart Type dropdown would hold a dead value.
+  void _onCategoryChanged(String value) => setState(() {
+    _selectedCategory = value;
+    if (!_chartKeys.contains(_selectedChart)) {
+      _selectChart(_chartKeys.first);
+    }
+  });
+
   void _onShowMoreChanged(bool value) => setState(() {
     _showMore = value;
     if (!value) {
@@ -2090,11 +2107,7 @@ class _DefaultState extends State<_Default> {
                       ),
                   ],
                   value: _selectedCategory,
-                  // Upstream reads the selection and then never filters on it —
-                  // `const filteredOptions = currentOptions` — so the Chart
-                  // Type list stays whole here too.
-                  onChanged: (String value) =>
-                      setState(() => _selectedCategory = value),
+                  onChanged: _onCategoryChanged,
                 ),
               ),
             ),
@@ -2104,7 +2117,7 @@ class _DefaultState extends State<_Default> {
                 width: 300,
                 child: FluentDropdown<String>(
                   options: <FluentDropdownOption<String>>[
-                    for (final String key in _allSchemas.keys)
+                    for (final String key in _chartKeys)
                       FluentDropdownOption<String>(
                         value: key,
                         label: Text(_optionText(key)),
