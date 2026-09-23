@@ -230,6 +230,10 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
   /// has plenty: a 3px stacked segment sitting on the plot floor loses the
   /// release below the axis and can never reach `onBarClick`.
   int _pressedIndex = -1;
+
+  /// What the press landed on when it missed every region, picked at the press
+  /// for the same reason [_pressedIndex] is.
+  VoidCallback? _pressedOffRegion;
   Offset _pointer = Offset.zero;
 
   FocusNode get _focusNode =>
@@ -621,13 +625,27 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
                   // `_onPointer` alongside is the hover half of what a mark
                   // does — it opens the callout and nothing more.
                   _pressedIndex = _regionAt(_marks, details.localPosition);
+                  // A region wins, as upstream's marker circle sits above the
+                  // line it would otherwise hand the click to.
+                  _pressedOffRegion = _pressedIndex == -1
+                      ? widget.delegate.activationAt(
+                          childContext,
+                          details.localPosition,
+                        )
+                      : null;
                   _onPointer(details.localPosition);
                 },
                 // The click itself, on the pressed mark: re-hit-testing the
                 // release would drop a thin mark's click entirely and, on a
                 // stack, hand it to whichever neighbouring segment the drift
                 // ended over.
-                onTapUp: (_) => _activate(_marks, _pressedIndex),
+                onTapUp: (_) {
+                  if (_pressedIndex == -1) {
+                    _pressedOffRegion?.call();
+                  } else {
+                    _activate(_marks, _pressedIndex);
+                  }
+                },
                 child: CustomPaint(
                   size: size,
                   painter: FluentCartesianChartPainter(

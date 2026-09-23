@@ -231,7 +231,12 @@ class FluentLineChartSeries {
   /// arm. Recorded divergence.
   final void Function(List<String> selected)? onLegendClick;
 
-  /// Invoked when the drawn line itself is activated.
+  /// Invoked when a `FluentLineChart` line's stroke is clicked, away from the
+  /// markers that sit on it (`LineChart.tsx:731`, `:1287`).
+  ///
+  /// Pointer only, and never for a legend-dimmed line, exactly as upstream
+  /// binds it. No other chart invokes it: upstream's AreaChart takes the same
+  /// series type and binds no line click either.
   final VoidCallback? onLineClick;
 
   /// Whether this series is plotted against the secondary y scale.
