@@ -644,7 +644,7 @@ void main() {
       );
     });
 
-    testWidgets('focus still grows the marker to the active radius', (
+    testWidgets('focus grows the marker under the roving index', (
       tester,
     ) async {
       await pump(tester, FluentScatterChart(data: _fixtureData()));
@@ -652,8 +652,33 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         delegateOf(tester).activePointId,
-        '0_0',
-        reason: 'ScatterChart.tsx:553 sets activePoint on focus regardless',
+        isNull,
+        reason:
+            'the Tab lands on the plot, not on a marker, so nothing grows '
+            'until an arrow picks one',
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(
+        delegateOf(tester).activePointId,
+        '1_0',
+        reason:
+            'ScatterChart.tsx:554 grows the focused circle, and the first stop '
+            'is the LAST series\' first point because :399 counts down',
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(
+        delegateOf(tester).activePointId,
+        '1_1',
+        reason: 'the next arrow grows the next marker',
+      );
+      FocusManager.instance.primaryFocus!.unfocus();
+      await tester.pumpAndSettle();
+      expect(
+        delegateOf(tester).activePointId,
+        isNull,
+        reason: 'blur drops the roving stop, and the grown marker with it',
       );
     });
 

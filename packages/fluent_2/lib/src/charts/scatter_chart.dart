@@ -86,35 +86,17 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
   String? _activePointId;
   FluentChartPopoverData? _popoverData;
   Offset? _popoverAnchor;
-  FocusNode? _internalFocusNode;
   FluentScatterChartDelegate? _delegate;
   late FluentChartTextMeasurer _measurer;
-
-  FocusNode get _focusNode =>
-      widget.focusNode ?? (_internalFocusNode ??= FocusNode());
 
   @override
   void initState() {
     super.initState();
     _measurer = FluentChartTextMeasurer();
-    _focusNode.addListener(_handleFocusChange);
-  }
-
-  @override
-  void didUpdateWidget(FluentScatterChart oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.focusNode != oldWidget.focusNode) {
-      (oldWidget.focusNode ?? _internalFocusNode)?.removeListener(
-        _handleFocusChange,
-      );
-      _focusNode.addListener(_handleFocusChange);
-    }
   }
 
   @override
   void dispose() {
-    _focusNode.removeListener(_handleFocusChange);
-    _internalFocusNode?.dispose();
     _measurer.invalidate();
     super.dispose();
   }
@@ -128,13 +110,24 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
   /// focus, which the widget reproduces by suppressing the shell's popover
   /// layer outright and rendering its own on hover instead.
   ///
-  /// ponytail: the active point pins to the first marker rather than following
-  /// the roving index, because the shell's index is private and it reports no
-  /// focus-change callback. Upgrade path: add one to
-  /// [FluentCartesianChart] — plan 05 owns that file — and set the id from it.
-  void _handleFocusChange() {
-    final hasFocus = _focusNode.hasFocus;
-    setState(() => _activePointId = hasFocus ? '0_0' : null);
+  /// The grown marker follows the shell's roving index. Its regions are built
+  /// one per mark by [FluentScatterChartDelegate.buildHitRegions], so region i
+  /// is mark i, and the first stop is the last series' first point, as the
+  /// circles render from `ScatterChart.tsx:399`. Upstream makes every circle a
+  /// tab stop, so a Tab alone grows one; here a Tab lands on the plot and
+  /// nothing grows until an arrow picks a marker, the moment the shell starts
+  /// narrating one. Blur shrinks it again, because the shell drops its stop
+  /// there, where upstream's `onBlur` (`:471`) only hides the hover rule.
+  void _handleFocusedRegionChange(
+    int? index,
+    FluentCartesianChildContext context,
+  ) {
+    final mark = index == null ? null : _delegate?.marksFor(context)[index];
+    setState(
+      () => _activePointId = mark == null
+          ? null
+          : '${mark.seriesIndex}_${mark.pointIndex}',
+    );
   }
 
   /// `_handleHover` (`ScatterChart.tsx:558-590`), bound to the circle's own
@@ -214,7 +207,7 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
       yAxisCategoryOrder: widget.props.yAxisCategoryOrder,
     );
     return FluentCartesianChart(
-      focusNode: _focusNode,
+      focusNode: widget.focusNode,
       // parity: ScatterChart.tsx:722 passes the title through UNADORNED — no
       // 'Scatter chart with N series' suffix, unlike Area (`:1012`) and Line
       // (`:1843-1846`). It still has to be handed over explicitly: neither this
@@ -225,9 +218,10 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
         chartTitleForSemantics: widget.data.chartTitle,
         // The shell opens its popover for the focused region as readily as for
         // the hovered one, and upstream's focus path cannot open one at all
-        // (see [_handleFocusChange]). Replacing the shell's layer with an empty
-        // one leaves this widget the only thing that can raise a popover, which
-        // it does from [_handlePointerMove] through `overlayBuilder`.
+        // (see [_handleFocusedRegionChange]). Replacing the shell's layer with
+        // an empty one leaves this widget the only thing that can raise a
+        // popover, which it does from [_handlePointerMove] through
+        // `overlayBuilder`.
         popoverBuilder: (context) => const SizedBox.shrink(),
         // `{...(_isScatterPolarRef.current ? { yMaxValue: 1, yMinValue: -1 }
         // : {})}` (`ScatterChart.tsx:742`), spread after `{...props}` at `:723`
@@ -264,6 +258,7 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
       delegate: _delegate!,
       overlayBuilder: _buildPopoverLayer,
       onPointerMoveInPlot: _handlePointerMove,
+      onFocusedRegionChange: _handleFocusedRegionChange,
       onChartMouseLeave: _handleChartMouseLeave,
     );
   }
