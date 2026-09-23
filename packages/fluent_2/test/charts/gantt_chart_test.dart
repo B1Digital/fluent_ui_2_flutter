@@ -1131,6 +1131,50 @@ void main() {
       );
     });
 
+    testWidgets('useUtc reaches the x axis, not only the popover text', (
+      tester,
+    ) async {
+      // The zone-free half of the bug: what the shell's date axis is TOLD
+      // (`cartesian_chart.dart` hands `props.useUTC` to createDateXAxis), and
+      // what the delegate formats with. Pixels would only show it off UTC.
+      FluentCartesianChartProps shellProps() => tester
+          .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+          .props;
+
+      await pump(tester, ganttChart());
+      expect(
+        shellProps().useUTC,
+        isTrue,
+        reason:
+            'GanttChart.tsx:45 defaults useUTC to true and :608 passes it to '
+            'CartesianChart, so the date axis is a UTC scale',
+      );
+      expect(mountedDelegate(tester).useUtc, isTrue);
+
+      await pump(
+        tester,
+        const FluentGanttChart(data: ganttPoints, useUtc: false),
+      );
+      expect(shellProps().useUTC, isFalse);
+      expect(mountedDelegate(tester).useUtc, isFalse);
+
+      await pump(
+        tester,
+        const FluentGanttChart(
+          data: ganttPoints,
+          props: FluentCartesianChartProps(useUTC: false),
+        ),
+      );
+      expect(shellProps().useUTC, isFalse);
+      expect(
+        mountedDelegate(tester).useUtc,
+        isFalse,
+        reason:
+            'one effective value: a local axis must not sit under UTC '
+            'popover and label text',
+      );
+    });
+
     testWidgets('the semantic title counts data points', (tester) async {
       await pump(tester, ganttChart(chartTitle: 'Roadmap'));
       expect(

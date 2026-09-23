@@ -83,7 +83,12 @@ class FluentGanttChart extends StatefulWidget {
   /// Whether bars get a 3px corner radius.
   final bool roundCorners;
 
-  /// Whether dates are formatted in UTC — default true.
+  /// Whether the date axis and the date text run in UTC — default true
+  /// (`GanttChart.tsx:45`).
+  ///
+  /// A non-null [FluentCartesianChartProps.useUTC] on [props] wins over this
+  /// flag, and the one resulting value drives both the axis and the popover
+  /// text, as upstream's single `useUTC` does (`:128`, `:205`, `:608`).
   final bool useUtc;
 
   /// Ordering applied to a category y axis, or null when the caller named none.
@@ -189,12 +194,16 @@ class _FluentGanttChartState extends State<FluentGanttChart> {
       theme,
     ).merge(FluentGanttChartTheme.maybeOf(context)).merge(widget.style);
     final legendColours = _legendColours();
+    // `useUTC = true` (`GanttChart.tsx:45`) is one value upstream, handed to
+    // the shell's axis (`:608`) and to every date format (`:128`, `:205`).
+    final useUtc = widget.props.useUTC ?? widget.useUtc;
     return FluentCartesianChart(
       focusNode: widget.focusNode,
       legendSelectionMode: widget.legendSelectionMode,
       selectedLegends: _selectedLegends,
       onLegendChange: (selected) => setState(() => _selectedLegends = selected),
       props: widget.props.copyWith(
+        useUTC: useUtc,
         // `Gantt chart with ${n} data points. ` (`GanttChart.tsx:517-519`).
         chartTitleForSemantics:
             '${widget.chartTitle == null ? '' : '${widget.chartTitle}. '}'
@@ -223,7 +232,8 @@ class _FluentGanttChartState extends State<FluentGanttChart> {
         yAxisPadding: widget.yAxisPadding,
         enableGradient: widget.enableGradient,
         roundCorners: widget.roundCorners,
-        useUtc: widget.useUtc,
+        // `useUTC as boolean` is read for its JS truthiness, so '' is false.
+        useUtc: useUtc == true || (useUtc is String && useUtc != ''),
         culture: widget.culture,
         yAxisCategoryOrder: widget.yAxisCategoryOrder,
       ),
