@@ -2,6 +2,7 @@ import 'dart:ui' show Tristate;
 
 import 'package:fluent_2/fluent_2.dart';
 import 'package:fluent_2/src/internal/input_modality.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -727,6 +728,140 @@ void main() {
       expect(transform.transform.getTranslation().y, isNot(0));
 
       await tester.pumpAndSettle();
+    });
+
+    // A mouse, not a bare tap: flutter_test's default touch pointer hides the
+    // gesture-arena bugs a real click runs into.
+    Future<void> click(WidgetTester tester, Finder finder) async {
+      final gesture = await tester.startGesture(
+        tester.getCenter(finder),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump(const Duration(milliseconds: 90));
+      await gesture.moveBy(const Offset(1.5, 0));
+      await gesture.up();
+      await tester.pump();
+    }
+
+    // How far into its entrance the grid holding [label] is: the nearest
+    // Opacity above a cell is its grid's, and at rest it is 1.
+    double gridOpacity(WidgetTester tester, String label) => tester
+        .widget<Opacity>(
+          find.ancestor(of: _cell(label), matching: find.byType(Opacity)).first,
+        )
+        .opacity;
+
+    double gridOffset(WidgetTester tester, String label) => tester
+        .widget<Transform>(
+          find
+              .ancestor(of: _cell(label), matching: find.byType(Transform))
+              .first,
+        )
+        .transform
+        .getTranslation()
+        .y;
+
+    // Upstream's `CalendarMonth` replays only when the navigated year changes,
+    // so a same-year day page must leave the month picker beside it still.
+    testWidgets('paging the day grid within a year leaves the month grid '
+        'still', (tester) async {
+      await _pump(tester, isMonthPickerVisible: true);
+
+      await click(tester, find.bySemanticsLabel('Next month'));
+      await tester.pump(const Duration(milliseconds: 16));
+
+      expect(find.text('April 2026'), findsOneWidget);
+      expect(gridOpacity(tester, '15'), lessThan(1));
+      expect(gridOpacity(tester, 'Jun'), 1);
+      expect(gridOffset(tester, 'Jun'), 0);
+
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('paging the month picker leaves the day grid still', (
+      tester,
+    ) async {
+      await _pump(tester, isMonthPickerVisible: true);
+
+      await click(tester, find.bySemanticsLabel('Next year'));
+      await tester.pump(const Duration(milliseconds: 16));
+
+      expect(find.text('2027'), findsOneWidget);
+      expect(gridOpacity(tester, 'Jun'), lessThan(1));
+      expect(gridOpacity(tester, '15'), 1);
+      expect(gridOffset(tester, '15'), 0);
+
+      await tester.pumpAndSettle();
+    });
+
+    // Upstream's `navigateDay` moves `navigatedMonth` too, so the month
+    // picker follows the day grid across a year and replays as it does.
+    testWidgets('the month picker follows the day grid into the next year', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        value: DateTime(2026, 12, 10),
+        isMonthPickerVisible: true,
+      );
+      expect(find.text('2026'), findsOneWidget);
+
+      await click(tester, find.bySemanticsLabel('Next month'));
+      await tester.pump(const Duration(milliseconds: 16));
+
+      expect(find.text('January 2027'), findsOneWidget);
+      expect(find.text('2027'), findsOneWidget);
+      expect(gridOpacity(tester, 'Jun'), lessThan(1));
+
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('keyboard paging across a year moves the month picker too', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        value: DateTime(2026, 12, 10),
+        isMonthPickerVisible: true,
+        autofocus: true,
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.pageUp);
+      await tester.pumpAndSettle();
+
+      expect(find.text('January 2027'), findsOneWidget);
+      expect(find.text('2027'), findsOneWidget);
+    });
+
+    testWidgets('picking a month replays only the day grid', (tester) async {
+      await _pump(tester, isMonthPickerVisible: true);
+
+      await click(tester, _cell('Jul'));
+      await tester.pump(const Duration(milliseconds: 16));
+
+      expect(find.text('July 2026'), findsOneWidget);
+      expect(gridOpacity(tester, '15'), lessThan(1));
+      expect(gridOpacity(tester, 'Jun'), 1);
+
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('reduced motion starts no ticker on either panel', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        value: DateTime(2026, 12, 10),
+        isMonthPickerVisible: true,
+        reducedMotion: true,
+      );
+
+      await click(tester, find.bySemanticsLabel('Next month'));
+
+      expect(find.text('2027'), findsOneWidget);
+      expect(tester.hasRunningAnimations, isFalse);
+      expect(gridOpacity(tester, '15'), 1);
+      expect(gridOpacity(tester, 'Jun'), 1);
     });
   });
 
