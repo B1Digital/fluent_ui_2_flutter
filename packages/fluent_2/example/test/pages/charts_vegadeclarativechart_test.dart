@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'harness.dart';
 
 /// VegaDeclarativeChart's page is one section with four controls over a chart
-/// that is *specified*, not built: a Show more/few switch, a Category picker, a
+/// that is *specified*, not built: a Show more switch, a Category picker, a
 /// Chart Type picker holding all twenty-five inline specifications, and a
 /// width/height pair. Every assertion below reads the rendered preview — the
 /// widget the Vega-Lite spec routed to, the box it was laid out in, the numbers
@@ -185,15 +185,19 @@ void main() {
         find.text('Vega-Lite Declarative Chart - 25 Schemas'),
         findsOneWidget,
       );
-      expect(find.text('Show few'), findsOneWidget);
+      // One label in both states: `checked` carries the state, so the text
+      // names the feature rather than flipping to upstream's "Show few".
+      expect(_showMore(tester).checked, isFalse);
+      expect(find.text('Show more'), findsOneWidget);
       expect(
         tester.widget<FluentDropdown<String>>(_categoryPicker).options,
         hasLength(1),
-        reason: 'in "show few" the Category list offers All alone',
+        reason: 'with Show more off the Category list offers All alone',
       );
       expect(find.textContaining('Enable "Show more"'), findsOneWidget);
 
       await tapAndSettle(tester, find.byType(FluentSwitch), what: 'Show more');
+      expect(_showMore(tester).checked, isTrue);
       expect(find.text('Show more'), findsOneWidget);
       expect(
         tester.widget<FluentDropdown<String>>(_categoryPicker).options,
@@ -215,7 +219,7 @@ void main() {
       await tapAndSettle(tester, find.byType(FluentSwitch), what: 'Show more');
       await pickDropdown<String>(tester, _categoryPicker, 'Climate (4)');
 
-      await tapAndSettle(tester, find.byType(FluentSwitch), what: 'Show few');
+      await tapAndSettle(tester, find.byType(FluentSwitch), what: 'Show more');
       expect(
         tester.widget<FluentDropdown<String>>(_categoryPicker).value,
         'All',
@@ -327,6 +331,10 @@ Finder _controlIn(String label, Type type) => find.descendant(
       .first,
   matching: find.byType(type),
 );
+
+/// The Show more switch.
+FluentSwitch _showMore(WidgetTester tester) =>
+    tester.widget<FluentSwitch>(find.byType(FluentSwitch));
 
 Finder get _categoryPicker => _controlIn('Category', FluentDropdown<String>);
 

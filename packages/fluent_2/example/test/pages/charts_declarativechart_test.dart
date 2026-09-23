@@ -251,11 +251,15 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
-      expect(find.text('Show few'), findsOneWidget);
+      // One label in both states: `checked` carries the state, so the text
+      // names the feature rather than flipping to upstream's "Show few".
+      expect(_showMore(tester).checked, isFalse);
+      expect(find.text('Show more'), findsOneWidget);
       expect(find.text('Load more'), findsNothing);
       expect(_downloadButton(tester).onPressed, isNotNull);
 
       await tapAndSettle(tester, find.byType(FluentSwitch), what: 'Show more');
+      expect(_showMore(tester).checked, isTrue);
       expect(find.text('Show more'), findsOneWidget);
       expect(
         find.text('More examples could not be loaded.'),
@@ -276,8 +280,9 @@ void main() {
         reason: 'there is no chart left to export',
       );
 
-      await tapAndSettle(tester, find.byType(FluentSwitch), what: 'Show few');
-      expect(find.text('Show few'), findsOneWidget);
+      await tapAndSettle(tester, find.byType(FluentSwitch), what: 'Show more');
+      expect(_showMore(tester).checked, isFalse);
+      expect(find.text('Show more'), findsOneWidget);
       expect(find.byType(FluentDeclarativeChart), findsOneWidget);
       expect(_downloadButton(tester).onPressed, isNotNull);
     });
@@ -455,6 +460,10 @@ const Map<String, Type> _routes = <String, Type>{
   'Gantt Chart': FluentGanttChart,
   'Funnel Chart': FluentFunnelChart,
 };
+
+/// The Show more switch.
+FluentSwitch _showMore(WidgetTester tester) =>
+    tester.widget<FluentSwitch>(find.byType(FluentSwitch));
 
 /// The schema picker.
 Finder get _schemaPicker => find.byType(FluentDropdown<String>);

@@ -1976,7 +1976,7 @@ class _DefaultState extends State<_Default> {
     'height': _height,
   };
 
-  // In "show few" mode the Category dropdown offers `All` alone.
+  // While Show more is off the Category dropdown offers `All` alone.
   List<String> get _categories => _showMore
       ? <String>['All', ..._schemaCategories.keys]
       : const <String>['All'];
@@ -2065,7 +2065,9 @@ class _DefaultState extends State<_Default> {
         FluentSwitch(
           checked: _showMore,
           onChanged: _onShowMoreChanged,
-          label: Text(_showMore ? 'Show more' : 'Show few'),
+          // Upstream flips this to "Show few" while off; `checked` already
+          // carries the state, so the label names the feature.
+          label: const Text('Show more'),
         ),
         const SizedBox(height: 20),
         Wrap(
