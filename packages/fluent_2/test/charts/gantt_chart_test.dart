@@ -7,6 +7,7 @@ import 'package:fluent_2/src/charts/internal/d3/scale_linear.dart' as d3;
 import 'package:fluent_2/src/charts/internal/d3/scale_time.dart' as d3;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 
 import '../support/oracle_fixture.dart';
 
@@ -1172,6 +1173,39 @@ void main() {
         reason:
             'one effective value: a local axis must not sit under UTC '
             'popover and label text',
+      );
+
+      final start = DateTime.utc(2024, 3, 15);
+      final end = DateTime.utc(2024, 3, 22);
+      await pump(
+        tester,
+        FluentGanttChart(
+          data: <FluentGanttChartDataPoint>[
+            FluentGanttChartDataPoint(
+              x: FluentGanttSpan(start: start, end: end),
+              y: 'Design',
+              legend: 'Planned',
+            ),
+          ],
+          culture: 'en_US',
+          useUtc: true,
+          props: const FluentCartesianChartProps(useUTC: 'local'),
+        ),
+      );
+      expect(
+        shellProps().useUTC,
+        isFalse,
+        reason: "only true and 'utc' select a UTC date axis",
+      );
+      final delegate = mountedDelegate(tester);
+      expect(delegate.useUtc, isFalse);
+      expect(
+        delegate.formattedSpan(delegate.points.single),
+        '${DateFormat('EEE dd', 'en_US').format(start.toLocal())} - '
+        '${DateFormat('EEE dd', 'en_US').format(end.toLocal())}',
+        reason:
+            "a non-'utc' string wins over the widget override and keeps "
+            'the popover date text in the axis\'s local time zone.',
       );
     });
 

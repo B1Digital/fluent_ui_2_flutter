@@ -196,7 +196,12 @@ class _FluentGanttChartState extends State<FluentGanttChart> {
     final legendColours = _legendColours();
     // `useUTC = true` (`GanttChart.tsx:45`) is one value upstream, handed to
     // the shell's axis (`:608`) and to every date format (`:128`, `:205`).
-    final useUtc = widget.props.useUTC ?? widget.useUtc;
+    // CartesianChart recognizes only the boolean true and the literal 'utc'.
+    final useUtc = switch (widget.props.useUTC) {
+      null => widget.useUtc,
+      true || 'utc' => true,
+      _ => false,
+    };
     return FluentCartesianChart(
       focusNode: widget.focusNode,
       legendSelectionMode: widget.legendSelectionMode,
@@ -232,8 +237,7 @@ class _FluentGanttChartState extends State<FluentGanttChart> {
         yAxisPadding: widget.yAxisPadding,
         enableGradient: widget.enableGradient,
         roundCorners: widget.roundCorners,
-        // `useUTC as boolean` is read for its JS truthiness, so '' is false.
-        useUtc: useUtc == true || (useUtc is String && useUtc != ''),
+        useUtc: useUtc,
         culture: widget.culture,
         yAxisCategoryOrder: widget.yAxisCategoryOrder,
       ),
