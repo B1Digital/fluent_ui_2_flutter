@@ -124,6 +124,11 @@ class FluentCartesianChartProps {
     this.showYAxisLables = false,
     this.showYAxisLablesTooltip = false,
     this.showRoundOffXTickValues = true,
+    @Deprecated(
+      'Has no effect in Flutter: the chart lays out inside a LayoutBuilder, '
+      'which always has real constraints, and a zero or non-finite box is '
+      'already skipped. Will be removed in a future release.',
+    )
     this.enableFirstRenderOptimization = false,
     this.chartTitleForSemantics,
     this.eventLabelHeight,
@@ -301,8 +306,18 @@ class FluentCartesianChartProps {
   /// `CartesianChart.tsx:212`.
   final bool showRoundOffXTickValues;
 
-  /// Whether the first frame is skipped until the box has a usable size.
-  /// `CartesianChart.tsx:190`.
+  /// Has no effect in Flutter; kept so existing callers still compile.
+  ///
+  /// Upstream skips the whole axis and scale solve on the render before its
+  /// DOM container is mounted, when no size is known yet
+  /// (`CartesianChart.tsx:190-191`). The port solves inside a [LayoutBuilder],
+  /// which always has real constraints, and skips a zero or non-finite box
+  /// unconditionally, so there is no frame for this flag to skip.
+  @Deprecated(
+    'Has no effect in Flutter: the chart lays out inside a LayoutBuilder, '
+    'which always has real constraints, and a zero or non-finite box is '
+    'already skipped. Will be removed in a future release.',
+  )
   final bool enableFirstRenderOptimization;
 
   /// The narration prefix, composed by the chart.

@@ -458,9 +458,11 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
   }) => LayoutBuilder(
     builder: (context, constraints) {
       final size = Size(constraints.maxWidth, constraints.maxHeight);
-      // `enableFirstRenderOptimization` skips the whole solve while the box has
-      // no usable size (`CartesianChart.tsx:190-191`). A degenerate box is
-      // skipped either way — there is nothing to divide a range by.
+      // Upstream's `enableFirstRenderOptimization` skips the whole solve on the
+      // render before its container is mounted (`CartesianChart.tsx:190-191`).
+      // A LayoutBuilder always has real constraints, so the port has no such
+      // render and ignores the flag; a degenerate box is skipped regardless —
+      // there is nothing to divide a range by.
       if (size.width <= 0 || size.height <= 0 || !size.isFinite) {
         return const SizedBox.expand();
       }
