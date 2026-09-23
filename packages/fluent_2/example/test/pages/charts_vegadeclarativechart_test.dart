@@ -6,12 +6,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'harness.dart';
 
 /// VegaDeclarativeChart's page is one section with four controls over a chart
-/// that is *specified*, not built: a Show more/few switch, a Category picker, a
-/// Chart Type picker holding all twenty-five inline specifications, and a
-/// width/height pair. Every assertion below reads the rendered preview — the
-/// widget the Vega-Lite spec routed to, the box it was laid out in, the numbers
-/// written back into the spec, the JSON pane beside it — because those are the
-/// only places a picker's value proves it went anywhere.
+/// that is *specified*, not built: a Show more switch, a Category picker, a
+/// Chart Type picker holding the chosen category's share of the twenty-five
+/// inline specifications, and a width/height pair. Every assertion below reads
+/// the rendered preview — the widget the Vega-Lite spec routed to, the box it
+/// was laid out in, the numbers written back into the spec, the JSON pane
+/// beside it — because those are the only places a picker's value proves it
+/// went anywhere.
 void main() {
   const String page = 'charts-vegadeclarativechart';
   final DocsSection section = sectionOf('charts-vegadeclarativechart--default');
@@ -185,15 +186,19 @@ void main() {
         find.text('Vega-Lite Declarative Chart - 25 Schemas'),
         findsOneWidget,
       );
-      expect(find.text('Show few'), findsOneWidget);
+      // One label in both states: `checked` carries the state, so the text
+      // names the feature rather than flipping to upstream's "Show few".
+      expect(_showMore(tester).checked, isFalse);
+      expect(find.text('Show more'), findsOneWidget);
       expect(
         tester.widget<FluentDropdown<String>>(_categoryPicker).options,
         hasLength(1),
-        reason: 'in "show few" the Category list offers All alone',
+        reason: 'with Show more off the Category list offers All alone',
       );
       expect(find.textContaining('Enable "Show more"'), findsOneWidget);
 
       await tapAndSettle(tester, find.byType(FluentSwitch), what: 'Show more');
+      expect(_showMore(tester).checked, isTrue);
       expect(find.text('Show more'), findsOneWidget);
       expect(
         tester.widget<FluentDropdown<String>>(_categoryPicker).options,
@@ -215,7 +220,7 @@ void main() {
       await tapAndSettle(tester, find.byType(FluentSwitch), what: 'Show more');
       await pickDropdown<String>(tester, _categoryPicker, 'Climate (4)');
 
-      await tapAndSettle(tester, find.byType(FluentSwitch), what: 'Show few');
+      await tapAndSettle(tester, find.byType(FluentSwitch), what: 'Show more');
       expect(
         tester.widget<FluentDropdown<String>>(_categoryPicker).value,
         'All',
@@ -237,30 +242,38 @@ void main() {
   });
 
   group('category picker', () {
-    testWidgets('a category records the choice and leaves the gallery whole', (
+    testWidgets('a category narrows the Chart Type list to its own schemas', (
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
       await tapAndSettle(tester, find.byType(FluentSwitch), what: 'Show more');
 
       // Upstream reads the selection and then never filters on it —
-      // `const filteredOptions = currentOptions` — so an unchanged Chart Type
-      // list is the ported behaviour rather than a knob that lost its wire.
-      // Asserting it pins the parity: if this page ever starts filtering, this
-      // test is where the divergence surfaces.
+      // `const filteredOptions = currentOptions` — so its "Healthcare (2)"
+      // promises two schemas and offers twenty-five. The port filters, and
+      // the selected chart, which Healthcare does not hold, moves to the
+      // category's first schema rather than leaving the dropdown on a value
+      // it no longer offers.
       await mouseClick(tester, _categoryPicker);
       await mouseClick(tester, find.text('Healthcare (2)').last);
       expect(
         tester.widget<FluentDropdown<String>>(_categoryPicker).value,
         'Healthcare',
       );
-      expect(
-        tester.widget<FluentDropdown<String>>(_chartTypePicker).options,
-        hasLength(25),
-      );
+      expect(_chartKeys(tester), <String?>['ageDistributionBar', 'bmiScatter']);
       expect(
         _preview(tester).key,
-        const ValueKey<String>('adCtrScatter-600-400'),
+        const ValueKey<String>('ageDistributionBar-600-400'),
+      );
+      expect(editedText(tester, _schemaPane), contains('Patient age'));
+
+      // Back to All: the whole gallery returns and the chart stays put.
+      await mouseClick(tester, _categoryPicker);
+      await mouseClick(tester, find.text('All (25)').last);
+      expect(_chartKeys(tester), hasLength(25));
+      expect(
+        _preview(tester).key,
+        const ValueKey<String>('ageDistributionBar-600-400'),
       );
     });
   });
@@ -328,9 +341,20 @@ Finder _controlIn(String label, Type type) => find.descendant(
   matching: find.byType(type),
 );
 
+/// The Show more switch.
+FluentSwitch _showMore(WidgetTester tester) =>
+    tester.widget<FluentSwitch>(find.byType(FluentSwitch));
+
 Finder get _categoryPicker => _controlIn('Category', FluentDropdown<String>);
 
 Finder get _chartTypePicker => _controlIn('Chart Type', FluentDropdown<String>);
+
+/// The schema keys the Chart Type picker offers, in order.
+List<String?> _chartKeys(WidgetTester tester) => tester
+    .widget<FluentDropdown<String>>(_chartTypePicker)
+    .options
+    .map((FluentDropdownOption<String> option) => option.value)
+    .toList();
 
 Finder get _widthField => _controlIn('Width (px)', FluentInput);
 

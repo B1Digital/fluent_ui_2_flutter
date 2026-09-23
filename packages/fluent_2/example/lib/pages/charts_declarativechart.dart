@@ -7108,7 +7108,9 @@ class _DeclarativeChartBasicExampleState
       FluentSwitch(
         checked: _showMore,
         onChanged: _onShowMoreChanged,
-        label: Text(_showMore ? 'Show more' : 'Show few'),
+        // Upstream flips this to "Show few" while off; `checked` already
+        // carries the state, so the label names the feature.
+        label: const Text('Show more'),
       ),
       const SizedBox(height: 8),
       Wrap(
