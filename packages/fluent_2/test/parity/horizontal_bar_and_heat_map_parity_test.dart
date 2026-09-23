@@ -86,9 +86,10 @@ void main() {
         // story sets and it carries no rule the port can honour.
         chartDataMode: FluentChartDataMode.byDefault,
       ),
-      // MEASURED, NOT CHOSEN — 0.313%, down from 53.841%. Pinned at the
+      // MEASURED, NOT CHOSEN — 0.171%, down from 53.841%. Pinned at the
       // measurement so the number is on record and any change to it, in either
-      // direction, has to be re-pinned deliberately.
+      // direction, has to be re-pinned deliberately. It measures the same on
+      // macOS (325 px) and Linux (324 px) because no glyph is left unmasked.
       //
       // What moved (all three were one chart, not three):
       //
@@ -118,20 +119,39 @@ void main() {
       //     `opacity` is an SVG presentation attribute, which multiplies.
       //     Sampled at (300, 26): reference (150,150,150), now (153,153,153).
       //
-      // The 0.313% left is 608 pixels. 319 are the bar gaps, and they are a
+      // What is masked: the eight right-hand values, as captured, and the
+      // eight left-hand row titles, whose rects were added to `_manifest.json`
+      // by hand. `FocusableTooltipText` nests a span inside
+      // `fui-hbc__chartTitleLeft`, and `capture_png.mjs` keeps only leaf `fui-`
+      // elements, so the capture dropped them. The added rects are that same
+      // 9.3.23 capture's Oracle B `fui-hbc__chartTitleLeft` boxes
+      // (`oracle_b/charts-horizontalbarchart--horizontal-bar-basic.json`),
+      // moved by the clip origin (24, 48). Unmasked, the titles compared
+      // Skia's glyph raster against Chromium's: 283 px on macOS, and 627 on
+      // Linux, where the same glyphs come out lighter, which put CI at 0.490%
+      // against a 0.32 pin. `capture_png.mjs` is gitignored and still drops
+      // non-leaf text rects, so a re-capture must keep these eight or fix the
+      // filter first.
+      // The trade: this test no longer sees a title's colour or its absence
+      // (`test/goldens/charts_shell_free_golden_test.dart` still does). Titles
+      // moved 3px right, or uppercased, still spill out of their boxes and
+      // fail the pin (0.191% and 0.248%).
+      //
+      // The 0.171% left is 325 pixels. 319 are the bar gaps, and they are a
       // deliberate departure: upstream's bars fill the row and its 3px gap
       // pushes the remainder bar past the svg, where the capture clips it.
       // The port shrinks both bars into the 597px the gap leaves
       // (FluentHorizontalBarRowLayout.compute), which moves every gap left by
-      // the value bar's share of 3px. The other 289 are text. 283 are the
-      // glyphs of the eight left-hand row titles, which `_manifest.json`
-      // records no textRect for — `FocusableTooltipText` nests a span inside
-      // `fui-hbc__chartTitleLeft`, so the capture's leaf-element filter skips
-      // it and Skia's hinting is compared against Chromium's. The other 6 are
-      // the leading edge of "11,444" poking two pixels out of its own mask,
-      // which is the Selawik-Semibold-against-Segoe-UI-Semibold width residual
+      // the value bar's share of 3px. The other 6 are the leading edge of
+      // "11,444" poking two pixels out of its own mask, which is the
+      // Selawik-Semibold-against-Segoe-UI-Semibold width residual
       // `support/react_parity.dart` documents.
-      maxMismatch: 0.32,
+      //
+      // With the gaps now most of what is left, the diagnostic reads
+      // `shift(-2,0) would give 0.119%` instead of `aligned`. That is not a
+      // layout offset: comparing each reference pixel with the Flutter pixel
+      // two to its left lines most of the moved gaps back up.
+      maxMismatch: 0.18,
     );
 
     // The chart now fits the box the reference was captured at exactly, so the

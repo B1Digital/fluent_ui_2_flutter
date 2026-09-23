@@ -12,6 +12,7 @@ import '../internal/animated_style.dart';
 import '../internal/defer.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
+import '../internal/menu_trigger_scope.dart';
 import '../internal/tap_group.dart';
 import 'menu_item.dart';
 import 'menu_item_style.dart';
@@ -1072,8 +1073,11 @@ class _FluentMenuState extends State<FluentMenu> {
             // node exists so the menu knows which of its descendants to hand
             // focus back to.
             skipTraversal: true,
-            child: Builder(
-              builder: (context) => widget.builder(context, _toggle),
+            child: FluentMenuTriggerScope(
+              isOpen: _isOpen,
+              child: Builder(
+                builder: (context) => widget.builder(context, _toggle),
+              ),
             ),
           ),
         ),

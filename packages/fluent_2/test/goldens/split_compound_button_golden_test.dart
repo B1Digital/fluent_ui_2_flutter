@@ -5,7 +5,8 @@ import '../support/golden.dart';
 
 /// Split button: a row per appearance — both halves live, action disabled,
 /// menu disabled, both disabled. Final row: the three sizes plus the circular
-/// shape, where the divider has to land between two semicircular ends.
+/// shape, where the divider has to land between two semicircular ends — filled,
+/// then bordered, since only a border actually draws those ends.
 ///
 /// Compound button: a row per appearance — enabled, disabled, with an icon,
 /// second line omitted. Final row: the three sizes.
@@ -52,6 +53,13 @@ void main() {
         ),
       FluentSplitButton(
         appearance: FluentButtonAppearance.primary,
+        shape: FluentButtonShape.circular,
+        menuSemanticLabel: 'More',
+        onPressed: () {},
+        onMenuPressed: () {},
+        child: const Text('Send'),
+      ),
+      FluentSplitButton(
         shape: FluentButtonShape.circular,
         menuSemanticLabel: 'More',
         onPressed: () {},

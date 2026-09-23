@@ -80,9 +80,13 @@ void main() {
             .padding
             .resolve(TextDirection.ltr);
 
+        // One more across than Figma: upstream keeps a 1px border on every
+        // appearance and a CSS border takes layout space, where a Figma stroke
+        // sits inside the frame without moving the content. Vertically Figma's
+        // number already includes it.
         expect(
           padding.left,
-          variant.padding!.left,
+          variant.padding!.left + FluentStroke.thin,
           reason: '${size.name}: padding.left',
         );
         expect(
@@ -171,28 +175,24 @@ void main() {
     });
   });
 
-  // One number the Figma fixture cannot state, because its Large icon slot is
-  // an instance rather than a token. It comes from
+  // Numbers the Figma fixture cannot state: its frames hug their contents and
+  // its Large icon slot is an instance rather than a token. They come from
   // `react-button/library/src/components/Button/useButtonStyles.styles.ts` and
-  // was confirmed against a live probe of the React storybook.
+  // were confirmed against a live probe of the React storybook.
   group('geometry Figma cannot express', () {
-    testWidgets('the width stays content-driven, against React\'s 96 floor', (
+    testWidgets('a labelled button is floored at upstream\'s minWidth', (
       tester,
     ) async {
-      // DIVERGENCE, reported rather than followed. `useButtonStyles.styles.ts`
-      // floors a labelled button at `minWidth: '96px'` (64 at small) and a live
-      // probe renders a text-only Medium at exactly 96x32. Figma states no
-      // floor, so the two do not strictly conflict — but React can only afford
-      // 96 because its TeachingPopover surface is 320 wide. Figma's is 288, and
-      // two floored buttons plus the carousel overflow it. The floor and that
-      // width are one decision; until it is made, the width hugs the label.
-      const reactFloors = <FluentButtonSize, double>{
+      // `useButtonStyles.styles.ts`: `minWidth: '96px'` on the base and on
+      // large, `'64px'` on small. A live probe renders a text-only Medium at
+      // exactly 96x32, and a split button's primary half — a Button — at 96.
+      const floors = <FluentButtonSize, double>{
         FluentButtonSize.small: 64,
         FluentButtonSize.medium: 96,
         FluentButtonSize.large: 96,
       };
 
-      for (final entry in reactFloors.entries) {
+      for (final entry in floors.entries) {
         await pump(
           tester,
           FluentButton(
@@ -204,45 +204,41 @@ void main() {
         );
         expect(
           tester.getSize(find.byKey(key)).width,
-          lessThan(entry.value),
-          reason:
-              '${entry.key.name}: a short label is not padded out to '
-              'React\'s ${entry.value} floor',
-        );
-        expect(
-          resolveFluentButtonStyle(
-            resolveFluentButtonState(size: entry.key, label: const Text('Go')),
-            FluentThemeData.light(),
-          ).minimumSize!.resolve(const <WidgetState>{})!.width,
-          0,
-          reason: '${entry.key.name}: no width floor is declared',
+          entry.value,
+          reason: '${entry.key.name}: a short label is padded out to the floor',
         );
       }
     });
 
-    testWidgets('an icon-only button is not floored at 96', (tester) async {
-      // Guards the same decision from the other side: should the label floor
-      // ever land, it must not reach an icon-only button. Upstream's
+    testWidgets('an icon-only button is a square at the button height', (
+      tester,
+    ) async {
       // `useRootIconOnlyStyles` replaces the floor with `minWidth == maxWidth
-      // == 24/32/40`, and the split button's chevron half is an icon-only
-      // button that must stay 24 wide whatever happens to the label ramp.
-      await pump(
-        tester,
-        FluentButton.icon(
-          key: key,
-          icon: const SizedBox(width: 20, height: 20),
-          semanticLabel: 'Add',
-          onPressed: () {},
-        ),
-      );
-      expect(tester.getSize(find.byKey(key)).width, lessThan(96));
-      expect(
-        resolveFluentButtonStyle(
-          resolveFluentButtonState(icon: const SizedBox()),
-          FluentThemeData.light(),
-        ).minimumSize!.resolve(const <WidgetState>{})!.width,
-        0,
-      );
+      // == 24/32/40` and pads by 1, 5 or 7 — which with the 1px border lands
+      // the 20 (24 at large) glyph exactly on that square.
+      const squares = <FluentButtonSize, double>{
+        FluentButtonSize.small: 24,
+        FluentButtonSize.medium: 32,
+        FluentButtonSize.large: 40,
+      };
+
+      for (final entry in squares.entries) {
+        await pump(
+          tester,
+          FluentButton.icon(
+            key: key,
+            size: entry.key,
+            icon: const Icon(FluentIcons.add_20_regular),
+            semanticLabel: 'Add',
+            onPressed: () {},
+          ),
+        );
+        expect(
+          tester.getSize(find.byKey(key)),
+          Size.square(entry.value),
+          reason: entry.key.name,
+        );
+      }
     });
 
     testWidgets('the Large glyph is 24, not the 20 the other sizes take', (
@@ -294,6 +290,158 @@ void main() {
             .data
             .size,
         FluentSize.size240,
+      );
+    });
+  });
+
+  // `useButtonStyles`' `createCustomFocusIndicatorStyle`, and a live probe of
+  // the Button and SplitButton stories with keyboard focus.
+  group('focus, as upstream draws it', () {
+    FluentThemeData light() =>
+        FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+
+    /// Focuses [node] and flips the modality to keyboard, which is what raises
+    /// a Fluent ring: Escape moves no focus, so the same node re-evaluates.
+    Future<void> keyboardFocus(WidgetTester tester, FocusNode node) async {
+      node.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+    }
+
+    FluentFocusRingPainter ringOf(WidgetTester tester) => tester
+        .widgetList<CustomPaint>(
+          find.descendant(
+            of: find.byKey(key),
+            matching: find.byType(CustomPaint),
+          ),
+        )
+        .map((p) => p.foregroundPainter)
+        .whereType<FluentFocusRingPainter>()
+        .single;
+
+    testWidgets('the ring sits inside the button, 2px deep', (tester) async {
+      // The border turned `strokeFocus2` plus a 1px inset shadow of it: the
+      // probe reads 8 device pixels of black from the edge at DPR 4, and
+      // nothing outside the button.
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        FluentButton(
+          key: key,
+          focusNode: node,
+          onPressed: () {},
+          child: const Text('Button'),
+        ),
+      );
+      await keyboardFocus(tester, node);
+
+      final ring = ringOf(tester);
+      expect(ring.visible, isTrue);
+      expect(ring.insets, const EdgeInsets.all(FluentStroke.thick));
+      expect(ring.innerWidth, FluentStroke.none);
+      expect(
+        decorationOf(tester).border!.top.color,
+        light().colors.strokeFocus2,
+      );
+    });
+
+    testWidgets('a focused rounded button takes its size\'s radius', (
+      tester,
+    ) async {
+      // `useRootFocusStyles`: small borderRadiusSmall, large borderRadiusLarge;
+      // circular and square keep their own.
+      const radii = <FluentButtonSize, BorderRadius>{
+        FluentButtonSize.small: FluentRadius.allSmall,
+        FluentButtonSize.medium: FluentRadius.allMedium,
+        FluentButtonSize.large: FluentRadius.allLarge,
+      };
+      for (final entry in radii.entries) {
+        final node = FocusNode();
+        addTearDown(node.dispose);
+        // A fresh tree, so the last iteration's focused node goes with it.
+        await tester.pumpWidget(const SizedBox());
+        await pump(
+          tester,
+          FluentButton(
+            key: key,
+            size: entry.key,
+            focusNode: node,
+            onPressed: () {},
+            child: const Text('Button'),
+          ),
+        );
+        expect(decorationOf(tester).borderRadius, FluentRadius.allMedium);
+        await keyboardFocus(tester, node);
+        expect(
+          decorationOf(tester).borderRadius,
+          entry.value,
+          reason: entry.key.name,
+        );
+      }
+    });
+
+    testWidgets('primary adds a white ring and a shadow, and hover drops the '
+        'ring', (tester) async {
+      // `useRootFocusStyles.primary`: `shadow2`, 1px `strokeFocus2` inset over
+      // 2px `colorNeutralForegroundOnBrand` inset — and under `:hover` only
+      // `shadow2` and the black.
+      final theme = light();
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        FluentButton(
+          key: key,
+          appearance: FluentButtonAppearance.primary,
+          focusNode: node,
+          onPressed: () {},
+          child: const Text('Button'),
+        ),
+      );
+      await keyboardFocus(tester, node);
+
+      final shadow2 = FluentElevation.shadow2.shadows(
+        ambient: theme.colors.neutralShadowAmbient,
+        key: theme.colors.neutralShadowKey,
+      );
+      expect(ringOf(tester).innerWidth, FluentStroke.thin);
+      expect(ringOf(tester).inner, theme.colors.neutralForegroundOnBrand);
+      expect(decorationOf(tester).boxShadow, shadow2);
+
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(gesture.removePointer);
+      await gesture.addPointer();
+      await gesture.moveTo(tester.getCenter(find.byKey(key)));
+      await tester.pumpAndSettle();
+      expect(ringOf(tester).visible, isTrue, reason: 'hover keeps focus');
+      expect(ringOf(tester).innerWidth, FluentStroke.none);
+      expect(decorationOf(tester).boxShadow, shadow2);
+    });
+
+    testWidgets('the focus stroke outranks hover', (tester) async {
+      // Probed focused and hovered: the border stays rgb(0, 0, 0).
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        FluentButton(
+          key: key,
+          focusNode: node,
+          onPressed: () {},
+          child: const Text('Button'),
+        ),
+      );
+      await keyboardFocus(tester, node);
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(gesture.removePointer);
+      await gesture.addPointer();
+      await gesture.moveTo(tester.getCenter(find.byKey(key)));
+      await tester.pumpAndSettle();
+      expect(
+        decorationOf(tester).border!.top.color,
+        light().colors.strokeFocus2,
       );
     });
   });

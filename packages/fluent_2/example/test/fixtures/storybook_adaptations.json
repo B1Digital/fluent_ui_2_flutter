@@ -172,7 +172,7 @@
   },
   "charts-linechart--line-chart-events": {
     "kind": "reduced",
-    "why": "eventAnnotationProps splits into eventAnnotations + eventAnnotationMergedLabel + eventAnnotationStrokeColor + eventAnnotationLabelColor; labelHeight and labelWidth are not forwarded by FluentLineChart, so they are dropped. The '<input type=\"color\">' becomes a FluentSwatchPicker whose pick feeds both colour props \u2014 live here, where upstream's customEventAnnotationColor is a const undefined and its input is never read. yAxisTickFormat d3.format('$,') is hand-written as a String Function(double)."
+    "why": "eventAnnotationProps splits into eventAnnotations + eventAnnotationMergedLabel + eventAnnotationStrokeColor + eventAnnotationLabelColor + eventAnnotationLabelWidth; labelHeight, which LineChart.tsx:179-181 reads as the reserved band height, becomes style: FluentLineChartStyle.from(eventLabelHeight: 18). The '<input type=\"color\">' becomes a FluentSwatchPicker whose pick feeds both colour props \u2014 live here, where upstream's customEventAnnotationColor is a const undefined and its input is never read. yAxisTickFormat d3.format('$,') is hand-written as a String Function(double)."
   },
   "charts-linechart--line-chart-gaps": {
     "kind": "reduced",
@@ -676,7 +676,7 @@
   },
   "components-carousel-carouselnav--default": {
     "kind": "composed",
-    "why": "Upstream's CarouselNav is a standalone element whose render function emits one CarouselNavButton (or CarouselNavImageButton) per slide. Our nav strip is private to FluentCarousel, but its button is public as FluentCarouselStep, so the demo composes the strip as a Row of FluentCarouselStep over a local index \u2014 the same index-based pagination. appearance=\"brand\" has no Dart axis (the Figma Brand mode of the step colour collection is deliberately unexposed), so the selected step's mark is tinted with brandBackground via FluentCarouselStyle.stepColor; the switch's Field wrapper becomes FluentSwitch's own label because FluentField has no horizontal orientation."
+    "why": "Upstream's CarouselNav is a standalone element whose render function emits one CarouselNavButton (or CarouselNavImageButton) per slide. Our nav strip is private to FluentCarousel, but its button is public as FluentCarouselStep, so the demo composes the strip as a Row of FluentCarouselStep over a local index \u2014 the same index-based pagination. appearance=\"brand\" has no Dart axis (the Figma Brand mode of the step colour collection is deliberately unexposed), so the selected step's mark is tinted with compoundBrandBackground (with its hover and pressed ramp) via FluentCarouselStyle.stepColor; the switch's Field wrapper becomes FluentSwitch's own label, padded like the Field's, because FluentField has no horizontal orientation."
   },
   "components-checkbox--checked": {
     "kind": "local-state",

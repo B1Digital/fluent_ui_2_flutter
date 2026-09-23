@@ -163,8 +163,8 @@ Source: `packages/fluent_2/lib/src/buttons/split_button.dart`
 ```dart
 const FluentSplitButton({
     super.key,
-    required this.child,
     required this.menuSemanticLabel,
+    this.child,
     this.onPressed,
     this.onMenuPressed,
     this.appearance = FluentButtonAppearance.secondary,
@@ -173,6 +173,7 @@ const FluentSplitButton({
     this.iconPosition = FluentButtonIconPosition.before,
     this.icon,
     this.menuIcon,
+    this.menuExpanded,
     this.style,
     this.focusNode,
     this.menuFocusNode,
@@ -184,8 +185,8 @@ const FluentSplitButton({
 | Field | Type | Required | Default | Purpose |
 | --- | --- | --- | --- | --- |
 | `key` | `Key?` | No | `null` | Flutter widget identity. |
-| `child` | `Widget` | Yes | — | The primary action's label. |
 | `menuSemanticLabel` | `String` | Yes | — | Announced for the chevron half, which has no text of its own. |
+| `child` | `Widget?` | No | `null` | The primary action's label. Null makes the primary half icon-only, which then needs [icon] and [semanticLabel]. |
 | `onPressed` | `VoidCallback?` | No | `null` | Invoked on tap and on Space or Enter on the primary half. Null disables that half. |
 | `onMenuPressed` | `VoidCallback?` | No | `null` | Invoked on tap and on Space or Enter on the chevron half. Null disables that half. |
 | `appearance` | `FluentButtonAppearance` | No | `FluentButtonAppearance.secondary` | Fill and outline treatment. |
@@ -194,6 +195,7 @@ const FluentSplitButton({
 | `iconPosition` | `FluentButtonIconPosition` | No | `FluentButtonIconPosition.before` | Which side of the label the primary half's icon sits on. |
 | `icon` | `Widget?` | No | `null` | Optional icon on the primary half. |
 | `menuIcon` | `Widget?` | No | `null` | The chevron. Defaults to [fluentMenuChevron]. |
+| `menuExpanded` | `bool?` | No | `null` | Whether the menu the chevron half opens is open, which upstream draws in the half's `Selected` tokens and announces as `aria-expanded`. |
 | `style` | `FluentSplitButtonStyle?` | No | `null` | Overrides layered over the theme defaults. Merged last, so it wins. |
 | `focusNode` | `FocusNode?` | No | `null` | Focus node for the primary half. One is created internally when omitted. |
 | `menuFocusNode` | `FocusNode?` | No | `null` | Focus node for the chevron half. One is created internally when omitted. |
@@ -340,6 +342,9 @@ const FluentButtonStyle({
     this.iconSize,
     this.minimumSize,
     this.mouseCursor,
+    this.focusRingInsets,
+    this.focusRingInnerColor,
+    this.shadow,
   });
 ```
 
@@ -356,6 +361,9 @@ const FluentButtonStyle({
 | `iconSize` | `WidgetStateProperty<double?>?` | No | `null` | Icon edge length. |
 | `minimumSize` | `WidgetStateProperty<Size?>?` | No | `null` | Minimum tap target. |
 | `mouseCursor` | `WidgetStateProperty<MouseCursor?>?` | No | `null` | Cursor while hovering. |
+| `focusRingInsets` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | How deep the keyboard focus ring reaches in from each edge. |
+| `focusRingInnerColor` | `WidgetStateProperty<Color?>?` | No | `null` | A second, 1px ring just inside the focus ring, or null for none. |
+| `shadow` | `WidgetStateProperty<List<BoxShadow>?>?` | No | `null` | Drop shadow. Upstream gives a focused primary button `shadow2`. |
 
 ### `FluentButtonTheme`
 
@@ -594,7 +602,7 @@ const FluentSplitButtonStyle({this.button, this.dividerColor});
 | Field | Type | Required | Default | Purpose |
 | --- | --- | --- | --- | --- |
 | `button` | `FluentButtonStyle?` | No | `null` | Everything both halves share with `FluentButton`. |
-| `dividerColor` | `WidgetStateProperty<Color?>?` | No | `null` | Colour of the 1px rule between the two halves, or null where Figma paints no rule at all — the subtle and transparent appearances, and primary while disabled. |
+| `dividerColor` | `WidgetStateProperty<Color?>?` | No | `null` | Colour of the 1px rule between the two halves, or null where upstream's rule is transparent — enabled subtle and transparent split buttons. |
 
 ### `FluentSplitButtonTheme`
 

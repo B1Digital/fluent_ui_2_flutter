@@ -202,22 +202,22 @@ void main() {
       }
 
       // The 1px rule between the halves is not part of either half's
-      // decoration — three sides plus two rounded corners is not a shape
-      // `BoxDecoration` can express — so it is painted, and the painter is the
-      // only place it can be read. Figma leaves subtle and transparent
-      // undivided; everything else carries a rule.
+      // decoration — its colour is styled on its own, and a `Border` under a
+      // radius takes only one visible colour — so it is painted, and the
+      // painter is the only place it can be read. Upstream makes the subtle and
+      // transparent rule transparent; everything else carries a visible one.
       for (final String label in <String>['Default', 'Primary', 'Outline']) {
         expect(
-          dividerColourOf(tester, primaryHalfOf(label)),
-          isNotNull,
+          dividerColourOf(tester, primaryHalfOf(label))!.a,
+          1,
           reason: '$label lost the rule between its halves',
         );
       }
       for (final String label in <String>['Subtle', 'Transparent']) {
         expect(
-          dividerColourOf(tester, primaryHalfOf(label)),
-          isNull,
-          reason: '$label draws a rule Figma has not got',
+          dividerColourOf(tester, primaryHalfOf(label))!.a,
+          0,
+          reason: '$label draws a rule upstream leaves transparent',
         );
       }
     });
@@ -313,15 +313,14 @@ void main() {
       expect(tester.getSize(splitButton(2)).height, greaterThan(medium));
     });
 
-    for (final ({String id, String label, double height}) ramp
-        in <({String id, String label, double height})>[
-          (id: 'size-small', label: 'Small', height: 24),
-          (id: 'size-medium', label: 'Medium', height: 32),
-          (id: 'size-large', label: 'Large', height: 40),
+    for (final ({String id, String label, double height, double chevron}) ramp
+        in <({String id, String label, double height, double chevron})>[
+          (id: 'size-small', label: 'Small', height: 24, chevron: 24),
+          (id: 'size-medium', label: 'Medium', height: 32, chevron: 24),
+          (id: 'size-large', label: 'Large', height: 40, chevron: 31),
         ]) {
-      testWidgets('${ramp.id} keeps the chevron 24 wide and half-height', (
-        WidgetTester tester,
-      ) async {
+      testWidgets('${ramp.id} sizes the chevron as upstream does, full '
+          'height', (WidgetTester tester) async {
         await pumpSection(
           tester,
           sectionOf('components-button-splitbutton--${ramp.id}'),
@@ -329,13 +328,12 @@ void main() {
         expect(find.byType(FluentSplitButton), findsNWidgets(3));
 
         for (int i = 0; i < 3; i++) {
-          // The chevron half has no size axis at all — Figma draws it from a
-          // component that measures 24 in all 25 variants, which is also WCAG
-          // 2.2's floor for a target adjacent to another one. A half that took
-          // the button's size ramp would shrink below that at Small.
+          // Upstream's live Size story: 24, 24 and 31 — WCAG 2.2's 24 floor
+          // for a target beside another one, which large's 16px chevron and
+          // 7px inset grow past.
           expect(
             tester.getSize(menuHalfOf(i)).width,
-            24,
+            ramp.chevron,
             reason: 'button $i shrank its chevron on the ${ramp.label} ramp',
           );
           expect(
@@ -424,7 +422,10 @@ void main() {
       );
       const String long =
           'Long text wraps after it hits the max width of the component';
-      expect(tester.getSize(find.text(long)).width, 280);
+      // Upstream pins the primary half to 280; the label carries 280 less the
+      // half's 13px inset either side.
+      expect(tester.getSize(find.text(long)).width, 254);
+      expect(tester.getSize(primaryHalfOf(long)).width, 280);
 
       final double tall = tester.getSize(splitButton(1)).height;
       expect(tall, greaterThan(tester.getSize(splitButton(0)).height));

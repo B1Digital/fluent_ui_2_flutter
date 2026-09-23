@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 
 import '../internal/animated_style.dart';
 import '../internal/interaction.dart';
+import '../internal/menu_trigger_scope.dart';
 import 'button.dart';
 import 'button_style.dart';
 
@@ -27,23 +28,13 @@ import 'button_style.dart';
 /// ramp resolved rather than pinning one of its own.
 const Widget fluentMenuChevron = Icon(FluentIcons.chevron_down_20_regular);
 
-/// The chevron half's width, at every size.
+/// The chevron half's minimum width, at every size.
 ///
-/// Figma pins it: `.Secondary action` (component set `9026:1241`) has no size
-/// axis at all and measures 24 wide in all 25 variants, and every `Split button`
-/// variant embeds it unresized — 24 next to a 40-high Large half just as much as
-/// next to a 24-high Small one.
-///
-/// It is also, not by accident, WCAG 2.2's minimum target size for a pointer
-/// target immediately adjacent to another one; upstream names the same 24 as
-/// `MIN_TARGET_SIZE` in `useSplitButtonStyles.styles.ts`, citing that guideline.
-const double _menuWidth = FluentSize.size240;
-
-/// The chevron's own size.
-///
-/// 12, not the button ramp's 20: Figma draws the chevron half as 6px of padding,
-/// a 12px glyph and 6px more, which is exactly [_menuWidth].
-const double _menuIconSize = FluentSize.size120;
+/// WCAG 2.2's minimum target size for a pointer target immediately adjacent to
+/// another one; upstream names it `MIN_TARGET_SIZE` in
+/// `useSplitButtonStyles.styles.ts`, citing that guideline. It is a floor, not
+/// a width: small and medium land on it, large grows past it to 31.
+const double _menuMinWidth = FluentSize.size240;
 
 /// Which half of a split button is being rendered.
 ///
@@ -82,14 +73,12 @@ class FluentSplitButtonStyle {
   /// half squares off the two corners it does not own.
   final FluentButtonStyle? button;
 
-  /// Colour of the 1px rule between the two halves, or null where Figma paints
-  /// no rule at all — the subtle and transparent appearances, and primary while
-  /// disabled.
+  /// Colour of the 1px rule between the two halves, or null where upstream's
+  /// rule is transparent — enabled subtle and transparent split buttons.
   ///
   /// Not derivable from [FluentButtonStyle.borderColor]: on the primary
   /// appearance the surrounding button has no border at all, yet the rule is
-  /// there, in `neutralStrokeOnBrand2` and its hover, pressed and selected
-  /// steps.
+  /// there, in `neutralStrokeOnBrand`.
   final WidgetStateProperty<Color?>? dividerColor;
 
   /// This style with the non-null properties of [other] layered on top.
@@ -167,7 +156,14 @@ class FluentSplitButtonBaseState extends FluentButtonBaseState {
     FluentSplitButtonSide.menu => FluentButtonBaseState(
       enabled: menuEnabled,
       iconPosition: iconPosition,
-      icon: menuIcon ?? fluentMenuChevron,
+      // Upstream's `menuIcon` span is 12 (16) high but keeps a 16 (22) line
+      // height, and the inline svg in it sits on that line's baseline — 1px
+      // below the span at every size, as Chrome renders it. Painted, not laid
+      // out, lower, exactly as the overflowing svg is.
+      icon: Transform.translate(
+        offset: const Offset(0, 1),
+        child: menuIcon ?? fluentMenuChevron,
+      ),
     ),
   };
 }
@@ -252,56 +248,62 @@ FluentSplitButtonStyle resolveFluentSplitButtonStyle(
   var button = resolveFluentButtonStyle(state.buttonState(side), theme);
 
   if (side == FluentSplitButtonSide.menu) {
-    final minimum =
-        button.minimumSize?.resolve(const <WidgetState>{}) ?? Size.zero;
+    // Upstream's chevron half is a `MenuButton` with no label, so it takes the
+    // icon-only padding — 1, 5 or 7 — around its `menuIcon` of 12, 12 or 16,
+    // and `useSplitButtonStyles` swaps icon-only's square width for a
+    // `minWidth` of 24. Large therefore comes out 31 wide, not 24.
+    //
+    // It has no leading border (`borderLeftWidth: 0`), so only the other three
+    // sides add a border to the inset — 1px, or the 3px an open outline menu
+    // takes, which widens the half by the difference as it does upstream.
+    final (inset, glyph) = switch (state.size) {
+      FluentButtonSize.small => (1.0, FluentSize.size120),
+      FluentButtonSize.medium => (5.0, FluentSize.size120),
+      FluentButtonSize.large => (7.0, FluentSize.size160),
+    };
+    final borderWidth = button.borderWidth;
+    final minimumSize = button.minimumSize;
     button = button.copyWith(
-      // The chevron half does NOT take the button's size ramp. It is its own
-      // Figma component and carries its own numbers: 6px of horizontal padding,
-      // none vertical, no gap, a 12px chevron, 24 wide. Only the height is the
-      // ramp's, which is what keeps the two halves the same height.
-      padding: const WidgetStatePropertyAll<EdgeInsetsGeometry?>(
-        EdgeInsets.symmetric(horizontal: FluentSpacing.sNudge),
-      ),
+      padding: WidgetStateProperty.resolveWith<EdgeInsetsGeometry?>((states) {
+        final edge =
+            inset +
+            math.max(borderWidth?.resolve(states) ?? 0, FluentStroke.thin);
+        return EdgeInsetsDirectional.fromSTEB(inset, edge, edge, edge);
+      }),
       gap: const WidgetStatePropertyAll<double?>(FluentSpacing.none),
-      iconSize: const WidgetStatePropertyAll<double?>(_menuIconSize),
-      minimumSize: WidgetStatePropertyAll<Size?>(
-        Size(math.max(_menuWidth, minimum.width), minimum.height),
+      iconSize: WidgetStatePropertyAll<double?>(glyph),
+      // The focus ring is the border plus a 1px inset shadow, so on the seam,
+      // where this half has no border, only the shadow's pixel is left.
+      focusRingInsets: const WidgetStatePropertyAll<EdgeInsetsGeometry?>(
+        EdgeInsetsDirectional.fromSTEB(1, 2, 2, 2),
+      ),
+      minimumSize: WidgetStateProperty.resolveWith<Size?>(
+        (states) =>
+            Size(_menuMinWidth, minimumSize?.resolve(states)?.height ?? 0),
       ),
     );
   }
 
-  // The divider is the primary half's `borderRightColor` — Figma gives the
-  // chevron half `strokeLeftWeight: 0` in every bordered variant so the rule is
-  // drawn exactly once.
-  //
-  // It exists only where Figma paints a stroke. Upstream sets a transparent
-  // `borderRightColor` on Subtle and Transparent too; the Figma file paints no
-  // stroke there at all, on either half, in any state — so neither do we.
-  final onBrand = FluentStateColor.tokens(
-    rest: c.neutralStrokeOnBrand2,
-    hover: c.neutralStrokeOnBrand2Hover,
-    pressed: c.neutralStrokeOnBrand2Pressed,
-    selected: c.neutralStrokeOnBrand2Selected,
-  );
-  final divider = switch (state.appearance) {
-    // Primary loses the rule entirely when disabled: both halves fall to
-    // neutralBackgroundDisabled and Figma paints nothing between them. Selecting
-    // a stroke token for that state would invent a line the spec has not got.
-    FluentButtonAppearance.primary => WidgetStateProperty.resolveWith<Color?>(
-      (states) => states.contains(WidgetState.disabled)
-          ? null
-          : onBrand.resolve(states),
-    ),
-    FluentButtonAppearance.secondary ||
-    FluentButtonAppearance.outline => FluentStateColor.tokens(
-      rest: c.neutralStroke1,
-      hover: c.neutralStroke1Hover,
-      pressed: c.neutralStroke1Pressed,
-      selected: c.neutralStroke1Selected,
-      disabled: c.neutralStrokeDisabled,
-    ),
-    FluentButtonAppearance.subtle || FluentButtonAppearance.transparent => null,
-  };
+  // The divider is the primary half's `borderRightColor`; the chevron half has
+  // `borderLeftWidth: 0`, so the rule is drawn exactly once. Per
+  // `useSplitButtonStyles`: colorNeutralStrokeOnBrand on primary in every
+  // state, transparent on subtle and transparent, the button's own border on
+  // secondary and outline — and colorNeutralStrokeDisabled on every appearance
+  // once disabled, so a disabled subtle split button still shows its seam.
+  final border = button.borderColor;
+  final divider = WidgetStateProperty.resolveWith<Color?>((states) {
+    if (states.contains(WidgetState.disabled)) return c.neutralStrokeDisabled;
+    // A focused primary half's whole border — the rule included — is the focus
+    // ring's outer pixel, on every appearance.
+    if (states.contains(WidgetState.focused)) return c.strokeFocus2;
+    return switch (state.appearance) {
+      FluentButtonAppearance.primary => c.neutralStrokeOnBrand,
+      FluentButtonAppearance.secondary ||
+      FluentButtonAppearance.outline => border?.resolve(states),
+      FluentButtonAppearance.subtle ||
+      FluentButtonAppearance.transparent => null,
+    };
+  });
 
   return FluentSplitButtonStyle(button: button, dividerColor: divider);
 }
@@ -335,8 +337,13 @@ Widget buildFluentSplitButton(
         button.borderRadius?.resolve(states) ?? FluentRadius.allMedium;
     final borderWidth =
         button.borderWidth?.resolve(states) ?? FluentStroke.none;
-    final borderColor = button.borderColor?.resolve(states);
-    final dividerColor = style.dividerColor?.resolve(states);
+    // Upstream's rule is transparent rather than absent on enabled subtle and
+    // transparent, so it fades in with the border transition when the half is
+    // disabled; standing null in as transparent does the same, and keeps the
+    // painter — and so the half's subtree — mounted across the change.
+    const clear = Color(0x00000000);
+    final borderColor = button.borderColor?.resolve(states) ?? clear;
+    final dividerColor = style.dividerColor?.resolve(states) ?? clear;
 
     // Each half keeps only the two corners on its own outer edge. The inner
     // edge is square, which is what makes the pair read as one container.
@@ -351,9 +358,9 @@ Widget buildFluentSplitButton(
           );
 
     // The border is painted by FluentSplitButtonEdgePainter, not by the half's
-    // own decoration: three sides plus two rounded corners is not a shape
-    // BoxDecoration can express — Flutter requires a uniform border before it
-    // will accept a border radius.
+    // own decoration: it is painted together with the rule between the halves,
+    // whose colour is styled on its own, and a Border under a border radius
+    // accepts only one visible colour.
     final half = buildFluentButton(
       state.half(side),
       button.copyWith(
@@ -363,20 +370,12 @@ Widget buildFluentSplitButton(
       states,
     );
 
-    // No rule means nothing for the painter to draw: every appearance Figma
-    // leaves undivided — subtle, transparent, and primary while disabled — is
-    // also unbordered, so the half's own decoration is the whole picture.
-    if (dividerColor == null) return half;
-
     return FluentAnimatedStyle<FluentSplitButtonEdgeColors>(
       // Upstream transitions `border` alongside `background` and `color` on the
       // button root, at the same duration and curve — the divider is part of
       // that border, so it tweens with the surface rather than snapping.
       value: FluentSplitButtonEdgeColors(
-        // borderWidth is zero on exactly the appearances whose borderColor is
-        // null, so this stand-in is never painted. Keeping the pair non-null
-        // keeps the tween a single value rather than two nested animations.
-        border: borderColor ?? dividerColor,
+        border: borderColor,
         divider: dividerColor,
       ),
       spec: FluentMotionSpec.buttonSurface,
@@ -450,11 +449,12 @@ class FluentSplitButtonEdgeColors {
 
 /// Paints one half's border and, on the primary action half, the divider.
 ///
-/// A painter rather than a [BoxDecoration] because the shape is an *open*
-/// rounded path: three sides and two corners. [Border] refuses a border radius
-/// unless all four sides are uniform, so composing this out of decorations is
-/// not possible at all — this is the case the "CustomPaint where painting beats
-/// composition" rule exists for.
+/// A painter rather than a [Border] on the half's [BoxDecoration] because the
+/// rule has a colour of its own — [FluentSplitButtonStyle.dividerColor] — and a
+/// [Border] under a border radius accepts only one visible colour. The three
+/// outer sides still go through the framework's
+/// [BoxBorder.paintNonUniformBorder], so their corners are exactly the ones
+/// `FluentButton`'s own border draws.
 ///
 /// Every input is a public field so tests can assert the tones and widths
 /// directly instead of diffing pixels.
@@ -501,92 +501,46 @@ class FluentSplitButtonEdgePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (borderWidth > 0) {
-      // Fluent borders sit inside the box, as CSS `border-box` does and as
-      // Flutter's own `Border.all` does, so a centred stroke of width w runs
-      // along the rect deflated by w/2.
-      final rect = (Offset.zero & size).deflate(borderWidth / 2);
-      canvas.drawPath(
-        _outline(rect),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = borderWidth
-          ..color = borderColor,
+      // The framework's own border geometry, which is CSS's: an oversized
+      // radius scales every corner by one factor, so circular's 9999 lands on a
+      // semicircle, and the open edge takes no border while the top and bottom
+      // still run the full width to the seam.
+      final edge = BorderSide(color: borderColor, width: borderWidth);
+      BoxBorder.paintNonUniformBorder(
+        canvas,
+        Offset.zero & size,
+        borderRadius: radius,
+        textDirection: null,
+        top: edge,
+        bottom: edge,
+        left: roundsLeft ? edge : BorderSide.none,
+        right: roundsLeft ? BorderSide.none : edge,
+        color: borderColor,
       );
     }
 
     if (side == FluentSplitButtonSide.primaryAction && dividerWidth > 0) {
-      // The rule sits on the inner edge, which is whichever one the corners
-      // did not take.
-      final x = roundsLeft ? size.width - dividerWidth / 2 : dividerWidth / 2;
-      canvas.drawLine(
-        Offset(x, 0),
-        Offset(x, size.height),
-        Paint()
-          ..strokeWidth = dividerWidth
-          ..color = dividerColor,
+      // The rule is the primary button's own border on the inner edge, which
+      // is whichever one the corners did not take. CSS mitres a border side
+      // into its neighbours, and upstream's top and bottom are 1px even where
+      // they are transparent, as on primary — so the rule's ends are cut at
+      // 45° inside that pixel instead of running square through the outline.
+      // The unpainted sides are there only for their width.
+      final rule = BorderSide(color: dividerColor, width: dividerWidth);
+      final seam = BorderSide(
+        width: math.max(borderWidth, FluentStroke.thin),
+        style: BorderStyle.none,
+      );
+      paintBorder(
+        canvas,
+        Offset.zero & size,
+        top: seam,
+        bottom: seam,
+        right: roundsLeft ? rule : BorderSide.none,
+        left: roundsLeft ? BorderSide.none : rule,
       );
     }
   }
-
-  /// The open three-sided path, rounded on this half's outer edge only.
-  ///
-  /// Keyed off [roundsLeft] rather than [side]: the geometry is the same
-  /// three-sided shape either way, and only which physical edge it opens on
-  /// changes — which is exactly what mirrors under RTL.
-  Path _outline(Rect rect) {
-    final path = Path();
-    if (roundsLeft) {
-      final top = _clamp(radius.topLeft, rect);
-      final bottom = _clamp(radius.bottomLeft, rect);
-      path.moveTo(rect.right, rect.top);
-      path.lineTo(rect.left + top.x, rect.top);
-      if (top != Radius.zero) {
-        path.arcToPoint(
-          Offset(rect.left, rect.top + top.y),
-          radius: top,
-          clockwise: false,
-        );
-      }
-      path.lineTo(rect.left, rect.bottom - bottom.y);
-      if (bottom != Radius.zero) {
-        path.arcToPoint(
-          Offset(rect.left + bottom.x, rect.bottom),
-          radius: bottom,
-          clockwise: false,
-        );
-      }
-      path.lineTo(rect.right, rect.bottom);
-    } else {
-      final top = _clamp(radius.topRight, rect);
-      final bottom = _clamp(radius.bottomRight, rect);
-      path.moveTo(rect.left, rect.top);
-      path.lineTo(rect.right - top.x, rect.top);
-      if (top != Radius.zero) {
-        path.arcToPoint(
-          Offset(rect.right, rect.top + top.y),
-          radius: top,
-          clockwise: true,
-        );
-      }
-      path.lineTo(rect.right, rect.bottom - bottom.y);
-      if (bottom != Radius.zero) {
-        path.arcToPoint(
-          Offset(rect.right - bottom.x, rect.bottom),
-          radius: bottom,
-          clockwise: true,
-        );
-      }
-      path.lineTo(rect.left, rect.bottom);
-    }
-    return path;
-  }
-
-  /// Caps a corner at the half's own box, so `FluentButtonShape.circular`'s
-  /// 9999 becomes a real semicircle rather than an arc Skia cannot draw.
-  static Radius _clamp(Radius radius, Rect rect) => Radius.elliptical(
-    math.min(radius.x, rect.width),
-    math.min(radius.y, rect.height / 2),
-  );
 
   @override
   bool shouldRepaint(FluentSplitButtonEdgePainter oldDelegate) =>
@@ -650,15 +604,18 @@ class FluentSplitButtonTheme extends InheritedTheme {
 /// disabled half stops reporting hover and press, refuses focus, and never
 /// invokes its callback.
 ///
-/// The chevron half is [FluentSize.size240] wide at every size — Figma draws it
-/// from a component with no size axis — which is also WCAG 2.2's minimum target
-/// size for adjacent targets.
+/// The chevron half is never narrower than [FluentSize.size240], WCAG 2.2's
+/// minimum target size for adjacent targets.
+///
+/// Inside a `FluentMenu`'s trigger the chevron half shows the menu's open state
+/// by itself, as upstream's does when handed `MenuTrigger`'s props; set
+/// [menuExpanded] to drive it from anything else.
 class FluentSplitButton extends StatelessWidget {
   /// Creates a split button.
   const FluentSplitButton({
     super.key,
-    required this.child,
     required this.menuSemanticLabel,
+    this.child,
     this.onPressed,
     this.onMenuPressed,
     this.appearance = FluentButtonAppearance.secondary,
@@ -667,15 +624,20 @@ class FluentSplitButton extends StatelessWidget {
     this.iconPosition = FluentButtonIconPosition.before,
     this.icon,
     this.menuIcon,
+    this.menuExpanded,
     this.style,
     this.focusNode,
     this.menuFocusNode,
     this.autofocus = false,
     this.semanticLabel,
-  });
+  }) : assert(
+         child != null || (icon != null && semanticLabel != null),
+         'An icon-only split button needs an icon and a semanticLabel.',
+       );
 
-  /// The primary action's label.
-  final Widget child;
+  /// The primary action's label. Null makes the primary half icon-only, which
+  /// then needs [icon] and [semanticLabel].
+  final Widget? child;
 
   /// Announced for the chevron half, which has no text of its own.
   ///
@@ -709,6 +671,13 @@ class FluentSplitButton extends StatelessWidget {
   /// The chevron. Defaults to [fluentMenuChevron].
   final Widget? menuIcon;
 
+  /// Whether the menu the chevron half opens is open, which upstream draws in
+  /// the half's `Selected` tokens and announces as `aria-expanded`.
+  ///
+  /// Null follows the enclosing `FluentMenu`, if the split button is its
+  /// trigger, and is otherwise closed.
+  final bool? menuExpanded;
+
   /// Overrides layered over the theme defaults. Merged last, so it wins.
   final FluentSplitButtonStyle? style;
 
@@ -739,6 +708,8 @@ class FluentSplitButton extends StatelessWidget {
       menuIcon: menuIcon,
     );
     final theme = FluentTheme.of(context);
+    final expanded =
+        menuExpanded ?? FluentMenuTriggerScope.maybeIsOpenOf(context) ?? false;
 
     Widget half(FluentSplitButtonSide side) {
       // Lowest to highest: defaults, subtree theme, then the caller's own
@@ -748,28 +719,40 @@ class FluentSplitButton extends StatelessWidget {
         theme,
         side: side,
       ).merge(FluentSplitButtonTheme.maybeOf(context)).merge(style);
-      final onSide = side == FluentSplitButtonSide.primaryAction
-          ? onPressed
-          : onMenuPressed;
+      final isMenu = side == FluentSplitButtonSide.menu;
+      final onSide = isMenu ? onMenuPressed : onPressed;
 
       return Semantics(
         button: true,
         enabled: onSide != null,
-        label: side == FluentSplitButtonSide.primaryAction
-            ? semanticLabel
-            : menuSemanticLabel,
+        expanded: isMenu ? expanded : null,
+        label: isMenu ? menuSemanticLabel : semanticLabel,
         child: FluentInteractive(
           onPressed: onSide,
           enabled: onSide != null,
-          focusNode: side == FluentSplitButtonSide.primaryAction
-              ? focusNode
-              : menuFocusNode,
-          autofocus: autofocus && side == FluentSplitButtonSide.primaryAction,
-          builder: (context, states, _) =>
-              buildFluentSplitButton(state, resolved, states, side: side),
+          focusNode: isMenu ? menuFocusNode : focusNode,
+          autofocus: autofocus && !isMenu,
+          // An open menu is the chevron half's `Selected` step, below hover
+          // and press exactly as upstream's `aria-expanded` rule sits below
+          // `:hover` — so pointing at an open menu's chevron still lights it.
+          builder: (context, states, _) => buildFluentSplitButton(
+            state,
+            resolved,
+            isMenu && expanded ? {...states, WidgetState.selected} : states,
+            side: side,
+          ),
         ),
       );
     }
+
+    // Chrome snaps a box's edges to whole device pixels; Flutter lays a label
+    // out at its fractional width, which leaves the seam — and the 1px rule on
+    // it — smeared across two pixels. Rounding the primary half up to a whole
+    // device pixel puts the seam back on one.
+    final primary = IntrinsicWidth(
+      stepWidth: 1 / (MediaQuery.maybeDevicePixelRatioOf(context) ?? 1),
+      child: half(FluentSplitButtonSide.primaryAction),
+    );
 
     // Upstream is a flexbox, so `align-items: stretch` gives the chevron half
     // the container's height for free. Flutter's Row cannot both size itself to
@@ -781,10 +764,7 @@ class FluentSplitButton extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          half(FluentSplitButtonSide.primaryAction),
-          half(FluentSplitButtonSide.menu),
-        ],
+        children: <Widget>[primary, half(FluentSplitButtonSide.menu)],
       ),
     );
   }

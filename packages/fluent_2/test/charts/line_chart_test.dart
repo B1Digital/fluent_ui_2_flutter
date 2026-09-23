@@ -2801,6 +2801,46 @@ void main() {
       expect(painter.labelColor, label);
     });
 
+    testWidgets('the annotation label width reaches the layer', (tester) async {
+      final events = <FluentEventAnnotation>[
+        FluentEventAnnotation(date: DateTime.utc(2024, 3, 15), event: 'Go'),
+      ];
+      String merged(int n) => '$n events';
+      double layerWidth() => tester
+          .widget<FluentEventAnnotationLayer>(
+            find.byType(FluentEventAnnotationLayer),
+          )
+          .labelWidth;
+
+      await pump(
+        tester,
+        FluentLineChart(
+          data: _dateLineData(),
+          eventAnnotations: events,
+          eventAnnotationMergedLabel: merged,
+        ),
+      );
+      expect(layerWidth(), 105, reason: 'EventAnnotation.tsx:17');
+
+      await pump(
+        tester,
+        FluentLineChart(
+          data: _dateLineData(),
+          eventAnnotations: events,
+          eventAnnotationMergedLabel: merged,
+          eventAnnotationLabelWidth: 50,
+        ),
+      );
+      expect(
+        layerWidth(),
+        50,
+        reason:
+            'EventsAnnotationProps.labelWidth, which the line-chart-events '
+            'story sets to 50; the packer works at it plus 5 '
+            '(EventAnnotation.tsx:37), so it decides which labels merge',
+      );
+    });
+
     testWidgets('the legend row appends the colour-fill bars after the lines', (
       tester,
     ) async {

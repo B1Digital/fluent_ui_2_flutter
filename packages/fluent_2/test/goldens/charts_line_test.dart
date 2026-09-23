@@ -1,6 +1,7 @@
 // `src/charts/line_chart.dart` is not in `lib/fluent_2.dart` yet — that
 // file is owned by the integration task — so this test deep-imports the widget
 // exactly as `test/charts/line_chart_test.dart` already does.
+import 'package:fluent_2/src/charts/cartesian/cartesian_chart_props.dart';
 import 'package:fluent_2/src/charts/line_chart.dart';
 import 'package:fluent_2/src/charts/model/cartesian_series.dart';
 import 'package:fluent_2/src/charts/model/chart_annotation.dart';
@@ -82,6 +83,9 @@ void main() {
       cell(
         FluentLineChart(
           data: dated,
+          // Unset, the date axis is local and its ticks and rules move with
+          // the machine's zone; UTC makes the image the same on every runner.
+          props: const FluentCartesianChartProps(useUTC: true),
           eventAnnotationMergedLabel: (count) => '$count events',
           eventAnnotations: <FluentEventAnnotation>[
             FluentEventAnnotation(

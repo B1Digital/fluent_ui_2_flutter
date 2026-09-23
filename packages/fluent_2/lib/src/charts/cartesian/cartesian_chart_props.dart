@@ -457,14 +457,15 @@ class FluentCartesianChartProps {
 
   /// A copy of this bag with the listed fields replaced.
   ///
-  /// // ponytail: only the eleven fields a chart actually rebrands are
+  /// // ponytail: only the twelve fields a chart actually rebrands are
   /// parameters. Every shell chart wraps its caller's bag to add its own
   /// narration (`LineChart.tsx:1843-1846`), its band height (`:165`), its
-  /// popover body (`GanttChart.tsx:604`), its focus granularity
+  /// popover body (`GanttChart.tsx:604`), its `useUTC` default
+  /// (`GanttChart.tsx:45`, `:608`), its focus granularity
   /// (`VerticalStackedBarChart.tsx:486-489`), the scatterpolar y bounds at
   /// `LineChart.tsx:1922` and `ScatterChart.tsx:742`, and the hard-coded tick
   /// values at `HeatMapChart.tsx:805-807` and
-  /// `GroupedVerticalBarChart.tsx:1006`; the other 39 fields belong to the
+  /// `GroupedVerticalBarChart.tsx:1006`; the other 37 fields belong to the
   /// caller. Add a parameter when a caller needs one. An omitted parameter
   /// keeps the current value, so a null can never be written over a field that
   /// was set.
@@ -481,6 +482,7 @@ class FluentCartesianChartProps {
     bool? showRoundOffXTickValues,
     double? yMinValue,
     double? yMaxValue,
+    Object? useUTC,
   }) => FluentCartesianChartProps(
     margins: margins,
     hideLegend: hideLegend,
@@ -508,7 +510,7 @@ class FluentCartesianChartProps {
     xAxisTitle: xAxisTitle,
     yAxisTitle: yAxisTitle,
     secondaryYAxisTitle: secondaryYAxisTitle,
-    useUTC: useUTC,
+    useUTC: useUTC ?? this.useUTC,
     roundedTicks: roundedTicks,
     hideTickOverlap: hideTickOverlap,
     xAxisAnnotation: xAxisAnnotation,

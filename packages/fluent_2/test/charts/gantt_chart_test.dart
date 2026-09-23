@@ -7,6 +7,7 @@ import 'package:fluent_2/src/charts/internal/d3/scale_linear.dart' as d3;
 import 'package:fluent_2/src/charts/internal/d3/scale_time.dart' as d3;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 
 import '../support/oracle_fixture.dart';
 
@@ -1128,6 +1129,86 @@ void main() {
         reason:
             '_onLegendSelectionChange stores the selection and :410 dims every '
             'bar outside it, GanttChart.tsx:463-475',
+      );
+    });
+
+    testWidgets('useUtc reaches the x axis, not only the popover text', (
+      tester,
+    ) async {
+      // The zone-free half of the bug: what the shell's date axis is TOLD
+      // (`cartesian_chart.dart` hands `props.useUTC` to createDateXAxis), and
+      // what the delegate formats with. Pixels would only show it off UTC.
+      FluentCartesianChartProps shellProps() => tester
+          .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+          .props;
+
+      await pump(tester, ganttChart());
+      expect(
+        shellProps().useUTC,
+        isTrue,
+        reason:
+            'GanttChart.tsx:45 defaults useUTC to true and :608 passes it to '
+            'CartesianChart, so the date axis is a UTC scale',
+      );
+      expect(mountedDelegate(tester).useUtc, isTrue);
+
+      await pump(
+        tester,
+        const FluentGanttChart(data: ganttPoints, useUtc: false),
+      );
+      expect(shellProps().useUTC, isFalse);
+      expect(mountedDelegate(tester).useUtc, isFalse);
+
+      await pump(
+        tester,
+        const FluentGanttChart(
+          data: ganttPoints,
+          props: FluentCartesianChartProps(useUTC: false),
+        ),
+      );
+      expect(shellProps().useUTC, isFalse);
+      expect(
+        mountedDelegate(tester).useUtc,
+        isFalse,
+        reason:
+            'one effective value: a local axis must not sit under UTC '
+            'popover and label text',
+      );
+
+      // Local midnights: the axis is local here, so UTC midnights would sit
+      // off a day boundary in any zone east or west of UTC and the span
+      // formatter would pick an hour format ('03 AM' at +03:00) instead.
+      final start = DateTime(2024, 3, 15);
+      final end = DateTime(2024, 3, 22);
+      await pump(
+        tester,
+        FluentGanttChart(
+          data: <FluentGanttChartDataPoint>[
+            FluentGanttChartDataPoint(
+              x: FluentGanttSpan(start: start, end: end),
+              y: 'Design',
+              legend: 'Planned',
+            ),
+          ],
+          culture: 'en_US',
+          useUtc: true,
+          props: const FluentCartesianChartProps(useUTC: 'local'),
+        ),
+      );
+      expect(
+        shellProps().useUTC,
+        isFalse,
+        reason: "only true and 'utc' select a UTC date axis",
+      );
+      final delegate = mountedDelegate(tester);
+      expect(delegate.useUtc, isFalse);
+      expect(
+        delegate.formattedSpan(delegate.points.single),
+        '${DateFormat('EEE dd', 'en_US').format(start)} - '
+        '${DateFormat('EEE dd', 'en_US').format(end)}',
+        reason:
+            "a non-'utc' string wins over the widget override and keeps "
+            'the popover date text in the axis\'s local time zone.',
       );
     });
 

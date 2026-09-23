@@ -1,5 +1,15 @@
 ## Unreleased
 
+### Added
+
+- **`FluentBoxDecoration` paints `boxShadow` the way CSS does — outside the box
+  only.** A `BoxDecoration` shadow is a blurred copy of the box drawn *under*
+  it, which a transparent box shows as a grey wash (`shadow16` darkens the
+  inside to about 76%). Upstream shadows unfilled elements routinely, so this is
+  the decoration for them; the blur also uses CSS's σ = blur / 2. Everything
+  else paints as `BoxDecoration`. The CarouselNav and Carousel demos use it,
+  which is what stopped the CarouselNav card rendering solid grey.
+
 ### Changed
 
 - **BREAKING (custom styles): `FluentInputStyle.borderWidth`,

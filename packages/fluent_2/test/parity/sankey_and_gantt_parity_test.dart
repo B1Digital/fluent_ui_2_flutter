@@ -140,8 +140,10 @@ void main() {
         // gradients and rounded corners off.
         props: const FluentCartesianChartProps(showYAxisLabels: true),
       ),
-      // Measured 0.098% — 200 pixels of 203,099, aligned at shift (0,0).
-      maxMismatch: 0.12,
+      // Measured 0.062% — 126 pixels of 203,099, aligned; the same in every
+      // zone and on macOS and Linux now that useUtc reaches the axis (was
+      // 0.098% at +03:00 when the axis was local).
+      maxMismatch: 0.07,
     );
   });
 }

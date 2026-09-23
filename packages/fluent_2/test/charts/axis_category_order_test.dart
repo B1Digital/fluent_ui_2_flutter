@@ -43,26 +43,18 @@ import '../support/oracle_fixture.dart';
 /// deliberately reverses the alphabetical relation between the raw key and the
 /// label, so a sort on the formatted label ('Alaska' < 'Ohio' < 'Texas') and a
 /// sort on the raw key (p1 < p2 < p3, i.e. Ohio, Alaska, Texas) disagree.
+///
+/// The dates are LOCAL midnights because the x labels are local, as upstream's
+/// `d3TimeFormat` is (`HeatMapChart.tsx:595`): a UTC midnight reads as the
+/// previous day anywhere west of Greenwich, and this test is about order.
 final _heatMapData = <FluentHeatMapChartData>[
   FluentHeatMapChartData(
     legend: 'only',
     value: 1,
     data: <FluentHeatMapChartDataPoint>[
-      FluentHeatMapChartDataPoint(
-        x: DateTime.utc(2020, 3, 5),
-        y: 'p3',
-        value: 46,
-      ),
-      FluentHeatMapChartDataPoint(
-        x: DateTime.utc(2020, 3, 3),
-        y: 'p2',
-        value: 10,
-      ),
-      FluentHeatMapChartDataPoint(
-        x: DateTime.utc(2020, 3, 4),
-        y: 'p1',
-        value: 20,
-      ),
+      FluentHeatMapChartDataPoint(x: DateTime(2020, 3, 5), y: 'p3', value: 46),
+      FluentHeatMapChartDataPoint(x: DateTime(2020, 3, 3), y: 'p2', value: 10),
+      FluentHeatMapChartDataPoint(x: DateTime(2020, 3, 4), y: 'p1', value: 20),
     ],
   ),
 ];

@@ -1,5 +1,8 @@
+import 'dart:ui' as ui;
+
 import 'package:fluent_2/fluent_2.dart';
 import 'package:fluent_2_example/shell/catalog.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -74,6 +77,198 @@ void main() {
       if (markOf(tester, find.byType(FluentCarouselStep).at(i))!.size.width > 8)
         i,
   ];
+
+  /// The shadowed box upstream calls `container`: controls on top, card below.
+  Finder container() => find
+      .ancestor(
+        of: find.byType(FluentSwitch),
+        matching: find.byWidgetPredicate(
+          (Widget widget) =>
+              widget is DecoratedBox &&
+              widget.decoration is BoxDecoration &&
+              (widget.decoration as BoxDecoration).boxShadow != null,
+        ),
+      )
+      .first;
+
+  /// The colour the frame shows at [position], read off the rasterised layer
+  /// tree. A shadow painted under a transparent box exists nowhere in the
+  /// widget tree, only in the pixels, so this is the one honest reading of it.
+  Future<Color> pixelAt(WidgetTester tester, Offset position) async {
+    final OffsetLayer layer =
+        tester.binding.renderViews.first.debugLayer! as OffsetLayer;
+    return (await tester.runAsync(() async {
+      final ui.Image image = await layer.toImage(
+        Rect.fromLTWH(
+          position.dx.floorToDouble(),
+          position.dy.floorToDouble(),
+          1,
+          1,
+        ),
+      );
+      final ByteData bytes = (await image.toByteData())!;
+      image.dispose();
+      return Color.fromARGB(
+        bytes.getUint8(3),
+        bytes.getUint8(0),
+        bytes.getUint8(1),
+        bytes.getUint8(2),
+      );
+    }))!;
+  }
+
+  group('matches upstream as Chrome renders it', () {
+    testWidgets('the card shows the page through it, and the shadow only '
+        'outside it', (WidgetTester tester) async {
+      await pumpSection(tester, section);
+
+      // Upstream's container is `boxShadow: shadow16` with no background, and
+      // CSS never paints an outer shadow inside the border box. A plain
+      // BoxDecoration does — this card used to read #c1c1c1 all through, with
+      // a lighter band along the top where the 8px key offset starts.
+      final Rect box = tester.getRect(container());
+      final Color page = await pixelAt(
+        tester,
+        Offset(box.right - 20, box.bottom + 60),
+      );
+      expect(
+        await pixelAt(tester, Offset(box.right - 20, box.bottom - 20)),
+        page,
+        reason: 'the empty corner of the card must be the page behind it',
+      );
+      expect(
+        await pixelAt(tester, Offset(box.right - 20, box.top + 5)),
+        page,
+        reason: 'the top band of the controls must be the page too',
+      );
+      expect(
+        await pixelAt(tester, Offset(box.center.dx, box.bottom + 2)),
+        isNot(page),
+        reason: 'the shadow itself must still fall below the box',
+      );
+    });
+
+    testWidgets('it is laid out like the upstream story', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(tester, section);
+
+      // Measured in Chrome: 3px borders that inset the content, so controls
+      // are 3 + 10 + switch + 10 (59 around Chrome's 36px switch) and the card
+      // 3 + 10 + 100 + 10 + 3 = 126. The switch is read rather than assumed:
+      // `flutter test` has no Consolas, and its fallback sets the label taller.
+      final double controls =
+          3 + 10 + tester.getSize(find.byType(FluentSwitch)).height + 10;
+      expect(tester.getSize(container()).height, controls + 126);
+
+      // CarouselNav's `margin: auto 8px` soaks up the card's free space, so
+      // the strip sits centred in the 100px body — not at the bottom, where
+      // the card's own `justify-content: end` alone would put it.
+      final Finder body = find.byWidgetPredicate(
+        (Widget widget) =>
+            widget is ConstrainedBox && widget.constraints.minHeight == 100,
+      );
+      final Finder steps = find.byType(FluentCarouselStep);
+      expect(tester.getCenter(steps.first).dy, tester.getCenter(body).dy);
+
+      // …on the translucent pill upstream draws behind the buttons.
+      final Finder pill = find.ancestor(
+        of: steps.first,
+        matching: find.byWidgetPredicate(
+          (Widget widget) =>
+              widget is DecoratedBox &&
+              widget.decoration is BoxDecoration &&
+              (widget.decoration as BoxDecoration).color ==
+                  FluentTheme.of(
+                    tester.element(steps.first),
+                  ).colors.neutralBackgroundAlpha,
+        ),
+      );
+      expect(pill, findsOneWidget);
+      expect(
+        (tester.widget<DecoratedBox>(pill).decoration as BoxDecoration)
+            .borderRadius,
+        FluentRadius.allXLarge,
+      );
+    });
+
+    testWidgets('the label starts at the content edge, like a Field label', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(tester, section);
+
+      // Upstream's label is the Field's, flush with the controls' content box
+      // (3px border + 10px padding in). The switch's own `before` label would
+      // start 8px further in.
+      expect(
+        tester.getTopLeft(find.text('Use ')).dx -
+            tester.getTopLeft(container()).dx,
+        13,
+      );
+    });
+
+    testWidgets('the brand pill is compoundBrandBackground, which parts from '
+        'brandBackground in dark themes', (WidgetTester tester) async {
+      final FluentThemeData dark = FluentThemeData.dark(
+        fontPlatform: FluentFontPlatform.web,
+      );
+      await tester.pumpWidget(
+        FluentApp(
+          debugShowCheckedModeBanner: false,
+          theme: dark,
+          home: SingleChildScrollView(child: Builder(builder: section.builder)),
+        ),
+      );
+      await settle(tester);
+
+      // In light both tokens are brand[80], so only a dark theme can tell a
+      // demo that tints with the wrong one.
+      expect(
+        dark.colors.compoundBrandBackground,
+        isNot(dark.colors.brandBackground),
+      );
+      expect(
+        markOf(tester, find.byType(FluentCarouselStep).first)!.color,
+        dark.colors.compoundBrandBackground,
+      );
+    });
+
+    testWidgets('the brand pill ramps under a resting pointer', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(tester, section);
+
+      // Upstream's `brand` appearance moves the selected pill to the compound
+      // brand hover and pressed tokens.
+      final Finder selected = find.byType(FluentCarouselStep).first;
+      final FluentColors colors = FluentTheme.of(
+        tester.element(selected),
+      ).colors;
+      final TestGesture mouse = await mouseHover(tester, selected);
+      expect(
+        markOf(tester, selected)!.color,
+        colors.compoundBrandBackgroundHover,
+      );
+      await mouseAway(tester, mouse);
+      expect(markOf(tester, selected)!.color, colors.compoundBrandBackground);
+    });
+
+    testWidgets('thumbnails sit 8px apart', (WidgetTester tester) async {
+      await pumpSection(tester, section);
+      await tapAndSettle(
+        tester,
+        find.byType(FluentSwitch),
+        what: 'the image button switch',
+      );
+
+      // CarouselNavImageButton carries `margin: 0 spacingHorizontalXS`.
+      final Finder steps = find.byType(FluentCarouselStep);
+      expect(
+        tester.getTopLeft(steps.at(2)).dx - tester.getTopRight(steps.at(1)).dx,
+        8,
+      );
+    });
+  });
 
   group('image button switch', () {
     testWidgets('it swaps every dot for a thumbnail, and back again', (
@@ -167,7 +362,12 @@ void main() {
       // step through `FluentCarouselStyle.stepColor`. That override reaches the
       // mark through the button's IconTheme — several hops — and a step that
       // grew the pill without taking the tint is the failure that leaves.
-      expect(markOf(tester, steps.at(0))!.color, colors.brandBackground);
+      // Upstream's brand pill is `colorCompoundBrandBackground`, which parts
+      // from `brandBackground` in dark themes.
+      expect(
+        markOf(tester, steps.at(0))!.color,
+        colors.compoundBrandBackground,
+      );
       for (int i = 1; i < 5; i++) {
         expect(
           markOf(tester, steps.at(i))!.color,
@@ -177,7 +377,10 @@ void main() {
       }
 
       await tapAndSettle(tester, steps.at(2), what: 'the third step');
-      expect(markOf(tester, steps.at(2))!.color, colors.brandBackground);
+      expect(
+        markOf(tester, steps.at(2))!.color,
+        colors.compoundBrandBackground,
+      );
       expect(markOf(tester, steps.at(0))!.color, colors.neutralForeground2);
     });
 

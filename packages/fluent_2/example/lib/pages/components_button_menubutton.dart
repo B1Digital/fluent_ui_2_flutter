@@ -719,8 +719,8 @@ Widget _withLongText(BuildContext context) => Wrap(
       ),
     ),
     // Upstream pins the button itself to 280px. FluentButton lays its label out
-    // in an unbounded Row, so the width goes on the label instead: 230 plus the
-    // medium ramp's 12px padding either side, its 6px gap and the 20px chevron
+    // in an unbounded Row, so the width goes on the label instead: 228 plus the
+    // medium ramp's 13px inset either side, its 6px gap and the 20px chevron
     // is the same 280.
     FluentMenu(
       items: <FluentMenuItem>[
@@ -732,7 +732,7 @@ Widget _withLongText(BuildContext context) => Wrap(
         icon: fluentMenuChevron,
         iconPosition: FluentButtonIconPosition.after,
         child: const SizedBox(
-          width: 230,
+          width: 228,
           child: Text(
             'Long text wraps after it hits the max width of the component',
             textAlign: TextAlign.center,

@@ -326,6 +326,28 @@ const FluentMenuTheme({super.key, required this.style, required super.child});
 | `style` | `FluentMenuStyle` | Yes | — | The style layered over the theme defaults. |
 | `child` | `Widget` | Yes | — | The widget subtree rendered or affected by this API. |
 
+### `FluentMenuTriggerScope`
+
+Tells a menu's trigger whether that menu is open — the `aria-expanded` upstream's `MenuTrigger` hands the element it wraps.
+
+Source: `packages/fluent_2/lib/src/internal/menu_trigger_scope.dart`
+
+#### Constructor: `FluentMenuTriggerScope`
+
+```dart
+const FluentMenuTriggerScope({
+    super.key,
+    required this.isOpen,
+    required super.child,
+  });
+```
+
+| Field | Type | Required | Default | Purpose |
+| --- | --- | --- | --- | --- |
+| `key` | `Key?` | No | `null` | Flutter widget identity. |
+| `isOpen` | `bool` | Yes | — | Whether the menu this subtree triggers is open. |
+| `child` | `Widget` | Yes | — | The widget subtree rendered or affected by this API. |
+
 ## Advanced public recomposition functions
 
 Use these only when the complete widget/style/theme composition cannot
@@ -375,7 +397,7 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/overlays/menu.dart`
-- Tests: `packages/fluent_2/test/charts/declarative/declarative_export_test.dart`, `packages/fluent_2/test/goldens/menu_golden_test.dart`, `packages/fluent_2/test/overlays/menu_test.dart`
+- Tests: `packages/fluent_2/test/buttons/split_compound_button_test.dart`, `packages/fluent_2/test/charts/declarative/declarative_export_test.dart`, `packages/fluent_2/test/goldens/menu_golden_test.dart`, `packages/fluent_2/test/overlays/menu_test.dart`
 - Stories: `packages/fluent_2/example/lib/pages/components_button_menubutton.dart`, `packages/fluent_2/example/lib/pages/components_button_splitbutton.dart`, `packages/fluent_2/example/lib/pages/components_datagrid.dart`, `packages/fluent_2/example/lib/pages/components_list.dart`, `packages/fluent_2/example/lib/pages/components_menu_menu.dart`, `packages/fluent_2/example/lib/pages/components_menu_menulist.dart`, `packages/fluent_2/example/lib/pages/components_nav.dart`, `packages/fluent_2/example/lib/pages/components_tablist.dart`, `packages/fluent_2/example/lib/pages/components_tag_taggroup.dart`, `packages/fluent_2/example/lib/pages/components_toolbar.dart`, `packages/fluent_2/example/lib/pages/components_tree.dart`, `packages/fluent_2/example/lib/pages/theme_colors.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/menu/usage/
 - Design decisions: `references/components-navigation-data.md`

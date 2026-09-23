@@ -149,8 +149,9 @@ FluentButtonState resolveFluentButtonState({
 /// that reads the design axes. Every value comes from a Fluent token; nothing
 /// here computes a colour.
 ///
-/// Token sources are the Figma `Button` component set, extracted into
+/// Colour tokens come from the Figma `Button` component set, extracted into
 /// `test/fixtures/button.json` and asserted variant-by-variant in the tests.
+/// Geometry and focus follow `useButtonStyles.styles.ts` as Chrome renders it.
 FluentButtonStyle resolveFluentButtonStyle(
   FluentButtonState state,
   FluentThemeData theme,
@@ -204,14 +205,16 @@ FluentButtonStyle resolveFluentButtonStyle(
       rest: c.neutralForeground1,
       hover: c.neutralForeground1Hover,
       pressed: c.neutralForeground1Pressed,
-      selected: c.neutralForeground1Pressed,
+      // `Selected` is upstream's open-menu (`aria-expanded`) and checked-toggle
+      // colour, in its own token rather than the pressed one.
+      selected: c.neutralForeground1Selected,
       disabled: c.neutralForegroundDisabled,
     ),
     FluentButtonAppearance.subtle => FluentStateColor.tokens(
       rest: c.neutralForeground2,
       hover: c.neutralForeground1Hover,
       pressed: c.neutralForeground1Pressed,
-      selected: c.neutralForeground1Pressed,
+      selected: c.neutralForeground2Selected,
       disabled: c.neutralForegroundDisabled,
     ),
     // Transparent is the odd one: its label takes BRAND colour on interaction,
@@ -225,80 +228,144 @@ FluentButtonStyle resolveFluentButtonStyle(
     ),
   };
 
+  final primary = state.appearance == FluentButtonAppearance.primary;
   final bordered =
       state.appearance == FluentButtonAppearance.secondary ||
       state.appearance == FluentButtonAppearance.outline;
 
+  final strokes = FluentStateColor.tokens(
+    rest: c.neutralStroke1,
+    hover: c.neutralStroke1Hover,
+    pressed: c.neutralStroke1Pressed,
+    selected: c.neutralStroke1Selected,
+    disabled: c.neutralStrokeDisabled,
+  );
+  // The focus indicator turns the border `strokeFocus2`, and keeps it so under
+  // `:hover` — measured in Chrome. It is the ring's outer pixel, which matters
+  // wherever the border is painted over the ring, as on a split button's half.
   final border = bordered
-      ? FluentStateColor.tokens(
-          rest: c.neutralStroke1,
-          hover: c.neutralStroke1Hover,
-          pressed: c.neutralStroke1Pressed,
-          selected: c.neutralStroke1Selected,
-          disabled: c.neutralStrokeDisabled,
+      ? WidgetStateProperty.resolveWith<Color?>(
+          (states) => states.contains(WidgetState.focused)
+              ? c.strokeFocus2
+              : strokes.resolve(states),
         )
       : null;
 
-  // Geometry, verbatim from the Figma Button set — except the Large glyph,
-  // which Figma models as an instance rather than a token. That one comes from
-  // `useIconStyles.large { fontSize/height/width: '24px' }` against 20 at the
-  // other two sizes, and is what makes a Large icon-and-label button 40 high on
-  // 8px of vertical padding.
-  final (padding, gap, height, iconSize, textStyle) = switch (state.size) {
+  // Geometry, as `useButtonStyles.styles.ts` lays it out. Every appearance
+  // there keeps a 1px border — transparent where it is not seen — and a CSS
+  // border takes layout space, so each inset below is upstream's padding plus
+  // that pixel: `3px 8px` at small (`1px` vertical beside an icon), `5px 12px`
+  // at medium, `8px 16px` at large (`7px`). Figma strokes sit inside the frame
+  // without moving the content, so its fixture reads one less across.
+  //
+  // A labelled button is floored at `minWidth` 64 (small) or 96. An icon-only
+  // one takes `useRootIconOnlyStyles` instead: padding 1, 5 or 7 and a square
+  // 24, 32 or 40 — the height, which the padding and glyph add up to exactly.
+  final withIcon = state.icon != null;
+  final (
+    inset,
+    iconOnlyInset,
+    gap,
+    height,
+    iconSize,
+    textStyle,
+    floor,
+  ) = switch (state.size) {
     FluentButtonSize.small => (
-      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      EdgeInsets.symmetric(horizontal: 9, vertical: withIcon ? 2 : 4),
+      2.0,
       FluentSpacing.xs,
       24.0,
       FluentSize.size200,
       theme.typography.caption1,
+      64.0,
     ),
     FluentButtonSize.medium => (
-      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
+      6.0,
       FluentSpacing.sNudge,
       32.0,
       FluentSize.size200,
       theme.typography.body1Strong,
+      96.0,
     ),
     FluentButtonSize.large => (
-      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      EdgeInsets.symmetric(horizontal: 17, vertical: withIcon ? 8 : 9),
+      8.0,
       FluentSpacing.sNudge,
       40.0,
       FluentSize.size240,
       theme.typography.subtitle2,
+      96.0,
     ),
   };
+  final padding = state.iconOnly ? EdgeInsets.all(iconOnlyInset) : inset;
+  final minimumWidth = state.iconOnly ? height : floor;
 
+  // A keyboard-focused button takes the size's own radius — `useRootFocusStyles`
+  // gives small `borderRadiusSmall` and large `borderRadiusLarge` — unless its
+  // shape already fixes one, which is why only `rounded` varies.
+  final focusRadius = switch (state.size) {
+    FluentButtonSize.small => FluentRadius.allSmall,
+    FluentButtonSize.medium => FluentRadius.allMedium,
+    FluentButtonSize.large => FluentRadius.allLarge,
+  };
   final radius = switch (state.shape) {
-    FluentButtonShape.rounded => FluentRadius.allMedium,
-    FluentButtonShape.circular => FluentRadius.allCircular,
-    FluentButtonShape.square => BorderRadius.zero,
+    FluentButtonShape.rounded => WidgetStateProperty.resolveWith<BorderRadius?>(
+      (states) => states.contains(WidgetState.focused)
+          ? focusRadius
+          : FluentRadius.allMedium,
+    ),
+    FluentButtonShape.circular => const WidgetStatePropertyAll<BorderRadius?>(
+      FluentRadius.allCircular,
+    ),
+    FluentButtonShape.square => const WidgetStatePropertyAll<BorderRadius?>(
+      BorderRadius.zero,
+    ),
   };
 
   return FluentButtonStyle(
     backgroundColor: background,
     foregroundColor: foreground,
     borderColor: border,
-    borderWidth: WidgetStatePropertyAll<double?>(
-      bordered ? FluentStroke.thin : FluentStroke.none,
+    // Selected outline thickens to `strokeWidthThicker`, as both an open
+    // MenuButton and a checked ToggleButton do upstream.
+    borderWidth: WidgetStateProperty.resolveWith<double?>(
+      (states) => !bordered
+          ? FluentStroke.none
+          : state.appearance == FluentButtonAppearance.outline &&
+                states.contains(WidgetState.selected)
+          ? FluentStroke.thicker
+          : FluentStroke.thin,
     ),
-    borderRadius: WidgetStatePropertyAll<BorderRadius?>(radius),
+    borderRadius: radius,
     textStyle: WidgetStatePropertyAll<TextStyle?>(textStyle),
     padding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(padding),
     gap: WidgetStatePropertyAll<double?>(gap),
     iconSize: WidgetStatePropertyAll<double?>(iconSize),
-    // DIVERGENCE, reported rather than followed: `useButtonStyles.styles.ts`
-    // floors a labelled button at `minWidth: '96px'` (64 at small), and a live
-    // probe renders a text-only Medium at exactly 96x32. Figma states no floor
-    // — its frames hug their contents — so the two do not actually conflict,
-    // and the floor was briefly adopted here.
-    //
-    // It is reverted because it does not stand alone. React can afford 96 in a
-    // TeachingPopover footer only because that surface is 320 wide; Figma's is
-    // 288 (`_contentWidth`, test-guarded), and two floored buttons plus the
-    // carousel overflow it. Adopting the floor therefore requires adopting
-    // React's 320 as well — one decision, not two. Until that is made, the
-    // width stays content-driven.
-    minimumSize: WidgetStatePropertyAll<Size?>(Size(0, height)),
+    minimumSize: WidgetStatePropertyAll<Size?>(Size(minimumWidth, height)),
+    // Primary's focus indicator (`useRootFocusStyles.primary`) adds `shadow2`
+    // outside and a white 2px inset shadow under the 1px black one — seen as a
+    // 1px white ring inside the black — and drops the white while hovered.
+    focusRingInnerColor: primary
+        ? WidgetStateProperty.resolveWith<Color?>(
+            (states) =>
+                states.contains(WidgetState.focused) &&
+                    !states.contains(WidgetState.hovered)
+                ? c.neutralForegroundOnBrand
+                : null,
+          )
+        : null,
+    shadow: primary
+        ? WidgetStateProperty.resolveWith<List<BoxShadow>?>(
+            (states) => states.contains(WidgetState.focused)
+                ? FluentElevation.shadow2.shadows(
+                    ambient: c.neutralShadowAmbient,
+                    key: c.neutralShadowKey,
+                  )
+                : null,
+          )
+        : null,
     mouseCursor: const WidgetStatePropertyAll<MouseCursor?>(
       SystemMouseCursors.click,
     ),
@@ -360,15 +427,19 @@ Widget buildFluentButton(
   }
 
   // The surface animates; the focus ring does not. Upstream's Button declares
-  // `transition: background, border, color` at durationFaster/curveEasyEase and
-  // has no transition on focus at all.
+  // `transition: background, border, color` at durationFaster/curveEasyEase,
+  // and its focus indicator is a box-shadow, which that list leaves out.
   return FluentAnimatedStyle<Color>(
     value: style.backgroundColor?.resolve(states) ?? const Color(0x00000000),
     spec: FluentMotionSpec.buttonSurface,
     lerp: fluentLerpColor,
-    builder: (context, background) => FluentFocusRing(
+    builder: (context, background) => FluentFocusRing.inset(
       visible: states.contains(WidgetState.focused),
       borderRadius: radius,
+      insets:
+          style.focusRingInsets?.resolve(states) ??
+          const EdgeInsets.all(FluentStroke.thick),
+      innerColor: style.focusRingInnerColor?.resolve(states),
       child: ConstrainedBox(
         constraints: BoxConstraints(
           minHeight: minimumSize.height,
@@ -381,6 +452,7 @@ Widget buildFluentButton(
             border: borderWidth > 0 && borderColor != null
                 ? Border.all(color: borderColor, width: borderWidth)
                 : null,
+            boxShadow: style.shadow?.resolve(states),
           ),
           child: Padding(padding: padding, child: content),
         ),

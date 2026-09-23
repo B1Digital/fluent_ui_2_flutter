@@ -48,6 +48,7 @@ class FluentLineChart extends StatefulWidget {
     this.eventAnnotationMergedLabel,
     this.eventAnnotationStrokeColor,
     this.eventAnnotationLabelColor,
+    this.eventAnnotationLabelWidth = kEventAnnotationDefaultLabelWidth,
     this.colorFillBars = const <FluentColorFillBar>[],
     this.allowMultipleShapesForPoints = false,
     this.optimizeLargeData = false,
@@ -82,6 +83,17 @@ class FluentLineChart extends StatefulWidget {
   /// `colorNeutralForeground1`. `EventsAnnotationProps.labelColor`
   /// (`LineChart.types.ts:105`, read at `LabelLink.tsx:61-63`).
   final Color? eventAnnotationLabelColor;
+
+  /// Width the event labels wrap at, 105 by default.
+  /// `EventsAnnotationProps.labelWidth` (`LineChart.types.ts:107`, read at
+  /// `EventAnnotation.tsx:17`).
+  ///
+  /// It also decides which labels merge: the packer works at this width plus 5
+  /// (`EventAnnotation.tsx:37`), so a narrower label lets closer events keep
+  /// labels of their own. Upstream's sibling `labelHeight` is the band reserved
+  /// above the plot (`LineChart.tsx:179-181`), which is
+  /// [FluentLineChartStyle.eventLabelHeight] here.
+  final double eventAnnotationLabelWidth;
 
   /// Shaded x ranges drawn behind the lines.
   final List<FluentColorFillBar> colorFillBars;
@@ -268,6 +280,7 @@ class FluentLineChartState extends State<FluentLineChart> {
                   (count) => '$count events',
               strokeColor: widget.eventAnnotationStrokeColor,
               labelColor: widget.eventAnnotationLabelColor,
+              labelWidth: widget.eventAnnotationLabelWidth,
             ),
       onChartMouseLeave: () => setState(() {
         // `_handleChartMouseLeave` clears the hover (`:1195-1200`).

@@ -81,9 +81,10 @@ const DocsPage carouselNavPage = DocsPage(
 // Upstream's `CarouselNav` renders one `CarouselNavButton` per slide from a
 // render function over `totalSlides`. Our equivalent button is public as
 // [FluentCarouselStep]; the strip that holds them is private to
-// [FluentCarousel], so the row below is built by hand. `appearance="brand"` has
-// no Dart axis either — the Figma `Brand` mode of the step colour collection is
-// unexposed — so the selected step's mark is tinted with `brandBackground`.
+// [FluentCarousel], so the row below is built by hand, on the translucent pill
+// upstream's nav draws. `appearance="brand"` has no Dart axis either — the
+// Figma `Brand` mode of the step colour collection is unexposed — so the
+// selected step's mark is tinted with `compoundBrandBackground`.
 Widget _default(BuildContext context) => const _Default();
 
 class _Default extends StatefulWidget {
@@ -107,13 +108,23 @@ class _DefaultState extends State<_Default> {
     final FluentThemeData theme = FluentTheme.of(context);
     final BorderSide side = BorderSide(
       color: theme.colors.neutralForeground3,
-      width: 2,
+      width: FluentStroke.thicker,
+    );
+    // `appearance="brand"`: the selected pill and its hover and press ramp.
+    final FluentCarouselStyle brand = FluentCarouselStyle(
+      stepColor:
+          WidgetStateProperty<Color?>.fromMap(<WidgetStatesConstraint, Color?>{
+            WidgetState.pressed: theme.colors.compoundBrandBackgroundPressed,
+            WidgetState.hovered: theme.colors.compoundBrandBackgroundHover,
+            WidgetState.any: theme.colors.compoundBrandBackground,
+          }),
     );
 
+    // The container has a shadow and no background. FluentBoxDecoration keeps
+    // the shadow outside the box, as CSS does; a BoxDecoration would paint it
+    // under the box and wash the whole card grey.
     return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.fromBorderSide(side),
-        borderRadius: FluentRadius.allMedium,
+      decoration: FluentBoxDecoration(
         boxShadow: theme.shadow(FluentElevation.shadow16),
       ),
       child: Column(
@@ -122,15 +133,32 @@ class _DefaultState extends State<_Default> {
         children: <Widget>[
           // Upstream wraps the switch in a `Field` with
           // `orientation="horizontal"`. FluentField only stacks, so the label
-          // rides on the switch instead.
+          // rides on the switch instead, padded like the Field's: flush with
+          // the content, 12px before the track's own 8. A Container's border
+          // insets its content the way a CSS border does.
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(border: Border(bottom: side)),
+            decoration: BoxDecoration(
+              border: Border(top: side, left: side, right: side),
+              borderRadius: const BorderRadius.vertical(
+                top: FluentRadius.medium,
+              ),
+            ),
             child: Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: FluentSwitch(
                 checked: _useImageButtons,
                 labelPosition: FluentSwitchLabelPosition.before,
+                style: const FluentSwitchStyle(
+                  labelPadding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(
+                    EdgeInsetsDirectional.fromSTEB(
+                      0,
+                      FluentSpacing.s,
+                      FluentSpacing.m,
+                      FluentSpacing.s,
+                    ),
+                  ),
+                ),
                 label: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
@@ -150,29 +178,53 @@ class _DefaultState extends State<_Default> {
             ),
           ),
           Container(
-            constraints: const BoxConstraints(minHeight: 100),
             padding: const EdgeInsets.all(10),
-            alignment: Alignment.bottomCenter,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                for (int index = 0; index < _totalSlides; index++)
-                  FluentCarouselStep(
-                    selected: index == _index,
-                    semanticLabel: 'Carousel Nav Button $index',
-                    preview: _useImageButtons
-                        ? const Image(image: _swapImage, fit: BoxFit.cover)
-                        : null,
-                    style: index == _index
-                        ? FluentCarouselStyle(
-                            stepColor: WidgetStatePropertyAll<Color?>(
-                              theme.colors.brandBackground,
-                            ),
-                          )
-                        : null,
-                    onPressed: () => setState(() => _index = index),
+            decoration: BoxDecoration(
+              border: Border.fromBorderSide(side),
+              borderRadius: const BorderRadius.vertical(
+                bottom: FluentRadius.medium,
+              ),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 100),
+              // CarouselNav's `margin: auto 8px` takes the card's free space
+              // on both sides, so the strip sits centred rather than at the
+              // `justify-content: end` the card asks for.
+              child: Center(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: FluentSpacing.s,
                   ),
-              ],
+                  decoration: BoxDecoration(
+                    color: theme.colors.neutralBackgroundAlpha,
+                    borderRadius: FluentRadius.allXLarge,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      for (int index = 0; index < _totalSlides; index++)
+                        Padding(
+                          // CarouselNavImageButton's `margin: 0 4px`.
+                          padding: EdgeInsets.symmetric(
+                            horizontal: _useImageButtons ? FluentSpacing.xs : 0,
+                          ),
+                          child: FluentCarouselStep(
+                            selected: index == _index,
+                            semanticLabel: 'Carousel Nav Button $index',
+                            preview: _useImageButtons
+                                ? const Image(
+                                    image: _swapImage,
+                                    fit: BoxFit.cover,
+                                  )
+                                : null,
+                            style: index == _index ? brand : null,
+                            onPressed: () => setState(() => _index = index),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
         ],

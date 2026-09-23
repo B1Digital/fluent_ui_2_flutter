@@ -207,6 +207,7 @@ export 'src/inputs/time_picker_style.dart';
 export 'src/internal/animated_style.dart';
 export 'src/internal/focus_ring.dart';
 export 'src/internal/interaction.dart';
+export 'src/internal/menu_trigger_scope.dart';
 export 'src/internal/text_context_menu.dart';
 // The generated message catalogue. `src/l10n/fluent_localizations_*.dart` —
 // one file per locale — is deliberately NOT exported: the delegate is the only
@@ -254,6 +255,7 @@ export 'src/surfaces/avatar_group_style.dart';
 export 'src/surfaces/avatar_style.dart';
 export 'src/surfaces/badge.dart';
 export 'src/surfaces/badge_style.dart';
+export 'src/surfaces/box_decoration.dart';
 export 'src/surfaces/card.dart';
 export 'src/surfaces/card_style.dart';
 export 'src/surfaces/carousel.dart';
