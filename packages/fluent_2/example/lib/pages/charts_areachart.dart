@@ -422,7 +422,7 @@ class _AreaChartBasicState extends State<_AreaChartBasic> {
       const SizedBox(height: 10),
       FluentSwitch(
         checked: _showAxisTitles,
-        label: Text(_showAxisTitles ? 'Show Axis titles' : 'Hide axis titles'),
+        label: const Text('Show axis titles'),
         onChanged: (bool value) => setState(() => _showAxisTitles = value),
       ),
       const SizedBox(height: 10),
@@ -1119,9 +1119,7 @@ class _AreaChartNegativeState extends State<_AreaChartNegative> {
       const SizedBox(height: 10),
       FluentSwitch(
         checked: _showAxisTitles,
-        label: Text(
-          _showAxisTitles ? 'Switch Axis titles' : 'Hide Axis titles',
-        ),
+        label: const Text('Show axis titles'),
         onChanged: (bool value) => setState(() => _showAxisTitles = value),
       ),
       const SizedBox(height: 10),
