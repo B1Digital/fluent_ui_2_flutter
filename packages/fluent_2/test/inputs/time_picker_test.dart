@@ -19,6 +19,8 @@ Future<void> _pump(
   FluentTimePickerAppearance appearance = FluentTimePickerAppearance.outline,
   Widget? placeholder,
   ValueChanged<bool>? onOpenChange,
+  bool autofocus = false,
+  FluentTimePickerStyle? style,
 }) async {
   await tester.pumpWidget(
     FluentApp(
@@ -38,6 +40,8 @@ Future<void> _pump(
             appearance: appearance,
             placeholder: placeholder,
             onOpenChange: onOpenChange,
+            autofocus: autofocus,
+            style: style,
             hourCycle: FluentHourCycle.h23,
           ),
         ),
@@ -595,5 +599,23 @@ void main() {
       // Clearing is not a toggle: the listbox stays as it was.
       expect(find.text('09:00'), findsNothing);
     });
+  });
+
+  // #30: accentWidth was resolved into the style and then dropped, because the
+  // shared faceplate drew its focus bar at a constant FluentStroke.thick.
+  testWidgets('style.accentWidth sizes the focus bar', (tester) async {
+    await _pump(
+      tester,
+      autofocus: true,
+      style: const FluentTimePickerStyle(
+        accentWidth: WidgetStatePropertyAll<double?>(8),
+      ),
+    );
+    final bar = find.descendant(
+      of: find.byType(FluentTimePicker),
+      matching: find.byType(FluentInputFocusUnderline),
+    );
+    expect(tester.widget<FluentInputFocusUnderline>(bar).thickness, 8);
+    expect(tester.getSize(bar).height, 8);
   });
 }
