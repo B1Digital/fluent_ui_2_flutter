@@ -89,7 +89,9 @@ const DocsPage ganttChartPage = DocsPage(
       name: 'useUtc',
       type: 'bool',
       defaultValue: 'true',
-      description: 'Whether dates are formatted in UTC.',
+      description:
+          'Whether the date axis and the date text run in UTC; a non-null '
+          'props.useUTC wins over it.',
     ),
     PropRow(
       name: 'yAxisCategoryOrder',

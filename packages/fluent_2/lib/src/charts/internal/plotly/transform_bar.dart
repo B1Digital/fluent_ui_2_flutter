@@ -1389,9 +1389,9 @@ FluentGanttChart transformPlotlyToGantt(
     // the flag (`gantt_chart.dart:83`), so it is set rather than recorded.
     roundCorners: true,
     // `:2389`: gantt renders local time, which is why `:2307` is the one call
-    // site that passes `parseLocalDate`. Set twice because the Gantt paints its
-    // own y-axis dates from this field (`gantt_chart.dart:219`) while the
-    // shared cartesian shell reads `props.useUTC` (`cartesian_chart.dart:755`).
+    // site that passes `parseLocalDate`. Set on both: the non-null
+    // `props.useUTC` below already wins over this flag for the axis and the
+    // popover text alike, so this one only states the intent on the widget.
     useUtc: false,
     // `:2391`. The Gantt sorts its own category axis from this field
     // (`gantt_chart.dart:414`), so the y order is set here as well as on the

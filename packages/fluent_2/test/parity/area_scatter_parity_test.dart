@@ -278,16 +278,25 @@ void main() {
       'charts-scatterchart--scatter-chart-date',
       FluentScatterChart(
         data: data,
-        // The story passes only the two titles; it has no `useUTC` control, so
-        // the prop stays unset exactly as upstream leaves it.
+        // The story passes only the two titles and leaves `useUTC` unset, so
+        // upstream draws a LOCAL time scale in whatever zone the browser runs
+        // in. The reference was captured with the browser pinned to UTC, where
+        // local time is UTC, so `useUTC: true` renders the same picture on any
+        // runner. The story's own local-time path is left untested here: a
+        // local scale ticks at local midnight, so no single PNG matches it in
+        // every zone.
         props: const FluentCartesianChartProps(
           xAxisTitle: 'Date',
           yAxisTitle: 'Number of visitors',
+          useUTC: true,
         ),
         culture: 'en-US',
       ),
-      // Measured 0.013% — 28 pixels of 212,803 — then pinned just above it.
-      // Every one of them is the same sub-pixel legend-swatch offset the area
+      // Measured 0.013% — 28 pixels of 212,803 — against the UTC capture,
+      // the same figure under TZ=UTC, Europe/Istanbul, America/Los_Angeles
+      // and Asia/Tokyo, then pinned just above it. The old +03:00 capture
+      // could only be met in +03:00: its markers sat 3h right of the ticks.
+      // Every one of the 28 is the same sub-pixel legend-swatch offset the area
       // chart shows: two 14px columns at x=144 and x=158, the edges of the
       // "Sales Performance" swatch. Upstream has x=158 at solid #9373C0 and
       // x=144 at background; Flutter has partial coverage at both, so its

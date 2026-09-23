@@ -255,6 +255,14 @@ const DocsPage lineChartPage = DocsPage(
           'colorNeutralForeground1.',
     ),
     PropRow(
+      name: 'eventAnnotationLabelWidth',
+      type: 'double',
+      defaultValue: '105',
+      description:
+          'Width the annotation labels wrap at, which also decides which '
+          'labels merge.',
+    ),
+    PropRow(
       name: 'colorFillBars',
       type: 'List<FluentColorFillBar>',
       defaultValue: '[]',
@@ -1505,6 +1513,9 @@ class _LineChartEventsState extends State<_LineChartEvents> {
             eventAnnotationMergedLabel: (int count) => '$count events',
             eventAnnotationStrokeColor: _annotationColor,
             eventAnnotationLabelColor: _annotationColor,
+            // The story's `eventAnnotationProps.labelWidth` and `labelHeight`.
+            eventAnnotationLabelWidth: 50,
+            style: FluentLineChartStyle.from(eventLabelHeight: 18),
             eventAnnotations: <FluentEventAnnotation>[
               FluentEventAnnotation(
                 event: 'event 1',
