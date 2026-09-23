@@ -244,7 +244,7 @@ class _GanttChartBasicState extends State<_GanttChartBasic> {
         height: _height,
         child: FluentGanttChart(
           data: _data,
-          props: const FluentCartesianChartProps(showYAxisLables: true),
+          props: const FluentCartesianChartProps(showYAxisLabels: true),
           enableGradient: _enableGradient,
           roundCorners: _roundedCorners,
         ),
@@ -441,7 +441,7 @@ class _GanttChartGroupedState extends State<_GanttChartGrouped> {
           height: _height,
           child: FluentGanttChart(
             data: _data,
-            props: const FluentCartesianChartProps(showYAxisLables: true),
+            props: const FluentCartesianChartProps(showYAxisLabels: true),
             enableGradient: _enableGradient,
             roundCorners: _roundedCorners,
             // `legendProps.canSelectMultipleLegends` is a top-level enum here.

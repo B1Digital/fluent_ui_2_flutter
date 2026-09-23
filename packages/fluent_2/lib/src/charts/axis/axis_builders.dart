@@ -29,10 +29,16 @@ import 'tick_values.dart';
 /// (`charts-verticalbarchart--vertical-bar-axis-tooltip` puts its x labels at
 /// `y = 11`, which is `max(6, 0) + 5`). 5 and 10 are the two literals at
 /// `:215`.
+///
+/// [showXAxisLablesTooltip] is the deprecated upstream spelling of
+/// [showXAxisLabelsTooltip]; setting either selects the 5.
 double resolveShellXAxisTickPadding({
   double? tickPadding,
+  bool showXAxisLabelsTooltip = false,
+  @Deprecated('Use showXAxisLabelsTooltip.')
   bool showXAxisLablesTooltip = false,
-}) => tickPadding ?? (showXAxisLablesTooltip ? 5 : 10);
+}) =>
+    tickPadding ?? (showXAxisLabelsTooltip || showXAxisLablesTooltip ? 5 : 10);
 
 /// A linear scale, or a log one when [scaleType] says so.
 ///

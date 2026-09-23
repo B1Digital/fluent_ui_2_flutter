@@ -680,9 +680,9 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
     final labelWidth =
         calcMaxLabelWidthWithTransform(
           labels,
-          wrapXAxisLabels: widget.props.wrapXAxisLables,
-          rotateXAxisLabels: widget.props.rotateXAxisLables,
-          showXAxisLabelsTooltip: widget.props.showXAxisLablesTooltip,
+          wrapXAxisLabels: widget.props.wrapXAxisLabels,
+          rotateXAxisLabels: widget.props.rotateXAxisLabels,
+          showXAxisLabelsTooltip: widget.props.showXAxisLabelsTooltip,
           xAxisType: widget.delegate.xAxisType,
           noOfCharsToTruncate: widget.props.noOfCharsToTruncate,
           style: textStyles.axisTick,
@@ -724,9 +724,9 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       textStyles: textStyles,
       startFromX: 0,
     );
-    if (widget.props.showYAxisLables) {
+    if (widget.props.showYAxisLabels) {
       final labels = geometry.axisData.yAxisTickText.map(
-        (label) => widget.props.showYAxisLablesTooltip
+        (label) => widget.props.showYAxisLabelsTooltip
             // `CartesianChart.tsx:152-153`.
             ? truncateString(label, widget.props.noOfCharsToTruncate)
             : label,
@@ -784,9 +784,9 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       ),
       calcMaxLabelWidth: (labels) => calcMaxLabelWidthWithTransform(
         labels,
-        wrapXAxisLabels: props.wrapXAxisLables,
-        rotateXAxisLabels: props.rotateXAxisLables,
-        showXAxisLabelsTooltip: props.showXAxisLablesTooltip,
+        wrapXAxisLabels: props.wrapXAxisLabels,
+        rotateXAxisLabels: props.rotateXAxisLabels,
+        showXAxisLabelsTooltip: props.showXAxisLabelsTooltip,
         xAxisType: delegate.xAxisType,
         noOfCharsToTruncate: props.noOfCharsToTruncate,
         style: textStyles.axisTick,

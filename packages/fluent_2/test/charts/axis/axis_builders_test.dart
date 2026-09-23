@@ -493,12 +493,12 @@ void main() {
             'CartesianChart.tsx:215 parses as '
             '`(tickPadding || showXAxisLablesTooltip) ? 5 : 10` and discards '
             'the 25; the port corrects the precedence to '
-            '`tickPadding ?? (showXAxisLablesTooltip ? 5 : 10)`.',
+            '`tickPadding ?? (showXAxisLabelsTooltip ? 5 : 10)`.',
       );
       expect(
         resolveShellXAxisTickPadding(
           tickPadding: 12,
-          showXAxisLablesTooltip: true,
+          showXAxisLabelsTooltip: true,
         ),
         12,
         reason: 'a caller value wins over the tooltip branch too.',
@@ -517,7 +517,7 @@ void main() {
 
     test('picks 5 for the tooltip branch alone', () {
       expect(
-        resolveShellXAxisTickPadding(showXAxisLablesTooltip: true),
+        resolveShellXAxisTickPadding(showXAxisLabelsTooltip: true),
         5,
         reason:
             'the second operand of the `||` at CartesianChart.tsx:215 is the '
@@ -574,7 +574,7 @@ void main() {
         tooltip.tickLabelOffsets,
         everyElement(
           closeTo(
-            6 + resolveShellXAxisTickPadding(showXAxisLablesTooltip: true),
+            6 + resolveShellXAxisTickPadding(showXAxisLabelsTooltip: true),
             kOracleGeometryTolerance,
           ),
         ),

@@ -206,11 +206,11 @@ void main() {
 
       // The default arm truncates instead of reserving, so the left margin is
       // the bare 40 of `_getDefaultMargins`.
-      expect(_painter(tester).props.showYAxisLablesTooltip, isTrue);
+      expect(_painter(tester).props.showYAxisLabelsTooltip, isTrue);
       expect(_plot(tester).left, 40);
 
       await mouseClick(tester, find.text('Expand Y Axis Ticks'));
-      expect(_painter(tester).props.showYAxisLables, isTrue);
+      expect(_painter(tester).props.showYAxisLabels, isTrue);
       expect(
         _plot(tester).left,
         greaterThan(40),
@@ -406,19 +406,19 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
-      expect(_painter(tester).props.showYAxisLables, isFalse);
-      expect(_painter(tester).props.showYAxisLablesTooltip, isTrue);
+      expect(_painter(tester).props.showYAxisLabels, isFalse);
+      expect(_painter(tester).props.showYAxisLabelsTooltip, isTrue);
 
       await mouseClick(tester, find.text('Expand Y Axis Ticks'));
-      expect(_painter(tester).props.showYAxisLables, isTrue);
-      expect(_painter(tester).props.showYAxisLablesTooltip, isFalse);
+      expect(_painter(tester).props.showYAxisLabels, isTrue);
+      expect(_painter(tester).props.showYAxisLabelsTooltip, isFalse);
       // The gutter does not widen here and that is arithmetic, not a broken
       // knob: the reserve is max(40, longest label + 20) and this story's
       // categories are single letters. The tooltip section drives the same
       // pair over "String Three" and proves the geometry follows.
 
       await mouseClick(tester, find.text('Show Tooltip at Y Axis Ticks'));
-      expect(_painter(tester).props.showYAxisLablesTooltip, isTrue);
+      expect(_painter(tester).props.showYAxisLabelsTooltip, isTrue);
     });
 
     testWidgets('the rounded-corners switch reaches the painter', (

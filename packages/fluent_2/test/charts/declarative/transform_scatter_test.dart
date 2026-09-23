@@ -5,8 +5,8 @@
 // rather than by preference:
 //
 //  1. `chart.supportNegativeData`, `chart.hideTickOverlap`, `chart.useUTC`,
-//     `chart.showYAxisLables`, `chart.roundedTicks` and
-//     `chart.showYAxisLablesTooltip` are not members of the three chart
+//     `chart.showYAxisLabels`, `chart.roundedTicks` and
+//     `chart.showYAxisLabelsTooltip` are not members of the three chart
 //     widgets. Plan 09 task 18's own audit correction says so outright — every
 //     axis setting lives on `FluentCartesianChartProps` — so they are asserted
 //     through `props`. `supportNegativeData` is dropped entirely: no chart in
@@ -85,7 +85,7 @@ void main() {
           'the axis must not re-interpret them as UTC.',
     );
     expect(
-      chart.props.showYAxisLables,
+      chart.props.showYAxisLabels,
       isTrue,
       reason: 'PlotlySchemaAdapter.ts:2177.',
     );
@@ -222,7 +222,7 @@ void main() {
       ],
     });
     expect(
-      chart.props.showYAxisLablesTooltip,
+      chart.props.showYAxisLabelsTooltip,
       isTrue,
       reason:
           'PlotlySchemaAdapter.ts:2201; the line and area transformers omit it.',
@@ -235,7 +235,7 @@ void main() {
           'scatterChartProps, built at :2162-2164.',
     );
     expect(
-      line(basic).props.showYAxisLablesTooltip,
+      line(basic).props.showYAxisLabelsTooltip,
       isFalse,
       reason:
           'PlotlySchemaAdapter.ts:2199 gates the tooltip on isScatterChart.',

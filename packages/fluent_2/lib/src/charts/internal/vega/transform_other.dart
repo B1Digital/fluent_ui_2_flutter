@@ -416,15 +416,15 @@ FluentHeatMapChart transformVegaToHeatmap(
       // `:3511`.
       hideLegend: true,
       // `:3512`.
-      showYAxisLables: true,
+      showYAxisLabels: true,
       // `:3514`.
       hideTickOverlap: true,
       // `:3515`.
       noOfCharsToTruncate: truncate,
       // `:3516`.
-      showYAxisLablesTooltip: true,
+      showYAxisLabelsTooltip: true,
       // `:3517`.
-      wrapXAxisLables: true,
+      wrapXAxisLabels: true,
     ),
   );
 }

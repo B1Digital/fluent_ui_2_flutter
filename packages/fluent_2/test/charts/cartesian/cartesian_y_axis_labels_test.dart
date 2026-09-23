@@ -69,7 +69,7 @@ void main() {
 
   Future<void> pump(
     WidgetTester tester, {
-    required bool showYAxisLablesTooltip,
+    required bool showYAxisLabelsTooltip,
   }) => tester.pumpWidget(
     FluentApp(
       theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
@@ -85,8 +85,8 @@ void main() {
                 FluentHorizontalBarChartWithAxisDataPoint(x: 10, y: category),
             ],
             props: FluentCartesianChartProps(
-              showYAxisLables: true,
-              showYAxisLablesTooltip: showYAxisLablesTooltip,
+              showYAxisLabels: true,
+              showYAxisLabelsTooltip: showYAxisLabelsTooltip,
               // 4 is the default `noOfCharsToTruncate` upstream falls back to at
               // CartesianChart.tsx:403.
               noOfCharsToTruncate: 4,
@@ -114,10 +114,10 @@ void main() {
     ];
   }
 
-  testWidgets('showYAxisLablesTooltip paints its y labels inside the chart', (
+  testWidgets('showYAxisLabelsTooltip paints its y labels inside the chart', (
     tester,
   ) async {
-    await pump(tester, showYAxisLablesTooltip: true);
+    await pump(tester, showYAxisLabelsTooltip: true);
     final texts = yAxisTexts(tester);
     expect(
       texts,
@@ -137,12 +137,12 @@ void main() {
     }
   });
 
-  testWidgets('showYAxisLablesTooltip narrows the painted y labels', (
+  testWidgets('showYAxisLabelsTooltip narrows the painted y labels', (
     tester,
   ) async {
-    await pump(tester, showYAxisLablesTooltip: false);
+    await pump(tester, showYAxisLabelsTooltip: false);
     final full = <double>[for (final text in yAxisTexts(tester)) text.width];
-    await pump(tester, showYAxisLablesTooltip: true);
+    await pump(tester, showYAxisLabelsTooltip: true);
     final truncated = <double>[
       for (final text in yAxisTexts(tester)) text.width,
     ];
@@ -165,7 +165,7 @@ void main() {
   testWidgets('a chart without the tooltip flag still paints y label text', (
     tester,
   ) async {
-    await pump(tester, showYAxisLablesTooltip: false);
+    await pump(tester, showYAxisLabelsTooltip: false);
     for (final text in yAxisTexts(tester)) {
       expect(
         text.width,

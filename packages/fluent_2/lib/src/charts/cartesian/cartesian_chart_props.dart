@@ -98,10 +98,14 @@ class FluentCartesianChartProps {
     @Deprecated('Use xAxisTickSize.') double? xAxistickSize,
     this.annotations = const <FluentChartAnnotation>[],
     this.tickPadding,
-    this.showXAxisLablesTooltip = false,
+    bool showXAxisLabelsTooltip = false,
+    @Deprecated('Use showXAxisLabelsTooltip.')
+    bool showXAxisLablesTooltip = false,
     this.noOfCharsToTruncate = 4,
-    this.wrapXAxisLables = false,
-    this.rotateXAxisLables = false,
+    bool wrapXAxisLabels = false,
+    @Deprecated('Use wrapXAxisLabels.') bool wrapXAxisLables = false,
+    bool rotateXAxisLabels = false,
+    @Deprecated('Use rotateXAxisLabels.') bool rotateXAxisLables = false,
     this.dateLocalizeOptions,
     this.timeFormatLocale,
     this.customDateTimeFormatter,
@@ -122,8 +126,11 @@ class FluentCartesianChartProps {
     this.yAxisTickValues,
     this.xAxis,
     this.yAxis,
-    this.showYAxisLables = false,
-    this.showYAxisLablesTooltip = false,
+    bool showYAxisLabels = false,
+    @Deprecated('Use showYAxisLabels.') bool showYAxisLables = false,
+    bool showYAxisLabelsTooltip = false,
+    @Deprecated('Use showYAxisLabelsTooltip.')
+    bool showYAxisLablesTooltip = false,
     this.showRoundOffXTickValues = true,
     @Deprecated(
       'Has no effect in Flutter: the chart lays out inside a LayoutBuilder, '
@@ -138,6 +145,13 @@ class FluentCartesianChartProps {
     this.closePopoverOnRegionExit = false,
     this.popoverAnchorsToRegion = false,
   }) : xAxisTickSize = xAxistickSize ?? xAxisTickSize,
+       showXAxisLabelsTooltip =
+           showXAxisLabelsTooltip || showXAxisLablesTooltip,
+       wrapXAxisLabels = wrapXAxisLabels || wrapXAxisLables,
+       rotateXAxisLabels = rotateXAxisLabels || rotateXAxisLables,
+       showYAxisLabels = showYAxisLabels || showYAxisLables,
+       showYAxisLabelsTooltip =
+           showYAxisLabelsTooltip || showYAxisLablesTooltip,
        assert(
          useUTC == null || useUTC is bool || useUTC is String,
          'useUTC is `string | boolean` upstream (CartesianChart.types.ts:448).',
@@ -203,18 +217,36 @@ class FluentCartesianChartProps {
   final double? tickPadding;
 
   /// Whether x tick labels are truncated and given a hover tooltip.
-  /// `CartesianChart.types.ts:351`.
-  final bool showXAxisLablesTooltip;
+  /// `CartesianChart.types.ts:351`, where upstream spells it
+  /// `showXAxisLablesTooltip`.
+  final bool showXAxisLabelsTooltip;
+
+  /// The upstream spelling of [showXAxisLabelsTooltip], kept so existing
+  /// callers still compile.
+  @Deprecated('Use showXAxisLabelsTooltip.')
+  bool get showXAxisLablesTooltip => showXAxisLabelsTooltip;
 
   /// How many characters survive truncation. `CartesianChart.tsx:153`.
   final int noOfCharsToTruncate;
 
-  /// Whether x tick labels word-wrap. `CartesianChart.types.ts:364`.
-  final bool wrapXAxisLables;
+  /// Whether x tick labels word-wrap. `CartesianChart.types.ts:364`, where
+  /// upstream spells it `wrapXAxisLables`.
+  final bool wrapXAxisLabels;
+
+  /// The upstream spelling of [wrapXAxisLabels], kept so existing callers
+  /// still compile.
+  @Deprecated('Use wrapXAxisLabels.')
+  bool get wrapXAxisLables => wrapXAxisLabels;
 
   /// Whether x tick labels rotate by -45 degrees.
-  /// `CartesianChart.types.ts:370`.
-  final bool rotateXAxisLables;
+  /// `CartesianChart.types.ts:370`, where upstream spells it
+  /// `rotateXAxisLables`.
+  final bool rotateXAxisLabels;
+
+  /// The upstream spelling of [rotateXAxisLabels], kept so existing callers
+  /// still compile.
+  @Deprecated('Use rotateXAxisLabels.')
+  bool get rotateXAxisLables => rotateXAxisLabels;
 
   /// Locale options for date tick labels. `CartesianChart.tsx:253`.
   final FluentDateTimeFormatOptions? dateLocalizeOptions;
@@ -303,12 +335,24 @@ class FluentCartesianChartProps {
   final FluentAxisConfig? yAxis;
 
   /// Whether the left margin grows to fit the longest y tick label.
-  /// `CartesianChart.types.ts:549`.
-  final bool showYAxisLables;
+  /// `CartesianChart.types.ts:549`, where upstream spells it
+  /// `showYAxisLables`.
+  final bool showYAxisLabels;
+
+  /// The upstream spelling of [showYAxisLabels], kept so existing callers
+  /// still compile.
+  @Deprecated('Use showYAxisLabels.')
+  bool get showYAxisLables => showYAxisLabels;
 
   /// Whether y tick labels are truncated and given a hover tooltip.
-  /// `CartesianChart.types.ts:555`.
-  final bool showYAxisLablesTooltip;
+  /// `CartesianChart.types.ts:555`, where upstream spells it
+  /// `showYAxisLablesTooltip`.
+  final bool showYAxisLabelsTooltip;
+
+  /// The upstream spelling of [showYAxisLabelsTooltip], kept so existing
+  /// callers still compile.
+  @Deprecated('Use showYAxisLabelsTooltip.')
+  bool get showYAxisLablesTooltip => showYAxisLabelsTooltip;
 
   /// Whether the numeric x domain is passed through `nice()`.
   /// `CartesianChart.tsx:212`.
@@ -385,7 +429,7 @@ class FluentCartesianChartProps {
   final bool popoverAnchorsToRegion;
 
   /// The gap between an x tick line and its label: [tickPadding] when set,
-  /// otherwise 5 with [showXAxisLablesTooltip] and 10 without.
+  /// otherwise 5 with [showXAxisLabelsTooltip] and 10 without.
   ///
   /// `CartesianChart.tsx:215` is written
   /// `tickPadding: props.tickPadding || props.showXAxisLablesTooltip ? 5 : 10`,
@@ -399,7 +443,7 @@ class FluentCartesianChartProps {
   /// it, so the two can never drift.
   double get resolvedXAxisTickPadding => resolveShellXAxisTickPadding(
     tickPadding: tickPadding,
-    showXAxisLablesTooltip: showXAxisLablesTooltip,
+    showXAxisLabelsTooltip: showXAxisLabelsTooltip,
   );
 
   /// Whether overlapping x ticks are dropped, given the resolved tick layout.
@@ -407,7 +451,7 @@ class FluentCartesianChartProps {
   /// `CartesianChart.tsx:220`: rotation and the automatic tick layout both turn
   /// overlap hiding off outright, because each already resolves overlap itself.
   bool resolveHideTickOverlap(FluentTickLayout tickLayout) =>
-      rotateXAxisLables || tickLayout == FluentTickLayout.auto
+      rotateXAxisLabels || tickLayout == FluentTickLayout.auto
       ? false
       : hideTickOverlap;
 
@@ -453,10 +497,10 @@ class FluentCartesianChartProps {
     xAxisTickSize: xAxistickSize ?? xAxisTickSize ?? this.xAxisTickSize,
     annotations: annotations,
     tickPadding: tickPadding ?? this.tickPadding,
-    showXAxisLablesTooltip: showXAxisLablesTooltip,
+    showXAxisLabelsTooltip: showXAxisLabelsTooltip,
     noOfCharsToTruncate: noOfCharsToTruncate,
-    wrapXAxisLables: wrapXAxisLables,
-    rotateXAxisLables: rotateXAxisLables,
+    wrapXAxisLabels: wrapXAxisLabels,
+    rotateXAxisLabels: rotateXAxisLabels,
     dateLocalizeOptions: dateLocalizeOptions,
     timeFormatLocale: timeFormatLocale,
     customDateTimeFormatter: customDateTimeFormatter,
@@ -477,8 +521,8 @@ class FluentCartesianChartProps {
     yAxisTickValues: yAxisTickValues,
     xAxis: xAxis,
     yAxis: yAxis,
-    showYAxisLables: showYAxisLables,
-    showYAxisLablesTooltip: showYAxisLablesTooltip,
+    showYAxisLabels: showYAxisLabels,
+    showYAxisLabelsTooltip: showYAxisLabelsTooltip,
     showRoundOffXTickValues:
         showRoundOffXTickValues ?? this.showRoundOffXTickValues,
     enableFirstRenderOptimization: enableFirstRenderOptimization,

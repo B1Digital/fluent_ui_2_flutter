@@ -26,12 +26,12 @@ void main() {
     final chart = build(stacked);
     expect(chart.roundCorners, isTrue, reason: 'ts:2715.');
     expect(chart.barGapMax, 2, reason: 'ts:2717.');
-    expect(chart.props.showYAxisLables, isTrue, reason: 'ts:2714.');
+    expect(chart.props.showYAxisLabels, isTrue, reason: 'ts:2714.');
     expect(chart.props.hideTickOverlap, isTrue, reason: 'ts:2716.');
     expect(chart.props.noOfCharsToTruncate, 20, reason: 'ts:2718.');
-    expect(chart.props.showYAxisLablesTooltip, isTrue, reason: 'ts:2719.');
+    expect(chart.props.showYAxisLabelsTooltip, isTrue, reason: 'ts:2719.');
     expect(
-      chart.props.wrapXAxisLables,
+      chart.props.wrapXAxisLabels,
       isTrue,
       reason: 'ts:2720; xAxisPoint is a String here.',
     );

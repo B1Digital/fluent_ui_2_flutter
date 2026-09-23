@@ -112,6 +112,36 @@ void main() {
       expect(params.xAxisTickSize, 3, reason: 'FluentXAxisParams, old arg');
       expect(params.xAxistickSize, 3, reason: 'FluentXAxisParams, old getter');
     });
+
+    test('the *Lables flags forward to the *Labels ones', () {
+      const props = FluentCartesianChartProps(
+        showXAxisLablesTooltip: true,
+        wrapXAxisLables: true,
+        rotateXAxisLables: true,
+        showYAxisLables: true,
+        showYAxisLablesTooltip: true,
+      );
+      expect(props.showXAxisLabelsTooltip, isTrue);
+      expect(props.wrapXAxisLabels, isTrue);
+      expect(props.rotateXAxisLabels, isTrue);
+      expect(props.showYAxisLabels, isTrue);
+      expect(props.showYAxisLabelsTooltip, isTrue);
+      expect(props.showXAxisLablesTooltip, isTrue, reason: 'old getter');
+      expect(props.wrapXAxisLables, isTrue, reason: 'old getter');
+      expect(props.rotateXAxisLables, isTrue, reason: 'old getter');
+      expect(props.showYAxisLables, isTrue, reason: 'old getter');
+      expect(props.showYAxisLablesTooltip, isTrue, reason: 'old getter');
+      expect(
+        props.copyWith(tickPadding: 1).showYAxisLabels,
+        isTrue,
+        reason: 'copyWith carries the flags over',
+      );
+      expect(
+        resolveShellXAxisTickPadding(showXAxisLablesTooltip: true),
+        5,
+        reason: 'the old resolver argument still selects the tooltip branch',
+      );
+    });
   });
 
   group('resolvedXAxisTickPadding corrects the precedence defect', () {
@@ -148,7 +178,7 @@ void main() {
     test('the tooltip flag alone collapses it to 5', () {
       expect(
         const FluentCartesianChartProps(
-          showXAxisLablesTooltip: true,
+          showXAxisLabelsTooltip: true,
         ).resolvedXAxisTickPadding,
         5,
         reason: 'the second operand of the || at CartesianChart.tsx:215',
@@ -161,15 +191,15 @@ void main() {
           expect(
             FluentCartesianChartProps(
               tickPadding: tickPadding,
-              showXAxisLablesTooltip: showTooltip,
+              showXAxisLabelsTooltip: showTooltip,
             ).resolvedXAxisTickPadding,
             resolveShellXAxisTickPadding(
               tickPadding: tickPadding,
-              showXAxisLablesTooltip: showTooltip,
+              showXAxisLabelsTooltip: showTooltip,
             ),
             reason:
                 'the shell must not fork axis_builders.dart:33 — tickPadding '
-                '$tickPadding, showXAxisLablesTooltip $showTooltip',
+                '$tickPadding, showXAxisLabelsTooltip $showTooltip',
           );
         }
       }
@@ -190,7 +220,7 @@ void main() {
     test('rotation disables it', () {
       expect(
         const FluentCartesianChartProps(
-          rotateXAxisLables: true,
+          rotateXAxisLabels: true,
         ).resolveHideTickOverlap(FluentTickLayout.defaultLayout),
         isFalse,
         reason: 'first arm of the ternary at CartesianChart.tsx:220',

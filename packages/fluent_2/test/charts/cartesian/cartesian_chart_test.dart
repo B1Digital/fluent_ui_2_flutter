@@ -244,12 +244,12 @@ void main() {
     );
   });
 
-  testWidgets('showYAxisLables widens the left margin in the same frame', (
+  testWidgets('showYAxisLabels widens the left margin in the same frame', (
     tester,
   ) async {
     await pump(
       tester,
-      chart(props: const FluentCartesianChartProps(showYAxisLables: true)),
+      chart(props: const FluentCartesianChartProps(showYAxisLabels: true)),
     );
     expect(
       painterOf(tester).layout.startFromX,
