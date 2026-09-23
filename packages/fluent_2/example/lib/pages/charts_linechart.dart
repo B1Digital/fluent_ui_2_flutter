@@ -1281,7 +1281,7 @@ class _LineChartCustomLocaleDateAxisState
             label: Text(
               _allowMultipleShapes
                   ? 'Enabled multiple shapes for each line'
-                  : 'Disbaled multiple shapes for each line',
+                  : 'Disabled multiple shapes for each line',
             ),
             onChanged: (bool value) =>
                 setState(() => _allowMultipleShapes = value),

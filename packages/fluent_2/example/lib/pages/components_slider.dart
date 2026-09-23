@@ -44,7 +44,7 @@ const DocsPage sliderPage = DocsPage(
       title: 'Step',
       description:
           'You can define the step value of a slider so that the value will '
-          'always be a mutiple of that step',
+          'always be a multiple of that step',
       builder: _step,
     ),
     DocsSection(
