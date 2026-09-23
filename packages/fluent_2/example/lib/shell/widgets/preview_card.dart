@@ -9,8 +9,9 @@ import '../docs_metrics.dart';
 import '../rtl_scope.dart';
 import '../showroom_scope.dart';
 import '../theme_variants.dart';
-import 'canvas_toolbar.dart';
 import 'code_panel.dart';
+import 'preview_band.dart';
+import 'story_outlines.dart';
 
 /// One story section's preview: the bordered card, its zoom controls, its action
 /// row, and the code panel that slides out underneath.
@@ -93,15 +94,37 @@ class _PreviewCardState extends State<PreviewCard> {
                     onZoomOut: () => _stepZoom(-1),
                     onReset: () => setState(() => _zoom = 1),
                   ),
-                  _StoryStage(
-                    variant: scope.variant,
-                    zoom: _zoom,
-                    child: widget.section.builder(context),
-                  ),
-                  _ActionRow(
-                    showCode: _showCode,
-                    onToggleCode: () => setState(() => _showCode = !_showCode),
-                    onOpenInNewTab: _openInNewTab,
+                  // Upstream's `.docs-story`: the grid and the background
+                  // show only in the 38px band around the opaque story
+                  // wrapper, and the action bar sits over the bottom band,
+                  // flush with it, its right edge ~31px in (`geo.tree`).
+                  // ponytail: not snapped to device pixels; at DPR 1 with an
+                  // odd pane width or a dragged sidebar the 1px grid lines
+                  // smear lighter (pitch intact). Snap the band's global x in a
+                  // RenderProxyBox if that shows.
+                  PreviewBand(
+                    grid: scope.grid,
+                    background: scope.background,
+                    child: Stack(
+                      fit: StackFit.passthrough,
+                      children: <Widget>[
+                        _StoryStage(
+                          variant: scope.variant,
+                          zoom: _zoom,
+                          child: widget.section.builder(context),
+                        ),
+                        Positioned(
+                          right: 31,
+                          bottom: 0,
+                          child: _ActionRow(
+                            showCode: _showCode,
+                            onToggleCode: () =>
+                                setState(() => _showCode = !_showCode),
+                            onOpenInNewTab: _openInNewTab,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -118,9 +141,15 @@ class _PreviewCardState extends State<PreviewCard> {
   }
 }
 
-/// `innerZoomElementWrapper` inset, upstream. The zoom bar above already
-/// supplies the card's top padding.
-const EdgeInsets _stageInset = EdgeInsets.fromLTRB(30, 0, 30, 30);
+/// The band between `.docs-story` and the story, upstream: the zoom wrapper's
+/// 30px padding plus the story child's 8px transparent border
+/// (`addons/docs/src/blocks/components/Preview.tsx:50-58,260`), measured 38px
+/// on all four sides of the live card.
+///
+/// ponytail: the band stays outside the zoom transform, so it keeps 38px when
+/// a card zooms; upstream's scales with the zoom (59.4px at x1.5625). Move the
+/// inset inside the `Transform.scale` if that ever matters.
+const EdgeInsets _stageInset = EdgeInsets.all(38);
 
 /// The story itself, re-themed and scaled.
 class _StoryStage extends StatelessWidget {
@@ -154,40 +183,33 @@ class _StoryStage extends StatelessWidget {
               color: data.colors.neutralForeground1,
               size: 20,
             ),
-            // Upstream's story decorator paints rgb(250,250,250) with
-            // `padding: 48px 24px`, inside a white FluentProvider, inset by the
-            // zoom wrapper's 30px. That grey is not a literal — it is
-            // `neutralBackground2` on the web light ramp, so reading it from
-            // the theme both matches the reference and tracks the Theme
-            // dropdown the way upstream's does.
-            child: ColoredBox(
-              color: data.colors.neutralBackground1,
-              child: CanvasGrid(
-                enabled: scope.grid,
-                child: ColoredBox(
-                  color: scope.background
-                      ? data.colors.neutralBackground2
-                      : const Color(0x00000000),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 48,
-                    ),
-                    child: Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      // The toolbar's viewport menu caps the story's width, and
-                      // its padlock freezes pointer input so a demo can be read
-                      // without being driven.
-                      child: _Constrain(
-                        width: scope.viewport.width,
-                        child: _Outline(
-                          enabled: scope.outlines,
-                          child: IgnorePointer(
-                            ignoring: scope.locked,
-                            child: child,
-                          ),
-                        ),
-                      ),
+            // The outliner sits above the wrapper, so the wrapper is its first
+            // descendant and gets the blue box upstream's
+            // `[data-story-block] div` rule gives it.
+            child: StoryOutlines(
+              enabled: scope.outlines,
+              // Upstream's story decorator, `FluentExampleContainer`
+              // (`withFluentProvider.tsx:56-61`): an opaque
+              // `colorNeutralBackground2` box with `padding: 48px 24px`,
+              // always painted. It covers the FluentProvider's nb1 behind it
+              // exactly, so that box is not drawn here. Read from the theme,
+              // it tracks the Theme menu: #fafafa light, #1f1f1f Web Dark,
+              // #242424 Teams Dark, #000 High Contrast.
+              child: ColoredBox(
+                color: data.colors.neutralBackground2,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 48,
+                  ),
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    // Strict mode flips the key, so every story remounts on
+                    // each toggle — what wrapping and unwrapping
+                    // `<React.StrictMode>` does upstream.
+                    child: KeyedSubtree(
+                      key: ValueKey<bool>(scope.strictMode),
+                      child: child,
                     ),
                   ),
                 ),
@@ -315,23 +337,20 @@ class _ActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: <Widget>[
-          _ActionButton(
-            label: 'Open in new tab',
-            icon: FluentIcons.open_20_regular,
-            onPressed: () => unawaited(onOpenInNewTab()),
-          ),
-          const SizedBox(width: 4),
-          _ActionButton(
-            label: showCode ? 'Hide code' : 'Show code',
-            onPressed: onToggleCode,
-          ),
-        ],
-      ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        _ActionButton(
+          label: 'Open in new tab',
+          icon: FluentIcons.open_20_regular,
+          onPressed: () => unawaited(onOpenInNewTab()),
+        ),
+        const SizedBox(width: 4),
+        _ActionButton(
+          label: showCode ? 'Hide code' : 'Show code',
+          onPressed: onToggleCode,
+        ),
+      ],
     );
   }
 }
@@ -374,38 +393,4 @@ class _ActionButton extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Caps the story's width when the toolbar asks for a viewport size.
-class _Constrain extends StatelessWidget {
-  const _Constrain({required this.width, required this.child});
-
-  final double? width;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) =>
-      width == null ? child : SizedBox(width: width, child: child);
-}
-
-/// Draws a box around the story, which is what "apply outlines" can honestly
-/// mean here: Flutter has no DOM to outline element by element, and
-/// `debugPaintSizeEnabled` is a global that does nothing in a release build.
-class _Outline extends StatelessWidget {
-  const _Outline({required this.enabled, required this.child});
-
-  final bool enabled;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => enabled
-      ? DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: DocsMetrics.railActive.withValues(alpha: 0.6),
-            ),
-          ),
-          child: child,
-        )
-      : child;
 }

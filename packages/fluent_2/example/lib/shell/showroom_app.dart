@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'router.dart';
 import 'showroom_scope.dart';
 import 'theme_variants.dart';
+import 'widgets/preview_band.dart';
 
 /// The showroom: a Flutter rendering of the Fluent UI React Storybook.
 class ShowroomApp extends StatefulWidget {
@@ -20,12 +21,11 @@ class _ShowroomAppState extends State<ShowroomApp> {
 
   ThemeVariant _variant = ThemeVariant.webLight;
   TextDirection _textDirection = TextDirection.ltr;
+  // Upstream's defaults: no grid, no background, no outlines, strict mode off.
   bool _grid = false;
-  bool _background = true;
+  PreviewBackground? _background;
   bool _outlines = false;
-  PreviewViewport _viewport = PreviewViewport.responsive;
-  bool _locked = false;
-  bool _fullScreen = false;
+  bool _strictMode = false;
   bool _sidebarVisible = true;
 
   @override
@@ -59,21 +59,22 @@ class _ShowroomAppState extends State<ShowroomApp> {
       grid: _grid,
       background: _background,
       outlines: _outlines,
-      viewport: _viewport,
-      locked: _locked,
-      fullScreen: _fullScreen,
+      strictMode: _strictMode,
       sidebarVisible: _sidebarVisible,
       onVariantChanged: (ThemeVariant value) =>
           setState(() => _variant = value),
       onTextDirectionChanged: (TextDirection value) =>
           setState(() => _textDirection = value),
       onToggleGrid: () => setState(() => _grid = !_grid),
-      onToggleBackground: () => setState(() => _background = !_background),
+      onBackgroundChanged: (PreviewBackground? value) => setState(() {
+        _background = value;
+        // "Reset background" clears the whole `backgrounds` global upstream.
+        if (value == null) {
+          _grid = false;
+        }
+      }),
       onToggleOutlines: () => setState(() => _outlines = !_outlines),
-      onViewportChanged: (PreviewViewport value) =>
-          setState(() => _viewport = value),
-      onToggleLocked: () => setState(() => _locked = !_locked),
-      onToggleFullScreen: () => setState(() => _fullScreen = !_fullScreen),
+      onToggleStrictMode: () => setState(() => _strictMode = !_strictMode),
       onToggleSidebar: () => setState(() => _sidebarVisible = !_sidebarVisible),
       child: FluentApp.router(
         title: 'Fluent UI Flutter v9',
