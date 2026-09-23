@@ -425,6 +425,13 @@ void main() {
           'HorizontalBarChart.tsx:284 swaps the rect for a text on the '
           'placeholder point, which is the one :404 synthesised.',
     );
+    expect(
+      painterOf(tester).layout.rectOf(0, 12).width,
+      closeTo(100, 1e-9),
+      reason:
+          'The label takes no gap, so the value bar keeps its exact 25% of '
+          'the 400px scale instead of making room for a second bar.',
+    );
   });
 
   // The vertical metrics of a row, which are the whole of what
@@ -672,6 +679,24 @@ void main() {
       return boxes[row];
     }
 
+    /// Captured rect [i] of [rects] as the port paints it inside [svgWidth].
+    ///
+    /// Upstream paints the bars at full share and lets the 3px gaps run past
+    /// the svg; [FluentHorizontalBarRowLayout.compute] shrinks every bar by
+    /// one factor into the room the gaps leave and keeps the gaps. Every rect
+    /// in the rows asserted here has width.
+    Rect fitted(List<OracleElement> rects, int i, double svgWidth) {
+      const gap = 3.0;
+      final shrink = (svgWidth - (rects.length - 1) * gap) / svgWidth;
+      final captured = rects[i].bbox!;
+      return Rect.fromLTWH(
+        (captured.left - i * gap) * shrink + i * gap,
+        captured.top,
+        captured.width * shrink,
+        captured.height,
+      );
+    }
+
     testWidgets('$basicId row 0 reproduces both rects and its value', (
       tester,
     ) async {
@@ -707,14 +732,9 @@ void main() {
             'HorizontalBarChart.tsx:404 synthesises.',
       );
       for (var i = 0; i < rects.length; i++) {
-        expectOracleNumber(
-          '$basicId row 0 rect $i: x percent',
-          rects[i].x!,
-          painter.layout.segments[i].xPercent,
-        );
         expectOracleRect(
-          '$basicId row 0 rect $i: painted pixels',
-          rects[i].bbox!,
+          '$basicId row 0 rect $i: painted pixels, fitted',
+          fitted(rects, i, svg.width),
           painter.layout.rectOf(i, rects[i].height!),
         );
         expectOracleColour(
@@ -791,14 +811,9 @@ void main() {
       );
       final painter = painterOf(tester);
       for (var i = 0; i < rects.length; i++) {
-        expectOracleNumber(
-          '$stackedId row 0 rect $i: width percent',
-          rects[i].width!,
-          painter.layout.segments[i].widthPercent,
-        );
         expectOracleRect(
-          '$stackedId row 0 rect $i: painted pixels',
-          rects[i].bbox!,
+          '$stackedId row 0 rect $i: painted pixels, fitted',
+          fitted(rects, i, svg.width),
           painter.layout.rectOf(i, rects[i].height!),
         );
       }

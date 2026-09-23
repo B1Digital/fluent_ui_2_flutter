@@ -1,10 +1,11 @@
 import 'package:fluent_2/src/charts/horizontal_bar_chart.dart';
 import 'package:fluent_2/src/charts/model/bar_data.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/oracle_fixture.dart';
 
-/// Two upstream defects meet in this arithmetic and partly cancel.
+/// Two upstream defects meet in this arithmetic, and the port fixes both.
 ///
 /// 1. `noOfBars` counts points whose `point.data` — the **benchmark** field,
 ///    not the bar value — exceeds zero (`HorizontalBarChart.tsx:219-221`). For
@@ -14,9 +15,10 @@ import '../support/oracle_fixture.dart';
 ///    100` (`:262`, `:276`), which grows the bars when the margin is non-zero
 ///    instead of shrinking them as the comment at `:254-261` intends.
 ///
-/// With defect 1 in play the margin is 0, the division degenerates to
-/// `v * 100 / sum`, and the bars sum to exactly 100% — plus `(n-1) * 3` px of
-/// gap that nothing subtracted, which is the visible overflow.
+/// Upstream's bars therefore sum to exactly 100%, plus `(n-1) * 3` px of gap
+/// that nothing subtracted, which is the visible overflow. The port counts the
+/// bars that paint and divides by `sumOfPercent / (100 - totalMarginPercent)`,
+/// so the bars and their gaps fill the row exactly.
 void main() {
   FluentChartDataPoint point(double x, {double? benchmark}) =>
       FluentChartDataPoint(
@@ -25,17 +27,20 @@ void main() {
         horizontalBarChartData: FluentHorizontalDataPoint(x: x, total: 100),
       );
 
-  group('the gap overflows the row by (n-1) * 3 px', () {
-    final layout = FluentHorizontalBarRowLayout.compute(
-      points: <FluentChartDataPoint>[point(30), point(40), point(30)],
-      rowWidth: 400,
-      barGap: 3,
-      isRtl: false,
-    );
+  // Issue #36: upstream, and the port before it, painted this row at 0-120,
+  // 123-283 and 286-406 in LTR, and from -6 under RTL.
+  group('three bars and two 3px gaps fit the 400px row', () {
+    FluentHorizontalBarRowLayout layout({bool isRtl = false}) =>
+        FluentHorizontalBarRowLayout.compute(
+          points: <FluentChartDataPoint>[point(30), point(40), point(30)],
+          rowWidth: 400,
+          barGap: 3,
+          isRtl: isRtl,
+        );
 
     test('the gap is expressed as a percentage of the row width', () {
       expect(
-        layout.gapPercent,
+        layout().gapPercent,
         closeTo(0.75, 1e-12),
         reason:
             'HorizontalBarChart.tsx:366 is (3 / svgWidth) * 100, and '
@@ -43,52 +48,53 @@ void main() {
       );
     });
 
-    test('noOfBars is 1 so no margin is subtracted', () {
+    test('the bars shrink into the 98.5% the two gaps leave', () {
       expect(
-        layout.scalingRatio,
-        closeTo(1, 1e-12),
+        layout().scalingRatio,
+        closeTo(100 / 98.5, 1e-12),
         reason:
-            'HorizontalBarChart.tsx:262 — sumOfPercent is 100 and '
-            'totalMarginPercent is 0 because :219-221 counts point.data, which '
-            'is null for ordinary data.',
+            'sumOfPercent is 100 and the three bars have two 0.75% gaps. '
+            'HorizontalBarChart.tsx:262 divides by (100 - 0) / 100 = 1, '
+            'because :219-221 counts point.data, which is null here.',
       );
     });
 
-    test('bar x positions are 0, 123 and 286 pixels', () {
-      final xs = <double>[
-        for (var i = 0; i < 3; i++) layout.rectOf(i, 12).left,
-      ];
+    test('widths are 118.2, 157.6 and 118.2 pixels', () {
       expect(
-        xs,
-        <Matcher>[closeTo(0, 1e-9), closeTo(123, 1e-9), closeTo(286, 1e-9)],
-        reason:
-            'HorizontalBarChart.tsx:312 is '
-            '`startingPoint[i] + i * barSpacingInPercent`, so the third bar '
-            'starts at (70 + 1.5)% of 400.',
+        <double>[for (var i = 0; i < 3; i++) layout().rectOf(i, 12).width],
+        <Matcher>[
+          closeTo(118.2, 1e-9),
+          closeTo(157.6, 1e-9),
+          closeTo(118.2, 1e-9),
+        ],
+        reason: '120, 160 and 120, scaled by 394 / 400 to make room for 6px.',
       );
     });
 
-    test('the last bar ends six pixels outside the 400px row', () {
-      // parity: HorizontalBarChart.tsx:222 computes a margin allowance the
-      // noOfBars defect always makes 0, and the svg is overflow: visible
-      // (useHorizontalBarChartStyles.styles.ts:49), so nothing clips it.
-      expect(
-        layout.rectOf(2, 12).right,
-        closeTo(406, 1e-9),
-        reason:
-            'Three bars of 120, 160 and 120 plus two 3px gaps is 406 in a '
-            '400px box — the (n-1) * 3 overflow the design spec names in '
-            'section 5.2.',
-      );
-    });
-
-    test('widths are 120, 160 and 120 pixels', () {
-      expect(
-        <double>[for (var i = 0; i < 3; i++) layout.rectOf(i, 12).width],
-        <Matcher>[closeTo(120, 1e-9), closeTo(160, 1e-9), closeTo(120, 1e-9)],
-        reason: r'HorizontalBarChart.tsx:315 sets width to `${value}%`.',
-      );
-    });
+    for (final isRtl in <bool>[false, true]) {
+      test('every bar lies inside the row, 3px apart (rtl: $isRtl)', () {
+        final rects = <Rect>[
+          for (var i = 0; i < 3; i++) layout(isRtl: isRtl).rectOf(i, 12),
+        ];
+        // Data order runs from the leading edge.
+        final ordered = isRtl ? rects.reversed.toList() : rects;
+        expect(ordered.first.left, closeTo(0, 1e-9), reason: '$rects');
+        expect(
+          ordered.last.right,
+          closeTo(400, 1e-9),
+          reason:
+              'HorizontalBarChart.tsx:311-312 ends this row at 406, or starts '
+              'it at -6 under RTL: $rects',
+        );
+        for (var i = 1; i < 3; i++) {
+          expect(
+            ordered[i].left - ordered[i - 1].right,
+            closeTo(3, 1e-9),
+            reason: 'MARGIN_WIDTH_IN_PX (HorizontalBarChart.tsx:364): $rects',
+          );
+        }
+      });
+    }
   });
 
   group('the sub-1% clamp and the stale-value accumulator', () {
@@ -109,8 +115,10 @@ void main() {
       );
       expect(
         layout.scalingRatio,
-        closeTo(1.018, 1e-12),
-        reason: 'HorizontalBarChart.tsx:262 — (101.8 - 0) / 100.',
+        closeTo(101.8 / 98.5, 1e-12),
+        reason:
+            'The clamped sum over the 98.5% that two 0.75% gaps leave; '
+            'HorizontalBarChart.tsx:262 is (101.8 - 0) / 100.',
       );
     });
 
@@ -118,9 +126,9 @@ void main() {
       expect(
         layout.segments.map((s) => s.widthPercent).toList(),
         <Matcher>[
-          closeTo(0.9823182711198428, 1e-12),
-          closeTo(0.9823182711198428, 1e-12),
-          closeTo(98.03536345776031, 1e-12),
+          closeTo(0.9675834970530451, 1e-12),
+          closeTo(0.9675834970530451, 1e-12),
+          closeTo(96.5648330058939, 1e-12),
         ],
         reason:
             'HorizontalBarChart.tsx:274 uses `1 / scalingRatio` for the '
@@ -133,8 +141,8 @@ void main() {
         layout.segments.map((s) => s.startPercent).toList(),
         <Matcher>[
           closeTo(0, 1e-12),
-          closeTo(0.9823182711198428, 1e-12),
-          closeTo(1.9646365422396856, 1e-12),
+          closeTo(0.9675834970530451, 1e-12),
+          closeTo(1.9351669941060903, 1e-12),
         ],
         reason:
             "HorizontalBarChart.tsx:267-270 adds the PREVIOUS iteration's "
@@ -172,8 +180,32 @@ void main() {
             'The total is 95, so 100 is 105.263% before scaling and exactly '
             '100% after dividing by the ratio 1.0526315789473684.',
       );
+      expect(
+        layout.segments[1].xPercent,
+        closeTo(0, 1e-12),
+        reason:
+            'The zeroed bar paints nothing, so no gap follows it. '
+            'HorizontalBarChart.tsx:312 offsets by `index * '
+            'barSpacingInPercent` and pushes this bar 3px past the row.',
+      );
     },
   );
+
+  test('a row narrower than its gaps paints zero-width bars', () {
+    final layout = FluentHorizontalBarRowLayout.compute(
+      points: <FluentChartDataPoint>[point(30), point(40), point(30)],
+      rowWidth: 4,
+      barGap: 3,
+      isRtl: false,
+    );
+    expect(
+      layout.segments.map((s) => s.widthPercent),
+      everyElement(closeTo(0, 1e-12)),
+      reason:
+          'Two 3px gaps take 150% of a 4px row, which leaves the bars no '
+          'room. A negative width would reach Positioned.fromRect.',
+    );
+  });
 
   test(
     'a share of exactly one percent takes the else branch, not the clamp',
@@ -193,38 +225,32 @@ void main() {
       );
       expect(
         layout.segments[0].widthPercent,
-        closeTo(1, 1e-12),
-        reason: 'A ratio of 1 leaves the value untouched.',
+        closeTo(0.9925, 1e-12),
+        reason: 'The value scaled into the 99.25% that one 0.75% gap leaves.',
       );
     },
   );
 
-  test('a benchmark value activates noOfBars and grows the bars', () {
-    final layout = FluentHorizontalBarRowLayout.compute(
-      points: <FluentChartDataPoint>[
-        point(30, benchmark: 1),
-        point(40, benchmark: 1),
-        point(30, benchmark: 1),
-      ],
-      rowWidth: 400,
-      barGap: 3,
-      isRtl: false,
-    );
+  test('a benchmark value leaves the bar geometry alone', () {
+    List<FluentHorizontalBarSegment> segments({double? benchmark}) =>
+        FluentHorizontalBarRowLayout.compute(
+          points: <FluentChartDataPoint>[
+            point(30, benchmark: benchmark),
+            point(40, benchmark: benchmark),
+            point(30, benchmark: benchmark),
+          ],
+          rowWidth: 400,
+          barGap: 3,
+          isRtl: false,
+        ).segments;
     expect(
-      layout.scalingRatio,
-      closeTo(0.985, 1e-12),
+      segments(benchmark: 1),
+      segments(),
       reason:
-          'HorizontalBarChart.tsx:262 — (100 - 2 * 0.75) / 100 once '
-          'noOfBars is 3.',
-    );
-    // parity: dividing by a ratio below 1 GROWS the bars, the opposite of the
-    // intent stated in the comment at HorizontalBarChart.tsx:254-261.
-    expect(
-      layout.segments[1].widthPercent,
-      closeTo(40.60913705583756, 1e-12),
-      reason:
-          'HorizontalBarChart.tsx:276 divides rather than multiplies, so '
-          'making room for the gaps makes the bars wider, not narrower.',
+          'HorizontalBarChart.tsx:219-221 counts bars from point.data, the '
+          'benchmark field, so a benchmark on every point switched the margin '
+          'on and, through the division at :276, grew the middle bar to '
+          '40.609%. The port counts the bars that paint.',
     );
   });
 
@@ -237,11 +263,11 @@ void main() {
     );
     expect(
       <double>[for (var i = 0; i < 3; i++) layout.rectOf(i, 12).left],
-      <Matcher>[closeTo(280, 1e-9), closeTo(117, 1e-9), closeTo(-6, 1e-9)],
+      <Matcher>[closeTo(281.8, 1e-9), closeTo(121.2, 1e-9), closeTo(0, 1e-9)],
       reason:
           'HorizontalBarChart.tsx:311 is '
-          '`100 - startingPoint[i] - value - i * barSpacingInPercent`, so the '
-          'overflow moves to the leading edge.',
+          '`100 - startingPoint[i] - value - i * barSpacingInPercent`, which '
+          'puts the last bar at -6; shrunk to fit, it starts at the edge.',
     );
   });
 
@@ -272,7 +298,7 @@ void main() {
     },
   );
 
-  group('oracle B: the captured rows overflow their own svg', () {
+  group('oracle B: the captured rows, fitted inside their own svg', () {
     // Every HorizontalBarChart story whose rects sum to 100% of the row, which
     // is every one except the absolute-scale variant — there the placeholder
     // point renders as a <text> (`HorizontalBarChart.tsx:283-303`) rather than
@@ -298,7 +324,7 @@ void main() {
     });
 
     for (final storyId in storyIds) {
-      test('$storyId reproduces every rect x and width', () {
+      test('$storyId keeps every rect, gap and proportion', () {
         final story = loadOracleStory(storyId);
         expect(
           story.svgs,
@@ -345,46 +371,45 @@ void main() {
             barGap: barGap,
             isRtl: false,
           );
-          expectOracleNumber(
-            '$storyId row $rowsChecked: the scaling ratio is 1',
-            1,
-            layout.scalingRatio,
-          );
+
+          // Upstream paints the bars at their full shares and lets the gaps
+          // run past the svg; the port shrinks the painted bars, all by one
+          // factor, into the room the gaps leave. So every captured rect maps
+          // onto the port's with its start and width scaled and the 3px gaps
+          // before it kept. A zero-width rect paints nothing and takes no gap.
+          final painted = rects.where((rect) => rect.bbox!.width > 0).length;
+          final shrink = (svg.width - (painted - 1) * barGap) / svg.width;
+          var gaps = 0;
+          var paintedRight = 0.0;
           for (var i = 0; i < rects.length; i++) {
-            expectOracleNumber(
-              '$storyId row $rowsChecked rect $i: x percent',
-              rects[i].x ?? double.nan,
-              layout.segments[i].xPercent,
-            );
-            expectOracleNumber(
-              '$storyId row $rowsChecked rect $i: width percent',
-              rects[i].width ?? double.nan,
-              layout.segments[i].widthPercent,
-            );
+            final captured = rects[i].bbox!;
+            final actual = layout.rectOf(i, rects[i].height ?? 12);
             expectOracleRect(
-              '$storyId row $rowsChecked rect $i: painted pixels',
-              rects[i].bbox!,
-              layout.rectOf(i, rects[i].height ?? 12),
+              '$storyId row $rowsChecked rect $i: painted pixels, fitted',
+              Rect.fromLTWH(
+                (captured.left - i * barGap) * shrink + gaps * barGap,
+                captured.top,
+                captured.width * shrink,
+                captured.height,
+              ),
+              actual,
             );
+            if (captured.width > 0) {
+              gaps++;
+              if (actual.right > paintedRight) paintedRight = actual.right;
+            }
           }
 
           // The <g> bbox is the union of the painted rects, so its right edge
-          // is the overflow itself: `(n - 1) * 3` px past the svg for any row
-          // whose last bar has width. A zero-width rect has an empty bbox and
-          // Chromium leaves it out of the union, so it is excluded here too.
+          // is upstream's overflow: `(n - 1) * 3` px past the svg for any row
+          // whose last bar has width. The port's row ends at the edge.
           final group = svg.elements.singleWhere(
             (element) => element.tag == 'g',
           );
-          var paintedRight = 0.0;
-          for (var i = 0; i < rects.length; i++) {
-            final painted = layout.rectOf(i, rects[i].height ?? 12);
-            if (painted.width > 0 && painted.right > paintedRight) {
-              paintedRight = painted.right;
-            }
-          }
           expectOracleNumber(
-            '$storyId row $rowsChecked: the group overflows to',
-            group.bbox!.right,
+            '$storyId row $rowsChecked: the row ends at the svg edge, where '
+            'upstream overflows to ${group.bbox!.right}',
+            svg.width,
             paintedRight,
           );
           rowsChecked++;
@@ -397,7 +422,7 @@ void main() {
       });
     }
 
-    test('the three-bar row overflows its 600px svg by exactly six pixels', () {
+    test('the three-bar row upstream overflows by six pixels fits its svg', () {
       final story = loadOracleStory(
         'charts-horizontalbarchart--horizontal-bar-stacked',
       );
@@ -414,6 +439,25 @@ void main() {
             'a ${svg.width}px svg — the (n - 1) * 3 overflow, unclipped '
             'because useHorizontalBarChartStyles.styles.ts:49 is '
             "`overflow: 'visible'`.",
+      );
+      final layout = FluentHorizontalBarRowLayout.compute(
+        points: <FluentChartDataPoint>[
+          for (final rect in svg.elements.where((e) => e.tag == 'rect'))
+            FluentChartDataPoint(
+              horizontalBarChartData: FluentHorizontalDataPoint(
+                x: rect.width!,
+                total: 100,
+              ),
+            ),
+        ],
+        rowWidth: svg.width,
+        barGap: barGap,
+        isRtl: false,
+      );
+      expect(
+        layout.rectOf(2, 12).right,
+        closeTo(svg.width, 1e-9),
+        reason: 'The port makes room for both gaps inside the svg.',
       );
     });
   });
