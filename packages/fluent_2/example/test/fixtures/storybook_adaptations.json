@@ -790,7 +790,11 @@
   },
   "components-dialog--motion-custom": {
     "kind": "reduced",
-    "why": "FluentDialog exposes no surfaceMotion/backdropMotion hook \u2014 fluentDialogSurfaceEnter, fluentDialogSurfaceExit, fluentDialogScrim and fluentDialogOutScale are package constants. The four controls are live and the dialog animation is not, rather than dressing up a knob that does nothing as working."
+    "why": "FluentDialog exposes no surfaceMotion/backdropMotion hook \u2014 fluentDialogSurfaceEnter, fluentDialogSurfaceExit, fluentDialogScrim and fluentDialogOutScale are package constants, and only MediaQuery.disableAnimationsOf changes them. Upstream's four motion controls are left out rather than shown moving nothing, and the description, dialog title and body say what the dialog really plays.",
+    "sampleStringsSkip": [
+      "Surface animateOpacity",
+      "Dialog with custom motion params"
+    ]
   },
   "components-dialog--no-focusable-element": {
     "kind": "slot",
@@ -826,7 +830,7 @@
   },
   "components-drawer--inline": {
     "kind": "reduced",
-    "why": "FluentDrawerPosition is start/end only, so the third (bottom) inline drawer has no equivalent and 'Toggle bottom' is rendered disabled; ToggleButton is a plain FluentButton."
+    "why": "FluentDrawerPosition is start/end only, so the third (bottom) inline drawer has no equivalent and it and its 'Toggle bottom' button are left out rather than shown disabled; ToggleButton is a plain FluentButton."
   },
   "components-drawer--keep-rendered-in-the-dom": {
     "kind": "reduced",
@@ -854,7 +858,7 @@
   },
   "components-drawer--position": {
     "kind": "reduced",
-    "why": "FluentDrawerPosition is start/end only \u2014 the drawer anchors to a vertical edge in reading order \u2014 so 'Open Bottom' is rendered disabled."
+    "why": "FluentDrawerPosition is start/end only \u2014 the drawer anchors to a vertical edge in reading order \u2014 so 'Open Bottom' is left out rather than shown disabled, and the description drops the bottom position."
   },
   "components-drawer--prevent-close": {
     "kind": "nearest-widget",
@@ -870,7 +874,7 @@
   },
   "components-drawer--separator": {
     "kind": "reduced",
-    "why": "Same missing bottom position: the start and end inline drawers carry the separator, the bottom one is dropped and its toggle is disabled."
+    "why": "Same missing bottom position: the start and end inline drawers carry the separator, and the bottom one is dropped together with its toggle."
   },
   "components-drawer--with-navigation": {
     "kind": "slot",
@@ -1234,7 +1238,10 @@
   },
   "components-popover--motion-custom": {
     "kind": "reduced",
-    "why": "FluentPopover has no surfaceMotion slot; its entrance is FluentPopoverEntrance (Fluent's fade + direction-aware slide) and it is not replaceable, so the copy is kept and the stock entrance plays instead of a fade-in/blur-out."
+    "why": "FluentPopover has no surfaceMotion slot; its entrance is FluentPopoverEntrance (Fluent's fade + direction-aware slide) and it is not replaceable, so the stock entrance plays instead of a fade-in/blur-out and the body text says so.",
+    "sampleStringsSkip": [
+      "This popover fades in and blurs out."
+    ]
   },
   "components-popover--motion-disabled": {
     "kind": "composed",

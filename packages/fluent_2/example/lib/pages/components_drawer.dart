@@ -10,6 +10,11 @@ import '../shell/catalog.dart';
 /// id, so the "Show code" panel can read this file back and print exactly the
 /// code that rendered.
 ///
+/// The exception is the two Motion sections' copy: upstream's teaches
+/// `surfaceMotion`/`backdropMotion` slots FluentDrawer does not have, so it
+/// says what the drawer does instead. Position's copy likewise drops the bottom
+/// position [FluentDrawerPosition] does not have.
+///
 /// Upstream ships three components — `OverlayDrawer`, `InlineDrawer` and the
 /// combined `Drawer`. fluent_2 ships one, `FluentDrawer`, whose
 /// [FluentDrawerType] axis is the same decision: `overlay` is `OverlayDrawer`,
@@ -83,8 +88,9 @@ const DocsPage drawerPage = DocsPage(
       title: 'Position',
       description:
           'When a Drawer is invoked, it slides in from either the start or end '
-          'side, or bottom of the screen. This can be specified by the '
-          'position prop.',
+          'side of the screen. This can be specified by the position prop. '
+          'FluentDrawer has no bottom position: it anchors to a vertical edge '
+          'only.',
       builder: _position,
     ),
     DocsSection(
@@ -149,16 +155,22 @@ const DocsPage drawerPage = DocsPage(
       id: 'components-drawer--motion-custom',
       title: 'Motion Custom',
       description:
-          'Drawer animations can be customized using the Motion APIs, together '
-          'with the surfaceMotion prop.',
+          'FluentDrawer takes no motion parameters. It always slides in from '
+          'its edge while it fades in, over a time keyed to its size: 250ms at '
+          'small up to 500ms at full. An overlay drawer fades its backdrop '
+          'over the same time. When the MediaQuery above it sets '
+          'disableAnimations, it opens and closes with no transition.',
       builder: _motionCustom,
     ),
     DocsSection(
       id: 'components-drawer--motion-disabled',
       title: 'Motion Disabled',
       description:
-          'To disable the Drawer transition animation, you can set both '
-          'surfaceMotion and backdropMotion props of the Drawer to null.',
+          'FluentDrawer has no per-drawer switch for its motion. It follows '
+          'the disableAnimations flag of the MediaQuery above it, so this demo '
+          'wraps the drawer in a MediaQuery that sets it, and the drawer opens '
+          'and closes with no transition. In an app, the OS reduce-motion '
+          'setting sets the same flag.',
       builder: _motionDisabled,
     ),
     DocsSection(
@@ -637,13 +649,8 @@ class _InlineState extends State<_Inline> {
                       child: const Text('Toggle end'),
                     ),
                     // FluentDrawerPosition is start/end only — the drawer
-                    // anchors to a vertical edge, in reading order — so there
-                    // is no bottom drawer for this button to toggle.
-                    const FluentButton(
-                      appearance: FluentButtonAppearance.primary,
-                      onPressed: null,
-                      child: Text('Toggle bottom'),
-                    ),
+                    // anchors to a vertical edge, in reading order — so
+                    // upstream's bottom drawer and its toggle are left out.
                   ],
                 ),
               ),
@@ -779,12 +786,8 @@ class _PositionState extends State<_Position> {
           ),
           // FluentDrawerPosition is start/end only: the drawer anchors to a
           // vertical edge, in reading order, and flips with Directionality.
-          // There is no bottom edge to anchor to, so this button is inert.
-          const FluentButton(
-            appearance: FluentButtonAppearance.primary,
-            onPressed: null,
-            child: Text('Open Bottom'),
-          ),
+          // There is no bottom edge to anchor to, so upstream's 'Open Bottom'
+          // is left out.
         ],
       ),
     ],
@@ -987,12 +990,7 @@ class _SeparatorState extends State<_Separator> {
                   child: const Text('Toggle end'),
                 ),
                 // FluentDrawerPosition is start/end only, so the third drawer
-                // upstream stacks under the row has no equivalent here.
-                const FluentButton(
-                  appearance: FluentButtonAppearance.primary,
-                  onPressed: null,
-                  child: Text('Toggle bottom'),
-                ),
+                // upstream stacks under the row, and its toggle, are left out.
               ],
             ),
           ),

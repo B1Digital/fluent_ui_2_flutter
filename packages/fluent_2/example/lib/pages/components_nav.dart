@@ -9,6 +9,9 @@ import '../shell/catalog.dart';
 /// Each section's demo is delimited by a `#docregion` whose id is the section
 /// id, so the "Show code" panel can read this file back and print exactly the
 /// code that rendered.
+///
+/// The exception is Custom Motion's copy: upstream's teaches a `surfaceMotion`
+/// slot FluentNavDrawer does not have, so it says what the drawer does instead.
 const DocsPage navPage = DocsPage(
   id: 'components-nav',
   title: 'Nav',
@@ -36,8 +39,10 @@ const DocsPage navPage = DocsPage(
       id: 'components-nav--custom-motion',
       title: 'Custom Motion',
       description:
-          'NavDrawer animations can be customized using the Motion APIs, '
-          'together with the surfaceMotion prop.',
+          'FluentNavDrawer takes no motion parameters. It opens and closes '
+          "with FluentDrawer's own motion, a slide in from its edge with a "
+          'fade, over 250ms at the default size. When the MediaQuery above it '
+          'sets disableAnimations, it opens and closes with no transition.',
       builder: _customMotion,
     ),
   ],
