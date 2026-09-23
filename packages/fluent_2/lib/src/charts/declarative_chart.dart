@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 
 import 'chrome/legend.dart';
 import 'declarative_chart_style.dart';
+import 'internal/chart_export_scope.dart';
 import 'internal/chart_utils.dart' show areArraysEqual;
 import 'internal/data_viz_palette.dart' show fluentChartIsDarkTheme;
 import 'internal/image_export.dart' show FluentChartImageExporter;
@@ -72,27 +73,28 @@ class FluentPlotlySchema {
 /// `exportChartsAsImage` (`:453-462` → `image-export-utils.ts:31-80`), which
 /// re-lays the cells out on one canvas and rebuilds the HTML legend as SVG.
 /// It has to, because each cell is a separate SVG element and the legend is not
-/// an SVG at all. A Flutter grid is already one layer tree with the real legend
-/// painted inside it, so a single [RepaintBoundary] round the whole `Column`
-/// captures what those 46 lines reassemble — and it captures a one-cell figure
-/// just as well, so there is no branch left to write.
+/// an SVG at all. A Flutter grid is already one layer tree, so a single
+/// [RepaintBoundary] round the whole `Column` captures what those 46 lines
+/// reassemble — and it captures a one-cell figure just as well, so there is no
+/// branch left to write.
 /// // ponytail: one boundary, no compositor and no cell registry; restore the
 /// // per-cell path only if cells ever stop sharing a layer tree.
 ///
-/// Two consequences worth stating rather than discovering:
+/// A snapshot is what is on screen, though, and upstream never exports two
+/// things the screen shows: the live legend, whose "+N more" overflow it
+/// replaces with every legend (`cloneLegendsToSVG`), and a table's scroll
+/// window. So the charts inside the boundary register both with an internal
+/// export scope, and the export cuts the snapshot at the legend's top and draws
+/// the full strip with `FluentSynthesisedLegendPainter`, or, when the figure is
+/// a single table, cuts it at the viewport and continues with the whole table.
 ///
-///  * [FluentChartHandle] is not consulted. No shell chart implements it — the
-///    ones that expose an export handle (`FluentPolarChart`, `FluentSankeyChart`)
-///    do it through a `FluentChartController` parameter, and the transformers in
-///    `internal/plotly/` construct their charts without one. A `_registerHandle`
-///    type-test against the built widget would therefore have matched nothing,
-///    ever, which is precisely the uncalled-helper defect this programme keeps
-///    shipping.
-///  * `FluentSynthesisedLegendPainter` (`internal/image_export.dart`) is not
-///    reached from here, because the legend inside the boundary is the real one.
-///    It is still live for a single chart whose legend sits outside its own
-///    boundary — `FluentPolarChart` and `FluentSankeyChart` both go that way —
-///    so it is not dead and must not be deleted as such.
+/// [FluentChartHandle] is not consulted. No shell chart implements it — the
+/// ones that expose an export handle (`FluentPolarChart`, `FluentSankeyChart`)
+/// do it through a `FluentChartController` parameter, and the transformers in
+/// `internal/plotly/` construct their charts without one. A `_registerHandle`
+/// type-test against the built widget would therefore have matched nothing,
+/// ever, which is precisely the uncalled-helper defect this programme keeps
+/// shipping.
 class FluentDeclarativeChartController extends ChangeNotifier {
   /// Creates a detached controller.
   FluentDeclarativeChartController();
@@ -281,12 +283,19 @@ class _FluentDeclarativeChartState extends State<FluentDeclarativeChart> {
   /// composite of several — see [FluentDeclarativeChartController].
   final GlobalKey _boundaryKey = GlobalKey();
 
+  /// What the charts inside [_boundaryKey] tell an export it cannot see.
+  final FluentChartExportRegistry _exportRegistry = FluentChartExportRegistry();
+
   /// The last resolved style, so [exportAsImage] can read the export defaults
   /// without a [BuildContext] of its own.
   ///
   /// // ponytail: a build-time cache for the export path only; it is never read
   /// // during layout, so no `setState` is involved and no frame is scheduled.
   FluentDeclarativeChartStyle _style = const FluentDeclarativeChartStyle();
+
+  /// Whether the last figure built was a grid, cached for the export path on
+  /// the same terms as [_style].
+  bool _isMultiPlot = false;
 
   @override
   void initState() {
@@ -337,12 +346,59 @@ class _FluentDeclarativeChartState extends State<FluentDeclarativeChart> {
           ? _style.exportBackgroundColor?.resolve(noStates) ?? transparent
           : options.background,
     );
-    // `:445-461`, both arms collapsed onto the one boundary. The legend list is
-    // empty because the on-screen legend is already inside it; passing
-    // `allupLegends` here would draw a second, synthesised copy underneath.
+    // `:445-461`, both arms collapsed onto the one boundary. What a snapshot of
+    // it cannot show, the charts inside have registered: the legend, whose
+    // "+N more" overflow upstream never exports, and a table's scroll viewport,
+    // whose window is not the table.
+    final boundary = _boundaryKey.currentContext?.findRenderObject();
+    final legends = <FluentChartExportLegend>[
+      for (final legend in _exportRegistry.legends.values) legend(),
+    ];
+    final viewports = <FluentChartExportViewport>[
+      for (final viewport in _exportRegistry.viewports.values) viewport(),
+    ];
+    // A single plot carries its own legend and a multi-plot figure only the
+    // all-up one, so more than one means an unforeseen layout: photograph it.
+    final legend = legends.length == 1 ? legends.single : null;
+    double? clipHeight;
+    GlobalKey? continuationKey;
+    var continuationX = 0.0;
+    if (boundary is RenderBox && legend != null) {
+      // The legend is the last thing down every chart and down the figure, so
+      // cutting at its top keeps exactly the `<svg>` upstream clones, and the
+      // strip below redraws every legend (`hooks.ts:30-37`).
+      clipHeight = legend.box.localToGlobal(Offset.zero, ancestor: boundary).dy;
+    } else if (boundary is RenderBox &&
+        !_isMultiPlot &&
+        viewports.length == 1) {
+      // Only in a single plot is the table the whole figure, so cutting at its
+      // viewport and continuing with every row loses no neighbour. A table
+      // cell in a grid keeps its window, as upstream's own export does.
+      final viewport = viewports.single;
+      final topLeft = viewport.box.localToGlobal(
+        Offset.zero,
+        ancestor: boundary,
+      );
+      final content = viewport.content.currentContext?.findRenderObject();
+      clipHeight = topLeft.dy;
+      continuationKey = viewport.content;
+      // Where the content sits scrolled to its start: against the viewport's
+      // right edge under right-to-left, overhanging to the left.
+      continuationX = viewport.isRtl && content is RenderBox
+          ? topLeft.dx + viewport.box.size.width - content.size.width
+          : topLeft.dx;
+    }
     final dataUrl = await FluentChartImageExporter(
       boundaryKey: _boundaryKey,
-      legends: const <FluentChartLegendItem>[],
+      legends: legend?.legends ?? const <FluentChartLegendItem>[],
+      // Only read when there are legends to draw.
+      legendTextStyle: legend?.textStyle ?? const TextStyle(),
+      selectedLegends: legend?.selectedLegends ?? const <String>{},
+      centerLegends: legend?.centerLegends ?? false,
+      isRtl: legend?.isRtl ?? false,
+      clipHeight: clipHeight,
+      continuationKey: continuationKey,
+      continuationX: continuationX,
     ).toImage(resolved);
     // `FluentChartImageExporter.toImage` returns `data:image/png;base64,…`;
     // this controller's contract is the raw bytes.
@@ -608,7 +664,10 @@ class _FluentDeclarativeChartState extends State<FluentDeclarativeChart> {
     // The boundary sits outside the try so it exists on the failure surface
     // too: an export of an unroutable figure then returns the rendered message
     // rather than reporting a missing container.
-    return RepaintBoundary(key: _boundaryKey, child: body);
+    return RepaintBoundary(
+      key: _boundaryKey,
+      child: FluentChartExportScope(registry: _exportRegistry, child: body),
+    );
   }
 
   Widget _buildFigure(
@@ -702,6 +761,7 @@ class _FluentDeclarativeChartState extends State<FluentDeclarativeChart> {
     );
     groupedTraces = collapsed.groups;
     isMultiPlot = collapsed.isMultiPlot;
+    _isMultiPlot = isMultiPlot;
 
     // `:535-541`: BEFORE the render loop, because this is what seeds
     // `_colorMap`.

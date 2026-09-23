@@ -1430,6 +1430,32 @@ void main() {
       );
     });
 
+    testWidgets('the export draws the legend once, as the strip', (
+      tester,
+    ) async {
+      final controller = FluentChartController();
+      await pump(
+        tester,
+        FluentPolarChart(data: twoSeries, controller: controller),
+      );
+      final bytes = base64Decode(
+        (await tester.runAsync(controller.toImage))!.split(',').last,
+      );
+      // Two short legends fit one strip line: 8 + 32.
+      expect(
+        be32(bytes, 20),
+        (tester.getSize(find.byType(FluentPolarChart)).height -
+                kPolarLegendHeight +
+                kLegendContainerMarginTop +
+                kLegendHeight)
+            .toInt(),
+        reason:
+            'PolarChart.tsx:641-650 exports the <svg> alone and hooks.ts:30-37 '
+            'appends the strip; a boundary round the live legend as well '
+            'would draw it twice',
+      );
+    });
+
     testWidgets('hideLegend removes the strip from the export too', (
       tester,
     ) async {

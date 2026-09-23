@@ -14,6 +14,7 @@ import '../../internal/interaction.dart';
 import '../../l10n/l10n.dart';
 import '../../overlays/menu.dart';
 import '../../overlays/menu_item.dart';
+import '../internal/chart_export_scope.dart';
 import '../internal/chart_text_measurer.dart';
 import '../internal/chart_utils.dart';
 import 'legend_shape.dart';
@@ -625,6 +626,10 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
   /// rebuild — the overflow branch measures every label on every layout.
   final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
 
+  /// The exported figure this legend sits in, if any — see
+  /// [FluentChartExportRegistry].
+  FluentChartExportRegistry? _exportRegistry;
+
   @override
   void initState() {
     super.initState();
@@ -651,10 +656,30 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
 
   @override
   void dispose() {
+    _exportRegistry?.legends.remove(this);
     for (final node in _nodes) {
       node.dispose();
     }
     super.dispose();
+  }
+
+  /// Tells an exported figure that the strip it draws must list every legend,
+  /// with this legend's live selection, in place of this widget.
+  void _registerForExport(TextStyle labelStyle) {
+    final registry = FluentChartExportScope.maybeOf(context);
+    if (!identical(registry, _exportRegistry)) {
+      _exportRegistry?.legends.remove(this);
+      _exportRegistry = registry;
+    }
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    registry?.legends[this] = () => (
+      box: context.findRenderObject()! as RenderBox,
+      legends: widget.legends,
+      selectedLegends: _selected,
+      centerLegends: widget.centerLegends,
+      isRtl: isRtl,
+      textStyle: labelStyle,
+    );
   }
 
   void _seedSelection() {
@@ -945,6 +970,7 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
     final style = resolveFluentChartLegendStyle(
       theme,
     ).merge(FluentChartLegendTheme.maybeOf(context)).merge(widget.style);
+    _registerForExport(style.labelTextStyle!.resolve(<WidgetState>{})!);
 
     final rows = <Widget>[
       for (var index = 0; index < widget.legends.length; index++)

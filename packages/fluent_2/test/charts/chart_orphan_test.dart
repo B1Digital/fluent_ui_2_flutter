@@ -43,7 +43,7 @@
 //
 //  1. Count references inside the declaring file too. Counting only *other*
 //     files flags a same-file helper like `FluentSynthesisedLegendPainter`,
-//     which `FluentChartImageExporter._renderLegend` uses correctly one screen
+//     which `FluentChartImageExporter.toImage` uses correctly one screen
 //     below its own declaration. This is also what retires the `FluentAreaChart`
 //     false positive at no cost: `class _FluentAreaChartState extends
 //     State<FluentAreaChart>` names the widget in its own file.

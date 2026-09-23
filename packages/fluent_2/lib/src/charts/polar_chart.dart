@@ -1323,16 +1323,19 @@ class FluentPolarChartState extends State<FluentPolarChart> {
                 isRtl: Directionality.of(context) == TextDirection.rtl,
               ),
             );
-            return RepaintBoundary(
-              key: _boundaryKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  _buildPlot(l, size, style, states, chartColors),
-                  if (!widget.hideLegend)
-                    SizedBox(height: legendHeight, child: _buildLegend(l)),
-                ],
-              ),
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                // The plot alone, as `PolarChart.tsx:641-650` exports only the
+                // `<svg>`: the exporter above redraws every legend beneath it,
+                // so a boundary round the live legend too drew it twice.
+                RepaintBoundary(
+                  key: _boundaryKey,
+                  child: _buildPlot(l, size, style, states, chartColors),
+                ),
+                if (!widget.hideLegend)
+                  SizedBox(height: legendHeight, child: _buildLegend(l)),
+              ],
             );
           },
         ),
