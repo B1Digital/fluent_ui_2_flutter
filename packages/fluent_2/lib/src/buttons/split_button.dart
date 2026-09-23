@@ -351,9 +351,9 @@ Widget buildFluentSplitButton(
           );
 
     // The border is painted by FluentSplitButtonEdgePainter, not by the half's
-    // own decoration: three sides plus two rounded corners is not a shape
-    // BoxDecoration can express — Flutter requires a uniform border before it
-    // will accept a border radius.
+    // own decoration: it is painted together with the rule between the halves,
+    // whose colour is styled on its own, and a Border under a border radius
+    // accepts only one visible colour.
     final half = buildFluentButton(
       state.half(side),
       button.copyWith(
@@ -450,11 +450,12 @@ class FluentSplitButtonEdgeColors {
 
 /// Paints one half's border and, on the primary action half, the divider.
 ///
-/// A painter rather than a [BoxDecoration] because the shape is an *open*
-/// rounded path: three sides and two corners. [Border] refuses a border radius
-/// unless all four sides are uniform, so composing this out of decorations is
-/// not possible at all — this is the case the "CustomPaint where painting beats
-/// composition" rule exists for.
+/// A painter rather than a [Border] on the half's [BoxDecoration] because the
+/// rule has a colour of its own — [FluentSplitButtonStyle.dividerColor] — and a
+/// [Border] under a border radius accepts only one visible colour. The three
+/// outer sides still go through the framework's
+/// [BoxBorder.paintNonUniformBorder], so their corners are exactly the ones
+/// `FluentButton`'s own border draws.
 ///
 /// Every input is a public field so tests can assert the tones and widths
 /// directly instead of diffing pixels.
@@ -501,92 +502,46 @@ class FluentSplitButtonEdgePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (borderWidth > 0) {
-      // Fluent borders sit inside the box, as CSS `border-box` does and as
-      // Flutter's own `Border.all` does, so a centred stroke of width w runs
-      // along the rect deflated by w/2.
-      final rect = (Offset.zero & size).deflate(borderWidth / 2);
-      canvas.drawPath(
-        _outline(rect),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = borderWidth
-          ..color = borderColor,
+      // The framework's own border geometry, which is CSS's: an oversized
+      // radius scales every corner by one factor, so circular's 9999 lands on a
+      // semicircle, and the open edge takes no border while the top and bottom
+      // still run the full width to the seam.
+      final edge = BorderSide(color: borderColor, width: borderWidth);
+      BoxBorder.paintNonUniformBorder(
+        canvas,
+        Offset.zero & size,
+        borderRadius: radius,
+        textDirection: null,
+        top: edge,
+        bottom: edge,
+        left: roundsLeft ? edge : BorderSide.none,
+        right: roundsLeft ? BorderSide.none : edge,
+        color: borderColor,
       );
     }
 
     if (side == FluentSplitButtonSide.primaryAction && dividerWidth > 0) {
-      // The rule sits on the inner edge, which is whichever one the corners
-      // did not take.
-      final x = roundsLeft ? size.width - dividerWidth / 2 : dividerWidth / 2;
-      canvas.drawLine(
-        Offset(x, 0),
-        Offset(x, size.height),
-        Paint()
-          ..strokeWidth = dividerWidth
-          ..color = dividerColor,
+      // The rule is the primary button's own border on the inner edge, which
+      // is whichever one the corners did not take. CSS mitres a border side
+      // into its neighbours, and upstream's top and bottom are 1px even where
+      // they are transparent, as on primary — so the rule's ends are cut at
+      // 45° inside that pixel instead of running square through the outline.
+      // The unpainted sides are there only for their width.
+      final rule = BorderSide(color: dividerColor, width: dividerWidth);
+      final seam = BorderSide(
+        width: math.max(borderWidth, FluentStroke.thin),
+        style: BorderStyle.none,
+      );
+      paintBorder(
+        canvas,
+        Offset.zero & size,
+        top: seam,
+        bottom: seam,
+        right: roundsLeft ? rule : BorderSide.none,
+        left: roundsLeft ? BorderSide.none : rule,
       );
     }
   }
-
-  /// The open three-sided path, rounded on this half's outer edge only.
-  ///
-  /// Keyed off [roundsLeft] rather than [side]: the geometry is the same
-  /// three-sided shape either way, and only which physical edge it opens on
-  /// changes — which is exactly what mirrors under RTL.
-  Path _outline(Rect rect) {
-    final path = Path();
-    if (roundsLeft) {
-      final top = _clamp(radius.topLeft, rect);
-      final bottom = _clamp(radius.bottomLeft, rect);
-      path.moveTo(rect.right, rect.top);
-      path.lineTo(rect.left + top.x, rect.top);
-      if (top != Radius.zero) {
-        path.arcToPoint(
-          Offset(rect.left, rect.top + top.y),
-          radius: top,
-          clockwise: false,
-        );
-      }
-      path.lineTo(rect.left, rect.bottom - bottom.y);
-      if (bottom != Radius.zero) {
-        path.arcToPoint(
-          Offset(rect.left + bottom.x, rect.bottom),
-          radius: bottom,
-          clockwise: false,
-        );
-      }
-      path.lineTo(rect.right, rect.bottom);
-    } else {
-      final top = _clamp(radius.topRight, rect);
-      final bottom = _clamp(radius.bottomRight, rect);
-      path.moveTo(rect.left, rect.top);
-      path.lineTo(rect.right - top.x, rect.top);
-      if (top != Radius.zero) {
-        path.arcToPoint(
-          Offset(rect.right, rect.top + top.y),
-          radius: top,
-          clockwise: true,
-        );
-      }
-      path.lineTo(rect.right, rect.bottom - bottom.y);
-      if (bottom != Radius.zero) {
-        path.arcToPoint(
-          Offset(rect.right - bottom.x, rect.bottom),
-          radius: bottom,
-          clockwise: true,
-        );
-      }
-      path.lineTo(rect.left, rect.bottom);
-    }
-    return path;
-  }
-
-  /// Caps a corner at the half's own box, so `FluentButtonShape.circular`'s
-  /// 9999 becomes a real semicircle rather than an arc Skia cannot draw.
-  static Radius _clamp(Radius radius, Rect rect) => Radius.elliptical(
-    math.min(radius.x, rect.width),
-    math.min(radius.y, rect.height / 2),
-  );
 
   @override
   bool shouldRepaint(FluentSplitButtonEdgePainter oldDelegate) =>

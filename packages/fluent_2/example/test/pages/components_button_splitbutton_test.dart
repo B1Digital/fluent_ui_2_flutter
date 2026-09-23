@@ -202,10 +202,10 @@ void main() {
       }
 
       // The 1px rule between the halves is not part of either half's
-      // decoration — three sides plus two rounded corners is not a shape
-      // `BoxDecoration` can express — so it is painted, and the painter is the
-      // only place it can be read. Figma leaves subtle and transparent
-      // undivided; everything else carries a rule.
+      // decoration — its colour is styled on its own, and a `Border` under a
+      // radius takes only one visible colour — so it is painted, and the
+      // painter is the only place it can be read. Figma leaves subtle and
+      // transparent undivided; everything else carries a rule.
       for (final String label in <String>['Default', 'Primary', 'Outline']) {
         expect(
           dividerColourOf(tester, primaryHalfOf(label)),

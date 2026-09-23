@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
 import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -428,9 +431,9 @@ void main() {
     });
 
     testWidgets('the border is painted, never decorated', (tester) async {
-      // A three-sided rounded border is not a shape BoxDecoration can express,
-      // so the halves must carry no Border of their own — one would double up
-      // with the painter and square off the corners it does not own.
+      // The border is painted together with the rule, whose colour a Border
+      // under a radius cannot carry alongside it, so the halves must carry no
+      // Border of their own — one would double up with the painter's.
       await pump(
         tester,
         splitButton(
@@ -546,6 +549,234 @@ void main() {
       // Taller, not wider — the chevron half is pinned at 24 at every size.
       expect(menu.width, FluentSize.size240);
     });
+  });
+
+  group('split button — edge geometry', () {
+    // Upstream's halves ARE buttons. `useSplitButtonStyles.styles.ts` zeroes
+    // the two inner corners and the menu half's leading border, and its
+    // `circular` rule is empty, so the outer corners keep the button's own
+    // radius — 10000px when circular.
+    //
+    // The oracle is CSS's rule for such a box (CSS Backgrounds 3, "Overlapping
+    // Curves"), worked out here rather than left to the engine: every corner
+    // shrinks by ONE factor, the largest that lets each side hold its corners,
+    // and the inner edge's radius is the outer one less the border beside it.
+    // Circular therefore ends in a semicircle — or, on a half narrower than
+    // half its height, in quarter circles as wide as the half — and never in
+    // an ellipse. The top and bottom run on to the open edge unbroken.
+    const scale = 4.0; // DPR 4, the density the Chrome comparison measured at
+    const border = FluentStroke.thin;
+    const color = Color(0xFFD1D1D1);
+    // Two routes to one edge can antialias a few levels apart; a geometry
+    // mistake misses by whole pixels, so by up to 255.
+    const tolerance = 16;
+    const primaryWidth = 96.0; // upstream's labelled floor, as Shape renders it
+    // The port's radius, then upstream's CSS one.
+    const shapes = <FluentButtonShape, (Radius, double)>{
+      FluentButtonShape.rounded: (FluentRadius.medium, 4),
+      FluentButtonShape.circular: (FluentRadius.circular, 10000),
+      FluentButtonShape.square: (Radius.zero, 0),
+    };
+    // The three sizes, then the height a wrapped label stretches the pair to
+    // in the `With long text` story — where the 24-wide chevron half is
+    // narrower than half its height.
+    const heights = <double>[24, 32, 40, 52];
+
+    Future<ByteData> render(Size size, void Function(Canvas) paint) async {
+      final recorder = ui.PictureRecorder();
+      paint(Canvas(recorder)..scale(scale));
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(
+        (size.width * scale).round(),
+        (size.height * scale).round(),
+      );
+      picture.dispose();
+      final data = (await image.toByteData())!;
+      image.dispose();
+      return data;
+    }
+
+    /// Upstream's border box for a half of [size], [radius] CSS px on the
+    /// closed side.
+    void css(
+      Canvas canvas,
+      Size size,
+      double radius, {
+      required bool roundsLeft,
+    }) {
+      // One rounded corner on the top and bottom sides, two on the closed one.
+      final used = radius == 0
+          ? 0.0
+          : radius *
+                math.min(
+                  1,
+                  math.min(size.width / radius, size.height / (2 * radius)),
+                );
+      RRect box(Rect rect, double r) => RRect.fromRectAndCorners(
+        rect,
+        topLeft: Radius.circular(roundsLeft ? r : 0),
+        bottomLeft: Radius.circular(roundsLeft ? r : 0),
+        topRight: Radius.circular(roundsLeft ? 0 : r),
+        bottomRight: Radius.circular(roundsLeft ? 0 : r),
+      );
+      canvas.drawDRRect(
+        box(Offset.zero & size, used),
+        box(
+          Rect.fromLTRB(
+            roundsLeft ? border : 0,
+            border,
+            roundsLeft ? size.width : size.width - border,
+            size.height - border,
+          ),
+          math.max(0, used - border),
+        ),
+        Paint()..color = color,
+      );
+    }
+
+    test('circular overflows every half below, so each exercises the rule', () {
+      expect(FluentRadius.circular.x, greaterThan(primaryWidth));
+      expect(FluentRadius.circular.y, greaterThan(heights.last));
+    });
+
+    for (final MapEntry(key: shape, value: (radius, cssRadius))
+        in shapes.entries) {
+      for (final height in heights) {
+        for (final side in FluentSplitButtonSide.values) {
+          for (final direction in TextDirection.values) {
+            test('${shape.name} ${side.name} under ${direction.name}, '
+                '${height.toInt()} high, is the box CSS draws', () async {
+              final size = Size(
+                side == FluentSplitButtonSide.primaryAction
+                    ? primaryWidth
+                    : FluentSize.size240,
+                height,
+              );
+              final roundsLeft =
+                  (side == FluentSplitButtonSide.primaryAction) ==
+                  (direction == TextDirection.ltr);
+              final ours = await render(
+                size,
+                (canvas) => FluentSplitButtonEdgePainter(
+                  side: side,
+                  borderColor: color,
+                  borderWidth: border,
+                  dividerColor: color,
+                  // The rule's own shape is asserted below. The menu half
+                  // keeps one, so the model — which has none — also checks
+                  // that only the primary half ever draws it.
+                  dividerWidth: side == FluentSplitButtonSide.primaryAction
+                      ? 0
+                      : FluentStroke.thin,
+                  radius: roundsLeft
+                      ? BorderRadius.horizontal(left: radius)
+                      : BorderRadius.horizontal(right: radius),
+                  roundsLeft: roundsLeft,
+                ).paint(canvas, size),
+              );
+              final theirs = await render(
+                size,
+                (canvas) =>
+                    css(canvas, size, cssRadius, roundsLeft: roundsLeft),
+              );
+
+              final columns = (size.width * scale).round();
+              final mismatches = <String>[];
+              for (var i = 0; i < ours.lengthInBytes; i += 4) {
+                for (var channel = 0; channel < 4; channel++) {
+                  final delta =
+                      ours.getUint8(i + channel) - theirs.getUint8(i + channel);
+                  if (delta.abs() > tolerance) {
+                    final pixel = i ~/ 4;
+                    mismatches.add('(${pixel % columns}, ${pixel ~/ columns})');
+                    break;
+                  }
+                }
+              }
+              expect(
+                mismatches,
+                isEmpty,
+                reason:
+                    '${mismatches.length} device pixels are off by more than '
+                    '$tolerance levels, first ${mismatches.take(8).join(' ')}',
+              );
+            });
+          }
+        }
+      }
+    }
+
+    for (final direction in TextDirection.values) {
+      const size = Size(primaryWidth, 32);
+      final roundsLeft = direction == TextDirection.ltr;
+      final columns = (size.width * scale).round();
+      final rows = (size.height * scale).round();
+
+      /// The primary half's pixels as ARGB, [inset] device columns in from the
+      /// seam and [y] rows down.
+      Future<int Function(int inset, int y)> seam({
+        required double borderWidth,
+        required Color rule,
+      }) async {
+        final pixels = await render(
+          size,
+          (canvas) => FluentSplitButtonEdgePainter(
+            side: FluentSplitButtonSide.primaryAction,
+            borderColor: color,
+            borderWidth: borderWidth,
+            dividerColor: rule,
+            radius: BorderRadius.zero,
+            roundsLeft: roundsLeft,
+          ).paint(canvas, size),
+        );
+        return (int inset, int y) {
+          final i = y * columns + (roundsLeft ? columns - 1 - inset : inset);
+          return pixels.getUint8(i * 4 + 3) << 24 |
+              pixels.getUint8(i * 4) << 16 |
+              pixels.getUint8(i * 4 + 1) << 8 |
+              pixels.getUint8(i * 4 + 2);
+        };
+      }
+
+      test('the rule is mitred into the top and bottom under '
+          '${direction.name}', () async {
+        // Primary's case: no border of its own, and a rule. Upstream's rule is
+        // the primary button's border-right beside a 1px transparent top and
+        // bottom, so CSS cuts its ends at 45° inside that pixel and the fill
+        // shows above the cut; a rule drawn square notches the outline.
+        final pixel = await seam(borderWidth: FluentStroke.none, rule: color);
+        int alpha(int inset, int y) => pixel(inset, y) >>> 24;
+
+        expect(alpha(3, 0), 0, reason: 'above the cut, at the top');
+        expect(alpha(3, rows - 1), 0, reason: 'below the cut, at the bottom');
+        expect(alpha(0, 3), 255, reason: 'inside the cut, on the seam');
+        expect(alpha(0, rows - 4), 255, reason: 'inside the cut, on the seam');
+        expect(alpha(3, rows ~/ 2), 255, reason: 'full width between the cuts');
+        expect(alpha(4, rows ~/ 2), 0, reason: 'one CSS pixel wide');
+        for (var i = 0; i < 4; i++) {
+          expect(alpha(i, i), closeTo(128, 16), reason: 'on the cut, top');
+          expect(
+            alpha(i, rows - 1 - i),
+            closeTo(128, 16),
+            reason: 'on the cut, bottom',
+          );
+        }
+      });
+
+      test('a drawn top and bottom own the corner above the cut under '
+          '${direction.name}', () async {
+        // Default and outline: the rule meets a painted border, and CSS splits
+        // that corner along the same diagonal — the top's colour above it, the
+        // rule's below. A rule in a colour of its own shows where each ends.
+        const rule = Color(0xFF0000FF);
+        final pixel = await seam(borderWidth: border, rule: rule);
+
+        expect(pixel(2, 1), color.toARGB32(), reason: 'the top, above the cut');
+        expect(pixel(1, 2), rule.toARGB32(), reason: 'the rule, below it');
+        expect(pixel(2, rows - 2), color.toARGB32(), reason: 'the bottom');
+        expect(pixel(1, rows - 3), rule.toARGB32(), reason: 'the rule');
+      });
+    }
   });
 
   group('split button — the two halves are separate controls', () {
