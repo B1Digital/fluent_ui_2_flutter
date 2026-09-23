@@ -429,11 +429,11 @@ void main() {
         hasSecondaryYScale: false,
         hasSelectedLegends: false,
       );
-      expect(
-        set.layers[1].map((p) => p.hi).toList(),
-        <double>[11, 22, 33],
-        reason: 'd3.stack carries the running total, AreaChart.tsx:312-320',
-      );
+      expect(set.layers[1].map((p) => p.hi).toList(), <double>[
+        11,
+        22,
+        33,
+      ], reason: 'd3.stack carries the running total, AreaChart.tsx:312-320');
       expect(
         set.maxOfYVal,
         33,
@@ -448,11 +448,10 @@ void main() {
         hasSecondaryYScale: false,
         hasSelectedLegends: false,
       );
-      expect(
-        set.layers[1].map((p) => p.lo).toList(),
-        <double>[0, 0],
-        reason: 'tozeroy uses [0, d[key]] literally, AreaChart.tsx:296-310',
-      );
+      expect(set.layers[1].map((p) => p.lo).toList(), <double>[
+        0,
+        0,
+      ], reason: 'tozeroy uses [0, d[key]] literally, AreaChart.tsx:296-310');
       expect(
         set.maxOfYVal,
         20,
@@ -467,11 +466,10 @@ void main() {
         hasSecondaryYScale: true,
         hasSelectedLegends: false,
       );
-      expect(
-        set.layers[1].map((p) => p.lo).toList(),
-        <double>[0, 0],
-        reason: '_shouldFillToZeroY at AreaChart.tsx:1065-1067',
-      );
+      expect(set.layers[1].map((p) => p.lo).toList(), <double>[
+        0,
+        0,
+      ], reason: '_shouldFillToZeroY at AreaChart.tsx:1065-1067');
     });
 
     test('missing x values are back-filled with zero and then sorted', () {
@@ -492,11 +490,10 @@ void main() {
         reason:
             'each series is re-sorted ascending after back-filling, :909-921',
       );
-      expect(
-        set.rows[1].values,
-        <double>[2, 0],
-        reason: 'the injected point carries y: 0, AreaChart.tsx:909-913',
-      );
+      expect(set.rows[1].values, <double>[
+        2,
+        0,
+      ], reason: 'the injected point carries y: 0, AreaChart.tsx:909-913');
     });
 
     test('duplicate x values are detected and suppress the popover', () {
@@ -766,11 +763,9 @@ void main() {
         1,
         reason: 'AreaChart.tsx:835 strokeWidth={1}',
       );
-      expect(
-        style.hoverLineDashPattern!.resolve(<WidgetState>{}),
-        <double>[5.5],
-        reason: 'AreaChart.tsx:836 strokeDasharray={5.5}',
-      );
+      expect(style.hoverLineDashPattern!.resolve(<WidgetState>{}), <double>[
+        5.5,
+      ], reason: 'AreaChart.tsx:836 strokeDasharray={5.5}');
       expect(
         style.hoverLineOpacity!.resolve(<WidgetState>{}),
         0.5,
@@ -977,11 +972,10 @@ void main() {
         isTrue,
         reason: 'AreaChart.tsx:1105 opens the stacked popover body',
       );
-      expect(
-        regions[1].popoverData.yValues!.map((v) => v.y).toList(),
-        <double>[20, 15],
-        reason: 'the popover lists the raw y of every series at that x',
-      );
+      expect(regions[1].popoverData.yValues!.map((v) => v.y).toList(), <double>[
+        20,
+        15,
+      ], reason: 'the popover lists the raw y of every series at that x');
     });
   });
 

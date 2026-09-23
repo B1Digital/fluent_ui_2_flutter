@@ -310,10 +310,9 @@ void main() {
         },
       ],
     );
-    expect(
-      out.map((r) => r['total']).toList(),
-      <Object?>[90, 50],
-      reason: 'VegaLiteSchemaAdapter.ts:224 iterates the array in order.',
-    );
+    expect(out.map((r) => r['total']).toList(), <Object?>[
+      90,
+      50,
+    ], reason: 'VegaLiteSchemaAdapter.ts:224 iterates the array in order.');
   });
 }

@@ -35,11 +35,9 @@ void main() {
       ]);
 
       await mouseClick(tester, box);
-      expect(
-        _glyphs(tester),
-        <FluentCheckboxGlyph>[FluentCheckboxGlyph.none],
-        reason: 'a second press must clear the tick, not latch it',
-      );
+      expect(_glyphs(tester), <FluentCheckboxGlyph>[
+        FluentCheckboxGlyph.none,
+      ], reason: 'a second press must clear the tick, not latch it');
       await expectCleanTeardown(tester, section.id);
     });
   });
@@ -50,18 +48,14 @@ void main() {
     testWidgets('starts ticked and clears on tap', (WidgetTester tester) async {
       await pumpSection(tester, section);
 
-      expect(
-        _glyphs(tester),
-        <FluentCheckboxGlyph>[FluentCheckboxGlyph.checkmark],
-        reason: 'the section is called Checked; it must mount ticked',
-      );
+      expect(_glyphs(tester), <FluentCheckboxGlyph>[
+        FluentCheckboxGlyph.checkmark,
+      ], reason: 'the section is called Checked; it must mount ticked');
 
       await tapAndSettle(tester, find.text('Checked'), what: 'the label');
-      expect(
-        _glyphs(tester),
-        <FluentCheckboxGlyph>[FluentCheckboxGlyph.none],
-        reason: 'the label is inside the hit target, so it must toggle too',
-      );
+      expect(_glyphs(tester), <FluentCheckboxGlyph>[
+        FluentCheckboxGlyph.none,
+      ], reason: 'the label is inside the hit target, so it must toggle too');
 
       await tapAndSettle(tester, find.text('Checked'), what: 'the label');
       expect(_glyphs(tester), <FluentCheckboxGlyph>[
@@ -97,16 +91,12 @@ void main() {
       );
 
       await tapAndSettle(tester, find.text('Option 1'), what: 'option 1');
-      expect(
-        _glyphs(tester),
-        <FluentCheckboxGlyph>[
-          FluentCheckboxGlyph.square,
-          FluentCheckboxGlyph.none,
-          FluentCheckboxGlyph.checkmark,
-          FluentCheckboxGlyph.checkmark,
-        ],
-        reason: 'unticking one child must push the parent back to mixed',
-      );
+      expect(_glyphs(tester), <FluentCheckboxGlyph>[
+        FluentCheckboxGlyph.square,
+        FluentCheckboxGlyph.none,
+        FluentCheckboxGlyph.checkmark,
+        FluentCheckboxGlyph.checkmark,
+      ], reason: 'unticking one child must push the parent back to mixed');
 
       // Back to exactly the state the section mounted in.
       await tapAndSettle(tester, find.text('Option 3'), what: 'option 3');
@@ -209,11 +199,9 @@ void main() {
       );
 
       await tapAndSettle(tester, find.text('Label before'), what: 'the label');
-      expect(
-        _glyphs(tester),
-        <FluentCheckboxGlyph>[FluentCheckboxGlyph.checkmark],
-        reason: 'a reordered label must still be part of the hit target',
-      );
+      expect(_glyphs(tester), <FluentCheckboxGlyph>[
+        FluentCheckboxGlyph.checkmark,
+      ], reason: 'a reordered label must still be part of the hit target');
     });
   });
 

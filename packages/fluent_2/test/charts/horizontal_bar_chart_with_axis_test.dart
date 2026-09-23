@@ -834,15 +834,11 @@ void main() {
     }
 
     test('the palette survives an ordinary theme', () {
-      expect(
-        paint(isHighContrast: false).map((fill) => fill.toARGB32()),
-        <int>[
-          for (var i = 0; i < 3; i++)
-            // One point per category, so every bar is its group's index 0.
-            FluentDataVizPalette.next(0).toARGB32(),
-        ],
-        reason: 'flattenMark returns the series colour outside high contrast',
-      );
+      expect(paint(isHighContrast: false).map((fill) => fill.toARGB32()), <int>[
+        for (var i = 0; i < 3; i++)
+          // One point per category, so every bar is its group's index 0.
+          FluentDataVizPalette.next(0).toARGB32(),
+      ], reason: 'flattenMark returns the series colour outside high contrast');
     });
 
     test('every bar flattens to the system colour', () {

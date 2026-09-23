@@ -80,11 +80,10 @@ void main() {
             'LineChart.tsx:1940 hard-codes the hex, so the hover line does '
             'not follow the theme',
       );
-      expect(
-        _resolve(style.hoverLineDashPattern, none),
-        <double>[5, 5],
-        reason: "strokeDasharray='5,5', LineChart.tsx:1943",
-      );
+      expect(_resolve(style.hoverLineDashPattern, none), <double>[
+        5,
+        5,
+      ], reason: "strokeDasharray='5,5', LineChart.tsx:1943");
     });
 
     test('the line border falls back to colorNeutralBackground1', () {

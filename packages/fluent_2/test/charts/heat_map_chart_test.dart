@@ -306,11 +306,10 @@ void main() {
         yAxisCategoryOrder: FluentAxisCategoryOrder.defaultOrder,
         alphabeticalSort: true,
       );
-      expect(
-        set.xAxisPoints,
-        <String>['1.5k', '2.5M'],
-        reason: "HeatMapChart.tsx:599 defaults the number format to '.2~s'",
-      );
+      expect(set.xAxisPoints, <String>[
+        '1.5k',
+        '2.5M',
+      ], reason: "HeatMapChart.tsx:599 defaults the number format to '.2~s'");
     });
 
     test('an explicit category order routes through sortAxisCategories', () {

@@ -442,10 +442,9 @@ void main() {
     );
     expect(chart.props.xAxisTickCount, 9, reason: 'ts:3000-3002.');
     expect(chart.props.yAxisTickCount, 3, reason: 'ts:3004-3006.');
-    expect(
-      chart.props.tickValues,
-      <Object>[0, 1],
-      reason: 'ts:2996-2998, from `encoding.x.axis.values`.',
-    );
+    expect(chart.props.tickValues, <Object>[
+      0,
+      1,
+    ], reason: 'ts:2996-2998, from `encoding.x.axis.values`.');
   });
 }

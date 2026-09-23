@@ -86,11 +86,9 @@ void main() {
       expect(activeLegends(tester), isEmpty);
 
       await mouseClick(tester, find.text('Mike'));
-      expect(
-        activeLegends(tester),
-        <String>{'Mike'},
-        reason: 'the painter dims every series outside the active set',
-      );
+      expect(activeLegends(tester), <String>{
+        'Mike',
+      }, reason: 'the painter dims every series outside the active set');
 
       await mouseClick(tester, find.text('Mike'));
       expect(

@@ -1867,11 +1867,11 @@ void main() {
             'GroupedVerticalBarChart.tsx:252-253 adds line legends first, the '
             'reverse of VerticalStackedBarChart',
       );
-      expect(
-        legends.map((legend) => legend.title).toList(),
-        <String>['Trend', 'v2a', 'v2b'],
-        reason: 'and the bar legends follow in first-appearance order',
-      );
+      expect(legends.map((legend) => legend.title).toList(), <String>[
+        'Trend',
+        'v2a',
+        'v2b',
+      ], reason: 'and the bar legends follow in first-appearance order');
     });
 
     testWidgets('the colour walk counts every point, then the lines', (

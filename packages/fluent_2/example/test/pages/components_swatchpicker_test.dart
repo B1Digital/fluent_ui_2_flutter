@@ -30,11 +30,9 @@ void main() {
       await mouseClick(tester, swatch('red'));
 
       expect(previewTile(tester).color, const Color(0xFFFF1921));
-      expect(
-        selectedLabels(tester),
-        <String>['red'],
-        reason: 'picking one swatch must un-pick the previous one',
-      );
+      expect(selectedLabels(tester), <String>[
+        'red',
+      ], reason: 'picking one swatch must un-pick the previous one');
       expect(
         decorationUnder(tester, swatch('red')).border,
         isNot(unringed),
@@ -365,11 +363,9 @@ void main() {
         'initials',
       ]) {
         await mouseClick(tester, swatch(label));
-        expect(
-          selectedLabels(tester),
-          <String>[label],
-          reason: '$label did not become the one selected swatch',
-        );
+        expect(selectedLabels(tester), <String>[
+          label,
+        ], reason: '$label did not become the one selected swatch');
       }
     });
 
@@ -382,11 +378,9 @@ void main() {
       for (final String label in <String>['blue', 'light blue']) {
         expect(tester.widget<FluentSwatch>(swatch(label)).onPressed, isNull);
         await mouseClick(tester, swatch(label));
-        expect(
-          selectedLabels(tester),
-          <String>['Hot pink'],
-          reason: 'the disabled $label swatch stole the selection',
-        );
+        expect(selectedLabels(tester), <String>[
+          'Hot pink',
+        ], reason: 'the disabled $label swatch stole the selection');
       }
     });
 
@@ -593,11 +587,9 @@ void main() {
       // rings for one press means the swatch they did not choose is claiming
       // their choice.
       await mouseClick(tester, find.text('Choose color'));
-      expect(
-        selectedLabels(tester),
-        <String>['gradient blue-purple'],
-        reason: 'one press must leave exactly one swatch ringed',
-      );
+      expect(selectedLabels(tester), <String>[
+        'gradient blue-purple',
+      ], reason: 'one press must leave exactly one swatch ringed');
     });
 
     testWidgets('a gradient choice paints the preview as a gradient', (

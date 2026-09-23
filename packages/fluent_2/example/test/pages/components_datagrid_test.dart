@@ -29,28 +29,20 @@ void main() {
       expect(_fileOrder(tester), _declared);
 
       await mouseClick(tester, _sortControls().at(0));
-      expect(
-        _fileOrder(tester),
-        <String>[
-          'Meeting notes',
-          'Purchase order',
-          'Thursday presentation',
-          'Training recording',
-        ],
-        reason: 'the first press must order the rows, not only draw an arrow',
-      );
+      expect(_fileOrder(tester), <String>[
+        'Meeting notes',
+        'Purchase order',
+        'Thursday presentation',
+        'Training recording',
+      ], reason: 'the first press must order the rows, not only draw an arrow');
 
       await tapAndSettle(tester, _sortControls().at(0), what: 'the File sort');
-      expect(
-        _fileOrder(tester),
-        <String>[
-          'Training recording',
-          'Thursday presentation',
-          'Purchase order',
-          'Meeting notes',
-        ],
-        reason: 'a second press on the same column reverses it',
-      );
+      expect(_fileOrder(tester), <String>[
+        'Training recording',
+        'Thursday presentation',
+        'Purchase order',
+        'Meeting notes',
+      ], reason: 'a second press on the same column reverses it');
     });
 
     testWidgets('the arrow follows the direction it sorted in', (
@@ -105,11 +97,9 @@ void main() {
 
       await tapAndSettle(tester, _sortControls().at(0), what: 'the File sort');
       expect(_fileOrder(tester).indexOf('Purchase order'), 1);
-      expect(
-        _checkedFiles(tester),
-        <String>{'Purchase order'},
-        reason: 'the tick belongs to the file, not to the slot it was in',
-      );
+      expect(_checkedFiles(tester), <String>{
+        'Purchase order',
+      }, reason: 'the tick belongs to the file, not to the slot it was in');
     });
 
     testWidgets('select-all goes mixed, then whole, then empty', (

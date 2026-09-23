@@ -213,11 +213,15 @@ void main() {
       expect(_opacities(tester), everyElement(1.0));
 
       await mouseClick(tester, find.text('One.One'));
-      expect(
-        _opacities(tester),
-        <double>[1.0, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
-        reason: 'selecting a legend must dim the other six segments',
-      );
+      expect(_opacities(tester), <double>[
+        1.0,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+      ], reason: 'selecting a legend must dim the other six segments');
 
       await mouseClick(tester, find.text('One.One'));
       expect(
@@ -363,20 +367,18 @@ void main() {
       );
 
       mouse = await mouseHover(tester, _bars.first);
-      expect(
-        _popoverText(tester),
-        <String>['Custom XVal', '1.5K h'],
-        reason: 'the switch must rewrite both popover slots, not just one',
-      );
+      expect(_popoverText(tester), <String>[
+        'Custom XVal',
+        '1.5K h',
+      ], reason: 'the switch must rewrite both popover slots, not just one');
       await mouseAway(tester, mouse);
 
       await mouseClick(tester, find.byType(FluentSwitch));
       mouse = await mouseHover(tester, _bars.first);
-      expect(
-        _popoverText(tester),
-        <String>['2020/04/30', '1.5K'],
-        reason: 'turning the override back off must restore the defaults',
-      );
+      expect(_popoverText(tester), <String>[
+        '2020/04/30',
+        '1.5K',
+      ], reason: 'turning the override back off must restore the defaults');
       await mouseAway(tester, mouse);
       await expectCleanTeardown(tester, section.id);
     });

@@ -344,11 +344,9 @@ void main() {
     );
     legendOf(tester).onChange!(const <String>['A'], null);
     await tester.pump();
-    expect(
-      legendOf(tester).selectedLegends,
-      const <String>['A'],
-      reason: 'uncontrolled, so setSelectedLegends runs, Legends.tsx:248-249',
-    );
+    expect(legendOf(tester).selectedLegends, const <String>[
+      'A',
+    ], reason: 'uncontrolled, so setSelectedLegends runs, Legends.tsx:248-249');
   });
 
   testWidgets('onLegendChange fires on the uncontrolled path', (tester) async {

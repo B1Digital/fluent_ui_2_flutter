@@ -359,11 +359,12 @@ void main() {
     });
 
     test('respects an offset anchor', () {
-      expect(
-        generateLinearTicks(1, 3, <double>[0, 10]),
-        <double>[1, 4, 7, 10],
-        reason: 'start = ceil((0-1)/3) = 0, end = floor((10-1)/3) = 3.',
-      );
+      expect(generateLinearTicks(1, 3, <double>[0, 10]), <double>[
+        1,
+        4,
+        7,
+        10,
+      ], reason: 'start = ceil((0-1)/3) = 0, end = floor((10-1)/3) = 3.');
     });
 
     test('is empty when no step lands inside the domain', () {
@@ -401,11 +402,13 @@ void main() {
 
   group('generateNumericTicks', () {
     test('generates linear ticks on a default scale', () {
-      expect(
-        generateNumericTicks(null, 25, 0, <double>[0, 100]),
-        <double>[0, 25, 50, 75, 100],
-        reason: 'utilities.ts:2493-2494 — the non-log branch.',
-      );
+      expect(generateNumericTicks(null, 25, 0, <double>[0, 100]), <double>[
+        0,
+        25,
+        50,
+        75,
+        100,
+      ], reason: 'utilities.ts:2493-2494 — the non-log branch.');
     });
 
     test('returns null for a non-positive step', () {

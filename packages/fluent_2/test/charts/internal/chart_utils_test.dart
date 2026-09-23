@@ -131,11 +131,9 @@ void main() {
           ],
         ),
       ]);
-      expect(
-        result.map((d) => d.x),
-        <Object>[2],
-        reason: 'utilities.ts:1017 filters on `!point.hideCallout`.',
-      );
+      expect(result.map((d) => d.x), <Object>[
+        2,
+      ], reason: 'utilities.ts:1017 filters on `!point.hideCallout`.');
     });
 
     test('carries the series index through for the popover swatch', () {

@@ -151,11 +151,14 @@ void main() {
             'utilities.ts:285 defaults the count to 6, and d3 ticks(0,100,6) '
             'steps by 20.',
       );
-      expect(
-        spec.tickLabels,
-        <String>['0', '20', '40', '60', '80', '100'],
-        reason: 'utilities.ts:294 formats through formatToLocaleString.',
-      );
+      expect(spec.tickLabels, <String>[
+        '0',
+        '20',
+        '40',
+        '60',
+        '80',
+        '100',
+      ], reason: 'utilities.ts:294 formats through formatToLocaleString.');
       expect(
         spec.orientation,
         d3.FluentAxisOrientation.bottom,
@@ -295,16 +298,14 @@ void main() {
         const FluentTickParams(tickValues: <Object>[0, 100]),
         FluentChartType.lineChart,
       );
-      expect(
-        spec.tickValues,
-        <Object>[0, 100],
-        reason: 'utilities.ts:312-313 — tickParams.tickValues wins.',
-      );
-      expect(
-        spec.tickLabels,
-        <String>['low', 'high'],
-        reason: 'utilities.ts:287-289 — tickText is indexed positionally.',
-      );
+      expect(spec.tickValues, <Object>[
+        0,
+        100,
+      ], reason: 'utilities.ts:312-313 — tickParams.tickValues wins.');
+      expect(spec.tickLabels, <String>[
+        'low',
+        'high',
+      ], reason: 'utilities.ts:287-289 — tickText is indexed positionally.');
     });
 
     test('generates stepped ticks when tickStep is set', () {
@@ -1173,11 +1174,13 @@ void main() {
             'utilities.ts:824 builds domainValues with prepareDatapoints and '
             ':862 makes them the literal tick set.',
       );
-      expect(
-        spec.tickLabels,
-        <String>['0', '25', '50', '75', '100'],
-        reason: 'utilities.ts:876 formats through defaultYAxisTickFormatter.',
-      );
+      expect(spec.tickLabels, <String>[
+        '0',
+        '25',
+        '50',
+        '75',
+        '100',
+      ], reason: 'utilities.ts:876 formats through defaultYAxisTickFormatter.');
       expect(
         axisData.yAxisDomainValues,
         <double>[0, 100],
@@ -1523,11 +1526,10 @@ void main() {
             'floor is yMinValue itself, and :751-753 sets the domain directly '
             'with no rounding pass.',
       );
-      expect(
-        axisData.yAxisDomainValues,
-        <double>[0, 87],
-        reason: 'utilities.ts:783 writes the scale domain.',
-      );
+      expect(axisData.yAxisDomainValues, <double>[
+        0,
+        87,
+      ], reason: 'utilities.ts:783 writes the scale domain.');
     });
 
     test('leaves the tick sizes at the d3 defaults, so no gridlines', () {
@@ -1856,16 +1858,14 @@ void main() {
         axisData,
         isRtl: false,
       );
-      expect(
-        spec.tickValues,
-        <String>['a', 'b'],
-        reason: 'utilities.ts:977 defaults the tick values to dataPoints.',
-      );
-      expect(
-        axisData.yAxisTickText,
-        <String>['a', 'b'],
-        reason: 'utilities.ts:993 writes the formatted labels.',
-      );
+      expect(spec.tickValues, <String>[
+        'a',
+        'b',
+      ], reason: 'utilities.ts:977 defaults the tick values to dataPoints.');
+      expect(axisData.yAxisTickText, <String>[
+        'a',
+        'b',
+      ], reason: 'utilities.ts:993 writes the formatted labels.');
       expect(
         axisData.yAxisDomainValues,
         isEmpty,

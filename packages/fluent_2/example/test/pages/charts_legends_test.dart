@@ -27,11 +27,11 @@ void main() {
 
       await tapAndSettle(tester, find.text('Legend 1'), what: 'Legend 1');
       expect(_selectedTitles(tester), <String>['Legend 1']);
-      expect(
-        _dimmedTitles(tester),
-        <String>['Legend 2', 'Legend 3', 'Legend 4'],
-        reason: 'selecting one series must filter out every other one',
-      );
+      expect(_dimmedTitles(tester), <String>[
+        'Legend 2',
+        'Legend 3',
+        'Legend 4',
+      ], reason: 'selecting one series must filter out every other one');
       // Upstream raises a browser alert here; the port writes the same sentence
       // under the strip, so this is the row's `onAction` reaching the demo.
       expect(find.text('Legend1 clicked'), findsOneWidget);
@@ -52,11 +52,9 @@ void main() {
 
       await tapAndSettle(tester, find.text('Legend 1'), what: 'Legend 1');
       await tapAndSettle(tester, find.text('Legend 3'), what: 'Legend 3');
-      expect(
-        _selectedTitles(tester),
-        <String>['Legend 3'],
-        reason: 'single-select must swap the selection, not accumulate it',
-      );
+      expect(_selectedTitles(tester), <String>[
+        'Legend 3',
+      ], reason: 'single-select must swap the selection, not accumulate it');
       expect(find.text('Legend3 clicked'), findsOneWidget);
       expect(find.text('Legend1 clicked'), findsNothing);
       await expectCleanTeardown(tester, section.id);
@@ -73,11 +71,9 @@ void main() {
       // scrollable's drag recogniser to claim it and for the click never to
       // land, which `tester.tap` cannot see.
       await mouseClick(tester, find.text('Legend 2'));
-      expect(
-        _selectedTitles(tester),
-        <String>['Legend 2'],
-        reason: 'a mouse press on a row must select it, not merely hover it',
-      );
+      expect(_selectedTitles(tester), <String>[
+        'Legend 2',
+      ], reason: 'a mouse press on a row must select it, not merely hover it');
       expect(find.text('Legend2 clicked'), findsOneWidget);
     });
   });
@@ -246,11 +242,10 @@ void main() {
       expect(find.text('Selected legends: Legend 1, Legend 3'), findsOneWidget);
 
       await tapAndSettle(tester, find.text('Select 2 and 4'));
-      expect(
-        _selectedTitles(tester),
-        <String>['Legend 2', 'Legend 4'],
-        reason: 'a controlled strip must adopt whatever the parent hands it',
-      );
+      expect(_selectedTitles(tester), <String>[
+        'Legend 2',
+        'Legend 4',
+      ], reason: 'a controlled strip must adopt whatever the parent hands it');
       expect(find.text('Selected legends: Legend 2, Legend 4'), findsOneWidget);
 
       await tapAndSettle(tester, find.text('Select all'));
@@ -272,11 +267,11 @@ void main() {
       // update the widget's own state, so the row can only change if `onChange`
       // reached the parent and the parent handed a new list back down.
       await mouseClick(tester, find.text('Legend 1'));
-      expect(
-        _selectedTitles(tester),
-        <String>['Legend 2', 'Legend 3', 'Legend 4'],
-        reason: 'deselecting one of four must leave the other three selected',
-      );
+      expect(_selectedTitles(tester), <String>[
+        'Legend 2',
+        'Legend 3',
+        'Legend 4',
+      ], reason: 'deselecting one of four must leave the other three selected');
       expect(
         find.text('Selected legends: Legend 2, Legend 3, Legend 4'),
         findsOneWidget,
@@ -291,11 +286,10 @@ void main() {
 
       await tapAndSettle(tester, find.text('Legend 1'), what: 'Legend 1');
       await tapAndSettle(tester, find.text('Legend 2'), what: 'Legend 2');
-      expect(
-        _selectedTitles(tester),
-        <String>['Legend 1', 'Legend 2'],
-        reason: 'this strip is multi-select; the second press must add',
-      );
+      expect(_selectedTitles(tester), <String>[
+        'Legend 1',
+        'Legend 2',
+      ], reason: 'this strip is multi-select; the second press must add');
       expect(find.text('Selected legends: Legend 1, Legend 2'), findsOneWidget);
       await expectCleanTeardown(tester, section.id);
     });

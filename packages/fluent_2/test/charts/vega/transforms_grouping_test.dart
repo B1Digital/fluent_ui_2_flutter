@@ -82,11 +82,10 @@ void main() {
     final out = applyVegaTransforms(rows(), <Object?>[
       <String, Object?>{'filter': 'datum.v > 2'},
     ]);
-    expect(
-      out.map((row) => row['v']).toList(),
-      <Object?>[3, 5],
-      reason: 'VegaLiteSchemaAdapter.ts:233-243.',
-    );
+    expect(out.map((row) => row['v']).toList(), <Object?>[
+      3,
+      5,
+    ], reason: 'VegaLiteSchemaAdapter.ts:233-243.');
   });
 
   test('a filter keeps a row only when the result is JavaScript-truthy', () {
@@ -328,11 +327,11 @@ void main() {
         'groupby': <Object?>['g'],
       },
     ]);
-    expect(
-      out.map((row) => row['total']).toList(),
-      <Object?>[4, 4, 5],
-      reason: 'VegaLiteSchemaAdapter.ts:369-417.',
-    );
+    expect(out.map((row) => row['total']).toList(), <Object?>[
+      4,
+      4,
+      5,
+    ], reason: 'VegaLiteSchemaAdapter.ts:369-417.');
     expect(
       out.map((row) => row['v']).toList(),
       <Object?>[1, 3, 5],

@@ -81,11 +81,10 @@ void main() {
           'zMin, and a single-cell figure has zMax == zMin so both stops '
           'collapse onto it.',
     );
-    expect(
-      chart.rangeValuesForColorScale,
-      <Color>[const Color(0xFF000000), const Color(0xFFFFFFFF)],
-      reason: 'PlotlySchemaAdapter.ts:2602 takes stop[1] as the colour.',
-    );
+    expect(chart.rangeValuesForColorScale, <Color>[
+      const Color(0xFF000000),
+      const Color(0xFFFFFFFF),
+    ], reason: 'PlotlySchemaAdapter.ts:2602 takes stop[1] as the colour.');
   });
 
   test('generated y indices descend while x indices ascend', () {
@@ -106,11 +105,11 @@ void main() {
       <Object>[1, 0],
       reason: 'PlotlySchemaAdapter.ts:2532 generates y as yLen - 1 down to 0.',
     );
-    expect(
-      points.map((p) => p.x).toSet().toList(),
-      <Object>[0, 1, 2],
-      reason: 'PlotlySchemaAdapter.ts:2531 generates x as 0 up to xLen - 1.',
-    );
+    expect(points.map((p) => p.x).toSet().toList(), <Object>[
+      0,
+      1,
+      2,
+    ], reason: 'PlotlySchemaAdapter.ts:2531 generates x as 0 up to xLen - 1.');
     expect(
       points.where((p) => p.x == 0 && p.y == 1).map((p) => p.value).single,
       1,
@@ -206,11 +205,9 @@ void main() {
           'PlotlySchemaAdapter.ts:2585 — zMin >= 0 is sequential, and 0 '
           'counts as entirely positive.',
     );
-    expect(
-      build(figure(<Object?>[-5, 0])).rangeValuesForColorScale,
-      <Color>[const Color(0xFF333333)],
-      reason: 'PlotlySchemaAdapter.ts:2586 — zMax <= 0 is sequentialminus.',
-    );
+    expect(build(figure(<Object?>[-5, 0])).rangeValuesForColorScale, <Color>[
+      const Color(0xFF333333),
+    ], reason: 'PlotlySchemaAdapter.ts:2586 — zMax <= 0 is sequentialminus.');
     expect(
       build(figure(<Object?>[-1, 1])).domainValuesForColorScale,
       <double>[-1],

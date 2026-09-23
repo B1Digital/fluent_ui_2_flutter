@@ -82,11 +82,10 @@ void main() {
     final c = SankeyLayoutNode()..layer = 0;
     final columns = groupSankeyNodesByColumn(<SankeyLayoutNode>[a, b, c]);
     expect(columns.keys.toList()..sort(), <int>[0, 1], reason: 'two layers');
-    expect(
-      columns[0],
-      <SankeyLayoutNode>[a, c],
-      reason: 'SankeyChart.tsx:166-173 preserves node order within a column',
-    );
+    expect(columns[0], <SankeyLayoutNode>[
+      a,
+      c,
+    ], reason: 'SankeyChart.tsx:166-173 preserves node order within a column');
   });
 
   test('a sub-one-percent node is lifted to exactly one percent', () {

@@ -325,16 +325,23 @@ void main() {
   });
 
   test('the path tokeniser normalises separators but not values', () {
-    expect(
-      tokeniseSvgPath('M64.5,6V0.5H680.5V6'),
-      <String>['M', '64.5', '6', 'V', '0.5', 'H', '680.5', 'V', '6'],
-      reason: 'commas and implicit separators are not part of the geometry',
-    );
-    expect(
-      tokeniseSvgPath('M-1.5e2 .5Z'),
-      <String>['M', '-1.5e2', '.5', 'Z'],
-      reason: 'd3-path emits exponent and leading-dot forms',
-    );
+    expect(tokeniseSvgPath('M64.5,6V0.5H680.5V6'), <String>[
+      'M',
+      '64.5',
+      '6',
+      'V',
+      '0.5',
+      'H',
+      '680.5',
+      'V',
+      '6',
+    ], reason: 'commas and implicit separators are not part of the geometry');
+    expect(tokeniseSvgPath('M-1.5e2 .5Z'), <String>[
+      'M',
+      '-1.5e2',
+      '.5',
+      'Z',
+    ], reason: 'd3-path emits exponent and leading-dot forms');
     expect(
       svgPathNumbers('M64.5,6V0.5H680.5V6'),
       <double>[64.5, 6, 0.5, 680.5, 6],

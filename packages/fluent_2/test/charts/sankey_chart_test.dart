@@ -48,11 +48,11 @@ void main() {
           'SankeyChart.tsx:82-96 walks forward through sourceLinks, so A picks up '
           'A->B and B->C but not D->C',
     );
-    expect(
-      selection.nodeIndices,
-      <int>{0, 1, 2},
-      reason: 'SankeyChart.tsx:65-75 plus the hovered node itself at :879',
-    );
+    expect(selection.nodeIndices, <int>{
+      0,
+      1,
+      2,
+    }, reason: 'SankeyChart.tsx:65-75 plus the hovered node itself at :879');
     expect(
       selection.selectedNode,
       0,
@@ -87,11 +87,11 @@ void main() {
           'SankeyChart.tsx:119-152 walks upstream from the source and downstream '
           'from the target of the hovered link',
     );
-    expect(
-      selection.nodeIndices,
-      <int>{0, 1, 2},
-      reason: 'the touched nodes are collected on both walks',
-    );
+    expect(selection.nodeIndices, <int>{
+      0,
+      1,
+      2,
+    }, reason: 'the touched nodes are collected on both walks');
   });
 
   test('the idle state paints every node in its own colours', () {

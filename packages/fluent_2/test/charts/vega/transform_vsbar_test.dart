@@ -60,11 +60,10 @@ void main() {
 
   test('bars stack per x value in colour-field order', () {
     final chart = build(stacked);
-    expect(
-      chart.data.first.chartData.map((d) => d.legend).toList(),
-      <String>['p', 'q'],
-      reason: 'ts:2349-2540 groups by x then by the colour field.',
-    );
+    expect(chart.data.first.chartData.map((d) => d.legend).toList(), <String>[
+      'p',
+      'q',
+    ], reason: 'ts:2349-2540 groups by x then by the colour field.');
   });
 
   test('the chart title and both category orders land on the widget', () {

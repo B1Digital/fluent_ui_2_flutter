@@ -190,11 +190,11 @@ void main() {
         closeTo(0, 1e-9),
         reason: 'paddingInner 1 leaves no band width at all',
       );
-      expect(
-        radial.tickLabels,
-        <String>['a', 'b', 'c'],
-        reason: 'PolarChart.utils.ts:55-61 falls back to the domain values',
-      );
+      expect(radial.tickLabels, <String>[
+        'a',
+        'b',
+        'c',
+      ], reason: 'PolarChart.utils.ts:55-61 falls back to the domain values');
     });
 
     test('explicit tickValues plus tickText relabel a category axis', () {
@@ -219,11 +219,10 @@ void main() {
         <double>[0, 100],
         tickText: <String>['One', 'Two'],
       );
-      expect(
-        radial.tickLabels,
-        <String>['a', 'b'],
-        reason: 'the guard at :57 tests Array.isArray(opts.tickValues) first',
-      );
+      expect(radial.tickLabels, <String>[
+        'a',
+        'b',
+      ], reason: 'the guard at :57 tests Array.isArray(opts.tickValues) first');
     });
 
     test('a linear axis is niced and defaults to four ticks', () {
@@ -232,11 +231,10 @@ void main() {
         <Object>[0, 93],
         <double>[0, 100],
       );
-      expect(
-        radial.scale.domain,
-        <Object>[0, 100],
-        reason: 'PolarChart.utils.ts:74 calls nice() before tick generation',
-      );
+      expect(radial.scale.domain, <Object>[
+        0,
+        100,
+      ], reason: 'PolarChart.utils.ts:74 calls nice() before tick generation');
       expect(
         radial.tickValues,
         <Object>[0, 20, 40, 60, 80, 100],
@@ -412,11 +410,12 @@ void main() {
         closeTo(0, 1e-12),
         reason: 'index 1 sits at datum 90, which folds to 0',
       );
-      expect(
-        angular.tickLabels,
-        <String>['n', 'e', 's', 'w'],
-        reason: 'a category axis labels with the domain values',
-      );
+      expect(angular.tickLabels, <String>[
+        'n',
+        'e',
+        's',
+        'w',
+      ], reason: 'a category axis labels with the domain values');
     });
 
     test('radians relabel the same tick values', () {
@@ -426,16 +425,18 @@ void main() {
         tickCount: 4,
         unit: FluentPolarAngularUnit.radians,
       );
-      expect(
-        angular.tickValues,
-        <Object>[0, 90, 180, 270],
-        reason: 'tick values stay in degrees regardless of the unit',
-      );
-      expect(
-        angular.tickLabels,
-        <String>['0π', '0.5π', '1π', '1.5π'],
-        reason: 'PolarChart.utils.ts:255 divides by 180 before appending pi',
-      );
+      expect(angular.tickValues, <Object>[
+        0,
+        90,
+        180,
+        270,
+      ], reason: 'tick values stay in degrees regardless of the unit');
+      expect(angular.tickLabels, <String>[
+        '0π',
+        '0.5π',
+        '1π',
+        '1.5π',
+      ], reason: 'PolarChart.utils.ts:255 divides by 180 before appending pi');
     });
 
     test('tickStep in radians is converted back to degrees', () {

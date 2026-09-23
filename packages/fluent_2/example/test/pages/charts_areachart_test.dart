@@ -128,11 +128,10 @@ void main() {
       );
       await tapAndSettle(tester, legendNamed('Legend1'), what: 'legend 1');
       await tapAndSettle(tester, legendNamed('Legend2'), what: 'legend 2');
-      expect(
-        areaDelegate(tester).selectedLegends,
-        <String>['legend1', 'legend2'],
-        reason: 'multi-select must accumulate, not replace',
-      );
+      expect(areaDelegate(tester).selectedLegends, <String>[
+        'legend1',
+        'legend2',
+      ], reason: 'multi-select must accumulate, not replace');
       expect(legendRow(tester, 'Legend3').dimmed, isTrue);
 
       // "All selected" is canonicalised back to "none selected"

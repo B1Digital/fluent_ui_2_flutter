@@ -94,11 +94,10 @@ void main() {
           '5px, 5px',
           reason: '$id — ScatterChart.tsx:759 sets strokeDasharray 5,5',
         );
-        expect(
-          style.hoverLineDashPattern!.resolve(states),
-          <double>[5, 5],
-          reason: '$id — the port must carry that same dash pattern',
-        );
+        expect(style.hoverLineDashPattern!.resolve(states), <double>[
+          5,
+          5,
+        ], reason: '$id — the port must carry that same dash pattern');
         asserted++;
       }
       expect(
@@ -415,11 +414,10 @@ void main() {
       final delegate = _delegateOf(<FluentScatterChartSeries>[
         _series('S1', <Object>[1, 2], <Object>['b', 'a']),
       ], order: FluentAxisCategoryOrder.categoryAscending);
-      expect(
-        delegate.orderedYAxisLabels,
-        <String>['a', 'b'],
-        reason: 'ScatterChart.tsx:318 delegates any non-default order',
-      );
+      expect(delegate.orderedYAxisLabels, <String>[
+        'a',
+        'b',
+      ], reason: 'ScatterChart.tsx:318 delegates any non-default order');
     });
 
     test('the x categories are collected series- and point-forward', () {
@@ -434,11 +432,11 @@ void main() {
             'ScatterChart.tsx:710-714 pushes every unique string x in data '
             'order, forwards through both loops',
       );
-      expect(
-        delegate.datasetForXAxisDomain,
-        <String>['b', 'a', 'c'],
-        reason: 'CartesianChart.tsx:264 takes that list as the band domain',
-      );
+      expect(delegate.datasetForXAxisDomain, <String>[
+        'b',
+        'a',
+        'c',
+      ], reason: 'CartesianChart.tsx:264 takes that list as the band domain');
     });
 
     test('a hit region is exactly the circle it was painted from', () {

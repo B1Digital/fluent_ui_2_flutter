@@ -71,11 +71,9 @@ void main() {
 
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await settle(tester);
-      expect(
-        ringVisibility(tester),
-        <bool>[true],
-        reason: 'a keyboard user must be able to see where they are',
-      );
+      expect(ringVisibility(tester), <bool>[
+        true,
+      ], reason: 'a keyboard user must be able to see where they are');
     });
   });
 
