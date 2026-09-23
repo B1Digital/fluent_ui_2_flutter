@@ -222,7 +222,9 @@ const DocsPage gaugeChartPage = DocsPage(
       name: 'culture',
       type: 'String?',
       defaultValue: 'null',
-      description: 'The locale tag used to format popover text.',
+      description:
+          'No visible effect: every popover string is prebuilt text, which '
+          "upstream's culture pass leaves unchanged too.",
     ),
     PropRow(
       name: 'variant',

@@ -1604,6 +1604,7 @@ class FluentVerticalStackedBarChartDelegate
       xValue: calloutX(stack.xAxisPoint),
       isCalloutForStack: true,
       yValues: rows..addAll(bars.reversed),
+      culture: culture,
     );
   }
 

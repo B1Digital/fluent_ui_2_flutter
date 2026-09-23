@@ -17,7 +17,7 @@ import 'legend_shape.dart';
 /// `formatToLocaleString` inside the popover (`ChartPopover.tsx:80`, `:89`),
 /// but the frozen contract types these as `String?`, which moves the call to
 /// the chart. [yValues] is the exception: its readings are still numeric, so
-/// the multi-value body formats them itself.
+/// the multi-value body formats them itself, in [culture].
 @immutable
 class FluentChartPopoverData {
   /// Creates a popover reading.
@@ -31,6 +31,7 @@ class FluentChartPopoverData {
     this.descriptionMessage,
     this.isCalloutForStack = false,
     this.customContentBuilder,
+    this.culture,
   });
 
   /// The x reading, shown at the top. `ChartPopover.tsx:63`.
@@ -63,6 +64,11 @@ class FluentChartPopoverData {
   /// nothing else — both other branches are gated on its absence at `:56` and
   /// `:60` — so it wins outright.
   final WidgetBuilder? customContentBuilder;
+
+  /// BCP-47 locale the multi-value body formats [yValues] in, `props.culture`
+  /// (`ChartPopover.tsx:189-190`, `:233`, `:259`). Null formats them in the
+  /// default locale.
+  final String? culture;
 }
 
 /// Applies a [FluentChartPopoverStyle] to every chart popover below it.
@@ -271,6 +277,7 @@ Widget buildFluentChartPopoverMultiValue(
         style,
         fallbackForeground,
         popoverColour: data.color,
+        culture: data.culture,
         hasSubCounts: hasSubCounts,
         // ChartPopover.tsx:187 — every column but the last carries a 16px
         // trailing margin.
@@ -323,6 +330,7 @@ Widget _popoverRow(
   FluentChartPopoverStyle style,
   Color fallbackForeground, {
   required Color? popoverColour,
+  required String? culture,
   required bool hasSubCounts,
   required bool isLast,
 }) {
@@ -330,10 +338,12 @@ Widget _popoverRow(
   // ChartPopover.tsx:188.
   final toDrawShape = value.index != null && value.index != -1;
   final colour = value.color ?? fallbackForeground;
-  final reading = value.yAxisCalloutText ?? formatToLocaleString(value.y);
+  // ChartPopover.tsx:189-190.
+  final y = formatToLocaleString(value.y, culture: culture);
+  final reading = value.yAxisCalloutText ?? y;
   // ChartPopover.tsx:196 and :246 both render `{legend} ({y})`.
   final header = Text(
-    '${value.legend ?? ''} (${formatToLocaleString(value.y)})',
+    '${value.legend ?? ''} ($y)',
     style: style.valueTextStyle!
         .resolve(states)!
         .copyWith(
@@ -450,7 +460,7 @@ Widget _popoverRow(
                   // carries no colour; upstream wins under the bug-fidelity
                   // rule (spec §5.2).
                   Text(
-                    formatToLocaleString(entry.value),
+                    formatToLocaleString(entry.value, culture: culture),
                     style: style.valueTextStyle!
                         .resolve(states)!
                         .copyWith(color: popoverColour ?? fallbackForeground),
