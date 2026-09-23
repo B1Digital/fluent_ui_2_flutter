@@ -334,7 +334,8 @@
   },
   "compat-components-calendar--calendar-multiday-day-view": {
     "kind": "composed",
-    "why": "No calendarDayProps.daysToSelectInDayView, so the positive and negative day runs are computed locally for the Selected range readout; the Dropdown drives that number and the grid highlights only the anchor day."
+    "why": "No calendarDayProps.daysToSelectInDayView, so the positive and negative day runs are computed locally for the Selected range readout; the Dropdown drives that number and the grid highlights only the anchor day. Upstream's intro hardcodes 'daysToSelectInView = 4.' beside that Dropdown; the port interpolates the knob so the intro cannot go stale, which puts the literal 4 on screen only at the default.",
+    "sampleStringsSkip": ["daysToSelectInView = 4"]
   },
   "compat-components-calendar--calendar-non-contiguous-work-week-days": {
     "kind": "composed",
