@@ -38,31 +38,35 @@ enum FluentInputSize {
   large,
 }
 
-/// The focus bar growing in, verified against `useInputStyles.styles.ts`.
+/// The focus bar growing in, measured on the live storybook.
 ///
 /// Upstream's `:focus-within::after` sets `transform: scaleX(1)`,
 /// `transitionProperty: transform` and `transitionDuration: durationNormal`.
 ///
-/// **Upstream defect, ported as intent.** The same block writes
-/// `transitionDelay: tokens.curveDecelerateMid` — a *curve* assigned to
-/// `transition-delay`, which is not a valid delay, so every browser drops the
-/// declaration and runs the transition on the default `ease` with no delay.
-/// The obvious intent is `transitionTimingFunction`, so the curve is used as
-/// the easing here rather than reproducing a typo.
+/// **The easing is CSS `ease`, not a Fluent curve.** The same block writes
+/// `transitionDelay: tokens.curveDecelerateMid` — a curve in the *delay* slot.
+/// That is invalid at computed-value time, so Chrome computes
+/// `transition-delay: 0s` and leaves `transition-timing-function` at its
+/// initial `ease`. `document.getAnimations()` reports exactly that
+/// (`200ms`, `ease`, delay 0), and the sampled scale at 20ms steps is
+/// `0, .095, .295, .513, .683, .802, …` — [Curves.ease], which is CSS's
+/// `cubic-bezier(.25, .1, .25, 1)`. Every sibling that reuses this bar
+/// (Textarea, SearchBox, Dropdown, Combobox, TagPicker, SpinButton, DatePicker,
+/// TimePicker) ships the same typo and the same `ease`. This ports what renders,
+/// not what the typo suggests was meant.
 const FluentMotionSpec fluentInputFocusUnderlineEnter = FluentMotionSpec(
   duration: FluentDuration.normal,
-  curve: FluentCurve.decelerateMid,
+  curve: Curves.ease,
 );
 
 /// The focus bar shrinking out.
 ///
 /// Upstream's base `::after` rule: `transform: scaleX(0)` at
-/// `durationUltraFast`, four times quicker than the entrance. Same
-/// `transitionDelay` defect as [fluentInputFocusUnderlineEnter]; the curve is
-/// read as the intended easing.
+/// `durationUltraFast`, four times quicker than the entrance, on `ease` for the
+/// same reason as [fluentInputFocusUnderlineEnter].
 const FluentMotionSpec fluentInputFocusUnderlineExit = FluentMotionSpec(
   duration: FluentDuration.ultraFast,
-  curve: FluentCurve.accelerateMid,
+  curve: Curves.ease,
 );
 
 /// Everything needed to render an input, independent of appearance and size.
@@ -266,44 +270,39 @@ FluentInputState resolveFluentInputState({
 /// that reads the design axes. Every value comes from a Fluent token; nothing
 /// here computes a colour.
 ///
-/// Token sources are the Figma `Input` component set (`9115:8452`, 84 variants
-/// over Style × Size × State), extracted into `test/fixtures/input.json` and
-/// asserted variant-by-variant in the tests.
+/// The oracle is upstream as it renders — `useInputStyles.styles.ts` measured
+/// in Chrome on the live storybook — not the Figma `Input` set. Where the two
+/// disagree, upstream wins:
 ///
-/// Three things about this table are worth knowing before "fixing" it:
-///
-/// * **Disabled and Read only are one ramp.** Figma paints both with
-///   `Neutral/Background/Transparent/Rest` and `Neutral/Stroke/Disabled/Rest`
-///   on all four appearances; only the text colour differs, because a read-only
-///   field shows a *value* (`Neutral/Foreground/1/Rest`) where every other
-///   state shows the *placeholder* (`Neutral/Foreground/4/Rest`). Upstream has
-///   no read-only styling at all — `readOnly` is a bare attribute there — so
-///   this whole column is Figma's.
-/// * **Focus does not change the outline border.** All 12 `Style=Outline,
-///   State=Focus` variants keep `Neutral/Stroke/1/Rest`, where React's
-///   `outlineInteractive` moves `:focus-within` to `Stroke1Pressed`. Figma
-///   wins; the brand bar is what marks focus.
-/// * **The bottom rule is a separate node, not `border-bottom`.** Figma draws
-///   `Thin underline` / `Thick underline` rectangles over the box's bottom
-///   edge, which is also the only way Flutter can paint a rounded box whose
-///   bottom side differs in colour. [FluentInputStyle.bottomBorderColor] is
-///   that rectangle.
+/// * **Read only has no styling.** Upstream passes `readOnly` straight to the
+///   `<input>`; the root keeps every interactive rule. Only
+///   [FluentInputBaseState.enabled] changes the ramp.
+/// * **Focus moves the outline border.** `outlineInteractive` writes
+///   `:active,:focus-within` as one rule, which Griffel sorts after `:hover`,
+///   so a focused field shows `Stroke1Pressed` / `StrokeAccessiblePressed`
+///   whether or not it is hovered.
+/// * **The bottom border is a border.** 1px in every state, joined to the sides
+///   on the CSS corner diagonal by [FluentInputBorderPainter].
+/// * **Invalid is `colorPaletteRedBorder2`**, not the status danger token.
 FluentInputStyle resolveFluentInputStyle(
   FluentInputState state,
   FluentThemeData theme,
 ) {
   final c = theme.colors;
   final disabled = !state.enabled;
-  // Figma's Disabled and Read only columns are byte-identical apart from the
-  // text colour, so the surface and border tables branch on this pair together.
-  final inert = disabled || state.readOnly;
+  final focused = state.focused;
   final filled =
       state.appearance == FluentInputAppearance.filledDarker ||
       state.appearance == FluentInputAppearance.filledLighter;
   final underline = state.appearance == FluentInputAppearance.underline;
+  // `colorPaletteRedBorder2`. The palette layer knows nothing of high contrast,
+  // where the status token is the system text colour instead.
+  final danger = c is FluentHighContrastColors
+      ? c.statusDangerBorder2
+      : c.palette.stroke2Rest(FluentPaletteFamily.red)!;
 
   final background = switch (state.appearance) {
-    _ when inert => c.transparentBackground,
+    _ when disabled => c.transparentBackground,
     FluentInputAppearance.underline => c.transparentBackground,
     FluentInputAppearance.filledDarker => c.neutralBackground3,
     FluentInputAppearance.outline ||
@@ -318,49 +317,48 @@ FluentInputStyle resolveFluentInputStyle(
   // `useInputStyles.styles.ts` writes the danger colour under
   // `':not(:focus-within),:hover:not(:focus-within)'`, so a focused invalid
   // field falls back to the ordinary ramp and the brand bar is what marks it.
-  // Figma cannot contradict this — Error and Focus are two values of one
-  // `State` axis there, so the file has no Error-while-focused variant.
   final WidgetStateProperty<Color>? border;
   if (underline) {
     border = null;
-  } else if (inert) {
+  } else if (disabled) {
     border = FluentStateColor.tokens(rest: c.neutralStrokeDisabled);
-  } else if (state.error && !state.focused) {
-    border = FluentStateColor.tokens(rest: c.statusDangerBorder2);
+  } else if (state.error && !focused) {
+    border = FluentStateColor.tokens(rest: danger);
   } else if (filled) {
-    // Upstream's `filledInteractive` moves both `:hover` and `:focus-within`
-    // (and therefore `:active`) to the Interactive token. Figma agrees on
-    // Filled lighter and contradicts itself on Filled darker, where Hover and
-    // Pressed keep the plain `Neutral/Stroke/Transparent/Rest` while Focus
-    // takes the Interactive one. React's rule is the consistent reading.
+    // `filledInteractive` moves both `:hover` and `:focus-within` (and
+    // therefore `:active`) to the Interactive token.
     border = FluentStateColor.tokens(
-      rest: state.focused
-          ? c.transparentStrokeInteractive
-          : c.transparentStroke,
+      rest: focused ? c.transparentStrokeInteractive : c.transparentStroke,
       hover: c.transparentStrokeInteractive,
       pressed: c.transparentStrokeInteractive,
     );
   } else {
+    // Focus holds the Pressed stop through a hover: see the doc comment.
     border = FluentStateColor.tokens(
-      rest: c.neutralStroke1,
-      hover: c.neutralStroke1Hover,
+      rest: focused ? c.neutralStroke1Pressed : c.neutralStroke1,
+      hover: focused ? c.neutralStroke1Pressed : c.neutralStroke1Hover,
       pressed: c.neutralStroke1Pressed,
     );
   }
 
-  // The bottom rule. Filled appearances draw none; on Outline it sits over the
-  // box border, on Underline it *is* the border.
+  // The bottom border. Filled appearances have none of their own — their
+  // transparent box border runs round all four sides; on Outline it is the
+  // accessible-contrast bottom side, on Underline it is the only side.
   final WidgetStateProperty<Color>? bottomBorder;
   if (filled) {
     bottomBorder = null;
-  } else if (inert) {
+  } else if (disabled) {
     bottomBorder = FluentStateColor.tokens(rest: c.neutralStrokeDisabled);
-  } else if (state.error && !state.focused) {
-    bottomBorder = FluentStateColor.tokens(rest: c.statusDangerBorder2);
+  } else if (state.error && !focused) {
+    bottomBorder = FluentStateColor.tokens(rest: danger);
   } else {
     bottomBorder = FluentStateColor.tokens(
-      rest: c.neutralStrokeAccessible,
-      hover: c.neutralStrokeAccessibleHover,
+      rest: focused
+          ? c.neutralStrokeAccessiblePressed
+          : c.neutralStrokeAccessible,
+      hover: focused
+          ? c.neutralStrokeAccessiblePressed
+          : c.neutralStrokeAccessibleHover,
       pressed: c.neutralStrokeAccessiblePressed,
     );
   }
@@ -395,24 +393,18 @@ FluentInputStyle resolveFluentInputStyle(
     borderWidth: WidgetStatePropertyAll<double?>(
       underline ? FluentStroke.none : FluentStroke.thin,
     ),
-    // Every one of the 84 variants binds `Corner-radius/Input/{Small,Medium}`,
-    // both of which resolve to 4, Underline included — React zeroes the radius
-    // there instead. Nothing but the rule's own ends is observable either way.
-    borderRadius: const WidgetStatePropertyAll<BorderRadius?>(
-      FluentRadius.allMedium,
+    // Underline zeroes both the root's radius and the focus bar's
+    // (`underlineInteractive`'s `::after { borderRadius: 0 }`): a flat rule
+    // with square ends.
+    borderRadius: WidgetStatePropertyAll<BorderRadius?>(
+      underline ? BorderRadius.zero : FluentRadius.allMedium,
     ),
     bottomBorderColor: bottomBorder,
-    bottomBorderWidth: WidgetStateProperty.resolveWith<double?>(
-      (states) => bottomBorder == null
-          ? FluentStroke.none
-          // Figma swaps `Thin underline` for `Thick underline` on Pressed, in
-          // `Neutral/Stroke/Accessible/Pressed`. React keeps 1px and only
-          // recolours. Figma wins; the rule is an overlay, so 2px costs no
-          // layout.
-          : states.contains(WidgetState.pressed)
-          ? FluentStroke.thick
-          : FluentStroke.thin,
-    ),
+    // 1px on every appearance and in every state: upstream recolours the
+    // bottom border on press, it never thickens it. Unconditional, so a caller
+    // colouring only the bottom of a filled field keeps its 1px; with no
+    // bottom colour the side colour and width run round instead.
+    bottomBorderWidth: const WidgetStatePropertyAll<double?>(FluentStroke.thin),
     // Upstream's disabled rule is `::after { content: unset }` — a disabled
     // field has no focus bar at all. Read only keeps one: it still takes focus.
     focusUnderlineColor: disabled
@@ -434,11 +426,13 @@ FluentInputStyle resolveFluentInputStyle(
     padding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(
       EdgeInsets.symmetric(horizontal: inset),
     ),
-    // Figma binds `Spacing/Horizontal/XXS` on the `.Text` layer at every size,
-    // so the total inset is 8 / 12 / 14. React's `horizontalPadding.input.large`
-    // is `SNudge`, which would make Large 18; Figma wins.
-    contentPadding: const WidgetStatePropertyAll<EdgeInsetsGeometry?>(
-      EdgeInsets.symmetric(horizontal: FluentSpacing.xxs),
+    // Upstream splits the inset per side — the `<input>` carries 8 / 12 / 18
+    // on a side with no slot, and 2 / 2 / 6 plus a 6 / 10 / 12 root padding on
+    // a side with one. Both sums are the same, so a symmetric root [padding]
+    // plus this (equal to [gap]) lands the text and the slots on upstream's
+    // pixels with or without content, inside the border.
+    contentPadding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(
+      EdgeInsets.symmetric(horizontal: gap),
     ),
     gap: WidgetStatePropertyAll<double?>(gap),
     iconSize: WidgetStatePropertyAll<double?>(iconSize),
@@ -463,7 +457,7 @@ FluentInputStyle resolveFluentInputStyle(
 /// The third of the three-function recomposition contract. Takes
 /// [FluentInputBaseState] rather than [FluentInputState] on purpose: it never
 /// reads appearance or size, so a consumer can supply their own style and still
-/// use Fluent's layout, bottom rule and focus animation.
+/// use Fluent's layout, border and focus animation.
 ///
 /// The result is *chrome plus an [EditableText]* — it carries no gesture
 /// recognisers, so a caller placing it by hand must wrap it in a
@@ -519,6 +513,8 @@ Widget buildFluentInput(
     // exactly what a browser does with no `caret-color` declared, and what
     // upstream therefore ships.
     cursorColor: cursorColor ?? foreground ?? const Color(0xFF000000),
+    // The browser's caret is 1px; `EditableText`'s default is 2.
+    cursorWidth: FluentStroke.thin,
     // iOS floating-cursor ghost. Deliberately the placeholder tone rather than
     // a computed grey.
     backgroundCursorColor: placeholderColor ?? const Color(0x00000000),
@@ -597,10 +593,17 @@ Widget buildFluentInput(
     ],
   );
 
-  // The bottom rule and the focus bar are drawn as overlays rather than as a
-  // one-sided border: Flutter refuses to paint a rounded rectangle whose sides
-  // disagree in colour ("A borderRadius can only be given on borders with
-  // uniform colors"), and Figma models them as separate rectangles anyway.
+  // CSS box model: a border that exists takes space, so the content sits inside
+  // it — 1px on every side for outline and the filled appearances (whose
+  // transparent border still counts), the bottom only for underline. A null
+  // colour is no border at all.
+  final side = borderColor == null ? FluentStroke.none : borderWidth;
+  final widths = EdgeInsets.fromLTRB(
+    side,
+    side,
+    side,
+    bottomColor == null ? side : bottomWidth,
+  );
   final ruleRadius = BorderRadius.only(
     bottomLeft: radius.bottomLeft,
     bottomRight: radius.bottomRight,
@@ -627,35 +630,22 @@ Widget buildFluentInput(
             minHeight: minimumSize.height,
             minWidth: minimumSize.width,
           ),
+          // Background, then border, then content, then the focus bar below:
+          // CSS's paint order for a root and its positioned `::after`.
           child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: background,
-              borderRadius: radius,
-              border: borderWidth > 0 && borderColor != null
-                  ? Border.all(color: borderColor, width: borderWidth)
-                  : null,
+            decoration: BoxDecoration(color: background, borderRadius: radius),
+            child: CustomPaint(
+              painter: FluentInputBorderPainter(
+                radius: radius,
+                borderColor: borderColor,
+                borderWidth: side,
+                bottomBorderColor: bottomColor,
+                bottomBorderWidth: widths.bottom,
+              ),
+              child: Padding(padding: padding.add(widths), child: row),
             ),
-            child: Padding(padding: padding, child: row),
           ),
         ),
-        if (bottomColor != null && bottomWidth > 0)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: bottomWidth,
-            // The radius has to be painted on a TALLER box and clipped back.
-            // Setting it on a 1px-high DecoratedBox looks right and does
-            // nothing: Skia scales every corner by
-            // `min(edge / sum-of-radii-on-that-edge)`, so a 4px corner on a 1px
-            // rule ships as 0.5 and the ends read square against a rounded
-            // field. FluentInputUnderline is that clip.
-            child: FluentInputUnderline(
-              color: bottomColor,
-              thickness: bottomWidth,
-              borderRadius: ruleRadius,
-            ),
-          ),
         if (focusColor != null)
           Positioned(
             left: 0,
@@ -677,11 +667,17 @@ Widget buildFluentInput(
 /// The brand bar that grows across the bottom of a focused input.
 ///
 /// Upstream animates it as `transform: scaleX(0 → 1)` on the root's `::after`
-/// pseudo-element, with a **different duration and curve per direction**, which
-/// is why this is a raw [AnimationController] rather than a
-/// [FluentAnimatedStyle]: that widget carries one [FluentMotionSpec], and this
-/// needs two — [fluentInputFocusUnderlineEnter] and
-/// [fluentInputFocusUnderlineExit].
+/// pseudo-element, with a **different duration per direction**, which is why
+/// this is a raw [AnimationController] rather than a [FluentAnimatedStyle]:
+/// that widget carries one [FluentMotionSpec], and this needs two —
+/// [fluentInputFocusUnderlineEnter] and [fluentInputFocusUnderlineExit].
+///
+/// A focus change mid-flight follows CSS transitions exactly: a new `ease`
+/// transition starts from the current scale and runs for the direction's
+/// duration times the distance left to cover (CSS's *reversing shortening
+/// factor*, which is `|target − current|` for a 0↔1 property). Blurring 100ms
+/// into the entrance, at scale .802, retracts over 40ms — as measured in
+/// Chrome. [AnimationController.animateTo] computes the same duration.
 ///
 /// Reduced motion collapses both to [Duration.zero], matching upstream's own
 /// `prefers-reduced-motion` clamp to `0.01ms`.
@@ -718,60 +714,55 @@ class _FluentInputFocusUnderlineState extends State<FluentInputFocusUnderline>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: fluentInputFocusUnderlineEnter.duration,
-    reverseDuration: fluentInputFocusUnderlineExit.duration,
     value: widget.focused ? 1 : 0,
   );
-  late final CurvedAnimation _scale = CurvedAnimation(
-    parent: _controller,
-    curve: fluentInputFocusUnderlineEnter.curve,
-    reverseCurve: fluentInputFocusUnderlineExit.curve,
-  );
-  bool _reducedMotion = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _reducedMotion = MediaQuery.disableAnimationsOf(context);
-    _applyReducedMotion();
+    // Set on every change, not only when reduced motion turns on, so turning it
+    // back off restores the real durations.
+    final reduced = MediaQuery.disableAnimationsOf(context);
+    _controller
+      ..duration = reduced
+          ? Duration.zero
+          : fluentInputFocusUnderlineEnter.duration
+      ..reverseDuration = reduced
+          ? Duration.zero
+          : fluentInputFocusUnderlineExit.duration;
+    // Setting `value` stops the ticker as well as jumping, so nothing is left
+    // scheduled when reduced motion is switched on mid-flight.
+    if (reduced && _controller.isAnimating) {
+      _controller.value = widget.focused ? 1 : 0;
+    }
   }
 
   @override
   void didUpdateWidget(FluentInputFocusUnderline oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.focused == oldWidget.focused) return;
+    // Not forward()/reverse() on a CurvedAnimation: that retraces the old
+    // curve backwards. These restart the curve from wherever the bar is.
     if (widget.focused) {
-      _controller.forward();
+      _controller.animateTo(1, curve: fluentInputFocusUnderlineEnter.curve);
     } else {
-      _controller.reverse();
+      _controller.animateBack(0, curve: fluentInputFocusUnderlineExit.curve);
     }
-    _applyReducedMotion();
-  }
-
-  void _applyReducedMotion() {
-    if (!_reducedMotion) return;
-    _controller
-      ..duration = Duration.zero
-      ..reverseDuration = Duration.zero;
-    // Setting `value` stops the ticker as well as jumping, so nothing is left
-    // scheduled when reduced motion is switched on mid-flight.
-    if (_controller.isAnimating) _controller.value = widget.focused ? 1 : 0;
   }
 
   @override
   void dispose() {
-    _scale.dispose();
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: _scale,
+    animation: _controller,
     // CSS `scaleX` has its origin at 50%, so the bar grows out from the middle
     // in both directions rather than sweeping in from one edge.
     builder: (context, child) =>
-        Transform.scale(scaleX: _scale.value, child: child),
+        Transform.scale(scaleX: _controller.value, child: child),
     child: FluentInputUnderline(
       color: widget.color,
       thickness: widget.thickness,
@@ -782,9 +773,11 @@ class _FluentInputFocusUnderlineState extends State<FluentInputFocusUnderline>
 
 /// A rule pinned to a field's bottom edge that keeps the field's corner radius.
 ///
-/// Both rules on an input are this: the 1px resting one in
-/// `neutralStrokeAccessible`, and the 2px focus accent that
-/// [FluentInputFocusUnderline] animates. Neither can simply draw a rounded box,
+/// This is the body of the 2px focus accent that [FluentInputFocusUnderline]
+/// animates, and the resting bottom rule of the sibling fields that still draw
+/// one as an overlay. An input's own resting bottom border is painted by
+/// [FluentInputBorderPainter] instead, joined to the sides the way CSS joins
+/// them. The rule cannot simply draw a rounded box,
 /// because a corner radius larger than the rule is thick cannot survive on its
 /// own — Skia scales every radius by `min(edge / sum-of-radii-on-that-edge)`,
 /// so a 4px corner on a 2px bar ships as 2, half of that is lost to the bar's
@@ -834,6 +827,129 @@ class FluentInputUnderline extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// Paints an input's box border the way a browser paints a CSS border whose
+/// bottom side differs in colour from the other three.
+///
+/// Upstream's outline field is `border: 1px solid Stroke1` with
+/// `borderBottomColor: StrokeAccessible` on a 4px radius. A browser splits two
+/// adjacent border colours along the line from the corner of the border box to
+/// the corner of the padding box — 45° when the widths match — so the darker
+/// bottom colour climbs roughly half-way round each bottom arc. Flutter's
+/// [Border] refuses a radius on sides of differing colour, and a thin strip
+/// overlaid on a uniform border stops the bottom colour a pixel up the arc,
+/// which is visible at every device pixel ratio.
+///
+/// Each colour is painted once, as the ring between the outer rounded
+/// rectangle and the inner one (radii reduced per side by the border width,
+/// as CSS does), clipped to its own side of the diagonals. Painting one colour
+/// over the other would double-cover the anti-aliased edge pixels.
+///
+/// Public, with its fields, so tests can read the resolved tones directly —
+/// the same reason `FluentRadioIndicatorPainter` is.
+class FluentInputBorderPainter extends CustomPainter {
+  /// Creates a border painter.
+  const FluentInputBorderPainter({
+    required this.radius,
+    required this.borderColor,
+    required this.borderWidth,
+    required this.bottomBorderColor,
+    required this.bottomBorderWidth,
+  });
+
+  /// The field's outer corner radii.
+  final BorderRadius radius;
+
+  /// The top, left and right sides — and the bottom as well when
+  /// [bottomBorderColor] is null. Null paints no sides.
+  final Color? borderColor;
+
+  /// Width of the top, left and right sides.
+  final double borderWidth;
+
+  /// The bottom side, or null when it matches [borderColor].
+  final Color? bottomBorderColor;
+
+  /// Width of the bottom side.
+  final double bottomBorderWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bounds = Offset.zero & size;
+    // No colour is no border, whatever the width says.
+    final side = borderColor == null ? 0.0 : borderWidth;
+    // Scaled like CSS, so an oversized radius cannot overlap itself.
+    final outer = radius.toRRect(bounds).scaleRadii();
+    final inner = EdgeInsets.fromLTRB(
+      side,
+      side,
+      side,
+      bottomBorderWidth,
+    ).deflateRRect(outer);
+    void ring(Color? color) {
+      if (color == null) return;
+      canvas.drawDRRect(outer, inner, Paint()..color = color);
+    }
+
+    final bottom = bottomBorderColor;
+    if (bottom == null || bottom == borderColor || bottomBorderWidth == 0) {
+      ring(borderColor);
+      return;
+    }
+    if (side == 0) {
+      ring(bottom);
+      return;
+    }
+
+    // The join runs along (side, -bottomBorderWidth) from each bottom
+    // corner. It starts outside the box, so the outer anti-aliased edge is
+    // never clipped, and rises until it clears the corner arc.
+    final reach = math.max(
+      1.0,
+      math.max(outer.blRadiusY, outer.brRadiusY) / bottomBorderWidth,
+    );
+    final w = size.width;
+    final h = size.height;
+    // ponytail: the trapezoid self-intersects on a field narrower than
+    // 2 × side × reach (8px at the defaults); nothing ships that small.
+    final join = Path()
+      ..addPolygon(<Offset>[
+        Offset(-side, h + bottomBorderWidth),
+        Offset(side * reach, h - bottomBorderWidth * reach),
+        Offset(w - side * reach, h - bottomBorderWidth * reach),
+        Offset(w + side, h + bottomBorderWidth),
+      ], true);
+
+    canvas
+      ..save()
+      ..clipPath(join);
+    ring(bottom);
+    canvas
+      ..restore()
+      ..save()
+      ..clipPath(
+        Path()
+          ..fillType = PathFillType.evenOdd
+          ..addRect(bounds.inflate(side + bottomBorderWidth))
+          ..addPath(join, Offset.zero),
+      );
+    ring(borderColor);
+    canvas.restore();
+  }
+
+  // Hit-testing stays with the rounded background box underneath; a painter
+  // answers for its whole rectangle, corners included.
+  @override
+  bool? hitTest(Offset position) => false;
+
+  @override
+  bool shouldRepaint(FluentInputBorderPainter oldDelegate) =>
+      radius != oldDelegate.radius ||
+      borderColor != oldDelegate.borderColor ||
+      borderWidth != oldDelegate.borderWidth ||
+      bottomBorderColor != oldDelegate.bottomBorderColor ||
+      bottomBorderWidth != oldDelegate.bottomBorderWidth;
 }
 
 /// The largest corner radius on [radius], which is how tall the bar has to be

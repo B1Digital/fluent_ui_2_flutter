@@ -73,21 +73,20 @@ enum FluentDropdownSize {
 ///
 /// Upstream puts the curve in `transitionDelay` rather than
 /// `transitionTimingFunction` — a cubic-bezier is not a valid delay value, so a
-/// browser drops it and runs the transition linearly. The curve upstream
-/// *names* is honoured here rather than the one it accidentally ships; a linear
-/// accent is not a design decision anybody made.
+/// browser drops it and runs the transition on the CSS default `ease`
+/// ([Curves.ease]) with no delay, which is what the live storybook samples.
+/// The port ports what renders, not what the typo suggests was meant.
 ///
-/// The bar itself is [FluentInputFocusUnderline], whose spec carries the same
-/// two tokens off the same `::after` rule — so this is an alias rather than a
-/// second copy of them.
+/// The bar itself is [FluentInputFocusUnderline], whose spec comes off the same
+/// `::after` rule — so this is an alias rather than a second copy of it.
 const FluentMotionSpec fluentDropdownAccentEnter =
     fluentInputFocusUnderlineEnter;
 
 /// The accent rule collapsing as the dropdown closes.
 ///
-/// `durationUltraFast` with `curveAccelerateMid`, from the same `::after` rule.
-/// Four times faster than [fluentDropdownAccentEnter], which is upstream's
-/// asymmetry, not a typo.
+/// `durationUltraFast` from the same `::after` rule, on `ease` for the same
+/// reason. Four times faster than [fluentDropdownAccentEnter], which is
+/// upstream's asymmetry, not a typo.
 ///
 /// An alias of [fluentInputFocusUnderlineExit], for the reason given on
 /// [fluentDropdownAccentEnter].

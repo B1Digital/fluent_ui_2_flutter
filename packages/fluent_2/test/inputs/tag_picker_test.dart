@@ -610,9 +610,9 @@ void main() {
       expect(fluentTagPickerAccentEnter, fluentInputFocusUnderlineEnter);
       expect(fluentTagPickerAccentExit, fluentInputFocusUnderlineExit);
       expect(fluentTagPickerAccentEnter.duration, FluentDuration.normal);
-      expect(fluentTagPickerAccentEnter.curve, FluentCurve.decelerateMid);
+      expect(fluentTagPickerAccentEnter.curve, Curves.ease);
       expect(fluentTagPickerAccentExit.duration, FluentDuration.ultraFast);
-      expect(fluentTagPickerAccentExit.curve, FluentCurve.accelerateMid);
+      expect(fluentTagPickerAccentExit.curve, Curves.ease);
     });
 
     double barScale(WidgetTester tester) {

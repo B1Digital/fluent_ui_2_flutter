@@ -65,14 +65,15 @@ enum FluentTagPickerSize {
 /// `useTagPickerControlStyles.styles.ts` carries the same `::after` rule as
 /// `useInputStyles`, down to the same defect — the curve is written into
 /// `transitionDelay` rather than `transitionTimingFunction`, so a browser drops
-/// it. This package reads the curve as the intent, which is why the constant
-/// below is [fluentInputFocusUnderlineEnter] rather than a second copy of it.
+/// it and runs CSS `ease` ([Curves.ease]). The port ports what renders, and it
+/// renders exactly the input's bar, which is why the constant below is
+/// [fluentInputFocusUnderlineEnter] rather than a second copy of it.
 const FluentMotionSpec fluentTagPickerAccentEnter =
     fluentInputFocusUnderlineEnter;
 
 /// The brand bar collapsing as focus leaves.
 ///
-/// `durationUltraFast` with `curveAccelerateMid` — four times quicker than
+/// `durationUltraFast`, on `ease` for the same reason — four times quicker than
 /// [fluentTagPickerAccentEnter], which is upstream's asymmetry, not a typo.
 const FluentMotionSpec fluentTagPickerAccentExit =
     fluentInputFocusUnderlineExit;

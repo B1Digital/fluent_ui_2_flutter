@@ -551,11 +551,13 @@ void main() {
       tester,
     ) async {
       // useDropdownStyles.styles.ts: ::after transitions `transform`, at
-      // durationNormal on :focus-within and durationUltraFast off it.
+      // durationNormal on :focus-within and durationUltraFast off it, on CSS
+      // `ease` both ways — the curve tokens sit in `transitionDelay`, which
+      // the browser drops.
       expect(fluentDropdownAccentEnter.duration, FluentDuration.normal);
-      expect(fluentDropdownAccentEnter.curve, FluentCurve.decelerateMid);
+      expect(fluentDropdownAccentEnter.curve, Curves.ease);
       expect(fluentDropdownAccentExit.duration, FluentDuration.ultraFast);
-      expect(fluentDropdownAccentExit.curve, FluentCurve.accelerateMid);
+      expect(fluentDropdownAccentExit.curve, Curves.ease);
 
       await pump(
         tester,

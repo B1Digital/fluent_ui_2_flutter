@@ -304,18 +304,18 @@ const FluentInputStyle({
 | Field | Type | Required | Default | Purpose |
 | --- | --- | --- | --- | --- |
 | `backgroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Surface fill. |
-| `borderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Box outline colour. Null and transparent are different: Fluent's `transparentStroke` becomes opaque in high contrast. |
-| `borderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Box outline width. Zero means no border, which is not the same as a transparent one. |
+| `borderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Box border colour. Null means no border at all — nothing is painted and nothing is inset, whatever [borderWidth] says. Null and transparent are different: a transparent border still takes its space, and Fluent's `transparentStroke` becomes opaque in high contrast. |
+| `borderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Box border width. As in CSS, the border insets the content by this much on every side it is drawn on, before [padding]. Zero means no border, which is not the same as a transparent one. |
 | `borderRadius` | `WidgetStateProperty<BorderRadius?>?` | No | `null` | Corner radius. |
-| `bottomBorderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Bottom-rule colour, painted over the box's bottom edge. Null draws no rule, which is what the two filled appearances want. |
-| `bottomBorderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Bottom-rule thickness. 1 at rest, 2 while pressed. |
+| `bottomBorderColor` | `WidgetStateProperty<Color?>?` | No | `null` | The bottom side's colour, when it differs from [borderColor]. It is a side of the box border, not an overlay: it joins the side colour along each bottom corner's diagonal. Null means the bottom follows [borderColor] and [borderWidth] like the other three, which is what the two filled appearances want. |
+| `bottomBorderWidth` | `WidgetStateProperty<double?>?` | No | `null` | The bottom side's width, inset from the content like [borderWidth]. 1 in every state: upstream recolours it on press, it never thickens it. Ignored when [bottomBorderColor] is null. |
 | `focusUnderlineColor` | `WidgetStateProperty<Color?>?` | No | `null` | The brand focus bar's colour. Its thickness is [focusUnderlineWidth]. |
 | `focusUnderlineWidth` | `WidgetStateProperty<double?>?` | No | `null` | The brand focus bar's thickness. Null is `FluentStroke.thick`, as upstream hard-codes `2px solid`. |
 | `foregroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Typed-text colour. |
 | `placeholderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Placeholder colour. A separate ramp from [foregroundColor] — Figma's `.Text` layer binds `Neutral/Foreground/4/Rest` in every state but `Read only`, which is the placeholder, not the value. |
 | `contentColor` | `WidgetStateProperty<Color?>?` | No | `null` | Colour of the content-before and content-after slots. |
 | `textStyle` | `WidgetStateProperty<TextStyle?>?` | No | `null` | Text style shared by the value, the placeholder and both slots. |
-| `padding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset between the box and the content row. |
+| `padding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset between the border and the content row, on top of the border's own width. |
 | `contentPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Extra inset applied to the editable field alone, inside [padding]. |
 | `gap` | `WidgetStateProperty<double?>?` | No | `null` | Space between the slots and the field. |
 | `iconSize` | `WidgetStateProperty<double?>?` | No | `null` | Icon edge length in the two content slots. |

@@ -437,21 +437,13 @@ FluentInputSize _inputSize(FluentTimePickerSize value) => switch (value) {
 /// the design axes are read.
 ///
 /// The faceplate is **derived from `resolveFluentInputStyle`** rather than
-/// re-transcribing Figma's Input variants, so the two components cannot drift.
+/// re-transcribed, so the two components cannot drift.
 ///
-/// ## The read-only trap
-///
-/// `resolveFluentInputStyle` folds `readOnly` into the disabled ramp — it takes
-/// `inert = disabled || readOnly` and paints a read-only field on
-/// `transparentBackground` with a `neutralStrokeDisabled` border. That column
-/// is Figma's alone; upstream ships `readOnly` as a bare attribute with no
-/// styling at all.
-///
-/// A non-freeform time picker is read-only by definition, so handing the real
-/// flag to the style resolver would render **every default picker looking
-/// disabled**. The field is therefore resolved with `readOnly: false` and the
-/// real value is passed only to the renderer, where it stops the caret and the
-/// edits. React wins on behaviour.
+/// A non-freeform time picker is read-only by definition. That costs nothing
+/// here: upstream ships `readOnly` as a bare attribute with no styling, and
+/// `resolveFluentInputStyle` follows it, so a read-only picker wears the live
+/// ramp. The flag only matters to the renderer, where it stops the caret and
+/// the edits.
 FluentTimePickerStyle resolveFluentTimePickerStyle(
   FluentTimePickerState state,
   FluentThemeData theme,
@@ -463,7 +455,7 @@ FluentTimePickerStyle resolveFluentTimePickerStyle(
       focusNode: state.focusNode,
       editableTextKey: state.editableTextKey,
       enabled: state.enabled,
-      // Deliberately not `state.readOnly`. See the doc comment above.
+      readOnly: state.readOnly,
       error: state.error,
       focused: state.focused,
       appearance: _inputAppearance(state.appearance),
@@ -559,7 +551,7 @@ Widget buildFluentTimePicker(
   return buildFluentInput(
     FluentInputBaseState(
       enabled: state.enabled,
-      // The REAL value here, unlike in the style resolver: no caret, no edits.
+      // Its only effect: no caret, no edits. The style ignores it.
       readOnly: state.readOnly,
       error: state.error,
       focused: state.focused,

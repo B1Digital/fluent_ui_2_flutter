@@ -13,17 +13,23 @@ import 'package:flutter/widgets.dart';
 /// 2. the nearest `FluentInputTheme`
 /// 3. the widget's own `style`
 ///
-/// Three properties describe the horizontal rules Fluent draws under the field
+/// Three properties describe the lines Fluent draws round and under the field
 /// and are easy to confuse:
 ///
-/// * [borderColor] / [borderWidth] — the box outline, all four sides.
-/// * [bottomBorderColor] / [bottomBorderWidth] — the *bottom rule*, painted over
-///   the box's bottom edge. On `outline` this is the
-///   `Neutral/Stroke/Accessible/*` ramp that upstream writes as
-///   `borderBottomColor`; on `underline` it is the only rule the field has.
+/// * [borderColor] / [borderWidth] — the box border: top, left and right, and
+///   the bottom too when [bottomBorderColor] is null.
+/// * [bottomBorderColor] / [bottomBorderWidth] — the bottom side of that same
+///   border in its own colour, which upstream writes as `borderBottomColor`.
+///   On `outline` this is the `Neutral/Stroke/Accessible/*` ramp; on
+///   `underline` it is the only side the field has.
 /// * [focusUnderlineColor] / [focusUnderlineWidth] — the brand bar that grows
 ///   across the bottom while the field holds focus. Upstream's `::after`
 ///   pseudo-element.
+///
+/// The border is a real CSS-style border, painted by `FluentInputBorderPainter`:
+/// it takes space, so the content row sits inside it, and where the bottom
+/// colour differs from the sides the two meet along the corner diagonal, the
+/// way a browser joins them.
 @immutable
 class FluentInputStyle {
   /// Creates a style. Omitted properties inherit.
@@ -53,22 +59,30 @@ class FluentInputStyle {
   /// Surface fill.
   final WidgetStateProperty<Color?>? backgroundColor;
 
-  /// Box outline colour. Null and transparent are different: Fluent's
+  /// Box border colour. Null means no border at all — nothing is painted and
+  /// nothing is inset, whatever [borderWidth] says. Null and transparent are
+  /// different: a transparent border still takes its space, and Fluent's
   /// `transparentStroke` becomes opaque in high contrast.
   final WidgetStateProperty<Color?>? borderColor;
 
-  /// Box outline width. Zero means no border, which is not the same as a
-  /// transparent one.
+  /// Box border width. As in CSS, the border insets the content by this much
+  /// on every side it is drawn on, before [padding]. Zero means no border,
+  /// which is not the same as a transparent one.
   final WidgetStateProperty<double?>? borderWidth;
 
   /// Corner radius.
   final WidgetStateProperty<BorderRadius?>? borderRadius;
 
-  /// Bottom-rule colour, painted over the box's bottom edge. Null draws no
-  /// rule, which is what the two filled appearances want.
+  /// The bottom side's colour, when it differs from [borderColor]. It is a side
+  /// of the box border, not an overlay: it joins the side colour along each
+  /// bottom corner's diagonal. Null means the bottom follows [borderColor] and
+  /// [borderWidth] like the other three, which is what the two filled
+  /// appearances want.
   final WidgetStateProperty<Color?>? bottomBorderColor;
 
-  /// Bottom-rule thickness. 1 at rest, 2 while pressed.
+  /// The bottom side's width, inset from the content like [borderWidth]. 1 in
+  /// every state: upstream recolours it on press, it never thickens it.
+  /// Ignored when [bottomBorderColor] is null.
   final WidgetStateProperty<double?>? bottomBorderWidth;
 
   /// The brand focus bar's colour. Its thickness is [focusUnderlineWidth].
@@ -92,7 +106,8 @@ class FluentInputStyle {
   /// Text style shared by the value, the placeholder and both slots.
   final WidgetStateProperty<TextStyle?>? textStyle;
 
-  /// Inset between the box and the content row.
+  /// Inset between the border and the content row, on top of the border's own
+  /// width.
   final WidgetStateProperty<EdgeInsetsGeometry?>? padding;
 
   /// Extra inset applied to the editable field alone, inside [padding].

@@ -721,8 +721,9 @@ void main() {
 
   group('motion', () {
     // useSpinButtonStyles.styles.ts declares exactly one transition: `transform`
-    // on the ::after focus underline. Enter is durationNormal (200ms) on
-    // curveDecelerateMid; exit is durationUltraFast (50ms) on curveAccelerateMid.
+    // on the ::after focus underline. Enter is durationNormal (200ms), exit is
+    // durationUltraFast (50ms), both on CSS `ease` — the curve tokens sit in
+    // `transitionDelay`, which the browser drops.
     testWidgets('the focus underline grows over 200ms', (tester) async {
       final node = FocusNode();
       addTearDown(node.dispose);

@@ -1,3 +1,59 @@
+## Unreleased
+
+### Changed
+
+- **BREAKING (custom styles): `FluentInputStyle.borderWidth`,
+  `bottomBorderColor` and `bottomBorderWidth` now describe a real CSS-style
+  border.** The border takes space and the content row sits inside it, on top
+  of `padding` — the bottom side used to be a rule overlaid on the box's bottom
+  edge that cost no layout. A null `borderColor` means no border and no inset
+  whatever `borderWidth` says; a null `bottomBorderColor` means the bottom
+  follows `borderColor`. A custom style that set a wide bottom rule, or relied
+  on the border not moving the text, will lay out differently.
+- **`FluentInputBorderPainter` is new** and is what paints the border. Where the
+  bottom colour differs from the sides, the two meet along each bottom corner's
+  diagonal the way a browser joins adjacent border colours, instead of the
+  bottom colour stopping a pixel up the arc. Public with its fields, so tests
+  read the resolved tones off it, as with `FluentRadioIndicatorPainter`.
+- **The focus bar eases on CSS `ease` and reverses the way CSS does.** Upstream
+  writes the curve tokens into `transitionDelay` — a typo for
+  `transitionTimingFunction` — so every browser drops them and runs `ease`,
+  which the port had been reading as intent and replacing with
+  `curveDecelerateMid` / `curveAccelerateMid` (45% of the bar drawn 20ms in,
+  against upstream's 9.5%). `fluentInputFocusUnderlineEnter` / `Exit` are now
+  `Curves.ease`, and a focus change mid-flight starts a fresh `ease` from the
+  current scale over the direction's duration times the distance left, instead
+  of retracing the old curve. Every field sharing the bar picks this up:
+  `FluentInput`, `FluentTextarea`, `FluentSearchBox`, `FluentDropdown`,
+  `FluentTagPicker`, `FluentSpinButton`, `FluentDatePicker` and
+  `FluentTimePicker`, whose alias constants follow.
+- **`FluentInput` matches upstream as rendered in Chrome rather than the Figma
+  set**, and so do `FluentDatePicker` and `FluentTimePicker`, which derive
+  their faceplate from it:
+  - a focused outline field keeps `neutralStroke1Pressed` /
+    `neutralStrokeAccessiblePressed` even while hovered;
+  - a read-only `FluentInput` is styled exactly like rest — it was on the
+    disabled ramp;
+  - invalid is `colorPaletteRedBorder2` (`#d13438` light), not
+    `statusDangerBorder2`; high contrast keeps the status token;
+  - underline has square corners, on the root and the focus bar;
+  - the bottom border stays 1px while pressed — it was 2px;
+  - text and slots sit inside the border: 1px further in on outline and filled,
+    and 0.5px higher on underline, whose only border is the bottom one;
+  - large's text inset is 18 (12 + `SNudge`), not Figma's 14 —
+    `FluentTimePicker` keeps its own trailing padding;
+  - the caret is 1px, a browser's width, not `EditableText`'s 2 (also in
+    `FluentTagPicker`, which composes `FluentInput`).
+- **`FluentDatePicker` and `FluentTimePicker` pass their real `readOnly` to the
+  style resolver.** They used to hide it so a default, read-only picker did not
+  render greyed out; with read-only unstyled there is nothing left to hide.
+
+### Fixed
+
+- **Turning reduced motion off again left the focus bar snapping.** The bar
+  zeroed its durations when `MediaQuery.disableAnimations` came on and never
+  restored them; they are now set on every dependency change.
+
 ## 0.0.5
 
 ### Fixed

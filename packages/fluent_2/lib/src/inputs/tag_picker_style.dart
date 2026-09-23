@@ -146,8 +146,8 @@ class FluentTagPickerStyle {
   ///
   /// Every piece of chrome is explicitly switched **off** rather than left to
   /// inherit: a `WidgetStatePropertyAll<Color?>(null)` resolves to null, which
-  /// is how `buildFluentInput` is told to skip a fill, a border, the resting
-  /// rule and the focus bar. `FluentTagPicker` draws all four itself, because
+  /// is how `buildFluentInput` is told to skip a fill, a border, the bottom
+  /// border and the focus bar. `FluentTagPicker` draws all four itself, because
   /// its content is a wrapping tag strip rather than the single row an input
   /// lays out.
   ///

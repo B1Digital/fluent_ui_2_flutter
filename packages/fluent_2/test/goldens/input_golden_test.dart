@@ -7,11 +7,14 @@ import '../support/golden.dart';
 /// Row 4: the four remaining `State` columns of the Figma set — Error,
 /// Disabled, Read only, and Focus (the one autofocused cell, so the brand bar
 /// is fully grown by the time `pumpAndSettle` returns).
-/// Row 5: the content-before / content-after slots and an obscured field.
+/// Row 5: the content-before / content-after slots and an invalid Underline.
 ///
-/// The cells worth watching are the Outline ones: they carry two rules along
-/// the bottom edge — the `Neutral/Stroke/Accessible` hairline over the box
-/// border, and the brand focus bar over that.
+/// The cells worth watching are the Outline ones: their bottom border side is
+/// `Neutral/Stroke/Accessible` while the other three are `Neutral/Stroke/1`,
+/// and the two colours meet on the corner diagonal the way a CSS border does,
+/// so the bottom corners carry the darker colour part-way up the curve. The
+/// focused cell adds the brand bar over the bottom border, and its sides turn
+/// `Neutral/Stroke/1/Pressed`.
 void main() {
   Widget cell(Widget child) => SizedBox(width: 200, child: child);
 

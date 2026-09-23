@@ -34,26 +34,26 @@ enum FluentTextareaSize {
   large,
 }
 
-/// The focus underline sliding in, verified against
-/// `useTextareaStyles.styles.ts` — `:focus-within::after` transitions
-/// `transform` over `durationNormal` on `curveDecelerateMid`.
+/// The focus underline sliding in. `useTextareaStyles.styles.ts`'s
+/// `:focus-within::after` transitions `transform` over `durationNormal`.
 ///
-/// Upstream writes that curve into `transitionDelay` rather than
-/// `transitionTimingFunction`, which a browser rejects; the *intent* is
-/// unambiguous and is what is ported here. The 0.01ms
-/// `prefers-reduced-motion` clamp upstream pairs it with is handled centrally
-/// by [FluentAnimatedStyle].
+/// Upstream writes `curveDecelerateMid` into `transitionDelay` rather than
+/// `transitionTimingFunction`. A browser drops it, so the bar runs on CSS
+/// `ease` ([Curves.ease]) with no delay — measured on the live storybook, where
+/// every one of the fields that share this bar samples identically. The port
+/// ports what renders, not what the typo suggests was meant. The 0.01ms
+/// `prefers-reduced-motion` clamp upstream pairs it with is handled inside
+/// [FluentInputFocusUnderline].
 ///
-/// The bar itself is [FluentInputFocusUnderline], whose spec carries the same
-/// two tokens off the same `::after` rule — so this is an alias rather than a
-/// second copy of them.
+/// That widget's spec comes off the same `::after` rule — so this is an alias
+/// rather than a second copy of it.
 const FluentMotionSpec fluentTextareaFocusUnderlineEnter =
     fluentInputFocusUnderlineEnter;
 
 /// The focus underline leaving. Upstream's resting `::after` rule transitions
-/// `transform` over `durationUltraFast` on `curveAccelerateMid` — four times
-/// faster than [fluentTextareaFocusUnderlineEnter], and accelerating rather
-/// than decelerating. The asymmetry is upstream's; do not "tidy" it.
+/// `transform` over `durationUltraFast`, on `ease` for the same reason — four
+/// times faster than [fluentTextareaFocusUnderlineEnter]. The asymmetry is
+/// upstream's; do not "tidy" it.
 ///
 /// An alias of [fluentInputFocusUnderlineExit], for the reason given on
 /// [fluentTextareaFocusUnderlineEnter].

@@ -408,9 +408,10 @@ FluentSpinButtonStyle resolveFluentSpinButtonStyle(
 /// centre — `useSpinButtonStyles.styles.ts` declares exactly one transition,
 /// `transform` on the root `::after`. That bar is [FluentInputFocusUnderline],
 /// whose [fluentInputFocusUnderlineEnter] and [fluentInputFocusUnderlineExit]
-/// are bit-for-bit the pair this file used to keep privately: `durationNormal`
-/// on `curveDecelerateMid` in, `durationUltraFast` on `curveAccelerateMid`
-/// out. Reduced motion is handled inside that widget.
+/// are `durationNormal` in and `durationUltraFast` out, both on CSS `ease` —
+/// upstream's curve tokens sit in `transitionDelay`, which the browser drops,
+/// and the port ports what renders. Reduced motion is handled inside that
+/// widget.
 Widget buildFluentSpinButton(
   FluentSpinButtonBaseState state,
   FluentSpinButtonStyle style,

@@ -306,9 +306,20 @@ void main() {
       final Finder inputs = find.byType(FluentInput);
       expect(tester.widget<FluentInput>(inputs.at(0)).error, isTrue);
 
+      // The input paints its border rather than decorating a box with it, so
+      // the tone is read off the painter.
+      Color? borderOf(Finder input) => tester
+          .widgetList<CustomPaint>(
+            find.descendant(of: input, matching: find.byType(CustomPaint)),
+          )
+          .map((CustomPaint paint) => paint.painter)
+          .whereType<FluentInputBorderPainter>()
+          .single
+          .borderColor;
+
       expect(
-        decorationUnder(tester, inputs.at(0)).border,
-        isNot(decorationUnder(tester, inputs.at(1)).border),
+        borderOf(inputs.at(0)),
+        isNot(borderOf(inputs.at(1))),
         reason:
             'the description promises aria-invalid "adds a red border to some '
             'field components (such as Input)"',

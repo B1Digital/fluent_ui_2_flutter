@@ -63,13 +63,15 @@ class FluentTimePickerStyle {
   /// Faceplate corner radius.
   final WidgetStateProperty<BorderRadius?>? borderRadius;
 
-  /// The 1px rule along the bottom edge at rest.
+  /// The faceplate's bottom border side, when it differs from [borderColor].
   ///
-  /// Null means the appearance draws none, which is a different claim from a
-  /// transparent one — the filled appearances genuinely have no rule.
+  /// Feeds `FluentInputStyle.bottomBorderColor`: a side of the box border that
+  /// joins the others on the corner diagonal, not an overlay. Null means the
+  /// bottom follows [borderColor] like the other three sides.
   final WidgetStateProperty<Color?>? underlineColor;
 
-  /// Thickness of the resting bottom rule.
+  /// Width of the bottom border side, 1 in every state. Like [borderWidth], it
+  /// insets the content.
   final WidgetStateProperty<double?>? underlineWidth;
 
   /// The brand rule that grows across the bottom edge while the picker is

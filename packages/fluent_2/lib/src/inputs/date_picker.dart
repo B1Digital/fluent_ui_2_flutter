@@ -379,18 +379,11 @@ FluentInputSize _inputSize(FluentDatePickerSize value) => switch (value) {
 /// The second of the three-function recomposition contract, and the only place
 /// the design axes are read.
 ///
-/// ## The read-only trap
-///
-/// `resolveFluentInputStyle` folds `readOnly` into the disabled ramp — it takes
-/// `inert = disabled || readOnly` and paints on `transparentBackground` with a
-/// `neutralStrokeDisabled` border. That column is Figma's alone; upstream ships
-/// `readOnly` as a bare attribute with no styling.
-///
 /// `allowTextInput` defaults to **false**, so a date picker is read-only by
-/// default — handing the real flag to the style resolver would render **every
-/// default picker looking disabled**. The field is resolved with
-/// `readOnly: false` and the real value reaches only the renderer, where it
-/// stops the caret and the edits. React wins on behaviour.
+/// default. That costs nothing here: upstream ships `readOnly` as a bare
+/// attribute with no styling, and `resolveFluentInputStyle` follows it, so a
+/// read-only picker wears the live ramp. The flag only matters to the renderer,
+/// where it stops the caret and the edits.
 FluentDatePickerStyle resolveFluentDatePickerStyle(
   FluentDatePickerState state,
   FluentThemeData theme,
@@ -402,7 +395,7 @@ FluentDatePickerStyle resolveFluentDatePickerStyle(
       focusNode: state.focusNode,
       editableTextKey: state.editableTextKey,
       enabled: state.enabled,
-      // Deliberately not `state.readOnly`. See the doc comment above.
+      readOnly: state.readOnly,
       error: state.error,
       focused: state.focused,
       appearance: _inputAppearance(state.appearance),
@@ -488,7 +481,7 @@ Widget buildFluentDatePicker(
 ) => buildFluentInput(
   FluentInputBaseState(
     enabled: state.enabled,
-    // The REAL value here, unlike in the style resolver: no caret, no edits.
+    // Its only effect: no caret, no edits. The style ignores it.
     readOnly: state.readOnly,
     error: state.error,
     focused: state.focused,

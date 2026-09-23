@@ -508,20 +508,19 @@ void main() {
   });
 
   group('motion', () {
-    // Verified in useTextareaStyles.styles.ts: the `::after` rule transitions
-    // `transform` at durationUltraFast/curveAccelerateMid, and
-    // `:focus-within::after` at durationNormal/curveDecelerateMid.
-    test('the two specs are the ones upstream declares', () {
+    // useTextareaStyles.styles.ts: the `::after` rule transitions `transform`
+    // at durationUltraFast, and `:focus-within::after` at durationNormal. The
+    // curve tokens sit in `transitionDelay`, which the browser drops, so Chrome
+    // runs both on CSS `ease` — `document.getAnimations()` on the live
+    // storybook reports exactly that.
+    test('the two specs are the ones upstream renders', () {
       expect(fluentTextareaFocusUnderlineEnter.duration, FluentDuration.normal);
-      expect(
-        fluentTextareaFocusUnderlineEnter.curve,
-        FluentCurve.decelerateMid,
-      );
+      expect(fluentTextareaFocusUnderlineEnter.curve, Curves.ease);
       expect(
         fluentTextareaFocusUnderlineExit.duration,
         FluentDuration.ultraFast,
       );
-      expect(fluentTextareaFocusUnderlineExit.curve, FluentCurve.accelerateMid);
+      expect(fluentTextareaFocusUnderlineExit.curve, Curves.ease);
     });
 
     testWidgets('the focus rule scales in over 200ms and back out over 50', (

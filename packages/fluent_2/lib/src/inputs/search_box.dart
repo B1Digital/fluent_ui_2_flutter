@@ -61,12 +61,11 @@ enum FluentSearchBoxGlyph {
 /// Upstream writes the easing into `transitionDelay` rather than
 /// `transitionTimingFunction` — `transitionDelay: tokens.curveDecelerateMid` —
 /// which a browser rejects, so the shipped animation runs on the CSS default
-/// `ease`. The curve token is transcribed here as the easing it was plainly
-/// meant to be; the duration is upstream's verbatim.
+/// `ease` ([Curves.ease]) with no delay. The port ports what renders, not what
+/// the typo suggests was meant; the duration is upstream's verbatim.
 ///
-/// The bar itself is [FluentInputFocusUnderline], whose spec carries the same
-/// two tokens off the same `::after` rule — so this is an alias rather than a
-/// second copy of them.
+/// The bar itself is [FluentInputFocusUnderline], whose spec comes off the same
+/// `::after` rule — so this is an alias rather than a second copy of it.
 const FluentMotionSpec fluentSearchBoxUnderlineEnter =
     fluentInputFocusUnderlineEnter;
 
@@ -74,8 +73,8 @@ const FluentMotionSpec fluentSearchBoxUnderlineEnter =
 ///
 /// The same `::after` rule at rest: `transform: scaleX(0)` over
 /// `durationUltraFast`, with `curveAccelerateMid` in the same misplaced
-/// `transitionDelay` slot. Deliberately four times faster than
-/// [fluentSearchBoxUnderlineEnter] — the asymmetry is upstream's.
+/// `transitionDelay` slot, so on `ease` as well. Deliberately four times faster
+/// than [fluentSearchBoxUnderlineEnter] — the asymmetry is upstream's.
 ///
 /// An alias of [fluentInputFocusUnderlineExit], for the reason given on
 /// [fluentSearchBoxUnderlineEnter].

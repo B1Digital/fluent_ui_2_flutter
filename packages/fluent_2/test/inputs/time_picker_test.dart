@@ -65,6 +65,19 @@ BoxDecoration _faceplate(WidgetTester tester) => tester
     .whereType<BoxDecoration>()
     .firstWhere((decoration) => decoration.borderRadius != null);
 
+/// The faceplate's border, which `buildFluentInput` paints rather than
+/// decorates — the box above carries only the fill and the radius.
+FluentInputBorderPainter _border(WidgetTester tester) => tester
+    .widgetList<CustomPaint>(
+      find.descendant(
+        of: find.byType(FluentTimePicker),
+        matching: find.byType(CustomPaint),
+      ),
+    )
+    .map((paint) => paint.painter)
+    .whereType<FluentInputBorderPainter>()
+    .single;
+
 void main() {
   setUp(FluentInputModality.debugReset);
 
@@ -206,14 +219,15 @@ void main() {
   });
 
   group('FluentTimePicker — the read-only ramp', () {
-    // resolveFluentInputStyle folds readOnly into the DISABLED ramp
-    // (`inert = disabled || readOnly`). A non-freeform picker is read-only by
-    // definition, so handing that flag straight through would render every
-    // default picker looking greyed out. This is the regression that guards the
-    // split.
+    // A non-freeform picker is read-only by definition. Upstream gives
+    // `readOnly` no styling at all, so a default picker must resolve the live
+    // ramp — only `enabled` may grey it out. The picker once had to hide its
+    // read-only flag from the style resolver to get this; this guards against
+    // the flag ever being styled again.
     testWidgets('a default picker is not painted as disabled', (tester) async {
       await _pump(tester);
       final live = _faceplate(tester);
+      final liveBorder = _border(tester).borderColor;
 
       await _pump(tester, onTimeChange: null);
       final disabled = _faceplate(tester);
@@ -223,7 +237,11 @@ void main() {
         isNot(disabled.color),
         reason: 'a read-only picker must not borrow the disabled fill',
       );
-      expect(live.border, isNot(disabled.border));
+      expect(
+        liveBorder,
+        isNot(_border(tester).borderColor),
+        reason: 'nor the disabled stroke',
+      );
     });
 
     testWidgets('a freeform picker paints the same faceplate', (tester) async {
