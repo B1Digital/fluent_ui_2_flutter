@@ -1,8 +1,7 @@
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
-import 'package:fluent_2/src/charts/declarative_chart.dart';
-import 'package:fluent_2/src/charts/model/chart_common.dart';
-import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -11,9 +10,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// with nothing attached is exactly the failure the second test pins.
 ///
 /// There is no captured DeclarativeChart export in Oracle B, so nothing here
-/// asserts on pixels. What is checkable without one is the branch structure:
-/// bytes come back at all, the caller's scale beats the resolved default, and a
-/// two-cell figure exports through the same path as a one-cell figure.
+/// compares against upstream's pixels. What is checkable without one is the
+/// branch structure — bytes come back at all, the caller's scale beats the
+/// resolved default, a two-cell figure exports through the same path as a
+/// one-cell figure — and what the export must contain that the screen does not
+/// show: every legend, every table row, and the selection on the strip.
 void main() {
   Future<void> pump(WidgetTester tester, Widget child) => tester.pumpWidget(
     FluentApp(
@@ -218,6 +219,230 @@ void main() {
           'DeclarativeChart.tsx:453-462 composites the sparse cell grid and '
           'appends the legend beneath it; one boundary round the whole Column '
           'captures both at once.',
+    );
+  });
+
+  /// The PNG IHDR width and height.
+  (int, int) pngSize(Uint8List bytes) {
+    int be32(int at) =>
+        (bytes[at] << 24) |
+        (bytes[at + 1] << 16) |
+        (bytes[at + 2] << 8) |
+        bytes[at + 3];
+    return (be32(16), be32(20));
+  }
+
+  Finder boundaryOf() => find
+      .descendant(
+        of: find.byType(FluentDeclarativeChart),
+        matching: find.byType(RepaintBoundary),
+      )
+      .first;
+
+  testWidgets('a legend collapsed to "+N more" on screen exports every entry', (
+    tester,
+  ) async {
+    final labels = <String>[for (var i = 0; i < 22; i++) 'Series $i'];
+    final controller = FluentDeclarativeChartController();
+    addTearDown(controller.dispose);
+    await pump(
+      tester,
+      FluentDeclarativeChart(
+        controller: controller,
+        chartSchema: FluentPlotlySchema(
+          plotlySchema: <String, Object?>{
+            'data': <Object?>[
+              <String, Object?>{
+                'type': 'pie',
+                'hole': 0.5,
+                'labels': labels,
+                'values': <Object?>[for (var i = 0; i < 22; i++) i + 1],
+              },
+            ],
+          },
+        ),
+      ),
+    );
+    expect(
+      find.byType(FluentMenu),
+      findsOneWidget,
+      reason: 'the precondition: the live legend is in its overflow form',
+    );
+    final boundaryTop = tester.getTopLeft(boundaryOf()).dy;
+    final width = tester.getSize(boundaryOf()).width;
+    final legendTop =
+        tester.getTopLeft(find.byType(FluentChartLegend)).dy - boundaryTop;
+    final strip = FluentSynthesisedLegendLayout.compute(
+      legends: <FluentChartLegendItem>[
+        for (final label in labels)
+          FluentChartLegendItem(title: label, color: const Color(0xFF000000)),
+      ],
+      svgWidth: width,
+      measurer: FluentChartTextMeasurer(),
+      textStyle: resolveFluentChartLegendStyle(
+        FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+      ).labelTextStyle!.resolve(<WidgetState>{})!,
+    );
+    expect(
+      strip.size.height,
+      greaterThan(kLegendContainerMarginTop + kLegendHeight),
+      reason: 'all 22 do not fit one line, so the full strip wraps',
+    );
+    final bytes = await exportOf(
+      tester,
+      controller,
+      const FluentChartImageExportOptions(scale: 1),
+    );
+    expect(
+      pngSize(bytes),
+      (width.toInt(), (legendTop + strip.size.height).toInt()),
+      reason:
+          'hooks.ts:30-37 — the chart svg without its live legend, then '
+          'cloneLegendsToSVG with every legend and no overflow menu',
+    );
+  });
+
+  testWidgets('the exported strip carries the live selection', (tester) async {
+    final controller = FluentDeclarativeChartController();
+    addTearDown(controller.dispose);
+    await pump(
+      tester,
+      FluentDeclarativeChart(
+        controller: controller,
+        chartSchema: FluentPlotlySchema(
+          plotlySchema: <String, Object?>{
+            'data': <Object?>[
+              for (final name in <String>['a', 'b', 'c'])
+                <String, Object?>{
+                  'type': 'scatter',
+                  'mode': 'lines',
+                  'fill': 'tonexty',
+                  'name': name,
+                  'x': const <Object?>[0, 1, 2],
+                  'y': const <Object?>[1, 2, 3],
+                },
+            ],
+          },
+          selectedLegends: const <String>['a'],
+        ),
+      ),
+    );
+    final live = tester.widget<FluentChartLegend>(
+      find.byType(FluentChartLegend),
+    );
+    final legendTop =
+        tester.getTopLeft(find.byType(FluentChartLegend)).dy -
+        tester.getTopLeft(boundaryOf()).dy;
+    final strip = FluentSynthesisedLegendLayout.compute(
+      legends: live.legends,
+      svgWidth: tester.getSize(boundaryOf()).width,
+      measurer: FluentChartTextMeasurer(),
+      textStyle: resolveFluentChartLegendStyle(
+        FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+      ).labelTextStyle!.resolve(<WidgetState>{})!,
+      centerLegends: live.centerLegends,
+    );
+    final bytes = await exportOf(
+      tester,
+      controller,
+      const FluentChartImageExportOptions(scale: 1),
+    );
+    final pixels = await tester.runAsync(() async {
+      final codec = await ui.instantiateImageCodec(bytes);
+      final image = (await codec.getNextFrame()).image;
+      final data = await image.toByteData(
+        format: ui.ImageByteFormat.rawStraightRgba,
+      );
+      final width = image.width;
+      image.dispose();
+      codec.dispose();
+      return (width, data!);
+    });
+    final (width, data) = pixels!;
+    Color swatchCentre(int index) {
+      final centre = strip.items[index].swatchRect.center.translate(
+        0,
+        legendTop,
+      );
+      final rgba = data.getUint32(
+        (centre.dy.floor() * width + centre.dx.floor()) * 4,
+      );
+      return Color((rgba & 0xFF) << 24 | rgba >> 8);
+    }
+
+    expect(
+      swatchCentre(0),
+      live.legends[0].color,
+      reason: 'image-export-utils.ts:337 fills the selected legend',
+    );
+    expect(
+      swatchCentre(1),
+      isNot(live.legends[1].color),
+      reason:
+          'and leaves every other swatch transparent, as the screen dims it',
+    );
+  });
+
+  testWidgets('a table scrolled inside its box exports every row', (
+    tester,
+  ) async {
+    final controller = FluentDeclarativeChartController();
+    addTearDown(controller.dispose);
+    await pump(
+      tester,
+      FluentDeclarativeChart(
+        controller: controller,
+        chartSchema: FluentPlotlySchema(
+          plotlySchema: <String, Object?>{
+            'data': <Object?>[
+              <String, Object?>{
+                'type': 'table',
+                'header': const <String, Object?>{
+                  'values': <Object?>['ID', 'Value'],
+                },
+                'cells': <String, Object?>{
+                  'values': <Object?>[
+                    <Object?>[for (var i = 1; i <= 50; i++) 'ID-$i'],
+                    <Object?>[for (var i = 1; i <= 50; i++) '$i'],
+                  ],
+                },
+              },
+            ],
+            'layout': const <String, Object?>{'height': 300},
+          },
+        ),
+      ),
+    );
+    final viewport = find
+        .descendant(
+          of: find.byType(FluentChartTable),
+          matching: find.byType(SingleChildScrollView),
+        )
+        .first;
+    final content = find
+        .ancestor(
+          of: find.byType(Table),
+          matching: find.byType(RepaintBoundary),
+        )
+        .first;
+    expect(
+      tester.getSize(content).height,
+      greaterThan(tester.getSize(viewport).height),
+      reason: 'the precondition: the rows overflow the viewport, which scrolls',
+    );
+    final boundary = tester.getRect(boundaryOf());
+    final top = tester.getTopLeft(viewport).dy - boundary.top;
+    final bytes = await exportOf(
+      tester,
+      controller,
+      const FluentChartImageExportOptions(scale: 1),
+    );
+    expect(
+      pngSize(bytes),
+      (boundary.width.toInt(), (top + tester.getSize(content).height).toInt()),
+      reason:
+          'the title band down to the viewport, then the whole grid — past '
+          'upstream, whose export stops at the box (ChartTable.tsx:119-125)',
     );
   });
 }

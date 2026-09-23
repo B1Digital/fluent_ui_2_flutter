@@ -8,6 +8,7 @@ import '../l10n/l10n.dart';
 import 'chart_table_style.dart';
 import 'chrome/chart_title.dart';
 import 'internal/chart_colors.dart';
+import 'internal/chart_export_scope.dart';
 
 /// One cell of a [FluentChartTable].
 ///
@@ -444,31 +445,38 @@ class FluentChartTable extends StatelessWidget {
               ),
             ),
           Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) => SingleChildScrollView(
-                // ChartTable.tsx:121-125 — overflow auto on both axes.
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: ConstrainedBox(
-                    // ChartTable.tsx:127-131 — the width goes on the <table>,
-                    // not on the root, and falls back to `100%`. Either way
-                    // the grid fills the box it is given and only overflows —
-                    // and so scrolls — when its own content will not fit,
-                    // which is what a minimum rather than a fixed width buys.
-                    // Without it the horizontal viewport hands the table an
-                    // unbounded width and it shrink-wraps to its content:
-                    // 376px against upstream's 700.
-                    constraints: BoxConstraints(
-                      minWidth: _gridMinWidth(constraints),
-                    ),
-                    child: Container(
-                      // The other half of `border-collapse`: every cell owns
-                      // its top and left line, so the grid's right and bottom
-                      // edges are the two no cell covers.
-                      decoration: BoxDecoration(
-                        border: Border(right: gridLine, bottom: gridLine),
+            // parity: upstream's export is cut at this box, scrolled to the top
+            // (ChartTable.tsx:119-125); an exported figure draws every row and
+            // column instead, because a table image missing its rows is the
+            // defect, not the fidelity.
+            child: FluentChartExportViewportHost(
+              content: Container(
+                // The other half of `border-collapse`: every cell owns its top
+                // and left line, so the grid's right and bottom edges are the
+                // two no cell covers.
+                decoration: BoxDecoration(
+                  border: Border(right: gridLine, bottom: gridLine),
+                ),
+                child: table,
+              ),
+              viewportBuilder: (content) => LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  // ChartTable.tsx:121-125 — overflow auto on both axes.
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: ConstrainedBox(
+                      // ChartTable.tsx:127-131 — the width goes on the
+                      // <table>, not on the root, and falls back to `100%`.
+                      // Either way the grid fills the box it is given and only
+                      // overflows — and so scrolls — when its own content will
+                      // not fit, which is what a minimum rather than a fixed
+                      // width buys. Without it the horizontal viewport hands
+                      // the table an unbounded width and it shrink-wraps to its
+                      // content: 376px against upstream's 700.
+                      constraints: BoxConstraints(
+                        minWidth: _gridMinWidth(constraints),
                       ),
-                      child: table,
+                      child: content,
                     ),
                   ),
                 ),

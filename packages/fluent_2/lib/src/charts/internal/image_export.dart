@@ -273,6 +273,25 @@ class FluentSynthesisedLegendPainter extends CustomPainter {
       oldDelegate.layout != layout || oldDelegate.textStyle != textStyle;
 }
 
+// ponytail: fixed caps, sized to the smallest limit a browser silently
+// enforces rather than to any one GPU. 4096² is iOS Safari's canvas area limit
+// and half Chromium's WebGL drawing-buffer cap (5760²); 8192 per side is under
+// every desktop MAX_TEXTURE_SIZE and most mobile ones. Query the real
+// `MAX_TEXTURE_SIZE` if exports ever need to go bigger.
+const double _kMaxExportSide = 8192;
+const double _kMaxExportPixels = 4096.0 * 4096.0;
+
+/// [value] when it is a usable scale or length, null otherwise — the Dart
+/// spelling of upstream's `value || fallback`, which reads 0 and NaN as unset.
+double? _positive(double? value) =>
+    value != null && value.isFinite && value > 0 ? value : null;
+
+/// The largest ratio [size] can be rasterised at inside both caps.
+double _maxRatio(Size size) => math.min(
+  _kMaxExportSide / math.max(size.width, size.height),
+  math.sqrt(_kMaxExportPixels / (size.width * size.height)),
+);
+
 /// Renders a chart and its synthesised legend into a PNG data URL.
 ///
 /// Ports `exportChartsAsImage` + `svgToPng`
@@ -295,10 +314,36 @@ class FluentChartImageExporter {
     this.selectedLegends = const <String>{},
     this.centerLegends = false,
     this.isRtl = false,
+    this.clipHeight,
+    this.continuationKey,
+    this.continuationX = 0,
   }) : measurer = measurer ?? FluentChartTextMeasurer();
 
   /// Key of the [RepaintBoundary] wrapping the painted chart.
   final GlobalKey boundaryKey;
+
+  /// Logical height of [boundaryKey]'s box to keep, measured from its top.
+  /// Null keeps all of it.
+  ///
+  /// This is how a figure whose live legend sits inside the boundary drops it:
+  /// the legend is always the last thing down the chart, so cutting at its top
+  /// edge leaves exactly the `<svg>` upstream clones, and [legends] redraws it
+  /// in full below.
+  final double? clipHeight;
+
+  /// A second boundary, captured whole and drawn directly below the kept part
+  /// of [boundaryKey], [continuationX] in from its left edge.
+  ///
+  /// This is how a scroll viewport exports its whole content rather than its
+  /// visible window: [clipHeight] cuts the boundary at the viewport's top and
+  /// this boundary, round the scrolled content, carries every row from there.
+  final GlobalKey? continuationKey;
+
+  /// Left edge of [continuationKey], in [boundaryKey]'s logical coordinates.
+  ///
+  /// Negative when the content overhangs the boundary's left edge, as a
+  /// right-to-left viewport's does: it is anchored at the viewport's right.
+  final double continuationX;
 
   /// Legends to synthesise. Empty means no strip is drawn at all, which is
   /// what `hideLegends` does at `hooks.ts:33` — the argument
@@ -332,19 +377,34 @@ class FluentChartImageExporter {
       // `image-export-utils.ts:152-154`.
       throw StateError('Chart container is not defined');
     }
-    // Capture at 1:1, matching upstream's `getBoundingClientRect()` CSS pixels.
-    final chartImage = await object.toImage();
+    final tail = continuationKey?.currentContext?.findRenderObject();
+    final continuation = tail is RenderRepaintBoundary ? tail : null;
+    // `getBoundingClientRect()` (`:249`) is a logical size. It is read from the
+    // render objects, not from a captured image, because an image's pixel size
+    // is `(size * pixelRatio).ceil()` and so not the logical size at all.
+    final headHeight = clipHeight == null
+        ? object.size.height
+        : clipHeight!.clamp(0.0, object.size.height);
+    // An end-aligned continuation can overhang the boundary's left edge, and
+    // then everything shifts right by the overhang.
+    final left = continuation == null ? 0.0 : math.min(0.0, continuationX);
     final chartSize = Size(
-      chartImage.width.toDouble(),
-      chartImage.height.toDouble(),
+      math.max(
+            object.size.width,
+            continuation == null
+                ? 0.0
+                : continuationX + continuation.size.width,
+          ) -
+          left,
+      headHeight + (continuation?.size.height ?? 0.0),
     );
 
-    ui.Image? legendImage;
+    FluentSynthesisedLegendLayout? layout;
     var legendSize = Size.zero;
     if (legends.isNotEmpty) {
       // `:72` passes the widest row, which for a single chart is the chart
       // width.
-      final layout = FluentSynthesisedLegendLayout.compute(
+      layout = FluentSynthesisedLegendLayout.compute(
         legends: legends,
         svgWidth: chartSize.width,
         measurer: measurer,
@@ -354,72 +414,132 @@ class FluentChartImageExporter {
         isRtl: isRtl,
       );
       legendSize = layout.size;
-      legendImage = await _renderLegend(layout);
     }
 
     var totalWidth = math.max(chartSize.width, legendSize.width);
     var totalHeight = chartSize.height + legendSize.height;
-    // `:423-429` — scaleX and scaleY are computed INDEPENDENTLY, so a target
+    if (!(totalWidth > 0 && totalHeight > 0)) {
+      // Upstream would divide by zero at `:426-427` and hand the canvas NaN.
+      throw StateError('Chart cannot be exported as image');
+    }
+    // `:423-425` — `opts.scale || 1` and `opts.width || totalWidth`: zero is
+    // "unset" there, and here too, since a zero ratio cannot be captured.
+    final scale = _positive(options.scale) ?? 1.0;
+    // `:426-429` — scaleX and scaleY are computed INDEPENDENTLY, so a target
     // with a different aspect ratio distorts. Parity, spec §5.4.
-    final scaleX = options.scale * (options.width ?? totalWidth) / totalWidth;
-    final scaleY =
-        options.scale * (options.height ?? totalHeight) / totalHeight;
+    var scaleX = scale * (_positive(options.width) ?? totalWidth) / totalWidth;
+    var scaleY =
+        scale * (_positive(options.height) ?? totalHeight) / totalHeight;
+    // Upstream draws the SVG as a vector at the output size (`:449`), so every
+    // edge is rendered at that resolution. The raster equivalent is to capture
+    // at the output scale: a 1x capture stretched five times is a blur of 5x5
+    // blocks. A layer can only be captured at one uniform ratio, so a target
+    // whose axes scale differently is captured at the larger and the other
+    // axis downsampled — never upsampled.
+    final ratio = math.max(scaleX, scaleY);
+    // The browser does not fail an oversized raster; it silently shrinks the
+    // WebGL drawing buffer (Chromium caps it at 5760² px), which leaves a
+    // transparent band across the image. The captures go through that same
+    // surface, and are larger than the output when a target is stretched or a
+    // big region is cut away. Every one of them scales with a single factor, so
+    // one fit keeps them all inside the caps — a smaller sharp image over a
+    // full-size corrupt or blurred one.
+    final fit = <double>[
+      1.0,
+      _maxRatio(Size(totalWidth * scaleX, totalHeight * scaleY)),
+      _maxRatio(object.size) / ratio,
+      if (continuation != null) _maxRatio(continuation.size) / ratio,
+    ].reduce(math.min);
+    scaleX *= fit;
+    scaleY *= fit;
     totalWidth *= scaleX;
     totalHeight *= scaleY;
-
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, totalWidth, totalHeight),
-      Paint()..color = options.background,
-    );
-    canvas.drawImageRect(
-      chartImage,
-      Offset.zero & chartSize,
-      Rect.fromLTWH(0, 0, scaleX * chartSize.width, scaleY * chartSize.height),
-      Paint(),
-    );
-    if (legendImage != null) {
-      canvas.drawImageRect(
-        legendImage,
-        Offset.zero & legendSize,
-        Rect.fromLTWH(
-          0,
-          scaleY * chartSize.height,
-          scaleX * legendSize.width,
-          scaleY * legendSize.height,
-        ),
-        Paint(),
+    final pixelRatio = ratio * fit;
+    // Both captures are taken before the first await, so no frame can dispose
+    // or re-lay out either boundary between them.
+    final captures = await Future.wait<ui.Image>(<Future<ui.Image>>[
+      object.toImage(pixelRatio: pixelRatio),
+      if (continuation != null) continuation.toImage(pixelRatio: pixelRatio),
+    ], cleanUp: (image) => image.dispose());
+    ui.Image? image;
+    try {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, totalWidth, totalHeight),
+        Paint()..color = options.background,
       );
-    }
-    // `:432-433` — assigning to `canvas.width` truncates towards zero rather
-    // than rounding, and a zero-sized canvas is not representable here.
-    final image = await recorder.endRecording().toImage(
-      math.max(1, totalWidth.toInt()),
-      math.max(1, totalHeight.toInt()),
-    );
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    chartImage.dispose();
-    legendImage?.dispose();
-    image.dispose();
-    if (bytes == null) {
-      // `toByteData` only returns null when the engine failed to encode.
-      throw StateError('Chart image could not be encoded');
-    }
-    return 'data:image/png;base64,${base64Encode(bytes.buffer.asUint8List())}';
-  }
+      // The cut is on a whole output row and the continuation starts on it, so
+      // at a uniform scale both copy 1:1 instead of resampling half a row off.
+      final cutY = (headHeight * scaleY).roundToDouble();
+      void draw(ui.Image capture, double x, double y, double srcHeight) {
+        // The destination is the capture's own pixels mapped back through the
+        // same ratio, so a uniform scale is an exact 1:1 copy with no
+        // resampling; the ceil'd spare column, if any, falls outside the
+        // truncated canvas.
+        canvas.drawImageRect(
+          capture,
+          Rect.fromLTWH(0, 0, capture.width.toDouble(), srcHeight),
+          Rect.fromLTWH(
+            x,
+            y,
+            capture.width * scaleX / pixelRatio,
+            srcHeight * scaleY / pixelRatio,
+          ),
+          Paint()..filterQuality = FilterQuality.medium,
+        );
+      }
 
-  Future<ui.Image> _renderLegend(FluentSynthesisedLegendLayout layout) {
-    final recorder = ui.PictureRecorder();
-    FluentSynthesisedLegendPainter(
-      layout: layout,
-      textStyle: legendTextStyle,
-      measurer: measurer,
-    ).paint(Canvas(recorder), layout.size);
-    return recorder.endRecording().toImage(
-      math.max(1, layout.size.width.toInt()),
-      math.max(1, layout.size.height.toInt()),
-    );
+      draw(
+        captures.first,
+        (-left * scaleX).roundToDouble(),
+        0,
+        math.min(cutY * pixelRatio / scaleY, captures.first.height.toDouble()),
+      );
+      if (continuation != null) {
+        draw(
+          captures.last,
+          ((continuationX - left) * scaleX).roundToDouble(),
+          cutY,
+          captures.last.height.toDouble(),
+        );
+      }
+      if (layout != null) {
+        // Painted as vectors at the output scale rather than rasterised at 1x
+        // and stretched. The clip is the legend SVG's own viewport (`:385`).
+        canvas
+          ..save()
+          ..translate(0, scaleY * chartSize.height)
+          ..scale(scaleX, scaleY)
+          ..clipRect(Offset.zero & legendSize);
+        FluentSynthesisedLegendPainter(
+          layout: layout,
+          textStyle: legendTextStyle,
+          measurer: measurer,
+        ).paint(canvas, legendSize);
+        canvas.restore();
+      }
+      // `:432-433` — assigning to `canvas.width` truncates towards zero rather
+      // than rounding, and a zero-sized canvas is not representable here.
+      image = await recorder.endRecording().toImage(
+        math.max(1, totalWidth.toInt()),
+        math.max(1, totalHeight.toInt()),
+      );
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (bytes == null) {
+        // `toByteData` only returns null when the engine failed to encode.
+        throw StateError('Chart image could not be encoded');
+      }
+      return 'data:image/png;base64,'
+          '${base64Encode(bytes.buffer.asUint8List())}';
+    } finally {
+      // Only now: the composite picture refers to the captures until it has
+      // been rasterised.
+      for (final capture in captures) {
+        capture.dispose();
+      }
+      image?.dispose();
+    }
   }
 }
 
