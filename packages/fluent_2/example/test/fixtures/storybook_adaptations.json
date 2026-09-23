@@ -45,7 +45,7 @@
   },
   "charts-donutchart--donut-chart-custom-callout": {
     "kind": "reduced",
-    "why": "Upstream swaps the hover popover through `calloutPropsPerDataPoint` and `onRenderCalloutPerDataPoint`. FluentDonutChart owns its popover and exposes neither hook, so the 'User Popover Override' switch is live but the popover it would replace stays the built-in one."
+    "why": "`onRenderCalloutPerDataPoint` becomes `popoverBuilder`, which returns null for the built-in body while the 'User Popover Override' switch is off. `calloutPropsPerDataPoint` has no counterpart on FluentDonutChart, so the built-in body keeps the datum's own reading and colour instead of upstream's 'Custom XVal' heading, '<value> h' value and warning colour. The custom body's `1.5px dotted` border is solid, because Flutter's BorderStyle has no dotted style, and `href` is dropped as in the basic story."
   },
   "charts-donutchart--donut-chart-dynamic": {
     "kind": "reduced",

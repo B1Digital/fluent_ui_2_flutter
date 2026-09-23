@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:fluent_2/fluent_2.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -355,6 +356,63 @@ void main() {
           "Arc.tsx:93 formats with d3Format('.0%'), and the total at "
           'Pie.tsx:52-58 sums ALL points including zeroes.',
     );
+  });
+
+  testWidgets('popoverBuilder replaces the popover body, and null keeps it', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      FluentDonutChart(
+        key: key,
+        innerRadius: 40,
+        data: dataOf(<(String, double)>[('A', 1), ('B', 1)]),
+        popoverBuilder: (context, point) =>
+            point.legend == 'A' ? Text('custom ${point.legend}') : null,
+      ),
+    );
+    final plot = find.byWidgetPredicate(
+      (widget) =>
+          widget is CustomPaint && widget.painter is FluentDonutChartPainter,
+    );
+    Offset arcPoint(int index) {
+      final layout = painterOf(tester).layout;
+      final slice = layout.slices[index];
+      final angle = (slice.startAngle + slice.endAngle) / 2;
+      final radius = (layout.innerRadius + layout.outerRadius) / 2;
+      return tester.getTopLeft(plot) +
+          layout.centre +
+          Offset(math.sin(angle) * radius, -math.cos(angle) * radius);
+    }
+
+    final popover = find.byType(FluentChartPopover);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+
+    await mouse.moveTo(arcPoint(0));
+    await tester.pump();
+    expect(
+      find.descendant(of: popover, matching: find.text('custom A')),
+      findsOneWidget,
+      reason: 'ChartPopover.tsx:54 renders the custom body in the surface.',
+    );
+    expect(
+      find.descendant(of: popover, matching: find.text('1')),
+      findsNothing,
+      reason: 'ChartPopover.tsx:56 and :60 drop the default body for it.',
+    );
+
+    await mouse.moveTo(arcPoint(1));
+    await tester.pump();
+    expect(
+      find.descendant(of: popover, matching: find.text('B')),
+      findsOneWidget,
+      reason:
+          "A null body is upstream's `undefined` customizedCallout, which "
+          'keeps the default body.',
+    );
+    expect(find.text('custom A'), findsNothing);
   });
 
   testWidgets('every arc fill flattens to one system colour under high '
