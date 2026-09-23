@@ -924,7 +924,23 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
   /// tap, so without this the bar would outlive the click.
   void _handleTapOutside() {
     _close();
-    if (_focusNode.hasFocus) _focusNode.unfocus();
+    // Blur only if nothing else took focus. The press may have landed on a
+    // field that focuses itself on pointer-down, as Chrome's mousedown does —
+    // synchronously, or a microtask later (TimePicker, another Dropdown).
+    // Blurring on this same event parked focus on the route's scope and
+    // cancelled that request, so a held press on another field focused
+    // nothing. Two microtasks on, the FocusManager has applied every such
+    // request; if focus is still here, the press hit the page body, which
+    // blurs in a browser too. Still inside this event, so the bar's exit
+    // starts on the same frame as before.
+    //
+    // ponytail: assumes a requester defers at most one microtask; a later one
+    // would lose to this blur. Move the check to a post-frame callback then.
+    scheduleMicrotask(
+      () => scheduleMicrotask(() {
+        if (mounted && _focusNode.hasFocus) _focusNode.unfocus();
+      }),
+    );
   }
 
   int? get _selectedIndex {

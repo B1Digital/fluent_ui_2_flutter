@@ -159,6 +159,8 @@ class _FluentInteractiveState extends State<FluentInteractive> {
   void _onStatesChanged() => setState(() {});
 
   void _set(WidgetState state, {required bool value}) {
+    // A press released after `dispose` still reaches the detached `Listener`.
+    if (!mounted) return;
     if (!_enabled && value) return;
     _controller.update(state, value);
   }

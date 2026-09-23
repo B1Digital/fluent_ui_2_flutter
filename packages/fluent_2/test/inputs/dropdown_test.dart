@@ -1620,6 +1620,105 @@ void main() {
       expect(find.text('Lisbon'), findsNothing);
     });
 
+    testWidgets(
+      'a press on another field takes focus from it while still held',
+      (tester) async {
+        // Chrome: with the dropdown focused, a mousedown on a field focuses
+        // that field at once, so its bar grows under the held press. The
+        // dropdown's outside-tap blur runs later in the same pointer-down and
+        // used to park focus on the route's scope, cancelling the field's own
+        // request: the held press focused nothing.
+        final dropdownNode = FocusNode();
+        addTearDown(dropdownNode.dispose);
+        final fieldNode = FocusNode();
+        addTearDown(fieldNode.dispose);
+        await tester.pumpWidget(
+          FluentApp(
+            theme: light(),
+            home: Center(
+              child: SizedBox(
+                width: 300,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    FluentDropdown<String>(
+                      key: key,
+                      focusNode: dropdownNode,
+                      options: options,
+                      onChanged: (_) {},
+                    ),
+                    const SizedBox(height: 20),
+                    FluentSpinButton(
+                      key: const Key('field'),
+                      focusNode: fieldNode,
+                      value: 1,
+                      onChanged: (_) {},
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        dropdownNode.requestFocus();
+        await tester.pumpAndSettle();
+        expect(dropdownNode.hasFocus, isTrue);
+
+        final press = await tester.startGesture(
+          tester.getTopLeft(find.byKey(const Key('field'))) +
+              const Offset(20, 16),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump();
+        await tester.pump();
+        expect(fieldNode.hasFocus, isTrue, reason: 'focused under the press');
+        expect(dropdownNode.hasFocus, isFalse);
+        await press.up();
+        await tester.pumpAndSettle();
+        expect(fieldNode.hasFocus, isTrue);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets('a dropdown removed mid-press takes the release quietly', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentDropdown<String>(key: key, options: options, onChanged: (_) {}),
+      );
+      final press = await tester.startGesture(
+        tester.getCenter(find.byKey(key)),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox());
+      await press.up();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a tap on the page still blurs it', (tester) async {
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        FluentDropdown<String>(
+          key: key,
+          focusNode: node,
+          options: options,
+          onChanged: (_) {},
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+      expect(node.hasFocus, isTrue);
+
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+      expect(node.hasFocus, isFalse, reason: 'a click on the body blurs');
+    });
+
     testWidgets('a click BEHIND the popup lands, and still dismisses', (
       tester,
     ) async {
