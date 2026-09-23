@@ -885,6 +885,8 @@ class FluentHorizontalBarChartWithAxisDelegate
             color: barColour(bar.point, bar.indexInGroup),
           ),
           semanticsLabel: ariaLabelFor(bar.point),
+          // `onClick={point.onClick}` on every bar (`.tsx:480`, `:662`).
+          onActivate: bar.point.onClick,
         ),
     ];
   }

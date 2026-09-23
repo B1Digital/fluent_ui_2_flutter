@@ -178,6 +178,11 @@ class FluentBarLineDatum {
   final String? yAxisCalloutData;
 
   /// Invoked when this line point is activated.
+  ///
+  /// Upstream hangs it off the line's dot (`VerticalBarChart.tsx:248`), which a
+  /// hover on the bar at the same x reveals (`:489`, `:288`).
+  /// `FluentVerticalBarChart` tracks no such hover and gives the dot no hit
+  /// region, so nothing calls this yet.
   final VoidCallback? onClick;
 
   /// Whether the line is plotted against the secondary y scale.

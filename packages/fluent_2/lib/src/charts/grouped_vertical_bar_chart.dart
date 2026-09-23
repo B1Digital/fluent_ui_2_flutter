@@ -861,6 +861,10 @@ class FluentGroupedVerticalBarChartDelegate
           semanticsLabel:
               point.callOutSemantics?.label ??
               '$xValue. ${bar.legend}, $yValue.',
+          // `onClick={pointData.onClick}` (`.tsx:594`), on the rect in either
+          // callout mode. The line-dot regions below take none: upstream's dot
+          // circle has no `onClick` (`.tsx:865-892`).
+          onActivate: point.onClick,
         ),
       );
     }

@@ -719,6 +719,8 @@ class FluentGanttChartDelegate extends FluentCartesianSeriesDelegate {
               '$yValue. '
                   '${point.legend != null ? '${point.legend}, ' : ''}'
                   '$xValue.',
+          // `onClick={point.onClick}` (`:422`).
+          onActivate: point.onClick,
         ),
       );
     }
