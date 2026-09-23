@@ -11,6 +11,11 @@ jobs:
   test:
     name: Test All Features
     runs-on: ubuntu-latest
+    # The golden images are recorded on Linux amd64 under UTC
+    # (packages/fluent_2/test/goldens/README.md). The runner is UTC already;
+    # this says so instead of leaving it to whatever the runner image ships.
+    env:
+      TZ: UTC
 
     steps:
       - name: Checkout Repository
@@ -26,11 +31,28 @@ jobs:
       - name: Verify Flutter Installation
         run: flutter --version
 
+      # The `ci` script calls a bare `melos` for each step, which is this global
+      # one. Pinned to the version the workspace resolves: an unpinned one
+      # (8.x) hands off to the local 7.x and reports every failing step with an
+      # extra, misleading "Failed to update packages.".
       - name: Install Melos
-        run: dart pub global activate melos
+        run: dart pub global activate melos 7.8.2
 
       - name: Bootstrap Melos Workspace
         run: dart run melos bootstrap
 
       - name: Run Full CI Suite (Analyze, Format, No-Material, Test)
         run: dart run melos run ci
+
+      # Golden diffs (the Linux render, the master and their difference) and
+      # the React-parity triptychs, which otherwise die with the runner.
+      - name: Upload Failure Images
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-failure-images
+          path: |
+            packages/fluent_2/test/goldens/failures/
+            packages/fluent_2/test/parity/out/
+          if-no-files-found: ignore
+          retention-days: 14
