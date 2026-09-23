@@ -208,7 +208,8 @@ void main() {
       await pumpSection(tester, section);
 
       await typeAndBlur(tester, find.byType(FluentTimePicker), '11:30');
-      expect(_fieldText(tester), _time(11, 30));
+      // Chrome keeps the text as typed, not the option's '11:30 AM'.
+      expect(_fieldText(tester), '11:30');
       expect(
         find.textContaining('Time out of'),
         findsNothing,
@@ -238,6 +239,43 @@ void main() {
         find.text('Invalid time format. Please use the 24-hour format HH:MM.'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('a bare hour is invalid, and the message carries its icon', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(tester, section);
+      expect(find.byIcon(FluentIcons.error_circle_12_filled), findsNothing);
+
+      // Upstream's default parser takes H:MM only, so '8' is not a time, where
+      // '8:00' is one outside the range (Chrome).
+      await typeAndBlur(tester, find.byType(FluentTimePicker), '8');
+      expect(
+        find.text('Invalid time format. Please use the 24-hour format HH:MM.'),
+        findsOneWidget,
+      );
+      expect(find.byIcon(FluentIcons.error_circle_12_filled), findsOneWidget);
+
+      await typeAndBlur(tester, find.byType(FluentTimePicker), '8:00');
+      expect(
+        find.text('Time out of the 10:00 to 19:59 range.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the picker is 300 wide in a wider field, as upstream', (
+      WidgetTester tester,
+    ) async {
+      // Chrome: the Field spans the story, and `maxWidth: 300px` holds the
+      // TimePicker to 300 inside it.
+      for (final bool loose in <bool>[false, true]) {
+        await pumpSection(tester, section, loose: loose);
+        expect(
+          tester.getSize(find.byType(FluentTimePicker)).width,
+          300,
+          reason: 'loose $loose',
+        );
+      }
     });
 
     testWidgets('emptying a typed time reports requiredInput', (
@@ -312,8 +350,8 @@ void main() {
       );
       expect(
         _fieldText(tester),
-        'Afternoon: ${_time(15, 30)}',
-        reason: 'the committed value is written back through formatTime',
+        'Afternoon: 3:30',
+        reason: 'the field keeps the typed text, as Chrome does',
       );
     });
   });

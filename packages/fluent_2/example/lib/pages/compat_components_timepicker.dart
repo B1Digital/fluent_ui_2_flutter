@@ -100,9 +100,12 @@ const DocsPage timePickerPage = DocsPage(
     ),
     PropRow(
       name: 'hourCycle',
-      type: 'FluentHourCycle',
-      defaultValue: 'FluentHourCycle.h12',
-      description: 'Which clock the options are written on.',
+      type: 'FluentHourCycle?',
+      defaultValue: 'null',
+      description:
+          'Which clock the options are written on, and typed text is parsed '
+          'on. Null writes the h12 clock but parses the 24-hour one, as '
+          "upstream's unset hourCycle does.",
     ),
     PropRow(
       name: 'showSeconds',
@@ -140,7 +143,9 @@ const DocsPage timePickerPage = DocsPage(
       name: 'freeform',
       type: 'bool',
       defaultValue: 'false',
-      description: 'Whether the field accepts typed times.',
+      description:
+          'Whether typed text is parsed as a time. Without it, typing only '
+          'moves the listbox to a matching row.',
     ),
     PropRow(
       name: 'clearable',
@@ -369,18 +374,27 @@ class _FreeformWithErrorHandlingState
           ? FluentFieldValidationState.none
           : FluentFieldValidationState.error,
       validationMessage: message == null ? null : Text(message),
-      child: SizedBox(
-        width: 300,
-        child: FluentTimePicker(
-          freeform: true,
-          required: true,
-          startHour: 10,
-          endHour: 20,
-          selectedTime: _selectedTime,
-          onTimeChange: (FluentTimeSelectionData data) => setState(() {
-            _selectedTime = data.selectedTime;
-            _errorType = data.error;
-          }),
+      // Upstream's Field draws this glyph for an error by default.
+      validationMessageIcon: message == null
+          ? null
+          : const Icon(FluentIcons.error_circle_12_filled),
+      // `maxWidth: 300px` upstream: the Field spans the story, and the picker
+      // stops at 300 inside it rather than stretching with it.
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: SizedBox(
+          width: 300,
+          child: FluentTimePicker(
+            freeform: true,
+            required: true,
+            startHour: 10,
+            endHour: 20,
+            selectedTime: _selectedTime,
+            onTimeChange: (FluentTimeSelectionData data) => setState(() {
+              _selectedTime = data.selectedTime;
+              _errorType = data.error;
+            }),
+          ),
         ),
       ),
     );

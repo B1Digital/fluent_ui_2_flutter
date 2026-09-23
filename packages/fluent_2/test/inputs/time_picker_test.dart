@@ -62,6 +62,145 @@ Future<void> _pump(
 
 void _noop(FluentTimeSelectionData _) {}
 
+/// A picker whose parent takes every reported time, as upstream's
+/// uncontrolled pickers do, above a second focus stop for Tab to reach.
+/// Returns what the picker reported.
+Future<List<FluentTimeSelectionData>> _pumpLive(
+  WidgetTester tester, {
+  bool freeform = false,
+  DateTime? selectedTime,
+  int startHour = 0,
+  int endHour = 24,
+}) async {
+  final reported = <FluentTimeSelectionData>[];
+  var selected = selectedTime;
+  await tester.pumpWidget(const SizedBox());
+  await tester.pumpWidget(
+    FluentApp(
+      theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+      home: Align(
+        alignment: Alignment.topCenter,
+        child: SizedBox(
+          width: 280,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              StatefulBuilder(
+                builder: (context, setState) => FluentTimePicker(
+                  dateAnchor: _anchor,
+                  selectedTime: selected,
+                  freeform: freeform,
+                  startHour: startHour,
+                  endHour: endHour,
+                  onTimeChange: (data) {
+                    reported.add(data);
+                    setState(() => selected = data.selectedTime);
+                  },
+                ),
+              ),
+              const Focus(child: SizedBox.square(dimension: 8)),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  return reported;
+}
+
+/// A mouse click, pressed and released where it landed.
+Future<void> _click(
+  WidgetTester tester,
+  Offset at, {
+  int buttons = kPrimaryButton,
+}) async {
+  final mouse = await tester.createGesture(
+    kind: PointerDeviceKind.mouse,
+    buttons: buttons,
+  );
+  await mouse.addPointer(location: at);
+  await mouse.down(at);
+  await tester.pump();
+  await mouse.up();
+  await tester.pumpAndSettle();
+  await mouse.removePointer();
+}
+
+/// What the field holds.
+String _text(WidgetTester tester) =>
+    tester.widget<EditableText>(find.byType(EditableText)).controller.text;
+
+/// Where the field's caret or selection is.
+TextSelection _selection(WidgetTester tester) =>
+    tester.widget<EditableText>(find.byType(EditableText)).controller.selection;
+
+/// A listbox row reading [text] — not the field, which may hold the same.
+Finder _row(String text) => find.byWidgetPredicate(
+  (widget) => widget is Text && widget.data == text,
+  description: 'a row reading "$text"',
+);
+
+/// Whether the row reading [text] shows its focus ring.
+bool _ringOn(WidgetTester tester, String text) => tester
+    .widget<FluentFocusRing>(
+      find
+          .ancestor(of: _row(text), matching: find.byType(FluentFocusRing))
+          .first,
+    )
+    .visible;
+
+/// The rows whose ring shows.
+List<String> _rung(WidgetTester tester) => <String>[
+  for (final row
+      in find
+          .descendant(
+            of: find.byType(SingleChildScrollView),
+            matching: find.byType(Text),
+          )
+          .evaluate())
+    if (_ringOn(tester, (row.widget as Text).data!)) (row.widget as Text).data!,
+];
+
+/// The open listbox's scroll position.
+ScrollPosition _list(WidgetTester tester) => tester
+    .state<ScrollableState>(
+      find.descendant(
+        of: find.byType(SingleChildScrollView),
+        matching: find.byType(Scrollable),
+      ),
+    )
+    .position;
+
+/// How far the row reading [text] sits inside the listbox's scrolling
+/// viewport, from its top and its bottom edge.
+({double top, double bottom}) _clearance(WidgetTester tester, String text) {
+  final viewport = tester.getRect(
+    find.descendant(
+      of: find.byType(SingleChildScrollView),
+      matching: find.byType(Scrollable),
+    ),
+  );
+  final row = tester.getRect(
+    find.ancestor(of: _row(text), matching: find.byType(FluentInteractive)),
+  );
+  return (top: row.top - viewport.top, bottom: viewport.bottom - row.bottom);
+}
+
+/// The open listbox's max height.
+double _cap(WidgetTester tester) => tester
+    .widget<ConstrainedBox>(
+      find.descendant(
+        of: find.byType(CompositedTransformFollower),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is ConstrainedBox && widget.constraints.maxHeight.isFinite,
+        ),
+      ),
+    )
+    .constraints
+    .maxHeight;
+
 /// The faceplate's own painted box.
 BoxDecoration _faceplate(WidgetTester tester) => tester
     .widgetList<DecoratedBox>(
@@ -171,20 +310,31 @@ void main() {
     FluentTimeStringValidationResult parse(String text) =>
         fluentParseTime(text, dateAnchor: _anchor);
 
-    test('accepts the shapes a user actually types', () {
-      expect(parse('9').date, DateTime(2026, 3, 10, 9));
+    // Upstream's `getDateFromTimeString`: with no hourCycle — the
+    // freeform-with-error-handling story's — it takes `H:MM` or `HH:MM` and
+    // nothing else, AM/PM included, though the options read '10:00 AM'.
+    // Chrome, close_timepicker/up_parse: '10:00' and '19:59' pass, '8:00',
+    // '0:30', '20:00' and '24:00' are out of range, and the rest invalid.
+    test('with no hourCycle, only H:MM on the 24-hour clock', () {
       expect(parse('9:05').date, DateTime(2026, 3, 10, 9, 5));
-      expect(parse('9:05:30').date, DateTime(2026, 3, 10, 9, 5, 30));
-      expect(parse('9 pm').date, DateTime(2026, 3, 10, 21));
-      expect(parse('9:05 PM').date, DateTime(2026, 3, 10, 21, 5));
-      expect(parse('9:05p').date, DateTime(2026, 3, 10, 21, 5));
+      expect(parse('09:05').date, DateTime(2026, 3, 10, 9, 5));
       expect(parse('21:05').date, DateTime(2026, 3, 10, 21, 5));
-      // Midnight on the h24 clock is the one place hour 24 is legal.
-      expect(parse('24:00').date, DateTime(2026, 3, 10));
-    });
-
-    test('rejects what is not a time', () {
-      for (final text in <String>['9:75', '25:00', 'abc', '13 pm', '9:1:2:3']) {
+      expect(parse('0:30').date, DateTime(2026, 3, 10, 0, 30));
+      for (final text in <String>[
+        '8',
+        '12',
+        '9:5',
+        '1000',
+        '11.30',
+        '11:30:00',
+        '10:00 AM',
+        '11:30am',
+        ' 11:30',
+        '11:30 ',
+        '9:75',
+        '25:00',
+        'abc',
+      ]) {
         expect(
           parse(text).error,
           FluentTimePickerErrorType.invalidInput,
@@ -192,6 +342,60 @@ void main() {
         );
         expect(parse(text).date, isNull, reason: text);
       }
+    });
+
+    test('24:00 is the next midnight, past a whole day', () {
+      final result = parse('24:00');
+      expect(result.date, DateTime(2026, 3, 11));
+      expect(result.error, FluentTimePickerErrorType.outOfBounds);
+    });
+
+    test('the 12-hour clocks need AM or PM after one space', () {
+      for (final cycle in <FluentHourCycle>[
+        FluentHourCycle.h11,
+        FluentHourCycle.h12,
+      ]) {
+        FluentTimeStringValidationResult parse12(String text) =>
+            fluentParseTime(text, dateAnchor: _anchor, hourCycle: cycle);
+        expect(parse12('9:05 PM').date, DateTime(2026, 3, 10, 21, 5));
+        expect(parse12('12:30 am').date, DateTime(2026, 3, 10, 0, 30));
+        expect(parse12('12:30 PM').date, DateTime(2026, 3, 10, 12, 30));
+        for (final text in <String>['9:05', '9:05PM', '13:00 PM', '9 pm']) {
+          expect(
+            parse12(text).error,
+            FluentTimePickerErrorType.invalidInput,
+            reason: '$cycle, $text',
+          );
+        }
+      }
+      expect(
+        fluentParseTime(
+          '21:05',
+          dateAnchor: _anchor,
+          hourCycle: FluentHourCycle.h23,
+        ).date,
+        DateTime(2026, 3, 10, 21, 5),
+      );
+    });
+
+    test('showSeconds asks for the seconds too', () {
+      expect(
+        fluentParseTime('9:05:30', dateAnchor: _anchor, showSeconds: true).date,
+        DateTime(2026, 3, 10, 9, 5, 30),
+      );
+      expect(
+        fluentParseTime('9:05', dateAnchor: _anchor, showSeconds: true).error,
+        FluentTimePickerErrorType.invalidInput,
+      );
+      expect(
+        fluentParseTime(
+          '9:05:30 PM',
+          dateAnchor: _anchor,
+          hourCycle: FluentHourCycle.h12,
+          showSeconds: true,
+        ).date,
+        DateTime(2026, 3, 10, 21, 5, 30),
+      );
     });
 
     test('an empty field is required-input only when required', () {
@@ -221,6 +425,7 @@ void main() {
         dateAnchor: _anchor,
         startHour: 22,
         endHour: 2,
+        hourCycle: FluentHourCycle.h12,
       );
       expect(result.error, isNull);
       expect(result.date, DateTime(2026, 3, 11, 1, 30));
@@ -309,9 +514,9 @@ void main() {
       // The room around the field is measured once at open, and the entry
       // lives in the Overlay, so nothing rebuilt it when the page moved: a
       // listbox clamped to the 300 of room a mid-page field left stayed 300
-      // tall after the page carried the field to the top, where the full 416
-      // cap fits. `@fluentui/react-positioning` repositions on scroll rather
-      // than closing, so the entry re-measures.
+      // tall after the page carried the field up, where more room shows.
+      // `@fluentui/react-positioning` repositions on scroll rather than
+      // closing, so the entry re-measures.
       final controller = ScrollController();
       addTearDown(controller.dispose);
 
@@ -339,26 +544,18 @@ void main() {
           ),
         ),
       );
-      // Puts the field 250 down a 600 viewport, so neither side of it has the
-      // 416 the cap wants and the clamp is what decides the height.
+      // Puts the field 250 down a 600 viewport; the listbox takes the room
+      // below it, less the 2px offset, as Combobox's `autoSize` does.
       controller.jumpTo(650);
       await tester.pumpAndSettle();
 
       await tester.tap(find.byType(FluentTimePicker));
       await tester.pumpAndSettle();
 
-      final surface = find.descendant(
-        of: find.byType(CompositedTransformFollower),
-        matching: find.byWidgetPredicate(
-          (widget) =>
-              widget is ConstrainedBox && widget.constraints.maxHeight.isFinite,
-        ),
-      );
-      expect(surface, findsOneWidget);
-      double cap() =>
-          tester.widget<ConstrainedBox>(surface).constraints.maxHeight;
-
-      expect(cap(), lessThan(416), reason: 'else this proves nothing');
+      double room() =>
+          600 - tester.getRect(find.byType(FluentTimePicker)).bottom;
+      expect(_cap(tester), room() - 2);
+      final before = _cap(tester);
 
       // A wheel, not a drag: `TapRegion` cannot tell a drag from a tap, so a
       // touch drag dismisses (see the light-dismiss group), and `jumpTo` never
@@ -370,9 +567,9 @@ void main() {
 
       expect(find.text('09:00'), findsOneWidget, reason: 'still open');
       expect(controller.offset, 850, reason: 'the wheel has to have landed');
-      // 200 further down the page leaves 518 below the field, so upstream's
-      // `min(80vh, 416px)` is now the binding half.
-      expect(cap(), 416);
+      // 200 further down the page leaves 200 more below the field.
+      expect(_cap(tester), room() - 2);
+      expect(_cap(tester), before + 200);
     });
   });
 
@@ -573,11 +770,758 @@ void main() {
       expect(reported.single.error, isNull);
     });
 
-    testWidgets('a non-freeform field refuses typed text', (tester) async {
+    testWidgets('the picker parses on its own hourCycle', (tester) async {
+      // Upstream hands `getDateFromTimeString` the picker's own cycle: an h12
+      // picker wants '9:30 AM', and '09:30' is not a time to it.
+      for (final (text, time) in <(String, DateTime?)>[
+        ('9:30 AM', DateTime(2026, 3, 10, 9, 30)),
+        ('09:30', null),
+      ]) {
+        final reported = <FluentTimeSelectionData>[];
+        await tester.pumpWidget(
+          FluentApp(
+            home: Center(
+              child: SizedBox(
+                width: 280,
+                child: FluentTimePicker(
+                  key: ValueKey<String>(text),
+                  dateAnchor: _anchor,
+                  freeform: true,
+                  hourCycle: FluentHourCycle.h12,
+                  onTimeChange: reported.add,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.enterText(find.byType(EditableText), text);
+        FocusManager.instance.primaryFocus?.unfocus();
+        await tester.pumpAndSettle();
+        expect(reported.single.selectedTime, time, reason: text);
+      }
+    });
+
+    // Upstream's non-freeform picker is still an editable `<input>`: it takes
+    // a caret and types ahead (compat-components-timepicker--default in
+    // Chrome). This used to assert the opposite.
+    testWidgets('a non-freeform field takes a caret and typed text', (
+      tester,
+    ) async {
       await _pump(tester);
       final editable = tester.widget<EditableText>(find.byType(EditableText));
-      expect(editable.readOnly, isTrue);
+      expect(editable.readOnly, isFalse);
+      expect(editable.showCursor, isTrue);
     });
+  });
+
+  // Measured on compat-components-timepicker--freeform-with-error-handling
+  // (10:00 to 19:30, h12) and --default (the whole day) in Chrome; evidence in
+  // the session scratchpad's final_timepicker/up.
+  group('FluentTimePicker — typing, as upstream does in Chrome', () {
+    testWidgets('freeform: the typed prefix rings its option; Enter picks it', (
+      tester,
+    ) async {
+      final reported = await _pumpLive(
+        tester,
+        freeform: true,
+        startHour: 10,
+        endHour: 20,
+      );
+      await _click(tester, tester.getCenter(find.byType(EditableText)));
+      expect(_rung(tester), isEmpty, reason: 'opened by the mouse');
+
+      tester.testTextInput.enterText('12:30');
+      await tester.pumpAndSettle();
+      expect(_rung(tester), <String>['12:30 PM']);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(reported.single.selectedTime, DateTime(2026, 3, 10, 12, 30));
+      expect(reported.single.selectedTimeText, '12:30 PM');
+      expect(_text(tester), '12:30 PM');
+      // Chrome leaves the caret after the picked text, so the next key adds
+      // to it rather than replacing it.
+      expect(_selection(tester), const TextSelection.collapsed(offset: 8));
+      expect(_row('1:00 PM'), findsNothing, reason: 'closed');
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets(
+      'freeform: text no option starts rings none; Enter commits it',
+      (tester) async {
+        final reported = await _pumpLive(
+          tester,
+          freeform: true,
+          startHour: 10,
+          endHour: 20,
+        );
+        await _click(tester, tester.getCenter(find.byType(EditableText)));
+        tester.testTextInput.enterText('12:15');
+        await tester.pumpAndSettle();
+        expect(_rung(tester), isEmpty);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(reported.single.selectedTime, DateTime(2026, 3, 10, 12, 15));
+        expect(reported.single.selectedTimeText, '12:15');
+        expect(_text(tester), '12:15');
+        expect(_row('1:00 PM'), findsNothing, reason: 'closed');
+      },
+    );
+
+    testWidgets('freeform: Tab and a click away keep the typed text', (
+      tester,
+    ) async {
+      // Chrome: '12:30' stays '12:30' — not the option's '12:30 PM' — and
+      // 'abc' stays 'abc' even over a time picked before.
+      for (final (typed, leave, picked, time, error)
+          in <
+            (String, String, DateTime?, DateTime?, FluentTimePickerErrorType?)
+          >[
+            ('12:30', 'Tab', null, DateTime(2026, 3, 10, 12, 30), null),
+            ('12:30', 'click', null, DateTime(2026, 3, 10, 12, 30), null),
+            ('abc', 'Tab', null, null, FluentTimePickerErrorType.invalidInput),
+            // A bare hour is not a time to upstream's default parser (Chrome,
+            // close_timepicker/up_parse).
+            ('8', 'Tab', null, null, FluentTimePickerErrorType.invalidInput),
+            (
+              'abc',
+              'Tab',
+              DateTime(2026, 3, 10, 12, 30),
+              null,
+              FluentTimePickerErrorType.invalidInput,
+            ),
+          ]) {
+        final reason = '$typed, $leave, picked $picked';
+        final reported = await _pumpLive(
+          tester,
+          freeform: true,
+          startHour: 10,
+          endHour: 20,
+          selectedTime: picked,
+        );
+        await _click(tester, tester.getCenter(find.byType(EditableText)));
+        tester.testTextInput.enterText(typed);
+        await tester.pumpAndSettle();
+        if (leave == 'Tab') {
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pumpAndSettle();
+        } else {
+          await _click(tester, const Offset(790, 590));
+        }
+        expect(reported.single.selectedTime, time, reason: reason);
+        expect(reported.single.selectedTimeText, typed, reason: reason);
+        expect(reported.single.error, error, reason: reason);
+        expect(_text(tester), typed, reason: reason);
+      }
+    });
+
+    testWidgets('freeform: Escape closes and keeps the typed text', (
+      tester,
+    ) async {
+      final reported = await _pumpLive(
+        tester,
+        freeform: true,
+        startHour: 10,
+        endHour: 20,
+      );
+      await _click(tester, tester.getCenter(find.byType(EditableText)));
+      tester.testTextInput.enterText('12:30');
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(_row('1:00 PM'), findsNothing, reason: 'closed');
+      expect(_text(tester), '12:30');
+      expect(reported, isEmpty);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(reported.single.selectedTime, DateTime(2026, 3, 10, 12, 30));
+      expect(_text(tester), '12:30');
+    });
+
+    testWidgets('non-freeform: a click opens with a caret; Enter picks the '
+        'typed match', (tester) async {
+      final reported = await _pumpLive(tester);
+      await _click(tester, tester.getCenter(find.byType(EditableText)));
+      final editable = tester.state<EditableTextState>(
+        find.byType(EditableText),
+      );
+      expect(editable.widget.focusNode.hasFocus, isTrue);
+      expect(editable.widget.readOnly, isFalse);
+      expect(editable.widget.showCursor, isTrue);
+      expect(_rung(tester), isEmpty, reason: 'opened by the mouse');
+
+      tester.testTextInput.enterText('1');
+      await tester.pumpAndSettle();
+      expect(_rung(tester), <String>['12:00 AM']);
+      tester.testTextInput.enterText('12:3');
+      await tester.pumpAndSettle();
+      expect(_rung(tester), <String>['12:30 AM']);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(reported.single.selectedTime, DateTime(2026, 3, 10, 0, 30));
+      expect(_text(tester), '12:30 AM');
+      expect(_selection(tester), const TextSelection.collapsed(offset: 8));
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('a pick keeps its text while the parent takes it, so keys '
+        'pressed at once still land', (tester) async {
+      // Chrome (verify_timepicker/up_rapid.out): '11:00', Enter and six
+      // ArrowLefts with no pause leave the caret at 2, freeform or not. A
+      // non-freeform port blanked the text until the parent rebuilt with the
+      // pick, then wrote it back with the caret at the end (port.out: 8).
+      for (final freeform in <bool>[false, true]) {
+        await _pumpLive(tester, freeform: freeform);
+        await _click(tester, tester.getCenter(find.byType(EditableText)));
+        tester.testTextInput.enterText('11:00');
+        await tester.pumpAndSettle();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        expect(_text(tester), '11:00 AM', reason: 'freeform $freeform');
+        for (var i = 0; i < 6; i++) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+        }
+        await tester.pumpAndSettle();
+        expect(_text(tester), '11:00 AM', reason: 'freeform $freeform');
+        expect(
+          _selection(tester),
+          const TextSelection.collapsed(offset: 2),
+          reason: 'freeform $freeform',
+        );
+      }
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('non-freeform: text nothing picked reverts on Tab, a click '
+        'away and Escape', (tester) async {
+      for (final (typed, leave) in <(String, String)>[
+        ('12:3', 'Tab'),
+        ('12:3', 'click'),
+        ('x', 'Tab'),
+        ('3', 'Escape'),
+      ]) {
+        final reason = '$typed, $leave';
+        final reported = await _pumpLive(tester);
+        await _click(tester, tester.getCenter(find.byType(EditableText)));
+        tester.testTextInput.enterText(typed);
+        await tester.pumpAndSettle();
+        switch (leave) {
+          case 'Tab':
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          case 'Escape':
+            await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+          default:
+            await _click(tester, const Offset(790, 590));
+        }
+        await tester.pumpAndSettle();
+        expect(reported, isEmpty, reason: reason);
+        expect(_text(tester), isEmpty, reason: reason);
+        expect(_row('1:00 AM'), findsNothing, reason: '$reason, closed');
+      }
+    });
+
+    testWidgets('non-freeform: text no option starts rings the first; Enter '
+        'picks it', (tester) async {
+      final reported = await _pumpLive(tester);
+      await _click(tester, tester.getCenter(find.byType(EditableText)));
+      tester.testTextInput.enterText('x');
+      await tester.pumpAndSettle();
+      expect(_rung(tester), <String>['12:00 AM']);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(reported.single.selectedTime, DateTime(2026, 3, 10));
+      expect(_text(tester), '12:00 AM');
+      expect(_selection(tester), const TextSelection.collapsed(offset: 8));
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('non-freeform: typing into a closed field opens it', (
+      tester,
+    ) async {
+      await _pumpLive(tester);
+      final field = tester.getCenter(find.byType(EditableText));
+      await _click(tester, field);
+      await _click(tester, field);
+      expect(_row('1:00 AM'), findsNothing, reason: 'closed again');
+
+      tester.testTextInput.enterText('3');
+      await tester.pumpAndSettle();
+      expect(_rung(tester), <String>['3:00 AM']);
+    });
+
+    // Chrome scrolls the active row just into view, 2px clear of the edge it
+    // was past, however it became active: typing '8' with 8:00 AM seventeen
+    // rows down scrolls it to the bottom edge, whether the key opened the list
+    // or not, and emptying the text scrolls back up to the first, 2px down
+    // (scrollTop 2, close_timepicker/up_scroll_empty). This test used to
+    // assert no scroll at all, measured where 8:00 AM already showed.
+    testWidgets('a typed match below the fold scrolls just into view', (
+      tester,
+    ) async {
+      for (final shut in <bool>[false, true]) {
+        final reason = shut ? 'typed into the shut list' : 'typed when open';
+        await _pumpLive(tester);
+        final field = tester.getCenter(find.byType(EditableText));
+        await _click(tester, field);
+        if (shut) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+          await tester.pumpAndSettle();
+        }
+        tester.testTextInput.enterText('8');
+        await tester.pumpAndSettle();
+        expect(_rung(tester), <String>['8:00 AM'], reason: reason);
+        expect(_list(tester).pixels, greaterThan(0), reason: reason);
+        expect(
+          _clearance(tester, '8:00 AM').bottom,
+          closeTo(2, 0.01),
+          reason: reason,
+        );
+
+        tester.testTextInput.enterText('');
+        await tester.pumpAndSettle();
+        expect(
+          _list(tester).pixels,
+          closeTo(2, 0.01),
+          reason: '$reason, emptied',
+        );
+      }
+    });
+
+    testWidgets('opening scrolls the selected row into view', (tester) async {
+      // Chrome: 11:00 PM picked, a click reopens the list scrolled to it.
+      await _pumpLive(tester, selectedTime: DateTime(2026, 3, 10, 23));
+      await _click(tester, tester.getCenter(find.byType(EditableText)));
+      expect(_clearance(tester, '11:00 PM').bottom, closeTo(2, 0.01));
+    });
+
+    testWidgets('the arrows scroll the active row just into view', (
+      tester,
+    ) async {
+      // Chrome: twenty Downs leave 10:00 AM 2px off the bottom edge; five Ups
+      // stay in view and do not scroll.
+      await _pumpLive(tester);
+      await _click(tester, tester.getCenter(find.byType(EditableText)));
+      for (var i = 0; i < 20; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      }
+      await tester.pumpAndSettle();
+      expect(_rung(tester), <String>['10:00 AM']);
+      expect(_clearance(tester, '10:00 AM').bottom, closeTo(2, 0.01));
+      final scrolled = _list(tester).pixels;
+      for (var i = 0; i < 5; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      }
+      await tester.pumpAndSettle();
+      expect(_rung(tester), <String>['7:30 AM']);
+      expect(_list(tester).pixels, scrolled);
+    });
+
+    testWidgets('Down or Up on a shut list opens on the selection, or the '
+        'first row', (tester) async {
+      // Chrome: neither key moves on the key that opens; Up does not jump to
+      // the last row.
+      for (final key in <LogicalKeyboardKey>[
+        LogicalKeyboardKey.arrowDown,
+        LogicalKeyboardKey.arrowUp,
+      ]) {
+        for (final (picked, row) in <(DateTime?, String)>[
+          (null, '12:00 AM'),
+          (DateTime(2026, 3, 10, 3), '3:00 AM'),
+        ]) {
+          final reason = '${key.keyLabel}, picked $picked';
+          await _pumpLive(tester, selectedTime: picked);
+          await _click(tester, tester.getCenter(find.byType(EditableText)));
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+          await tester.pumpAndSettle();
+          await tester.sendKeyEvent(key);
+          await tester.pumpAndSettle();
+          expect(_rung(tester), <String>[row], reason: reason);
+        }
+      }
+    });
+
+    testWidgets('the listbox grows to the room below the field', (
+      tester,
+    ) async {
+      // Chrome: Combobox's `autoSize` writes the room below as an inline
+      // max-height, over the `min(80vh, 416px)` class — 636px under a field
+      // 124px down a 760px page.
+      await _pumpLive(tester);
+      await _click(tester, tester.getCenter(find.byType(EditableText)));
+      final room = 600 - tester.getRect(find.byType(FluentTimePicker)).bottom;
+      expect(room - 2, greaterThan(416), reason: 'else this proves nothing');
+      expect(_cap(tester), room - 2);
+    });
+
+    testWidgets('non-freeform: text no option starts clears the selection', (
+      tester,
+    ) async {
+      final reported = await _pumpLive(
+        tester,
+        selectedTime: DateTime(2026, 3, 10, 1),
+      );
+      await _click(tester, tester.getCenter(find.byType(EditableText)));
+      tester.testTextInput.enterText('1:00 AMx');
+      await tester.pumpAndSettle();
+      expect(reported.single.selectedTime, isNull);
+      expect(_rung(tester), <String>['12:00 AM']);
+
+      await _click(tester, const Offset(790, 590));
+      expect(_text(tester), isEmpty);
+    });
+
+    // Evidence for the rest of this group: the session scratchpad's tp_verify.
+    testWidgets('a character typed over a selection opens the shut list', (
+      tester,
+    ) async {
+      // Chrome: a picked time, the list shut, Cmd+A then '3' opens it on the
+      // 3:00 row, rung, and Enter picks that row — freeform or not.
+      for (final (freeform, picked, row, time)
+          in <(bool, DateTime, String, DateTime)>[
+            (
+              true,
+              DateTime(2026, 3, 10, 12, 30),
+              '3:00 PM',
+              DateTime(2026, 3, 10, 15),
+            ),
+            (
+              false,
+              DateTime(2026, 3, 10, 1),
+              '3:00 AM',
+              DateTime(2026, 3, 10, 3),
+            ),
+          ]) {
+        final reason = 'freeform $freeform';
+        final reported = await _pumpLive(
+          tester,
+          freeform: freeform,
+          selectedTime: picked,
+          startHour: freeform ? 10 : 0,
+          endHour: freeform ? 20 : 24,
+        );
+        await _click(tester, tester.getCenter(find.byType(EditableText)));
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(_row(row), findsNothing, reason: '$reason, shut');
+
+        final value = tester
+            .state<EditableTextState>(find.byType(EditableText))
+            .textEditingValue;
+        tester.testTextInput.updateEditingValue(
+          value.copyWith(
+            selection: TextSelection(
+              baseOffset: 0,
+              extentOffset: value.text.length,
+            ),
+          ),
+        );
+        await tester.pump();
+        tester.testTextInput.enterText('3');
+        await tester.pumpAndSettle();
+        expect(_rung(tester), <String>[row], reason: reason);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(reported.last.selectedTime, time, reason: reason);
+        expect(_text(tester), row, reason: reason);
+      }
+    });
+
+    testWidgets('freeform: text deleted to nothing rings the first; Enter '
+        'picks it', (tester) async {
+      // Chrome: '1' then Backspace leaves 10:00 AM active and rung.
+      final reported = await _pumpLive(
+        tester,
+        freeform: true,
+        startHour: 10,
+        endHour: 20,
+      );
+      await _click(tester, tester.getCenter(find.byType(EditableText)));
+      tester.testTextInput.enterText('1');
+      await tester.pumpAndSettle();
+      expect(_rung(tester), <String>['10:00 AM']);
+      tester.testTextInput.enterText('');
+      await tester.pumpAndSettle();
+      expect(_rung(tester), <String>['10:00 AM']);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(reported.single.selectedTime, DateTime(2026, 3, 10, 10));
+      expect(_text(tester), '10:00 AM');
+    });
+
+    testWidgets('freeform: Enter on the shut list commits the text and opens '
+        'it', (tester) async {
+      // Chrome: 'abc', Escape, then Enter reports the invalid text and opens
+      // on 10:00 AM, rung.
+      final reported = await _pumpLive(
+        tester,
+        freeform: true,
+        startHour: 10,
+        endHour: 20,
+      );
+      await _click(tester, tester.getCenter(find.byType(EditableText)));
+      tester.testTextInput.enterText('abc');
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(_row('10:00 AM'), findsNothing, reason: 'shut');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(reported.single.error, FluentTimePickerErrorType.invalidInput);
+      expect(_text(tester), 'abc');
+      expect(_rung(tester), <String>['10:00 AM']);
+    });
+
+    testWidgets('freeform: Enter on the shut list opens on the time it just '
+        'committed', (tester) async {
+      // Chrome (verify_timepicker/up_m1.out, up_m1b.out): '10:30', Escape,
+      // Enter reports 10:30 and opens on 10:30 AM, rung — over an earlier
+      // 11:00 AM too — and '18:30' on 6:30 PM. 'abc' over 11:00 AM drops the
+      // selection and opens on the first, as '10:15', which no row reads,
+      // does. The commit and the open are one event upstream.
+      for (final (typed, over, rung) in <(String, DateTime?, String)>[
+        ('10:30', null, '10:30 AM'),
+        ('10:30', DateTime(2026, 3, 10, 11), '10:30 AM'),
+        ('18:30', null, '6:30 PM'),
+        ('abc', DateTime(2026, 3, 10, 11), '10:00 AM'),
+        ('10:15', null, '10:00 AM'),
+      ]) {
+        final reason = "'$typed' over $over";
+        await _pumpLive(
+          tester,
+          freeform: true,
+          selectedTime: over,
+          startHour: 10,
+          endHour: 20,
+        );
+        await _click(tester, tester.getCenter(find.byType(EditableText)));
+        tester.testTextInput.enterText(typed);
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(_rung(tester), <String>[rung], reason: reason);
+        expect(_text(tester), typed, reason: reason);
+      }
+    });
+
+    testWidgets('freeform: a match the shut list kept is where it reopens; '
+        'Enter commits nothing', (tester) async {
+      // Chrome (close_timepicker/up_enter, up_reopen): '12:30 PM', Escape,
+      // Backspace leaves '12:30 P' with 12:30 PM active and the list shut.
+      // Enter, Down, a click on the text or on the chevron each open it on
+      // 12:30 PM and commit nothing; a further Enter picks 12:30 PM.
+      for (final reopen in <String>['Enter', 'Down', 'text', 'chevron']) {
+        final reported = await _pumpLive(
+          tester,
+          freeform: true,
+          startHour: 10,
+          endHour: 20,
+        );
+        await _click(tester, tester.getCenter(find.byType(EditableText)));
+        tester.testTextInput.enterText('12:30 PM');
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        tester.testTextInput.enterText('12:30 P');
+        await tester.pumpAndSettle();
+        expect(_row('1:00 PM'), findsNothing, reason: '$reopen, still shut');
+
+        switch (reopen) {
+          case 'Enter':
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          case 'Down':
+            await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+          case 'text':
+            await _click(tester, tester.getCenter(find.byType(EditableText)));
+          default:
+            await _click(
+              tester,
+              tester.getCenter(find.byIcon(fluentTimePickerChevron)),
+            );
+        }
+        await tester.pumpAndSettle();
+        expect(_row('1:00 PM'), findsOneWidget, reason: '$reopen, open');
+        expect(reported, isEmpty, reason: reopen);
+        expect(_text(tester), '12:30 P', reason: reopen);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(
+          reported.single.selectedTime,
+          DateTime(2026, 3, 10, 12, 30),
+          reason: reopen,
+        );
+        expect(_text(tester), '12:30 PM', reason: reopen);
+      }
+    });
+
+    testWidgets('freeform: text emptied on the shut list leaves no row '
+        'active; Enter commits it and opens', (tester) async {
+      // Chrome (close_timepicker/up_emptied): '1', Escape, Backspace, Enter
+      // reports the empty text — the story's "Time is required." — and opens
+      // on 10:00 AM, rung. The first-row fallback is the open list's only.
+      final reported = await _pumpLive(
+        tester,
+        freeform: true,
+        startHour: 10,
+        endHour: 20,
+      );
+      await _click(tester, tester.getCenter(find.byType(EditableText)));
+      tester.testTextInput.enterText('1');
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      tester.testTextInput.enterText('');
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(reported.single.selectedTimeText, '');
+      expect(_rung(tester), <String>['10:00 AM']);
+    });
+
+    testWidgets('the first row keeps its ring in view at the top', (
+      tester,
+    ) async {
+      // Chrome (close_timepicker/up_scroll): the listbox's 4px padding scrolls
+      // with its rows, so the first row opens 4px down; twenty Downs then
+      // Home, or twenty Ups, leave it 2px down (scrollTop 2), its 2px ring in
+      // full. The ring was clipped when the padding sat outside the scroller.
+      for (final back in <String>['Home', 'Up']) {
+        await _pumpLive(tester);
+        await _click(tester, tester.getCenter(find.byType(EditableText)));
+        expect(_clearance(tester, '12:00 AM').top, 4, reason: back);
+
+        for (var i = 0; i < 20; i++) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        }
+        await tester.pumpAndSettle();
+        expect(_list(tester).pixels, greaterThan(2), reason: back);
+        if (back == 'Home') {
+          await tester.sendKeyEvent(LogicalKeyboardKey.home);
+        } else {
+          for (var i = 0; i < 20; i++) {
+            await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+          }
+        }
+        await tester.pumpAndSettle();
+        expect(_rung(tester), <String>['12:00 AM'], reason: back);
+        expect(_list(tester).pixels, closeTo(2, 0.01), reason: back);
+        expect(_clearance(tester, '12:00 AM').top, closeTo(2, 0.01));
+      }
+    });
+
+    testWidgets('freeform: Home and End jump the open list, not the caret', (
+      tester,
+    ) async {
+      // Chrome: '12' typed, Home rings 10:00 AM and End 7:30 PM, and the
+      // caret stays at (2,2).
+      await _pumpLive(tester, freeform: true, startHour: 10, endHour: 20);
+      await _click(tester, tester.getCenter(find.byType(EditableText)));
+      tester.testTextInput.enterText('12');
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.home);
+      await tester.pumpAndSettle();
+      expect(_rung(tester), <String>['10:00 AM']);
+      expect(_selection(tester), const TextSelection.collapsed(offset: 2));
+      await tester.sendKeyEvent(LogicalKeyboardKey.end);
+      await tester.pumpAndSettle();
+      expect(_rung(tester), <String>['7:30 PM']);
+      expect(_selection(tester), const TextSelection.collapsed(offset: 2));
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('non-freeform: text cut down to an option with the list shut '
+        'is picked on blur', (tester) async {
+      // Chrome: 11:00 AM picked, the list shut, Home then Delete leaves
+      // '1:00 AM', which a click away picks.
+      final reported = await _pumpLive(
+        tester,
+        selectedTime: DateTime(2026, 3, 10, 11),
+      );
+      await _click(tester, tester.getCenter(find.byType(EditableText)));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '1:00 AM',
+          selection: TextSelection.collapsed(offset: 0),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(_row('3:00 AM'), findsNothing, reason: 'a deletion keeps it shut');
+
+      await _click(tester, const Offset(790, 590));
+      expect(reported.single.selectedTime, DateTime(2026, 3, 10, 1));
+      expect(_text(tester), '1:00 AM');
+    });
+
+    testWidgets('a later press takes the typed ring away', (tester) async {
+      // Chrome: '12' rings 12:00 PM; a middle press on the field leaves the
+      // list open and the row active, unrung.
+      await _pumpLive(tester, freeform: true, startHour: 10, endHour: 20);
+      final field = tester.getCenter(find.byType(EditableText));
+      await _click(tester, field);
+      tester.testTextInput.enterText('12');
+      await tester.pumpAndSettle();
+      expect(_rung(tester), <String>['12:00 PM']);
+
+      await _click(tester, field, buttons: kMiddleMouseButton);
+      expect(_row('12:00 PM'), findsOneWidget, reason: 'still open');
+      expect(_rung(tester), isEmpty);
+    });
+
+    testWidgets(
+      'a middle press puts the caret where it lands, focused or not',
+      (tester) async {
+        // Chrome, '1:00 AM' / '12:30' with the press 18px into the text: (3,3)
+        // on a blurred field and on a focused one whose caret was at the end.
+        for (final freeform in <bool>[false, true]) {
+          await _pumpLive(
+            tester,
+            freeform: freeform,
+            selectedTime: DateTime(2026, 3, 10, 1),
+          );
+          final editable = tester.state<EditableTextState>(
+            find.byType(EditableText),
+          );
+          final box = tester.getRect(find.byType(EditableText));
+          for (final dx in <double>[18, 34]) {
+            final at = Offset(box.left + dx, box.center.dy);
+            final landed = editable.renderEditable.getPositionForPoint(at);
+            final reason = 'freeform $freeform, ${dx}px';
+            expect(landed.offset, inInclusiveRange(1, 6), reason: reason);
+            final mouse = await tester.createGesture(
+              kind: PointerDeviceKind.mouse,
+              buttons: kMiddleMouseButton,
+            );
+            await mouse.addPointer(location: at);
+            await mouse.down(at);
+            await tester.pump();
+            expect(editable.widget.focusNode.hasFocus, isTrue, reason: reason);
+            expect(
+              editable.textEditingValue.selection,
+              TextSelection.fromPosition(landed),
+              reason: '$reason, held',
+            );
+            await mouse.up();
+            await tester.pumpAndSettle();
+            await mouse.removePointer();
+            expect(
+              editable.textEditingValue.selection,
+              TextSelection.fromPosition(landed),
+              reason: '$reason, released',
+            );
+            expect(_text(tester), '1:00 AM', reason: reason);
+          }
+        }
+      },
+    );
   });
 
   // The sibling of the date picker's bug: this picker owns its controller too,
@@ -862,6 +1806,152 @@ void main() {
         await tester.sendKeyEvent(LogicalKeyboardKey.escape);
         await tester.pumpAndSettle();
       }
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('a press on the chevron leaves the caret where it was', (
+      tester,
+    ) async {
+      // Chrome (close_timepicker/up_chevron): '11:00 AM' focused with the
+      // caret at 2 keeps it at 2 through a chevron press, held and released,
+      // and the click opens the list — freeform or not. Upstream's expandIcon
+      // prevents its mousedown's default and focuses the input itself.
+      for (final freeform in <bool>[false, true]) {
+        final reason = 'freeform $freeform';
+        await _pumpLive(
+          tester,
+          freeform: freeform,
+          selectedTime: DateTime(2026, 3, 10, 11),
+        );
+        final editable = tester.state<EditableTextState>(
+          find.byType(EditableText),
+        );
+        await _click(tester, tester.getCenter(find.byType(EditableText)));
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        tester.testTextInput.updateEditingValue(
+          editable.textEditingValue.copyWith(
+            selection: const TextSelection.collapsed(offset: 2),
+          ),
+        );
+        await tester.pump();
+
+        final chevron = tester.getCenter(find.byIcon(fluentTimePickerChevron));
+        final mouse = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+          buttons: kPrimaryButton,
+        );
+        await mouse.addPointer(location: chevron);
+        await mouse.down(chevron);
+        await tester.pump();
+        expect(
+          editable.textEditingValue.selection,
+          const TextSelection.collapsed(offset: 2),
+          reason: '$reason, held',
+        );
+        await mouse.up();
+        await tester.pumpAndSettle();
+        expect(editable.widget.focusNode.hasFocus, isTrue, reason: reason);
+        expect(
+          editable.textEditingValue.selection,
+          const TextSelection.collapsed(offset: 2),
+          reason: '$reason, released',
+        );
+        expect(_row('1:00 AM'), findsOneWidget, reason: '$reason, open');
+
+        // Nor does a drag from it select: the prevented mousedown starts none.
+        await mouse.down(chevron);
+        await tester.pump();
+        await mouse.moveBy(const Offset(-60, 0));
+        await tester.pump();
+        await mouse.up();
+        await tester.pumpAndSettle();
+        await mouse.removePointer();
+        expect(
+          editable.textEditingValue.selection,
+          const TextSelection.collapsed(offset: 2),
+          reason: '$reason, dragged',
+        );
+      }
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('every click of a double or triple click toggles the list; '
+        'on the chevron none moves the caret', (tester) async {
+      // Chrome (verify_timepicker/up_m2.out, up_m1b.out): '11:00 AM' with the
+      // caret at 2 keeps it there through a double click on the chevron,
+      // which opens and shuts the list, and a triple, which leaves it open —
+      // freeform or not. A double click on a freeform field's text selects a
+      // word and leaves the list shut.
+      Future<void> clicks(Offset at, int count) async {
+        final mouse = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+          buttons: kPrimaryButton,
+        );
+        await mouse.addPointer(location: at);
+        for (var i = 0; i < count; i++) {
+          await mouse.down(at);
+          await tester.pump(const Duration(milliseconds: 30));
+          await mouse.up();
+          await tester.pump(const Duration(milliseconds: 30));
+        }
+        await tester.pumpAndSettle();
+        await mouse.removePointer();
+      }
+
+      for (final freeform in <bool>[false, true]) {
+        for (final count in <int>[2, 3]) {
+          final reason = 'freeform $freeform, $count clicks';
+          await _pumpLive(
+            tester,
+            freeform: freeform,
+            selectedTime: DateTime(2026, 3, 10, 11),
+          );
+          final editable = tester.state<EditableTextState>(
+            find.byType(EditableText),
+          );
+          await _click(tester, tester.getCenter(find.byType(EditableText)));
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+          await tester.pumpAndSettle();
+          tester.testTextInput.updateEditingValue(
+            editable.textEditingValue.copyWith(
+              selection: const TextSelection.collapsed(offset: 2),
+            ),
+          );
+          await tester.pump();
+
+          await clicks(
+            tester.getCenter(find.byIcon(fluentTimePickerChevron)),
+            count,
+          );
+          expect(
+            editable.textEditingValue.selection,
+            const TextSelection.collapsed(offset: 2),
+            reason: reason,
+          );
+          expect(
+            _row('1:00 AM'),
+            count == 2 ? findsNothing : findsOneWidget,
+            reason: reason,
+          );
+        }
+      }
+
+      await _pumpLive(
+        tester,
+        freeform: true,
+        selectedTime: DateTime(2026, 3, 10, 11),
+      );
+      final text = tester.getRect(find.byType(EditableText));
+      await clicks(text.centerLeft + const Offset(10, 0), 2);
+      expect(
+        tester
+            .state<EditableTextState>(find.byType(EditableText))
+            .textEditingValue
+            .selection
+            .isCollapsed,
+        isFalse,
+        reason: 'the text, a word selected',
+      );
+      expect(_row('1:00 AM'), findsNothing, reason: 'the text, shut');
     }, variant: TargetPlatformVariant.desktop());
 
     testWidgets('a press released after the picker is gone is harmless', (
