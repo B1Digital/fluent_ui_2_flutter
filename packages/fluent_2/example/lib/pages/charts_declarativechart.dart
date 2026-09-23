@@ -2,6 +2,7 @@ import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/widgets.dart';
 
 import '../shell/catalog.dart';
+import '../shell/file_saver.dart';
 
 /// The DeclarativeChart docs page.
 ///
@@ -7010,7 +7011,6 @@ class _DeclarativeChartBasicExampleState
   FluentPlotlyColorway _colorway = FluentPlotlyColorway.byDefault;
   bool _showMore = false;
   bool _loadingMore = false;
-  int? _exportedBytes;
 
   @override
   void initState() {
@@ -7055,14 +7055,11 @@ class _DeclarativeChartBasicExampleState
     }
   }
 
-  // Upstream hands the exported data URL to an <a download>. A Flutter demo has
-  // no document to append the link to, so the export runs for real and reports
-  // the size of the PNG it produced.
+  // Upstream's fileSaver hands the exported image to an <a download> named
+  // converted-image.png (charts-declarativechart--declarative-chart-basic-
+  // example.tsx:329-341); saveFile does the same with the PNG bytes.
   Future<void> _download() async {
-    final bytes = await _chartController.exportAsImage();
-    if (mounted) {
-      setState(() => _exportedBytes = bytes.length);
-    }
+    saveFile(await _chartController.exportAsImage(), 'converted-image.png');
   }
 
   // Whether the current selection is one FluentDeclarativeChart can render —
@@ -7154,16 +7151,9 @@ class _DeclarativeChartBasicExampleState
         ],
       ),
       const SizedBox(height: 16),
-      Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: 8,
-        children: <Widget>[
-          FluentButton(
-            onPressed: _isDeclarative ? _download : null,
-            child: const Text('Download'),
-          ),
-          if (_exportedBytes != null) Text('Exported $_exportedBytes bytes'),
-        ],
+      FluentButton(
+        onPressed: _isDeclarative ? _download : null,
+        child: const Text('Download'),
       ),
       const SizedBox(height: 16),
       _chart(),
