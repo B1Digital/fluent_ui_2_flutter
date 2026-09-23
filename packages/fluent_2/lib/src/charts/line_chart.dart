@@ -2029,6 +2029,7 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
         popoverData: FluentChartPopoverData(
           xValue: xValue,
           isCalloutForStack: isCalloutForStack,
+          culture: culture,
           yValues: stack == null
               ? null
               : <FluentYValueHover>[

@@ -5,6 +5,7 @@ import '../l10n/l10n.dart';
 import 'axis/axis_builders.dart' as builders;
 import 'axis/axis_types.dart';
 import 'axis/domain_range.dart';
+import 'axis/tick_format.dart';
 import 'cartesian/cartesian_chart.dart';
 import 'cartesian/cartesian_chart_props.dart';
 import 'cartesian/cartesian_layout.dart';
@@ -50,12 +51,10 @@ class FluentScatterChart extends StatefulWidget {
 
   /// BCP-47 locale used to format popover values.
   ///
-  /// ponytail: declared, not yet consumed. Upstream spends it in exactly one
-  /// place — `formatDateToLocaleString(x, props.culture, …)` at
-  /// `ScatterChart.tsx:568` and `:534`, which formats a *date* x value for the
-  /// popover header. [FluentScatterChartDelegate.popoverFor] prints the raw x,
-  /// so wiring this means teaching that method to format, which is the same
-  /// change every cartesian chart needs and is better made once.
+  /// It formats the popover's x reading
+  /// (`formatDateToLocaleString(x, props.culture, …)`, `ScatterChart.tsx:535`
+  /// and `:568`) and its y readings (`culture: props.culture`, `:696`), and
+  /// the delegate hands it to the shell for the x-axis tick labels.
   final String? culture;
 
   /// Style override, highest precedence.
@@ -88,6 +87,12 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
   Offset? _popoverAnchor;
   FluentScatterChartDelegate? _delegate;
   late FluentChartTextMeasurer _measurer;
+
+  /// `useUTC` is `string | boolean` upstream and is read as a JS truthy value
+  /// (`CartesianChart.types.ts:448`), so an empty string is false.
+  bool get _useUtc =>
+      widget.props.useUTC == true ||
+      (widget.props.useUTC is String && (widget.props.useUTC! as String) != '');
 
   @override
   void initState() {
@@ -205,6 +210,8 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
       xMinValue: widget.props.xMinValue,
       xMaxValue: widget.props.xMaxValue,
       yAxisCategoryOrder: widget.props.yAxisCategoryOrder,
+      culture: widget.culture,
+      useUtc: _useUtc,
     );
     return FluentCartesianChart(
       focusNode: widget.focusNode,
@@ -370,6 +377,8 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
     this.xMinValue,
     this.xMaxValue,
     this.yAxisCategoryOrder,
+    this.culture,
+    this.useUtc = false,
   });
 
   /// The chart's data bundle. Only [FluentChartData.scatterChartData] is read.
@@ -415,6 +424,17 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
   /// the labels come back in insertion order — **not** in the reverse-series
   /// order the explicit [FluentAxisCategoryOrder.defaultOrder] selects.
   final FluentAxisCategoryOrder? yAxisCategoryOrder;
+
+  /// BCP-47 locale for the popover's readings (`props.culture`).
+  ///
+  /// Overrides the base getter, so the shell formats this chart's tick labels
+  /// with it too: `ScatterChart.tsx:721` spreads `props` into `CartesianChart`,
+  /// which hands `culture` to the x axis builders (`CartesianChart.tsx:237-277`).
+  @override
+  final String? culture;
+
+  /// Whether a date reading is formatted in UTC (`props.useUTC`).
+  final bool useUtc;
 
   List<FluentScatterChartSeries> get _series =>
       data.scatterChartData ?? const <FluentScatterChartSeries>[];
@@ -859,10 +879,16 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
     final series = _series[mark.seriesIndex];
     final point = series.data[mark.pointIndex];
     return FluentChartPopoverData(
-      xValue: point.xAxisCalloutData ?? '${point.x}',
+      // `formatDateToLocaleString(x, props.culture, props.useUTC)`
+      // (`ScatterChart.tsx:535`), then `ChartPopover.tsx:128` formats the
+      // reading once more, which is what groups a numeric x.
+      xValue:
+          point.xAxisCalloutData ??
+          formatToLocaleString(point.x, culture: culture, useUtc: useUtc),
       // ScatterChart.tsx:695 always sets isCalloutForStack, so the multi-value
       // popover body is used even for a single marker.
       isCalloutForStack: true,
+      culture: culture,
       yValues: <FluentYValueHover>[
         FluentYValueHover(
           legend: series.legend,

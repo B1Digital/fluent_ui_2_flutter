@@ -857,6 +857,7 @@ class FluentGroupedVerticalBarChartDelegate
             color: bar.colour,
             isCalloutForStack: isCalloutForStack,
             yValues: isCalloutForStack ? _yValuesOf(bar.category) : null,
+            culture: culture,
           ),
           semanticsLabel:
               point.callOutSemantics?.label ??
@@ -893,6 +894,7 @@ class FluentGroupedVerticalBarChartDelegate
             ),
             isCalloutForStack: isCalloutForStack,
             yValues: isCalloutForStack ? _yValuesOf(dot.category) : null,
+            culture: culture,
           ),
           // `getAriaLabel` again, called on the line point at `.tsx:881-891`.
           semanticsLabel:

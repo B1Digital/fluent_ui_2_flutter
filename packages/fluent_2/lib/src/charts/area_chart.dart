@@ -5,6 +5,7 @@ import 'area_chart_style.dart';
 import 'axis/axis_builders.dart' as axis;
 import 'axis/axis_types.dart';
 import 'axis/domain_range.dart';
+import 'axis/tick_format.dart';
 import 'cartesian/cartesian_chart.dart';
 import 'cartesian/cartesian_chart_props.dart';
 import 'cartesian/cartesian_layout.dart';
@@ -117,6 +118,12 @@ class FluentAreaChartState extends State<FluentAreaChart> {
 
   /// The x value nearest the pointer, currently highlighted.
   Object? get nearestX => _nearestX;
+
+  /// `useUTC` is `string | boolean` upstream and is read as a JS truthy value
+  /// (`CartesianChart.types.ts:448`), so an empty string is false.
+  bool get _useUtc =>
+      widget.props.useUTC == true ||
+      (widget.props.useUTC is String && (widget.props.useUTC! as String) != '');
 
   late FluentAreaChartDataSet _dataSet;
 
@@ -289,6 +296,8 @@ class FluentAreaChartState extends State<FluentAreaChart> {
         yScaleType: widget.props.yScaleType,
         xMinValue: widget.props.xMinValue,
         xMaxValue: widget.props.xMaxValue,
+        culture: widget.culture,
+        useUtc: _useUtc,
       ),
       onPointerMoveInPlot: _handlePointerMove,
       onChartMouseLeave: () => setState(() {
@@ -544,6 +553,8 @@ class FluentAreaChartDelegate extends FluentCartesianSeriesDelegate {
     this.yScaleType,
     this.xMinValue,
     this.xMaxValue,
+    this.culture,
+    this.useUtc = false,
   });
 
   /// The input series.
@@ -600,6 +611,17 @@ class FluentAreaChartDelegate extends FluentCartesianSeriesDelegate {
 
   /// User-supplied x domain ceiling.
   final double? xMaxValue;
+
+  /// BCP-47 locale for the popover's readings (`props.culture`).
+  ///
+  /// Overrides the base getter, so the shell formats this chart's tick labels
+  /// with it too: `AreaChart.tsx:1105` spreads `props` into `CartesianChart`,
+  /// which hands `culture` to the x axis builders (`CartesianChart.tsx:237-277`).
+  @override
+  final String? culture;
+
+  /// Whether a date reading is formatted in UTC (`props.useUTC`).
+  final bool useUtc;
 
   @override
   FluentChartType get chartType => FluentChartType.areaChart;
@@ -934,8 +956,20 @@ class FluentAreaChartDelegate extends FluentCartesianSeriesDelegate {
           index: j,
           legend: series.last.legend,
           popoverData: FluentChartPopoverData(
-            xValue: '${dataSet.rows[j].xValue}',
+            // `formatDateToLocaleString(x, props.culture, props.useUTC)`
+            // (`AreaChart.tsx:234`), then `ChartPopover.tsx:128` formats the
+            // reading once more, which is what groups a numeric x.
+            xValue: formatToLocaleString(
+              dataSet.rows[j].xValue,
+              culture: culture,
+              useUtc: useUtc,
+            ),
             isCalloutForStack: true,
+            // parity: the calloutProps at `AreaChart.tsx:1087` carry no
+            // `culture`, so upstream's rows fall back to the runtime locale.
+            // The prop is documented as the popover's locale, so the port
+            // hands it on.
+            culture: culture,
             yValues: <FluentYValueHover>[
               for (var i = 0; i < series.length; i++)
                 FluentYValueHover(
