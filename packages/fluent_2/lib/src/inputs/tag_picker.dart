@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/gestures.dart' show kSecondaryMouseButton;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -24,6 +25,16 @@ import 'tag_picker_style.dart';
 /// `dropdown.dart` carries, for the same reason: both popups render a Listbox.
 const double _listboxMinWidth = 160;
 
+/// The focus bar's own corners: `::after`'s `borderBottom*Radius:
+/// borderRadiusMedium`, whatever the root's radius is.
+const BorderRadius _accentRadius = BorderRadius.vertical(
+  bottom: FluentRadius.medium,
+);
+
+/// The chevron a tag picker draws by default — upstream's
+/// `ChevronDownRegular`, rendered unless the picker has no popover.
+const IconData fluentTagPickerChevron = FluentIcons.chevron_down_20_regular;
+
 /// How a tag picker's control is filled and outlined. Figma's `Style` axis.
 ///
 /// The four values map one-for-one onto [FluentInputAppearance]; the names
@@ -46,17 +57,22 @@ enum FluentTagPickerAppearance {
 
 /// Control height. Figma's `Size` axis.
 ///
-/// Unlike `FluentInput`, the type ramp does **not** move with the size: all 72
-/// Figma variants bind `Typography/Font size/300` (14/20). Only the height and
-/// the insets change.
+/// Unlike `FluentInput`, the type ramp does **not** move with the size: every
+/// upstream size and all 72 Figma variants use `body1` (14/20). Only the
+/// height and the insets change.
+///
+/// The height is the field's, not the root's: upstream floors the root at
+/// 32 / 40 / 44, but `TagPickerInput` pads its 20px line by 6 / 10 / 12 either
+/// side, so an empty control renders 34 / 42 / 46 with its borders — one less
+/// on Transparent, which has only a bottom border.
 enum FluentTagPickerSize {
-  /// 32 high. The default.
+  /// 34 high (32 minimum). The default.
   medium,
 
-  /// 40 high.
+  /// 42 high (40 minimum).
   large,
 
-  /// 48 high.
+  /// 46 high (44 minimum).
   extraLarge,
 }
 
@@ -155,12 +171,18 @@ class FluentTagPickerBaseState {
     required this.enabled,
     required this.focused,
     required this.field,
+    this.error = false,
     this.tags = const <Widget>[],
     this.secondaryAction,
+    this.expandIcon,
   });
 
   /// Whether the control accepts input.
   final bool enabled;
+
+  /// Whether the control shows the validation-error treatment. Upstream reads
+  /// it from the enclosing `Field`'s `validationState === 'error'`.
+  final bool error;
 
   /// Whether the control holds focus.
   ///
@@ -179,6 +201,10 @@ class FluentTagPickerBaseState {
   /// The trailing action — Fluent's `TagPicker/Secondary action`, normally a
   /// "Clear all" link.
   final Widget? secondaryAction;
+
+  /// The chevron after the content. It needs no tap of its own: a click on it
+  /// lands on the control's, which toggles the popup. Null draws none.
+  final Widget? expandIcon;
 }
 
 /// A tag picker's fully resolved state, including the design axes.
@@ -192,8 +218,10 @@ class FluentTagPickerState extends FluentTagPickerBaseState {
     required this.appearance,
     required this.size,
     required this.open,
+    super.error,
     super.tags,
     super.secondaryAction,
+    super.expandIcon,
   });
 
   /// Fill and outline treatment.
@@ -202,8 +230,8 @@ class FluentTagPickerState extends FluentTagPickerBaseState {
   /// Control height.
   final FluentTagPickerSize size;
 
-  /// Whether the popup is showing. Figma's `Expanded` axis, and the only thing
-  /// that moves the box border to its Selected token.
+  /// Whether the popup is showing. Figma's `Expanded` axis. Styled exactly as
+  /// focus is: upstream has no open rule, and an open picker holds focus.
   final bool open;
 }
 
@@ -215,19 +243,23 @@ FluentTagPickerState resolveFluentTagPickerState({
   bool enabled = true,
   bool focused = false,
   bool open = false,
+  bool error = false,
   FluentTagPickerAppearance appearance = FluentTagPickerAppearance.outline,
   FluentTagPickerSize size = FluentTagPickerSize.medium,
   List<Widget> tags = const <Widget>[],
   Widget? secondaryAction,
+  Widget? expandIcon,
 }) => FluentTagPickerState(
   enabled: enabled,
   focused: focused,
   open: open,
+  error: error,
   appearance: appearance,
   size: size,
   field: field,
   tags: tags,
   secondaryAction: secondaryAction,
+  expandIcon: expandIcon,
 );
 
 /// Resolves the default style for [state] against [theme].
@@ -236,134 +268,142 @@ FluentTagPickerState resolveFluentTagPickerState({
 /// that reads the design axes. Every value comes from a Fluent token; nothing
 /// here computes a colour.
 ///
-/// Token sources are the Figma `Tag picker/TagPicker` set (`9064:14049`, all 72
-/// variants over Style x Size x State x Expanded), extracted into
-/// `test/fixtures/tag_picker.json` and asserted variant-by-variant.
+/// The oracle is upstream as it renders — `useTagPickerControlStyles.styles.ts`
+/// and `useTagPickerInputStyles.styles.ts` measured in Chrome on the live
+/// storybook — not the Figma `Tag picker/TagPicker` set. Where the two
+/// disagree, upstream wins:
 ///
-/// Four things about this table are worth knowing before "fixing" it:
-///
-/// * **The type ramp does not move.** Every one of the 72 variants binds
-///   `Typography/Font size/300`, so Medium, Large and Extra large all render
-///   `body1`. `FluentInput` ramps `caption1`/`body1`/`body2` across its three
-///   sizes; the tag picker deliberately does not.
-/// * **Disabled paints a real fill.** Figma binds
-///   `Neutral/Background/Disabled/Rest` on Outline, Filled darker and Filled
-///   lighter, where `FluentInput`'s disabled column goes transparent. Only
-///   Transparent keeps `Neutral/Background/Transparent/Rest`.
-/// * **Only Outline has a box border**, and only at `Size=Medium` does it ramp.
-///   The Medium column binds `Neutral/Stroke/1/Hover` on Hover, Pressed *and*
-///   Focused, and `Neutral/Stroke/1/Selected` on `Expanded=True`; the Large and
-///   Extra large columns bind `Neutral/Stroke/1/Rest` in every state, which is
-///   Figma authoring drift rather than a design decision. The Medium ramp wins
-///   for all three sizes. Recorded in `doc/token-divergences.md`.
-/// * **The bottom rule is two rules.** Outline and Transparent carry a 1px
-///   `Neutral/Stroke/Accessible/*` rectangle at rest; every appearance replaces
-///   it with a 2px `Neutral/Stroke/Accessible/Selected` bar on Pressed and
-///   Focused. React names `colorCompoundBrandStroke` for that bar; Figma binds
-///   the Accessible/Selected alias, which is the same value, and Figma wins.
+/// * **The type ramp does not move.** Every size renders `body1`, which Figma
+///   agrees with; `FluentInput` ramps `caption1`/`body1`/`body2`, the tag
+///   picker deliberately does not.
+/// * **Only Outline ramps, and hover beats focus.** `outlineInteractive` moves
+///   the border to `Stroke1Hover` on `:hover` and to `Stroke1Pressed` on
+///   `:active` and on `:focus-within` — a rule of its own, which Griffel sorts
+///   before `:hover`. Open is focus: upstream has no open rule, so Figma's
+///   `Stroke1Selected` on `Expanded=True` is not what renders. Transparent's
+///   bottom border and the filled appearances' `colorTransparentStroke` never
+///   move.
+/// * **Disabled is transparent**, with `colorNeutralStrokeDisabled` on every
+///   side that has a width, for every appearance — not Figma's disabled fill.
+/// * **The bar is `colorCompoundBrandStroke`**, Pressed only under
+///   `:focus-within:active`, rather than Figma's Accessible/Selected alias.
+/// * **Invalid is `colorPaletteRedBorder2`**, on all four sides (the bottom
+///   only on Transparent), and only while focus is elsewhere. It outranks
+///   Disabled: the class is kept on a disabled control, and its
+///   `:not(:focus-within)` selector out-specifies the disabled one, so a
+///   disabled invalid control renders red in Chrome.
 FluentTagPickerStyle resolveFluentTagPickerStyle(
   FluentTagPickerState state,
   FluentThemeData theme,
 ) {
   final c = theme.colors;
   final disabled = !state.enabled;
+  final focused = state.focused || state.open;
   final filled =
       state.appearance == FluentTagPickerAppearance.filledDarker ||
       state.appearance == FluentTagPickerAppearance.filledLighter;
   final transparent = state.appearance == FluentTagPickerAppearance.transparent;
+  // `colorPaletteRedBorder2`. The palette layer knows nothing of high contrast,
+  // where the status token is the system text colour instead — the same
+  // expression `resolveFluentInputStyle` uses.
+  final danger = c is FluentHighContrastColors
+      ? c.statusDangerBorder2
+      : c.palette.stroke2Rest(FluentPaletteFamily.red)!;
 
   final background = switch (state.appearance) {
-    _ when disabled && transparent => c.transparentBackground,
-    _ when disabled => c.neutralBackgroundDisabled,
+    _ when disabled => c.transparentBackground,
     FluentTagPickerAppearance.transparent => c.transparentBackground,
     FluentTagPickerAppearance.filledDarker => c.neutralBackground3,
     FluentTagPickerAppearance.outline ||
     FluentTagPickerAppearance.filledLighter => c.neutralBackground1,
   };
 
-  // Figma paints no stroke at all on Transparent, Filled darker and Filled
-  // lighter. The two filled appearances still get the *transparent* token here
-  // rather than no border: `transparentStrokeInteractive` turns opaque in high
-  // contrast, and a fill-only control with no outline would vanish into the
-  // surface there. Recorded in doc/token-divergences.md, and the same call
-  // `FluentDropdown` makes about its filled triggers.
+  // Transparent has no box border — upstream's `underline` sets only
+  // `borderBottom`. The filled appearances keep a `colorTransparentStroke`
+  // border rather than none, which is what outlines them in high contrast.
+  //
+  // The error branch is gated on focus because upstream gates it: `invalid`
+  // is written under `:not(:focus-within),:hover:not(:focus-within)`. It
+  // comes before disabled for the same reason: that selector out-specifies
+  // `disabled`'s plain class.
   final WidgetStateProperty<Color>? border;
   if (transparent) {
     border = null;
-  } else if (filled) {
-    // Invisible in light and dark, opaque in high contrast, disabled included:
-    // Figma paints no stroke on either filled appearance in any state, so the
-    // only thing keeping them outlined in high contrast is this token.
-    border = FluentStateColor.tokens(
-      rest: disabled
-          ? c.transparentStrokeDisabled
-          : c.transparentStrokeInteractive,
-    );
+  } else if (state.error && !focused) {
+    border = FluentStateColor.tokens(rest: danger);
   } else if (disabled) {
     border = FluentStateColor.tokens(rest: c.neutralStrokeDisabled);
+  } else if (filled) {
+    border = FluentStateColor.tokens(rest: c.transparentStroke);
   } else {
+    // Hover wins over focus: see the doc comment.
     border = FluentStateColor.tokens(
-      // Focus moves the outline here, unlike `FluentInput` where all twelve
-      // `State=Focus` variants keep `Neutral/Stroke/1/Rest`. Expanded goes one
-      // step further, to the Selected token.
-      rest: state.open
-          ? c.neutralStroke1Selected
-          : state.focused
-          ? c.neutralStroke1Hover
-          : c.neutralStroke1,
-      // Figma binds the *Hover* token on Pressed as well; React's
-      // `outlineInteractive` moves `:active` to Stroke1Pressed. Figma wins.
+      rest: focused ? c.neutralStroke1Pressed : c.neutralStroke1,
       hover: c.neutralStroke1Hover,
-      pressed: c.neutralStroke1Hover,
+      pressed: c.neutralStroke1Pressed,
     );
   }
 
+  // The bottom border side. The filled appearances have none of their own:
+  // their box border runs round all four sides.
   final WidgetStateProperty<Color>? underline;
   if (filled) {
     underline = null;
+  } else if (state.error && !focused) {
+    underline = FluentStateColor.tokens(rest: danger);
   } else if (disabled) {
     underline = FluentStateColor.tokens(rest: c.neutralStrokeDisabled);
+  } else if (transparent) {
+    underline = FluentStateColor.tokens(rest: c.neutralStrokeAccessible);
   } else {
     underline = FluentStateColor.tokens(
-      rest: state.focused
-          ? c.neutralStrokeAccessibleHover
+      rest: focused
+          ? c.neutralStrokeAccessiblePressed
           : c.neutralStrokeAccessible,
       hover: c.neutralStrokeAccessibleHover,
-      // Figma binds the Hover token on Pressed here too, exactly as it does on
-      // the box border.
-      pressed: c.neutralStrokeAccessibleHover,
+      pressed: c.neutralStrokeAccessiblePressed,
     );
   }
 
+  // `TagPickerInput` pads its 20px line by SNudge / MNudge / M vertically,
+  // which is what sets the height; the root's `minHeight` is only a floor.
+  // The expand icon is 16 / 20 / 24 in a box of that same minimum height,
+  // pinned to the top and centred, with `marginLeft` XXS / XXS / SNudge.
+  //
   // The chip gap is upstream's, not Figma's: `useTagPickerGroupStyles` sets
   // `medium: { gap: spacingHorizontalXS }` and gives BOTH `large` and
   // `'extra-large'` `spacingHorizontalSNudge` — so the ramp is 4 / 6 / 6, and
-  // it stops at large rather than continuing to 8. Figma's Rest variants hold
-  // no tags, so it records no chip-to-chip spacing to contradict it.
-  final (height, inset, contentInset, chipGap) = switch (state.size) {
-    // The vertical inset is derived rather than transcribed: Figma states the
-    // padding around its *text* row (6 / 10 / 12), and this pads a wrapping
-    // strip whose tallest child is a chip. Centring a chip in the stated height
-    // is what keeps 32 / 40 / 48 true once a tag is present.
+  // it stops at large rather than continuing to 8.
+  final (
+    minHeight,
+    inputInset,
+    iconSize,
+    iconGap,
+    chipGap,
+  ) = switch (state.size) {
     FluentTagPickerSize.medium => (
       32.0,
-      FluentSpacing.mNudge,
-      4.0,
+      FluentSpacing.sNudge,
+      FluentSize.size160,
+      FluentSpacing.xxs,
       FluentSpacing.xs,
     ),
     FluentTagPickerSize.large => (
       40.0,
-      FluentSpacing.m,
-      4.0,
+      FluentSpacing.mNudge,
+      FluentSize.size200,
+      FluentSpacing.xxs,
       FluentSpacing.sNudge,
     ),
     FluentTagPickerSize.extraLarge => (
-      48.0,
+      44.0,
       FluentSpacing.m,
-      8.0,
+      FluentSize.size240,
+      FluentSpacing.sNudge,
       FluentSpacing.sNudge,
     ),
   };
+  final iconInset = (minHeight - iconSize) / 2;
 
   return FluentTagPickerStyle(
     backgroundColor: WidgetStatePropertyAll<Color?>(background),
@@ -371,19 +411,22 @@ FluentTagPickerStyle resolveFluentTagPickerStyle(
     borderWidth: WidgetStatePropertyAll<double?>(
       border == null ? FluentStroke.none : FluentStroke.thin,
     ),
-    // Every variant binds `Corner-radius/Input/Medium`, which resolves to 4.
-    borderRadius: const WidgetStatePropertyAll<BorderRadius?>(
-      FluentRadius.allMedium,
+    // `underline: { borderRadius: '0' }` — a flat rule with square ends.
+    borderRadius: WidgetStatePropertyAll<BorderRadius?>(
+      transparent ? BorderRadius.zero : FluentRadius.allMedium,
     ),
     underlineColor: underline,
     underlineWidth: WidgetStatePropertyAll<double?>(
       underline == null ? FluentStroke.none : FluentStroke.thin,
     ),
-    // Upstream's disabled rule is `::after { content: unset }` — a disabled
-    // control has no focus bar at all.
+    // Upstream's `::after` has no disabled rule, but a disabled control cannot
+    // take focus, so the bar never shows. Null says so directly.
     accentColor: disabled
         ? null
-        : FluentStateColor.tokens(rest: c.neutralStrokeAccessibleSelected),
+        : FluentStateColor.tokens(
+            rest: c.compoundBrandStroke,
+            pressed: c.compoundBrandStrokePressed,
+          ),
     accentWidth: const WidgetStatePropertyAll<double?>(FluentStroke.thick),
     foregroundColor: FluentStateColor.tokens(
       rest: disabled ? c.neutralForegroundDisabled : c.neutralForeground1,
@@ -404,11 +447,22 @@ FluentTagPickerStyle resolveFluentTagPickerStyle(
     secondaryTextStyle: WidgetStatePropertyAll<TextStyle?>(
       theme.typography.caption1,
     ),
-    padding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(
-      EdgeInsets.symmetric(horizontal: inset),
+    // `useTagPickerControlStyles` expandIcon: `colorNeutralStrokeAccessible`,
+    // `colorNeutralForegroundDisabled` when disabled; no hover rule.
+    expandIconColor: FluentStateColor.tokens(
+      rest: disabled ? c.neutralForegroundDisabled : c.neutralStrokeAccessible,
+    ),
+    expandIconSize: WidgetStatePropertyAll<double?>(iconSize),
+    expandIconPadding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(
+      EdgeInsetsDirectional.fromSTEB(iconGap, iconInset, 0, iconInset),
+    ),
+    // `paddingLeft: spacingHorizontalM` at every size, and `paddingRight` the
+    // same plus the aside the chevron sits in.
+    padding: const WidgetStatePropertyAll<EdgeInsetsGeometry?>(
+      EdgeInsets.symmetric(horizontal: FluentSpacing.m),
     ),
     contentPadding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(
-      EdgeInsets.symmetric(vertical: contentInset),
+      EdgeInsets.symmetric(vertical: inputInset),
     ),
     tagSpacing: WidgetStatePropertyAll<double?>(chipGap),
     // ponytail: a fixed field width once chips are present. CSS lets the input
@@ -417,16 +471,17 @@ FluentTagPickerStyle resolveFluentTagPickerStyle(
     // `fieldWidth` if a host app types long values.
     fieldWidth: const WidgetStatePropertyAll<double?>(96),
     // `useTagPickerControlStyles` pins `minWidth: 250px`, and the live control
-    // reports it at every size. Figma draws all 72 variants at a fixed 320, so
-    // it states a design width but no minimum and does not contradict this.
-    minimumSize: WidgetStatePropertyAll<Size?>(Size(250, height)),
+    // reports it at every size, beside the `minHeight` floor.
+    minimumSize: WidgetStatePropertyAll<Size?>(Size(250, minHeight)),
     mouseCursor: WidgetStatePropertyAll<MouseCursor?>(
       disabled ? SystemMouseCursors.forbidden : SystemMouseCursors.text,
     ),
     // The popup, from the Figma `TagPicker/Dropdown` set (`9064:15397`).
     surfaceColor: FluentStateColor.tokens(rest: c.neutralBackground1),
-    // Figma paints no stroke on the popup. A transparent one is kept for the
-    // same high-contrast reason as the filled control border above.
+    // `useListboxStyles`: `outline: 1px solid colorTransparentStroke`. Invisible
+    // in light and dark; it is what outlines the popup in high contrast.
+    // [buildFluentTagPickerSurface] paints it outside the box, as an outline
+    // sits, so it takes no room from the rows.
     surfaceBorderColor: FluentStateColor.tokens(rest: c.transparentStroke),
     surfaceBorderWidth: const WidgetStatePropertyAll<double?>(
       FluentStroke.thin,
@@ -456,9 +511,13 @@ FluentTagPickerStyle resolveFluentTagPickerStyle(
 ///
 /// Returns a [FluentDropdownOptionStyle] on purpose: a tag picker row *is* a
 /// listbox row, so it is rendered by [buildFluentDropdownOption] rather than by
-/// a second renderer that would drift from it. Only the numbers differ — Figma's
-/// `TagPicker/Item` set (`9064:15304`) is 48 tall with a 6px horizontal inset
-/// and an 8px gap, where `.ListItem` is 32 tall with a checkmark slot.
+/// a second renderer that would drift from it.
+///
+/// The numbers are upstream's, not Figma's 48-tall `TagPicker/Item`:
+/// `TagPickerOption` runs `useOptionStyles` with `checkIcon: undefined`, so a
+/// row is the combobox `Option` with no check slot — `padding: 6px 8px` around
+/// a `body1` line, 32 tall, `columnGap: spacingHorizontalXS` between media and
+/// label, `colorNeutralForeground1` on no fill of its own until hovered.
 ///
 /// Headers fall through to [resolveFluentDropdownOptionStyle] untouched: the
 /// `TagPicker/Dropdown` section header and the dropdown's own are the same
@@ -474,16 +533,16 @@ FluentDropdownOptionStyle resolveFluentTagPickerOptionStyle(
   final c = theme.colors;
   final background = state.enabled
       ? FluentStateColor.tokens(
-          rest: c.neutralBackground1,
+          rest: c.transparentBackground,
           hover: c.neutralBackground1Hover,
           pressed: c.neutralBackground1Pressed,
         )
-      : FluentStateColor.tokens(rest: c.neutralBackground1);
+      : FluentStateColor.tokens(rest: c.transparentBackground);
   final foreground = state.enabled
       ? FluentStateColor.tokens(
-          rest: c.neutralForeground2,
-          hover: c.neutralForeground2Hover,
-          pressed: c.neutralForeground2Pressed,
+          rest: c.neutralForeground1,
+          hover: c.neutralForeground1Hover,
+          pressed: c.neutralForeground1Pressed,
           disabled: c.neutralForegroundDisabled,
         )
       : FluentStateColor.tokens(rest: c.neutralForegroundDisabled);
@@ -497,13 +556,16 @@ FluentDropdownOptionStyle resolveFluentTagPickerOptionStyle(
     ),
     textStyle: WidgetStatePropertyAll<TextStyle?>(theme.typography.body1),
     padding: const WidgetStatePropertyAll<EdgeInsetsGeometry?>(
-      EdgeInsets.symmetric(horizontal: FluentSpacing.sNudge),
+      EdgeInsets.symmetric(
+        horizontal: FluentSpacing.s,
+        vertical: FluentSpacing.sNudge,
+      ),
     ),
     labelPadding: const WidgetStatePropertyAll<EdgeInsetsGeometry?>(
-      EdgeInsets.symmetric(vertical: FluentSpacing.sNudge),
+      EdgeInsets.zero,
     ),
-    gap: const WidgetStatePropertyAll<double?>(FluentSpacing.s),
-    minimumSize: const WidgetStatePropertyAll<Size?>(Size(0, 48)),
+    gap: const WidgetStatePropertyAll<double?>(FluentSpacing.xs),
+    minimumSize: const WidgetStatePropertyAll<Size?>(Size(0, 32)),
     mouseCursor: const WidgetStatePropertyAll<MouseCursor?>(
       SystemMouseCursors.click,
     ),
@@ -550,6 +612,11 @@ Widget buildFluentTagPicker(
   final minimumSize = style.minimumSize?.resolve(states) ?? Size.zero;
   final secondaryColor = style.secondaryColor?.resolve(states);
   final secondaryTextStyle = style.secondaryTextStyle?.resolve(states);
+  final expandIconColor = style.expandIconColor?.resolve(states);
+  final expandIconSize =
+      style.expandIconSize?.resolve(states) ?? FluentSize.size200;
+  final expandIconPadding =
+      style.expandIconPadding?.resolve(states) ?? EdgeInsets.zero;
 
   // With no chips the field takes the whole line, which is the common case and
   // the one an empty picker must get right. With chips it joins the wrap at a
@@ -575,72 +642,105 @@ Widget buildFluentTagPicker(
           child: state.secondaryAction!,
         );
 
-  // The bottom rule and the accent bar are overlays rather than a one-sided
-  // border: Flutter refuses to paint a rounded rectangle whose sides disagree
-  // in colour, and Figma models them as separate rectangles anyway.
-  final ruleRadius = BorderRadius.only(
-    bottomLeft: radius.bottomLeft,
-    bottomRight: radius.bottomRight,
+  final expandIcon = state.expandIcon == null
+      ? null
+      : Padding(
+          padding: expandIconPadding,
+          child: IconTheme.merge(
+            data: IconThemeData(color: expandIconColor, size: expandIconSize),
+            child: state.expandIcon!,
+          ),
+        );
+
+  // CSS box model: a border that exists takes space, so the content sits inside
+  // it — 1px on every side for Outline and the filled appearances (whose
+  // transparent border still counts), the bottom only for Transparent. A null
+  // colour is no border at all.
+  final side = borderColor == null ? FluentStroke.none : borderWidth;
+  final widths = EdgeInsets.fromLTRB(
+    side,
+    side,
+    side,
+    underlineColor == null ? side : underlineWidth,
   );
 
   return Stack(
+    // The bar overhangs a borderless root: see below.
+    clipBehavior: Clip.none,
+    // Passthrough, so a parent's tight height stretches the box itself, as a
+    // CSS `height` would. A loose Stack laid the box out at its own height and
+    // pinned the bar to the bottom of the taller Stack, below it.
+    fit: StackFit.passthrough,
     children: <Widget>[
       ConstrainedBox(
         constraints: BoxConstraints(
           minHeight: minimumSize.height,
           minWidth: minimumSize.width,
         ),
+        // Background, then border, then content, then the bar: CSS's paint
+        // order for a root and its positioned `::after`. The border is the
+        // painter `FluentInput` uses, which joins the darker bottom side to the
+        // others on the CSS corner diagonal.
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: style.backgroundColor?.resolve(states),
             borderRadius: radius,
-            border: borderWidth > 0 && borderColor != null
-                ? Border.all(color: borderColor, width: borderWidth)
-                : null,
           ),
-          child: Padding(
-            padding: padding.add(contentPadding),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: <Widget>[
-                Expanded(child: content),
-                if (secondary != null)
-                  Padding(
-                    padding: const EdgeInsets.only(left: FluentSpacing.sNudge),
-                    child: secondary,
+          child: CustomPaint(
+            painter: FluentInputBorderPainter(
+              radius: radius,
+              borderColor: borderColor,
+              borderWidth: side,
+              bottomBorderColor: underlineColor,
+              bottomBorderWidth: widths.bottom,
+            ),
+            child: Padding(
+              padding: padding.add(widths),
+              // Upstream's aside — the secondary action, then the chevron — is
+              // pinned to the top of the control rather than centred on it, so
+              // wrapped chips grow the control downwards past a chevron that
+              // stays on the first line.
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(
+                    child: Padding(padding: contentPadding, child: content),
                   ),
-              ],
+                  if (secondary != null || expandIcon != null)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        if (secondary != null)
+                          Padding(
+                            padding: const EdgeInsetsDirectional.only(
+                              start: FluentSpacing.sNudge,
+                            ),
+                            child: secondary,
+                          ),
+                        ?expandIcon,
+                      ],
+                    ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-      if (underlineColor != null && underlineWidth > 0)
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: underlineWidth,
-          // The radius has to be painted on a TALLER box and clipped back.
-          // Setting it on a 1px-high DecoratedBox looks right and does nothing:
-          // Skia scales every corner by `min(edge / sum-of-radii-on-that-edge)`,
-          // so a 4px corner on a 1px rule ships as 0.5 and the ends read square
-          // against a rounded field. FluentInputUnderline is that clip.
-          child: FluentInputUnderline(
-            color: underlineColor,
-            thickness: underlineWidth,
-            borderRadius: ruleRadius,
-          ),
-        ),
+      // `::after { left: -1px; right: -1px; bottom: -1px }` against the padding
+      // box: flush with the border box when the sides are 1px, a pixel past it
+      // each side on Transparent, which has none. Its 4px bottom radii are its
+      // own, not the root's, so they stay rounded on Transparent's square root.
       if (accentColor != null)
         Positioned(
-          left: 0,
-          right: 0,
+          left: side - FluentStroke.thin,
+          right: side - FluentStroke.thin,
           bottom: 0,
           height: accentWidth,
           child: FluentInputFocusUnderline(
             focused: state.focused,
             color: accentColor,
-            borderRadius: ruleRadius,
+            thickness: accentWidth,
+            borderRadius: _accentRadius,
           ),
         ),
     ],
@@ -669,8 +769,14 @@ Widget buildFluentTagPickerSurface(
       decoration: BoxDecoration(
         color: style.surfaceColor?.resolve(states),
         borderRadius: radius,
+        // Outside the box, like the CSS `outline` it ports: it takes no room
+        // from the rows, which sit at the surface padding exactly.
         border: borderWidth > 0 && borderColor != null
-            ? Border.all(color: borderColor, width: borderWidth)
+            ? Border.all(
+                color: borderColor,
+                width: borderWidth,
+                strokeAlign: BorderSide.strokeAlignOutside,
+              )
             : null,
         boxShadow: style.surfaceShadow?.resolve(states),
       ),
@@ -756,9 +862,16 @@ class FluentTagPickerRemoveLastIntent extends Intent {
 /// are `FluentInteractionTag`s, the field is a `FluentInput` with its chrome
 /// switched off (see [FluentTagPickerStyle.strippedInputStyle]), the popup rows
 /// are rendered by [buildFluentDropdownOption], and the accent bar is
-/// [FluentInputFocusUnderline]. Only the control's surface — the fill, the box
-/// border and the resting bottom rule — is drawn here, because the tag picker
-/// wraps its content where an input lays out a single row.
+/// [FluentInputFocusUnderline]. Only the control's surface — the fill and the
+/// border, painted by [FluentInputBorderPainter] — and the expand chevron are
+/// drawn here, because the tag picker wraps its content where an input lays
+/// out a single row.
+///
+/// A click on the control outside its text field — the padding, the space
+/// around the chips, the chevron and the band above and below it — toggles the
+/// popup, as upstream's mousedown handler does. A click in the text field only
+/// ever opens it, so a caret placement leaves an open list alone (see
+/// `build`); upstream's input toggles there too.
 ///
 /// ## Keyboard
 ///
@@ -808,8 +921,10 @@ class FluentTagPicker<T> extends StatefulWidget {
     this.onChanged,
     this.placeholder,
     this.secondaryAction,
+    this.expandIcon = const Icon(fluentTagPickerChevron),
     this.appearance = FluentTagPickerAppearance.outline,
     this.size = FluentTagPickerSize.medium,
+    this.error = false,
     this.controller,
     this.focusNode,
     this.style,
@@ -839,11 +954,20 @@ class FluentTagPicker<T> extends StatefulWidget {
   /// The trailing action — Fluent's `TagPicker/Secondary action`.
   final Widget? secondaryAction;
 
+  /// The chevron after the content, which toggles the popup. Pass null to
+  /// draw none; upstream renders `ChevronDownRegular` unless told otherwise.
+  final Widget? expandIcon;
+
   /// Fill and outline treatment.
   final FluentTagPickerAppearance appearance;
 
   /// Control height.
   final FluentTagPickerSize size;
+
+  /// Whether to paint the validation-error treatment: a
+  /// `colorPaletteRedBorder2` border while the control is not focused.
+  /// Upstream takes it from the enclosing `Field`'s error state.
+  final bool error;
 
   /// The query being typed. One is created internally when omitted.
   final TextEditingController? controller;
@@ -1099,6 +1223,17 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     _openPopup();
   }
 
+  /// A click on the control outside the field: `useTagPickerControl`'s
+  /// mousedown handler runs `setOpen(!open)` for the root, the tag group, the
+  /// aside and the expand icon, and focuses the field.
+  void _toggle() {
+    if (_open) {
+      _close();
+      return;
+    }
+    _handleTap();
+  }
+
   void _activate() {
     if (!_open) {
       _openPopup();
@@ -1135,11 +1270,20 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     _remove(widget.selected.last);
   }
 
+  /// Upstream's `tagPickerSizeToTagSize`: each picker size takes the tag one
+  /// step smaller than its name.
   FluentTagSize get _tagSize => switch (widget.size) {
-    FluentTagPickerSize.medium => FluentTagSize.small,
-    FluentTagPickerSize.large ||
+    FluentTagPickerSize.medium => FluentTagSize.extraSmall,
+    FluentTagPickerSize.large => FluentTagSize.small,
     FluentTagPickerSize.extraLarge => FluentTagSize.medium,
   };
+
+  /// Upstream's `tagPickerAppearanceToTagAppearance`: an outlined tag on the
+  /// darker fill, a filled one everywhere else.
+  FluentTagAppearance get _tagAppearance =>
+      widget.appearance == FluentTagPickerAppearance.filledDarker
+      ? FluentTagAppearance.outline
+      : FluentTagAppearance.filled;
 
   FluentTagPickerOption<T>? _optionFor(T value) {
     for (final option in widget.options) {
@@ -1253,7 +1397,8 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     FluentDropdownOptionStyle? themeStyle,
   ) {
     final option = rows[index];
-    const gap = FluentSpacing.s;
+    // The combobox `Option`'s `columnGap: spacingHorizontalXS`.
+    const gap = FluentSpacing.xs;
     final label = option.media == null
         ? option.label
         : Row(
@@ -1265,11 +1410,18 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
             ],
           );
 
-    final state = resolveFluentDropdownOptionState(
-      label: label,
-      enabled: option.enabled,
-      type: option.type,
-    );
+    // No check slot: `TagPickerOption` hands `useOptionStyles` an undefined
+    // `checkIcon`, so the label starts at the row's own 8px inset.
+    final state = option.isHeader
+        ? resolveFluentDropdownOptionState(label: label, type: option.type)
+        : FluentDropdownOptionState(
+            enabled: option.enabled,
+            selected: false,
+            showCheckmark: false,
+            reserveCheckmark: false,
+            label: label,
+            type: option.type,
+          );
     final style = resolveFluentTagPickerOptionStyle(
       state,
       theme,
@@ -1311,6 +1463,7 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     enabled: _enabled,
     focused: _focusNode.hasFocus,
     open: _open,
+    error: widget.error,
     appearance: widget.appearance,
     size: widget.size,
     tags: <Widget>[
@@ -1319,6 +1472,7 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
           FluentInteractionTag(
             key: ValueKey<T>(value),
             size: _tagSize,
+            appearance: _tagAppearance,
             icon: option.media,
             onPressed: _enabled ? () => _focusNode.requestFocus() : null,
             onDismiss: _enabled ? () => _remove(value) : null,
@@ -1328,6 +1482,18 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
           ),
     ],
     secondaryAction: widget.secondaryAction,
+    expandIcon: widget.expandIcon == null
+        ? null
+        // No tap of its own: a click falls through to the control's, which
+        // toggles — the same for the chevron as for the band around it, which
+        // upstream's 32 / 40 / 44 tall icon span also covers. The cursor is
+        // upstream's `cursor: pointer` on the icon.
+        : MouseRegion(
+            cursor: _enabled
+                ? SystemMouseCursors.click
+                : SystemMouseCursors.forbidden,
+            child: widget.expandIcon,
+          ),
   );
 
   @override
@@ -1345,15 +1511,12 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     // whole control. Raw pointers are not arena members, so this sees the
     // release whoever claims the gesture. Release rather than press, so the
     // list opens under a finished click, the way every other press here reads.
-    // `_openPopup` self-guards on disabled and on already-open, so a click that
-    // also reaches the control's own tap below opens exactly once.
+    // The control's tap below therefore never fires for the same click, which
+    // matters: it toggles, and firing after this would close what this opened.
     //
-    // This path is only reachable while the popup is OPEN since the dismiss
-    // barrier came out — the barrier used to absorb every pointer over the
-    // control. Both it and the control's `_handleTap` funnel into `_openPopup`,
-    // which no-ops on an already-open picker, so clicking the field while the
-    // list is up moves the caret and leaves the list exactly as it was: no
-    // close, no close-then-reopen.
+    // `_openPopup` self-guards on disabled and on already-open, so clicking the
+    // field while the list is up moves the caret and leaves the list exactly
+    // as it was: no close, no close-then-reopen.
     final field = Listener(
       onPointerUp: (_) => _openPopup(),
       child: FluentInput(
@@ -1373,22 +1536,27 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
       cursor: style.mouseCursor?.resolve(states) ?? SystemMouseCursors.text,
       onEnter: (_) => _set(WidgetState.hovered, value: true),
       onExit: (_) => _set(WidgetState.hovered, value: false),
+      // Chrome sets `:active` for the primary and middle buttons, not for a
+      // right press (storybook).
       child: Listener(
-        onPointerDown: (_) => _set(WidgetState.pressed, value: true),
+        onPointerDown: (event) => _set(
+          WidgetState.pressed,
+          value: event.buttons != kSecondaryMouseButton,
+        ),
         onPointerUp: (_) => _set(WidgetState.pressed, value: false),
         onPointerCancel: (_) => _set(WidgetState.pressed, value: false),
         child: GestureDetector(
-          // A tap on the padding, not on the field itself, still focuses — and
-          // opens, because pointing at the control IS how a mouse reaches the
-          // list. `_openPopup` rather than `_activate`: a pointer user has
-          // chosen nothing yet, so a second press must never commit the active
-          // row. Anything in the control that claims taps for itself — a chip,
-          // a `secondaryAction` button — wins the arena over this and so still
-          // does its own thing without opening; a bare `secondaryAction`
-          // chevron, which claims nothing, falls through to here and expands,
-          // which is the only meaning it has.
+          // A tap on the control but not on the field — the padding, the gaps
+          // around the chips, the chevron — focuses the field and toggles the
+          // list, as upstream's mousedown handler does. Never `_activate`: a
+          // pointer user has chosen nothing yet, so a second press must never
+          // commit the active row. Anything in the control that claims taps for
+          // itself — the field, a chip, a `secondaryAction` button — wins the
+          // arena over this and so still does its own thing; a bare
+          // `secondaryAction` chevron, which claims nothing, falls through to
+          // here and toggles, which is the only meaning it has.
           behavior: HitTestBehavior.opaque,
-          onTap: _enabled ? _handleTap : null,
+          onTap: _enabled ? _toggle : null,
           child: buildFluentTagPicker(state, style, states),
         ),
       ),

@@ -1,14 +1,17 @@
 /// `FluentTagPicker` is three components in a trench coat — a surface, a
 /// `FluentInput` with its chrome switched off, and an overlay list of rows
 /// rendered by `buildFluentDropdownOption` — so these tests cover all three:
-/// the token table against the Figma `Tag picker/TagPicker` set, the widgets it
-/// actually composes, and the keyboard contract that ties them together.
+/// the token table against upstream as it renders in Chrome (and the Figma
+/// `Tag picker/TagPicker` set where the two agree), the widgets it actually
+/// composes, and the keyboard contract that ties them together.
 library;
 
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -65,7 +68,7 @@ void main() {
   );
 
   // ---------------------------------------------------------------------------
-  // Figma fidelity: every one of the 72 variants.
+  // Figma fidelity: the fixture's 72 variants, asserted where upstream agrees.
   // ---------------------------------------------------------------------------
 
   group('figma', () {
@@ -123,7 +126,16 @@ void main() {
       expect(spec.properties['Expanded'], hasLength(2));
     });
 
-    for (final variant in spec.variants) {
+    // Only the Rest column is asserted against Figma: it is where Figma and
+    // upstream as it renders in Chrome agree. Everywhere else the two part —
+    // Figma's disabled fill, its Hover-on-Pressed and Stroke1Selected-on-open
+    // ramps, its 48-tall Extra large — and upstream wins; the `upstream` group
+    // below asserts those states.
+    bool atRest(SpecVariant variant) =>
+        variant.props['State'] == 'Rest' &&
+        variant.props['Expanded'] == 'False';
+
+    for (final variant in spec.variants.where(atRest)) {
       test('${variant.name} — surface', () {
         final style = styleFor(variant, light);
         final (_, _, states) = conditionOf(variant.props['State']!);
@@ -146,34 +158,10 @@ void main() {
                 'on node ${input.nodeId}',
           );
         }
-
-        // 68 of the 72 `Input` nodes bind `Corner-radius/Input/Medium`; the
-        // four exceptions are pinned by the test below rather than ported.
-        expect(
-          style.borderRadius!.resolve(states),
-          FluentRadius.allMedium,
-          reason: '${variant.name}: radius',
-        );
-
-        expect(
-          style.minimumSize!.resolve(states)!.height,
-          input.size.height,
-          reason: '${variant.name}: control height',
-        );
       });
     }
 
-    // The border and the resting rule are asserted where Figma is internally
-    // consistent. `Size=Large` and `Size=Extra large` bind
-    // `Neutral/Stroke/1/Rest` and `Neutral/Stroke/Accessible/Rest` in EVERY
-    // state — the ramp is simply not authored there — so only Medium can speak
-    // for Hover, Pressed and Focused. See doc/token-divergences.md.
-    for (final variant in spec.variants) {
-      final ramped =
-          variant.props['State'] != 'Rest' &&
-          variant.props['State'] != 'Disabled';
-      if (ramped && variant.props['Size'] != 'Medium') continue;
-
+    for (final variant in spec.variants.where(atRest)) {
       test('${variant.name} — border and rules', () {
         final style = styleFor(variant, light);
         final (_, _, states) = conditionOf(variant.props['State']!);
@@ -256,8 +244,9 @@ void main() {
       // Authoring drift, not a design decision: the three unbordered
       // appearances at `Size=Medium` bind `Corner-radius/None` on Rest and
       // Disabled, while the other 66 variants — the same appearances at Large
-      // and Extra large included — bind `Corner-radius/Input/Medium`. Ported as
-      // 4 everywhere; the frame around each of those six still states 4.
+      // and Extra large included — bind `Corner-radius/Input/Medium`. Upstream
+      // settles it: 4 on the bordered appearances, and 0 on Transparent
+      // (`underline: { borderRadius: '0' }`) at every size.
       expect(square, hasLength(6));
       expect(
         square.every(
@@ -376,8 +365,28 @@ void main() {
         of: find.text('Katri'),
         matching: find.byType(FluentFocusRing),
       );
-      // 48, from the Figma `TagPicker/Item` set — not `.ListItem`'s 32.
-      expect(tester.getSize(row).height, 48);
+      // Upstream's `TagPickerOption` is the combobox `Option` with no check
+      // slot: `padding: 6px 8px` around a 20px line, 32 tall — as measured in
+      // Chrome — not Figma's 48-tall `TagPicker/Item`. The label starts at the
+      // 8px inset, with no checkmark column reserved before it.
+      expect(tester.getSize(row).height, 32);
+      expect(
+        tester.getRect(find.text('Katri')).left - tester.getRect(row).left,
+        FluentSpacing.s,
+      );
+      expect(
+        tester
+            .widget<RichText>(
+              find.descendant(
+                of: find.text('Katri'),
+                matching: find.byType(RichText),
+              ),
+            )
+            .text
+            .style!
+            .color,
+        light.colors.neutralForeground1,
+      );
     });
 
     test('rows resolve against the shared FluentDropdownOptionStyle', () {
@@ -386,8 +395,9 @@ void main() {
         light,
       );
       expect(style, isA<FluentDropdownOptionStyle>());
-      expect(style.minimumSize!.resolve(const <WidgetState>{})!.height, 48);
-      expect(style.gap!.resolve(const <WidgetState>{}), FluentSpacing.s);
+      expect(style.minimumSize!.resolve(const <WidgetState>{})!.height, 32);
+      // The `Option`'s `columnGap: spacingHorizontalXS`.
+      expect(style.gap!.resolve(const <WidgetState>{}), FluentSpacing.xs);
     });
 
     test('headers fall through to the dropdown row style untouched', () {
@@ -412,6 +422,585 @@ void main() {
         ours.minimumSize!.resolve(none)!.height,
         shared.minimumSize!.resolve(none)!.height,
       );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Upstream as it renders: `useTagPickerControlStyles.styles.ts` and
+  // `useTagPickerInputStyles.styles.ts` measured in Chrome on the storybook.
+  // ---------------------------------------------------------------------------
+
+  group('upstream', () {
+    const none = <WidgetState>{};
+    const hover = <WidgetState>{WidgetState.hovered};
+    const press = <WidgetState>{WidgetState.pressed};
+    final c = light.colors;
+    final danger = c.palette.stroke2Rest(FluentPaletteFamily.red)!;
+
+    FluentTagPickerStyle resolve(
+      FluentTagPickerAppearance appearance, {
+      bool enabled = true,
+      bool focused = false,
+      bool open = false,
+      bool error = false,
+      FluentThemeData? theme,
+    }) => resolveFluentTagPickerStyle(
+      resolveFluentTagPickerState(
+        field: const SizedBox.shrink(),
+        enabled: enabled,
+        focused: focused,
+        open: open,
+        error: error,
+        appearance: appearance,
+      ),
+      theme ?? light,
+    );
+
+    /// The control's own border: the first painter in tree order, ahead of the
+    /// composed input's chromeless one.
+    FluentInputBorderPainter borderPainter(WidgetTester tester) => tester
+        .widgetList<CustomPaint>(
+          find.descendant(
+            of: find.byKey(key),
+            matching: find.byType(CustomPaint),
+          ),
+        )
+        .map((p) => p.painter)
+        .whereType<FluentInputBorderPainter>()
+        .first;
+
+    test('Outline: focus and open are Pressed, and hover wins over both', () {
+      // `:focus-within` is its own rule, which Griffel sorts before `:hover`;
+      // upstream has no open rule, and an open picker holds focus.
+      final rest = resolve(FluentTagPickerAppearance.outline);
+      expect(rest.borderColor!.resolve(none), c.neutralStroke1);
+      expect(rest.underlineColor!.resolve(none), c.neutralStrokeAccessible);
+      expect(rest.borderColor!.resolve(hover), c.neutralStroke1Hover);
+      expect(
+        rest.underlineColor!.resolve(hover),
+        c.neutralStrokeAccessibleHover,
+      );
+      for (final style in [
+        resolve(FluentTagPickerAppearance.outline, focused: true),
+        resolve(FluentTagPickerAppearance.outline, open: true),
+      ]) {
+        expect(style.borderColor!.resolve(none), c.neutralStroke1Pressed);
+        expect(
+          style.underlineColor!.resolve(none),
+          c.neutralStrokeAccessiblePressed,
+        );
+        expect(style.borderColor!.resolve(hover), c.neutralStroke1Hover);
+        expect(style.borderColor!.resolve(press), c.neutralStroke1Pressed);
+        // `:focus-within:active::after` is the bar's only other colour.
+        expect(style.accentColor!.resolve(none), c.compoundBrandStroke);
+        expect(style.accentColor!.resolve(press), c.compoundBrandStrokePressed);
+      }
+    });
+
+    test('Transparent and the filled appearances never ramp', () {
+      for (final appearance in [
+        FluentTagPickerAppearance.transparent,
+        FluentTagPickerAppearance.filledDarker,
+        FluentTagPickerAppearance.filledLighter,
+      ]) {
+        for (final focused in [false, true]) {
+          final style = resolve(appearance, focused: focused);
+          for (final states in [none, hover, press]) {
+            final reason = '${appearance.name} focused=$focused $states';
+            if (appearance == FluentTagPickerAppearance.transparent) {
+              expect(style.borderColor, isNull, reason: reason);
+              expect(
+                style.underlineColor!.resolve(states),
+                c.neutralStrokeAccessible,
+                reason: reason,
+              );
+            } else {
+              expect(
+                style.borderColor!.resolve(states),
+                c.transparentStroke,
+                reason: reason,
+              );
+              expect(style.underlineColor, isNull, reason: reason);
+            }
+          }
+        }
+      }
+    });
+
+    test('disabled is transparent, with a disabled stroke on every side', () {
+      for (final appearance in FluentTagPickerAppearance.values) {
+        final style = resolve(appearance, enabled: false);
+        final reason = appearance.name;
+        expect(
+          style.backgroundColor!.resolve(none),
+          c.transparentBackground,
+          reason: reason,
+        );
+        expect(style.accentColor, isNull, reason: reason);
+        if (appearance == FluentTagPickerAppearance.transparent) {
+          expect(style.borderColor, isNull, reason: reason);
+          expect(
+            style.underlineColor!.resolve(none),
+            c.neutralStrokeDisabled,
+            reason: reason,
+          );
+        } else {
+          expect(
+            style.borderColor!.resolve(none),
+            c.neutralStrokeDisabled,
+            reason: reason,
+          );
+        }
+      }
+    });
+
+    test('error is colorPaletteRedBorder2 until the control is focused', () {
+      final outline = resolve(FluentTagPickerAppearance.outline, error: true);
+      // `:hover:not(:focus-within)` keeps it red under the pointer.
+      for (final states in [none, hover]) {
+        expect(outline.borderColor!.resolve(states), danger);
+        expect(outline.underlineColor!.resolve(states), danger);
+      }
+      expect(
+        resolve(
+          FluentTagPickerAppearance.outline,
+          error: true,
+          focused: true,
+        ).borderColor!.resolve(none),
+        c.neutralStroke1Pressed,
+      );
+      final filled = resolve(
+        FluentTagPickerAppearance.filledDarker,
+        error: true,
+      );
+      expect(filled.borderColor!.resolve(none), danger);
+      // Transparent colours its bottom border only.
+      final underline = resolve(
+        FluentTagPickerAppearance.transparent,
+        error: true,
+      );
+      expect(underline.borderColor, isNull);
+      expect(underline.underlineColor!.resolve(none), danger);
+      // The palette knows nothing of high contrast; the status token does.
+      expect(
+        resolve(
+          FluentTagPickerAppearance.outline,
+          error: true,
+          theme: highContrast,
+        ).borderColor!.resolve(none),
+        (highContrast.colors as FluentHighContrastColors).statusDangerBorder2,
+      );
+    });
+
+    test('error outranks disabled, as Chrome renders it', () {
+      // `invalid` is not gated on `!disabled`, and `:not(:focus-within)`
+      // out-specifies `disabled`'s plain class: Chrome reads rgb(209, 52, 56)
+      // on a disabled control inside an error Field.
+      for (final appearance in FluentTagPickerAppearance.values) {
+        final style = resolve(appearance, enabled: false, error: true);
+        final transparent = appearance == FluentTagPickerAppearance.transparent;
+        expect(
+          transparent ? style.underlineColor : style.borderColor,
+          isNotNull,
+          reason: appearance.name,
+        );
+        expect(
+          (transparent ? style.underlineColor : style.borderColor)!.resolve(
+            const {WidgetState.disabled},
+          ),
+          danger,
+          reason: appearance.name,
+        );
+        expect(
+          style.backgroundColor!.resolve(none),
+          c.transparentBackground,
+          reason: appearance.name,
+        );
+      }
+    });
+
+    testWidgets('geometry matches upstream at every size', (tester) async {
+      // `TagPickerInput` pads a 20px line by 6 / 10 / 12, so the control is
+      // 34 / 42 / 46 with its borders. The field starts at `paddingLeft:
+      // spacingHorizontalM` inside the border; the chevron is 16 / 20 / 24,
+      // 12 in from the inside of the right border, centred in a box of the
+      // root's minimum height pinned to the top.
+      const upstream = {
+        FluentTagPickerSize.medium: (height: 34.0, icon: 16.0, top: 9.0),
+        FluentTagPickerSize.large: (height: 42.0, icon: 20.0, top: 11.0),
+        FluentTagPickerSize.extraLarge: (height: 46.0, icon: 24.0, top: 11.0),
+      };
+      for (final entry in upstream.entries) {
+        for (final appearance in FluentTagPickerAppearance.values) {
+          await tester.pumpWidget(
+            app(
+              FluentTagPicker<String>(
+                key: key,
+                size: entry.key,
+                appearance: appearance,
+                options: options,
+                onChanged: _noop,
+              ),
+            ),
+          );
+          final reason = '${entry.key.name} ${appearance.name}';
+          // Transparent has a bottom border only.
+          final side = appearance == FluentTagPickerAppearance.transparent
+              ? 1.0
+              : 0.0;
+          final want = entry.value;
+          final box = tester.getRect(find.byKey(key));
+          expect(box.height, want.height - side, reason: '$reason: height');
+          expect(
+            tester.getRect(find.byType(EditableText)).left - box.left,
+            13 - side,
+            reason: '$reason: field start',
+          );
+          final chevron = tester.getRect(find.byIcon(fluentTagPickerChevron));
+          expect(chevron.width, want.icon, reason: '$reason: chevron size');
+          expect(
+            box.right - chevron.right,
+            13 - side,
+            reason: '$reason: chevron end',
+          );
+          expect(
+            chevron.top - box.top,
+            want.top - side,
+            reason: '$reason: chevron top',
+          );
+        }
+      }
+    });
+
+    testWidgets('the chevron toggles the popup and keeps focus in the field', (
+      tester,
+    ) async {
+      // `useTagPickerControl`'s mousedown: `setOpen(!open)`, then focus the
+      // field.
+      await tester.pumpWidget(
+        app(
+          const FluentTagPicker<String>(
+            key: key,
+            options: options,
+            onChanged: _noop,
+          ),
+        ),
+      );
+      Color chevronColor() => tester
+          .widget<RichText>(
+            find.descendant(
+              of: find.byIcon(fluentTagPickerChevron),
+              matching: find.byType(RichText),
+            ),
+          )
+          .text
+          .style!
+          .color!;
+      expect(chevronColor(), c.neutralStrokeAccessible);
+
+      await tester.tap(find.byIcon(fluentTagPickerChevron));
+      await tester.pumpAndSettle();
+      expect(find.text('Katri'), findsOneWidget, reason: 'opened');
+      final field = tester.widget<EditableText>(find.byType(EditableText));
+      expect(field.focusNode.hasFocus, isTrue);
+
+      await tester.tap(find.byIcon(fluentTagPickerChevron));
+      await tester.pumpAndSettle();
+      expect(find.text('Katri'), findsNothing, reason: 'closed');
+      expect(field.focusNode.hasFocus, isTrue);
+      expect(
+        chevronColor(),
+        c.neutralStrokeAccessible,
+        reason: 'no hover rule',
+      );
+
+      await tester.pumpWidget(
+        app(const FluentTagPicker<String>(key: key, options: options)),
+      );
+      expect(chevronColor(), c.neutralForegroundDisabled);
+
+      await tester.pumpWidget(
+        app(
+          const FluentTagPicker<String>(
+            key: key,
+            options: options,
+            expandIcon: null,
+            onChanged: _noop,
+          ),
+        ),
+      );
+      expect(find.byIcon(fluentTagPickerChevron), findsNothing);
+    });
+
+    testWidgets('a real mouse on the padding or the chevron band toggles', (
+      tester,
+    ) async {
+      // Upstream toggles on a mousedown whose target is the root (its
+      // padding), the aside or the expand icon — a 16px glyph centred in a
+      // 32-tall span, so 8px above it is still the icon. Only the text field
+      // opens without closing.
+      await tester.pumpWidget(
+        app(
+          const FluentTagPicker<String>(
+            key: key,
+            options: options,
+            onChanged: _noop,
+          ),
+        ),
+      );
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      Future<void> clickAt(Offset at) async {
+        await mouse.moveTo(at);
+        await tester.pump();
+        await mouse.down(at);
+        await tester.pump();
+        await mouse.up();
+        await tester.pumpAndSettle();
+      }
+
+      final chevron = tester.getRect(find.byIcon(fluentTagPickerChevron));
+      final box = tester.getRect(find.byKey(key));
+      for (final (where, at) in [
+        ('above the chevron', Offset(chevron.center.dx, chevron.top - 4)),
+        ('the left padding', Offset(box.left + 6, box.center.dy)),
+      ]) {
+        await clickAt(at);
+        expect(find.text('Katri'), findsOneWidget, reason: '$where opens');
+        await clickAt(at);
+        expect(find.text('Katri'), findsNothing, reason: '$where closes');
+      }
+    });
+
+    testWidgets('a real mouse: hover wins over focus, press moves the bar', (
+      tester,
+    ) async {
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await tester.pumpWidget(
+        app(
+          FluentTagPicker<String>(
+            key: key,
+            focusNode: node,
+            options: options,
+            onChanged: _noop,
+          ),
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+      expect(borderPainter(tester).borderColor, c.neutralStroke1Pressed);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await tester.pump();
+      await mouse.moveTo(tester.getCenter(find.byKey(key)));
+      await tester.pump();
+      expect(borderPainter(tester).borderColor, c.neutralStroke1Hover);
+      expect(
+        borderPainter(tester).bottomBorderColor,
+        c.neutralStrokeAccessibleHover,
+      );
+
+      await mouse.down(tester.getCenter(find.byKey(key)));
+      await tester.pump();
+      expect(borderPainter(tester).borderColor, c.neutralStroke1Pressed);
+      expect(
+        tester
+            .widget<FluentInputFocusUnderline>(
+              find.byType(FluentInputFocusUnderline),
+            )
+            .color,
+        c.compoundBrandStrokePressed,
+      );
+      await mouse.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a right press is not :active, as Chrome renders it', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        app(
+          const FluentTagPicker<String>(
+            key: key,
+            options: options,
+            onChanged: _noop,
+          ),
+        ),
+      );
+      final at = tester.getCenter(find.byKey(key));
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryMouseButton,
+      );
+      await mouse.addPointer(location: at);
+      addTearDown(mouse.removePointer);
+      await tester.pump();
+      await mouse.down(at);
+      await tester.pump();
+      expect(borderPainter(tester).borderColor, c.neutralStroke1Hover);
+      await mouse.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a tight parent height stretches the box, bar and all', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        app(
+          const SizedBox(
+            height: 60,
+            child: FluentTagPicker<String>(
+              key: key,
+              options: options,
+              onChanged: _noop,
+            ),
+          ),
+        ),
+      );
+      final painted = find
+          .descendant(
+            of: find.byKey(key),
+            matching: find.byWidgetPredicate(
+              (w) => w is CustomPaint && w.painter is FluentInputBorderPainter,
+            ),
+          )
+          .first;
+      final bar = find.descendant(
+        of: find.byKey(key),
+        matching: find.byType(FluentInputFocusUnderline),
+      );
+      expect(tester.getRect(painted).height, 60);
+      expect(tester.getRect(bar).bottom, tester.getRect(painted).bottom);
+    });
+
+    testWidgets('Transparent is square; the bar overhangs it a pixel a side', (
+      tester,
+    ) async {
+      for (final appearance in [
+        FluentTagPickerAppearance.outline,
+        FluentTagPickerAppearance.transparent,
+      ]) {
+        await tester.pumpWidget(
+          app(
+            FluentTagPicker<String>(
+              key: key,
+              appearance: appearance,
+              options: options,
+              onChanged: _noop,
+            ),
+          ),
+        );
+        final overhang = appearance == FluentTagPickerAppearance.transparent
+            ? 1.0
+            : 0.0;
+        expect(
+          borderPainter(tester).radius,
+          overhang == 1 ? BorderRadius.zero : FluentRadius.allMedium,
+        );
+        final box = tester.getRect(find.byKey(key));
+        final bar = find.byType(FluentInputFocusUnderline);
+        expect(tester.getRect(bar).left, box.left - overhang);
+        expect(tester.getRect(bar).right, box.right + overhang);
+        expect(
+          tester.widget<FluentInputFocusUnderline>(bar).borderRadius,
+          const BorderRadius.vertical(bottom: FluentRadius.medium),
+        );
+      }
+    });
+
+    testWidgets(
+      'the bottom colour meets the sides on the CSS corner diagonal',
+      (tester) async {
+        // See the same test in input_test.dart: device pixel (7, 4h − 6) is in
+        // the ring below the 45° diagonal, (4, 4h − 8) the same arc above it.
+        const boundary = Key('boundary');
+        await tester.pumpWidget(
+          app(
+            const RepaintBoundary(
+              key: boundary,
+              child: FluentTagPicker<String>(
+                key: key,
+                options: options,
+                onChanged: _noop,
+              ),
+            ),
+          ),
+        );
+        const ratio = 4.0;
+        final size = tester.getSize(find.byKey(boundary));
+        final width = (size.width * ratio).round();
+        final bottom = (size.height * ratio).round();
+        final pixels = (await tester.runAsync(() async {
+          final image = await tester
+              .renderObject<RenderRepaintBoundary>(find.byKey(boundary))
+              .toImage(pixelRatio: ratio);
+          final data = await image.toByteData(
+            format: ui.ImageByteFormat.rawRgba,
+          );
+          image.dispose();
+          return data;
+        }))!;
+        void expectPixel(int x, int y, Color expected, String reason) {
+          final i = (y * width + x) * 4;
+          final actual = [for (var k = 0; k < 3; k++) pixels.getUint8(i + k)];
+          final want = [
+            for (final channel in [expected.r, expected.g, expected.b])
+              (channel * 255).round(),
+          ];
+          for (var k = 0; k < 3; k++) {
+            expect(
+              actual[k],
+              closeTo(want[k], 3),
+              reason: '$reason: got $actual, want $want',
+            );
+          }
+        }
+
+        expectPixel(7, bottom - 6, c.neutralStrokeAccessible, 'below: #616161');
+        expectPixel(4, bottom - 8, c.neutralStroke1, 'above: #d1d1d1');
+      },
+    );
+
+    testWidgets('chips follow upstream\'s size and appearance mapping', (
+      tester,
+    ) async {
+      // `tagPickerSizeToTagSize` and `tagPickerAppearanceToTagAppearance`.
+      const sizes = {
+        FluentTagPickerSize.medium: FluentTagSize.extraSmall,
+        FluentTagPickerSize.large: FluentTagSize.small,
+        FluentTagPickerSize.extraLarge: FluentTagSize.medium,
+      };
+      for (final entry in sizes.entries) {
+        for (final appearance in FluentTagPickerAppearance.values) {
+          await tester.pumpWidget(
+            app(
+              FluentTagPicker<String>(
+                key: key,
+                size: entry.key,
+                appearance: appearance,
+                options: options,
+                selected: const <String>['kat'],
+                onChanged: _noop,
+              ),
+            ),
+          );
+          final tag = tester.widget<FluentInteractionTag>(
+            find.byType(FluentInteractionTag),
+          );
+          expect(tag.size, entry.value, reason: entry.key.name);
+          expect(
+            tag.appearance,
+            appearance == FluentTagPickerAppearance.filledDarker
+                ? FluentTagAppearance.outline
+                : FluentTagAppearance.filled,
+            reason: appearance.name,
+          );
+        }
+      }
     });
   });
 

@@ -326,8 +326,10 @@ const FluentTagPickerBaseState({
     required this.enabled,
     required this.focused,
     required this.field,
+    this.error = false,
     this.tags = const <Widget>[],
     this.secondaryAction,
+    this.expandIcon,
   });
 ```
 
@@ -336,8 +338,10 @@ const FluentTagPickerBaseState({
 | `enabled` | `bool` | Yes | — | Whether the control accepts input. |
 | `focused` | `bool` | Yes | — | Whether the control holds focus. |
 | `field` | `Widget` | Yes | — | The text field, already composed by the caller. |
+| `error` | `bool` | No | `false` | Whether the control shows the validation-error treatment. Upstream reads it from the enclosing `Field`'s `validationState === 'error'`. |
 | `tags` | `List<Widget>` | No | `const <Widget>[]` | The selected chips, in order. |
 | `secondaryAction` | `Widget?` | No | `null` | The trailing action — Fluent's `TagPicker/Secondary action`, normally a "Clear all" link. |
+| `expandIcon` | `Widget?` | No | `null` | The chevron after the content. It needs no tap of its own: a click on it lands on the control's, which toggles the popup. Null draws none. |
 
 #### State, callback, and accessibility fields
 
@@ -385,8 +389,10 @@ const FluentTagPickerState({
     required this.appearance,
     required this.size,
     required this.open,
+    super.error,
     super.tags,
     super.secondaryAction,
+    super.expandIcon,
   });
 ```
 
@@ -397,13 +403,15 @@ const FluentTagPickerState({
 | `field` | `Widget` | Yes | — | The text field, already composed by the caller. |
 | `appearance` | `FluentTagPickerAppearance` | Yes | — | Fill and outline treatment. |
 | `size` | `FluentTagPickerSize` | Yes | — | Control height. |
-| `open` | `bool` | Yes | — | Whether the popup is showing. Figma's `Expanded` axis, and the only thing that moves the box border to its Selected token. |
+| `open` | `bool` | Yes | — | Whether the popup is showing. Figma's `Expanded` axis. Styled exactly as focus is: upstream has no open rule, and an open picker holds focus. |
+| `error` | `bool` | No | `false` | Whether the control shows the validation-error treatment. Upstream reads it from the enclosing `Field`'s `validationState === 'error'`. |
 | `tags` | `List<Widget>` | No | `const <Widget>[]` | The selected chips, in order. |
 | `secondaryAction` | `Widget?` | No | `null` | The trailing action — Fluent's `TagPicker/Secondary action`, normally a "Clear all" link. |
+| `expandIcon` | `Widget?` | No | `null` | The chevron after the content. It needs no tap of its own: a click on it lands on the control's, which toggles the popup. Null draws none. |
 
 #### State, callback, and accessibility fields
 
-- `open` (`bool`): Whether the popup is showing. Figma's `Expanded` axis, and the only thing that moves the box border to its Selected token.
+- `open` (`bool`): Whether the popup is showing. Figma's `Expanded` axis. Styled exactly as focus is: upstream has no open rule, and an open picker holds focus.
 
 ### `FluentTagSize`
 

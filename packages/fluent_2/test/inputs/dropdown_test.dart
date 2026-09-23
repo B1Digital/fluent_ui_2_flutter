@@ -1,5 +1,8 @@
+import 'dart:ui' as ui;
+
 import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,8 +10,9 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/spec_fixture.dart';
 
 /// `FluentDropdown` is a closed trigger plus an overlay list, so these tests
-/// cover both halves: the trigger against the Figma `Dropdown` set, the rows
-/// against `.ListItem`, and the keyboard contract that ties them together.
+/// cover both halves: the trigger against upstream as it renders in Chrome
+/// (and the Figma `Dropdown` set where the two agree), the rows against
+/// `.ListItem`, and the keyboard contract that ties them together.
 void main() {
   const key = Key('dropdown');
 
@@ -75,6 +79,18 @@ void main() {
       .whereType<BoxDecoration>()
       .first;
 
+  /// The trigger's border, painted the way `FluentInput` paints its own.
+  FluentInputBorderPainter borderPainter(WidgetTester tester) => tester
+      .widgetList<CustomPaint>(
+        find.descendant(
+          of: find.byKey(key),
+          matching: find.byType(CustomPaint),
+        ),
+      )
+      .map((p) => p.painter)
+      .whereType<FluentInputBorderPainter>()
+      .single;
+
   /// Every solid colour painted under the trigger, surface and rules alike.
   List<Color> triggerColors(WidgetTester tester) => <Color>[
     for (final box in tester.widgetList<DecoratedBox>(
@@ -118,7 +134,9 @@ void main() {
     return mouse;
   }
 
-  group('pixel fidelity against Figma', () {
+  // Upstream as rendered in Chrome is the oracle; the Figma fixture is still
+  // checked wherever the two agree, which is the Rest column and the rows.
+  group('pixel fidelity', () {
     final spec = loadSpec('dropdown');
     final rows = loadSpec('dropdown_option');
 
@@ -135,11 +153,36 @@ void main() {
       expect(spec.properties['Expanded'], <String>['True', 'False']);
     });
 
-    testWidgets('geometry matches every size', (tester) async {
+    testWidgets('geometry matches upstream at every size', (tester) async {
+      // Measured in Chrome on the live storybook: the button's padding is
+      // `3px 6px 3px 8px` / `5px 10px 5px 12px` / `7px 12px 7px 18px` inside
+      // the 1px border, so the text starts at 9 / 13 / 19 and the chevron's
+      // right edge sits 7 / 11 / 13 in from the root's. Figma's frames say
+      // 6 / 10 / 12 either side; upstream wins.
       const names = {
         FluentDropdownSize.small: 'Small',
         FluentDropdownSize.medium: 'Medium',
         FluentDropdownSize.large: 'Large',
+      };
+      const upstream = {
+        FluentDropdownSize.small: (
+          height: 24.0,
+          text: 9.0,
+          end: 7.0,
+          icon: 16.0,
+        ),
+        FluentDropdownSize.medium: (
+          height: 32.0,
+          text: 13.0,
+          end: 11.0,
+          icon: 20.0,
+        ),
+        FluentDropdownSize.large: (
+          height: 40.0,
+          text: 19.0,
+          end: 13.0,
+          icon: 24.0,
+        ),
       };
 
       for (final entry in names.entries) {
@@ -148,47 +191,55 @@ void main() {
           'Size': entry.value,
           'Expanded': 'False',
         });
+        final want = upstream[entry.key]!;
 
-        await pump(
-          tester,
-          FluentDropdown<String>(
-            key: key,
-            size: entry.key,
-            options: options,
-            value: 'osl',
-            onChanged: (_) {},
-          ),
-        );
-        await tester.pumpAndSettle();
+        for (final appearance in FluentDropdownAppearance.values) {
+          await pump(
+            tester,
+            FluentDropdown<String>(
+              key: key,
+              size: entry.key,
+              appearance: appearance,
+              options: options,
+              value: 'osl',
+              onChanged: (_) {},
+            ),
+          );
+          await tester.pumpAndSettle();
 
-        expect(
-          tester.getSize(find.byKey(key)).height,
-          variant.part('Input').size.height,
-          reason: '${entry.value}: height',
-        );
-
-        // The text's own inset, and the chevron slot's, are the only paddings
-        // the variant frame states — it carries none of its own.
-        final paddings = tester
-            .widgetList<Padding>(
-              find.descendant(
-                of: find.byKey(key),
-                matching: find.byType(Padding),
-              ),
-            )
-            .map((p) => p.padding.resolve(TextDirection.ltr))
-            .toList();
-
-        expect(
-          paddings.first,
-          variant.part('Icon-Text-stack').padding,
-          reason: '${entry.value}: content inset',
-        );
-        expect(
-          paddings[1],
-          variant.part('Icon End').padding,
-          reason: '${entry.value}: chevron slot inset',
-        );
+          final reason = '${entry.value} ${appearance.name}';
+          final box = tester.getRect(find.byKey(key));
+          // Transparent has a bottom border only, so it is a pixel shorter:
+          // upstream's root states no height of its own.
+          expect(
+            box.height,
+            appearance == FluentDropdownAppearance.transparent
+                ? want.height - 1
+                : want.height,
+            reason: '$reason: height',
+          );
+          // Transparent has no left border to inset the text by.
+          final side = appearance == FluentDropdownAppearance.transparent
+              ? 1
+              : 0;
+          expect(
+            tester.getRect(find.text('Oslo')).left - box.left,
+            want.text - side,
+            reason: '$reason: text start',
+          );
+          final chevron = tester.getRect(find.byIcon(fluentDropdownChevron));
+          expect(chevron.width, want.icon, reason: '$reason: chevron size');
+          expect(
+            box.right - chevron.right,
+            want.end - side,
+            reason: '$reason: chevron end',
+          );
+          expect(
+            chevron.top - box.top,
+            (want.height - want.icon) / 2 - side,
+            reason: '$reason: chevron centred inside the border',
+          );
+        }
 
         final text = tester
             .widgetList<RichText>(
@@ -258,69 +309,93 @@ void main() {
           expect(decoration.color, expected, reason: '${entry.value}: fill');
         }
 
+        // Upstream and Figma agree at rest, so the fixture still settles it.
         final stroke = contents.stroke;
+        final border = borderPainter(tester);
         expect(
-          decoration.border != null,
+          border.borderColor != null,
           stroke != null,
           reason: '${entry.value}: has border',
         );
         if (stroke != null) {
-          final side = decoration.border!.top;
-          expect(side.width, contents.strokeWidth, reason: entry.value);
+          expect(border.borderWidth, contents.strokeWidth, reason: entry.value);
           if (stroke.a == 0) {
-            expect(side.color.a, 0, reason: '${entry.value}: border alpha');
+            expect(
+              border.borderColor!.a,
+              0,
+              reason: '${entry.value}: border alpha',
+            );
           } else {
-            expect(side.color, stroke, reason: '${entry.value}: border');
+            expect(
+              border.borderColor,
+              stroke,
+              reason: '${entry.value}: border',
+            );
           }
         }
       }
     });
 
-    testWidgets('the resting rule is on exactly Outline and Transparent', (
-      tester,
-    ) async {
-      const names = {
-        FluentDropdownAppearance.outline: 'Outline',
-        FluentDropdownAppearance.transparent: 'Transparent',
-        FluentDropdownAppearance.fillLighter: 'Fill lighter',
-        FluentDropdownAppearance.fillDarker: 'Fill darker',
-      };
-      final theme = light();
+    testWidgets(
+      'the bottom border differs on exactly Outline and Transparent',
+      (tester) async {
+        const names = {
+          FluentDropdownAppearance.outline: 'Outline',
+          FluentDropdownAppearance.transparent: 'Transparent',
+          FluentDropdownAppearance.fillLighter: 'Fill lighter',
+          FluentDropdownAppearance.fillDarker: 'Fill darker',
+        };
+        final theme = light();
 
-      for (final entry in names.entries) {
-        final variant = spec.variant({
-          'Appearance': entry.value,
-          'Size': 'Medium',
-          'Expanded': 'False',
-        });
-        final ruled = variant.parts.any((p) => p.name == 'Thin underline');
+        for (final entry in names.entries) {
+          final variant = spec.variant({
+            'Appearance': entry.value,
+            'Size': 'Medium',
+            'Expanded': 'False',
+          });
+          final ruled = variant.parts.any((p) => p.name == 'Thin underline');
 
-        await pump(
-          tester,
-          FluentDropdown<String>(
-            key: key,
-            appearance: entry.key,
-            options: options,
-            onChanged: (_) {},
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        expect(
-          triggerColors(tester).contains(theme.colors.neutralStrokeAccessible),
-          ruled,
-          reason: '${entry.value}: resting rule',
-        );
-        if (ruled) {
-          expect(
-            variant.part('Thin underline').fill,
-            theme.colors.neutralStrokeAccessible,
-            reason: '${entry.value}: rule token',
+          await pump(
+            tester,
+            FluentDropdown<String>(
+              key: key,
+              appearance: entry.key,
+              options: options,
+              onChanged: (_) {},
+            ),
           );
-          expect(variant.part('Thin underline').size.height, FluentStroke.thin);
+          await tester.pumpAndSettle();
+
+          // A side of the border rather than Figma's overlaid rectangle, so it
+          // joins the others on the CSS corner diagonal.
+          expect(
+            borderPainter(tester).bottomBorderColor ==
+                theme.colors.neutralStrokeAccessible,
+            ruled,
+            reason: '${entry.value}: bottom border',
+          );
+          expect(
+            find.descendant(
+              of: find.byKey(key),
+              matching: find.byType(FluentInputUnderline),
+            ),
+            findsOneWidget,
+            reason: '${entry.value}: only the focus bar, no overlaid rule',
+          );
+          if (ruled) {
+            expect(
+              variant.part('Thin underline').fill,
+              theme.colors.neutralStrokeAccessible,
+              reason: '${entry.value}: rule token',
+            );
+            expect(
+              variant.part('Thin underline').size.height,
+              FluentStroke.thin,
+            );
+          }
         }
-      }
-    });
+      },
+    );
 
     testWidgets('Expanded=True paints the 2px brand accent instead', (
       tester,
@@ -546,6 +621,442 @@ void main() {
     });
   });
 
+  // `useDropdownStyles.styles.ts` as it renders in Chrome on the live
+  // storybook: hover, press and focus driven with a real mouse.
+  group('upstream states', () {
+    Color barColor(WidgetTester tester) => tester
+        .widget<FluentInputFocusUnderline>(
+          find.descendant(
+            of: find.byKey(key),
+            matching: find.byType(FluentInputFocusUnderline),
+          ),
+        )
+        .color;
+
+    testWidgets('a pointer open and close keeps the bar until focus leaves', (
+      tester,
+    ) async {
+      // `:focus-within` is any focus: the trigger is a `<button>`, which a
+      // browser focuses on mousedown, so the bar outlives the popup.
+      await pump(
+        tester,
+        FluentDropdown<String>(key: key, options: options, onChanged: (_) {}),
+      );
+      await tester.tap(find.byKey(key));
+      await tester.pumpAndSettle();
+      expect(accentScale(tester), 1);
+
+      await tester.tap(find.byKey(key));
+      await tester.pumpAndSettle();
+      expect(find.text('Lisbon'), findsNothing, reason: 'closed');
+      expect(accentScale(tester), 1, reason: 'still focused');
+
+      // A click on the page elsewhere blurs a browser button; so it does here.
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+      expect(accentScale(tester), 0);
+    });
+
+    testWidgets('focus moves the outline to Pressed, and hover wins over it', (
+      tester,
+    ) async {
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      final colors = light().colors;
+      await pump(
+        tester,
+        FluentDropdown<String>(
+          key: key,
+          focusNode: node,
+          options: options,
+          onChanged: (_) {},
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+      expect(borderPainter(tester).borderColor, colors.neutralStroke1Pressed);
+      expect(
+        borderPainter(tester).bottomBorderColor,
+        colors.neutralStrokeAccessiblePressed,
+      );
+
+      // `:focus-within` is its own rule, sorted before `:hover`.
+      final mouse = await hover(tester, find.byKey(key));
+      expect(borderPainter(tester).borderColor, colors.neutralStroke1Hover);
+      expect(
+        borderPainter(tester).bottomBorderColor,
+        colors.neutralStrokeAccessibleHover,
+      );
+      expect(barColor(tester), colors.compoundBrandStroke);
+
+      // `:focus-within:active::after` is the only rule that moves the bar.
+      await mouse.down(tester.getCenter(find.byKey(key)));
+      await tester.pump();
+      expect(borderPainter(tester).borderColor, colors.neutralStroke1Pressed);
+      expect(barColor(tester), colors.compoundBrandStrokePressed);
+      await mouse.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('only Outline ramps: the fill and chevron never move', (
+      tester,
+    ) async {
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      final colors = light().colors;
+      Color chevron() => tester
+          .widget<RichText>(
+            find.descendant(
+              of: find.byIcon(fluentDropdownChevron),
+              matching: find.byType(RichText),
+            ),
+          )
+          .text
+          .style!
+          .color!;
+
+      for (final appearance in FluentDropdownAppearance.values) {
+        await pump(
+          tester,
+          FluentDropdown<String>(
+            key: key,
+            focusNode: node,
+            appearance: appearance,
+            options: options,
+            onChanged: (_) {},
+          ),
+        );
+        await tester.pumpAndSettle();
+        final rest = borderPainter(tester);
+        final fill = triggerDecoration(tester).color;
+
+        node.requestFocus();
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: tester.getCenter(find.byKey(key)));
+        await mouse.down(tester.getCenter(find.byKey(key)));
+        await tester.pump();
+        expect(triggerDecoration(tester).color, fill, reason: appearance.name);
+        expect(
+          chevron(),
+          colors.neutralStrokeAccessible,
+          reason: appearance.name,
+        );
+        if (appearance != FluentDropdownAppearance.outline) {
+          expect(
+            borderPainter(tester).borderColor,
+            rest.borderColor,
+            reason: '${appearance.name}: no interactive rule upstream',
+          );
+          expect(
+            borderPainter(tester).bottomBorderColor,
+            rest.bottomBorderColor,
+            reason: '${appearance.name}: no interactive rule upstream',
+          );
+        }
+        await mouse.up();
+        await mouse.removePointer();
+        node.unfocus();
+        await tester.pumpAndSettle();
+      }
+    });
+
+    testWidgets(
+      'error is colorPaletteRedBorder2 until the trigger is focused',
+      (tester) async {
+        final node = FocusNode();
+        addTearDown(node.dispose);
+        final colors = light().colors;
+        final danger = colors.palette.stroke2Rest(FluentPaletteFamily.red);
+
+        await pump(
+          tester,
+          FluentDropdown<String>(
+            key: key,
+            focusNode: node,
+            error: true,
+            options: options,
+            onChanged: (_) {},
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(borderPainter(tester).borderColor, danger);
+        expect(borderPainter(tester).bottomBorderColor, danger);
+
+        // `:hover:not(:focus-within)` keeps it red under the pointer.
+        await hover(tester, find.byKey(key));
+        expect(borderPainter(tester).borderColor, danger);
+
+        // Focus falls back to the ordinary ramp; hover still wins there.
+        node.requestFocus();
+        await tester.pumpAndSettle();
+        expect(borderPainter(tester).borderColor, colors.neutralStroke1Hover);
+
+        // Transparent colours its bottom border only.
+        node.unfocus();
+        await pump(
+          tester,
+          FluentDropdown<String>(
+            key: key,
+            error: true,
+            appearance: FluentDropdownAppearance.transparent,
+            options: options,
+            onChanged: (_) {},
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(borderPainter(tester).borderColor, isNull);
+        expect(borderPainter(tester).bottomBorderColor, danger);
+
+        // The palette knows nothing of high contrast; the status token does.
+        final contrast = FluentThemeData.highContrast(
+          fontPlatform: FluentFontPlatform.web,
+        );
+        await pump(
+          tester,
+          FluentDropdown<String>(
+            key: key,
+            error: true,
+            options: options,
+            onChanged: (_) {},
+          ),
+          theme: contrast,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          borderPainter(tester).borderColor,
+          (contrast.colors as FluentHighContrastColors).statusDangerBorder2,
+        );
+      },
+    );
+
+    testWidgets('error outranks disabled, as Chrome renders it', (
+      tester,
+    ) async {
+      // `invalid` is not gated on `!disabled`, and `:not(:focus-within)`
+      // out-specifies `disabled`'s plain class: Chrome reads rgb(209, 52, 56)
+      // on a disabled, aria-invalid trigger, over a transparent fill.
+      final colors = light().colors;
+      final danger = colors.palette.stroke2Rest(FluentPaletteFamily.red);
+      for (final appearance in FluentDropdownAppearance.values) {
+        await pump(
+          tester,
+          FluentDropdown<String>(
+            key: key,
+            error: true,
+            appearance: appearance,
+            options: options,
+          ),
+        );
+        await tester.pumpAndSettle();
+        final transparent = appearance == FluentDropdownAppearance.transparent;
+        expect(
+          borderPainter(tester).borderColor,
+          transparent ? isNull : danger,
+          reason: appearance.name,
+        );
+        if (transparent) {
+          expect(borderPainter(tester).bottomBorderColor, danger);
+        }
+        expect(triggerDecoration(tester).color, colors.transparentBackground);
+      }
+    });
+
+    testWidgets('a custom border width widens the bottom side too', (
+      tester,
+    ) async {
+      // A CSS `border-width` moves all four sides; only Transparent, which
+      // has no others, keeps its bottom at 1px.
+      for (final appearance in [
+        FluentDropdownAppearance.outline,
+        FluentDropdownAppearance.transparent,
+      ]) {
+        await pump(
+          tester,
+          FluentDropdown<String>(
+            key: key,
+            appearance: appearance,
+            style: const FluentDropdownStyle(
+              borderWidth: WidgetStatePropertyAll<double?>(2),
+            ),
+            options: options,
+            onChanged: (_) {},
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          borderPainter(tester).bottomBorderWidth,
+          appearance == FluentDropdownAppearance.outline ? 2 : 1,
+          reason: appearance.name,
+        );
+      }
+    });
+
+    testWidgets('Transparent is square; the bar overhangs it a pixel a side', (
+      tester,
+    ) async {
+      // `underline: { borderRadius: '0' }`, while `::after` keeps its own 4px
+      // bottom radii and `left/right: -1px` — flush with a bordered root, one
+      // pixel past a borderless one.
+      for (final appearance in [
+        FluentDropdownAppearance.outline,
+        FluentDropdownAppearance.transparent,
+      ]) {
+        await pump(
+          tester,
+          FluentDropdown<String>(
+            key: key,
+            appearance: appearance,
+            options: options,
+            onChanged: (_) {},
+          ),
+        );
+        await tester.pumpAndSettle();
+        final overhang = appearance == FluentDropdownAppearance.transparent
+            ? 1.0
+            : 0.0;
+        expect(
+          triggerDecoration(tester).borderRadius,
+          overhang == 1 ? BorderRadius.zero : FluentRadius.allMedium,
+          reason: appearance.name,
+        );
+        final box = tester.getRect(find.byKey(key));
+        final bar = find.descendant(
+          of: find.byKey(key),
+          matching: find.byType(FluentInputFocusUnderline),
+        );
+        expect(tester.getRect(bar).left, box.left - overhang);
+        expect(tester.getRect(bar).right, box.right + overhang);
+        expect(tester.getRect(bar).bottom, box.bottom);
+        expect(
+          tester.widget<FluentInputFocusUnderline>(bar).borderRadius,
+          const BorderRadius.vertical(bottom: FluentRadius.medium),
+          reason: appearance.name,
+        );
+      }
+    });
+
+    testWidgets('a tight parent height stretches the box, bar and all', (
+      tester,
+    ) async {
+      // A CSS `height` sizes the border box, and `::after` sits on its bottom.
+      await pump(
+        tester,
+        SizedBox(
+          height: 60,
+          child: FluentDropdown<String>(
+            key: key,
+            options: options,
+            onChanged: (_) {},
+          ),
+        ),
+      );
+      final painted = find.descendant(
+        of: find.byKey(key),
+        matching: find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is FluentInputBorderPainter,
+        ),
+      );
+      final bar = find.descendant(
+        of: find.byKey(key),
+        matching: find.byType(FluentInputFocusUnderline),
+      );
+      expect(tester.getRect(painted).height, 60);
+      expect(tester.getRect(bar).bottom, tester.getRect(painted).bottom);
+    });
+
+    testWidgets(
+      'the bottom colour meets the sides on the CSS corner diagonal',
+      (tester) async {
+        // A browser splits two border colours along the line from the border
+        // box's corner to the padding box's — 45° here — so the darker bottom
+        // colour climbs half-way round each bottom arc. At DPR 4, device pixel
+        // (7, 4h − 6) lies inside the ring below the diagonal; (4, 4h − 8) is
+        // the same arc above it. The overlaid 1px rule this replaced left the
+        // side colour at the first.
+        const boundary = Key('boundary');
+        await pump(
+          tester,
+          RepaintBoundary(
+            key: boundary,
+            child: FluentDropdown<String>(
+              key: key,
+              options: options,
+              onChanged: (_) {},
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        const ratio = 4.0;
+        final size = tester.getSize(find.byKey(boundary));
+        final width = (size.width * ratio).round();
+        final bottom = (size.height * ratio).round();
+
+        final pixels = (await tester.runAsync(() async {
+          final image = await tester
+              .renderObject<RenderRepaintBoundary>(find.byKey(boundary))
+              .toImage(pixelRatio: ratio);
+          final data = await image.toByteData(
+            format: ui.ImageByteFormat.rawRgba,
+          );
+          image.dispose();
+          return data;
+        }))!;
+        void expectPixel(int x, int y, Color expected, String reason) {
+          final i = (y * width + x) * 4;
+          final actual = [for (var c = 0; c < 3; c++) pixels.getUint8(i + c)];
+          final want = [
+            for (final channel in [expected.r, expected.g, expected.b])
+              (channel * 255).round(),
+          ];
+          for (var c = 0; c < 3; c++) {
+            expect(
+              actual[c],
+              closeTo(want[c], 3),
+              reason: '$reason: got $actual, want $want',
+            );
+          }
+        }
+
+        final colors = light().colors;
+        expectPixel(
+          7,
+          bottom - 6,
+          colors.neutralStrokeAccessible,
+          'below the diagonal: the bottom colour, #616161',
+        );
+        expectPixel(
+          4,
+          bottom - 8,
+          colors.neutralStroke1,
+          'above the diagonal: the side colour, #d1d1d1',
+        );
+      },
+    );
+
+    testWidgets('the listbox outline sits outside the surface', (tester) async {
+      // `useListboxStyles`: `outline: 1px solid colorTransparentStroke`, which
+      // takes no room — the first row sits at the 4px padding exactly.
+      await pump(
+        tester,
+        FluentDropdown<String>(key: key, options: options, onChanged: (_) {}),
+      );
+      await tester.tap(find.byKey(key));
+      await tester.pumpAndSettle();
+      final surface = find
+          .ancestor(
+            of: find.text('Nordics'),
+            matching: find.byType(DecoratedBox),
+          )
+          .last;
+      final border =
+          (tester.widget<DecoratedBox>(surface).decoration as BoxDecoration)
+                  .border!
+              as Border;
+      expect(border.top.strokeAlign, BorderSide.strokeAlignOutside);
+      expect(border.top.color, light().colors.transparentStroke);
+    });
+  });
+
   group('motion', () {
     testWidgets('the accent grows over 200ms and collapses over 50ms', (
       tester,
@@ -607,11 +1118,12 @@ void main() {
       expect(accentScale(tester), 1);
     });
 
-    testWidgets('nothing else animates: the fill is instant on hover', (
+    testWidgets('nothing else animates: the border is instant on hover', (
       tester,
     ) async {
       // useDropdownStyles declares no transition on background, border or
-      // colour — only on the ::after transform.
+      // colour — only on the ::after transform. Nor does it declare a hover
+      // fill: only the outline moves.
       await pump(
         tester,
         FluentDropdown<String>(key: key, options: options, onChanged: (_) {}),
@@ -620,8 +1132,12 @@ void main() {
 
       await hover(tester, find.byKey(key));
       expect(
+        borderPainter(tester).borderColor,
+        light().colors.neutralStroke1Hover,
+      );
+      expect(
         triggerDecoration(tester).color,
-        light().colors.neutralBackground1Hover,
+        light().colors.neutralBackground1,
       );
     });
   });
@@ -769,20 +1285,21 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final decoration = triggerDecoration(tester);
+        final border = borderPainter(tester);
         if (appearance == FluentDropdownAppearance.transparent) {
-          // Transparent has no box border in any theme — Figma paints none —
-          // so its outline is the resting rule, which must stay opaque.
-          expect(decoration.border, isNull);
+          // Transparent has no box border in any theme — upstream sets only
+          // `borderBottom` — so its outline is the bottom border, which must
+          // stay opaque.
+          expect(border.borderColor, isNull);
           expect(
-            triggerColors(tester),
-            contains(theme.colors.neutralStrokeAccessible),
-            reason: 'transparent keeps its rule in high contrast',
+            border.bottomBorderColor,
+            theme.colors.neutralStrokeAccessible,
+            reason: 'transparent keeps its bottom border in high contrast',
           );
         } else {
-          expect(decoration.border, isNotNull, reason: appearance.name);
+          expect(border.borderColor, isNotNull, reason: appearance.name);
           expect(
-            decoration.border!.top.color.a,
+            border.borderColor!.a,
             1.0,
             reason: '${appearance.name}: border must be opaque here',
           );
@@ -799,22 +1316,29 @@ void main() {
       );
       await tester.pumpAndSettle();
       final theme = light();
+      // Upstream's `disabled`: a transparent fill, and
+      // `colorNeutralStrokeDisabled` on every side, the bottom included.
       expect(
         triggerDecoration(tester).color,
-        theme.colors.neutralBackgroundDisabled,
+        theme.colors.transparentBackground,
       );
       expect(
-        triggerDecoration(tester).border!.top.color,
+        borderPainter(tester).borderColor,
+        theme.colors.neutralStrokeDisabled,
+      );
+      expect(
+        borderPainter(tester).bottomBorderColor,
         theme.colors.neutralStrokeDisabled,
       );
 
+      await hover(tester, find.byKey(key));
       await tester.tap(find.byKey(key), warnIfMissed: false);
       await tester.pumpAndSettle();
       expect(find.text('Lisbon'), findsNothing, reason: 'must not open');
       expect(
-        triggerDecoration(tester).color,
-        theme.colors.neutralBackgroundDisabled,
-        reason: 'must not adopt the hover fill',
+        borderPainter(tester).borderColor,
+        theme.colors.neutralStrokeDisabled,
+        reason: 'must not adopt the hover border',
       );
     });
 

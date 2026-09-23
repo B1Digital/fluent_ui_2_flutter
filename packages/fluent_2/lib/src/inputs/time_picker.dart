@@ -1,7 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
-import 'package:flutter/gestures.dart' show TapDragUpDetails;
+import 'package:flutter/gestures.dart'
+    show TapDragUpDetails, kSecondaryMouseButton;
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 
@@ -436,14 +437,30 @@ FluentInputSize _inputSize(FluentTimePickerSize value) => switch (value) {
 /// The second of the three-function recomposition contract, and the only place
 /// the design axes are read.
 ///
-/// The faceplate is **derived from `resolveFluentInputStyle`** rather than
-/// re-transcribed, so the two components cannot drift.
+/// The faceplate's fill, type and size ramps are **derived from
+/// `resolveFluentInputStyle`** rather than re-transcribed, so the two
+/// components cannot drift where upstream shares them. The borders are not:
+/// upstream's TimePicker is a `.fui-Combobox`, and `useComboboxStyles` differs
+/// from `useInputStyles` in ways that render, as measured in Chrome:
 ///
-/// A non-freeform time picker is read-only by definition. That costs nothing
-/// here: upstream ships `readOnly` as a bare attribute with no styling, and
-/// `resolveFluentInputStyle` follows it, so a read-only picker wears the live
-/// ramp. The flag only matters to the renderer, where it stops the caret and
-/// the edits.
+/// * **Hover beats focus.** `outlineInteractive` writes `:focus-within` as a
+///   rule of its own, which Griffel sorts before `:hover`, so a focused,
+///   hovered picker shows the Hover stops. Input writes `:active,:focus-within`
+///   as one rule and keeps Pressed.
+/// * **Only Outline ramps.** Underline's bottom border stays
+///   `colorNeutralStrokeAccessible` in every state, and the filled appearances
+///   keep `colorTransparentStroke`; Combobox has no `underlineInteractive` or
+///   `filledInteractive`.
+/// * **The bar keeps its own 4px radii** on Underline, and overhangs the
+///   borderless root by a pixel each side; see [buildFluentTimePicker].
+///
+/// A non-freeform time picker is read-only here. That costs nothing in this
+/// function: upstream ships no read-only styling, and a read-only picker wears
+/// the live ramp. The flag only matters to the renderer, where it stops the
+/// edits — and, a known deviation, the caret: upstream's non-freeform input is
+/// an editable `role=combobox` that types-to-select and draws a 1px caret while
+/// focused. Type-to-select is not ported, and `buildFluentInput` hides the
+/// caret of any read-only field.
 FluentTimePickerStyle resolveFluentTimePickerStyle(
   FluentTimePickerState state,
   FluentThemeData theme,
@@ -464,12 +481,77 @@ FluentTimePickerStyle resolveFluentTimePickerStyle(
     theme,
   );
 
+  final disabled = !state.enabled;
+  final focused = state.focused;
+  final underline = state.appearance == FluentTimePickerAppearance.underline;
+  final filled =
+      state.appearance == FluentTimePickerAppearance.filledDarker ||
+      state.appearance == FluentTimePickerAppearance.filledLighter;
+  // `colorPaletteRedBorder2`, with the high-contrast guard
+  // `resolveFluentInputStyle` uses.
+  final danger = c is FluentHighContrastColors
+      ? c.statusDangerBorder2
+      : c.palette.stroke2Rest(FluentPaletteFamily.red)!;
+
+  // `invalid` is written under `:not(:focus-within),:hover:not(:focus-within)`,
+  // so a focused invalid picker falls back to the ordinary ramp — and, since
+  // `useComboboxStyles` keeps the class on a disabled picker and that selector
+  // out-specifies `disabled`'s plain class, a disabled invalid one stays red.
+  final WidgetStateProperty<Color>? border;
+  if (underline) {
+    border = null;
+  } else if (state.error && !focused) {
+    border = FluentStateColor.tokens(rest: danger);
+  } else if (disabled) {
+    border = FluentStateColor.tokens(rest: c.neutralStrokeDisabled);
+  } else if (filled) {
+    border = FluentStateColor.tokens(rest: c.transparentStroke);
+  } else {
+    // Hover wins over focus: see the doc comment.
+    border = FluentStateColor.tokens(
+      rest: focused ? c.neutralStroke1Pressed : c.neutralStroke1,
+      hover: c.neutralStroke1Hover,
+      pressed: c.neutralStroke1Pressed,
+    );
+  }
+
+  final WidgetStateProperty<Color>? bottomBorder;
+  if (filled) {
+    bottomBorder = null;
+  } else if (state.error && !focused) {
+    bottomBorder = FluentStateColor.tokens(rest: danger);
+  } else if (disabled) {
+    bottomBorder = FluentStateColor.tokens(rest: c.neutralStrokeDisabled);
+  } else if (underline) {
+    bottomBorder = FluentStateColor.tokens(rest: c.neutralStrokeAccessible);
+  } else {
+    bottomBorder = FluentStateColor.tokens(
+      rest: focused
+          ? c.neutralStrokeAccessiblePressed
+          : c.neutralStrokeAccessible,
+      hover: c.neutralStrokeAccessibleHover,
+      pressed: c.neutralStrokeAccessiblePressed,
+    );
+  }
+
+  // The `<input>`'s `padding-left` is SNudge / MNudge / M plus XXS / XXS /
+  // SNudge, of which the root padding [FluentInputStyle.padding] already holds
+  // the first; the field carries the rest. Between it and the chevron sit the
+  // root's `columnGap` and the chevron's `marginLeft`, the same XXS / XXS /
+  // SNudge each.
+  final nudge = switch (state.size) {
+    FluentTimePickerSize.small ||
+    FluentTimePickerSize.medium => FluentSpacing.xxs,
+    FluentTimePickerSize.large => FluentSpacing.sNudge,
+  };
+  final height = field.minimumSize?.resolve(const <WidgetState>{})?.height;
+
   return FluentTimePickerStyle(
     backgroundColor: field.backgroundColor,
-    borderColor: field.borderColor,
+    borderColor: border,
     borderWidth: field.borderWidth,
     borderRadius: field.borderRadius,
-    underlineColor: field.bottomBorderColor,
+    underlineColor: bottomBorder,
     underlineWidth: field.bottomBorderWidth,
     accentColor: field.focusUnderlineColor,
     accentWidth: const WidgetStatePropertyAll<double?>(FluentStroke.thick),
@@ -477,15 +559,25 @@ FluentTimePickerStyle resolveFluentTimePickerStyle(
     placeholderColor: field.placeholderColor,
     textStyle: field.textStyle,
     padding: field.padding,
-    minimumSize: field.minimumSize,
+    // `.fui-Combobox` root: `minWidth: 250px`, beside Input's heights.
+    minimumSize: WidgetStatePropertyAll<Size?>(Size(250, height ?? 0)),
     mouseCursor: field.mouseCursor,
-    iconColor: field.contentColor,
+    // `useComboboxStyles` icon: `colorNeutralStrokeAccessible`, not Input's
+    // `colorNeutralForeground3` slot tone — the same in light and dark, apart
+    // in high contrast.
+    iconColor: FluentStateColor.tokens(
+      rest: disabled ? c.neutralForegroundDisabled : c.neutralStrokeAccessible,
+    ),
     iconSize: field.iconSize,
-    trailingGap: const WidgetStatePropertyAll<double?>(FluentSpacing.xxs),
-    trailingPadding: const WidgetStatePropertyAll<EdgeInsetsGeometry?>(
-      EdgeInsets.zero,
+    trailingGap: WidgetStatePropertyAll<double?>(nudge * 2),
+    trailingPadding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(
+      EdgeInsetsDirectional.only(start: nudge),
     ),
     surfaceColor: FluentStateColor.tokens(rest: c.neutralBackground1),
+    // `useListboxStyles`: `outline: 1px solid colorTransparentStroke`. Invisible
+    // in light and dark; it is what outlines the listbox in high contrast.
+    // [buildFluentTimePickerSurface] paints it outside the box, as an outline
+    // sits, so it takes no room from the rows.
     surfaceBorderColor: FluentStateColor.tokens(rest: c.transparentStroke),
     surfaceBorderWidth: const WidgetStatePropertyAll<double?>(
       FluentStroke.thin,
@@ -509,6 +601,10 @@ FluentTimePickerStyle resolveFluentTimePickerStyle(
 }
 
 /// The [FluentInputStyle] the faceplate is drawn with.
+///
+/// Everything but the focus bar, which [buildFluentTimePicker] draws itself:
+/// `buildFluentInput` shapes its bar after Input's `::after`, and Combobox's
+/// differs on Underline.
 FluentInputStyle _fieldStyle(FluentTimePickerStyle style) => FluentInputStyle(
   backgroundColor: style.backgroundColor,
   borderColor: style.borderColor,
@@ -516,8 +612,6 @@ FluentInputStyle _fieldStyle(FluentTimePickerStyle style) => FluentInputStyle(
   borderRadius: style.borderRadius,
   bottomBorderColor: style.underlineColor,
   bottomBorderWidth: style.underlineWidth,
-  focusUnderlineColor: style.accentColor,
-  focusUnderlineWidth: style.accentWidth,
   foregroundColor: style.foregroundColor,
   placeholderColor: style.placeholderColor,
   contentColor: style.iconColor,
@@ -528,6 +622,12 @@ FluentInputStyle _fieldStyle(FluentTimePickerStyle style) => FluentInputStyle(
   iconSize: style.iconSize,
   minimumSize: style.minimumSize,
   mouseCursor: style.mouseCursor,
+);
+
+/// The focus bar's own corners: `::after`'s `borderBottom*Radius:
+/// borderRadiusMedium`, whatever the root's radius is.
+const BorderRadius _accentRadius = BorderRadius.vertical(
+  bottom: FluentRadius.medium,
 );
 
 /// The chevron a closed time picker draws.
@@ -542,13 +642,37 @@ const IconData fluentTimePickerClear = FluentIcons.dismiss_20_regular;
 /// [FluentTimePickerBaseState] on purpose: it never reads the appearance or the
 /// size, so a consumer can supply their own style and still use Fluent's
 /// layout, trailing slot and focus underline.
+///
+/// The clear glyph *replaces* the chevron rather than sitting beside it:
+/// `useComboboxStyles` visually hides the expand icon while the clear icon
+/// shows. The chevron stays in the semantics tree, as upstream's stays in the
+/// accessibility tree.
+///
+/// [states] is the live interaction set: hovered, pressed and disabled.
 Widget buildFluentTimePicker(
   FluentTimePickerBaseState state,
   FluentTimePickerStyle style,
   Set<WidgetState> states,
 ) {
-  final gap = style.trailingGap?.resolve(states) ?? FluentSpacing.xxs;
-  return buildFluentInput(
+  final accentColor = style.accentColor?.resolve(states);
+  final accentWidth = style.accentWidth?.resolve(states) ?? FluentStroke.thick;
+  final side = style.borderColor?.resolve(states) == null
+      ? FluentStroke.none
+      : style.borderWidth?.resolve(states) ?? FluentStroke.none;
+
+  final trailing = switch ((state.clearIcon, state.expandIcon)) {
+    (final clear?, final expand?) => Stack(
+      alignment: Alignment.center,
+      children: <Widget>[
+        Opacity(opacity: 0, alwaysIncludeSemantics: true, child: expand),
+        clear,
+      ],
+    ),
+    (final clear?, null) => clear,
+    (null, final expand) => expand,
+  };
+
+  final field = buildFluentInput(
     FluentInputBaseState(
       enabled: state.enabled,
       // Its only effect: no caret, no edits. The style ignores it.
@@ -559,20 +683,43 @@ Widget buildFluentTimePicker(
       focusNode: state.focusNode,
       editableTextKey: state.editableTextKey,
       placeholder: state.placeholder,
-      contentAfter: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: gap,
-        children: <Widget>[
-          if (state.clearIcon != null) state.clearIcon!,
-          if (state.expandIcon != null) state.expandIcon!,
-        ],
-      ),
+      contentAfter: trailing,
       onChanged: state.onChanged,
       onSubmitted: state.onSubmitted,
       autofocus: state.autofocus,
     ),
     _fieldStyle(style),
     states,
+  );
+  if (accentColor == null) return field;
+
+  // In the field's tap region, like the bar `buildFluentInput` draws, so a
+  // press on it is not a press outside the field.
+  return TextFieldTapRegion(
+    child: Stack(
+      // The bar overhangs a borderless root: see below.
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        field,
+        // `::after { left: -1px; right: -1px; bottom: -1px }` against the
+        // padding box: flush with the border box when the sides are 1px, a
+        // pixel past it each side on Underline, which has none. Its 4px bottom
+        // radii are its own — Combobox never zeroes them, as Input does — so
+        // they stay rounded on Underline's square root.
+        Positioned(
+          left: side - FluentStroke.thin,
+          right: side - FluentStroke.thin,
+          bottom: 0,
+          height: accentWidth,
+          child: FluentInputFocusUnderline(
+            focused: state.focused,
+            color: accentColor,
+            thickness: accentWidth,
+            borderRadius: _accentRadius,
+          ),
+        ),
+      ],
+    ),
   );
 }
 
@@ -594,9 +741,15 @@ Widget buildFluentTimePickerSurface(
     decoration: BoxDecoration(
       color: style.surfaceColor?.resolve(states),
       borderRadius: radius,
+      // Outside the box, like the CSS `outline` it ports: it takes no room
+      // from the rows, which sit at the surface padding exactly.
       border: borderColor == null || borderWidth <= 0
           ? null
-          : Border.all(color: borderColor, width: borderWidth),
+          : Border.all(
+              color: borderColor,
+              width: borderWidth,
+              strokeAlign: BorderSide.strokeAlignOutside,
+            ),
       boxShadow: style.surfaceShadow?.resolve(states),
     ),
     child: Padding(
@@ -867,6 +1020,7 @@ class _FluentTimePickerState extends State<FluentTimePicker>
   int? _active;
   bool _uncontrolledOpen = false;
   bool _focused = false;
+  final Set<WidgetState> _interaction = <WidgetState>{};
   String? _committedText;
 
   FocusNode get _focusNode =>
@@ -974,6 +1128,8 @@ class _FluentTimePickerState extends State<FluentTimePicker>
       _controller.text = text;
       _committedText = text;
     }
+    // A picker disabled mid-gesture must not keep a stale hover or press.
+    if (!_enabled) _interaction.clear();
     // Deferred: `_syncEntry` inserts into the Overlay, which is a `setState` on
     // a branch that has already been built by the time `didUpdateWidget` runs.
     // A parent flipping a controlled `open:` from false to true would otherwise
@@ -995,6 +1151,17 @@ class _FluentTimePickerState extends State<FluentTimePicker>
     _controller.dispose();
     _internalNode?.dispose();
     super.dispose();
+  }
+
+  /// Hover and press, fed by the faceplate's own [MouseRegion] and
+  /// [Listener] as `FluentInput` feeds its own: the outline's Hover and Pressed
+  /// stops and the bar's `:focus-within:active` colour read them.
+  void _setInteraction(WidgetState state, {required bool value}) {
+    if (!_enabled && value) return;
+    final changed = value
+        ? _interaction.add(state)
+        : _interaction.remove(state);
+    if (changed) setState(() {});
   }
 
   void _handleFocusChange() {
@@ -1328,6 +1495,7 @@ class _FluentTimePickerState extends State<FluentTimePicker>
     final states = <WidgetState>{
       if (!_enabled) WidgetState.disabled,
       if (_focused) WidgetState.focused,
+      if (_enabled) ..._interaction,
     };
     final iconColor = style.iconColor?.resolve(states);
     final iconSize = style.iconSize?.resolve(states);
@@ -1336,7 +1504,26 @@ class _FluentTimePickerState extends State<FluentTimePicker>
         _enabled &&
         (widget.selectedTime != null || _controller.text.isNotEmpty);
 
-    final field = buildFluentTimePicker(
+    // Underline's box is a pixel shorter, so the glyph centres on a half
+    // pixel (5.5 at medium). Chrome paints the SVG on the whole pixel below,
+    // which lands it exactly where the bordered appearances draw it; a pixel
+    // of top inset reproduces that.
+    //
+    // Both glyphs carry upstream's `cursor: pointer`; disabled, the faceplate's
+    // `not-allowed` shows through.
+    Widget glyph(Widget child) {
+      if (_enabled) {
+        child = MouseRegion(cursor: SystemMouseCursors.click, child: child);
+      }
+      return widget.appearance == FluentTimePickerAppearance.underline
+          ? Padding(
+              padding: const EdgeInsets.only(top: FluentStroke.thin),
+              child: child,
+            )
+          : child;
+    }
+
+    var field = buildFluentTimePicker(
       resolveFluentTimePickerState(
         controller: _controller,
         focusNode: _focusNode,
@@ -1350,27 +1537,52 @@ class _FluentTimePickerState extends State<FluentTimePicker>
         size: widget.size,
         placeholder: widget.placeholder,
         autofocus: widget.autofocus,
-        expandIcon: Semantics(
-          button: true,
-          label: widget.expandSemanticLabel ?? fluentL10n(context).open,
-          child: Icon(
-            fluentTimePickerChevron,
-            size: iconSize,
-            color: iconColor,
+        expandIcon: glyph(
+          Semantics(
+            button: true,
+            label: widget.expandSemanticLabel ?? fluentL10n(context).open,
+            child: Icon(
+              fluentTimePickerChevron,
+              size: iconSize,
+              color: iconColor,
+            ),
           ),
         ),
         clearIcon: showClear
-            ? _ClearButton(
-                semanticLabel:
-                    widget.clearSemanticLabel ?? fluentL10n(context).clear,
-                iconColor: iconColor,
-                iconSize: iconSize,
-                onPressed: _clear,
+            ? glyph(
+                _ClearButton(
+                  semanticLabel:
+                      widget.clearSemanticLabel ?? fluentL10n(context).clear,
+                  iconColor: iconColor,
+                  iconSize: iconSize,
+                  onPressed: _clear,
+                ),
               )
             : null,
       ),
       style,
       states,
+    );
+
+    // Hover and press, wired the way `FluentInput` wires them: a text field
+    // cannot be a `FluentInteractive`, whose focus node and activation would
+    // fight the `EditableText`'s.
+    field = MouseRegion(
+      cursor: style.mouseCursor?.resolve(states) ?? SystemMouseCursors.text,
+      onEnter: (_) => _setInteraction(WidgetState.hovered, value: true),
+      onExit: (_) => _setInteraction(WidgetState.hovered, value: false),
+      // Chrome sets `:active` for the primary and middle buttons, not for a
+      // right press (storybook).
+      child: Listener(
+        onPointerDown: (event) => _setInteraction(
+          WidgetState.pressed,
+          value: event.buttons != kSecondaryMouseButton,
+        ),
+        onPointerUp: (_) => _setInteraction(WidgetState.pressed, value: false),
+        onPointerCancel: (_) =>
+            _setInteraction(WidgetState.pressed, value: false),
+        child: field,
+      ),
     );
 
     return Semantics(

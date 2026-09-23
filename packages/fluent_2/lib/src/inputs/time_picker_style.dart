@@ -95,8 +95,8 @@ class FluentTimePickerStyle {
   /// Inset of the value text inside the faceplate.
   final WidgetStateProperty<EdgeInsetsGeometry?>? padding;
 
-  /// Minimum faceplate size. Only the height is meaningful; a time picker takes
-  /// its width from its parent.
+  /// Minimum faceplate size. The width is upstream's `minWidth: 250px`; past it
+  /// a time picker takes its width from its parent.
   final WidgetStateProperty<Size?>? minimumSize;
 
   /// Cursor over the faceplate.
@@ -108,19 +108,22 @@ class FluentTimePickerStyle {
   /// Edge length of the expand chevron and the clear glyph.
   final WidgetStateProperty<double?>? iconSize;
 
-  /// Space between the clear glyph and the expand chevron.
+  /// Space between the text field and the trailing glyph — upstream's
+  /// `columnGap` plus the glyph's own `marginLeft`.
   final WidgetStateProperty<double?>? trailingGap;
 
-  /// Inset around the trailing slot.
+  /// Inset around the text field, inside [padding] — upstream's `<input>`
+  /// carries part of the start inset itself.
   final WidgetStateProperty<EdgeInsetsGeometry?>? trailingPadding;
 
   /// Listbox fill.
   final WidgetStateProperty<Color?>? surfaceColor;
 
-  /// Listbox border colour.
+  /// Listbox outline colour, painted outside the surface like upstream's CSS
+  /// `outline`.
   final WidgetStateProperty<Color?>? surfaceBorderColor;
 
-  /// Listbox border width.
+  /// Listbox outline width.
   final WidgetStateProperty<double?>? surfaceBorderWidth;
 
   /// Listbox corner radius.

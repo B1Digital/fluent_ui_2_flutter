@@ -37,6 +37,9 @@ class FluentTagPickerStyle {
     this.secondaryColor,
     this.textStyle,
     this.secondaryTextStyle,
+    this.expandIconColor,
+    this.expandIconSize,
+    this.expandIconPadding,
     this.padding,
     this.contentPadding,
     this.tagSpacing,
@@ -68,15 +71,19 @@ class FluentTagPickerStyle {
   /// Corner radius of the control.
   final WidgetStateProperty<BorderRadius?>? borderRadius;
 
-  /// The resting rule along the bottom edge. Null on the filled appearances,
-  /// which draw none.
+  /// The control's bottom border side, when it differs from [borderColor].
+  ///
+  /// A side of the box border that joins the others on the CSS corner
+  /// diagonal, not an overlay. Null means the bottom follows [borderColor]
+  /// like the other three sides, which is what the filled appearances do.
   final WidgetStateProperty<Color?>? underlineColor;
 
-  /// Thickness of the resting bottom rule.
+  /// Width of the bottom border side. Like [borderWidth], it insets the
+  /// content.
   final WidgetStateProperty<double?>? underlineWidth;
 
   /// The brand bar that grows across the bottom on focus. Null while disabled,
-  /// matching upstream's `::after { content: unset }`.
+  /// because a disabled control cannot take focus.
   final WidgetStateProperty<Color?>? accentColor;
 
   /// Thickness of the brand bar.
@@ -97,10 +104,22 @@ class FluentTagPickerStyle {
   /// Type ramp of the trailing secondary action.
   final WidgetStateProperty<TextStyle?>? secondaryTextStyle;
 
-  /// Horizontal inset from the border to the content.
+  /// Tone of the expand chevron.
+  final WidgetStateProperty<Color?>? expandIconColor;
+
+  /// Edge length of the expand chevron.
+  final WidgetStateProperty<double?>? expandIconSize;
+
+  /// Inset around the expand chevron. Its vertical half centres the glyph in
+  /// the control's first line, which is where upstream's aside pins it.
+  final WidgetStateProperty<EdgeInsetsGeometry?>? expandIconPadding;
+
+  /// Inset from the inside of the border to the content and the expand
+  /// chevron.
   final WidgetStateProperty<EdgeInsetsGeometry?>? padding;
 
-  /// Vertical inset around the tag strip and the field.
+  /// Vertical inset around the tag strip and the field — upstream's
+  /// `TagPickerInput` padding, which is what sets the control's height.
   final WidgetStateProperty<EdgeInsetsGeometry?>? contentPadding;
 
   /// Space between the tags, and between a tag and the field.
@@ -118,10 +137,11 @@ class FluentTagPickerStyle {
   /// Popup surface fill.
   final WidgetStateProperty<Color?>? surfaceColor;
 
-  /// Popup surface border colour.
+  /// Popup outline colour, painted outside the surface like upstream's CSS
+  /// `outline`.
   final WidgetStateProperty<Color?>? surfaceBorderColor;
 
-  /// Popup surface border width.
+  /// Popup outline width.
   final WidgetStateProperty<double?>? surfaceBorderWidth;
 
   /// Popup surface corner radius.
@@ -188,6 +208,9 @@ class FluentTagPickerStyle {
       secondaryColor: other.secondaryColor ?? secondaryColor,
       textStyle: other.textStyle ?? textStyle,
       secondaryTextStyle: other.secondaryTextStyle ?? secondaryTextStyle,
+      expandIconColor: other.expandIconColor ?? expandIconColor,
+      expandIconSize: other.expandIconSize ?? expandIconSize,
+      expandIconPadding: other.expandIconPadding ?? expandIconPadding,
       padding: other.padding ?? padding,
       contentPadding: other.contentPadding ?? contentPadding,
       tagSpacing: other.tagSpacing ?? tagSpacing,
@@ -221,6 +244,9 @@ class FluentTagPickerStyle {
     WidgetStateProperty<Color?>? secondaryColor,
     WidgetStateProperty<TextStyle?>? textStyle,
     WidgetStateProperty<TextStyle?>? secondaryTextStyle,
+    WidgetStateProperty<Color?>? expandIconColor,
+    WidgetStateProperty<double?>? expandIconSize,
+    WidgetStateProperty<EdgeInsetsGeometry?>? expandIconPadding,
     WidgetStateProperty<EdgeInsetsGeometry?>? padding,
     WidgetStateProperty<EdgeInsetsGeometry?>? contentPadding,
     WidgetStateProperty<double?>? tagSpacing,
@@ -250,6 +276,9 @@ class FluentTagPickerStyle {
     secondaryColor: secondaryColor ?? this.secondaryColor,
     textStyle: textStyle ?? this.textStyle,
     secondaryTextStyle: secondaryTextStyle ?? this.secondaryTextStyle,
+    expandIconColor: expandIconColor ?? this.expandIconColor,
+    expandIconSize: expandIconSize ?? this.expandIconSize,
+    expandIconPadding: expandIconPadding ?? this.expandIconPadding,
     padding: padding ?? this.padding,
     contentPadding: contentPadding ?? this.contentPadding,
     tagSpacing: tagSpacing ?? this.tagSpacing,
@@ -285,6 +314,9 @@ class FluentTagPickerStyle {
     Color? secondaryColor,
     TextStyle? textStyle,
     TextStyle? secondaryTextStyle,
+    Color? expandIconColor,
+    double? expandIconSize,
+    EdgeInsetsGeometry? expandIconPadding,
     EdgeInsetsGeometry? padding,
     EdgeInsetsGeometry? contentPadding,
     double? tagSpacing,
@@ -314,6 +346,9 @@ class FluentTagPickerStyle {
     secondaryColor: _all(secondaryColor),
     textStyle: _all(textStyle),
     secondaryTextStyle: _all(secondaryTextStyle),
+    expandIconColor: _all(expandIconColor),
+    expandIconSize: _all(expandIconSize),
+    expandIconPadding: _all(expandIconPadding),
     padding: _all(padding),
     contentPadding: _all(contentPadding),
     tagSpacing: _all(tagSpacing),
@@ -350,6 +385,9 @@ class FluentTagPickerStyle {
       other.secondaryColor == secondaryColor &&
       other.textStyle == textStyle &&
       other.secondaryTextStyle == secondaryTextStyle &&
+      other.expandIconColor == expandIconColor &&
+      other.expandIconSize == expandIconSize &&
+      other.expandIconPadding == expandIconPadding &&
       other.padding == padding &&
       other.contentPadding == contentPadding &&
       other.tagSpacing == tagSpacing &&
@@ -381,6 +419,9 @@ class FluentTagPickerStyle {
     secondaryColor,
     textStyle,
     secondaryTextStyle,
+    expandIconColor,
+    expandIconSize,
+    expandIconPadding,
     padding,
     contentPadding,
     tagSpacing,

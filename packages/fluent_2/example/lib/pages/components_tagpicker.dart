@@ -768,9 +768,6 @@ Widget _disabled(BuildContext context) => ConstrainedBox(
 // #enddocregion components-tagpicker--disabled
 
 // #docregion components-tagpicker--expand-icon
-// `TagPickerControl expandIcon` has no port: `FluentTagPicker` draws no chevron
-// of its own, and `secondaryAction` is the only trailing slot on the control —
-// so upstream's `ArrowDownFilled` goes there.
 typedef _ExpandIconEmployee = ({
   String name,
   String initials,
@@ -821,7 +818,7 @@ class _ExpandIconState extends State<_ExpandIcon> {
       label: const Text('Select Employees'),
       child: FluentTagPicker<String>(
         semanticLabel: 'Select Employees',
-        secondaryAction: const Icon(FluentIcons.arrow_down_20_filled, size: 20),
+        expandIcon: const Icon(FluentIcons.arrow_down_20_filled),
         selected: _selected,
         onChanged: (List<String> values) => setState(() => _selected = values),
         options: <FluentTagPickerOption<String>>[
@@ -1306,10 +1303,8 @@ class _NoPopoverState extends State<_NoPopover> {
 
 // #docregion components-tagpicker--single-line
 // `Overflow`/`useOverflowCount` have no port, so the chips wrap onto a second
-// line instead of collapsing into a `+N` tag. The chevron is the one part that
-// survives: `FluentTagPicker` draws none of its own, so it rides in
-// `secondaryAction` and flips with focus, which is the closest signal this
-// widget exposes to upstream's `open`.
+// line instead of collapsing into a `+N` tag. The chevron flips with focus,
+// which is the closest signal this widget exposes to upstream's `open`.
 typedef _SingleLineEmployee = ({
   String name,
   String initials,
@@ -1377,11 +1372,10 @@ class _SingleLineState extends State<_SingleLine> {
       focusNode: _focusNode,
       semanticLabel: 'Select Employees',
       placeholder: const Text('Select Employees'),
-      secondaryAction: Icon(
+      expandIcon: Icon(
         _focusNode.hasFocus
             ? FluentIcons.chevron_up_20_regular
             : FluentIcons.chevron_down_20_regular,
-        size: 20,
       ),
       selected: _selected,
       onChanged: (List<String> values) => setState(() => _selected = values),

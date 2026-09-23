@@ -1,6 +1,8 @@
 import 'package:fluent_2/fluent_2.dart';
 import 'package:fluent_2/src/internal/input_modality.dart';
-import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/gestures.dart'
+    show PointerDeviceKind, kSecondaryMouseButton;
+import 'package:flutter/rendering.dart' show RendererBinding;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +22,7 @@ Future<void> _pump(
   Widget? placeholder,
   ValueChanged<bool>? onOpenChange,
   bool autofocus = false,
+  bool error = false,
   FluentTimePickerStyle? style,
 }) async {
   await tester.pumpWidget(
@@ -41,6 +44,7 @@ Future<void> _pump(
             placeholder: placeholder,
             onOpenChange: onOpenChange,
             autofocus: autofocus,
+            error: error,
             style: style,
             hourCycle: FluentHourCycle.h23,
           ),
@@ -635,5 +639,239 @@ void main() {
     );
     expect(tester.widget<FluentInputFocusUnderline>(bar).thickness, 8);
     expect(tester.getSize(bar).height, 8);
+  });
+
+  // Upstream's TimePicker is a `.fui-Combobox`: `useComboboxStyles.styles.ts`
+  // as it renders in Chrome on the live storybook, driven with a real mouse.
+  group('FluentTimePicker — upstream Combobox rules', () {
+    final colors = FluentThemeData.light(
+      fontPlatform: FluentFontPlatform.web,
+    ).colors;
+    final bar = find.descendant(
+      of: find.byType(FluentTimePicker),
+      matching: find.byType(FluentInputFocusUnderline),
+    );
+
+    Future<TestGesture> hover(WidgetTester tester) async {
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await tester.pump();
+      await mouse.moveTo(tester.getCenter(find.byType(FluentTimePicker)));
+      await tester.pump();
+      return mouse;
+    }
+
+    testWidgets('hover wins over focus; a press turns the bar Pressed', (
+      tester,
+    ) async {
+      // `:focus-within` is its own rule, sorted before `:hover` — unlike
+      // Input's combined `:active,:focus-within`, which holds Pressed.
+      await _pump(tester, autofocus: true);
+      expect(_border(tester).borderColor, colors.neutralStroke1Pressed);
+      expect(
+        _border(tester).bottomBorderColor,
+        colors.neutralStrokeAccessiblePressed,
+      );
+
+      final mouse = await hover(tester);
+      expect(_border(tester).borderColor, colors.neutralStroke1Hover);
+      expect(
+        _border(tester).bottomBorderColor,
+        colors.neutralStrokeAccessibleHover,
+      );
+      expect(
+        tester.widget<FluentInputFocusUnderline>(bar).color,
+        colors.compoundBrandStroke,
+      );
+
+      // `:focus-within:active::after`.
+      await mouse.down(tester.getCenter(find.byType(FluentTimePicker)));
+      await tester.pump();
+      expect(_border(tester).borderColor, colors.neutralStroke1Pressed);
+      expect(
+        tester.widget<FluentInputFocusUnderline>(bar).color,
+        colors.compoundBrandStrokePressed,
+      );
+      await mouse.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a right press is not :active; the chevron is a pointer', (
+      tester,
+    ) async {
+      // Chrome sets `:active` for the primary and middle buttons only, and
+      // `useComboboxStyles` gives the icon `cursor: pointer`.
+      await _pump(tester);
+      final chevron = tester.getCenter(find.byIcon(fluentTimePickerChevron));
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryMouseButton,
+      );
+      await mouse.addPointer(location: chevron);
+      addTearDown(mouse.removePointer);
+      await tester.pump();
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+        SystemMouseCursors.click,
+      );
+      await mouse.down(chevron);
+      await tester.pump();
+      expect(_border(tester).borderColor, colors.neutralStroke1Hover);
+      await mouse.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('Underline and the filled appearances never ramp', (
+      tester,
+    ) async {
+      // Combobox has no `underlineInteractive` or `filledInteractive`.
+      await _pump(
+        tester,
+        autofocus: true,
+        appearance: FluentTimePickerAppearance.underline,
+      );
+      await hover(tester);
+      expect(_border(tester).borderColor, isNull);
+      expect(_border(tester).bottomBorderColor, colors.neutralStrokeAccessible);
+
+      await _pump(
+        tester,
+        autofocus: true,
+        appearance: FluentTimePickerAppearance.filledDarker,
+      );
+      expect(_border(tester).borderColor, colors.transparentStroke);
+      expect(_border(tester).bottomBorderColor, isNull);
+    });
+
+    testWidgets('error outranks disabled, as Chrome renders it', (
+      tester,
+    ) async {
+      // `useComboboxStyles` keeps `invalid` on a disabled picker, and its
+      // `:not(:focus-within)` out-specifies `disabled`'s plain class: Chrome
+      // reads rgb(209, 52, 56) on a disabled, aria-invalid TimePicker.
+      final danger = colors.palette.stroke2Rest(FluentPaletteFamily.red);
+      for (final appearance in FluentTimePickerAppearance.values) {
+        await _pump(
+          tester,
+          onTimeChange: null,
+          error: true,
+          appearance: appearance,
+        );
+        final underline = appearance == FluentTimePickerAppearance.underline;
+        expect(
+          _border(tester).borderColor,
+          underline ? isNull : danger,
+          reason: appearance.name,
+        );
+        if (underline) expect(_border(tester).bottomBorderColor, danger);
+      }
+    });
+
+    testWidgets('Underline keeps the bar\'s 4px radii and overhangs a pixel', (
+      tester,
+    ) async {
+      // Combobox never zeroes `::after`'s radius, as Input does; with no side
+      // borders, `left/right: -1px` puts it a pixel past the root each side.
+      for (final appearance in [
+        FluentTimePickerAppearance.outline,
+        FluentTimePickerAppearance.underline,
+      ]) {
+        await _pump(tester, autofocus: true, appearance: appearance);
+        final overhang = appearance == FluentTimePickerAppearance.underline
+            ? 1.0
+            : 0.0;
+        final box = tester.getRect(find.byType(FluentTimePicker));
+        expect(tester.getRect(bar).left, box.left - overhang);
+        expect(tester.getRect(bar).right, box.right + overhang);
+        expect(
+          tester.widget<FluentInputFocusUnderline>(bar).borderRadius,
+          const BorderRadius.vertical(bottom: FluentRadius.medium),
+        );
+      }
+    });
+
+    testWidgets('the text and the chevron sit on upstream\'s pixels', (
+      tester,
+    ) async {
+      // The `<input>`'s `padding-left` is 8 / 12 / 18 inside the 1px border;
+      // `columnGap` and the chevron's `marginLeft` put 4 / 4 / 12 between the
+      // field and the glyph.
+      const upstream = {
+        FluentTimePickerSize.small: (text: 9.0, gap: 4.0),
+        FluentTimePickerSize.medium: (text: 13.0, gap: 4.0),
+        FluentTimePickerSize.large: (text: 19.0, gap: 12.0),
+      };
+      for (final entry in upstream.entries) {
+        await tester.pumpWidget(
+          FluentApp(
+            theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+            home: Center(
+              child: SizedBox(
+                width: 280,
+                child: FluentTimePicker(
+                  dateAnchor: _anchor,
+                  size: entry.key,
+                  onTimeChange: _noop,
+                ),
+              ),
+            ),
+          ),
+        );
+        final box = tester.getRect(find.byType(FluentTimePicker));
+        final field = tester.getRect(find.byType(EditableText));
+        final chevron = tester.getRect(find.byIcon(fluentTimePickerChevron));
+        expect(field.left - box.left, entry.value.text, reason: '${entry.key}');
+        expect(
+          chevron.left - field.right,
+          entry.value.gap,
+          reason: '${entry.key}',
+        );
+      }
+    });
+
+    test('the root carries upstream\'s 250px minimum width', () {
+      for (final size in FluentTimePickerSize.values) {
+        final style = resolveFluentTimePickerStyle(
+          resolveFluentTimePickerState(
+            controller: TextEditingController(),
+            focusNode: FocusNode(),
+            editableTextKey: GlobalKey<EditableTextState>(),
+            size: size,
+          ),
+          FluentThemeData.light(),
+        );
+        expect(
+          style.minimumSize!.resolve(const <WidgetState>{})!.width,
+          250,
+          reason: size.name,
+        );
+      }
+    });
+
+    testWidgets('the clear glyph replaces the chevron, which stays announced', (
+      tester,
+    ) async {
+      // `showClearIcon && iconStyles.visuallyHidden` on the expand icon: one
+      // glyph shows at a time, and the chevron stays in the accessibility
+      // tree.
+      await _pump(
+        tester,
+        clearable: true,
+        selectedTime: DateTime(2026, 3, 10, 9),
+      );
+      final clear = tester.getRect(find.byIcon(fluentTimePickerClear));
+      final chevron = find.byIcon(fluentTimePickerChevron);
+      expect(tester.getRect(chevron), clear, reason: 'the same slot');
+      expect(
+        tester
+            .widget<Opacity>(
+              find.ancestor(of: chevron, matching: find.byType(Opacity)),
+            )
+            .opacity,
+        0,
+      );
+      expect(find.bySemanticsLabel('Open'), findsOneWidget);
+    });
   });
 }

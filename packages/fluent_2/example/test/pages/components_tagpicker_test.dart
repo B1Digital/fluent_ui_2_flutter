@@ -182,13 +182,20 @@ void main() {
 
       final Finder pickers = find.byType(FluentTagPicker<String>);
       expect(pickers, findsNWidgets(3));
-      // Declared extra-large first, and the chip ramp moves with the control:
-      // medium picks a small tag, the two taller ones a medium tag.
-      for (final (int index, double height, double chip)
-          in <(int, double, double)>[(0, 48, 32), (1, 40, 32), (2, 32, 24)]) {
+      final TextStyle body1 = FluentTheme.of(
+        tester.element(pickers.first),
+      ).typography.body1;
+      final double lineHeight = body1.fontSize! * body1.height!;
+      // Declared extra-large first, and the chip ramp moves with the control
+      // the way upstream's `tagPickerSizeToTagSize` moves it: extra-large
+      // picks a medium tag, large a small one, medium an extra-small one. The
+      // height is upstream's too: the line — a chip or the field, whichever is
+      // taller — padded 12 / 10 / 6 either side, inside the 1px border.
+      for (final (int index, double pad, double chip)
+          in <(int, double, double)>[(0, 12, 32), (1, 10, 24), (2, 6, 20)]) {
         expect(
           tester.getSize(pickers.at(index)).height,
-          height,
+          2 + 2 * pad + (chip > lineHeight ? chip : lineHeight),
           reason: 'control $index',
         );
         expect(
@@ -223,27 +230,34 @@ void main() {
       final BoxDecoration filledDarker = fillOf(tester, pickers.at(2))!;
       final BoxDecoration filledLighter = fillOf(tester, pickers.at(3))!;
 
-      // Outline is the only one with a box border; the underline variant has
-      // no box at all, only the bottom rule every non-filled appearance keeps.
+      // The border is painted — `FluentInputBorderPainter`, the one Input
+      // uses — so the bottom side joins the others on the CSS corner diagonal.
+      FluentInputBorderPainter border(int index) => tester
+          .widgetList<CustomPaint>(
+            find.descendant(
+              of: pickers.at(index),
+              matching: find.byType(CustomPaint),
+            ),
+          )
+          .map((CustomPaint paint) => paint.painter)
+          .whereType<FluentInputBorderPainter>()
+          .first;
+
+      // Outline is the only one with a visible box border; the underline
+      // variant has no box at all, only the bottom border.
       expect(outline.color, theme.colors.neutralBackground1);
-      expect(
-        (outline.border! as Border).top.color,
-        theme.colors.neutralStroke1,
-      );
+      expect(border(0).borderColor, theme.colors.neutralStroke1);
+      expect(border(0).bottomBorderColor, theme.colors.neutralStrokeAccessible);
       expect(underline.color, theme.colors.transparentBackground);
-      expect(underline.border, isNull);
+      expect(border(1).borderColor, isNull);
+      expect(border(1).bottomBorderColor, theme.colors.neutralStrokeAccessible);
       expect(filledDarker.color, theme.colors.neutralBackground3);
       expect(filledLighter.color, theme.colors.neutralBackground1);
-      // Invisible in light and dark, opaque in high contrast — never absent,
-      // or a filled control would vanish into the surface there.
-      for (final BoxDecoration box in <BoxDecoration>[
-        filledDarker,
-        filledLighter,
-      ]) {
-        expect(
-          (box.border! as Border).top.color,
-          theme.colors.transparentStrokeInteractive,
-        );
+      // Upstream's `colorTransparentStroke`: invisible in light and dark,
+      // opaque in high contrast — never absent, or a filled control would
+      // vanish into the surface there.
+      for (final int index in <int>[2, 3]) {
+        expect(border(index).borderColor, theme.colors.transparentStroke);
       }
     });
   });
@@ -257,15 +271,13 @@ void main() {
       final Finder picker = find.byType(FluentTagPicker<String>);
       final FluentThemeData theme = FluentTheme.of(tester.element(picker));
       expect(find.byType(FluentInteractionTag), findsNWidgets(4));
-      expect(
-        fillOf(tester, picker)!.color,
-        theme.colors.neutralBackgroundDisabled,
-      );
+      // Upstream's `disabled`: a transparent fill, not Figma's disabled one.
+      expect(fillOf(tester, picker)!.color, theme.colors.transparentBackground);
       // Disabling drops the dismiss half rather than greying it: there is no
       // `onChanged` to report a removal to.
       expect(find.byType(FluentTagDismissGlyph), findsNothing);
-      // `::after { content: unset }` — a disabled control has no accent bar at
-      // all, not a hidden one.
+      // A disabled control cannot take focus, so it has no accent bar at all,
+      // not a hidden one.
       expect(find.byType(FluentInputFocusUnderline), findsNothing);
 
       await tester.tap(picker, warnIfMissed: false);
@@ -282,15 +294,16 @@ void main() {
   });
 
   group('expand icon', () {
-    testWidgets('the chevron rides in the trailing slot', (
+    testWidgets('the arrow replaces the default chevron', (
       WidgetTester tester,
     ) async {
       await pumpSection(tester, sectionOf('components-tagpicker--expand-icon'));
 
-      final Finder icon = find.byType(Icon);
-      expect(tester.widget<Icon>(icon).icon, FluentIcons.arrow_down_20_filled);
-      // Trailing, past the chip: `secondaryAction` is the only slot on the
-      // control that sits after the wrapping strip.
+      final Finder icon = find.byIcon(FluentIcons.arrow_down_20_filled);
+      expect(icon, findsOneWidget);
+      // Upstream's aside holds the one expand icon; nothing sits beside it.
+      expect(find.byIcon(fluentTagPickerChevron), findsNothing);
+      // Trailing, past the chip, in the aside after the wrapping strip.
       expect(
         tester.getRect(icon).left,
         greaterThan(tester.getRect(find.byType(FluentInteractionTag)).right),
@@ -467,26 +480,24 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpSection(tester, sectionOf('components-tagpicker--single-line'));
-      expect(
-        tester.widget<Icon>(find.byType(Icon)).icon,
-        FluentIcons.chevron_down_20_regular,
-      );
+      final Finder up = find.byIcon(FluentIcons.chevron_up_20_regular);
+      final Finder down = find.byIcon(FluentIcons.chevron_down_20_regular);
+      expect(up, findsNothing);
+      expect(down, findsOneWidget, reason: 'one chevron, in expandIcon');
 
       await mouseClick(tester, _field());
       expect(
-        tester.widget<Icon>(find.byType(Icon)).icon,
-        FluentIcons.chevron_up_20_regular,
+        up,
+        findsOneWidget,
         reason:
             'focus is the closest signal this control exposes to "expanded", '
             'and the chevron is the only thing that reports it',
       );
+      expect(down, findsNothing, reason: 'the up chevron replaced it');
 
       FocusManager.instance.primaryFocus?.unfocus();
       await settle(tester);
-      expect(
-        tester.widget<Icon>(find.byType(Icon)).icon,
-        FluentIcons.chevron_down_20_regular,
-      );
+      expect(up, findsNothing);
     });
   });
 

@@ -1607,7 +1607,7 @@
   },
   "components-tagpicker--expand-icon": {
     "kind": "slot",
-    "why": "`TagPickerControl expandIcon` has no port \u2014 FluentTagPicker draws no chevron of its own and `secondaryAction` is the only trailing slot on the control \u2014 so upstream's ArrowDownFilled goes there."
+    "why": "Upstream's ArrowDownFilled goes in `FluentTagPicker.expandIcon`, sized by the picker as upstream's slot sizes it. `TagPickerOption secondaryContent` has no slot, so 'Microsoft FTE' rides in `FluentTagPickerOption.text`, and FluentAvatar derives neither initials nor a colour from `name`, so both are spelled out per employee."
   },
   "components-tagpicker--filtering": {
     "kind": "local-state",
@@ -1627,7 +1627,7 @@
   },
   "components-tagpicker--single-line": {
     "kind": "reduced",
-    "why": "`Overflow`/`useOverflowCount`/`OverflowItem` have no port, so the chips wrap onto a second line instead of collapsing into a `+N` tag. The chevron survives in `secondaryAction` and flips between chevron_up_20_regular and chevron_down_20_regular with field focus, which is the closest signal this widget exposes to upstream's `open`."
+    "why": "`Overflow`/`useOverflowCount`/`OverflowItem` have no port, so the chips wrap onto a second line instead of collapsing into a `+N` tag. The chevron in `expandIcon` flips between chevron_up_20_regular and chevron_down_20_regular with field focus, which is the closest signal this widget exposes to upstream's `open`."
   },
   "components-tagpicker--single-select": {
     "kind": "local-state",
@@ -1667,7 +1667,7 @@
   },
   "components-textarea--resize": {
     "kind": "reduced",
-    "why": "resize toggles the browser's native drag grip on <textarea>. Flutter has no such affordance, so 'none'/'horizontal' pin the height with maxLines: 2 and 'vertical'/'both' keep the default maxLines: null so the field grows with its text."
+    "why": "resize toggles the browser's native drag grip on <textarea>. Flutter has no such affordance, so 'none'/'horizontal' keep the default, which holds two rows and scrolls like upstream's rows=2, and 'vertical'/'both' pass maxLines: 12 so the field grows with its text up to upstream's 260px max-height."
   },
   "components-textarea--size": {
     "kind": "composed",
