@@ -695,7 +695,11 @@ class _FluentTooltipState extends State<FluentTooltip> {
     // ponytail: measured as the entry builds. The follower keeps the surface
     // glued to a trigger that moves afterwards, but flip and shift are only
     // re-decided when the entry rebuilds; re-measure in layout if a tooltip
-    // on a scrolling trigger ever needs to re-flip mid-scroll.
+    // on a scrolling trigger ever needs to re-flip mid-scroll. The same gap
+    // lets a window resize that moves the trigger, and a scaled ancestor
+    // (this rect is the trigger's screen top-left with its unscaled size),
+    // leave the edge clamp off. Upgrade path: measure in the trigger's local
+    // space during layout, not here at build time.
     final anchor = fluentAnchorRect(context);
     final origin = fluentAnchorRect(overlay.context)?.topLeft;
     // No geometry means an unpainted trigger, and `showWhenUnlinked: false`

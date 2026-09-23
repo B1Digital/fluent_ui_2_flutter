@@ -134,7 +134,7 @@ const FluentTooltipBaseState({
 
 ### `FluentTooltipPosition`
 
-Which side of its target a tooltip sits on.
+Which side of its target a tooltip prefers to sit on.
 
 Source: `packages/fluent_2/lib/src/surfaces/tooltip.dart`
 
