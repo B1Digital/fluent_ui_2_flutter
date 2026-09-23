@@ -9,7 +9,25 @@
   edge that cost no layout. A null `borderColor` means no border and no inset
   whatever `borderWidth` says; a null `bottomBorderColor` means the bottom
   follows `borderColor`. A custom style that set a wide bottom rule, or relied
-  on the border not moving the text, will lay out differently.
+  on the border not moving the text, will lay out differently. The same holds
+  for the bottom-side fields of `FluentSearchBoxStyle`, `FluentTextareaStyle`,
+  `FluentSpinButtonStyle`, `FluentDropdownStyle`, `FluentTagPickerStyle`,
+  `FluentDatePickerStyle` and `FluentTimePickerStyle`.
+- **BREAKING (sibling APIs), each to match upstream:**
+  - `FluentSpinButtonBaseState.inert` is gone — read-only no longer styles the
+    surface, only the steppers go inert;
+  - `FluentSpinButtonChevronPainter` no longer takes `glyphSize` or
+    `strokeWidth`: it fills upstream's 14px svg path;
+  - `FluentTextarea.maxLines: null` holds the field at `minLines` rows and
+    scrolls, as upstream's `rows` does; pass `maxLines` to let it grow;
+  - `FluentTimePickerStyle.trailingGap` is now the space between the text
+    field and the trailing glyph, and `trailingPadding` the inset around the
+    text field;
+  - `FluentDropdown` and `FluentTimePicker` take upstream's 250px minimum
+    width;
+  - `FluentTagPicker` draws upstream's expand chevron by default (`expandIcon`,
+    `fluentTagPickerChevron`), is 34/42/46 tall, and has 32px option rows and
+    upstream-sized tags.
 - **`FluentInputBorderPainter` is new** and is what paints the border. Where the
   bottom colour differs from the sides, the two meet along each bottom corner's
   diagonal the way a browser joins adjacent border colours, instead of the
@@ -25,13 +43,13 @@
   solves it, where Flutter's `Cubic` stops at 1e-3 and drew the bar's ends up
   to 0.4px off Chrome's — and a focus change mid-flight starts a fresh `ease`
   from the current scale over the direction's duration times the distance
-  left, instead of retracing the old curve. Every field sharing the bar picks this up:
-  `FluentInput`, `FluentTextarea`, `FluentSearchBox`, `FluentDropdown`,
-  `FluentTagPicker`, `FluentSpinButton`, `FluentDatePicker` and
-  `FluentTimePicker`, whose alias constants follow.
+  left, instead of retracing the old curve. Every field sharing the bar picks
+  this up: `FluentInput`, `FluentTextarea`, `FluentSearchBox`,
+  `FluentDropdown`, `FluentTagPicker`, `FluentSpinButton`, `FluentDatePicker`
+  and `FluentTimePicker`, whose alias constants follow.
 - **`FluentInput` matches upstream as rendered in Chrome rather than the Figma
-  set**, and so do `FluentDatePicker` and `FluentTimePicker`, which derive
-  their faceplate from it:
+  set**, and so does `FluentDatePicker`, which is `.fui-Input` upstream and
+  derives its faceplate from it:
   - a focused outline field keeps `neutralStroke1Pressed` /
     `neutralStrokeAccessiblePressed` even while hovered;
   - a read-only `FluentInput` is styled exactly like rest — it was on the
@@ -42,10 +60,31 @@
   - the bottom border stays 1px while pressed — it was 2px;
   - text and slots sit inside the border: 1px further in on outline and filled,
     and 0.5px higher on underline, whose only border is the bottom one;
-  - large's text inset is 18 (12 + `SNudge`), not Figma's 14 —
-    `FluentTimePicker` keeps its own trailing padding;
+  - large's text inset is 18 (12 + `SNudge`), not Figma's 14;
   - the caret is 1px, a browser's width, not `EditableText`'s 2 (also in
     `FluentTagPicker`, which composes `FluentInput`).
+- **`FluentSearchBox`, `FluentTextarea`, `FluentSpinButton`, `FluentDropdown`,
+  `FluentTagPicker` and `FluentTimePicker` match upstream as rendered in
+  Chrome**, each measured across its appearances, sizes and states at a pixel
+  ratio of 4:
+  - read-only is styled like rest on all of them — it was on the disabled
+    ramp;
+  - invalid is `colorPaletteRedBorder2`, with new `error` parameters on
+    `FluentSearchBox`, `FluentDropdown` and `FluentTagPicker`;
+  - the bottom border is 1px in every state, joins the sides on the corner
+    diagonal and, like the rest of the border, sits outside the content;
+  - the caret is 1px, and a disabled field shows `not-allowed`;
+  - focus follows each component's own cascade. SearchBox and SpinButton write
+    `:active,:focus-within` as one rule, so a focused field keeps the Pressed
+    stop through a hover, as Input does. Textarea, Dropdown, TagPicker and
+    TimePicker write `:focus-within` alone, which Griffel sorts before
+    `:hover`, so hover wins there; a focused Textarea's bottom border is
+    `compoundBrandStroke`;
+  - Textarea is 44/56/68 tall (new `FluentTextareaStyle.minimumSize`);
+    SpinButton's border is drawn over its steppers, whose fills follow the
+    appearance; TimePicker follows Combobox's padding and ramp rather than
+    Input's, and gained hover and press states; Dropdown's fill no longer
+    ramps on hover and press — only Outline's border does, as upstream.
 - **`FluentDatePicker` and `FluentTimePicker` pass their real `readOnly` to the
   style resolver.** They used to hide it so a default, read-only picker did not
   render greyed out; with read-only unstyled there is nothing left to hide.
