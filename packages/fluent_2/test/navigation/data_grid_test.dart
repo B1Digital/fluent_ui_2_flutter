@@ -474,6 +474,40 @@ void main() {
       expect(find.byType(FluentButton), findsNWidgets(2));
     });
 
+    testWidgets('only the sorted column draws an arrow', (tester) async {
+      await pump(tester, grid(sortable: true, onSort: (_) {}));
+      expect(
+        find.byIcon(FluentIcons.arrow_up_20_regular),
+        findsNothing,
+        reason: 'nothing is sorted, so no header may claim ascending',
+      );
+      expect(find.byIcon(FluentIcons.arrow_down_20_regular), findsNothing);
+      expect(
+        find.byType(FluentButton),
+        findsNWidgets(2),
+        reason: 'an unsorted column keeps its sort control',
+      );
+
+      await pump(
+        tester,
+        grid(
+          sortable: true,
+          onSort: (_) {},
+          sortColumn: 0,
+          sortDirection: FluentDataGridSortDirection.ascending,
+        ),
+      );
+      expect(find.byIcon(FluentIcons.arrow_up_20_regular), findsOneWidget);
+      expect(find.byIcon(FluentIcons.arrow_down_20_regular), findsNothing);
+
+      await pump(tester, grid(sortable: true, onSort: (_) {}, sortColumn: 0));
+      expect(
+        find.byIcon(FluentIcons.arrow_up_20_regular),
+        findsNothing,
+        reason: 'a sort column with a null direction draws no arrow',
+      );
+    });
+
     testWidgets('a Link cell composes FluentLink', (tester) async {
       await pump(
         tester,
