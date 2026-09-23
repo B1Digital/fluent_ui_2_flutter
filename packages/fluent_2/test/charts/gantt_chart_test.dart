@@ -1175,8 +1175,11 @@ void main() {
             'popover and label text',
       );
 
-      final start = DateTime.utc(2024, 3, 15);
-      final end = DateTime.utc(2024, 3, 22);
+      // Local midnights: the axis is local here, so UTC midnights would sit
+      // off a day boundary in any zone east or west of UTC and the span
+      // formatter would pick an hour format ('03 AM' at +03:00) instead.
+      final start = DateTime(2024, 3, 15);
+      final end = DateTime(2024, 3, 22);
       await pump(
         tester,
         FluentGanttChart(
@@ -1201,8 +1204,8 @@ void main() {
       expect(delegate.useUtc, isFalse);
       expect(
         delegate.formattedSpan(delegate.points.single),
-        '${DateFormat('EEE dd', 'en_US').format(start.toLocal())} - '
-        '${DateFormat('EEE dd', 'en_US').format(end.toLocal())}',
+        '${DateFormat('EEE dd', 'en_US').format(start)} - '
+        '${DateFormat('EEE dd', 'en_US').format(end)}',
         reason:
             "a non-'utc' string wins over the widget override and keeps "
             'the popover date text in the axis\'s local time zone.',
