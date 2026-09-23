@@ -99,8 +99,10 @@ const DocsPage splitButtonPage = DocsPage(
   props: <PropRow>[
     PropRow(
       name: 'child',
-      type: 'Widget',
-      description: "The primary action's label.",
+      type: 'Widget?',
+      description:
+          "The primary action's label. Null makes the primary half "
+          'icon-only, which then needs icon and semanticLabel.',
     ),
     PropRow(
       name: 'menuSemanticLabel',
@@ -160,6 +162,14 @@ const DocsPage splitButtonPage = DocsPage(
       type: 'Widget?',
       defaultValue: 'null',
       description: 'The chevron. Defaults to fluentMenuChevron.',
+    ),
+    PropRow(
+      name: 'menuExpanded',
+      type: 'bool?',
+      defaultValue: 'null',
+      description:
+          'Whether the chevron half shows its menu as open. Null follows the '
+          'enclosing FluentMenu.',
     ),
     PropRow(
       name: 'style',
@@ -411,8 +421,6 @@ Widget _icon(BuildContext context) => Wrap(
         child: const Text('With calendar icon and custom filter menu icon'),
       ),
     ),
-    // `child` is required, so an icon-only split button passes an empty label
-    // rather than omitting one.
     FluentMenu(
       items: <FluentMenuItem>[
         FluentMenuItem(label: const Text('Item a'), onPressed: () {}),
@@ -426,7 +434,6 @@ Widget _icon(BuildContext context) => Wrap(
           icon: const Icon(FluentIcons.calendar_month_20_regular),
           onPressed: () {},
           onMenuPressed: toggle,
-          child: const SizedBox.shrink(),
         ),
       ),
     ),
@@ -528,7 +535,6 @@ Widget _sizeSmall(BuildContext context) => Wrap(
           icon: const Icon(FluentIcons.calendar_month_20_regular),
           onPressed: () {},
           onMenuPressed: toggle,
-          child: const SizedBox.shrink(),
         ),
       ),
     ),
@@ -579,7 +585,6 @@ Widget _sizeMedium(BuildContext context) => Wrap(
           icon: const Icon(FluentIcons.calendar_month_20_regular),
           onPressed: () {},
           onMenuPressed: toggle,
-          child: const SizedBox.shrink(),
         ),
       ),
     ),
@@ -633,7 +638,6 @@ Widget _sizeLarge(BuildContext context) => Wrap(
           icon: const Icon(FluentIcons.calendar_month_20_regular),
           onPressed: () {},
           onMenuPressed: toggle,
-          child: const SizedBox.shrink(),
         ),
       ),
     ),
@@ -692,8 +696,9 @@ Widget _withLongText(BuildContext context) => Wrap(
         child: const Text('Short text'),
       ),
     ),
-    // Upstream widths the primary action half itself; here the label carries
-    // the width, which is what makes the text wrap.
+    // Upstream widths the primary action half itself, at 280; here the label
+    // carries the width, which is what makes the text wrap — 280 less the
+    // 13px the half insets its content by on each side.
     FluentMenu(
       items: <FluentMenuItem>[
         FluentMenuItem(label: const Text('Item a'), onPressed: () {}),
@@ -704,7 +709,7 @@ Widget _withLongText(BuildContext context) => Wrap(
         onPressed: () {},
         onMenuPressed: toggle,
         child: const SizedBox(
-          width: 280,
+          width: 254,
           child: Text(
             'Long text wraps after it hits the max width of the component',
           ),

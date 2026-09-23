@@ -281,9 +281,17 @@ void main() {
       expect(style.activeDotSize!.resolve(empty), active.size);
       expect(style.dotSize!.resolve(empty), inactive.size);
       expect(style.dotBorderRadius!.resolve(empty), active.radius);
-      expect(style.dotPadding!.resolve(empty), target.padding);
-      // 4 + 16 + 4 wide, 6 + 8 + 6 tall — the tap target Figma draws round the
-      // active pill.
+      // Figma's tap target is 4 + 16 + 4 wide, 6 + 8 + 6 tall round the active
+      // pill. Upstream's nav sets the dots 4 apart with no padding, and the
+      // footer buttons' 96 floor needs that spacing to fit a page count too,
+      // so the padding keeps Figma's height and half its width.
+      expect(
+        style.dotPadding!.resolve(empty),
+        EdgeInsets.symmetric(
+          horizontal: target.padding!.left / 2,
+          vertical: target.padding!.top,
+        ),
+      );
       expect(
         (target.padding!.horizontal) + active.size.width,
         target.size.width,
@@ -478,6 +486,31 @@ void main() {
         multi.part('Active carousel step').size,
         multi.part('Inactive carousel step').size,
       ]);
+    });
+
+    testWidgets('the dots sit 4 apart, as upstream\'s nav sets them', (
+      tester,
+    ) async {
+      // Live probe of the Carousel story: dots at x 141, 161 and 173 — a
+      // 16-wide pill then two 8-wide dots, `gap: 4px` between them. That
+      // spacing is also what fits four dots and a page count between two
+      // footer buttons at their 96 floor: 288 - 2 x 96 - 2 x 8 leaves 80.
+      await pumpContent(
+        tester,
+        carousel: const FluentTeachingPopoverCarousel(steps: 3, activeStep: 0),
+      );
+      final dots = tester
+          .widgetList<SizedBox>(find.byType(SizedBox))
+          .where((b) => b.height == FluentSize.size80)
+          .toList();
+      final rects = <Rect>[
+        for (final dot in dots) tester.getRect(find.byWidget(dot)),
+      ];
+
+      expect(rects.length, 3);
+      for (var i = 1; i < rects.length; i++) {
+        expect(rects[i].left - rects[i - 1].right, 4, reason: 'gap $i');
+      }
     });
 
     testWidgets('the header block is skipped when there is nothing in it', (

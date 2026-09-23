@@ -31,6 +31,9 @@ class FluentButtonStyle {
     this.iconSize,
     this.minimumSize,
     this.mouseCursor,
+    this.focusRingInsets,
+    this.focusRingInnerColor,
+    this.shadow,
   });
 
   /// Surface fill.
@@ -68,6 +71,22 @@ class FluentButtonStyle {
   /// Cursor while hovering.
   final WidgetStateProperty<MouseCursor?>? mouseCursor;
 
+  /// How deep the keyboard focus ring reaches in from each edge.
+  ///
+  /// Upstream's ring is the button's border turned `strokeFocus2` plus a 1px
+  /// inset shadow, so it is 2px wherever the button has a border and 1px where
+  /// it has none — the split button's chevron half, at the seam.
+  final WidgetStateProperty<EdgeInsetsGeometry?>? focusRingInsets;
+
+  /// A second, 1px ring just inside the focus ring, or null for none.
+  ///
+  /// Primary's white `colorNeutralForegroundOnBrand` step, which upstream drops
+  /// while the button is hovered.
+  final WidgetStateProperty<Color?>? focusRingInnerColor;
+
+  /// Drop shadow. Upstream gives a focused primary button `shadow2`.
+  final WidgetStateProperty<List<BoxShadow>?>? shadow;
+
   /// This style with the non-null properties of [other] layered on top.
   ///
   /// Merging is per-property, not wholesale: overriding only `borderRadius`
@@ -86,6 +105,9 @@ class FluentButtonStyle {
       iconSize: other.iconSize ?? iconSize,
       minimumSize: other.minimumSize ?? minimumSize,
       mouseCursor: other.mouseCursor ?? mouseCursor,
+      focusRingInsets: other.focusRingInsets ?? focusRingInsets,
+      focusRingInnerColor: other.focusRingInnerColor ?? focusRingInnerColor,
+      shadow: other.shadow ?? shadow,
     );
   }
 
@@ -102,6 +124,9 @@ class FluentButtonStyle {
     WidgetStateProperty<double?>? iconSize,
     WidgetStateProperty<Size?>? minimumSize,
     WidgetStateProperty<MouseCursor?>? mouseCursor,
+    WidgetStateProperty<EdgeInsetsGeometry?>? focusRingInsets,
+    WidgetStateProperty<Color?>? focusRingInnerColor,
+    WidgetStateProperty<List<BoxShadow>?>? shadow,
   }) => FluentButtonStyle(
     backgroundColor: backgroundColor ?? this.backgroundColor,
     foregroundColor: foregroundColor ?? this.foregroundColor,
@@ -114,6 +139,9 @@ class FluentButtonStyle {
     iconSize: iconSize ?? this.iconSize,
     minimumSize: minimumSize ?? this.minimumSize,
     mouseCursor: mouseCursor ?? this.mouseCursor,
+    focusRingInsets: focusRingInsets ?? this.focusRingInsets,
+    focusRingInnerColor: focusRingInnerColor ?? this.focusRingInnerColor,
+    shadow: shadow ?? this.shadow,
   );
 
   /// Convenience for the common case of one value across every state.
@@ -132,6 +160,9 @@ class FluentButtonStyle {
     double? iconSize,
     Size? minimumSize,
     MouseCursor? mouseCursor,
+    EdgeInsetsGeometry? focusRingInsets,
+    Color? focusRingInnerColor,
+    List<BoxShadow>? shadow,
   }) => FluentButtonStyle(
     backgroundColor: _all(backgroundColor),
     foregroundColor: _all(foregroundColor),
@@ -144,6 +175,9 @@ class FluentButtonStyle {
     iconSize: _all(iconSize),
     minimumSize: _all(minimumSize),
     mouseCursor: _all(mouseCursor),
+    focusRingInsets: _all(focusRingInsets),
+    focusRingInnerColor: _all(focusRingInnerColor),
+    shadow: _all(shadow),
   );
 
   static WidgetStateProperty<T?>? _all<T>(T? value) =>
@@ -162,7 +196,10 @@ class FluentButtonStyle {
       other.gap == gap &&
       other.iconSize == iconSize &&
       other.minimumSize == minimumSize &&
-      other.mouseCursor == mouseCursor;
+      other.mouseCursor == mouseCursor &&
+      other.focusRingInsets == focusRingInsets &&
+      other.focusRingInnerColor == focusRingInnerColor &&
+      other.shadow == shadow;
 
   @override
   int get hashCode => Object.hash(
@@ -177,5 +214,8 @@ class FluentButtonStyle {
     iconSize,
     minimumSize,
     mouseCursor,
+    focusRingInsets,
+    focusRingInnerColor,
+    shadow,
   );
 }
