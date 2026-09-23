@@ -10,6 +10,31 @@
   else paints as `BoxDecoration`. The CarouselNav and Carousel demos use it,
   which is what stopped the CarouselNav card rendering solid grey.
 
+### Fixed
+
+- **A `FluentTooltip` near the edge of the window was drawn outside it.** The
+  surface always sat on the side `position` named (`above` by default) and was
+  centred on its trigger with no bounds check, so a tooltip on a bar at the
+  top of the window landed above the window entirely, and one on a bar's
+  end button ran off the side. Upstream's tooltip never pins its placement,
+  so `usePositioning` applies floating-ui's `flip` and `shift` to it: the
+  surface now flips to the opposite side when the preferred one cannot hold it
+  and the opposite one has more room (`before`/`after` in reading order), and
+  slides along the trigger's edge to stay inside the `Overlay`. The arrow is
+  drawn for the side the surface landed on and stays centred on the trigger,
+  8px clear of the surface's corners, the way floating-ui's `arrow` middleware
+  places it. With room on every side nothing moves. It is settled in one
+  layout pass — no frame shows the surface on the wrong side, and nothing is
+  scheduled while it is open — and the surface still follows a trigger that
+  moves.
+
+### Changed
+
+- **`FluentTooltip.position` is now a preference.** A tooltip with no room on
+  that side opens on the opposite one; see the Positioning section of
+  `FluentTooltip`. `buildFluentTooltip` is unchanged and still stacks the
+  arrow on exactly the side its state names.
+
 ## 0.0.5
 
 ### Fixed

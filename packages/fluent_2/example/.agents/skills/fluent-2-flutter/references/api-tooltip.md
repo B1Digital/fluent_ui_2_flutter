@@ -63,7 +63,7 @@ const FluentTooltip({
 | `child` | `Widget` | Yes | — | The trigger. Hovering or keyboard-focusing it shows the tooltip. |
 | `content` | `Widget` | Yes | — | The tooltip body. Wraps at 240 logical pixels. |
 | `appearance` | `FluentTooltipAppearance` | No | `FluentTooltipAppearance.normal` | Fill treatment. |
-| `position` | `FluentTooltipPosition` | No | `FluentTooltipPosition.above` | Which side of [child] the surface sits on. |
+| `position` | `FluentTooltipPosition` | No | `FluentTooltipPosition.above` | Which side of [child] the surface prefers. It flips to the opposite side when this one lacks room inside the [Overlay] and that one has more. |
 | `withArrow` | `bool` | No | `false` | Whether to draw the pointing arrow. |
 | `enabled` | `bool` | No | `true` | Whether the tooltip may appear at all. |
 | `style` | `FluentTooltipStyle?` | No | `null` | Overrides layered over the theme defaults. Merged last, so it wins. |

@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
+import '../internal/anchor_metrics.dart';
 import '../internal/defer.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
@@ -20,11 +22,15 @@ enum FluentTooltipAppearance {
   inverted,
 }
 
-/// Which side of its target a tooltip sits on.
+/// Which side of its target a tooltip prefers to sit on.
 ///
 /// Not a Figma variant axis: the design file ships the four sides as twelve
 /// hidden arrow layers inside a single component, and every one of them is
 /// `visible: false` by default.
+///
+/// [FluentTooltip] treats this as a preference, the way upstream's
+/// `positioning` is: a side without room flips to its opposite. See the
+/// Positioning section there.
 enum FluentTooltipPosition {
   /// Above the target, arrow pointing down. The default.
   above,
@@ -128,6 +134,14 @@ const Size _arrowSize = Size(12, 6);
 /// and a tooltip that lagged a quarter second behind the focus ring would read
 /// as a bug rather than as patience.
 const Duration _hoverDelay = Duration(milliseconds: 250);
+
+/// How far the arrow keeps from the surface's corners when it slides along an
+/// edge to keep pointing at a shifted surface's trigger.
+///
+/// `useTooltipBase.tsx:93` passes `arrowPadding: 2 * tooltipBorderRadius`, and
+/// `private/constants.ts` fixes `tooltipBorderRadius = 4` — a transcription of
+/// `borderRadiusMedium`, not a token read — so this is transcribed too.
+const double _arrowPadding = 8;
 
 /// Resolves the default style for [state] against [theme].
 ///
@@ -249,27 +263,7 @@ Widget buildFluentTooltip(
 
   if (!state.withArrow) return surface;
 
-  // Figma leaves the arrow unstroked and unshadowed even where the surface has
-  // both, so it is a bare filled triangle.
-  final vertical =
-      state.position == FluentTooltipPosition.above ||
-      state.position == FluentTooltipPosition.below;
-  // The Row below IS direction-aware and a Path is not, so the painter has to
-  // be told which way it is reading. Taken from the ambient Directionality
-  // through a Builder rather than added as a fourth parameter: that keeps this
-  // function's three-argument recomposition shape, and it makes the apex
-  // physically incapable of disagreeing with the Row that places it.
-  final arrow = Builder(
-    builder: (context) => CustomPaint(
-      size: vertical ? arrowSize : Size(arrowSize.height, arrowSize.width),
-      painter: FluentTooltipArrowPainter(
-        color: background ?? const Color(0x00000000),
-        position: state.position,
-        textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
-      ),
-    ),
-  );
-
+  final arrow = _buildArrow(state.position, background, arrowSize);
   return switch (state.position) {
     FluentTooltipPosition.above => Column(
       mainAxisSize: MainAxisSize.min,
@@ -288,6 +282,35 @@ Widget buildFluentTooltip(
       children: <Widget>[arrow, surface],
     ),
   };
+}
+
+/// The pointing arrow for a surface on [side] of its target, filled [color].
+///
+/// Shared by [buildFluentTooltip], which stacks it against the surface in a
+/// Row or Column, and by [FluentTooltip], which places it against the trigger.
+/// Figma leaves the arrow unstroked and unshadowed even where the surface has
+/// both, so it is a bare filled triangle.
+Widget _buildArrow(FluentTooltipPosition side, Color? color, Size size) {
+  final vertical =
+      side == FluentTooltipPosition.above ||
+      side == FluentTooltipPosition.below;
+  // Whatever places the arrow — the Row in [buildFluentTooltip], the layout in
+  // [FluentTooltip] — IS direction-aware and a Path is not, so the painter has
+  // to be told which way it is reading. Taken from the ambient Directionality
+  // through a Builder rather than added as a fourth parameter to
+  // [buildFluentTooltip]: that keeps its three-argument recomposition shape,
+  // and it makes the apex physically incapable of disagreeing with whatever
+  // placed it.
+  return Builder(
+    builder: (context) => CustomPaint(
+      size: vertical ? size : size.flipped,
+      painter: FluentTooltipArrowPainter(
+        color: color ?? const Color(0x00000000),
+        position: side,
+        textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
+      ),
+    ),
+  );
 }
 
 /// Paints the tooltip's pointing arrow.
@@ -436,6 +459,33 @@ class FluentTooltipTheme extends InheritedTheme {
 /// and the themes between this widget and the overlay are captured on the way
 /// in, so tokens resolve against the trigger's theme rather than the app root's.
 ///
+/// [position] is the preferred side, not a guarantee. Upstream's tooltip never
+/// sets `pinned` (`useTooltipBase.tsx:91-99`), so `usePositioningOptions.ts`
+/// runs floating-ui's `flip` and then `shift` on it (`:159-168`) with neither
+/// boundary nor padding overridden — the clipping ancestors inside the
+/// viewport, padding 0 (floating-ui `detectOverflow.ts:56-60`), whose analogue
+/// here is the [Overlay]:
+///
+/// - **Flip.** `flip.ts:99-103` gives a centred placement exactly one fallback,
+///   the opposite side, under `fallbackStrategy: 'bestFit'`
+///   (react-positioning `middleware/flip.ts:27`). So a side that cannot hold
+///   the surface plus its offset gives way to the opposite side when that side
+///   has more room — `before`/`after` in reading order — and otherwise stays
+///   put rather than trading one overflow for a worse one.
+/// - **Shift.** floating-ui's `shift` defaults to the alignment axis only
+///   (`shift.ts:53-54`), so the surface slides along the trigger's edge until
+///   it is inside, flush with the boundary, and never off its side. One too
+///   wide for the overlay starts at its left edge (top, for `before`/`after`),
+///   in either reading direction, as `clamp` does.
+/// - **Arrow.** `arrow.ts:72-86` centres the arrow on the *trigger*, kept
+///   `arrowPadding` from the surface's corners, so a shifted surface still
+///   points at what it describes; after a flip the arrow is drawn for the side
+///   the surface landed on.
+///
+/// All of it is settled in one layout pass that sees the surface's size, so no
+/// frame shows the surface on the side it is about to leave, and nothing is
+/// scheduled while it is open.
+///
 /// Customisation follows the same three rungs as the rest of the package.
 /// [style] is merged last and wins; [FluentTooltipTheme] restyles a subtree; and
 /// [resolveFluentTooltipState], [resolveFluentTooltipStyle] and
@@ -464,7 +514,8 @@ class FluentTooltip extends StatefulWidget {
   /// Fill treatment.
   final FluentTooltipAppearance appearance;
 
-  /// Which side of [child] the surface sits on.
+  /// Which side of [child] the surface prefers. It flips to the opposite side
+  /// when this one lacks room inside the [Overlay] and that one has more.
   final FluentTooltipPosition position;
 
   /// Whether to draw the pointing arrow.
@@ -601,7 +652,9 @@ class _FluentTooltipState extends State<FluentTooltip> {
     // every dependency change, so a theme swap mid-hover still repaints; only a
     // theme read by `content` itself would go stale.
     final captured = InheritedTheme.capture(from: context, to: overlay.context);
-    _entry = OverlayEntry(builder: (_) => captured.wrap(_buildFollower()));
+    _entry = OverlayEntry(
+      builder: (_) => captured.wrap(_buildFollower(overlay)),
+    );
     overlay.insert(_entry!);
   }
 
@@ -614,7 +667,7 @@ class _FluentTooltipState extends State<FluentTooltip> {
       ..dispose();
   }
 
-  Widget _buildFollower() {
+  Widget _buildFollower(OverlayState overlay) {
     final state = resolveFluentTooltipState(
       appearance: widget.appearance,
       position: widget.position,
@@ -634,50 +687,44 @@ class _FluentTooltipState extends State<FluentTooltip> {
     // an RTL subtree would otherwise anchor its tooltip on the wrong edge.
     // `FluentDrawer` reads its own the same way, at drawer.dart:758.
     final direction = Directionality.of(context);
-    // `before`/`after` are reading-order sides, so the physical direction the
-    // surface is pushed in flips with the reading direction. `above`/`below`
-    // never do — vertical never mirrors.
-    final inline = direction == TextDirection.rtl ? -offset : offset;
-    final (target, follower, shift) = switch (widget.position) {
-      FluentTooltipPosition.above => (
-        AlignmentDirectional.topCenter,
-        AlignmentDirectional.bottomCenter,
-        Offset(0, -offset),
-      ),
-      FluentTooltipPosition.below => (
-        AlignmentDirectional.bottomCenter,
-        AlignmentDirectional.topCenter,
-        Offset(0, offset),
-      ),
-      FluentTooltipPosition.before => (
-        AlignmentDirectional.centerStart,
-        AlignmentDirectional.centerEnd,
-        Offset(-inline, 0),
-      ),
-      FluentTooltipPosition.after => (
-        AlignmentDirectional.centerEnd,
-        AlignmentDirectional.centerStart,
-        Offset(inline, 0),
-      ),
-    };
 
-    return Positioned(
-      left: 0,
-      top: 0,
+    // The trigger in the overlay's coordinates, from its last layout — the
+    // tooltip only opens on a trigger that is already hovered or focused, so
+    // there is one. Screen rects on both sides because a LeaderLayer offset is
+    // layer-local (see [fluentAnchorRect]).
+    // ponytail: measured as the entry builds. The follower keeps the surface
+    // glued to a trigger that moves afterwards, but flip and shift are only
+    // re-decided when the entry rebuilds; re-measure in layout if a tooltip
+    // on a scrolling trigger ever needs to re-flip mid-scroll.
+    final anchor = fluentAnchorRect(context);
+    final origin = fluentAnchorRect(overlay.context)?.topLeft;
+    // No geometry means an unpainted trigger, and `showWhenUnlinked: false`
+    // hides the surface of an unpainted leader anyway.
+    final target = anchor == null || origin == null
+        ? Rect.zero
+        : anchor.shift(-origin);
+
+    // The arrow is laid out as the surface's sibling rather than inside
+    // `buildFluentTooltip`'s Row/Column, because where it goes is only known
+    // once the surface has been measured.
+    final surface = FluentTooltipBaseState(
+      position: state.position,
+      withArrow: false,
+      content: state.content,
+    );
+    final background = style.backgroundColor?.resolve(states);
+    final arrowSize = style.arrowSize?.resolve(states) ?? _arrowSize;
+
+    // Filling the overlay hands the layout the overlay's size on every pass;
+    // the follower's default top-left anchors then put its origin on the
+    // trigger's top-left, which is what [_FluentTooltipLayout] places against.
+    return Positioned.fill(
       child: CompositedTransformFollower(
         link: _link,
         showWhenUnlinked: false,
-        // Both anchors are typed `Alignment` (basic.dart:2054, 2062), which is
-        // NOT direction-aware — an AlignmentDirectional handed to either would
-        // be rejected by the analyser, and a raw Alignment would silently stay
-        // physical. Resolving here is the only place that can flip them.
-        targetAnchor: target.resolve(direction),
-        followerAnchor: follower.resolve(direction),
-        offset: shift,
         // Re-provided because the surface builds inside the Overlay, outside
-        // this subtree: the Row in `buildFluentTooltip` and the arrow painter
-        // under it both read it, and both have to agree with the anchors
-        // resolved just above.
+        // this subtree: the layout resolves `before`/`after` against it, and
+        // the arrow painter reads it to agree.
         child: Directionality(
           textDirection: direction,
           // A tooltip that swallowed pointer events would flicker: the surface
@@ -691,7 +738,32 @@ class _FluentTooltipState extends State<FluentTooltip> {
           // already announced on the trigger below.
           child: IgnorePointer(
             child: ExcludeSemantics(
-              child: buildFluentTooltip(state, style, states),
+              child: CustomMultiChildLayout(
+                delegate: _FluentTooltipLayout(
+                  target: target,
+                  position: widget.position,
+                  direction: direction,
+                  offset: offset,
+                  arrowSize: arrowSize,
+                ),
+                children: <Widget>[
+                  LayoutId(
+                    id: _TooltipSlot.surface,
+                    child: buildFluentTooltip(surface, style, states),
+                  ),
+                  if (widget.withArrow)
+                    LayoutId(
+                      id: _TooltipSlot.arrow,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) => _buildArrow(
+                          (constraints as _SideConstraints).side,
+                          background,
+                          arrowSize,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -726,4 +798,182 @@ class _FluentTooltipState extends State<FluentTooltip> {
     }
     return result;
   }
+}
+
+/// The two things [_FluentTooltipLayout] places.
+enum _TooltipSlot { surface, arrow }
+
+/// Tight constraints that also name the side the surface landed on.
+///
+/// That side is only known in layout — flipping needs the surface's measured
+/// size — but [FluentTooltipArrowPainter] takes it at build time. A
+/// [LayoutBuilder] is the framework's sanctioned way to build during layout,
+/// and it rebuilds exactly when its constraints stop comparing equal, so the
+/// side rides on them: the same side costs nothing, a flip rebuilds the arrow
+/// once, inside the same pass.
+class _SideConstraints extends BoxConstraints {
+  _SideConstraints(this.side, Size size) : super.tight(size);
+
+  final FluentTooltipPosition side;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _SideConstraints && other.side == side && super == other;
+
+  @override
+  int get hashCode => Object.hash(super.hashCode, side);
+}
+
+/// Places the surface on its preferred side of the trigger, flipping and
+/// shifting it to stay inside the overlay, with the arrow between the two.
+///
+/// The box fills the overlay, but the follower paints it with its origin on the
+/// trigger's top-left, so every position is worked out in overlay coordinates
+/// and handed over relative to [target]'s top-left. The rules are floating-ui's
+/// as upstream's tooltip configures them — see "Positioning" on
+/// [FluentTooltip].
+class _FluentTooltipLayout extends MultiChildLayoutDelegate {
+  _FluentTooltipLayout({
+    required this.target,
+    required this.position,
+    required this.direction,
+    required this.offset,
+    required this.arrowSize,
+  });
+
+  /// The trigger, in overlay coordinates, as of the last build.
+  final Rect target;
+
+  /// The preferred side.
+  final FluentTooltipPosition position;
+
+  /// What `before`/`after` resolve against.
+  final TextDirection direction;
+
+  /// The gap between the trigger and the arrow's tip — or the surface, without
+  /// an arrow.
+  final double offset;
+
+  /// The arrow's box pointing up or down; transposed for a side one.
+  final Size arrowSize;
+
+  AxisDirection _physical(FluentTooltipPosition side) => switch (side) {
+    FluentTooltipPosition.above => AxisDirection.up,
+    FluentTooltipPosition.below => AxisDirection.down,
+    FluentTooltipPosition.before =>
+      direction == TextDirection.rtl ? AxisDirection.right : AxisDirection.left,
+    FluentTooltipPosition.after =>
+      direction == TextDirection.rtl ? AxisDirection.left : AxisDirection.right,
+  };
+
+  @override
+  void performLayout(Size size) {
+    final surface = layoutChild(
+      _TooltipSlot.surface,
+      BoxConstraints.loose(size),
+    );
+    final hasArrow = hasChild(_TooltipSlot.arrow);
+    final vertical =
+        position == FluentTooltipPosition.above ||
+        position == FluentTooltipPosition.below;
+    final arrow = !hasArrow
+        ? Size.zero
+        : vertical
+        ? arrowSize
+        : arrowSize.flipped;
+
+    // Flip: the room between the trigger and the overlay edge on each side,
+    // against what the placement needs there. The need is the same on either
+    // side, so `bestFit`'s least overflow is simply the most room.
+    double room(AxisDirection side) => switch (side) {
+      AxisDirection.up => target.top,
+      AxisDirection.down => size.height - target.bottom,
+      AxisDirection.left => target.left,
+      AxisDirection.right => size.width - target.right,
+    };
+    final need =
+        offset +
+        (vertical
+            ? surface.height + arrow.height
+            : surface.width + arrow.width);
+    final opposite = switch (position) {
+      FluentTooltipPosition.above => FluentTooltipPosition.below,
+      FluentTooltipPosition.below => FluentTooltipPosition.above,
+      FluentTooltipPosition.before => FluentTooltipPosition.after,
+      FluentTooltipPosition.after => FluentTooltipPosition.before,
+    };
+    final preferredRoom = room(_physical(position));
+    final side =
+        preferredRoom < need && room(_physical(opposite)) > preferredRoom
+        ? opposite
+        : position;
+
+    // Main axis: the arrow's tip `offset` off the trigger, the surface behind.
+    final (arrowMain, surfaceMain) = switch (_physical(side)) {
+      AxisDirection.up => (
+        target.top - offset - arrow.height,
+        target.top - offset - arrow.height - surface.height,
+      ),
+      AxisDirection.down => (
+        target.bottom + offset,
+        target.bottom + offset + arrow.height,
+      ),
+      AxisDirection.left => (
+        target.left - offset - arrow.width,
+        target.left - offset - arrow.width - surface.width,
+      ),
+      AxisDirection.right => (
+        target.right + offset,
+        target.right + offset + arrow.width,
+      ),
+    };
+
+    // Cross axis. Shift: centred on the trigger, then clamped inside the
+    // overlay with no padding — floating-ui's `clamp(min, v, max)` is
+    // `max(min, min(v, max))`, so a surface wider than the overlay starts at 0.
+    double shift(double centre, double length, double extent) =>
+        math.max(0, math.min(centre - length / 2, extent - length));
+    // Arrow: centred on the trigger, kept inside the surface — `arrow.ts:76-86`,
+    // down to trimming the padding on a surface too small to honour it.
+    double pin(double start, double length, double centre, double tip) {
+      final padding = math.min(_arrowPadding, length / 2 - tip / 2 - 1);
+      return start +
+          math.max(
+            padding,
+            math.min(centre - start - tip / 2, length - tip - padding),
+          );
+    }
+
+    final Offset surfaceAt;
+    final Offset arrowAt;
+    if (vertical) {
+      final x = shift(target.center.dx, surface.width, size.width);
+      surfaceAt = Offset(x, surfaceMain);
+      arrowAt = Offset(
+        pin(x, surface.width, target.center.dx, arrow.width),
+        arrowMain,
+      );
+    } else {
+      final y = shift(target.center.dy, surface.height, size.height);
+      surfaceAt = Offset(surfaceMain, y);
+      arrowAt = Offset(
+        arrowMain,
+        pin(y, surface.height, target.center.dy, arrow.height),
+      );
+    }
+
+    positionChild(_TooltipSlot.surface, surfaceAt - target.topLeft);
+    if (hasArrow) {
+      layoutChild(_TooltipSlot.arrow, _SideConstraints(side, arrow));
+      positionChild(_TooltipSlot.arrow, arrowAt - target.topLeft);
+    }
+  }
+
+  @override
+  bool shouldRelayout(_FluentTooltipLayout oldDelegate) =>
+      oldDelegate.target != target ||
+      oldDelegate.position != position ||
+      oldDelegate.direction != direction ||
+      oldDelegate.offset != offset ||
+      oldDelegate.arrowSize != arrowSize;
 }
