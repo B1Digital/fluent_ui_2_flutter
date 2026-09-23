@@ -438,7 +438,11 @@ class FluentEventAnnotation {
   /// The label shown beside the marker.
   final String event;
 
-  /// Builds the card shown when the marker is activated. Null draws the default
-  /// card.
+  /// Builds the card listed in the popover that opens when this event's label
+  /// is clicked (`LabelLink.tsx:33-37`).
+  ///
+  /// Null contributes no card; there is no default one. A label speaking for
+  /// several events lists every non-null card among them in date order, and a
+  /// label whose events have no cards opens nothing.
   final WidgetBuilder? cardBuilder;
 }
