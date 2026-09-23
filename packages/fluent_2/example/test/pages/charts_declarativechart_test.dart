@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:fluent_2/fluent_2.dart';
 import 'package:fluent_2_example/shell/catalog.dart';
+import 'package:fluent_2_example/shell/file_saver.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -332,40 +334,45 @@ void main() {
   });
 
   group('export', () {
-    testWidgets('Download rasterises the chart and reports its size', (
+    testWidgets('Download saves the chart as converted-image.png', (
       WidgetTester tester,
     ) async {
-      await pumpSection(tester, section);
-      expect(find.textContaining('Exported'), findsNothing);
+      // The showroom is web-only and these tests run on the VM, where there is
+      // no browser to hand the file to, so the save is recorded instead.
+      final List<(Uint8List, String)> saved = <(Uint8List, String)>[];
+      final previous = saveFile;
+      saveFile = (Uint8List bytes, String fileName) =>
+          saved.add((bytes, fileName));
+      addTearDown(() => saveFile = previous);
 
+      await pumpSection(tester, section);
       await tester.ensureVisible(find.text('Download'));
       await settle(tester);
       // Inside `runAsync`, because the export bottoms out in
       // `RenderRepaintBoundary.toImage`: its future is driven by the real event
       // loop, and a press dispatched under the fake one starts a rasterisation
       // that can never complete.
-      await tester.runAsync(() => tester.tap(find.text('Download')));
+      await tester.runAsync(
+        () => mouseClickAt(tester, tester.getCenter(find.text('Download'))),
+      );
 
       // Polled, not slept. A fixed wait here was flaky: the rasterisation runs
       // on the REAL event loop, so its latency scales with machine load, and a
       // 300ms budget that is ample for this file alone is not ample inside a
-      // full-suite run. Each turn of the loop has to leave `runAsync` to pump,
-      // because the result arrives via `setState` and the tree does not rebuild
-      // while real async work is in flight.
-      final exported = find.textContaining(
-        RegExp(r'^Exported [1-9]\d* bytes$'),
-      );
-      for (var i = 0; i < 60 && exported.evaluate().isEmpty; i++) {
+      // full-suite run.
+      for (var i = 0; i < 60 && saved.isEmpty; i++) {
         await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 50)),
         );
-        await settle(tester);
       }
 
+      expect(saved, hasLength(1), reason: 'Download must save a file');
+      final (Uint8List bytes, String fileName) = saved.single;
+      expect(fileName, 'converted-image.png');
       expect(
-        exported,
-        findsOneWidget,
-        reason: 'the export must produce real PNG bytes, not an empty buffer',
+        String.fromCharCodes(bytes.take(4)),
+        '\x89PNG',
+        reason: 'the export must hand over a real PNG, not an empty buffer',
       );
     });
 
