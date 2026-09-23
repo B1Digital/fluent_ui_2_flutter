@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/gestures.dart'
+    show PointerDeviceKind, kSecondaryMouseButton;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -976,8 +978,6 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
       _focusNode.addListener(_onFocusChanged);
       _focused = _focusNode.hasFocus;
     }
-    // Disabling mid-hover or mid-press must not leave either state behind.
-    if (!widget.enabled) _hovered = _pressed = false;
   }
 
   @override
@@ -1020,9 +1020,16 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
     _focusNode.requestFocus();
   }
 
+  /// Hover and press are tracked while disabled too and filtered in [build],
+  /// because Chrome keeps a disabled root's `:hover` and `:active`: re-enabled
+  /// under a resting mouse, the box hovers at once. The release of a press can
+  /// land after [dispose], on the detached [Listener].
+  void _setHovered(bool value) {
+    if (mounted && _hovered != value) setState(() => _hovered = value);
+  }
+
   void _setPressed(bool value) {
-    if (_pressed == value || (value && !widget.enabled)) return;
-    setState(() => _pressed = value);
+    if (mounted && _pressed != value) setState(() => _pressed = value);
   }
 
   /// A tap in the `<input>`'s box but off the text itself — its padding-left,
@@ -1045,6 +1052,31 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
     if (_focusNode.hasFocus && (rtl ? x < 0 : x > width)) return;
     editable.selectPositionAt(from: at, cause: SelectionChangedCause.tap);
     _focusNode.requestFocus();
+  }
+
+  /// Chrome focuses the `<input>` on mousedown — any button — with the caret
+  /// where the press landed, so the bar grows under a held press; the tap
+  /// above only focuses on release. Same box as [_handleTapUp]: a press on the
+  /// search icon or the root padding leaves focus alone. Through the field's
+  /// own selection path, so desktop's select-all-on-focus stays out, and only
+  /// while unfocused, so a right press keeps the selection it lands on.
+  /// Returns whether the press moved focus here.
+  bool _focusOnPress(PointerDownEvent event) {
+    final editable = editableTextKey.currentState?.renderEditable;
+    if (!widget.enabled ||
+        editable == null ||
+        event.kind != PointerDeviceKind.mouse ||
+        _focusNode.hasFocus) {
+      return false;
+    }
+    final x = editable.globalToLocal(event.position).dx;
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    if (rtl ? x > editable.size.width + _gap : x < -_gap) return false;
+    editable.selectPositionAt(
+      from: event.position,
+      cause: SelectionChangedCause.tap,
+    );
+    return true;
   }
 
   @override
@@ -1200,17 +1232,17 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
       cursor: widget.enabled
           ? SystemMouseCursors.basic
           : SystemMouseCursors.forbidden,
-      onEnter: (_) {
-        if (widget.enabled) setState(() => _hovered = true);
-      },
-      onExit: (_) => setState(() => _hovered = false),
+      onEnter: (_) => _setHovered(true),
+      onExit: (_) => _setHovered(false),
       // `:active` holds on the root for a press anywhere inside it — padding,
       // icon, text or clear button — until release, for any button: unlike
       // the Combobox family, a right press takes it too (Chrome). Chrome drops
-      // it only for a right press that also moves focus, which no press here
-      // does on pointer down.
+      // it only for a right press that also moves focus into the input.
       child: Listener(
-        onPointerDown: (_) => _setPressed(true),
+        onPointerDown: (event) {
+          final moved = _focusOnPress(event);
+          _setPressed(!(moved && event.buttons == kSecondaryMouseButton));
+        },
         onPointerUp: (_) => _setPressed(false),
         onPointerCancel: (_) => _setPressed(false),
         child: GestureDetector(

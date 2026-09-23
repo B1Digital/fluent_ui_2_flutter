@@ -1,4 +1,5 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -703,13 +704,6 @@ class _FluentTextareaState extends State<FluentTextarea>
       _focusNode.addListener(_onFocusChanged);
       _focused = _focusNode.hasFocus;
     }
-    if (!_enabled) {
-      // Clear the pointer states rather than leaving a stale hover behind when
-      // the field is disabled mid-gesture.
-      _statesController
-        ..update(WidgetState.hovered, false)
-        ..update(WidgetState.pressed, false);
-    }
     _statesController.update(WidgetState.disabled, !_enabled);
   }
 
@@ -744,13 +738,36 @@ class _FluentTextareaState extends State<FluentTextarea>
         cause != SelectionChangedCause.keyboard &&
         !(widget.readOnly && selection.isCollapsed) &&
         (cause == SelectionChangedCause.longPress ||
+            cause == SelectionChangedCause.stylusHandwriting ||
             _controller.text.isNotEmpty);
     if (show != _showHandles) setState(() => _showHandles = show);
   }
 
+  /// Hover and press are tracked while disabled too and filtered in [build],
+  /// because Chrome keeps a disabled root's `:hover` and `:active`: re-enabled
+  /// under a resting mouse, the field hovers at once. The release of a press
+  /// can land after [dispose], on the detached [Listener].
   void _set(WidgetState state, {required bool value}) {
-    if (!_enabled && value) return;
+    if (!mounted) return;
     _statesController.update(state, value);
+  }
+
+  /// Chrome focuses a `<textarea>` on mousedown — any button — with the caret
+  /// where the press landed, so the bar grows under a held press; Flutter's
+  /// tap-down never sees a middle press and waits for a contested arena. As
+  /// `FluentInput` does: through the field's own selection path, so desktop's
+  /// select-all-on-focus stays out, and only while unfocused, so a right press
+  /// keeps the selection it lands on.
+  void _focusOnPress(PointerDownEvent event) {
+    if (!_enabled ||
+        event.kind != PointerDeviceKind.mouse ||
+        _focusNode.hasFocus) {
+      return;
+    }
+    editableTextKey.currentState?.renderEditable.selectPositionAt(
+      from: event.position,
+      cause: SelectionChangedCause.tap,
+    );
   }
 
   @override
@@ -771,7 +788,10 @@ class _FluentTextareaState extends State<FluentTextarea>
       theme,
     ).merge(FluentTextareaTheme.maybeOf(context)).merge(widget.style);
 
-    final states = _statesController.value;
+    // A disabled field keeps its pointer states (see [_set]) but shows none.
+    final states = _enabled
+        ? _statesController.value
+        : const <WidgetState>{WidgetState.disabled};
     // ponytail: a one-row field grows rather than scrolls. EditableText's
     // `maxLines: 1` is a single-line input that cannot wrap and strips
     // newlines; holding one wrapped row needs a height clamp in pixels.
@@ -878,7 +898,13 @@ class _FluentTextareaState extends State<FluentTextarea>
         // Any button: a `<textarea>` takes `:active` from a right press too,
         // unlike the Combobox family (Chrome).
         child: Listener(
-          onPointerDown: (_) => _set(WidgetState.pressed, value: true),
+          // Translucent so a disabled field, whose chrome ignores the pointer,
+          // still sees its press.
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (event) {
+            _set(WidgetState.pressed, value: true);
+            _focusOnPress(event);
+          },
           onPointerUp: (_) => _set(WidgetState.pressed, value: false),
           onPointerCancel: (_) => _set(WidgetState.pressed, value: false),
           // The chrome is built around the `EditableText`, so it falls outside

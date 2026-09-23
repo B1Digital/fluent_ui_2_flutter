@@ -309,6 +309,52 @@ void main() {
       await tester.pumpAndSettle();
     });
 
+    testWidgets('re-enabled under a resting mouse, it hovers and presses', (
+      tester,
+    ) async {
+      // Chrome: a disabled root still matches `:hover`, and `:active` under a
+      // held press, so dropping `disabled` shows both at once, unmoved.
+      final c = light().colors;
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await pump(tester, const FluentTextarea(key: key, enabled: false));
+      await mouse.moveTo(tester.getCenter(find.byKey(key)));
+      await tester.pump();
+      expect(borderOf(tester).borderColor, c.neutralStrokeDisabled);
+      await pump(tester, const FluentTextarea(key: key));
+      expect(borderOf(tester).borderColor, c.neutralStroke1Hover);
+
+      await pump(tester, const FluentTextarea(key: key, enabled: false));
+      final press = await tester.startGesture(
+        tester.getCenter(find.byKey(key)),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      expect(borderOf(tester).borderColor, c.neutralStrokeDisabled);
+      await pump(tester, const FluentTextarea(key: key));
+      expect(borderOf(tester).borderColor, c.neutralStroke1Pressed);
+      await press.cancel();
+      await tester.pump();
+      expect(borderOf(tester).borderColor, c.neutralStroke1Hover);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('a textarea removed mid-press takes the release quietly', (
+      tester,
+    ) async {
+      // The release still reaches the detached `Listener`, after `dispose`.
+      await pump(tester, const FluentTextarea(key: key));
+      final press = await tester.startGesture(
+        tester.getCenter(find.byKey(key)),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await pump(tester, const SizedBox());
+      await press.up();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
     testWidgets('focus moves the outline border, and hover wins over it', (
       tester,
     ) async {
@@ -970,6 +1016,43 @@ void main() {
       await tester.pumpAndSettle();
       expect(node.hasFocus, isTrue);
     });
+
+    testWidgets(
+      'a mouse press focuses at once, any button, caret at the press',
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+      (tester) async {
+        // Chrome focuses the <textarea> on mousedown for every button, caret
+        // where it landed, so the bar grows under a held press.
+        for (final button in <int>[
+          kPrimaryMouseButton,
+          kMiddleMouseButton,
+          kSecondaryMouseButton,
+        ]) {
+          final node = FocusNode();
+          final controller = TextEditingController(text: 'hello world');
+          await pump(
+            tester,
+            FluentTextarea(key: key, focusNode: node, controller: controller),
+          );
+          final press = await tester.startGesture(
+            tester.getTopLeft(find.byType(EditableText)) + const Offset(2, 8),
+            kind: PointerDeviceKind.mouse,
+            buttons: button,
+          );
+          await tester.pump();
+          expect(node.hasFocus, isTrue, reason: 'button $button: focused held');
+          expect(
+            controller.selection,
+            const TextSelection.collapsed(offset: 0),
+            reason: 'button $button: caret at the press, nothing selected',
+          );
+          await press.up();
+          await tester.pumpWidget(const SizedBox());
+          node.dispose();
+          controller.dispose();
+        }
+      },
+    );
 
     testWidgets(
       'a mouse click on the padding focuses the field',

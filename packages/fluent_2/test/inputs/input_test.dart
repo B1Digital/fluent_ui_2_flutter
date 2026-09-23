@@ -784,6 +784,55 @@ void main() {
       expect(scaleXOf(tester), 1, reason: 'settled at scaleX(1)');
     });
 
+    testWidgets(
+      'a mouse press focuses at once, any button, caret at the press',
+      (tester) async {
+        // Chrome focuses the <input> on mousedown for every button and puts
+        // the caret where it landed, so the bar grows under a held press.
+        // Flutter's tap-down waits for the gesture arena, or the release, and
+        // a middle press never focused: the bar started a whole click late.
+        for (final button in <int>[
+          kPrimaryMouseButton,
+          kMiddleMouseButton,
+          kSecondaryMouseButton,
+        ]) {
+          controller.text = 'hello world';
+          await pump(
+            tester,
+            FluentInput(key: key, controller: controller, focusNode: node),
+          );
+          await tester.pumpAndSettle();
+          expect(node.hasFocus, isFalse);
+
+          final editable = find.byType(EditableText);
+          final press = await tester.startGesture(
+            tester.getTopLeft(editable) + const Offset(2, 8),
+            kind: PointerDeviceKind.mouse,
+            buttons: button,
+          );
+          await tester.pump();
+          expect(node.hasFocus, isTrue, reason: 'button $button: focused held');
+          expect(
+            controller.selection,
+            const TextSelection.collapsed(offset: 0),
+            reason: 'button $button: caret at the press, nothing selected',
+          );
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 100));
+          expect(
+            scaleXOf(tester),
+            closeTo(half, 1e-3),
+            reason: 'button $button: the bar grows under the held press',
+          );
+          await press.up();
+          await tester.pumpAndSettle();
+          node.unfocus();
+          await tester.pumpAndSettle();
+        }
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
     testWidgets('the focus bar leaves in durationUltraFast on ease', (
       tester,
     ) async {

@@ -632,6 +632,114 @@ void main() {
       expect(underlineOf(tester).color, c.compoundBrandStroke);
     });
 
+    testWidgets(
+      'a mouse press in the input focuses at once; on the icon it does not',
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+      (tester) async {
+        // Chrome focuses the <input> on mousedown for every button, caret at
+        // the press, so the bar grows under a held press. The search icon and
+        // the root padding are not the input and leave focus alone
+        // (`extra.json`). A right press that moves focus drops `:active`.
+        final c = light.colors;
+        for (final button in <int>[
+          kPrimaryMouseButton,
+          kMiddleMouseButton,
+          kSecondaryMouseButton,
+        ]) {
+          final node = FocusNode();
+          final controller = TextEditingController(text: 'hello world');
+          await pump(
+            tester,
+            box(focusNode: node, controller: controller),
+            width: 200,
+          );
+          final icon = await tester.startGesture(
+            tester.getTopLeft(find.byKey(key)) + const Offset(18, 16),
+            kind: PointerDeviceKind.mouse,
+            buttons: button,
+          );
+          await tester.pump();
+          expect(node.hasFocus, isFalse, reason: 'button $button: the icon');
+          await icon.up();
+          await tester.pump();
+
+          final press = await tester.startGesture(
+            tester.getTopLeft(find.byType(EditableText)) + const Offset(2, 8),
+            kind: PointerDeviceKind.mouse,
+            buttons: button,
+          );
+          await tester.pump();
+          expect(node.hasFocus, isTrue, reason: 'button $button: focused held');
+          expect(
+            controller.selection,
+            const TextSelection.collapsed(offset: 0),
+            reason: 'button $button: caret at the press',
+          );
+          expect(
+            borderOf(tester).borderColor,
+            c.neutralStroke1Pressed,
+            reason: 'focused holds the Pressed stop, pressed or not',
+          );
+          if (button == kSecondaryMouseButton) {
+            expect(
+              underlineOf(tester).color,
+              c.compoundBrandStroke,
+              reason: 'a right press that moved focus is not :active',
+            );
+          }
+          await press.up();
+          await tester.pumpWidget(const SizedBox());
+          node.dispose();
+          controller.dispose();
+        }
+      },
+    );
+
+    testWidgets('re-enabled under a resting mouse, it hovers and presses', (
+      tester,
+    ) async {
+      // Chrome: a disabled root still matches `:hover`, and `:active` under a
+      // held press, so dropping `disabled` shows both at once, unmoved.
+      final c = light.colors;
+      final mouse = await mouseAt(tester, Offset.zero);
+      await pump(tester, box(enabled: false), width: 200);
+      await mouse.moveTo(tester.getCenter(find.byKey(key)));
+      await tester.pump();
+      expect(borderOf(tester).borderColor, c.neutralStrokeDisabled);
+      await pump(tester, box(), width: 200);
+      expect(borderOf(tester).borderColor, c.neutralStroke1Hover);
+
+      // Held on the root padding, where only the root itself is hit.
+      await pump(tester, box(enabled: false), width: 200);
+      final press = await tester.startGesture(
+        tester.getTopLeft(find.byKey(key)) + const Offset(4, 16),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      expect(borderOf(tester).borderColor, c.neutralStrokeDisabled);
+      await pump(tester, box(), width: 200);
+      expect(borderOf(tester).borderColor, c.neutralStroke1Pressed);
+      await press.cancel();
+      await tester.pump();
+      expect(borderOf(tester).borderColor, c.neutralStroke1Hover);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('a box removed mid-press takes the release quietly', (
+      tester,
+    ) async {
+      // The release still reaches the detached `Listener`, after `dispose`.
+      await pump(tester, box());
+      final press = await tester.startGesture(
+        tester.getCenter(find.byKey(key)),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await pump(tester, const SizedBox());
+      await press.up();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
     testWidgets('error strokes the box in colorPaletteRedBorder2 until '
         'focused', (tester) async {
       final c = light.colors;

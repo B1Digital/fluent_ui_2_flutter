@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -1308,6 +1309,26 @@ class _FluentInputState extends State<FluentInput>
     _states.update(state, value);
   }
 
+  /// Chrome focuses a text field on mousedown — any button — with the caret
+  /// where the press landed, so the focus bar grows under a held press.
+  /// Flutter's text gestures focus on tap-down, which a middle press never
+  /// reaches and which waits for the gesture arena whenever it is contested:
+  /// the bar started a whole click late. This goes through the field's own
+  /// selection path, as tap-down does, so desktop's select-all-on-focus stays
+  /// out of it. A field that already has focus is left to the gestures, which
+  /// keep a selection that a right press lands on for the context menu.
+  void _focusOnPress(PointerDownEvent event) {
+    if (!widget.enabled ||
+        event.kind != PointerDeviceKind.mouse ||
+        _focusNode.hasFocus) {
+      return;
+    }
+    editableTextKey.currentState?.renderEditable.selectPositionAt(
+      from: event.position,
+      cause: SelectionChangedCause.tap,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = resolveFluentInputState(
@@ -1356,7 +1377,10 @@ class _FluentInputState extends State<FluentInput>
       // family's roots, Chrome sets `:active` on `.fui-Input` for a right press
       // too (storybook), so no `kSecondaryMouseButton` guard here.
       child: Listener(
-        onPointerDown: (_) => _set(WidgetState.pressed, value: true),
+        onPointerDown: (event) {
+          _set(WidgetState.pressed, value: true);
+          _focusOnPress(event);
+        },
         onPointerUp: (_) => _set(WidgetState.pressed, value: false),
         onPointerCancel: (_) => _set(WidgetState.pressed, value: false),
         child: buildFluentInput(state, resolved, states),
