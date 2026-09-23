@@ -436,7 +436,7 @@ class _LineChartBasicState extends State<_LineChartBasic> {
       const SizedBox(height: 10),
       FluentSwitch(
         checked: _showAxisTitles,
-        label: Text(_showAxisTitles ? 'Show axis titles' : 'Hide axis titles'),
+        label: const Text('Show axis titles'),
         onChanged: (bool value) => setState(() => _showAxisTitles = value),
       ),
       const SizedBox(height: 10),
@@ -1995,7 +1995,7 @@ class _LineChartNegativeState extends State<_LineChartNegative> {
       const SizedBox(height: 10),
       FluentSwitch(
         checked: _showAxisTitles,
-        label: Text(_showAxisTitles ? 'Show Axis titles' : 'Hide Axis titles'),
+        label: const Text('Show axis titles'),
         onChanged: (bool value) => setState(() => _showAxisTitles = value),
       ),
       const SizedBox(height: 20),
@@ -2177,7 +2177,7 @@ class _LineChartAllNegativeState extends State<_LineChartAllNegative> {
       const SizedBox(height: 10),
       FluentSwitch(
         checked: _showAxisTitles,
-        label: Text(_showAxisTitles ? 'Show Axis titles' : 'Hide Axis titles'),
+        label: const Text('Show axis titles'),
         onChanged: (bool value) => setState(() => _showAxisTitles = value),
       ),
       const SizedBox(height: 20),

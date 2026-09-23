@@ -487,7 +487,7 @@ class _VerticalBarDefaultState extends State<_VerticalBarDefault> {
       FluentSwitch(
         checked: _showAxisTitles,
         onChanged: (bool value) => setState(() => _showAxisTitles = value),
-        label: Text(_showAxisTitles ? 'Show axis titles' : 'Hide axis titles'),
+        label: const Text('Show axis titles'),
       ),
       FluentSwitch(
         checked: _selectMultipleLegends,
@@ -1539,7 +1539,7 @@ class _VerticalBarAllNegativeState extends State<_VerticalBarAllNegative> {
       FluentSwitch(
         checked: _showAxisTitles,
         onChanged: (bool value) => setState(() => _showAxisTitles = value),
-        label: Text(_showAxisTitles ? 'Switch Axis titles' : 'Hide axis tiles'),
+        label: const Text('Show axis titles'),
       ),
       // Upstream also offers an "Enable Gradient" switch; the port has no
       // gradient fill for bars, so that one knob is left out.
@@ -1750,9 +1750,7 @@ class _VerticalBarNegativeState extends State<_VerticalBarNegative> {
       FluentSwitch(
         checked: _showAxisTitles,
         onChanged: (bool value) => setState(() => _showAxisTitles = value),
-        label: Text(
-          _showAxisTitles ? 'Switch Axis titles' : 'Hide Axis titles',
-        ),
+        label: const Text('Show axis titles'),
       ),
       // Upstream also offers an "Enable Gradient" switch; the port has no
       // gradient fill for bars, so that one knob is left out.

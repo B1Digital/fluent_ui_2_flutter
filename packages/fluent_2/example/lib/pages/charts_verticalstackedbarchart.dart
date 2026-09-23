@@ -585,9 +585,7 @@ class _VerticalStackedBarDefaultState
           children: <Widget>[
             FluentSwitch(
               checked: _showAxisTitles,
-              label: Text(
-                _showAxisTitles ? 'Show axis titles' : 'Hide axis titles',
-              ),
+              label: const Text('Show axis titles'),
               onChanged: (bool value) =>
                   setState(() => _showAxisTitles = value),
             ),
@@ -2112,9 +2110,7 @@ class _VerticalStackedBarNegativeState
           children: <Widget>[
             FluentSwitch(
               checked: _showAxisTitles,
-              label: Text(
-                _showAxisTitles ? 'Show axis titles' : 'Hide axis titles',
-              ),
+              label: const Text('Show axis titles'),
               onChanged: (bool value) =>
                   setState(() => _showAxisTitles = value),
             ),

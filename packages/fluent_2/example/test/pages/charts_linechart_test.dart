@@ -581,9 +581,9 @@ Finder sliderNamed(String semanticLabel) => find.byWidgetPredicate(
 
 /// The switch whose own label contains [fragment], case-insensitively.
 ///
-/// A Fluent switch shows its state *in* its label — "Show axis titles" becomes
-/// "Hide axis titles" — so a finder for the full string would stop matching the
-/// moment the switch is flipped.
+/// Some demo switches show their state *in* their label — "Enabled multiple
+/// shapes for each line" becomes "Disabled ..." — so a finder for the full
+/// string would stop matching the moment the switch is flipped.
 Finder switchLabelled(String fragment) => find.byWidgetPredicate(
   (Widget widget) =>
       widget is FluentSwitch &&
