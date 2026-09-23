@@ -171,22 +171,14 @@ void main() {
       ], reason: 'multi select must let the second press join the first');
     });
 
-    testWidgets('the gradient switch relabels itself and leaves fills flat', (
+    testWidgets('the section offers no inert gradient switch', (
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
-      final List<Color> flat = gaugePainter(tester).colours;
-
-      await mouseClick(tester, find.text('Disable Gradient'));
-      expect(find.text('Enable Gradient'), findsOneWidget);
-      // `enableGradient` has no counterpart on FluentGaugeChart and the section
-      // says so: the switch keeps upstream's control set and drives nothing but
-      // its own label. Pinned rather than skipped, so the day the port grows a
-      // gradient this test is the one that notices.
-      expect(gaugePainter(tester).colours, flat);
-
-      await mouseClick(tester, find.text('Enable Gradient'));
-      expect(find.text('Disable Gradient'), findsOneWidget);
+      // FluentGaugeChart paints flat segment fills, so upstream's "Enable
+      // Gradient" switch is left out rather than shown as a live control that
+      // changes nothing.
+      expect(find.textContaining('Gradient'), findsNothing);
     });
 
     testWidgets('hovering a band opens the reading for every live band', (
@@ -245,21 +237,14 @@ void main() {
       expect(arcBounds(tester), square);
     });
 
-    testWidgets('the gradient switch relabels itself and leaves fills flat', (
+    testWidgets('the section offers no inert gradient switch', (
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
-      final List<Color> flat = gaugePainter(tester).colours;
-
-      // The second copy of the inert control the Basic section carries: it is
-      // pinned here too so that a port which grows a gradient has to update
-      // both sections rather than half of them.
-      await mouseClick(tester, find.text('Disable Gradient'));
-      expect(find.text('Enable Gradient'), findsOneWidget);
-      expect(gaugePainter(tester).colours, flat);
-
-      await mouseClick(tester, find.text('Enable Gradient'));
-      expect(find.text('Disable Gradient'), findsOneWidget);
+      // FluentGaugeChart paints flat segment fills, so upstream's "Enable
+      // Gradient" switch is left out rather than shown as a live control that
+      // changes nothing.
+      expect(find.textContaining('Gradient'), findsNothing);
     });
 
     testWidgets('the size sliders resize the gauge', (

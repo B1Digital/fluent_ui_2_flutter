@@ -518,6 +518,49 @@ class _DonutChartCustomCallout extends StatefulWidget {
 class _DonutChartCustomCalloutState extends State<_DonutChartCustomCallout> {
   bool _useCustomPopover = false;
 
+  // Upstream's `customPopover`: the x value, the legend and the value with an
+  // ' h' suffix, or null for the built-in body while the switch is off.
+  // FluentDonutChart takes no `calloutPropsPerDataPoint`, so that built-in
+  // body shows the datum's own reading rather than upstream's 'Custom XVal'.
+  // ponytail: upstream's border is `1.5px dotted`, and Flutter's BorderStyle
+  // has no dotted style, so this one is solid.
+  Widget? _customPopover(BuildContext context, FluentChartDataPoint point) {
+    if (!_useCustomPopover) {
+      return null;
+    }
+    TextStyle line(FluentDataVizToken token) => TextStyle(
+      color: FluentDataVizPalette.resolve(token),
+      fontSize: FluentFontSize.base400,
+      fontWeight: FluentFontWeight.bold,
+    );
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: FluentDataVizPalette.resolve(FluentDataVizToken.color10),
+          width: 1.5,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              point.xAxisCalloutData ?? '',
+              style: line(FluentDataVizToken.warning),
+            ),
+            Text(point.legend ?? '', style: line(FluentDataVizToken.color3)),
+            Text(
+              '${point.yAxisCalloutData ?? point.data?.round()} h',
+              style: line(FluentDataVizToken.color2),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<FluentChartDataPoint> points = <FluentChartDataPoint>[
@@ -556,10 +599,6 @@ class _DonutChartCustomCalloutState extends State<_DonutChartCustomCallout> {
           onChanged: (bool checked) =>
               setState(() => _useCustomPopover = checked),
         ),
-        // Upstream swaps the hover popover through `calloutPropsPerDataPoint`
-        // and `onRenderCalloutPerDataPoint`. FluentDonutChart owns its popover
-        // and exposes neither hook, so the switch is live and the popover it
-        // would replace stays the built-in one.
         SizedBox(
           height: 300,
           child: FluentDonutChart(
@@ -569,6 +608,7 @@ class _DonutChartCustomCalloutState extends State<_DonutChartCustomCallout> {
             hideLegend: false,
             height: 220,
             valueInsideDonut: 39000,
+            popoverBuilder: _customPopover,
           ),
         ),
       ],

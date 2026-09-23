@@ -607,6 +607,27 @@ void main() {
         reason: 'a mouse press on a row must commit, not just dismiss',
       );
     });
+
+    testWidgets('the intro follows the days dropdown', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(tester, section);
+      final Finder dropdown = find.byType(FluentDropdown<String>);
+      String intro(int days) =>
+          'This calendar uses dateRangeType = Day and '
+          'daysToSelectInView = $days.';
+      expect(find.text(intro(4)), findsOneWidget);
+
+      await mouseClick(tester, dropdown);
+      await mouseClick(tester, find.text('6').last);
+      expect(tester.widget<FluentDropdown<String>>(dropdown).value, '6');
+
+      expect(
+        find.text(intro(6)),
+        findsOneWidget,
+        reason: 'the intro sits beside the knob, so it must not stay on 4',
+      );
+    });
   });
 
   group('calendar contiguous work week days', () {

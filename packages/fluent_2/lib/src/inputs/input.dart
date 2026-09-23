@@ -490,6 +490,8 @@ Widget buildFluentInput(
   final bottomWidth =
       style.bottomBorderWidth?.resolve(states) ?? FluentStroke.none;
   final focusColor = style.focusUnderlineColor?.resolve(states);
+  final focusWidth =
+      style.focusUnderlineWidth?.resolve(states) ?? FluentStroke.thick;
   final foreground = style.foregroundColor?.resolve(states);
   final placeholderColor = style.placeholderColor?.resolve(states);
   final contentColor = style.contentColor?.resolve(states);
@@ -659,10 +661,11 @@ Widget buildFluentInput(
             left: 0,
             right: 0,
             bottom: 0,
-            height: FluentStroke.thick,
+            height: focusWidth,
             child: FluentInputFocusUnderline(
               focused: state.focused,
               color: focusColor,
+              thickness: focusWidth,
               borderRadius: ruleRadius,
             ),
           ),

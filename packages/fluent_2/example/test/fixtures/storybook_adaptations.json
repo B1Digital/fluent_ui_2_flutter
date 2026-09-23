@@ -5,7 +5,7 @@
   },
   "charts-areachart--area-chart-basic": {
     "kind": "reduced",
-    "why": "Upstream's RadioGroup onChange re-sets the flag it already holds, so neither 'Basic Example' nor 'Custom Callout Example' changes what renders; the group is kept as a live selection with the same values and labels. `culture={window.navigator.language}` and `styles={{svgTooltip}}` have no browser equivalent here and are dropped \u2014 the tooltip fill already resolves to colorNeutralBackground2."
+    "why": "Upstream's RadioGroup onChange re-sets the flag it already holds, so neither 'Basic Example' nor 'Custom Callout Example' changes what renders there; the port keeps the same values and labels and wires 'Custom Callout Example' to a custom popover instead. FluentCartesianChartProps.popoverBuilder takes no datum, so the custom arm installs a static 'Custom callout' popover body. `culture={window.navigator.language}` and `styles={{svgTooltip}}` have no browser equivalent here and are dropped \u2014 the tooltip fill already resolves to colorNeutralBackground2."
   },
   "charts-areachart--area-chart-custom-accessibility": {
     "kind": "composed",
@@ -25,7 +25,7 @@
   },
   "charts-areachart--area-chart-negative": {
     "kind": "reduced",
-    "why": "Same dead RadioGroup handler as the basic story, kept as a live selection. `culture` and the `svgTooltip` style override dropped."
+    "why": "Same dead RadioGroup handler as the basic story, wired to the same static custom popover body. `culture` and the `svgTooltip` style override dropped."
   },
   "charts-areachart--area-chart-secondary-y-axis": {
     "kind": "platform",
@@ -37,7 +37,7 @@
   },
   "charts-declarativechart--declarative-chart-basic-example": {
     "kind": "nearest-widget",
-    "why": "Four upstream behaviours have no Flutter equivalent and one is blocked by a library defect. (1) The 'Show more' switch fetches 100 schema files from raw.githubusercontent.com; the showroom ships no network client, so the switch runs the same state machine with an empty result and falls through to upstream's own 'Loading...' spinner then 'More examples could not be loaded.' message, with the 'Load more' / 'Loading' button live. (2) Download hands a data URL to an <a download>; a Flutter demo has no document, so FluentDeclarativeChartController.exportAsImage() runs for real and the button reports the PNG byte count. (3) The colour-palette dropdown's third upstream key is 'override', which the React story casts to a ColorwayType that has no such member; it maps to FluentPlotlyColorway.others, keeping the 'Override' label. (4) griffel's dropdownStyles width:200 / inputStyles maxWidth:300 sit on the controls rather than on FluentField, because a fixed-width field clips its own label. (5) The 'Gauge Chart' and 'Funnel Chart' options cannot go through FluentDeclarativeChart: FluentGaugeChart and FluentFunnelChart each put an Expanded inside a Column so they need a bounded height, they are the only routed kinds absent from kPlotlyDefaultCellHeight, and the Column inside FluentDeclarativeChart._buildFigure never passes a height down whatever ancestor supplies one \u2014 so no page-level wrapper can fix it. Those two options render as the widget the Plotly transformer would have built (FluentGaugeChart / FluentFunnelChart in an explicit SizedBox), from the same numbers as the verbatim schemas above them."
+    "why": "Three upstream behaviours have no Flutter equivalent and one is blocked by a library defect. (1) The 'Show more' switch fetches 100 schema files from raw.githubusercontent.com; the showroom ships no network client, so the switch runs the same state machine with an empty result and falls through to upstream's own 'Loading...' spinner then 'More examples could not be loaded.' message, with the 'Load more' / 'Loading' button live. (2) The colour-palette dropdown's third upstream key is 'override', which the React story casts to a ColorwayType that has no such member; it maps to FluentPlotlyColorway.others, keeping the 'Override' label. (3) griffel's dropdownStyles width:200 / inputStyles maxWidth:300 sit on the controls rather than on FluentField, because a fixed-width field clips its own label. (4) The 'Gauge Chart' and 'Funnel Chart' options cannot go through FluentDeclarativeChart: FluentGaugeChart and FluentFunnelChart each put an Expanded inside a Column so they need a bounded height, they are the only routed kinds absent from kPlotlyDefaultCellHeight, and the Column inside FluentDeclarativeChart._buildFigure never passes a height down whatever ancestor supplies one \u2014 so no page-level wrapper can fix it. Those two options render as the widget the Plotly transformer would have built (FluentGaugeChart / FluentFunnelChart in an explicit SizedBox), from the same numbers as the verbatim schemas above them."
   },
   "charts-donutchart--donut-chart-basic": {
     "kind": "reduced",
@@ -45,7 +45,7 @@
   },
   "charts-donutchart--donut-chart-custom-callout": {
     "kind": "reduced",
-    "why": "Upstream swaps the hover popover through `calloutPropsPerDataPoint` and `onRenderCalloutPerDataPoint`. FluentDonutChart owns its popover and exposes neither hook, so the 'User Popover Override' switch is live but the popover it would replace stays the built-in one."
+    "why": "`onRenderCalloutPerDataPoint` becomes `popoverBuilder`, which returns null for the built-in body while the 'User Popover Override' switch is off. `calloutPropsPerDataPoint` has no counterpart on FluentDonutChart, so the built-in body keeps the datum's own reading and colour instead of upstream's 'Custom XVal' heading, '<value> h' value and warning colour. The custom body's `1.5px dotted` border is solid, because Flutter's BorderStyle has no dotted style, and `href` is dropped as in the basic story."
   },
   "charts-donutchart--donut-chart-dynamic": {
     "kind": "reduced",
@@ -77,7 +77,7 @@
   },
   "charts-gaugechart--gauge-chart-basic": {
     "kind": "reduced",
-    "why": "FluentGaugeChart has no `enableGradient` counterpart \u2014 the port paints flat segment fills. The 'Enable Gradient'/'Disable Gradient' switch is kept live so the section retains upstream's control set, but drives nothing; noted in a comment inside the docregion. The three range inputs become FluentSlider inside SizedBox, and width/height ride on a SizedBox because the chart's own Column needs a bounded box."
+    "why": "FluentGaugeChart has no `enableGradient` counterpart \u2014 the port paints flat segment fills \u2014 so the 'Enable Gradient'/'Disable Gradient' switch is left out rather than shown as a control that changes nothing; noted in a comment inside the docregion. The three range inputs become FluentSlider inside SizedBox, and width/height ride on a SizedBox because the chart's own Column needs a bounded box."
   },
   "charts-gaugechart--gauge-chart-responsive": {
     "kind": "nearest-widget",
@@ -85,7 +85,7 @@
   },
   "charts-gaugechart--gauge-chart-single-segment": {
     "kind": "reduced",
-    "why": "Same `enableGradient` gap: the switch renders and toggles but has no prop to drive. Everything else (chartTitle 'Storage capacity', sublabel 'used', fraction format, single-segment variant, roundCorners) maps one-to-one."
+    "why": "Same `enableGradient` gap: the switch has no prop to drive, so it is left out. Everything else (chartTitle 'Storage capacity', sublabel 'used', fraction format, single-segment variant, roundCorners) maps one-to-one."
   },
   "charts-groupedverticalbarchart--grouped-vertical-bar-default": {
     "kind": "platform",
@@ -93,7 +93,7 @@
   },
   "charts-groupedverticalbarchart--grouped-vertical-bar-negative": {
     "kind": "reduced",
-    "why": "Upstream's useEffect injects a focus-ring stylesheet into document.head, which has no Flutter counterpart and is dropped; the 'Pick one' radio pair is kept with upstream's own inert comparison (isCalloutForStack === 'StackCallout' never matches its 'singleCallout'/'stackedCallout' values), and reflowProps={{mode:'min-width'}} maps to FluentCartesianChartProps(reflowMode: FluentChartReflowMode.minWidth)."
+    "why": "Upstream's useEffect injects a focus-ring stylesheet into document.head, which has no Flutter counterpart and is dropped; the 'Pick one' radio pair keeps upstream's 'singleCallout'/'stackedCallout' values, but isCalloutForStack compares against 'stackedCallout' rather than upstream's 'StackCallout', which never matches, so the Stacked callout option works, and reflowProps={{mode:'min-width'}} maps to FluentCartesianChartProps(reflowMode: FluentChartReflowMode.minWidth)."
   },
   "charts-heatmapchart--heat-map-chart-basic": {
     "kind": "platform",
@@ -109,7 +109,10 @@
   },
   "charts-horizontalbarchart--horizontal-bar-custom-callout": {
     "kind": "reduced",
-    "why": "FluentHorizontalBarChart renders its own popover and takes neither calloutPropsPerDataPoint nor onRenderCalloutPerHorizontalBar. The Switch is live and drives the override through the two per-point fields the popover does read: xAxisCalloutData becomes 'Custom XVal' and yAxisCalloutData gains the ' h' suffix. Upstream's third popover line, 'Custom Legend', has no slot in our one-label/one-value popover."
+    "why": "FluentHorizontalBarChart renders its own popover and takes neither calloutPropsPerDataPoint nor onRenderCalloutPerHorizontalBar. The Switch is live and drives the override through the two per-point fields the popover does read: xAxisCalloutData becomes 'Custom XVal' and yAxisCalloutData gains the ' h' suffix. Upstream's third popover line, 'Custom Legend', has no slot in our one-label/one-value popover. Upstream labels the Switch 'User Popover Override', a typo the showroom corrects to 'Use Popover Override'.",
+    "sampleStringsSkip": [
+      "User Popover Override"
+    ]
   },
   "charts-horizontalbarchart--horizontal-bar-stacked-annotated-inline-legend": {
     "kind": "composed",
@@ -117,7 +120,7 @@
   },
   "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-basic": {
     "kind": "local-state",
-    "why": "Upstream's width/height range inputs and its Field/RadioGroup/Checkbox/Switch knobs become FluentSlider, FluentField+FluentRadioGroup, FluentCheckbox and FluentSwitch driven by State. getColorFromToken(DataVizPalette.colorN) becomes FluentDataVizPalette.resolve(FluentDataVizToken.colorN). enableGradient has no counterpart on FluentHorizontalBarChartWithAxis, which fills bars flat, so the Enable Gradient switch is kept and honestly inert; the radio pair is inert here exactly as upstream, whose handler only toggles a boolean no prop reads. culture={window.navigator.language} becomes the fixed 'en-us' a test environment can reproduce. The width slider reaches 1000, wider than the docs column, so the chart box is a SizedBox inside a horizontal SingleChildScrollView instead of overflowing."
+    "why": "Upstream's width/height range inputs and its Field/RadioGroup/Checkbox/Switch knobs become FluentSlider, FluentField+FluentRadioGroup, FluentCheckbox and FluentSwitch driven by State. getColorFromToken(DataVizPalette.colorN) becomes FluentDataVizPalette.resolve(FluentDataVizToken.colorN). enableGradient has no counterpart on FluentHorizontalBarChartWithAxis, which fills bars flat, so the Enable Gradient switch is left out; upstream's radio handler only toggles a boolean no prop reads, so the port wires 'Custom Callout Example' to a custom popover instead; FluentCartesianChartProps.popoverBuilder takes no datum, so the custom arm installs a static 'Custom callout' popover body. culture={window.navigator.language} becomes the fixed 'en-us' a test environment can reproduce. The width slider reaches 1000, wider than the docs column, so the chart box is a SizedBox inside a horizontal SingleChildScrollView instead of overflowing."
   },
   "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-category-order": {
     "kind": "reduced",
@@ -129,11 +132,11 @@
   },
   "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-negative": {
     "kind": "reduced",
-    "why": "enableGradient has no counterpart on FluentHorizontalBarChartWithAxis, so the Enable Gradient switch is inert. Upstream's eight categories.map(...) concat calls become one _seriesPoints helper applied to the same eight literal value arrays in the same order, so the point list is identical."
+    "why": "enableGradient has no counterpart on FluentHorizontalBarChartWithAxis, so the Enable Gradient switch is left out. Upstream's eight categories.map(...) concat calls become one _seriesPoints helper applied to the same eight literal value arrays in the same order, so the point list is identical."
   },
   "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-string-axis-tooltip": {
     "kind": "reduced",
-    "why": "enableGradient has no counterpart on FluentHorizontalBarChartWithAxis, so the Enable Gradient switch is kept for control parity but changes nothing. showYAxisLablesTooltip/showYAxisLables and hideLegend/hideTooltip move onto FluentCartesianChartProps, which is where our port carries the shell props; hideTooltip={false} is already the default so it is not restated."
+    "why": "enableGradient has no counterpart on FluentHorizontalBarChartWithAxis, so the Enable Gradient switch is left out. showYAxisLablesTooltip/showYAxisLables and hideLegend/hideTooltip move onto FluentCartesianChartProps, which is where our port carries the shell props; hideTooltip={false} is already the default so it is not restated."
   },
   "charts-legends--legends-basic": {
     "kind": "local-state",
@@ -169,7 +172,7 @@
   },
   "charts-linechart--line-chart-events": {
     "kind": "reduced",
-    "why": "eventAnnotationProps splits into eventAnnotations + eventAnnotationMergedLabel; labelHeight, labelWidth, strokeColor and labelColor are not forwarded by FluentLineChart, so they are dropped. The '<input type=\"color\">' renders as its FluentLabel only \u2014 upstream's customEventAnnotationColor is a const undefined, so the control is inert there too, and our chart exposes no annotation-colour prop. yAxisTickFormat d3.format('$,') is hand-written as a String Function(double)."
+    "why": "eventAnnotationProps splits into eventAnnotations + eventAnnotationMergedLabel + eventAnnotationStrokeColor + eventAnnotationLabelColor; labelHeight and labelWidth are not forwarded by FluentLineChart, so they are dropped. The '<input type=\"color\">' becomes a FluentSwatchPicker whose pick feeds both colour props \u2014 live here, where upstream's customEventAnnotationColor is a const undefined and its input is never read. yAxisTickFormat d3.format('$,') is hand-written as a String Function(double)."
   },
   "charts-linechart--line-chart-gaps": {
     "kind": "reduced",
@@ -241,7 +244,7 @@
   },
   "charts-vegadeclarativechart--default": {
     "kind": "reduced",
-    "why": "Two of the story's controls need a runtime the docs page does not have. (1) The Vega-Lite JSON pane is read-only: a page file may import only package:fluent_2, package:flutter/widgets.dart and ../shell/catalog.dart, so there is no JSON decoder to re-parse the textarea on every keystroke and no way to reach upstream's \"JSON Parse Error:\" branch; the pane prints the selected schema (via a hand-written JSON.stringify equivalent) and the chart is driven by the Dart map beside it. (2) The \"Show more\" switch upstream fetches 100 schemas at a time from raw.githubusercontent.com/microsoft/fluentui-charting-contrib, keeps the non-null results, then renders an \"Additional GitHub Examples:\" count and a \"Load more\" button; the showroom ships no network client, so the switch keeps its label flip and does the one thing left to it \u2014 widens the Category dropdown from `All` alone to every category the 25 inline schemas fall into \u2014 and the Load more button is dropped. Both are named in a comment inside the docregion. Everything else is live: the Chart Type picker over all 25 schemas, the Width/Height inputs (written into the spec as `{...spec, width, height}` and used to size the preview box, as upstream does), the ValueKey remount on `${chart}-${width}-${height}`, the ErrorBoundary's \"Error rendering chart:\" surface wired through `errorBuilder`, the Chart Categories list and the Features Supported list."
+    "why": "Two of the story's controls need a runtime the docs page does not have. (1) The Vega-Lite JSON pane is read-only: a page file may import only package:fluent_2, package:flutter/widgets.dart and ../shell/catalog.dart, so there is no JSON decoder to re-parse the textarea on every keystroke and no way to reach upstream's \"JSON Parse Error:\" branch; the pane prints the selected schema (via a hand-written JSON.stringify equivalent) and the chart is driven by the Dart map beside it. (2) The \"Show more\" switch upstream fetches 100 schemas at a time from raw.githubusercontent.com/microsoft/fluentui-charting-contrib, keeps the non-null results, then renders an \"Additional GitHub Examples:\" count and a \"Load more\" button; the showroom ships no network client, so the switch does the one thing left to it \u2014 widens the Category dropdown from `All` alone to every category the 25 inline schemas fall into \u2014 and the Load more button is dropped. Both are named in a comment inside the docregion. The switch label stays \"Show more\" in both states rather than flipping to upstream's \"Show few\" while off: `checked` already carries the state. The Category picker filters the Chart Type picker to that category's schemas (all 25 under `All`), moving the selection to the category's first schema when it falls outside; upstream reads the selection and never filters (`const filteredOptions = currentOptions`), so its counts promise a list that never arrives. Everything else is live: the Width/Height inputs (written into the spec as `{...spec, width, height}` and used to size the preview box, as upstream does), the ValueKey remount on `${chart}-${width}-${height}`, the ErrorBoundary's \"Error rendering chart:\" surface wired through `errorBuilder`, the Chart Categories list and the Features Supported list."
   },
   "charts-verticalbarchart--vertical-bar-all-negative": {
     "kind": "reduced",
@@ -257,7 +260,10 @@
   },
   "charts-verticalbarchart--vertical-bar-custom-accessibility": {
     "kind": "model",
-    "why": "callOutAccessibilityData.ariaLabel is spelled callOutSemantics: FluentChartSemantics(label:) on FluentVerticalBarChartDataPoint; hideLegend/yAxisTickCount move into FluentCartesianChartProps."
+    "why": "callOutAccessibilityData.ariaLabel is spelled callOutSemantics: FluentChartSemantics(label:) on FluentVerticalBarChartDataPoint; hideLegend/yAxisTickCount move into FluentCartesianChartProps. Upstream's checkbox label 'show  line(This will draw the line)' has a stray double space, which the showroom drops.",
+    "sampleStringsSkip": [
+      "show  line(This will draw the line)"
+    ]
   },
   "charts-verticalbarchart--vertical-bar-date-axis": {
     "kind": "nearest-widget",
@@ -265,7 +271,7 @@
   },
   "charts-verticalbarchart--vertical-bar-default": {
     "kind": "local-state",
-    "why": "Upstream's width/height range inputs and its Field/RadioGroup/Checkbox/Switch knobs become FluentSlider, FluentField+FluentRadioGroup, FluentCheckbox and FluentSwitch driven by State. The radio pair is inert here exactly as upstream: its onRenderCalloutPerDataPoint branch is commented out in the story source. The width slider reaches 1000, wider than the docs column, so the chart box sits in a horizontal SingleChildScrollView instead of overflowing."
+    "why": "Upstream's width/height range inputs and its Field/RadioGroup/Checkbox/Switch knobs become FluentSlider, FluentField+FluentRadioGroup, FluentCheckbox and FluentSwitch driven by State. Upstream's onRenderCalloutPerDataPoint branch for the radio pair is commented out in the story source, so the port wires 'Custom Callout Example' to a custom popover instead; FluentCartesianChartProps.popoverBuilder takes no datum, so the custom arm installs a static 'Custom callout' popover body. The width slider reaches 1000, wider than the docs column, so the chart box sits in a horizontal SingleChildScrollView instead of overflowing."
   },
   "charts-verticalbarchart--vertical-bar-dynamic": {
     "kind": "local-state",
@@ -281,7 +287,10 @@
   },
   "charts-verticalbarchart--vertical-bar-styled": {
     "kind": "model",
-    "why": "Same prop relocation as custom-accessibility: hideLegend and yAxisTickCount into FluentCartesianChartProps, colors/barWidth/useSingleColor stay on the chart."
+    "why": "Same prop relocation as custom-accessibility: hideLegend and yAxisTickCount into FluentCartesianChartProps, colors/barWidth/useSingleColor stay on the chart. The 'show  line' checkbox label drops the same upstream double space as custom-accessibility.",
+    "sampleStringsSkip": [
+      "show  line(This will draw the line)"
+    ]
   },
   "charts-verticalstackedbarchart--vertical-stacked-bar-axis-category-order": {
     "kind": "reduced",
@@ -289,7 +298,7 @@
   },
   "charts-verticalstackedbarchart--vertical-stacked-bar-axis-tooltip": {
     "kind": "reduced",
-    "why": "enableGradient has no counterpart on FluentVerticalStackedBarChart \u2014 our port paints flat segment fills \u2014 so the Enable/Disable Gradient switch is kept for control parity and drives nothing. The label literals barWidth:&nbsp;, xAxisInnerPadding:&nbsp; and xAxisOuterPadding:&nbsp; are written as real U+00A0 escapes, since Flutter has no HTML entity syntax."
+    "why": "enableGradient has no counterpart on FluentVerticalStackedBarChart \u2014 our port paints flat segment fills \u2014 so the Enable/Disable Gradient switch is left out. The label literals barWidth:&nbsp;, xAxisInnerPadding:&nbsp; and xAxisOuterPadding:&nbsp; are written as real U+00A0 escapes, since Flutter has no HTML entity syntax."
   },
   "charts-verticalstackedbarchart--vertical-stacked-bar-callout": {
     "kind": "reduced",
@@ -325,7 +334,8 @@
   },
   "compat-components-calendar--calendar-multiday-day-view": {
     "kind": "composed",
-    "why": "No calendarDayProps.daysToSelectInDayView, so the positive and negative day runs are computed locally for the Selected range readout; the Dropdown drives that number and the grid highlights only the anchor day."
+    "why": "No calendarDayProps.daysToSelectInDayView, so the positive and negative day runs are computed locally for the Selected range readout; the Dropdown drives that number and the grid highlights only the anchor day. Upstream's intro hardcodes 'daysToSelectInView = 4.' beside that Dropdown; the port interpolates the knob so the intro cannot go stale, which puts the literal 4 on screen only at the default.",
+    "sampleStringsSkip": ["daysToSelectInView = 4"]
   },
   "compat-components-calendar--calendar-non-contiguous-work-week-days": {
     "kind": "composed",
@@ -345,7 +355,8 @@
   },
   "compat-components-datepicker--date-range": {
     "kind": "reduced",
-    "why": "Upstream drives calendar.dateRangeType (Day/Work Week/Week/Month), which paints a whole week, work week or month as one selection. FluentCalendar selects a single day and has no range axis, so the DateRangeType control is live and stateful while the calendar keeps single-day selection. Upstream's native <Select> is rendered as FluentDropdown, our nearest equivalent."
+    "why": "Upstream drives calendar.dateRangeType (Day/Work Week/Week/Month), which paints a whole week, work week or month as one selection. FluentCalendar selects a single day and has no range axis, so upstream's DateRangeType <Select> is not ported: it could only ever change itself. The section keeps the single-day picker and its description says the port has no range selection. 'Select a DateRangeType' is waived because it labels that unported control.",
+    "sampleStringsSkip": ["Select a DateRangeType"]
   },
   "compat-components-datepicker--disabled": {
     "kind": "nearest-widget",
@@ -781,7 +792,11 @@
   },
   "components-dialog--motion-custom": {
     "kind": "reduced",
-    "why": "FluentDialog exposes no surfaceMotion/backdropMotion hook \u2014 fluentDialogSurfaceEnter, fluentDialogSurfaceExit, fluentDialogScrim and fluentDialogOutScale are package constants. The four controls are live and the dialog animation is not, rather than dressing up a knob that does nothing as working."
+    "why": "FluentDialog exposes no surfaceMotion/backdropMotion hook \u2014 fluentDialogSurfaceEnter, fluentDialogSurfaceExit, fluentDialogScrim and fluentDialogOutScale are package constants, and only MediaQuery.disableAnimationsOf changes them. Upstream's four motion controls are left out rather than shown moving nothing, and the description, dialog title and body say what the dialog really plays.",
+    "sampleStringsSkip": [
+      "Surface animateOpacity",
+      "Dialog with custom motion params"
+    ]
   },
   "components-dialog--no-focusable-element": {
     "kind": "slot",
@@ -817,7 +832,7 @@
   },
   "components-drawer--inline": {
     "kind": "reduced",
-    "why": "FluentDrawerPosition is start/end only, so the third (bottom) inline drawer has no equivalent and 'Toggle bottom' is rendered disabled; ToggleButton is a plain FluentButton."
+    "why": "FluentDrawerPosition is start/end only, so the third (bottom) inline drawer has no equivalent and it and its 'Toggle bottom' button are left out rather than shown disabled; ToggleButton is a plain FluentButton."
   },
   "components-drawer--keep-rendered-in-the-dom": {
     "kind": "reduced",
@@ -845,7 +860,7 @@
   },
   "components-drawer--position": {
     "kind": "reduced",
-    "why": "FluentDrawerPosition is start/end only \u2014 the drawer anchors to a vertical edge in reading order \u2014 so 'Open Bottom' is rendered disabled."
+    "why": "FluentDrawerPosition is start/end only \u2014 the drawer anchors to a vertical edge in reading order \u2014 so 'Open Bottom' is left out rather than shown disabled, and the description drops the bottom position."
   },
   "components-drawer--prevent-close": {
     "kind": "nearest-widget",
@@ -861,7 +876,7 @@
   },
   "components-drawer--separator": {
     "kind": "reduced",
-    "why": "Same missing bottom position: the start and end inline drawers carry the separator, the bottom one is dropped and its toggle is disabled."
+    "why": "Same missing bottom position: the start and end inline drawers carry the separator, and the bottom one is dropped together with its toggle."
   },
   "components-drawer--with-navigation": {
     "kind": "slot",
@@ -1225,7 +1240,10 @@
   },
   "components-popover--motion-custom": {
     "kind": "reduced",
-    "why": "FluentPopover has no surfaceMotion slot; its entrance is FluentPopoverEntrance (Fluent's fade + direction-aware slide) and it is not replaceable, so the copy is kept and the stock entrance plays instead of a fade-in/blur-out."
+    "why": "FluentPopover has no surfaceMotion slot; its entrance is FluentPopoverEntrance (Fluent's fade + direction-aware slide) and it is not replaceable, so the stock entrance plays instead of a fade-in/blur-out and the body text says so.",
+    "sampleStringsSkip": [
+      "This popover fades in and blurs out."
+    ]
   },
   "components-popover--motion-disabled": {
     "kind": "composed",

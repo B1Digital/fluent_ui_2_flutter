@@ -86,7 +86,7 @@ void main() {
         // story sets and it carries no rule the port can honour.
         chartDataMode: FluentChartDataMode.byDefault,
       ),
-      // MEASURED, NOT CHOSEN — 0.149%, down from 53.841%. Pinned at the
+      // MEASURED, NOT CHOSEN — 0.313%, down from 53.841%. Pinned at the
       // measurement so the number is on record and any change to it, in either
       // direction, has to be re-pinned deliberately.
       //
@@ -118,7 +118,12 @@ void main() {
       //     `opacity` is an SVG presentation attribute, which multiplies.
       //     Sampled at (300, 26): reference (150,150,150), now (153,153,153).
       //
-      // The 0.149% left is 289 pixels and none of it is geometry. 283 are the
+      // The 0.313% left is 608 pixels. 319 are the bar gaps, and they are a
+      // deliberate departure: upstream's bars fill the row and its 3px gap
+      // pushes the remainder bar past the svg, where the capture clips it.
+      // The port shrinks both bars into the 597px the gap leaves
+      // (FluentHorizontalBarRowLayout.compute), which moves every gap left by
+      // the value bar's share of 3px. The other 289 are text. 283 are the
       // glyphs of the eight left-hand row titles, which `_manifest.json`
       // records no textRect for — `FocusableTooltipText` nests a span inside
       // `fui-hbc__chartTitleLeft`, so the capture's leaf-element filter skips
@@ -126,7 +131,7 @@ void main() {
       // the leading edge of "11,444" poking two pixels out of its own mask,
       // which is the Selawik-Semibold-against-Segoe-UI-Semibold width residual
       // `support/react_parity.dart` documents.
-      maxMismatch: 0.17,
+      maxMismatch: 0.32,
     );
 
     // The chart now fits the box the reference was captured at exactly, so the

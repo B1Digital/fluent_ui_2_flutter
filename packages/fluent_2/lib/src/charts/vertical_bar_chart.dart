@@ -105,12 +105,10 @@ class FluentVerticalBarChart extends StatefulWidget {
 
   /// BCP-47 locale for popover formatting.
   ///
-  /// ponytail: declared, not yet consumed. Upstream spends it only on
-  /// `formatDateToLocaleString` for a *date* x value in the callout
-  /// (`VerticalBarChart.tsx:466`), and the popover text is composed by
-  /// [FluentVerticalBarChartDelegate.buildHitRegions], which prints the raw x.
-  /// Wiring it is the same change every cartesian chart needs and is better
-  /// made once.
+  /// It formats the popover's y reading (`ChartPopover.tsx:89`) and, through
+  /// the delegate, the x-axis tick labels. The x reading is not localized:
+  /// upstream prints it with `toString` or `toLocaleDateString`, neither of
+  /// which is handed the culture (`VerticalBarChart.tsx:485`).
   final String? culture;
 
   /// Legacy shorthand feeding both band paddings.
@@ -234,6 +232,7 @@ class _FluentVerticalBarChartState extends State<FluentVerticalBarChart> {
         xAxisOuterPadding: widget.xAxisOuterPadding,
         xAxisPadding: widget.xAxisPadding,
         xAxisCategoryOrder: widget.xAxisCategoryOrder,
+        culture: widget.culture,
       ),
       onChartMouseLeave: () => setState(() => _activeXDataPoint = null),
     );
@@ -597,6 +596,7 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
     this.xAxisPadding,
     this.xAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
     this.yAxisTickFormat,
+    this.culture,
     // ignore: prefer_initializing_formals
   }) : _xAxisInnerPadding = xAxisInnerPadding,
        // ignore: prefer_initializing_formals
@@ -707,6 +707,15 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
 
   /// Caller-supplied y tick formatter, reused for bar labels.
   final String Function(double value)? yAxisTickFormat;
+
+  /// BCP-47 locale for the popover's y reading (`props.culture`).
+  ///
+  /// Overrides the base getter, so the shell formats this chart's tick labels
+  /// with it too: `VerticalBarChart.tsx:1157` spreads `props` into
+  /// `CartesianChart`, which hands `culture` to the x axis builders
+  /// (`CartesianChart.tsx:237-277`).
+  @override
+  final String? culture;
 
   @override
   FluentChartType get chartType => FluentChartType.verticalBarChart;
@@ -1239,10 +1248,16 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
               points[bar.index].xAxisCalloutData ?? '${points[bar.index].x}',
           legend: points[bar.index].legend,
           color: bar.colour,
+          // `YValue={_props.yAxisCalloutData || _props.y}` (`:363`), formatted
+          // the way `ChartPopover.tsx:89` formats it.
           yValue:
-              points[bar.index].yAxisCalloutData ?? '${points[bar.index].y}',
+              points[bar.index].yAxisCalloutData ??
+              formatToLocaleString(points[bar.index].y, culture: culture),
         ),
         semanticsLabel: semanticsLabelFor(points[bar.index]),
+        // `onClick={point.onClick}` on every bar (`VerticalBarChart.tsx:674`,
+        // `:740`, `:797`).
+        onActivate: points[bar.index].onClick,
       ),
   ];
 

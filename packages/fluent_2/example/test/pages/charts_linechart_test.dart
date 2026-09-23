@@ -223,11 +223,11 @@ void main() {
     testWidgets('clicking a data point fires the callback it declares', (
       WidgetTester tester,
     ) async {
-      // Every point in this demo carries an `onDataPointClick` that prints, and
-      // the first series carries an `onLineClick`. Upstream binds the click
-      // handler to each rendered marker (`LineChart.tsx:908`, `:1074`,
-      // `:1151`), so a click has to reach one of them. Restored inside the body
-      // rather than in a tearDown: the framework verifies its debug hooks
+      // Every point in this demo carries an `onDataPointClick` that prints.
+      // Upstream binds the click handler to each rendered marker
+      // (`LineChart.tsx:908`, `:1074`, `:1151`), above the line and its
+      // `onLineClick`, so a click has to reach one of them. Restored inside the
+      // body rather than in a tearDown: the framework verifies its debug hooks
       // before tearDowns run.
       final List<String> printed = <String>[];
       final DebugPrintCallback original = debugPrint;
@@ -245,6 +245,33 @@ void main() {
         isNotEmpty,
         reason: 'the point declares onDataPointClick and nothing invoked it',
       );
+    });
+
+    testWidgets('clicking the line between two points fires onLineClick', (
+      WidgetTester tester,
+    ) async {
+      // The first series' `onLineClick` prints its legend. Upstream spreads it
+      // onto every `<line>` the series draws (`LineChart.tsx:1287`), so a
+      // mouse click on the stroke midway between two markers has to reach it.
+      final List<String> printed = <String>[];
+      final DebugPrintCallback original = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) =>
+          printed.add(message ?? '');
+      try {
+        await pumpSection(tester, section);
+        await mouseClickAt(
+          tester,
+          Offset.lerp(
+            markCentre(tester, series: 0, point: 3),
+            markCentre(tester, series: 0, point: 4),
+            0.5,
+          )!,
+          what: 'the first line between its fourth and fifth points',
+        );
+      } finally {
+        debugPrint = original;
+      }
+      expect(printed, <String>['From_Legacy_to_O365']);
     });
   });
 
@@ -359,6 +386,42 @@ void main() {
         'event 5',
       ]);
       expect(band.rules, hasLength(3));
+    });
+
+    testWidgets('the custom colour swatch recolours the rules and labels', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(
+        tester,
+        sectionOf('charts-linechart--line-chart-events'),
+      );
+      FluentEventAnnotationPainter band() =>
+          paintersOf<FluentEventAnnotationPainter>(tester).single;
+      final Color neutral = FluentTheme.of(
+        tester.element(find.byType(FluentLineChart)),
+      ).colors.neutralForeground1;
+      expect(band().strokeColor, neutral);
+      expect(band().labelColor, neutral);
+
+      // The 'Use Custom Color for Event Annotation' label used to stand alone
+      // with no control beside it; the swatch picker it now labels drives both
+      // the rule and the label colour, as upstream's customEventAnnotationColor
+      // was meant to.
+      final Finder red = find.byWidgetPredicate(
+        (Widget w) => w is FluentSwatch && w.semanticLabel == 'red',
+      );
+      await mouseClick(tester, red);
+      expect(band().strokeColor, const Color(0xFFFF1921));
+      expect(band().labelColor, const Color(0xFFFF1921));
+
+      await mouseClick(
+        tester,
+        find.byWidgetPredicate(
+          (Widget w) => w is FluentSwatch && w.semanticLabel == 'default',
+        ),
+      );
+      expect(band().strokeColor, neutral);
+      expect(band().labelColor, neutral);
     });
 
     testWidgets('clicking the merged label opens its three event cards', (
@@ -618,9 +681,9 @@ Finder sliderNamed(String semanticLabel) => find.byWidgetPredicate(
 
 /// The switch whose own label contains [fragment], case-insensitively.
 ///
-/// A Fluent switch shows its state *in* its label — "Show axis titles" becomes
-/// "Hide axis titles" — so a finder for the full string would stop matching the
-/// moment the switch is flipped.
+/// Some demo switches show their state *in* their label — "Enabled multiple
+/// shapes for each line" becomes "Disabled ..." — so a finder for the full
+/// string would stop matching the moment the switch is flipped.
 Finder switchLabelled(String fragment) => find.byWidgetPredicate(
   (Widget widget) =>
       widget is FluentSwitch &&

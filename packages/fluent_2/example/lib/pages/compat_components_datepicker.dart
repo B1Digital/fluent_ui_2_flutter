@@ -59,8 +59,10 @@ const DocsPage datePickerPage = DocsPage(
       id: 'compat-components-datepicker--date-range',
       title: 'Date Range',
       description:
-          'DatePicker allows you to set the selection range type. The range '
-          'can be Day, Month, Week, and WorkWeek. The default is Day.',
+          'Upstream, DatePicker allows you to set the selection range type: '
+          'Day, Month, Week or WorkWeek. The Flutter port does not support '
+          'range selection. FluentDatePicker has no dateRangeType and always '
+          'selects a single day, so this demo picks one date.',
       builder: _dateRange,
     ),
     DocsSection(
@@ -396,8 +398,8 @@ class _WeekNumbersState extends State<_WeekNumbers> {
 // #docregion compat-components-datepicker--date-range
 // Upstream drives `calendar.dateRangeType`, which paints a whole week, work
 // week or month as one selection. `FluentCalendar` selects a single day and has
-// no range axis, so the control below is live and the calendar is not — a
-// `reduced` adaptation rather than a knob dressed up as working.
+// no range axis, so upstream's DateRangeType dropdown is not ported: it could
+// only ever change itself. The picker below selects one day.
 Widget _dateRange(BuildContext context) => const _DateRange();
 
 class _DateRange extends StatefulWidget {
@@ -408,44 +410,18 @@ class _DateRange extends StatefulWidget {
 }
 
 class _DateRangeState extends State<_DateRange> {
-  static const List<String> _dateRangeOptions = <String>[
-    'Day',
-    'Work Week',
-    'Week',
-    'Month',
-  ];
-
   DateTime? _value;
-  String _dateRangeType = 'Week';
 
   @override
   Widget build(BuildContext context) => SizedBox(
     width: 300,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      spacing: 20,
-      children: <Widget>[
-        FluentField(
-          label: const Text('Select a date'),
-          child: FluentDatePicker(
-            value: _value,
-            onSelectDate: (DateTime? date) => setState(() => _value = date),
-            placeholder: const Text('Select a date...'),
-          ),
-        ),
-        FluentField(
-          label: const Text('Select a DateRangeType'),
-          child: FluentDropdown<String>(
-            value: _dateRangeType,
-            onChanged: (String value) => setState(() => _dateRangeType = value),
-            options: <FluentDropdownOption<String>>[
-              for (final String key in _dateRangeOptions)
-                FluentDropdownOption<String>(value: key, label: Text(key)),
-            ],
-          ),
-        ),
-      ],
+    child: FluentField(
+      label: const Text('Select a date'),
+      child: FluentDatePicker(
+        value: _value,
+        onSelectDate: (DateTime? date) => setState(() => _value = date),
+        placeholder: const Text('Select a date...'),
+      ),
     ),
   );
 }
@@ -757,13 +733,11 @@ class _ErrorHandlingState extends State<_ErrorHandling> {
       '${date.day.toString().padLeft(2, '0')} ${date.year}';
 
   DateTime? _value;
-  FluentDatePickerErrorType? _error;
+  String? _message;
 
   @override
   Widget build(BuildContext context) {
-    final String? message = defaultFluentDatePickerErrorStrings.messageFor(
-      _error,
-    );
+    final String? message = _message;
     return SizedBox(
       width: 300,
       child: FluentField(
@@ -787,8 +761,10 @@ class _ErrorHandlingState extends State<_ErrorHandling> {
           allowTextInput: true,
           value: _value,
           onSelectDate: (DateTime? date) => setState(() => _value = date),
+          // `result.message` is `errorStrings`' text for `result.error`, from
+          // the ambient `FluentLocalizations` unless overridden.
           onValidationResult: (FluentDatePickerValidationResult result) =>
-              setState(() => _error = result.error),
+              setState(() => _message = result.message),
           placeholder: const Text('Select a date...'),
         ),
       ),

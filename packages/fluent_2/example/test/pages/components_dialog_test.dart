@@ -12,10 +12,11 @@ import 'harness.dart';
 /// most of these tests are about *which dismissal paths work*, which is the
 /// only thing a dialog can get catastrophically wrong.
 ///
-/// Three sections carry real knobs: Backdrop Appearance has a radio group in a
-/// drawer, Actions gates its primary button behind a checkbox, and Motion
-/// Custom has three sliders and a switch. Each of those gets its own test that
-/// asserts the demo moved, not just the control.
+/// Two sections carry real knobs: Backdrop Appearance has a radio group in a
+/// drawer, and Actions gates its primary button behind a checkbox. Each of
+/// those gets its own test that asserts the demo moved, not just the control.
+/// Motion Custom has none, because FluentDialog has no motion hook to drive,
+/// and its test holds it to that.
 void main() {
   const String page = 'components-dialog';
 
@@ -656,59 +657,46 @@ void main() {
   });
 
   group('motion custom', () {
-    testWidgets('each motion control moves its own readout', (
+    testWidgets('offers no dead motion controls and plays the stock motion', (
       WidgetTester tester,
     ) async {
-      await pumpSection(tester, sectionOf('components-dialog--motion-custom'));
-      final Finder sliders = find.byType(FluentSlider);
-      expect(sliders, findsNWidgets(3));
-
-      // Surface duration, outScale and backdrop duration in declaration order.
-      const List<String> readouts = <String>[
-        'Surface duration',
-        'Surface outScale',
-        'Backdrop duration',
-      ];
-      for (int i = 0; i < readouts.length; i++) {
-        final double before = tester.widget<FluentSlider>(sliders.at(i)).value;
-        final String label = readoutText(tester, readouts[i]);
-
-        // Pressed three quarters along the rail, which is a value change for
-        // every one of the three whatever it started at.
-        final Rect rail = tester.getRect(sliders.at(i));
-        await mouseClickAt(
-          tester,
-          Offset(rail.left + rail.width * 0.75, rail.center.dy),
-          what: readouts[i],
-        );
-
-        expect(
-          tester.widget<FluentSlider>(sliders.at(i)).value,
-          isNot(before),
-          reason: '${readouts[i]}: the slider did not move',
-        );
-        expect(
-          readoutText(tester, readouts[i]),
-          isNot(label),
-          reason: '${readouts[i]}: the slider moved but its label did not',
-        );
-      }
-
-      final Finder animateOpacity = find.byType(FluentSwitch);
+      // FluentDialog has no motion hook, so upstream's duration, outScale,
+      // backdrop duration and animateOpacity controls could only ever move
+      // their own labels. The section must not offer them.
+      final DocsSection section = sectionOf('components-dialog--motion-custom');
+      await pumpSection(tester, section);
+      expect(find.byType(FluentSlider), findsNothing);
+      expect(find.byType(FluentSwitch), findsNothing);
       expect(
-        tester.widget<FluentSwitch>(animateOpacity).checked,
-        isTrue,
-        reason: 'Scale carries animateOpacity by default',
+        section.description,
+        contains('$fluentDialogOutScale'),
+        reason: 'the copy names the scale the surface really starts from',
       );
-      await tapAndSettle(tester, animateOpacity);
-      expect(tester.widget<FluentSwitch>(animateOpacity).checked, isFalse);
-      await tapAndSettle(tester, animateOpacity);
-      expect(tester.widget<FluentSwitch>(animateOpacity).checked, isTrue);
 
-      // And the dialog under the controls still opens.
-      await tapAndSettle(tester, find.text('Open Dialog'));
+      final TestGesture mouse = await tester.startGesture(
+        tester.getCenter(find.text('Open Dialog')),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump(const Duration(milliseconds: 90));
+      await mouse.moveBy(const Offset(1.5, 0));
+      await mouse.up();
+      // One frame rebuilds with open: true (the entry insert is deferred to
+      // post-frame), the next builds the overlay entry at t=0.
+      await tester.pump();
+      await tester.pump();
+      final Finder title = find.text('Dialog with the default motion');
+      expect(title, findsOneWidget);
+
+      final ScaleTransition surface = tester.widget<ScaleTransition>(
+        find.ancestor(of: title, matching: find.byType(ScaleTransition)).first,
+      );
+      expect(
+        surface.scale.value,
+        closeTo(fluentDialogOutScale, 0.01),
+        reason: 'the entrance starts from the package scale the copy names',
+      );
       await settleDialog(tester);
-      expect(find.text('Dialog with custom motion params'), findsOneWidget);
+      expect(surface.scale.value, 1);
     });
   });
 
@@ -789,10 +777,6 @@ List<Color> scrims(WidgetTester tester) => tester
 final Finder dialogBody = find
     .descendant(of: dialogSurface, matching: find.byType(Scrollable))
     .first;
-
-/// The full text of the field label that starts with [prefix].
-String readoutText(WidgetTester tester, String prefix) =>
-    tester.widget<Text>(find.textContaining(prefix)).data!;
 
 /// Turns a mouse wheel [delta] logical pixels over [finder].
 ///

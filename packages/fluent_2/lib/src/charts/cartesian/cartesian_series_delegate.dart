@@ -47,10 +47,11 @@ class FluentChartHitRegion {
   ///
   /// Upstream hangs `onClick` off the mark itself and only when the caller
   /// supplied a handler, so a screen reader announces a mark as clickable
-  /// exactly when it is (`LineChart.tsx:1697-1706`). A region is the only thing
-  /// the shell hit-tests, so a chart with no slot here has no activation at
-  /// all: every `onDataPointClick`, `onBarClick` and `onLineClick` the models
-  /// declare is dead until the region carries it.
+  /// exactly when it is (`LineChart.tsx:1697-1706`). A region is what the shell
+  /// hit-tests first, so every `onDataPointClick` and `onBarClick` the models
+  /// declare is dead until the region carries it. A mark with no box of its
+  /// own — a line's stroke — goes through
+  /// [FluentCartesianSeriesDelegate.activationAt] instead.
   final VoidCallback? onActivate;
 
   /// [popoverData] and [onActivate] are deliberately excluded: both carry
@@ -265,4 +266,17 @@ abstract class FluentCartesianSeriesDelegate {
     FluentCartesianChildContext context,
     FluentCartesianLayout layout,
   );
+
+  /// What a click at [position], in plot coordinates, runs when it lands in
+  /// none of the [buildHitRegions]; null runs nothing.
+  ///
+  /// For a clickable mark that is no box: LineChart's stroke, which upstream
+  /// makes clickable by spreading `onLineClick` onto the `<path>` and `<line>`
+  /// it draws (`LineChart.tsx:731`, `:1287`). A region is also a roving stop
+  /// and a popover; this is the click alone, so the keyboard does not reach
+  /// it.
+  VoidCallback? activationAt(
+    FluentCartesianChildContext context,
+    Offset position,
+  ) => null;
 }

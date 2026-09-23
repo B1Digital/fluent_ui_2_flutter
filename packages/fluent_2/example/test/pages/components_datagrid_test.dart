@@ -54,10 +54,20 @@ void main() {
         findsNothing,
         reason: 'nothing is sorted, so no column may claim descending',
       );
+      expect(
+        find.byIcon(FluentIcons.arrow_up_20_regular),
+        findsNothing,
+        reason: 'nothing is sorted, so no column may claim ascending',
+      );
 
       await tapAndSettle(tester, _sortControls().at(0), what: 'the File sort');
       expect(_labelOf(tester, 0), 'Sorted ascending');
       expect(find.byIcon(FluentIcons.arrow_down_20_regular), findsNothing);
+      expect(
+        find.byIcon(FluentIcons.arrow_up_20_regular),
+        findsOneWidget,
+        reason: 'only the sorted column draws the up arrow',
+      );
 
       await tapAndSettle(tester, _sortControls().at(0), what: 'the File sort');
       expect(_labelOf(tester, 0), 'Sorted descending');

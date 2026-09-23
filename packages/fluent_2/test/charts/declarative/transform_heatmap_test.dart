@@ -138,7 +138,7 @@ void main() {
       reason: 'PlotlySchemaAdapter.ts:2609.',
     );
     expect(
-      chart.props.showYAxisLables,
+      chart.props.showYAxisLabels,
       isTrue,
       reason: 'PlotlySchemaAdapter.ts:2610.',
     );
@@ -161,7 +161,7 @@ void main() {
       reason: 'PlotlySchemaAdapter.ts:2615.',
     );
     expect(
-      chart.props.showYAxisLablesTooltip,
+      chart.props.showYAxisLabelsTooltip,
       isTrue,
       reason: 'PlotlySchemaAdapter.ts:2616.',
     );

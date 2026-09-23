@@ -60,12 +60,12 @@ void main() {
   });
 
   test('a string x wraps its labels, a numeric one does not', () {
-    // The plan's Step 1 wrote `build(...).wrapXAxisLables`. There is no such
-    // field on `FluentVerticalBarChart`: `wrapXAxisLables` is a
+    // The plan's Step 1 wrote `build(...).wrapXAxisLabels`. There is no such
+    // field on `FluentVerticalBarChart`: `wrapXAxisLabels` is a
     // `FluentCartesianChartProps` member (`cartesian_chart_props.dart:200`),
     // read by the shell at `cartesian_chart.dart:626` and `:730`.
     expect(
-      build(categories(3)).props.wrapXAxisLables,
+      build(categories(3)).props.wrapXAxisLabels,
       isTrue,
       reason: "ts:2315 tests typeof barData[0]?.x === 'string'.",
     );
@@ -89,7 +89,7 @@ void main() {
         },
         <String, String>{},
         isDark: false,
-      ).props.wrapXAxisLables,
+      ).props.wrapXAxisLabels,
       isFalse,
       reason: 'ts:2315: a Date x is not a string, so the labels do not wrap.',
     );

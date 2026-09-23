@@ -634,11 +634,11 @@ FluentVerticalStackedBarChart transformPlotlyToVsbc(
       xMaxValue: xRange.xMaxValue,
       showRoundOffXTickValues: xRange.showRoundOffXTickValues,
       // `:1594`.
-      showYAxisLables: true,
+      showYAxisLabels: true,
       // `:1595`.
       noOfCharsToTruncate: 20,
       // `:1596`.
-      showYAxisLablesTooltip: true,
+      showYAxisLabelsTooltip: true,
       // `:1597`.
       roundedTicks: true,
       // `:1601`.
@@ -1113,7 +1113,7 @@ FluentGroupedVerticalBarChart transformPlotlyToGvbc(
       // `:1776`.
       hideTickOverlap: true,
       // `:1779`.
-      showYAxisLables: true,
+      showYAxisLabels: true,
       // `:1780`.
       roundedTicks: true,
       // `:1781`.
@@ -1401,7 +1401,7 @@ FluentGanttChart transformPlotlyToGantt(
       xAxisTitle: titles.xAxisTitle,
       yAxisTitle: titles.yAxisTitle,
       // `:2381`.
-      showYAxisLables: true,
+      showYAxisLabels: true,
       // `:2384`.
       hideTickOverlap: true,
       // `:2385`.
@@ -1409,7 +1409,7 @@ FluentGanttChart transformPlotlyToGantt(
       // `:2386`: 20 characters before an ellipsis.
       noOfCharsToTruncate: 20,
       // `:2387`.
-      showYAxisLablesTooltip: true,
+      showYAxisLabelsTooltip: true,
       // `:2389`.
       useUTC: false,
       xAxisCategoryOrder:
@@ -1685,7 +1685,7 @@ FluentVerticalBarChart transformPlotlyToVbc(
       // `:1896`.
       hideLegend: legend.hideLegend,
       // `:1898`.
-      showYAxisLables: true,
+      showYAxisLabels: true,
       // `:1899`.
       roundedTicks: true,
       // `:1900`: the x range brings its own round-off flag.
@@ -1920,13 +1920,13 @@ FluentHorizontalBarChartWithAxis transformPlotlyToHbwa(
       yAxisTitle: titles.yAxisTitle,
       secondaryYAxisTitle: titles.secondaryYAxisTitle,
       // `:2279`.
-      showYAxisLables: true,
+      showYAxisLabels: true,
       // `:2282`.
       hideTickOverlap: true,
       // `:2283`: 20 characters before an ellipsis.
       noOfCharsToTruncate: 20,
       // `:2284`.
-      showYAxisLablesTooltip: true,
+      showYAxisLabelsTooltip: true,
       // `:2285`.
       hideLegend: legend.hideLegend,
       // `:2287`.

@@ -431,7 +431,7 @@ class _VerticalBarDefaultState extends State<_VerticalBarDefault> {
               max: 1000,
               semanticLabel: 'Change Width',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _width = value),
             ),
@@ -445,16 +445,13 @@ class _VerticalBarDefaultState extends State<_VerticalBarDefault> {
               max: 1000,
               semanticLabel: 'Change Height',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _height = value),
             ),
           ),
         ],
       ),
-      // Upstream's radio pair swaps in `onRenderCalloutPerDataPoint`, which is
-      // commented out in the story source, so neither choice changes the chart.
-      // The port keeps the control and the same inert behaviour.
       FluentField(
         label: const Text('Pick one'),
         child: FluentRadioGroup<String>(
@@ -487,7 +484,7 @@ class _VerticalBarDefaultState extends State<_VerticalBarDefault> {
       FluentSwitch(
         checked: _showAxisTitles,
         onChanged: (bool value) => setState(() => _showAxisTitles = value),
-        label: Text(_showAxisTitles ? 'Show axis titles' : 'Hide axis titles'),
+        label: const Text('Show axis titles'),
       ),
       FluentSwitch(
         checked: _selectMultipleLegends,
@@ -524,6 +521,11 @@ class _VerticalBarDefaultState extends State<_VerticalBarDefault> {
                         'vertical bar chart whose values range from zero to '
                         '100,000. The x-axis is divided into 10 equal parts, '
                         'each part representing 10,000.'
+                  : null,
+              // Upstream's story leaves its custom renderer commented out;
+              // `popoverBuilder` takes no datum, so the custom body is static.
+              popoverBuilder: _calloutExample == 'Custom Callout Example'
+                  ? (BuildContext context) => const Text('Custom callout')
                   : null,
             ),
           ),
@@ -607,7 +609,7 @@ class _VerticalBarCustomAccessibilityState
       FluentCheckbox(
         checked: _isChecked,
         onChanged: (bool? value) => setState(() => _isChecked = value ?? false),
-        label: const Text('show  line(This will draw the line)'),
+        label: const Text('show line(This will draw the line)'),
       ),
       FluentCheckbox(
         checked: _useSingleColor,
@@ -904,8 +906,8 @@ class _VerticalBarAxisTooltipState extends State<_VerticalBarAxisTooltip> {
                 : null,
             props: FluentCartesianChartProps(
               hideLegend: true,
-              showXAxisLablesTooltip: _selectedCallout == 'showTooltip',
-              wrapXAxisLables: _selectedCallout == 'WrapTickValues',
+              showXAxisLabelsTooltip: _selectedCallout == 'showTooltip',
+              wrapXAxisLabels: _selectedCallout == 'WrapTickValues',
             ),
           ),
         ),
@@ -943,7 +945,7 @@ Widget _verticalBarRotateLabels(BuildContext context) => const SizedBox(
         color: Color(0xFF0E7878),
       ),
     ],
-    props: FluentCartesianChartProps(hideLegend: true, rotateXAxisLables: true),
+    props: FluentCartesianChartProps(hideLegend: true, rotateXAxisLabels: true),
   ),
 );
 // #enddocregion charts-verticalbarchart--vertical-bar-rotate-labels
@@ -1030,7 +1032,7 @@ class _VerticalBarStyledState extends State<_VerticalBarStyled> {
       FluentCheckbox(
         checked: _isChecked,
         onChanged: (bool? value) => setState(() => _isChecked = value ?? false),
-        label: const Text('show  line(This will draw the line)'),
+        label: const Text('show line(This will draw the line)'),
       ),
       FluentCheckbox(
         checked: _useSingleColor,
@@ -1474,9 +1476,9 @@ class _VerticalBarAllNegativeState extends State<_VerticalBarAllNegative> {
       const SizedBox(
         width: 650,
         child: Text(
-          'In this example the supportNegativeData property is enabled and all '
-          'negative y points are passed to the data. As a result chart with '
-          'negative y axis data is rendered.',
+          'In this example all y points are negative. FluentVerticalBarChart '
+          'always plots against a signed y axis, so no extra property is '
+          'needed to render negative data.',
         ),
       ),
       Row(
@@ -1539,7 +1541,7 @@ class _VerticalBarAllNegativeState extends State<_VerticalBarAllNegative> {
       FluentSwitch(
         checked: _showAxisTitles,
         onChanged: (bool value) => setState(() => _showAxisTitles = value),
-        label: Text(_showAxisTitles ? 'Switch Axis titles' : 'Hide axis tiles'),
+        label: const Text('Show axis titles'),
       ),
       // Upstream also offers an "Enable Gradient" switch; the port has no
       // gradient fill for bars, so that one knob is left out.
@@ -1570,6 +1572,11 @@ class _VerticalBarAllNegativeState extends State<_VerticalBarAllNegative> {
                   ? 'Different categories of animals and fruits'
                   : null,
               xAxisTitle: _showAxisTitles ? 'Values of each category' : null,
+              // Upstream's handler only flips a flag nothing reads;
+              // `popoverBuilder` takes no datum, so the custom body is static.
+              popoverBuilder: _calloutExample == 'Custom Callout Example'
+                  ? (BuildContext context) => const Text('Custom callout')
+                  : null,
             ),
           ),
         ),
@@ -1685,9 +1692,9 @@ class _VerticalBarNegativeState extends State<_VerticalBarNegative> {
       const SizedBox(
         width: 650,
         child: Text(
-          'In this example the supportNegativeData property is enabled and '
-          'some positive and some negative y points are passed to the data. As '
-          'a result chart with negative y axis data is rendered.',
+          'In this example some y points are positive and some are negative. '
+          'FluentVerticalBarChart always plots against a signed y axis, so no '
+          'extra property is needed to render negative data.',
         ),
       ),
       const Text('Change Width:'),
@@ -1750,9 +1757,7 @@ class _VerticalBarNegativeState extends State<_VerticalBarNegative> {
       FluentSwitch(
         checked: _showAxisTitles,
         onChanged: (bool value) => setState(() => _showAxisTitles = value),
-        label: Text(
-          _showAxisTitles ? 'Switch Axis titles' : 'Hide Axis titles',
-        ),
+        label: const Text('Show axis titles'),
       ),
       // Upstream also offers an "Enable Gradient" switch; the port has no
       // gradient fill for bars, so that one knob is left out.
@@ -1783,6 +1788,11 @@ class _VerticalBarNegativeState extends State<_VerticalBarNegative> {
                   ? 'Different categories of animals and fruits'
                   : null,
               xAxisTitle: _showAxisTitles ? 'Values of each category' : null,
+              // Upstream's handler only flips a flag nothing reads;
+              // `popoverBuilder` takes no datum, so the custom body is static.
+              popoverBuilder: _calloutExample == 'Custom Callout Example'
+                  ? (BuildContext context) => const Text('Custom callout')
+                  : null,
             ),
           ),
         ),

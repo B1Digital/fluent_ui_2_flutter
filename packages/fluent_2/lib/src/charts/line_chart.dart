@@ -46,6 +46,8 @@ class FluentLineChart extends StatefulWidget {
     this.props = const FluentCartesianChartProps(),
     this.eventAnnotations = const <FluentEventAnnotation>[],
     this.eventAnnotationMergedLabel,
+    this.eventAnnotationStrokeColor,
+    this.eventAnnotationLabelColor,
     this.colorFillBars = const <FluentColorFillBar>[],
     this.allowMultipleShapesForPoints = false,
     this.optimizeLargeData = false,
@@ -70,6 +72,16 @@ class FluentLineChart extends StatefulWidget {
   /// (`EventAnnotation.tsx:61-119`). Required when [eventAnnotations] is not
   /// empty.
   final String Function(int count)? eventAnnotationMergedLabel;
+
+  /// Colour of the event-annotation rules, or null for
+  /// `colorNeutralForeground1`. `EventsAnnotationProps.strokeColor`
+  /// (`LineChart.types.ts:104`, read at `EventAnnotation.tsx:29-31`).
+  final Color? eventAnnotationStrokeColor;
+
+  /// Colour of the event-annotation labels, or null for
+  /// `colorNeutralForeground1`. `EventsAnnotationProps.labelColor`
+  /// (`LineChart.types.ts:105`, read at `LabelLink.tsx:61-63`).
+  final Color? eventAnnotationLabelColor;
 
   /// Shaded x ranges drawn behind the lines.
   final List<FluentColorFillBar> colorFillBars;
@@ -254,6 +266,8 @@ class FluentLineChartState extends State<FluentLineChart> {
               mergedLabel:
                   widget.eventAnnotationMergedLabel ??
                   (count) => '$count events',
+              strokeColor: widget.eventAnnotationStrokeColor,
+              labelColor: widget.eventAnnotationLabelColor,
             ),
       onChartMouseLeave: () => setState(() {
         // `_handleChartMouseLeave` clears the hover (`:1195-1200`).
@@ -2029,6 +2043,7 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
         popoverData: FluentChartPopoverData(
           xValue: xValue,
           isCalloutForStack: isCalloutForStack,
+          culture: culture,
           yValues: stack == null
               ? null
               : <FluentYValueHover>[
@@ -2064,7 +2079,8 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
         // `{..._getClickHandler(point.onDataPointClick)}` (`:908`, `:1074`,
         // `:1151`). `line.onLineClick` is deliberately NOT folded in: upstream
         // hangs it off the line `<path>` (`:731`, `:1287`), which the marker
-        // circle sits on top of, so a click on a mark never reaches it.
+        // circle sits on top of, so a click on a mark never reaches it. The
+        // stroke itself is hit-tested in [activationAt].
         onActivate: point.onDataPointClick,
       );
     }
@@ -2072,6 +2088,76 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     return <FluentChartHitRegion>[
       for (final mark in markersFor(context)) regionFor(mark),
     ];
+  }
+
+  /// The [FluentLineChartSeries.onLineClick] of the line stroked under
+  /// [position].
+  ///
+  /// Upstream spreads `_getClickHandler(_points[i].onLineClick)` onto the
+  /// engine-B `<path>` (`:731`) and every engine-A `<line>` (`:1287`), both on
+  /// the selected arm only, so a legend-dimmed line (`:736`, `:1291`) and a gap
+  /// (`:1217`) take no click. This hit-tests the very strokes [segmentsFor] and
+  /// [singlePathsFor] hand the painter. Both run last series first, so the
+  /// last hit is the topmost line, and a topmost line with no handler swallows
+  /// the click as the SVG one does.
+  ///
+  /// Only the stroke counts. Engine B's path is `fill="transparent"`, which SVG
+  /// hit-tests as painted, but a click in the chord under a curve is not a
+  /// click on the line; dash gaps count as stroke.
+  @override
+  VoidCallback? activationAt(
+    FluentCartesianChildContext context,
+    Offset position,
+  ) {
+    bool selected(int seriesIndex) =>
+        highlighted(series[seriesIndex].legend) || _noneHighlighted;
+    VoidCallback? hit;
+    for (final segment in segmentsFor(context)) {
+      if (selected(segment.seriesIndex) &&
+          _distanceToSegment(position, segment.start, segment.end) <=
+              segment.strokeWidth / 2) {
+        hit = series[segment.seriesIndex].onLineClick;
+      }
+    }
+    for (final single in singlePathsFor(context)) {
+      if (selected(single.seriesIndex) &&
+          _strokeContains(single.path, position, single.strokeWidth / 2)) {
+        hit = series[single.seriesIndex].onLineClick;
+      }
+    }
+    return hit;
+  }
+
+  /// Whether [position] is within [halfWidth] of [path]'s centreline.
+  ///
+  /// ponytail: walks each contour in 1px chords, well inside the half-stroke
+  /// of any line a pointer can hit; sample finer if a hairline curve needs it.
+  static bool _strokeContains(Path path, Offset position, double halfWidth) {
+    for (final metric in path.computeMetrics()) {
+      var previous = metric.getTangentForOffset(0)?.position;
+      for (var d = 1.0; previous != null && d < metric.length + 1; d++) {
+        final next = metric
+            .getTangentForOffset(math.min(d, metric.length))!
+            .position;
+        if (_distanceToSegment(position, previous, next) <= halfWidth) {
+          return true;
+        }
+        previous = next;
+      }
+    }
+    return false;
+  }
+
+  /// The distance from [p] to the segment [a]–[b], which is exactly how far a
+  /// round-capped stroke reaches.
+  static double _distanceToSegment(Offset p, Offset a, Offset b) {
+    final ab = b - a;
+    final lengthSquared = ab.distanceSquared;
+    final t = lengthSquared == 0
+        ? 0.0
+        : (((p.dx - a.dx) * ab.dx + (p.dy - a.dy) * ab.dy) / lengthSquared)
+              .clamp(0.0, 1.0);
+    return (p - (a + ab * t)).distance;
   }
 
   /// Parses an SVG `stroke-dasharray` into a Flutter dash list.

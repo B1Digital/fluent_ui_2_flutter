@@ -634,7 +634,7 @@ void main() {
       expect(delegate.xAxisPadding, 0.02, reason: 'HeatMapChart.tsx:807');
       expect(delegate.yAxisPadding, 0.02, reason: 'HeatMapChart.tsx:808');
       expect(
-        shell.props.xAxistickSize,
+        shell.props.xAxisTickSize,
         0,
         reason: 'HeatMapChart.tsx:806 suppresses the x tick marks',
       );

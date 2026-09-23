@@ -59,9 +59,9 @@ void main() {
         roundCorners: true,
         props: FluentCartesianChartProps(
           hideTickOverlap: true,
-          showYAxisLables: true,
+          showYAxisLabels: true,
           noOfCharsToTruncate: 20,
-          showYAxisLablesTooltip: true,
+          showYAxisLabelsTooltip: true,
           roundedTicks: true,
         ),
       ),

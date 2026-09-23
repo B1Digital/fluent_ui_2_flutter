@@ -169,6 +169,7 @@ class _FluentHorizontalBarChartWithAxisState
         colorsOverride: widget.colors,
         yAxisCategoryOrder: widget.yAxisCategoryOrder,
         xMaxValue: widget.props.xMaxValue,
+        culture: widget.culture,
       ),
       onChartMouseLeave: () => setState(() => _selectedLegendTitle = null),
     );
@@ -431,6 +432,7 @@ class FluentHorizontalBarChartWithAxisDelegate
     this.colorsOverride,
     this.yAxisCategoryOrder,
     this.xMaxValue,
+    this.culture,
   });
 
   /// The data points, in author order.
@@ -489,6 +491,15 @@ class FluentHorizontalBarChartWithAxisDelegate
 
   /// User-supplied value-axis ceiling.
   final double? xMaxValue;
+
+  /// BCP-47 locale for the popover's bar-length reading (`props.culture`).
+  ///
+  /// Overrides the base getter, so the shell formats the value axis's tick
+  /// labels with it too: `HorizontalBarChartWithAxis.tsx:908` spreads `props`
+  /// into `CartesianChart`, which hands `culture` to the x axis builders
+  /// (`CartesianChart.tsx:237-277`).
+  @override
+  final String? culture;
 
   @override
   FluentChartType get chartType => FluentChartType.horizontalBarChartWithAxis;
@@ -880,11 +891,21 @@ class FluentHorizontalBarChartWithAxisDelegate
             // `.tsx:259-260` — HBWA swaps the axes, so the popover's x line
             // carries the category and its y line the bar length.
             xValue: bar.point.yAxisCalloutData ?? '${bar.point.y}',
-            yValue: bar.point.xAxisCalloutData ?? '${bar.point.x}',
+            // `YValue={point.xAxisCalloutData || point.x.toString()}`
+            // (`.tsx:146`), formatted the way `ChartPopover.tsx:89` formats it.
+            // parity: the default calloutProps (`:880-896`) carry no `culture`,
+            // so upstream groups this in the runtime locale. Its own
+            // `_renderContentForOnlyBars` (`:143-150`) does pass
+            // `props.culture`, and the prop is documented as the popover's.
+            yValue:
+                bar.point.xAxisCalloutData ??
+                formatToLocaleString(bar.point.x, culture: culture),
             legend: bar.point.legend,
             color: barColour(bar.point, bar.indexInGroup),
           ),
           semanticsLabel: ariaLabelFor(bar.point),
+          // `onClick={point.onClick}` on every bar (`.tsx:480`, `:662`).
+          onActivate: bar.point.onClick,
         ),
     ];
   }

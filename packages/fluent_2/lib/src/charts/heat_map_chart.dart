@@ -640,6 +640,9 @@ class FluentHeatMapChartDelegate extends FluentCartesianSeriesDelegate {
           ),
           semanticsLabel:
               placed.cell.semantics?.label ?? _ariaLabelOf(placed.cell),
+          // `onClick={dataPointObject.onClick}` on the cell's `<rect>`
+          // (`HeatMapChart.tsx:233`).
+          onActivate: placed.cell.onTap,
         ),
       );
     }
@@ -816,7 +819,7 @@ class _FluentHeatMapChartState extends State<FluentHeatMapChart> {
         // The hard-coded shell tick size at HeatMapChart.tsx:806. The two band
         // paddings from the same block are NOT props — they are delegate
         // pull-hooks, overridden on FluentHeatMapChartDelegate above.
-        xAxistickSize: 0,
+        xAxisTickSize: 0,
         // `_getChartTitle` (`:635-639`).
         chartTitleForSemantics:
             '${widget.chartTitle == null ? '' : '${widget.chartTitle}. '}'

@@ -10,6 +10,10 @@ import '../shell/catalog.dart';
 /// id, so the "Show code" panel can read this file back and print exactly the
 /// code that rendered.
 ///
+/// The exception is the two Motion sections' copy: upstream's teaches a
+/// `surfaceMotion` slot FluentPopover does not have, so it says what the
+/// popover does instead.
+///
 /// [FluentPopover] is controlled — it takes `open` plus `onOpenChanged` rather
 /// than upstream's `PopoverTrigger` wrapper — so every section below owns a
 /// `bool` and a real trigger button.
@@ -80,16 +84,22 @@ const DocsPage popoverPage = DocsPage(
       id: 'components-popover--motion-custom',
       title: 'Motion Custom',
       description:
-          'Popover animations can be customized using the Motion APIs, '
-          'together with the surfaceMotion slot.',
+          'FluentPopover takes no motion parameters. Its surface always fades '
+          'in while it slides 10px into place, over 400ms, and closes with no '
+          'exit animation. When the MediaQuery above it sets '
+          'disableAnimations, the surface appears in place with no '
+          'transition.',
       builder: _motionCustom,
     ),
     DocsSection(
       id: 'components-popover--motion-disabled',
       title: 'Motion Disabled',
       description:
-          'To disable the Popover transition animation, set the surfaceMotion '
-          'prop to null.',
+          'FluentPopover has no per-popover switch for its motion. It follows '
+          'the disableAnimations flag of the MediaQuery above it, so this demo '
+          'wraps the popover in a MediaQuery that sets it, and the surface '
+          'appears in place with no transition. In an app, the OS '
+          'reduce-motion setting sets the same flag.',
       builder: _motionDisabled,
     ),
     DocsSection(
@@ -609,10 +619,10 @@ class _MotionCustomState extends State<_MotionCustom> {
     open: _open,
     onOpenChanged: (bool open) => setState(() => _open = open),
     // Upstream swaps the surface's presence component through the
-    // `surfaceMotion` slot. FluentPopover has no such slot: its entrance is
-    // FluentPopoverEntrance — Fluent's own fade plus direction-aware slide —
-    // and it is not replaceable, so the demo keeps the copy and shows the
-    // stock entrance rather than a fade-in/blur-out.
+    // `surfaceMotion` slot for a fade-in/blur-out. FluentPopover has no such
+    // slot: its entrance is FluentPopoverEntrance — Fluent's own fade plus
+    // direction-aware slide — and it is not replaceable, so the demo shows
+    // that entrance and its copy describes it.
     content: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -622,7 +632,7 @@ class _MotionCustomState extends State<_MotionCustom> {
           'Popover content',
           style: TextStyle(fontSize: 16, fontWeight: FluentFontWeight.semibold),
         ),
-        const Text('This popover fades in and blurs out.'),
+        const Text('This popover fades and slides in, with no exit animation.'),
         FluentButton(onPressed: () {}, child: const Text('Action')),
       ],
     ),

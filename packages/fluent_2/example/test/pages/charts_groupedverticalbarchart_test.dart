@@ -171,27 +171,37 @@ void main() {
       expect(_highlighted(tester), perLegend * 2);
     });
 
-    testWidgets('the callout radios commit while the demo stays inert', (
+    testWidgets('the stacked callout radio widens the popover to the stack', (
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
       final Finder group = find.byType(FluentRadioGroup<String>);
       final Finder chart = find.byType(FluentGroupedVerticalBarChart);
+      TestGesture mouse = await _hoverBar(tester, 0);
+      final int single = _popoverText(tester).length;
+      expect(single, greaterThan(0));
+      await mouseAway(tester, mouse);
 
       await mouseClick(tester, find.text('Stacked callout'));
       expect(
         tester.widget<FluentRadioGroup<String>>(group).value,
         'stackedCallout',
       );
-      // Upstream compares the radio against 'StackCallout' while its own
-      // options carry 'singleCallout' and 'stackedCallout', so neither choice
-      // ever turns the stack callout on. The port keeps the same inert
-      // comparison, and this is the assertion that would catch it being
-      // "fixed" without the docs following.
+      // Upstream compares the radio against 'StackCallout', a value its own
+      // options never carry; the port compares against 'stackedCallout'.
       expect(
         tester.widget<FluentGroupedVerticalBarChart>(chart).isCalloutForStack,
-        isFalse,
+        isTrue,
       );
+      mouse = await _hoverBar(tester, 0);
+      expect(
+        _popoverText(tester).length,
+        greaterThan(single),
+        reason:
+            'a stack callout lists every series in the category, not just '
+            'the bar under the pointer',
+      );
+      await mouseAway(tester, mouse);
     });
   });
 

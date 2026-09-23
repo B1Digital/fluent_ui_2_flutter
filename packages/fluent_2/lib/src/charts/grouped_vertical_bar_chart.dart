@@ -857,10 +857,15 @@ class FluentGroupedVerticalBarChartDelegate
             color: bar.colour,
             isCalloutForStack: isCalloutForStack,
             yValues: isCalloutForStack ? _yValuesOf(bar.category) : null,
+            culture: culture,
           ),
           semanticsLabel:
               point.callOutSemantics?.label ??
               '$xValue. ${bar.legend}, $yValue.',
+          // `onClick={pointData.onClick}` (`.tsx:594`), on the rect in either
+          // callout mode. The line-dot regions below take none: upstream's dot
+          // circle has no `onClick` (`.tsx:865-892`).
+          onActivate: point.onClick,
         ),
       );
     }
@@ -893,6 +898,7 @@ class FluentGroupedVerticalBarChartDelegate
             ),
             isCalloutForStack: isCalloutForStack,
             yValues: isCalloutForStack ? _yValuesOf(dot.category) : null,
+            culture: culture,
           ),
           // `getAriaLabel` again, called on the line point at `.tsx:881-891`.
           semanticsLabel:
@@ -1316,8 +1322,9 @@ class FluentGroupedVerticalBarChartState
       selectedLegends: _selectedLegends,
       onLegendChange: (selected) => setState(() => _selectedLegends = selected),
       props: widget.props.copyWith(
-        // GVBC forwards `props.tickPadding || 5`, which the shell's precedence
-        // bug turns into a flat 5 (`.tsx:1006`, `CartesianChart.tsx:215`).
+        // GVBC forwards `props.tickPadding || 5` (`.tsx:1006`). Upstream's
+        // shell flattens any value to 5 (`CartesianChart.tsx:215`); the port's
+        // uses it as given (resolveShellXAxisTickPadding).
         tickPadding: widget.props.tickPadding ?? 5,
         chartTitleForSemantics:
             '${widget.chartTitle == null ? '' : '${widget.chartTitle}. '}'

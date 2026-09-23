@@ -476,6 +476,7 @@ class FluentDonutChart extends StatefulWidget {
     this.height,
     this.hideLegend = false,
     this.hideTooltip = false,
+    this.popoverBuilder,
     this.culture,
     this.order = FluentDonutOrder.byDefault,
     this.canSelectMultipleLegends = false,
@@ -513,6 +514,17 @@ class FluentDonutChart extends StatefulWidget {
 
   /// Whether the hover popover is suppressed (`DonutChart.tsx:410`).
   final bool hideTooltip;
+
+  /// Builds the popover body for the hovered or focused datum, in place of the
+  /// built-in one.
+  ///
+  /// Ports `onRenderCalloutPerDataPoint` (`DonutChart.tsx:406-408`), whose
+  /// result `ChartPopover.tsx:54` renders inside the popover surface instead of
+  /// the default body. Returning null keeps the default body for that datum,
+  /// as upstream's `undefined` does. Nothing is built while [hideTooltip] is
+  /// set.
+  final Widget? Function(BuildContext context, FluentChartDataPoint point)?
+  popoverBuilder;
 
   /// Locale for the centre value (`DonutChart.tsx:225`).
   final String? culture;
@@ -837,6 +849,7 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
                           _hovered!.yAxisCalloutData ??
                           d3.jsNumberToString(_hovered!.data ?? 0),
                       color: _hovered!.color,
+                      customContentBuilder: _customPopoverBody(context),
                     ),
                   ),
               ],
@@ -845,6 +858,13 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
         ),
       ),
     );
+  }
+
+  /// [FluentDonutChart.popoverBuilder]'s body for the hovered datum, or null
+  /// for the built-in one (`DonutChart.tsx:406-408`).
+  WidgetBuilder? _customPopoverBody(BuildContext context) {
+    final body = widget.popoverBuilder?.call(context, _hovered!);
+    return body == null ? null : (_) => body;
   }
 
   /// One transparent focus and semantics target per slice.

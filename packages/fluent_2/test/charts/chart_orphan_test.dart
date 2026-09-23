@@ -313,14 +313,14 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // it, while the shell's `startFromX` solve (cartesian_chart.dart:670-686,
   // porting CartesianChart.tsx:150-160) had always sized the left margin off
   // `truncateString(label, noOfCharsToTruncate)` — so every chart with
-  // `showYAxisLablesTooltip` reserved the truncated width and painted the full
+  // `showYAxisLabelsTooltip` reserved the truncated width and painted the full
   // label into it. HorizontalBarChartWithAxis, heat map, gantt and scatter all
   // ship that flag on from the Plotly transforms
   // (transform_bar.dart:641, :1412, :1929 and transform_xy.dart:940, :1369),
   // and their first y label started 66.99 logical pixels off the chart's left
   // edge. cartesian_painter.dart:220-226 now calls the helper,
   // unconditionally,
-  // with `truncateLabel: props.showYAxisLablesTooltip` — which also makes the
+  // with `truncateLabel: props.showYAxisLabelsTooltip` — which also makes the
   // spec 5.2 exception 2 arm the default path rather than dead code, since
   // upstream's own guard at CartesianChart.tsx:396 and its `truncateLabel`
   // argument at :404 are the same flag and its blank-axis branch is therefore

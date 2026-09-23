@@ -1976,7 +1976,7 @@ class _DefaultState extends State<_Default> {
     'height': _height,
   };
 
-  // In "show few" mode the Category dropdown offers `All` alone.
+  // While Show more is off the Category dropdown offers `All` alone.
   List<String> get _categories => _showMore
       ? <String>['All', ..._schemaCategories.keys]
       : const <String>['All'];
@@ -1987,6 +1987,23 @@ class _DefaultState extends State<_Default> {
     }
     return _showMore ? _schemaCategories[category]!.length : 0;
   }
+
+  // The Chart Type list for the selected category. Upstream reads the
+  // selection and then never filters on it — `const filteredOptions =
+  // currentOptions` — which leaves the counts in the Category labels
+  // promising a list that never arrives; the port filters.
+  Iterable<String> get _chartKeys => _selectedCategory == 'All'
+      ? _allSchemas.keys
+      : _schemaCategories[_selectedCategory]!;
+
+  // A category that no longer holds the selected chart moves the selection to
+  // its first schema, or the Chart Type dropdown would hold a dead value.
+  void _onCategoryChanged(String value) => setState(() {
+    _selectedCategory = value;
+    if (!_chartKeys.contains(_selectedChart)) {
+      _selectChart(_chartKeys.first);
+    }
+  });
 
   void _onShowMoreChanged(bool value) => setState(() {
     _showMore = value;
@@ -2065,7 +2082,9 @@ class _DefaultState extends State<_Default> {
         FluentSwitch(
           checked: _showMore,
           onChanged: _onShowMoreChanged,
-          label: Text(_showMore ? 'Show more' : 'Show few'),
+          // Upstream flips this to "Show few" while off; `checked` already
+          // carries the state, so the label names the feature.
+          label: const Text('Show more'),
         ),
         const SizedBox(height: 20),
         Wrap(
@@ -2088,11 +2107,7 @@ class _DefaultState extends State<_Default> {
                       ),
                   ],
                   value: _selectedCategory,
-                  // Upstream reads the selection and then never filters on it —
-                  // `const filteredOptions = currentOptions` — so the Chart
-                  // Type list stays whole here too.
-                  onChanged: (String value) =>
-                      setState(() => _selectedCategory = value),
+                  onChanged: _onCategoryChanged,
                 ),
               ),
             ),
@@ -2102,7 +2117,7 @@ class _DefaultState extends State<_Default> {
                 width: 300,
                 child: FluentDropdown<String>(
                   options: <FluentDropdownOption<String>>[
-                    for (final String key in _allSchemas.keys)
+                    for (final String key in _chartKeys)
                       FluentDropdownOption<String>(
                         value: key,
                         label: Text(_optionText(key)),

@@ -10,6 +10,9 @@ import '../shell/catalog.dart';
 /// id, so the "Show code" panel can read this file back and print exactly the
 /// code that rendered.
 ///
+/// The exception is Motion Custom's copy: upstream's teaches motion slots that
+/// FluentDialog does not have, so it says what the dialog does instead.
+///
 /// `FluentDialog` is controlled: it takes a required `open` bool and an
 /// `onOpenChange` callback and never flips itself. Upstream's `DialogTrigger`
 /// wrapper has no counterpart, so every section below owns a `bool _open` and
@@ -223,12 +226,12 @@ const DocsPage dialogPage = DocsPage(
       id: 'components-dialog--motion-custom',
       title: 'Motion Custom',
       description:
-          "Dialog's surfaceMotion slot accepts Scale params directly, such as "
-          "duration, outScale, easing, and animateOpacity. DialogSurface's "
-          'backdropMotion slot accepts Fade params. Both slots also support '
-          'the children render function, which allows replacing the default '
-          'motion with a custom implementation. This story demonstrates the '
-          'simpler direct prop approach.',
+          'FluentDialog takes no motion parameters, so there is nothing here '
+          'to tune. The surface always scales up from 0.85 while it fades in, '
+          'and the backdrop fades with it, over 250ms each way. When the '
+          'MediaQuery above it sets disableAnimations, whether from the OS '
+          'reduce-motion setting or from a MediaQuery wrapped around the '
+          'dialog, it opens and closes with no transition.',
       builder: _motionCustom,
     ),
   ],
@@ -1395,11 +1398,12 @@ class _ConfirmationState extends State<_Confirmation> {
 // #enddocregion components-dialog--confirmation
 
 // #docregion components-dialog--motion-custom
-// Upstream drives `Dialog`'s `surfaceMotion` and `DialogSurface`'s
-// `backdropMotion` slots from these controls. FluentDialog exposes no motion
+// Upstream tunes `Dialog`'s `surfaceMotion` and `DialogSurface`'s
+// `backdropMotion` slots from four controls here. FluentDialog has no motion
 // hook — `fluentDialogSurfaceEnter`, `fluentDialogSurfaceExit`,
-// `fluentDialogScrim` and `fluentDialogOutScale` are package constants — so the
-// controls are live and the dialog animation is not.
+// `fluentDialogScrim` and `fluentDialogOutScale` are package constants, and
+// only `MediaQuery.disableAnimationsOf` changes them — so the controls are left
+// out rather than shown moving nothing, and the dialog plays its own motion.
 Widget _motionCustom(BuildContext context) => const _MotionCustom();
 
 class _MotionCustom extends StatefulWidget {
@@ -1410,75 +1414,27 @@ class _MotionCustom extends StatefulWidget {
 }
 
 class _MotionCustomState extends State<_MotionCustom> {
-  double _duration = 600;
-  double _outScale = 0.5;
-  double _backdropDuration = 300;
-  bool _animateOpacity = true;
   bool _open = false;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    mainAxisSize: MainAxisSize.min,
-    spacing: 8,
-    children: <Widget>[
-      FluentField(
-        label: Text('Surface duration: ${_duration.round()}ms'),
-        child: FluentSlider(
-          min: 100,
-          max: 2000,
-          step: 50,
-          value: _duration,
-          onChanged: (double value) => setState(() => _duration = value),
-        ),
-      ),
-      FluentField(
-        label: Text('Surface outScale: ${_outScale.toStringAsFixed(2)}'),
-        child: FluentSlider(
-          max: 1,
-          step: 0.05,
-          value: _outScale,
-          onChanged: (double value) => setState(() => _outScale = value),
-        ),
-      ),
-      FluentField(
-        label: Text('Backdrop duration: ${_backdropDuration.round()}ms'),
-        child: FluentSlider(
-          max: 1000,
-          step: 50,
-          value: _backdropDuration,
-          onChanged: (double value) =>
-              setState(() => _backdropDuration = value),
-        ),
-      ),
-      FluentSwitch(
-        checked: _animateOpacity,
-        label: const Text('Surface animateOpacity'),
-        onChanged: (bool value) => setState(() => _animateOpacity = value),
-      ),
-      const SizedBox(height: 8),
-      FluentDialog(
-        open: _open,
-        onOpenChange: (bool open) => setState(() => _open = open),
-        title: const Text('Dialog with custom motion params'),
-        content: const Text(
-          "This dialog's surface animation is driven by direct surfaceMotion "
-          'params (`duration`, `outScale`, `easing`, `animateOpacity`). Its '
-          'backdrop fade is tuned independently via backdropMotion '
-          '(`duration`).',
-        ),
-        actions: <Widget>[
-          FluentButton(
-            onPressed: () => setState(() => _open = false),
-            child: const Text('Close'),
-          ),
-        ],
-        child: FluentButton(
-          onPressed: () => setState(() => _open = true),
-          child: const Text('Open Dialog'),
-        ),
+  Widget build(BuildContext context) => FluentDialog(
+    open: _open,
+    onOpenChange: (bool open) => setState(() => _open = open),
+    title: const Text('Dialog with the default motion'),
+    content: const Text(
+      "This dialog's surface scales up from 0.85 while it fades in, and its "
+      'backdrop fades with it. FluentDialog has no parameter to change that.',
+    ),
+    actions: <Widget>[
+      FluentButton(
+        onPressed: () => setState(() => _open = false),
+        child: const Text('Close'),
       ),
     ],
+    child: FluentButton(
+      onPressed: () => setState(() => _open = true),
+      child: const Text('Open Dialog'),
+    ),
   );
 }
 

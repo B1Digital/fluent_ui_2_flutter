@@ -95,7 +95,7 @@ void main() {
     // Five of the six live on the shared cartesian props record rather than on
     // the widget; `roundCorners` is the one the widget itself carries.
     expect(
-      chart.props.showYAxisLables,
+      chart.props.showYAxisLabels,
       isTrue,
       reason: 'PlotlySchemaAdapter.ts:2279.',
     );
@@ -110,7 +110,7 @@ void main() {
       reason: 'PlotlySchemaAdapter.ts:2283.',
     );
     expect(
-      chart.props.showYAxisLablesTooltip,
+      chart.props.showYAxisLabelsTooltip,
       isTrue,
       reason: 'PlotlySchemaAdapter.ts:2284.',
     );

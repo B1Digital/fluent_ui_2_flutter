@@ -62,7 +62,7 @@ void main() {
     expect(chart.barGapMax, 2, reason: 'PlotlySchemaAdapter.ts:1591.');
     expect(chart.roundCorners, isTrue, reason: 'PlotlySchemaAdapter.ts:1593.');
     expect(
-      chart.props.showYAxisLables,
+      chart.props.showYAxisLabels,
       isTrue,
       reason: 'PlotlySchemaAdapter.ts:1594.',
     );
@@ -74,7 +74,7 @@ void main() {
           'omits this.',
     );
     expect(
-      chart.props.showYAxisLablesTooltip,
+      chart.props.showYAxisLabelsTooltip,
       isTrue,
       reason: 'PlotlySchemaAdapter.ts:1596.',
     );

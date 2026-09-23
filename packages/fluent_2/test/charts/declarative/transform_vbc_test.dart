@@ -57,7 +57,7 @@ void main() {
       reason: 'PlotlySchemaAdapter.ts:1894.',
     );
     expect(
-      chart.props.showYAxisLables,
+      chart.props.showYAxisLabels,
       isTrue,
       reason: 'PlotlySchemaAdapter.ts:1898.',
     );

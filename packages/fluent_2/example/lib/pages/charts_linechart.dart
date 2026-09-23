@@ -239,6 +239,22 @@ const DocsPage lineChartPage = DocsPage(
       description: 'Label used when several annotations collapse into one.',
     ),
     PropRow(
+      name: 'eventAnnotationStrokeColor',
+      type: 'Color?',
+      defaultValue: 'null',
+      description:
+          'Colour of the annotation rules; null keeps '
+          'colorNeutralForeground1.',
+    ),
+    PropRow(
+      name: 'eventAnnotationLabelColor',
+      type: 'Color?',
+      defaultValue: 'null',
+      description:
+          'Colour of the annotation labels; null keeps '
+          'colorNeutralForeground1.',
+    ),
+    PropRow(
       name: 'colorFillBars',
       type: 'List<FluentColorFillBar>',
       defaultValue: '[]',
@@ -436,7 +452,7 @@ class _LineChartBasicState extends State<_LineChartBasic> {
       const SizedBox(height: 10),
       FluentSwitch(
         checked: _showAxisTitles,
-        label: Text(_showAxisTitles ? 'Show axis titles' : 'Hide axis titles'),
+        label: const Text('Show axis titles'),
         onChanged: (bool value) => setState(() => _showAxisTitles = value),
       ),
       const SizedBox(height: 10),
@@ -1115,7 +1131,7 @@ class _LineChartStyledState extends State<_LineChartStyled> {
             data: _data,
             props: FluentCartesianChartProps(
               yMaxValue: 90,
-              showXAxisLablesTooltip: true,
+              showXAxisLabelsTooltip: true,
               customDateTimeFormatter: _monthDay,
               tickValues: <Object>[
                 DateTime.utc(2018),
@@ -1281,7 +1297,7 @@ class _LineChartCustomLocaleDateAxisState
             label: Text(
               _allowMultipleShapes
                   ? 'Enabled multiple shapes for each line'
-                  : 'Disbaled multiple shapes for each line',
+                  : 'Disabled multiple shapes for each line',
             ),
             onChanged: (bool value) =>
                 setState(() => _allowMultipleShapes = value),
@@ -1335,6 +1351,18 @@ class _LineChartEventsState extends State<_LineChartEvents> {
   double _width = 700;
   double _height = 300;
   bool _allowMultipleShapes = false;
+
+  /// Null keeps the theme's colorNeutralForeground1, which is what upstream
+  /// renders with `customEventAnnotationColor` unset.
+  Color? _annotationColor;
+
+  static const List<(String, Color)> _annotationColors = <(String, Color)>[
+    ('red', Color(0xFFFF1921)),
+    ('orange', Color(0xFFFF7A00)),
+    ('green', Color(0xFF00B053)),
+    ('blue', Color(0xFF006EBD)),
+    ('purple', Color(0xFF712F9E)),
+  ];
 
   static String _monthDay(DateTime date) =>
       '${date.month.toString().padLeft(2, '0')}/'
@@ -1433,11 +1461,38 @@ class _LineChartEventsState extends State<_LineChartEvents> {
       ),
       const SizedBox(height: 10),
       // Upstream pairs this label with an `<input type="color" id="color-select">`
-      // whose value is never read — `customEventAnnotationColor` is a `const
-      // undefined`, so both the rule colour and the label colour stay at their
-      // theme defaults. FluentLineChart exposes no annotation-colour prop
-      // either, so the label stands alone rather than driving a dead control.
-      const FluentLabel(child: Text('Use Custom Color for Event Annotation')),
+      // whose value it never reads (`customEventAnnotationColor` is a `const
+      // undefined`). Here the pick is live: one colour feeds both the rules and
+      // the labels, as upstream passes customEventAnnotationColor to both
+      // strokeColor and labelColor.
+      Wrap(
+        spacing: 10,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: <Widget>[
+          const FluentLabel(
+            child: Text('Use Custom Color for Event Annotation'),
+          ),
+          FluentSwatchPicker(
+            semanticLabel: 'Use Custom Color for Event Annotation',
+            children: <Widget>[
+              FluentSwatch(
+                color: FluentTheme.of(context).colors.neutralForeground1,
+                semanticLabel: 'default',
+                selected: _annotationColor == null,
+                onPressed: () => setState(() => _annotationColor = null),
+              ),
+              for (final (String name, Color color) in _annotationColors)
+                FluentSwatch(
+                  color: color,
+                  semanticLabel: name,
+                  selected: _annotationColor == color,
+                  onPressed: () => setState(() => _annotationColor = color),
+                ),
+            ],
+          ),
+        ],
+      ),
       const SizedBox(height: 16),
       SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -1448,6 +1503,8 @@ class _LineChartEventsState extends State<_LineChartEvents> {
             data: _data,
             allowMultipleShapesForPoints: _allowMultipleShapes,
             eventAnnotationMergedLabel: (int count) => '$count events',
+            eventAnnotationStrokeColor: _annotationColor,
+            eventAnnotationLabelColor: _annotationColor,
             eventAnnotations: <FluentEventAnnotation>[
               FluentEventAnnotation(
                 event: 'event 1',
@@ -1995,7 +2052,7 @@ class _LineChartNegativeState extends State<_LineChartNegative> {
       const SizedBox(height: 10),
       FluentSwitch(
         checked: _showAxisTitles,
-        label: Text(_showAxisTitles ? 'Show Axis titles' : 'Hide Axis titles'),
+        label: const Text('Show axis titles'),
         onChanged: (bool value) => setState(() => _showAxisTitles = value),
       ),
       const SizedBox(height: 20),
@@ -2177,7 +2234,7 @@ class _LineChartAllNegativeState extends State<_LineChartAllNegative> {
       const SizedBox(height: 10),
       FluentSwitch(
         checked: _showAxisTitles,
-        label: Text(_showAxisTitles ? 'Show Axis titles' : 'Hide Axis titles'),
+        label: const Text('Show axis titles'),
         onChanged: (bool value) => setState(() => _showAxisTitles = value),
       ),
       const SizedBox(height: 20),

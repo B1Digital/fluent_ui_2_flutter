@@ -125,7 +125,7 @@ void main() {
   test('startFromX widens the left margin by 20 once it clears 40', () {
     expectMargins(
       solve(
-        const FluentCartesianChartProps(showYAxisLables: true),
+        const FluentCartesianChartProps(showYAxisLabels: true),
         startFromX: 63,
       ),
       top: 20,
@@ -136,7 +136,7 @@ void main() {
     );
     expect(
       solve(
-        const FluentCartesianChartProps(showYAxisLables: true),
+        const FluentCartesianChartProps(showYAxisLabels: true),
         startFromX: 5,
       ).left,
       40,

@@ -281,7 +281,7 @@ class _ChartTableBasicState extends State<_ChartTableBasic> {
                 max: 1200,
                 semanticLabel: 'Change Width',
                 semanticFormatter: (double value) =>
-                    "current value ${value.round()}', Minimum 300 and Maximum "
+                    'current value ${value.round()}, Minimum 300 and Maximum '
                     '1200',
                 onChanged: (double value) => setState(() => _width = value),
               ),
@@ -296,7 +296,7 @@ class _ChartTableBasicState extends State<_ChartTableBasic> {
                 max: 800,
                 semanticLabel: 'Change Height',
                 semanticFormatter: (double value) =>
-                    "current value ${value.round()}', Minimum 200 and Maximum "
+                    'current value ${value.round()}, Minimum 200 and Maximum '
                     '800',
                 onChanged: (double value) => setState(() => _height = value),
               ),

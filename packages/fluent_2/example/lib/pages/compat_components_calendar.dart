@@ -75,7 +75,7 @@ const DocsPage calendarPage = DocsPage(
       title: 'Calendar Marked Days',
       description:
           'A Calendar Compat allows you to pass a callback that returns an '
-          'array of number that should bemarked. This callback provides a '
+          'array of number that should be marked. This callback provides a '
           'starting date and an ending date.',
       builder: _calendarMarkedDays,
     ),
@@ -866,9 +866,9 @@ class _CalendarMultidayDayViewState extends State<_CalendarMultidayDayView> {
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 8,
       children: <Widget>[
-        const Text(
+        Text(
           'This calendar uses dateRangeType = Day and '
-          'daysToSelectInView = 4.',
+          'daysToSelectInView = $_daysToSelectInDayView.',
         ),
         Text(
           'Selected date: '

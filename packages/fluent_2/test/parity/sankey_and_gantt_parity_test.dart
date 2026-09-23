@@ -138,7 +138,7 @@ void main() {
         data: data,
         // Both Switches start unchecked, so the reference was captured with
         // gradients and rounded corners off.
-        props: const FluentCartesianChartProps(showYAxisLables: true),
+        props: const FluentCartesianChartProps(showYAxisLabels: true),
       ),
       // Measured 0.098% — 200 pixels of 203,099, aligned at shift (0,0).
       maxMismatch: 0.12,

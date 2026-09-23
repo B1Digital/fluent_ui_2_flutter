@@ -222,27 +222,45 @@ void main() {
       'charts-donutchart--donut-chart-custom-callout',
     );
 
-    testWidgets('the override switch flips and the built-in popover survives', (
+    testWidgets('the override switch swaps the popover body', (
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
       final Finder toggle = find.byType(FluentSwitch);
+      final Finder popover = find.byType(FluentChartPopover);
 
-      await mouseClick(tester, toggle);
-      expect(tester.widget<FluentSwitch>(toggle).checked, isTrue);
-
-      // `FluentDonutChart` owns its popover and exposes neither
-      // `calloutPropsPerDataPoint` nor `onRenderCalloutPerDataPoint`, so the
-      // section documents this switch as live-but-inert. What must NOT happen
-      // is the built-in popover going away with it, which is the only failure
-      // mode a reader of this demo could actually be misled by.
-      final TestGesture mouse = await hoverAt(
+      // Off: `popoverBuilder` returns null, so the built-in body shows the
+      // datum's own reading.
+      TestGesture mouse = await hoverAt(
         tester,
         arcPoint(tester, 0),
         what: 'the first arc',
       );
-      expect(find.byType(FluentChartPopover), findsOneWidget);
-      expect(find.text('2020/04/30'), findsOneWidget);
+      expect(
+        find.descendant(of: popover, matching: find.text('2020/04/30')),
+        findsOneWidget,
+      );
+      expect(find.text('20000 h'), findsNothing);
+      await mouseAway(tester, mouse);
+
+      await mouseClick(tester, toggle);
+      expect(tester.widget<FluentSwitch>(toggle).checked, isTrue);
+
+      // On: the story's custom body (x value, legend and '<data> h') takes the
+      // built-in body's place inside the same popover surface.
+      mouse = await hoverAt(tester, arcPoint(tester, 0), what: 'the first arc');
+      for (final String line in <String>['2020/04/30', 'first', '20000 h']) {
+        expect(
+          find.descendant(of: popover, matching: find.text(line)),
+          findsOneWidget,
+          reason: 'the custom body must show "$line"',
+        );
+      }
+      expect(
+        find.descendant(of: popover, matching: find.text('20000')),
+        findsNothing,
+        reason: 'the built-in value line must be gone',
+      );
       await mouseAway(tester, mouse);
 
       await mouseClick(tester, toggle);

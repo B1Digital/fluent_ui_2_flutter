@@ -292,7 +292,7 @@ FluentVerticalBarChart transformVegaToVerticalBar(
       // `:2315`: `typeof barData[0]?.x === 'string'`. Every x that reached a
       // bar was stringified at `:2278` unless it was a `Date`, so this is on
       // for a numeric x as well and off only for an empty or temporal one.
-      wrapXAxisLables: barData.isNotEmpty && barData.first.x is String,
+      wrapXAxisLabels: barData.isNotEmpty && barData.first.x is String,
       // `:2316`.
       hideTickOverlap: true,
       // `:2305-2306`, the ladder above.
@@ -1201,16 +1201,16 @@ FluentVerticalStackedBarChart transformVegaToStackedBar(
       // `:2713`: `?? false`.
       hideLegend: legendDisabled,
       // `:2714`.
-      showYAxisLables: true,
+      showYAxisLabels: true,
       // `:2716`.
       hideTickOverlap: true,
       // `:2718`: `DEFAULT_TRUNCATE_CHARS`, the constant this file already holds.
       noOfCharsToTruncate: kVegaDefaultTruncateChars,
       // `:2719`.
-      showYAxisLablesTooltip: true,
+      showYAxisLabelsTooltip: true,
       // `:2720`: only a String axis point wraps; a numeric or temporal one does
       // not.
-      wrapXAxisLables:
+      wrapXAxisLabels:
           chartData.isNotEmpty && chartData.first.xAxisPoint is String,
       // `:2721`. Plan 05's shell resolves
       // `props.xAxis?.tickLayout ?? delegate.xAxisTickLayout`

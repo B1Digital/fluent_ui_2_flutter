@@ -29,7 +29,7 @@ abstract final class FluentCartesianMarginSolver {
   /// Solves the margins for [props] at the measured [startFromX].
   ///
   /// [startFromX] is the width of the longest y tick label, or zero when
-  /// [FluentCartesianChartProps.showYAxisLables] is off
+  /// [FluentCartesianChartProps.showYAxisLabels] is off
   /// (`CartesianChart.tsx:96-97`). [isRtl] applies step 4.
   static FluentChartMargins solve({
     required FluentCartesianChartProps props,
@@ -132,10 +132,10 @@ abstract final class FluentCartesianMarginSolver {
 ///
 /// * [tickLayout] of [FluentTickLayout.auto] short-circuits both other
 ///   branches;
-/// * the wrap branch runs when either [FluentCartesianChartProps.wrapXAxisLables]
-///   or [FluentCartesianChartProps.showXAxisLablesTooltip] is set;
+/// * the wrap branch runs when either [FluentCartesianChartProps.wrapXAxisLabels]
+///   or [FluentCartesianChartProps.showXAxisLabelsTooltip] is set;
 /// * the rotate branch runs only when
-///   [FluentCartesianChartProps.wrapXAxisLables] is **off**, and it
+///   [FluentCartesianChartProps.wrapXAxisLabels] is **off**, and it
 ///   *overwrites* the wrap result rather than adding to it.
 FluentXAxisLabelLayout? solveFluentCartesianXAxisLabels({
   required FluentCartesianChartProps props,
@@ -161,7 +161,7 @@ FluentXAxisLabelLayout? solveFluentCartesianXAxisLabels({
 
   FluentXAxisLabelLayout? layout;
 
-  if (props.wrapXAxisLables || props.showXAxisLablesTooltip) {
+  if (props.wrapXAxisLabels || props.showXAxisLabelsTooltip) {
     // `maxXAxisLabelWidth` is left undefined off a band axis
     // (`CartesianChart.tsx:622-631`), and `createWrapOfXLabels` then falls back
     // to `DEFAULT_WRAP_WIDTH` (`utilities.ts:1127`).
@@ -177,15 +177,15 @@ FluentXAxisLabelLayout? solveFluentCartesianXAxisLabels({
     layout = wrapXLabels(
       xAxis.tickLabels,
       width: width,
-      showXAxisLabelsTooltip: props.showXAxisLablesTooltip,
+      showXAxisLabelsTooltip: props.showXAxisLabelsTooltip,
       noOfCharsToTruncate: props.noOfCharsToTruncate,
       style: textStyle,
       measurer: measurer,
     );
   }
 
-  if (!props.wrapXAxisLables &&
-      props.rotateXAxisLables &&
+  if (!props.wrapXAxisLabels &&
+      props.rotateXAxisLabels &&
       xAxisType == FluentChartAxisType.category) {
     final rotated = rotateXAxisLabels(
       xAxis.tickLabels,
@@ -193,7 +193,7 @@ FluentXAxisLabelLayout? solveFluentCartesianXAxisLabels({
       // one this axis's own tick size and padding produced
       // (`utilities.ts:1824`); the port hands them over rather than assuming
       // d3-axis's defaults, which the shell replaces when
-      // `showXAxisLablesTooltip` drops the padding to 5
+      // `showXAxisLabelsTooltip` drops the padding to 5
       // (`CartesianChart.tsx:215`).
       tickSizeInner: xAxis.tickSizeInner,
       tickPadding: xAxis.tickPadding,
@@ -318,7 +318,7 @@ class FluentCartesianLayout {
   final bool isRtl;
 
   /// The width of the longest y tick label, or zero when
-  /// [FluentCartesianChartProps.showYAxisLables] is off
+  /// [FluentCartesianChartProps.showYAxisLabels] is off
   /// (`CartesianChart.tsx:96-97`).
   final double startFromX;
 

@@ -174,7 +174,7 @@ void main() {
 
   group('createYAxisLabels against Oracle B', () {
     // The one captured story whose y axis is a truncated string axis:
-    // showYAxisLablesTooltip routes through createYAxisLabels
+    // showYAxisLabelsTooltip routes through createYAxisLabels
     // (CartesianChart.tsx:400-406) with the default noOfCharsToTruncate of 4
     // (`:403`).
     const storyId =
