@@ -39,11 +39,11 @@ enum FluentTextareaSize {
 ///
 /// Upstream writes `curveDecelerateMid` into `transitionDelay` rather than
 /// `transitionTimingFunction`. A browser drops it, so the bar runs on CSS
-/// `ease` ([Curves.ease]) with no delay — measured on the live storybook, where
-/// every one of the fields that share this bar samples identically. The port
-/// ports what renders, not what the typo suggests was meant. The 0.01ms
-/// `prefers-reduced-motion` clamp upstream pairs it with is handled inside
-/// [FluentInputFocusUnderline].
+/// `ease` ([FluentCssCubic.ease]) with no delay — measured on the live
+/// storybook, where every one of the fields that share this bar samples
+/// identically. The port ports what renders, not what the typo suggests was
+/// meant. The 0.01ms `prefers-reduced-motion` clamp upstream pairs it with is
+/// handled inside [FluentInputFocusUnderline].
 ///
 /// That widget's spec comes off the same `::after` rule — so this is an alias
 /// rather than a second copy of it.

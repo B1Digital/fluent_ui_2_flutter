@@ -21,9 +21,11 @@
   which the port had been reading as intent and replacing with
   `curveDecelerateMid` / `curveAccelerateMid` (45% of the bar drawn 20ms in,
   against upstream's 9.5%). `fluentInputFocusUnderlineEnter` / `Exit` are now
-  `Curves.ease`, and a focus change mid-flight starts a fresh `ease` from the
-  current scale over the direction's duration times the distance left, instead
-  of retracing the old curve. Every field sharing the bar picks this up:
+  `FluentCssCubic.ease` — new, a `cubic-bezier()` solved to 1e-7 as Chromium
+  solves it, where Flutter's `Cubic` stops at 1e-3 and drew the bar's ends up
+  to 0.4px off Chrome's — and a focus change mid-flight starts a fresh `ease`
+  from the current scale over the direction's duration times the distance
+  left, instead of retracing the old curve. Every field sharing the bar picks this up:
   `FluentInput`, `FluentTextarea`, `FluentSearchBox`, `FluentDropdown`,
   `FluentTagPicker`, `FluentSpinButton`, `FluentDatePicker` and
   `FluentTimePicker`, whose alias constants follow.

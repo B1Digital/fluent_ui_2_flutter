@@ -677,9 +677,9 @@ void main() {
 
   group('motion — measured on the live storybook', () {
     // Upstream's `transitionDelay: curve…` typo leaves every browser on CSS
-    // `ease`, which is [Curves.ease]. Chrome's scale 100ms into the entrance
-    // is .8024.
-    final half = Curves.ease.transform(0.5);
+    // `ease`, solved exactly by [FluentCssCubic.ease]. Chrome's scale 100ms
+    // into the entrance is .802403.
+    final half = FluentCssCubic.ease.transform(0.5);
 
     testWidgets('the focus bar grows in over durationNormal on ease', (
       tester,
@@ -698,7 +698,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       expect(scaleXOf(tester), closeTo(half, 1e-3));
-      expect(half, closeTo(0.8024, 1e-3), reason: "Chrome's measured scale");
+      expect(half, closeTo(0.802403, 1e-6), reason: "Chrome's measured scale");
 
       await tester.pump(const Duration(milliseconds: 100));
       expect(scaleXOf(tester), 1, reason: 'settled at scaleX(1)');
@@ -757,7 +757,7 @@ void main() {
         expect(
           scaleXOf(tester),
           closeTo(
-            p * (1 - Curves.ease.transform(ms * 1000 / exitMicros)),
+            p * (1 - FluentCssCubic.ease.transform(ms * 1000 / exitMicros)),
             1e-3,
           ),
           reason: '${ms}ms into the retraction',

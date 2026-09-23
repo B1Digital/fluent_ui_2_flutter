@@ -61,8 +61,8 @@ enum FluentSearchBoxGlyph {
 /// Upstream writes the easing into `transitionDelay` rather than
 /// `transitionTimingFunction` — `transitionDelay: tokens.curveDecelerateMid` —
 /// which a browser rejects, so the shipped animation runs on the CSS default
-/// `ease` ([Curves.ease]) with no delay. The port ports what renders, not what
-/// the typo suggests was meant; the duration is upstream's verbatim.
+/// `ease` ([FluentCssCubic.ease]) with no delay. The port ports what renders,
+/// not what the typo suggests was meant; the duration is upstream's verbatim.
 ///
 /// The bar itself is [FluentInputFocusUnderline], whose spec comes off the same
 /// `::after` rule — so this is an alias rather than a second copy of it.

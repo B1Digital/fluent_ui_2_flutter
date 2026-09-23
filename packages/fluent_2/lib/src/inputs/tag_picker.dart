@@ -65,8 +65,8 @@ enum FluentTagPickerSize {
 /// `useTagPickerControlStyles.styles.ts` carries the same `::after` rule as
 /// `useInputStyles`, down to the same defect — the curve is written into
 /// `transitionDelay` rather than `transitionTimingFunction`, so a browser drops
-/// it and runs CSS `ease` ([Curves.ease]). The port ports what renders, and it
-/// renders exactly the input's bar, which is why the constant below is
+/// it and runs CSS `ease` ([FluentCssCubic.ease]). The port ports what renders,
+/// and it renders exactly the input's bar, which is why the constant below is
 /// [fluentInputFocusUnderlineEnter] rather than a second copy of it.
 const FluentMotionSpec fluentTagPickerAccentEnter =
     fluentInputFocusUnderlineEnter;

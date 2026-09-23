@@ -515,12 +515,12 @@ void main() {
     // storybook reports exactly that.
     test('the two specs are the ones upstream renders', () {
       expect(fluentTextareaFocusUnderlineEnter.duration, FluentDuration.normal);
-      expect(fluentTextareaFocusUnderlineEnter.curve, Curves.ease);
+      expect(fluentTextareaFocusUnderlineEnter.curve, FluentCssCubic.ease);
       expect(
         fluentTextareaFocusUnderlineExit.duration,
         FluentDuration.ultraFast,
       );
-      expect(fluentTextareaFocusUnderlineExit.curve, Curves.ease);
+      expect(fluentTextareaFocusUnderlineExit.curve, FluentCssCubic.ease);
     });
 
     testWidgets('the focus rule scales in over 200ms and back out over 50', (

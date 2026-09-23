@@ -74,8 +74,8 @@ enum FluentDropdownSize {
 /// Upstream puts the curve in `transitionDelay` rather than
 /// `transitionTimingFunction` — a cubic-bezier is not a valid delay value, so a
 /// browser drops it and runs the transition on the CSS default `ease`
-/// ([Curves.ease]) with no delay, which is what the live storybook samples.
-/// The port ports what renders, not what the typo suggests was meant.
+/// ([FluentCssCubic.ease]) with no delay, which is what the live storybook
+/// samples. The port ports what renders, not what the typo suggests was meant.
 ///
 /// The bar itself is [FluentInputFocusUnderline], whose spec comes off the same
 /// `::after` rule — so this is an alias rather than a second copy of it.

@@ -555,9 +555,9 @@ void main() {
       // `ease` both ways — the curve tokens sit in `transitionDelay`, which
       // the browser drops.
       expect(fluentDropdownAccentEnter.duration, FluentDuration.normal);
-      expect(fluentDropdownAccentEnter.curve, Curves.ease);
+      expect(fluentDropdownAccentEnter.curve, FluentCssCubic.ease);
       expect(fluentDropdownAccentExit.duration, FluentDuration.ultraFast);
-      expect(fluentDropdownAccentExit.curve, Curves.ease);
+      expect(fluentDropdownAccentExit.curve, FluentCssCubic.ease);
 
       await pump(
         tester,

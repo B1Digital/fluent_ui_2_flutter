@@ -47,16 +47,16 @@ enum FluentInputSize {
 /// `transitionDelay: tokens.curveDecelerateMid` — a curve in the *delay* slot.
 /// That is invalid at computed-value time, so Chrome computes
 /// `transition-delay: 0s` and leaves `transition-timing-function` at its
-/// initial `ease`. `document.getAnimations()` reports exactly that
-/// (`200ms`, `ease`, delay 0), and the sampled scale at 20ms steps is
-/// `0, .095, .295, .513, .683, .802, …` — [Curves.ease], which is CSS's
+/// initial `ease`. `document.getAnimations()` reports exactly that (`200ms`,
+/// `ease`, delay 0), and the sampled scale at 20ms steps is `0, .095, .295,
+/// .513, .683, .802, …` — [FluentCssCubic.ease], which is CSS's
 /// `cubic-bezier(.25, .1, .25, 1)`. Every sibling that reuses this bar
 /// (Textarea, SearchBox, Dropdown, Combobox, TagPicker, SpinButton, DatePicker,
-/// TimePicker) ships the same typo and the same `ease`. This ports what renders,
-/// not what the typo suggests was meant.
+/// TimePicker) ships the same typo and the same `ease`. This ports what
+/// renders, not what the typo suggests was meant.
 const FluentMotionSpec fluentInputFocusUnderlineEnter = FluentMotionSpec(
   duration: FluentDuration.normal,
-  curve: Curves.ease,
+  curve: FluentCssCubic.ease,
 );
 
 /// The focus bar shrinking out.
@@ -66,7 +66,7 @@ const FluentMotionSpec fluentInputFocusUnderlineEnter = FluentMotionSpec(
 /// same reason as [fluentInputFocusUnderlineEnter].
 const FluentMotionSpec fluentInputFocusUnderlineExit = FluentMotionSpec(
   duration: FluentDuration.ultraFast,
-  curve: Curves.ease,
+  curve: FluentCssCubic.ease,
 );
 
 /// Everything needed to render an input, independent of appearance and size.
