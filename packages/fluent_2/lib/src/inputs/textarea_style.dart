@@ -13,18 +13,18 @@ import 'package:flutter/widgets.dart';
 /// 2. the nearest `FluentTextareaTheme`
 /// 3. the widget's own `style`
 ///
-/// ## Two underlines, not one
+/// ## A bottom border and a focus bar
 ///
-/// Fluent's text inputs draw a heavier rule along the bottom edge than around
-/// the other three sides, and then slide a brand-coloured rule over it while
-/// the field holds focus. Those are two independent layers upstream — a
-/// `border-bottom` on the root and an `::after` pseudo-element — so they are
-/// two independent properties here: [underlineColor] / [underlineThickness] for
-/// the resting rule, [focusUnderlineColor] / [focusUnderlineThickness] for the
-/// one that animates in.
+/// Fluent's text inputs give the border a darker bottom side than the other
+/// three, and slide a brand-coloured bar over it while the field holds focus.
+/// Those are two independent layers upstream — the root's `border-bottom-color`
+/// and an `::after` pseudo-element — so they are two independent properties
+/// here: [underlineColor] / [underlineThickness] for the bottom side,
+/// [focusUnderlineColor] / [focusUnderlineThickness] for the bar that animates
+/// in.
 ///
-/// Neither is expressible as a `WidgetState`, because focus is not a state this
-/// component reports — see `FluentTextarea` for why.
+/// The bar is not expressible as a `WidgetState`, because focus is not a state
+/// this component reports — see `FluentTextarea` for why.
 @immutable
 class FluentTextareaStyle {
   /// Creates a style. Omitted properties inherit.
@@ -43,30 +43,39 @@ class FluentTextareaStyle {
     this.selectionColor,
     this.textStyle,
     this.padding,
+    this.minimumSize,
     this.mouseCursor,
   });
 
   /// Surface fill behind the text.
   final WidgetStateProperty<Color?>? backgroundColor;
 
-  /// Colour of the border around all four sides. Null and transparent are
-  /// different: Fluent's `transparentStroke` becomes opaque in high contrast.
+  /// Colour of the border around all four sides. Null means no border at all —
+  /// nothing is painted and nothing is inset. Null and transparent are
+  /// different: a transparent border still takes its space, and Fluent's
+  /// `transparentStroke` becomes opaque in high contrast.
   final WidgetStateProperty<Color?>? borderColor;
 
-  /// Border width. Zero means no border, which is not the same as a transparent
-  /// one — a zero-width border cannot become visible in high contrast.
+  /// Border width. As in CSS, the border insets the content by this much on
+  /// every side, before [padding]. Zero means no border, which is not the same
+  /// as a transparent one — a zero-width border cannot become visible in high
+  /// contrast.
   final WidgetStateProperty<double?>? borderWidth;
 
   /// Corner radius of the surface.
   final WidgetStateProperty<BorderRadius?>? borderRadius;
 
-  /// The resting bottom rule, drawn over the border's bottom edge.
+  /// The bottom side's colour, when it differs from [borderColor].
   ///
-  /// Null means the appearance draws none — which is what the two filled
-  /// appearances do.
+  /// It is a side of the box border, not an overlay: it joins the side colour
+  /// along each bottom corner's diagonal, as a CSS border does. Null means the
+  /// bottom follows [borderColor] and [borderWidth] like the other three, which
+  /// is what the filled appearances and the error and disabled states want.
   final WidgetStateProperty<Color?>? underlineColor;
 
-  /// Thickness of [underlineColor]. Fluent thickens this on press.
+  /// The bottom side's width, inset from the content like [borderWidth]. 1 in
+  /// every state: upstream recolours it on press, it never thickens it.
+  /// Ignored when [underlineColor] is null.
   final WidgetStateProperty<double?>? underlineThickness;
 
   /// The brand rule that scales in horizontally while the field holds focus.
@@ -94,6 +103,10 @@ class FluentTextareaStyle {
   /// Inset between the border and the text.
   final WidgetStateProperty<EdgeInsetsGeometry?>? padding;
 
+  /// Minimum size of the border box. Extra height lands below the text, as a
+  /// CSS `min-height` does.
+  final WidgetStateProperty<Size?>? minimumSize;
+
   /// Cursor shown while hovering.
   final WidgetStateProperty<MouseCursor?>? mouseCursor;
 
@@ -119,6 +132,7 @@ class FluentTextareaStyle {
       selectionColor: other.selectionColor ?? selectionColor,
       textStyle: other.textStyle ?? textStyle,
       padding: other.padding ?? padding,
+      minimumSize: other.minimumSize ?? minimumSize,
       mouseCursor: other.mouseCursor ?? mouseCursor,
     );
   }
@@ -139,6 +153,7 @@ class FluentTextareaStyle {
     WidgetStateProperty<Color?>? selectionColor,
     WidgetStateProperty<TextStyle?>? textStyle,
     WidgetStateProperty<EdgeInsetsGeometry?>? padding,
+    WidgetStateProperty<Size?>? minimumSize,
     WidgetStateProperty<MouseCursor?>? mouseCursor,
   }) => FluentTextareaStyle(
     backgroundColor: backgroundColor ?? this.backgroundColor,
@@ -156,6 +171,7 @@ class FluentTextareaStyle {
     selectionColor: selectionColor ?? this.selectionColor,
     textStyle: textStyle ?? this.textStyle,
     padding: padding ?? this.padding,
+    minimumSize: minimumSize ?? this.minimumSize,
     mouseCursor: mouseCursor ?? this.mouseCursor,
   );
 
@@ -177,6 +193,7 @@ class FluentTextareaStyle {
     Color? selectionColor,
     TextStyle? textStyle,
     EdgeInsetsGeometry? padding,
+    Size? minimumSize,
     MouseCursor? mouseCursor,
   }) => FluentTextareaStyle(
     backgroundColor: _all(backgroundColor),
@@ -193,6 +210,7 @@ class FluentTextareaStyle {
     selectionColor: _all(selectionColor),
     textStyle: _all(textStyle),
     padding: _all(padding),
+    minimumSize: _all(minimumSize),
     mouseCursor: _all(mouseCursor),
   );
 
@@ -216,6 +234,7 @@ class FluentTextareaStyle {
       other.selectionColor == selectionColor &&
       other.textStyle == textStyle &&
       other.padding == padding &&
+      other.minimumSize == minimumSize &&
       other.mouseCursor == mouseCursor;
 
   @override
@@ -234,6 +253,7 @@ class FluentTextareaStyle {
     selectionColor,
     textStyle,
     padding,
+    minimumSize,
     mouseCursor,
   );
 }

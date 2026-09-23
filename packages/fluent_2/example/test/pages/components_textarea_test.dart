@@ -22,7 +22,7 @@ void main() {
   group('default', () {
     final DocsSection section = sectionOf('components-textarea--default');
 
-    testWidgets('the field takes text and grows with it', (
+    testWidgets('the field takes text and holds two rows, as upstream does', (
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
@@ -39,12 +39,12 @@ void main() {
         reason: 'one line must still fit the two-line minimum without growing',
       );
 
-      // maxLines defaults to null on FluentTextarea, so the default field is the
-      // one that grows without bound. A field that clamped here would silently
-      // hide everything the user typed past line two.
+      // A null maxLines holds the field at minLines, as upstream's
+      // `<textarea rows="2">` does: five lines scroll rather than grow it.
       await tester.enterText(field, 'one\ntwo\nthree\nfour\nfive');
       await settle(tester);
-      expect(heightOf(tester, 0), greaterThan(twoLines));
+      expect(heightOf(tester, 0), twoLines);
+      expect(editedText(tester, field), 'one\ntwo\nthree\nfour\nfive');
     });
 
     testWidgets('the label names the field', (WidgetTester tester) async {
@@ -173,10 +173,10 @@ void main() {
         await settle(tester);
       }
 
-      // 0 and 2 are the "none" and "horizontal" variants, pinned at
-      // `maxLines: 2`; 1 and 3 are "vertical" and "both", which grow. If the
-      // cap ever stopped biting, all four would read the same and the section
-      // would be four copies of one field.
+      // 0 and 2 are the "none" and "horizontal" variants, pinned at the default
+      // two rows; 1 and 3 are "vertical" and "both", which grow to
+      // `maxLines: 12`. If the cap ever stopped biting, all four would read the
+      // same and the section would be four copies of one field.
       expect(heightOf(tester, 0), before[0]);
       expect(heightOf(tester, 2), before[2]);
       expect(heightOf(tester, 1), greaterThan(before[1]));
@@ -203,8 +203,7 @@ void main() {
         ],
       );
 
-      // A textarea has no height floor: its box is two lines of the size's type
-      // ramp plus a flat 6 of inset, so the whole size axis arrives as
+      // Upstream's floors are 44 / 56 / 68, so the whole size axis arrives as
       // geometry and reading the three heights is the only way to prove the
       // axis points the right way.
       final double small = heightOf(tester, 0);
