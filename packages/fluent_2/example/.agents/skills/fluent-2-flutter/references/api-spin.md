@@ -118,11 +118,11 @@ const FluentSpinButtonStepper({
 | `key` | `Key?` | No | `null` | Flutter widget identity. |
 | `direction` | `FluentSpinButtonStepperDirection` | Yes | — | Which half this is. |
 | `style` | `FluentSpinButtonStyle` | Yes | — | The resolved spin button style. Only the `stepper*`, `glyphSize` and `borderRadius` properties are read. |
-| `onPressed` | `VoidCallback?` | No | `null` | Invoked on tap. Null makes the half inert, which is what a disabled *or* read-only spin button does: upstream renders both buttons `disabled`. |
+| `onPressed` | `VoidCallback?` | No | `null` | Takes one step. A mouse or pen takes the first on the press and repeats while the button is held, as upstream's `useSpinButton` does; a finger takes one on release. Null makes the half inert, which is what a disabled, read-only or at-bound spin button does: upstream renders those buttons `disabled`. |
 
 #### State, callback, and accessibility fields
 
-- `onPressed` (`VoidCallback?`): Invoked on tap. Null makes the half inert, which is what a disabled *or* read-only spin button does: upstream renders both buttons `disabled`.
+- `onPressed` (`VoidCallback?`): Takes one step. A mouse or pen takes the first on the press and repeats while the button is held, as upstream's `useSpinButton` does; a finger takes one on release. Null makes the half inert, which is what a disabled, read-only or at-bound spin button does: upstream renders those buttons `disabled`.
 
 ## Related public types
 

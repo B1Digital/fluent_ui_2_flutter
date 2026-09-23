@@ -1146,15 +1146,15 @@ void main() {
       (tester) async {
         // A browser selects nothing on a click. `EditableText` selects the
         // whole value on desktop when focus comes from outside it, so the
-        // press has to go through the field's own `requestKeyboard`. At the
-        // bound a step rewrites nothing, and a selection made on the press
-        // would outlive the release.
+        // press has to go through the field's own `requestKeyboard`. The
+        // stepper pressed is the live one beside a disabled bound, which
+        // takes no focus at all.
         final rect = find.byKey(key);
-        final up = stepper(FluentSpinButtonStepperDirection.increase);
+        final down = stepper(FluentSpinButtonStepperDirection.decrease);
         for (final (name, readOnly, at) in <(String, bool, Offset Function())>[
           ('text', false, () => tester.getCenter(rect)),
           ('read-only text', true, () => tester.getCenter(rect)),
-          ('stepper at the bound', false, () => tester.getCenter(up)),
+          ('stepper beside the bound', false, () => tester.getCenter(down)),
           (
             'padding',
             false,
@@ -1259,6 +1259,584 @@ void main() {
         text: SystemMouseCursors.forbidden,
         up: SystemMouseCursors.forbidden,
       );
+    });
+  });
+
+  // `useSpinButton.tsx` and Chrome, measured on the live storybook with the
+  // storybook's own SpinButton module: a stepper steps on mousedown, again
+  // 300ms later and ever faster while held, stops on mouseup or mouseleave,
+  // and turns `disabled` at its bound.
+  group('presses, holds and bounds', () {
+    final light = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+    final c = light.colors;
+    const up = FluentSpinButtonStepperDirection.increase;
+    const down = FluentSpinButtonStepperDirection.decrease;
+    final macOS = TargetPlatformVariant.only(TargetPlatform.macOS);
+
+    /// A mouse resting on [target]. Remove it before creating the next one.
+    Future<TestGesture> mouseOn(
+      WidgetTester tester,
+      Finder target, {
+      int buttons = kPrimaryButton,
+    }) async {
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: buttons,
+      );
+      await mouse.addPointer(location: tester.getCenter(target));
+      await tester.pump();
+      return mouse;
+    }
+
+    testWidgets('a tight parent height stretches the box, bar and all', (
+      tester,
+    ) async {
+      await pump(tester, SizedBox(height: 60, child: build()), theme: light);
+      final painted = find.descendant(
+        of: find.byKey(key),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is CustomPaint &&
+              w.foregroundPainter is FluentInputBorderPainter,
+        ),
+      );
+      expect(tester.getRect(painted).height, 60);
+      expect(
+        tester.getRect(under(FluentInputFocusUnderline)).bottom,
+        tester.getRect(painted).bottom,
+      );
+    });
+
+    testWidgets(
+      'a right press is not :active, as Chrome renders it',
+      variant: macOS,
+      (tester) async {
+        // Chrome sets `:active` for the primary and middle buttons only. A
+        // right press still focuses the `<input>`, so the bar grows, but at
+        // `colorCompoundBrandStroke` (#0f6cbd) rather than the Pressed stop.
+        for (final (buttons, bar) in <(int, Color)>[
+          (kSecondaryMouseButton, c.compoundBrandStroke),
+          (kMiddleMouseButton, c.compoundBrandStrokePressed),
+          (kPrimaryButton, c.compoundBrandStrokePressed),
+        ]) {
+          final node = FocusNode();
+          addTearDown(node.dispose);
+          await pump(tester, build(focusNode: node), theme: light);
+          final at = tester.getRect(find.byKey(key)).centerLeft;
+          final mouse = await mouseOn(
+            tester,
+            find.byKey(key),
+            buttons: buttons,
+          );
+          // The start padding: chrome, with no text menu to open.
+          await mouse.down(at + const Offset(4, 0));
+          await tester.pump();
+          await tester.pump();
+          expect(node.hasFocus, isTrue, reason: 'buttons $buttons');
+          expect(focusBarOf(tester).color, bar, reason: 'buttons $buttons');
+          await mouse.up();
+          await mouse.removePointer();
+          await pump(tester, const SizedBox());
+        }
+      },
+    );
+
+    testWidgets('an inert stepper offers assistive technology no tap', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final style = resolveFluentSpinButtonStyle(
+        resolveFluentSpinButtonState(field: const SizedBox.shrink()),
+        light,
+      );
+      for (final (name, onPressed) in <(String, VoidCallback?)>[
+        ('inert', null),
+        ('live', () {}),
+      ]) {
+        // Standalone, outside the control's `ExcludeSemantics`, where a
+        // consumer's own build could place it.
+        await pump(
+          tester,
+          Center(
+            child: FluentSpinButtonStepper(
+              direction: up,
+              style: style,
+              onPressed: onPressed,
+            ),
+          ),
+          theme: light,
+        );
+        expect(
+          find.semantics.byAction(SemanticsAction.tap),
+          onPressed == null ? findsNothing : findsOne,
+          reason: name,
+        );
+      }
+      handle.dispose();
+    });
+
+    testWidgets("a held stepper repeats on upstream's clock", variant: macOS, (
+      tester,
+    ) async {
+      // `useSpinButton`: a step on mousedown, then one per timeout, starting
+      // at DEFAULT_SPIN_DELAY_MS (300) and lerped towards MIN_SPIN_DELAY_MS
+      // (80) by the time spun over MAX_SPIN_TIME_MS (1000), unclamped. Chrome
+      // measured 0, 308, 544, 727, 872, 983, 1071, 1140 ms: the same schedule
+      // plus a millisecond of rendering a step.
+      final times = <double>[];
+      late DateTime start;
+      double? value = 0;
+      await pump(
+        tester,
+        StatefulBuilder(
+          builder: (context, setState) => build(
+            value: value,
+            onChanged: (next) {
+              times.add(
+                tester.binding.clock.now().difference(start).inMicroseconds /
+                    1000,
+              );
+              setState(() => value = next);
+            },
+          ),
+        ),
+        theme: light,
+      );
+      final mouse = await mouseOn(tester, stepper(up));
+      start = tester.binding.clock.now();
+      await mouse.down(tester.getCenter(stepper(up)));
+      expect(times, <double>[0], reason: 'the first step lands on the press');
+
+      await tester.pump(const Duration(milliseconds: 1260));
+      const schedule = <double>[
+        0,
+        300,
+        534,
+        716.52,
+        858.89,
+        969.93,
+        1056.55,
+        1124.11,
+        1176.8,
+        1217.91,
+        1249.97,
+      ];
+      expect(times, hasLength(schedule.length));
+      for (var i = 0; i < schedule.length; i++) {
+        expect(times[i], closeTo(schedule[i], .01), reason: 'step ${i + 1}');
+      }
+
+      // The delay shrinks by 22% a step and never reaches zero; Chrome
+      // clamps a timeout nested past five deep to 4ms, and Chrome's own
+      // tail ran at one step per 4-5ms.
+      await tester.pump(const Duration(seconds: 1));
+      expect(times.last - times[times.length - 2], closeTo(4, .001));
+      expect(times.length, greaterThan(200));
+
+      final count = times.length;
+      await mouse.up();
+      await tester.pump(const Duration(seconds: 1));
+      expect(times, hasLength(count), reason: 'mouseup stops it');
+      expect(value, count, reason: 'one step per report, none lost');
+      await mouse.removePointer();
+    });
+
+    testWidgets(
+      'a click is one step, and so is anything shorter than 300ms',
+      variant: macOS,
+      (tester) async {
+        final reported = <double?>[];
+        await pump(tester, controlled(reported: reported, initial: 0));
+        final mouse = await mouseOn(tester, stepper(up));
+        // Chrome: a 20ms click and a 250ms trackpad tap step once, a 310ms
+        // press twice.
+        for (final (ms, total) in <(int, int)>[(20, 1), (250, 2), (310, 4)]) {
+          await mouse.down(tester.getCenter(stepper(up)));
+          await tester.pump(Duration(milliseconds: ms));
+          await mouse.up();
+          await tester.pump(const Duration(seconds: 1));
+          expect(reported, hasLength(total), reason: '${ms}ms');
+        }
+        expect(reported.last, 4);
+        await mouse.removePointer();
+      },
+    );
+
+    testWidgets(
+      'leaving a held stepper stops it, and coming back does not restart it',
+      variant: macOS,
+      (tester) async {
+        final reported = <double?>[];
+        await pump(tester, controlled(reported: reported, initial: 0));
+        final mouse = await mouseOn(tester, stepper(up));
+        await mouse.down(tester.getCenter(stepper(up)));
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(reported, <double?>[1, 2]);
+
+        // Chrome: `mouseleave` onto the other stepper, or off the control,
+        // ends the spin; neither stepper starts one of its own.
+        await mouse.moveTo(tester.getCenter(stepper(down)));
+        await tester.pump(const Duration(seconds: 1));
+        await mouse.moveTo(
+          tester.getCenter(stepper(up)) + const Offset(0, -40),
+        );
+        await tester.pump(const Duration(seconds: 1));
+        await mouse.moveTo(tester.getCenter(stepper(up)));
+        await tester.pump(const Duration(seconds: 1));
+        expect(reported, <double?>[1, 2]);
+        await mouse.up();
+        await tester.pump(const Duration(seconds: 1));
+        expect(reported, <double?>[1, 2]);
+        await mouse.removePointer();
+      },
+    );
+
+    testWidgets(
+      'every mouse button steps, but only primary and middle look pressed',
+      variant: macOS,
+      (tester) async {
+        // Upstream's onMouseDown asks for no button, so a right press steps
+        // and repeats as well; Chrome just never sets `:active` for it.
+        for (final (buttons, fill) in <(int, Color)>[
+          (kSecondaryMouseButton, c.subtleBackgroundHover),
+          (kMiddleMouseButton, c.subtleBackgroundPressed),
+        ]) {
+          final reported = <double?>[];
+          await pump(
+            tester,
+            controlled(reported: reported, initial: 0),
+            theme: light,
+          );
+          final mouse = await mouseOn(tester, stepper(up), buttons: buttons);
+          await mouse.down(tester.getCenter(stepper(up)));
+          await tester.pump(const Duration(milliseconds: 310));
+          expect(reported, <double?>[1, 2], reason: 'buttons $buttons');
+          expect(stepperFillOf(tester, up), fill, reason: 'buttons $buttons');
+          await mouse.up();
+          await mouse.removePointer();
+          await pump(tester, const SizedBox());
+        }
+      },
+    );
+
+    testWidgets('a finger steps once, on release, however long it holds', (
+      tester,
+    ) async {
+      // Chrome sends touch's compatibility mousedown after touchend: a tap
+      // steps on release, and a 1.5s hold is still one step.
+      final reported = <double?>[];
+      await pump(tester, controlled(reported: reported, initial: 0));
+      final finger = await tester.startGesture(tester.getCenter(stepper(up)));
+      await tester.pump(const Duration(milliseconds: 1500));
+      expect(reported, isEmpty);
+      await finger.up();
+      await tester.pump(const Duration(seconds: 1));
+      expect(reported, <double?>[1]);
+    });
+
+    testWidgets(
+      'disabling or unmounting a held stepper stops it',
+      variant: macOS,
+      (tester) async {
+        for (final (name, next) in <(String, Widget)>[
+          ('disabled', build(value: 0, onChanged: null)),
+          ('read only', build(value: 0, readOnly: true)),
+          ('unmounted', const SizedBox()),
+        ]) {
+          final reported = <double?>[];
+          await pump(tester, build(value: 0, onChanged: reported.add));
+          final mouse = await mouseOn(tester, stepper(up));
+          await mouse.down(tester.getCenter(stepper(up)));
+          await tester.pump(const Duration(milliseconds: 10));
+          await pump(tester, next);
+          await tester.pump(const Duration(seconds: 2));
+          expect(reported, <double?>[1], reason: name);
+          await mouse.up();
+          await mouse.removePointer();
+          await pump(tester, const SizedBox());
+        }
+      },
+    );
+
+    testWidgets(
+      'a held stepper rounds to the precision and stops at the bound',
+      variant: macOS,
+      (tester) async {
+        final reported = <double?>[];
+        final node = FocusNode();
+        addTearDown(node.dispose);
+        await pump(
+          tester,
+          controlled(
+            reported: reported,
+            initial: 0,
+            step: .1,
+            max: .3,
+            focusNode: node,
+          ),
+          theme: light,
+        );
+        final mouse = await mouseOn(tester, stepper(up));
+        await mouse.down(tester.getCenter(stepper(up)));
+        await tester.pump();
+        expect(node.hasFocus, isTrue, reason: 'the press focuses the field');
+        // One pump for the whole hold: no frame lands between the ticks, as
+        // none does between 4ms ticks in an app, and the bound is still
+        // reported once.
+        await tester.pump(const Duration(seconds: 2));
+        expect(reported, <double?>[.1, .2, .3]);
+        expect(controllerOf(tester).text, '0.3');
+        // Chrome drops focus from the stepper it just disabled: the bar
+        // retracts under the held button.
+        expect(node.hasFocus, isFalse);
+        expect(
+          chevronOf(tester, up).color,
+          c.neutralForegroundDisabled,
+          reason: 'the stepper that reached the bound is disabled',
+        );
+        expect(chevronOf(tester, down).color, c.neutralForeground3);
+        await mouse.up();
+        await tester.pump(const Duration(seconds: 1));
+        expect(reported, <double?>[.1, .2, .3]);
+        await mouse.removePointer();
+      },
+    );
+
+    testWidgets(
+      "a stepper at its bound is upstream's disabled button",
+      variant: macOS,
+      (tester) async {
+        // Every appearance: `:disabled` is `colorNeutralForegroundDisabled`
+        // (#bdbdbd) on a transparent fill, through hover and press, under
+        // `not-allowed` — and the other stepper stays live.
+        for (final appearance in FluentSpinButtonAppearance.values) {
+          for (final (bound, value, other)
+              in <
+                (
+                  FluentSpinButtonStepperDirection,
+                  double,
+                  FluentSpinButtonStepperDirection,
+                )
+              >[(up, 20, down), (down, 0, up)]) {
+            final name = '${appearance.name} ${bound.name}';
+            final reported = <double?>[];
+            await pump(
+              tester,
+              build(
+                value: value,
+                min: 0,
+                max: 20,
+                appearance: appearance,
+                onChanged: reported.add,
+              ),
+              theme: light,
+            );
+            expect(
+              chevronOf(tester, bound).color,
+              c.neutralForegroundDisabled,
+              reason: '$name: rest',
+            );
+            expect(
+              chevronOf(tester, other).color,
+              c.neutralForeground3,
+              reason: '$name: the other half',
+            );
+            final mouse = await mouseOn(tester, stepper(bound));
+            // A test mouse is device 1.
+            expect(
+              RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+              SystemMouseCursors.forbidden,
+              reason: '$name: cursor',
+            );
+            expectFill(stepperFillOf(tester, bound), null, '$name: hover');
+            expect(
+              chevronOf(tester, bound).color,
+              c.neutralForegroundDisabled,
+              reason: '$name: hover',
+            );
+            await mouse.down(tester.getCenter(stepper(bound)));
+            await tester.pump(const Duration(seconds: 1));
+            expectFill(stepperFillOf(tester, bound), null, '$name: pressed');
+            expect(reported, isEmpty, reason: '$name: a press does not step');
+            await mouse.up();
+            await mouse.removePointer();
+          }
+        }
+      },
+    );
+
+    testWidgets(
+      'pressing a stepper at its bound takes focus away, as Chrome does',
+      variant: macOS,
+      (tester) async {
+        // A `disabled` button cannot take focus, so Chrome's mousedown on it
+        // leaves nothing focused: an unfocused field stays so, a focused one
+        // blurs. A click that lands on the bound does the same, since the
+        // button it focused is disabled under it.
+        final node = FocusNode();
+        addTearDown(node.dispose);
+        for (final (name, value, focused) in <(String, double, bool)>[
+          ('at the bound, unfocused', 20, false),
+          ('at the bound, focused', 20, true),
+          ('onto the bound', 19, false),
+        ]) {
+          final reported = <double?>[];
+          await pump(
+            tester,
+            controlled(
+              reported: reported,
+              initial: value,
+              min: 0,
+              max: 20,
+              focusNode: node,
+            ),
+            theme: light,
+          );
+          if (focused) node.requestFocus();
+          await tester.pumpAndSettle();
+          expect(node.hasFocus, focused, reason: name);
+          final mouse = await mouseOn(tester, stepper(up));
+          await mouse.down(tester.getCenter(stepper(up)));
+          await settleFocus(tester);
+          expect(node.hasFocus, isFalse, reason: '$name: held');
+          await mouse.up();
+          await tester.pumpAndSettle();
+          expect(node.hasFocus, isFalse, reason: '$name: released');
+          expect(focusProgressOf(tester), 0, reason: '$name: no bar');
+          expect(reported, value == 19 ? <double?>[20] : isEmpty);
+          await mouse.removePointer();
+          await pump(tester, const SizedBox());
+        }
+
+        // The keyboard reaches the bound from the `<input>`, which keeps it.
+        final reported = <double?>[];
+        await pump(
+          tester,
+          controlled(
+            reported: reported,
+            initial: 19,
+            min: 0,
+            max: 20,
+            focusNode: node,
+          ),
+        );
+        node.requestFocus();
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+        await tester.pumpAndSettle();
+        expect(reported, <double?>[20]);
+        expect(node.hasFocus, isTrue, reason: 'keyboard');
+      },
+    );
+
+    testWidgets('a held arrow key steps on every repeat', (tester) async {
+      // Upstream has no timer for keys: each keydown steps, and the OS
+      // supplies the repeats.
+      final reported = <double?>[];
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        controlled(reported: reported, initial: 18, max: 20, focusNode: node),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pump();
+      await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pump();
+      await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pump();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      expect(reported, <double?>[19, 20]);
+    });
+
+    testWidgets(
+      "a value past its bound leaves the stepper live, as getBound's === does",
+      variant: macOS,
+      (tester) async {
+        // Chrome, controlled at 25 of 0-20: increment is not `disabled`, and
+        // a press clamps to 20, disabling it under focus. At -5 decrement is
+        // live, and increment's press lands on 0 with focus kept.
+        final node = FocusNode();
+        addTearDown(node.dispose);
+        for (final (initial, live, landed, focused)
+            in <(double, FluentSpinButtonStepperDirection, double, bool)>[
+              (25, up, 20, false),
+              (-5, down, 0, true),
+            ]) {
+          final reported = <double?>[];
+          await pump(
+            tester,
+            controlled(
+              reported: reported,
+              initial: initial,
+              min: 0,
+              max: 20,
+              focusNode: node,
+            ),
+            theme: light,
+          );
+          expect(
+            chevronOf(tester, live).color,
+            c.neutralForeground3,
+            reason: '$initial: rest',
+          );
+          final mouse = await mouseOn(tester, stepper(up));
+          await mouse.down(tester.getCenter(stepper(up)));
+          await settleFocus(tester);
+          await mouse.up();
+          await tester.pumpAndSettle();
+          expect(reported, <double?>[landed], reason: '$initial');
+          expect(node.hasFocus, focused, reason: '$initial: focus');
+          await mouse.removePointer();
+          await pump(tester, const SizedBox());
+        }
+      },
+    );
+
+    testWidgets('a held pen repeats, as a mouse does', (tester) async {
+      // Chrome sends a pen's compatibility mousedown on the press, not after
+      // the lift as it does a finger's: held, it spins, and the lift adds
+      // nothing.
+      final reported = <double?>[];
+      await pump(tester, controlled(reported: reported, initial: 0));
+      final pen = await tester.startGesture(
+        tester.getCenter(stepper(up)),
+        kind: PointerDeviceKind.stylus,
+      );
+      await tester.pump(const Duration(milliseconds: 310));
+      expect(reported, <double?>[1, 2]);
+      await pen.up();
+      await tester.pump(const Duration(seconds: 1));
+      expect(reported, <double?>[1, 2]);
+    });
+
+    testWidgets('a taller box puts each stepper atop its half', (tester) async {
+      // Chrome at a CSS height of 60: the grid's two `1fr` rows are 30 each,
+      // and each button (16 tall, 12 small) sits at the start of its row.
+      // The `<input>` spans both, its text centred.
+      for (final size in FluentSpinButtonSize.values) {
+        await pump(tester, SizedBox(height: 60, child: build(size: size)));
+        final box = tester.getRect(find.byKey(key));
+        expect(box.height, 60, reason: size.name);
+        expect(
+          tester.getTopLeft(stepper(up)).dy - box.top,
+          0,
+          reason: size.name,
+        );
+        expect(
+          tester.getTopLeft(stepper(down)).dy - box.top,
+          30,
+          reason: size.name,
+        );
+        expect(
+          tester.getCenter(under(EditableText)).dy,
+          box.center.dy,
+          reason: size.name,
+        );
+      }
     });
   });
 

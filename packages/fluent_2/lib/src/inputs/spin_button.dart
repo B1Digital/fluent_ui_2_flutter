@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:fluent_2_core/fluent_2_core.dart';
 // For clampDouble, which widgets.dart does not re-export.
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/gestures.dart'
+    show PointerDeviceKind, kSecondaryMouseButton;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -429,10 +432,14 @@ Widget buildFluentSpinButton(
       style.contentPadding?.resolve(states) ?? EdgeInsets.zero;
   final minimumSize = style.minimumSize?.resolve(states) ?? Size.zero;
 
-  // The `<input>` spans the control's full height, and so does its cursor.
+  // The `<input>` spans the control's full height, and so does its cursor;
+  // its text sits in the middle of it.
   Widget field = MouseRegion(
     cursor: style.mouseCursor?.resolve(states) ?? MouseCursor.defer,
-    child: Padding(padding: contentPadding, child: state.field),
+    child: Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Padding(padding: contentPadding, child: state.field),
+    ),
   );
   if (textStyle != null || foreground != null) {
     field = DefaultTextStyle.merge(
@@ -441,37 +448,45 @@ Widget buildFluentSpinButton(
     );
   }
 
-  final content = Row(
-    // Not `stretch`: the control is laid out under unbounded height (a Column,
-    // a Center) as often as not, and stretch would demand a bounded one. The
-    // padding table already makes the field box exactly as tall as the stepper
-    // column — 6 + 20 + 6 and 4 + 16 + 4 — so centring lands on the same pixel.
-    crossAxisAlignment: CrossAxisAlignment.center,
-    // Upstream's grid `columnGap: spacingHorizontalXS`, at both sizes.
-    spacing: FluentSpacing.xs,
-    children: <Widget>[
-      Expanded(child: field),
-      // The steppers duplicate the increment and decrement actions the control
-      // already publishes on itself, so announcing them again would read the
-      // field twice.
-      ExcludeSemantics(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            FluentSpinButtonStepper(
-              direction: FluentSpinButtonStepperDirection.increase,
-              style: style,
-              onPressed: state.onIncrease,
-            ),
-            FluentSpinButtonStepper(
-              direction: FluentSpinButtonStepperDirection.decrease,
-              style: style,
-              onPressed: state.onDecrease,
-            ),
-          ],
-        ),
+  // Upstream's grid: two `1fr` rows the `<input>` spans, a button at the
+  // start of each. At the natural 32 / 24 the rows are the buttons, 16 / 12;
+  // a taller box leaves each button atop its half, as Chrome does.
+  Widget stepper(FluentSpinButtonStepperDirection direction) => Expanded(
+    child: Align(
+      alignment: Alignment.topCenter,
+      child: FluentSpinButtonStepper(
+        direction: direction,
+        style: style,
+        onPressed: direction == FluentSpinButtonStepperDirection.increase
+            ? state.onIncrease
+            : state.onDecrease,
       ),
-    ],
+    ),
+  );
+
+  // Intrinsic, so `stretch` has a height to stretch to when the parent's is
+  // unbounded (a Column, a Center): the taller of the field and the steppers,
+  // as the grid's `auto` height is. A tight parent height skips the measure.
+  final content = IntrinsicHeight(
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      // Upstream's grid `columnGap: spacingHorizontalXS`, at both sizes.
+      spacing: FluentSpacing.xs,
+      children: <Widget>[
+        Expanded(child: field),
+        // The steppers duplicate the increment and decrement actions the
+        // control already publishes on itself, so announcing them again would
+        // read the field twice.
+        ExcludeSemantics(
+          child: Column(
+            children: <Widget>[
+              stepper(FluentSpinButtonStepperDirection.increase),
+              stepper(FluentSpinButtonStepperDirection.decrease),
+            ],
+          ),
+        ),
+      ],
+    ),
   );
 
   // A null colour is no side at all, whatever the width says.
@@ -485,6 +500,10 @@ Widget buildFluentSpinButton(
   final edge = side > 0 ? radius : BorderRadius.zero;
 
   return Stack(
+    // Passthrough, so a parent's tight height stretches the box itself, as a
+    // CSS `height` would. A loose Stack laid the box out at its own 24 / 32 and
+    // pinned the bar to the bottom of the taller Stack, below it.
+    fit: StackFit.passthrough,
     children: <Widget>[
       ConstrainedBox(
         constraints: BoxConstraints(
@@ -600,7 +619,7 @@ class FluentSpinButtonChevronPainter extends CustomPainter {
 ///
 /// Public because [buildFluentSpinButton] places it, and a consumer
 /// substituting their own build needs to be able to place it too.
-class FluentSpinButtonStepper extends StatelessWidget {
+class FluentSpinButtonStepper extends StatefulWidget {
   /// Creates one stepper half.
   const FluentSpinButtonStepper({
     super.key,
@@ -616,12 +635,130 @@ class FluentSpinButtonStepper extends StatelessWidget {
   /// `borderRadius` properties are read.
   final FluentSpinButtonStyle style;
 
-  /// Invoked on tap. Null makes the half inert, which is what a disabled *or*
-  /// read-only spin button does: upstream renders both buttons `disabled`.
+  /// Takes one step. A mouse or pen takes the first on the press and repeats
+  /// while the button is held, as upstream's `useSpinButton` does; a finger
+  /// takes one on release. Null makes the half inert, which is what a
+  /// disabled, read-only or at-bound spin button does: upstream renders those
+  /// buttons `disabled`.
+  ///
+  /// The repeat is upstream's: 300ms after the press, then after each delay
+  /// lerped from 300 towards 80 by the time spun over 1000ms, floored at the
+  /// 4ms Chrome clamps a deeply nested timeout to. It stops on release, when
+  /// the pointer leaves this half, and when this callback turns null.
   final VoidCallback? onPressed;
 
   @override
+  State<FluentSpinButtonStepper> createState() =>
+      _FluentSpinButtonStepperState();
+}
+
+/// The last pointer down a stepper took, and which stepper took it.
+///
+/// Flutter hands a pointer event to the deepest hit first, so a stepper sees a
+/// press before the control around it does. [FluentSpinButton] reads this to
+/// tell a press on a `disabled` stepper — which Chrome answers by leaving
+/// nothing focused — from one on the field or the padding.
+///
+/// ponytail: one library-wide slot, matched by identity against the very event
+/// being dispatched, so a stale entry never matches a later press. Pass the
+/// press down an InheritedWidget instead if a second reader ever needs it.
+(PointerEvent, FluentSpinButtonStepperDirection)? _stepperPress;
+
+class _FluentSpinButtonStepperState extends State<FluentSpinButtonStepper> {
+  // `useSpinButton.tsx`'s DEFAULT_SPIN_DELAY_MS, MIN_SPIN_DELAY_MS and
+  // MAX_SPIN_TIME_MS. Its lerp is unclamped, so the delay shrinks by 22% a
+  // step and never reaches zero.
+  static const double _firstDelay = 300;
+  static const double _minDelay = 80;
+  static const double _maxTime = 1000;
+
+  // Chrome clamps a timeout nested more than five deep to 4ms, and upstream's
+  // delay only falls under that eighteen steps in. Measured, Chrome's tail runs
+  // one step per 4-5ms.
+  static const double _floor = 4;
+
+  Timer? _repeat;
+  double _time = 0;
+  double _delay = _firstDelay;
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
+  void didUpdateWidget(FluentSpinButtonStepper oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Upstream's button turns `disabled` under a held pointer at the bound:
+    // the spin ends, and a later release has nothing to clear.
+    if (widget.onPressed == null) {
+      _stop();
+      _pressed = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _stop();
+    super.dispose();
+  }
+
+  /// Steps, then schedules the next step on upstream's clock.
+  void _spin() {
+    widget.onPressed?.call();
+    final wait = _delay > _floor ? _delay : _floor;
+    _repeat = Timer(Duration(microseconds: (wait * 1000).round()), () {
+      _time += _delay;
+      _delay = _firstDelay + (_minDelay - _firstDelay) * _time / _maxTime;
+      _spin();
+    });
+  }
+
+  void _stop() {
+    _repeat?.cancel();
+    _repeat = null;
+    _time = 0;
+    _delay = _firstDelay;
+  }
+
+  void _handleDown(PointerDownEvent event) {
+    _stepperPress = (event.original ?? event, widget.direction);
+    if (widget.onPressed == null) return;
+    // Chrome sets `:active` for the primary and middle buttons, not for a
+    // right press, which still steps: upstream's `onMouseDown` never asks
+    // which button went down.
+    if (event.buttons != kSecondaryMouseButton) {
+      setState(() => _pressed = true);
+    }
+    if (_held(event.kind)) {
+      _stop();
+      _spin();
+    }
+  }
+
+  // Chrome sends a mouse's and a pen's compatibility mousedown on the press,
+  // and a finger's only after touchend.
+  static bool _held(PointerDeviceKind kind) => switch (kind) {
+    PointerDeviceKind.mouse ||
+    PointerDeviceKind.stylus ||
+    PointerDeviceKind.invertedStylus => true,
+    _ => false,
+  };
+
+  // Also reaches a stepper unmounted under a held pointer: Flutter delivers
+  // the release along the path the press was hit-tested on.
+  void _handleUp(PointerEvent _) {
+    _stop();
+    if (mounted && _pressed) setState(() => _pressed = false);
+  }
+
+  // A finger steps once, on release: there is no hold to repeat. Also the
+  // semantics tap, which reports an unknown device.
+  void _handleTapUp(TapUpDetails details) {
+    if (!_held(details.kind)) widget.onPressed?.call();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final style = widget.style;
+    final direction = widget.direction;
     const rest = <WidgetState>{};
     final up = direction == FluentSpinButtonStepperDirection.increase;
     final box = style.stepperSize?.resolve(rest) ?? const Size(24, 16);
@@ -648,7 +785,15 @@ class FluentSpinButtonStepper extends StatelessWidget {
     final svgTop = padding.top + (box.height - padding.vertical - svg) / 2;
     final nudge = (svgTop + .5).floorToDouble() - svgTop;
 
-    Widget face(Set<WidgetState> states) => SizedBox.fromSize(
+    // Upstream's `disabled` button: no hover, no press, `cursor: not-allowed`.
+    final enabled = widget.onPressed != null;
+    final states = <WidgetState>{
+      if (!enabled) WidgetState.disabled,
+      if (enabled && _hovered) WidgetState.hovered,
+      if (enabled && _pressed) WidgetState.pressed,
+    };
+
+    final face = SizedBox.fromSize(
       size: box,
       child: DecoratedBox(
         decoration: BoxDecoration(
@@ -679,23 +824,29 @@ class FluentSpinButtonStepper extends StatelessWidget {
       ),
     );
 
-    // Upstream's `disabled` button: no hover, no press, `cursor: not-allowed`,
-    // and a click on it focuses nothing. The empty tap wins the arena so the
-    // control's own tap-to-focus never sees it.
-    if (onPressed == null) {
-      return MouseRegion(
-        cursor: SystemMouseCursors.forbidden,
+    // No focus of its own: upstream's `tabIndex={-1}` buttons are no tab stop,
+    // and the control focuses its field on the press instead.
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.forbidden,
+      onEnter: (_) => setState(() => _hovered = true),
+      // Upstream's `mouseleave` ends a spin; coming back does not restart it.
+      onExit: (_) {
+        _stop();
+        setState(() => _hovered = false);
+      },
+      child: Listener(
+        onPointerDown: _handleDown,
+        onPointerUp: _handleUp,
+        onPointerCancel: _handleUp,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: () {},
-          child: face(const <WidgetState>{WidgetState.disabled}),
+          // Live or not, the stepper takes the tap, so the control's own
+          // tap-to-focus never sees it.
+          onTapUp: _handleTapUp,
+          // An inert half must not announce a tap it will not act on.
+          excludeFromSemantics: !enabled,
+          child: face,
         ),
-      );
-    }
-    return ExcludeFocus(
-      child: FluentInteractive(
-        onPressed: onPressed,
-        builder: (context, states, _) => face(states),
       ),
     );
   }
@@ -778,6 +929,10 @@ class _CommitIntent extends Intent {
 /// are set. Those bindings sit above the framework's own text-editing
 /// shortcuts, so Home and End move the value rather than the caret — which is
 /// what a spin button does everywhere.
+///
+/// The steppers step on the press and, held, repeat on `useSpinButton`'s
+/// clock. A stepper at its bound is upstream's `disabled` button: grey, inert,
+/// and a press on it leaves nothing focused.
 ///
 /// Pass `onChanged: null` to disable it, or `readOnly: true` to keep it
 /// focusable but fixed. The two are different states, not two names for one:
@@ -910,6 +1065,11 @@ class _FluentSpinButtonState extends State<FluentSpinButton>
   bool _focused = false;
   bool _showHandles = false;
 
+  /// The value last reported, until the caller rebuilds this widget. A held
+  /// stepper ticks faster than frames, so the ticks between reaching a bound
+  /// and the rebuild that disables it would otherwise report it again.
+  double? _reported;
+
   FocusNode get _focusNode =>
       widget.focusNode ?? (_internalNode ??= FocusNode());
 
@@ -941,6 +1101,7 @@ class _FluentSpinButtonState extends State<FluentSpinButton>
   @override
   void didUpdateWidget(FluentSpinButton oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _reported = null;
     if (oldWidget.focusNode != widget.focusNode) {
       // `?? _internalNode`: when the old widget had no node the listener is on
       // the internal one, and `oldWidget.focusNode?.` skips it entirely —
@@ -1002,7 +1163,9 @@ class _FluentSpinButtonState extends State<FluentSpinButton>
   }
 
   void _setState(WidgetState state, {required bool value}) {
-    if (!_enabled && value) return;
+    // A release reaches a control unmounted under a held pointer, along the
+    // path the press was hit-tested on.
+    if (!mounted || (!_enabled && value)) return;
     _states.update(state, value);
   }
 
@@ -1054,7 +1217,9 @@ class _FluentSpinButtonState extends State<FluentSpinButton>
         selection: TextSelection.collapsed(offset: text.length),
       );
     }
-    if (next != widget.value) widget.onChanged?.call(next);
+    if (next == (_reported ?? widget.value)) return;
+    _reported = next;
+    widget.onChanged?.call(next);
   }
 
   /// Commits whatever is in the field. An empty field clears the value; text
@@ -1096,6 +1261,28 @@ class _FluentSpinButtonState extends State<FluentSpinButton>
     _report(
       _base + intent.sign * (intent.page ? widget.pageStep : widget.step),
     );
+  }
+
+  /// Whether [sign]'s stepper is upstream's `disabled` button: on a disabled
+  /// or read-only control, and at its bound. `getBound` reads the committed
+  /// value, rounded — here the one just reported, until the caller passes it
+  /// back — and asks for equality: a value past the bound leaves the stepper
+  /// live, and its press clamps back onto it.
+  bool _stepperInert(int sign) {
+    if (!_editable) return true;
+    final value = _reported ?? widget.value;
+    final end = sign > 0 ? widget.max : widget.min;
+    if (value == null || end == null) return false;
+    return double.parse(_format(value)) == end;
+  }
+
+  /// One step from a stepper. Upstream's stepper is a focused `<button>`, so
+  /// the step that reaches its bound disables it under the pointer, and Chrome
+  /// takes focus from a disabled control: the bar retracts. The keyboard steps
+  /// from the `<input>`, which keeps it.
+  void _stepperStep(int sign) {
+    _step(_StepIntent.by(sign));
+    if (_stepperInert(sign)) _focusNode.unfocus();
   }
 
   void _handleSelectionChanged(
@@ -1215,8 +1402,8 @@ class _FluentSpinButtonState extends State<FluentSpinButton>
       focused: _focused,
       appearance: widget.appearance,
       size: widget.size,
-      onIncrease: _editable ? () => _step(const _StepIntent.by(1)) : null,
-      onDecrease: _editable ? () => _step(const _StepIntent.by(-1)) : null,
+      onIncrease: _stepperInert(1) ? null : () => _stepperStep(1),
+      onDecrease: _stepperInert(-1) ? null : () => _stepperStep(-1),
     );
 
     // FluentInteractive is deliberately NOT used for the control itself: it
@@ -1233,15 +1420,35 @@ class _FluentSpinButtonState extends State<FluentSpinButton>
       onExit: (_) => _setState(WidgetState.hovered, value: false),
       child: Listener(
         onPointerDown: (event) {
-          _setState(WidgetState.pressed, value: true);
-          // A browser focuses on mousedown — the `<input>`, or a stepper's
-          // `<button tabindex=-1>` — so the root is `:focus-within` and the
-          // bar grows while a stepper is still held. Focus goes to the field
-          // rather than the stepper, which keeps the arrow keys working.
-          // Upstream's read-only steppers are `disabled` and take no focus.
+          // `:active` holds on the root for a press anywhere inside it. Chrome
+          // sets it for the primary and middle buttons, not for a right press.
+          _setState(
+            WidgetState.pressed,
+            value: event.buttons != kSecondaryMouseButton,
+          );
           // Mouse only: a finger landing here may be starting a scroll, and
           // must not raise the keyboard.
-          if (_editable && event.kind == PointerDeviceKind.mouse) _focusField();
+          if (event.kind != PointerDeviceKind.mouse) return;
+          // The stepper under the press, if any, saw it first.
+          final press = _stepperPress;
+          final sign =
+              press == null || !identical(press.$1, event.original ?? event)
+              ? 0
+              : press.$2 == FluentSpinButtonStepperDirection.increase
+              ? 1
+              : -1;
+          if (sign != 0 && _stepperInert(sign)) {
+            // A `disabled` stepper — read only, or at its bound, including
+            // the one this very press stepped onto it — cannot take focus, so
+            // Chrome's mousedown on it leaves nothing focused.
+            _focusNode.unfocus();
+          } else if (_editable) {
+            // A browser focuses on mousedown — the `<input>`, or a stepper's
+            // `<button tabindex=-1>` — so the root is `:focus-within` and the
+            // bar grows while a stepper is still held. Focus goes to the field
+            // rather than the stepper, which keeps the arrow keys working.
+            _focusField();
+          }
         },
         onPointerUp: (_) => _setState(WidgetState.pressed, value: false),
         onPointerCancel: (_) => _setState(WidgetState.pressed, value: false),
