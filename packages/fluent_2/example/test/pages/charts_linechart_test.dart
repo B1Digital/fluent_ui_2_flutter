@@ -123,10 +123,16 @@ void main() {
       // The demo's points are `DateTime.utc`, which is upstream's
       // `new Date('…Z')`. Unticking "Use UTC time" is supposed to re-read those
       // instants in the viewer's own zone — that is the only thing the knob is
-      // for. A runner already sitting in UTC has nothing to convert, so there is
-      // no difference to demand of it.
-      if (DateTime.now().timeZoneOffset == Duration.zero) {
-        markTestSkipped('the runner is in UTC, where the knob cannot show');
+      // for. A runner that sits at +00:00 on the demo's dates has nothing to
+      // convert, so there is no difference to demand of it. The offset is read
+      // AT those dates (Mar 3-9, 2020), not today: Europe/London is +01:00 all
+      // summer and +00:00 in March.
+      if (List<int>.generate(7, (int i) => 3 + i).every(
+        (int day) =>
+            DateTime.utc(2020, 3, day).toLocal().timeZoneOffset ==
+            Duration.zero,
+      )) {
+        markTestSkipped('the runner is at +00:00 on the demo dates');
         return;
       }
       await pumpSection(tester, section);
