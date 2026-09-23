@@ -10,6 +10,10 @@ import '../shell/catalog.dart';
 /// id, so the "Show code" panel can read this file back and print exactly the
 /// code that rendered.
 ///
+/// The exception is the two Motion sections' copy: upstream's teaches
+/// `surfaceMotion`/`backdropMotion` slots FluentDrawer does not have, so it
+/// says what the drawer does instead.
+///
 /// Upstream ships three components — `OverlayDrawer`, `InlineDrawer` and the
 /// combined `Drawer`. fluent_2 ships one, `FluentDrawer`, whose
 /// [FluentDrawerType] axis is the same decision: `overlay` is `OverlayDrawer`,
@@ -149,16 +153,22 @@ const DocsPage drawerPage = DocsPage(
       id: 'components-drawer--motion-custom',
       title: 'Motion Custom',
       description:
-          'Drawer animations can be customized using the Motion APIs, together '
-          'with the surfaceMotion prop.',
+          'FluentDrawer takes no motion parameters. It always slides in from '
+          'its edge while it fades in, over a time keyed to its size: 250ms at '
+          'small up to 500ms at full. An overlay drawer fades its backdrop '
+          'over the same time. When the MediaQuery above it sets '
+          'disableAnimations, it opens and closes with no transition.',
       builder: _motionCustom,
     ),
     DocsSection(
       id: 'components-drawer--motion-disabled',
       title: 'Motion Disabled',
       description:
-          'To disable the Drawer transition animation, you can set both '
-          'surfaceMotion and backdropMotion props of the Drawer to null.',
+          'FluentDrawer has no per-drawer switch for its motion. It follows '
+          'the disableAnimations flag of the MediaQuery above it, so this demo '
+          'wraps the drawer in a MediaQuery that sets it, and the drawer opens '
+          'and closes with no transition. In an app, the OS reduce-motion '
+          'setting sets the same flag.',
       builder: _motionDisabled,
     ),
     DocsSection(

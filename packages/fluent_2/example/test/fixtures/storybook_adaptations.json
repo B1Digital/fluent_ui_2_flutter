@@ -1238,7 +1238,10 @@
   },
   "components-popover--motion-custom": {
     "kind": "reduced",
-    "why": "FluentPopover has no surfaceMotion slot; its entrance is FluentPopoverEntrance (Fluent's fade + direction-aware slide) and it is not replaceable, so the copy is kept and the stock entrance plays instead of a fade-in/blur-out."
+    "why": "FluentPopover has no surfaceMotion slot; its entrance is FluentPopoverEntrance (Fluent's fade + direction-aware slide) and it is not replaceable, so the stock entrance plays instead of a fade-in/blur-out and the body text says so.",
+    "sampleStringsSkip": [
+      "This popover fades in and blurs out."
+    ]
   },
   "components-popover--motion-disabled": {
     "kind": "composed",
