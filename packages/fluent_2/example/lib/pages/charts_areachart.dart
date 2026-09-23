@@ -399,9 +399,6 @@ class _AreaChartBasicState extends State<_AreaChartBasic> {
           ),
         ],
       ),
-      // Upstream's RadioGroup handler re-sets the flag it already holds, so
-      // neither option changes what renders. Kept as a live selection, and the
-      // chart below is the basic example either way.
       FluentField(
         label: const Text('Pick one'),
         child: FluentRadioGroup<String>(
@@ -462,6 +459,11 @@ class _AreaChartBasicState extends State<_AreaChartBasic> {
                 ? 'Variation of stock market prices'
                 : null,
             xAxisTitle: _showAxisTitles ? 'Number of days' : null,
+            // Upstream's handler never changes what renders; `popoverBuilder`
+            // takes no datum, so the custom body is static.
+            popoverBuilder: _example == 'calloutExample'
+                ? (BuildContext context) => const Text('Custom callout')
+                : null,
           ),
         ),
       ),
@@ -1097,8 +1099,6 @@ class _AreaChartNegativeState extends State<_AreaChartNegative> {
           ),
         ],
       ),
-      // Upstream's RadioGroup handler flips a flag nothing reads, so neither
-      // option changes what renders. Kept as a live selection.
       FluentField(
         label: const Text('Pick one'),
         child: FluentRadioGroup<String>(
@@ -1133,6 +1133,11 @@ class _AreaChartNegativeState extends State<_AreaChartNegative> {
                 ? 'Variation of stock market prices'
                 : null,
             xAxisTitle: _showAxisTitles ? 'Number of days' : null,
+            // Upstream's handler never changes what renders; `popoverBuilder`
+            // takes no datum, so the custom body is static.
+            popoverBuilder: _example == 'calloutExample'
+                ? (BuildContext context) => const Text('Custom callout')
+                : null,
           ),
         ),
       ),

@@ -142,7 +142,7 @@ void main() {
       expect(legendRow(tester, 'Legend1').dimmed, isFalse);
     });
 
-    testWidgets('the example radio commits both of its options', (
+    testWidgets('the example radio swaps the popover body both ways', (
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
@@ -152,22 +152,29 @@ void main() {
         'basicExample',
       );
 
-      // No chart change is demanded here on purpose: the demo's own comment
-      // records that upstream's handler re-sets the flag it already holds, so
-      // both options render the basic example. What must still work is the
-      // selection itself — a radio group that refused the second option would be
-      // a defect this page could hide behind that note.
       await mouseClick(tester, find.text('Custom Callout Example'));
       expect(
         tester.widget<FluentRadioGroup<String>>(group).value,
         'calloutExample',
       );
+      TestGesture mouse = await hoverAt(
+        tester,
+        pointCentre(tester, 5),
+        what: 'a data point',
+      );
+      expect(find.text('Custom callout'), findsOneWidget);
+      expect(find.byType(FluentChartPopover), findsNothing);
+      await mouseAway(tester, mouse);
 
       await tapAndSettle(tester, find.text('Basic Example'), what: 'the radio');
       expect(
         tester.widget<FluentRadioGroup<String>>(group).value,
         'basicExample',
       );
+      mouse = await hoverAt(tester, pointCentre(tester, 5), what: 'a point');
+      expect(find.byType(FluentChartPopover), findsOneWidget);
+      expect(find.text('Custom callout'), findsNothing);
+      await mouseAway(tester, mouse);
     });
 
     testWidgets('clicking a legend dims every other area', (
@@ -271,6 +278,21 @@ void main() {
       // to move the floor down rather than clip.
       expect(ticks.any((double tick) => tick < 0), isTrue);
       expect(ticks.any((double tick) => tick > 0), isTrue);
+    });
+
+    testWidgets('the example radio swaps in the custom popover', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(tester, section);
+      await mouseClick(tester, find.text('Custom Callout Example'));
+      final TestGesture mouse = await hoverAt(
+        tester,
+        pointCentre(tester, 5),
+        what: 'a data point',
+      );
+      expect(find.text('Custom callout'), findsOneWidget);
+      expect(find.byType(FluentChartPopover), findsNothing);
+      await mouseAway(tester, mouse);
     });
   });
 

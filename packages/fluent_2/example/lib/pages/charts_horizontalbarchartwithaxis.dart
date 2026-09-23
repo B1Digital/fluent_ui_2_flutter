@@ -329,10 +329,6 @@ class _HorizontalBarWithAxisBasicState
           ),
         ],
       ),
-      // Upstream's radio pair would swap in `onRenderCalloutPerHorizontalBar`,
-      // but the story's handler only flips a boolean nothing reads, so neither
-      // choice changes the chart. The port keeps the control and the same
-      // inert behaviour.
       FluentField(
         label: const Text('Pick one'),
         child: FluentRadioGroup<String>(
@@ -396,6 +392,13 @@ class _HorizontalBarWithAxisBasicState
             legendSelectionMode: _selectMultipleLegends
                 ? FluentChartLegendSelectionMode.multiple
                 : FluentChartLegendSelectionMode.single,
+            props: FluentCartesianChartProps(
+              // Upstream's handler only flips a boolean nothing reads;
+              // `popoverBuilder` takes no datum, so the custom body is static.
+              popoverBuilder: _calloutExample == 'Custom Callout Example'
+                  ? (BuildContext context) => const Text('Custom callout')
+                  : null,
+            ),
           ),
         ),
       ),

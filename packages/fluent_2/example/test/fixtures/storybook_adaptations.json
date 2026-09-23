@@ -5,7 +5,7 @@
   },
   "charts-areachart--area-chart-basic": {
     "kind": "reduced",
-    "why": "Upstream's RadioGroup onChange re-sets the flag it already holds, so neither 'Basic Example' nor 'Custom Callout Example' changes what renders; the group is kept as a live selection with the same values and labels. `culture={window.navigator.language}` and `styles={{svgTooltip}}` have no browser equivalent here and are dropped \u2014 the tooltip fill already resolves to colorNeutralBackground2."
+    "why": "Upstream's RadioGroup onChange re-sets the flag it already holds, so neither 'Basic Example' nor 'Custom Callout Example' changes what renders there; the port keeps the same values and labels and wires 'Custom Callout Example' to a custom popover instead. FluentCartesianChartProps.popoverBuilder takes no datum, so the custom arm installs a static 'Custom callout' popover body. `culture={window.navigator.language}` and `styles={{svgTooltip}}` have no browser equivalent here and are dropped \u2014 the tooltip fill already resolves to colorNeutralBackground2."
   },
   "charts-areachart--area-chart-custom-accessibility": {
     "kind": "composed",
@@ -25,7 +25,7 @@
   },
   "charts-areachart--area-chart-negative": {
     "kind": "reduced",
-    "why": "Same dead RadioGroup handler as the basic story, kept as a live selection. `culture` and the `svgTooltip` style override dropped."
+    "why": "Same dead RadioGroup handler as the basic story, wired to the same static custom popover body. `culture` and the `svgTooltip` style override dropped."
   },
   "charts-areachart--area-chart-secondary-y-axis": {
     "kind": "platform",
@@ -120,7 +120,7 @@
   },
   "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-basic": {
     "kind": "local-state",
-    "why": "Upstream's width/height range inputs and its Field/RadioGroup/Checkbox/Switch knobs become FluentSlider, FluentField+FluentRadioGroup, FluentCheckbox and FluentSwitch driven by State. getColorFromToken(DataVizPalette.colorN) becomes FluentDataVizPalette.resolve(FluentDataVizToken.colorN). enableGradient has no counterpart on FluentHorizontalBarChartWithAxis, which fills bars flat, so the Enable Gradient switch is left out; the radio pair is inert here exactly as upstream, whose handler only toggles a boolean no prop reads. culture={window.navigator.language} becomes the fixed 'en-us' a test environment can reproduce. The width slider reaches 1000, wider than the docs column, so the chart box is a SizedBox inside a horizontal SingleChildScrollView instead of overflowing."
+    "why": "Upstream's width/height range inputs and its Field/RadioGroup/Checkbox/Switch knobs become FluentSlider, FluentField+FluentRadioGroup, FluentCheckbox and FluentSwitch driven by State. getColorFromToken(DataVizPalette.colorN) becomes FluentDataVizPalette.resolve(FluentDataVizToken.colorN). enableGradient has no counterpart on FluentHorizontalBarChartWithAxis, which fills bars flat, so the Enable Gradient switch is left out; upstream's radio handler only toggles a boolean no prop reads, so the port wires 'Custom Callout Example' to a custom popover instead; FluentCartesianChartProps.popoverBuilder takes no datum, so the custom arm installs a static 'Custom callout' popover body. culture={window.navigator.language} becomes the fixed 'en-us' a test environment can reproduce. The width slider reaches 1000, wider than the docs column, so the chart box is a SizedBox inside a horizontal SingleChildScrollView instead of overflowing."
   },
   "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-category-order": {
     "kind": "reduced",
@@ -271,7 +271,7 @@
   },
   "charts-verticalbarchart--vertical-bar-default": {
     "kind": "local-state",
-    "why": "Upstream's width/height range inputs and its Field/RadioGroup/Checkbox/Switch knobs become FluentSlider, FluentField+FluentRadioGroup, FluentCheckbox and FluentSwitch driven by State. The radio pair is inert here exactly as upstream: its onRenderCalloutPerDataPoint branch is commented out in the story source. The width slider reaches 1000, wider than the docs column, so the chart box sits in a horizontal SingleChildScrollView instead of overflowing."
+    "why": "Upstream's width/height range inputs and its Field/RadioGroup/Checkbox/Switch knobs become FluentSlider, FluentField+FluentRadioGroup, FluentCheckbox and FluentSwitch driven by State. Upstream's onRenderCalloutPerDataPoint branch for the radio pair is commented out in the story source, so the port wires 'Custom Callout Example' to a custom popover instead; FluentCartesianChartProps.popoverBuilder takes no datum, so the custom arm installs a static 'Custom callout' popover body. The width slider reaches 1000, wider than the docs column, so the chart box sits in a horizontal SingleChildScrollView instead of overflowing."
   },
   "charts-verticalbarchart--vertical-bar-dynamic": {
     "kind": "local-state",

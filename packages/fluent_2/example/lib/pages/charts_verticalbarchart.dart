@@ -452,9 +452,6 @@ class _VerticalBarDefaultState extends State<_VerticalBarDefault> {
           ),
         ],
       ),
-      // Upstream's radio pair swaps in `onRenderCalloutPerDataPoint`, which is
-      // commented out in the story source, so neither choice changes the chart.
-      // The port keeps the control and the same inert behaviour.
       FluentField(
         label: const Text('Pick one'),
         child: FluentRadioGroup<String>(
@@ -524,6 +521,11 @@ class _VerticalBarDefaultState extends State<_VerticalBarDefault> {
                         'vertical bar chart whose values range from zero to '
                         '100,000. The x-axis is divided into 10 equal parts, '
                         'each part representing 10,000.'
+                  : null,
+              // Upstream's story leaves its custom renderer commented out;
+              // `popoverBuilder` takes no datum, so the custom body is static.
+              popoverBuilder: _calloutExample == 'Custom Callout Example'
+                  ? (BuildContext context) => const Text('Custom callout')
                   : null,
             ),
           ),
@@ -1570,6 +1572,11 @@ class _VerticalBarAllNegativeState extends State<_VerticalBarAllNegative> {
                   ? 'Different categories of animals and fruits'
                   : null,
               xAxisTitle: _showAxisTitles ? 'Values of each category' : null,
+              // Upstream's handler only flips a flag nothing reads;
+              // `popoverBuilder` takes no datum, so the custom body is static.
+              popoverBuilder: _calloutExample == 'Custom Callout Example'
+                  ? (BuildContext context) => const Text('Custom callout')
+                  : null,
             ),
           ),
         ),
@@ -1781,6 +1788,11 @@ class _VerticalBarNegativeState extends State<_VerticalBarNegative> {
                   ? 'Different categories of animals and fruits'
                   : null,
               xAxisTitle: _showAxisTitles ? 'Values of each category' : null,
+              // Upstream's handler only flips a flag nothing reads;
+              // `popoverBuilder` takes no datum, so the custom body is static.
+              popoverBuilder: _calloutExample == 'Custom Callout Example'
+                  ? (BuildContext context) => const Text('Custom callout')
+                  : null,
             ),
           ),
         ),
