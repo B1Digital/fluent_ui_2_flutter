@@ -93,10 +93,19 @@ const DocsPage tagPage = DocsPage(
           'The second line. Figma only draws two lines at FluentTagSize.medium.',
     ),
     PropRow(
+      name: 'media',
+      type: 'Widget?',
+      defaultValue: 'null',
+      description:
+          'Leading media — an avatar, 1px inside the border. Upstream\'s '
+          '`media` slot.',
+    ),
+    PropRow(
       name: 'icon',
       type: 'Widget?',
       defaultValue: 'null',
-      description: 'Leading media — an avatar or an icon.',
+      description:
+          'Leading icon, at the content inset. Upstream\'s `icon` slot.',
     ),
     PropRow(
       name: 'appearance',
@@ -167,12 +176,11 @@ Widget _icon(BuildContext context) => const FluentTag(
 // #enddocregion components-tag-tag--icon
 
 // #docregion components-tag-tag--media
-// Upstream's `media` slot is our `icon` slot: the tag has one leading slot and
-// an avatar is what it was drawn for. FluentAvatar does not derive initials
-// from `name` — upstream's `getInitials` is locale-sensitive — so they are
-// spelled out. The square shape is the one Fluent gives a rounded tag.
+// FluentAvatar does not derive initials from `name` — upstream's
+// `getInitials` is locale-sensitive — so they are spelled out. The square
+// shape is the one Fluent gives a rounded tag.
 Widget _media(BuildContext context) => const FluentTag(
-  icon: FluentAvatar(
+  media: FluentAvatar(
     name: 'Katri Athokas',
     initials: 'KA',
     size: FluentAvatarSize.size24,
@@ -291,7 +299,7 @@ Widget _shape(BuildContext context) {
         runSpacing: 10,
         children: <Widget>[
           FluentTag(
-            icon: FluentAvatar(
+            media: FluentAvatar(
               name: 'Katri Athokas',
               initials: 'KA',
               size: FluentAvatarSize.size24,
@@ -302,7 +310,7 @@ Widget _shape(BuildContext context) {
           ),
           FluentTag(
             style: circular,
-            icon: FluentAvatar(
+            media: FluentAvatar(
               name: 'Katri Athokas',
               initials: 'KA',
               size: FluentAvatarSize.size24,
@@ -365,7 +373,7 @@ Widget _size(BuildContext context) {
           FluentTag(
             dismissSemanticLabel: 'remove',
             onDismiss: _noSizeDismiss,
-            icon: FluentAvatar(
+            media: FluentAvatar(
               name: 'Katri Athokas',
               initials: 'KA',
               size: FluentAvatarSize.size24,
@@ -392,7 +400,7 @@ Widget _size(BuildContext context) {
             size: FluentTagSize.small,
             dismissSemanticLabel: 'remove',
             onDismiss: _noSizeDismiss,
-            icon: FluentAvatar(
+            media: FluentAvatar(
               name: 'Katri Athokas',
               initials: 'KA',
               size: FluentAvatarSize.size20,
@@ -420,7 +428,7 @@ Widget _size(BuildContext context) {
             size: FluentTagSize.extraSmall,
             dismissSemanticLabel: 'remove',
             onDismiss: _noSizeDismiss,
-            icon: FluentAvatar(
+            media: FluentAvatar(
               name: 'Katri Athokas',
               initials: 'KA',
               size: FluentAvatarSize.size16,

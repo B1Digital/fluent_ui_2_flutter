@@ -48,6 +48,7 @@ const FluentTag({
     super.key,
     required this.child,
     this.secondaryChild,
+    this.media,
     this.icon,
     this.appearance = FluentTagAppearance.filled,
     this.size = FluentTagSize.medium,
@@ -68,7 +69,8 @@ const FluentTag({
 | `key` | `Key?` | No | `null` | Flutter widget identity. |
 | `child` | `Widget` | Yes | — | The primary line. |
 | `secondaryChild` | `Widget?` | No | `null` | The second line. Figma only draws two lines at [FluentTagSize.medium]. |
-| `icon` | `Widget?` | No | `null` | Leading media — an avatar or an icon. |
+| `media` | `Widget?` | No | `null` | Leading media — an avatar, 1px inside the border with the content inset after it. Upstream's `media` slot. |
+| `icon` | `Widget?` | No | `null` | Leading icon, at the content inset. Upstream's `icon` slot. |
 | `appearance` | `FluentTagAppearance` | No | `FluentTagAppearance.filled` | Fill and outline treatment. |
 | `size` | `FluentTagSize` | No | `FluentTagSize.medium` | Height and type ramp. |
 | `selected` | `bool` | No | `false` | Whether the tag is chosen. Selected overrides [appearance]: all three render as a brand-filled tag. |
@@ -187,7 +189,7 @@ const FluentInteractionTagBaseState({
 | `dismissible` | `bool` | Yes | — | Whether a dismiss half follows the primary one. |
 | `label` | `Widget?` | No | `null` | The primary line. |
 | `secondaryLabel` | `Widget?` | No | `null` | The second line. Only the medium size has a two-line layout. |
-| `icon` | `Widget?` | No | `null` | Leading media — an avatar or an icon. |
+| `icon` | `Widget?` | No | `null` | Leading icon, at the content inset. Upstream's `icon` slot. |
 
 ### `FluentInteractionTagState`
 
@@ -217,7 +219,7 @@ const FluentInteractionTagState({
 | `selected` | `bool` | Yes | — | Whether the tag is chosen. See [FluentTagState.selected] for why this is an axis rather than a [WidgetState]. |
 | `label` | `Widget?` | No | `null` | The primary line. |
 | `secondaryLabel` | `Widget?` | No | `null` | The second line. Only the medium size has a two-line layout. |
-| `icon` | `Widget?` | No | `null` | Leading media — an avatar or an icon. |
+| `icon` | `Widget?` | No | `null` | Leading icon, at the content inset. Upstream's `icon` slot. |
 
 #### State, callback, and accessibility fields
 
@@ -270,6 +272,7 @@ const FluentTagBaseState({
     required this.enabled,
     this.label,
     this.secondaryLabel,
+    this.media,
     this.icon,
     this.dismiss,
   });
@@ -280,7 +283,8 @@ const FluentTagBaseState({
 | `enabled` | `bool` | Yes | — | Whether the tag reads as active. A tag has no press behaviour of its own, so this only greys the surface and disables the dismiss affordance. |
 | `label` | `Widget?` | No | `null` | The primary line. |
 | `secondaryLabel` | `Widget?` | No | `null` | The second line. Only the medium size has a two-line layout. |
-| `icon` | `Widget?` | No | `null` | Leading media — an avatar or an icon. |
+| `media` | `Widget?` | No | `null` | Leading media — an avatar. Upstream's `media` slot: 1px inside the border, with the content inset between it and the label. |
+| `icon` | `Widget?` | No | `null` | Leading icon, at the content inset. Upstream's `icon` slot. |
 | `dismiss` | `Widget?` | No | `null` | The trailing dismiss affordance, already wrapped in its own interaction surface by the caller. Null on a tag that cannot be dismissed. |
 
 #### State, callback, and accessibility fields
@@ -301,7 +305,7 @@ const FluentTagDismissPainter({required this.color});
 
 | Field | Type | Required | Default | Purpose |
 | --- | --- | --- | --- | --- |
-| `color` | `Color` | Yes | — | The stroke colour. Never derived — it comes from a Fluent token. |
+| `color` | `Color` | Yes | — | The fill colour. Never derived — it comes from a Fluent token. |
 
 ### `FluentTagPickerActivateIntent`
 
@@ -441,6 +445,7 @@ const FluentTagState({
     required this.selected,
     super.label,
     super.secondaryLabel,
+    super.media,
     super.icon,
     super.dismiss,
   });
@@ -454,7 +459,8 @@ const FluentTagState({
 | `selected` | `bool` | Yes | — | Whether the tag is chosen. |
 | `label` | `Widget?` | No | `null` | The primary line. |
 | `secondaryLabel` | `Widget?` | No | `null` | The second line. Only the medium size has a two-line layout. |
-| `icon` | `Widget?` | No | `null` | Leading media — an avatar or an icon. |
+| `media` | `Widget?` | No | `null` | Leading media — an avatar. Upstream's `media` slot: 1px inside the border, with the content inset between it and the label. |
+| `icon` | `Widget?` | No | `null` | Leading icon, at the content inset. Upstream's `icon` slot. |
 | `dismiss` | `Widget?` | No | `null` | The trailing dismiss affordance, already wrapped in its own interaction surface by the caller. Null on a tag that cannot be dismissed. |
 
 #### State, callback, and accessibility fields
@@ -547,6 +553,7 @@ FluentTagState resolveFluentTagState({
   bool selected = false,
   Widget? label,
   Widget? secondaryLabel,
+  Widget? media,
   Widget? icon,
   Widget? dismiss,
 });
