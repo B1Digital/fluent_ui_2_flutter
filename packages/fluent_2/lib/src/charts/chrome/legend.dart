@@ -26,10 +26,13 @@ import 'legend_style.dart';
 //   `legend.color ? legend.color : tokens.colorNeutralStroke1`.
 //   `FluentChartLegendItem.color` is non-nullable, so the `neutralStroke1` arm
 //   is unreachable here.
-// * `aria-setsize` (`Legends.tsx:345`) has no `SemanticsProperties` field in
-//   Flutter 3.44 — `IndexedSemantics` covers `aria-posinset` and nothing covers
-//   the set size. [FluentChartLegendRow.listLength] therefore carries the
-//   number for the day the framework gains one, and is not read today.
+// * `aria-setsize` (`Legends.tsx:345`) has no counterpart at the Flutter 3.41
+//   floor (nor at 3.47): `SemanticsProperties` has no set-size field and no
+//   `SemanticsRole` is a listbox option. [FluentChartLegendRow.listLength] is
+//   therefore optional, deprecated and ignored. `aria-posinset` (`:346`) fares
+//   little better: [IndexedSemantics] records the position, but the engine
+//   never receives it. Only a `Scrollable` reads it, folding its direct
+//   children's indices into `scrollIndex`, and the strip does not scroll.
 //
 // Three things about the overflow menu this port cannot reproduce faithfully:
 //
@@ -299,7 +302,11 @@ class FluentChartLegendRow extends StatelessWidget {
     required this.dimmed,
     required this.selected,
     required this.indexInList,
-    required this.listLength,
+    @Deprecated(
+      'Ignored: Flutter has no set-size (aria-setsize) semantics. '
+      'Stop passing it.',
+    )
+    this.listLength = 0,
     required this.style,
     required this.focusNode,
     required this.skipTraversal,
@@ -321,16 +328,20 @@ class FluentChartLegendRow extends StatelessWidget {
   /// (`Legends.tsx:341`).
   final bool selected;
 
-  /// Zero-based position, reported through [IndexedSemantics]. Upstream's
-  /// `aria-posinset` is `index + 1` (`Legends.tsx:346`); the Dart side stays
-  /// zero-based and the platform adds one.
+  /// Zero-based position, recorded through [IndexedSemantics]. Upstream's
+  /// `aria-posinset` is `index + 1` (`Legends.tsx:346`); Flutter only forwards
+  /// the index from a direct child of a `Scrollable`, so it does not reach a
+  /// screen reader from the legend strip. See the note at the top of this file.
   final int indexInList;
 
-  /// Size of the **full** legend list, including any rows in the overflow menu
-  /// (`Legends.tsx:345`).
-  ///
-  /// Not read: Flutter has no `aria-setsize` counterpart. See the note at the
-  /// top of this file.
+  /// Ignored. Upstream sets `aria-setsize` to the full legend count
+  /// (`Legends.tsx:345`), but Flutter 3.41 has no set-size semantics to carry
+  /// it, so nothing reads this value and the default `0` means nothing. See
+  /// the note at the top of this file.
+  @Deprecated(
+    'Ignored: Flutter has no set-size (aria-setsize) semantics. '
+    'Stop passing it.',
+  )
   final int listLength;
 
   /// Resolved visual configuration.
@@ -948,7 +959,6 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
           ),
           selected: _selected.contains(widget.legends[index].title),
           indexInList: index,
-          listLength: widget.legends.length,
           style: style,
           focusNode: _nodes[index],
           skipTraversal: !widget.allowFocusOnLegends || index != _focusedIndex,
