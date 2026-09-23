@@ -7,6 +7,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'support/mouse.dart';
+
 /// Every role colour, as 0xRRGGBB, for "is this pixel an outline" checks.
 final Set<int> _outlineColours = <int>{
   for (final Color c in <Color>[
@@ -102,10 +104,29 @@ int _rgb(Color c) => c.toARGB32() & 0xFFFFFF;
 
 bool _isOutline(int rgb) => _outlineColours.contains(rgb);
 
+/// A stateful child in the shape a story uses one: local state driving a
+/// controlled [FluentSwitch] — the same pattern `components-switch`'s demo
+/// uses. Its `_checked` field re-initialises to false on a remount, which is
+/// what proves whether toggling [StoryOutlines.enabled] remounted it.
+class _StatefulChild extends StatefulWidget {
+  const _StatefulChild();
+
+  @override
+  State<_StatefulChild> createState() => _StatefulChildState();
+}
+
+class _StatefulChildState extends State<_StatefulChild> {
+  bool _checked = false;
+
+  @override
+  Widget build(BuildContext context) => FluentSwitch(
+    checked: _checked,
+    onChanged: (bool value) => setState(() => _checked = value),
+  );
+}
+
 void main() {
-  testWidgets('disabled adds no render object and paints no outline', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('disabled paints no outline', (WidgetTester tester) async {
     await _pump(
       tester,
       StoryOutlines(
@@ -117,14 +138,40 @@ void main() {
       ),
     );
 
-    // The first render object under StoryOutlines is the story's own Padding.
-    expect(
-      tester.renderObject(find.byType(StoryOutlines)),
-      isA<RenderPadding>(),
-    );
     final _Shot shot = await _grab(tester);
     expect(shot.count(_isOutline), 0);
   });
+
+  testWidgets(
+    'a stateful child keeps its state across enabled false -> true -> false',
+    (WidgetTester tester) async {
+      Future<void> pumpWith(bool enabled) => _pump(
+        tester,
+        StoryOutlines(enabled: enabled, child: const _StatefulChild()),
+      );
+
+      await pumpWith(false);
+      await mouseClick(tester, find.byType(FluentSwitch));
+      expect(
+        tester.widget<FluentSwitch>(find.byType(FluentSwitch)).checked,
+        isTrue,
+      );
+
+      await pumpWith(true);
+      expect(
+        tester.widget<FluentSwitch>(find.byType(FluentSwitch)).checked,
+        isTrue,
+        reason: 'toggling outlines on must not remount the story',
+      );
+
+      await pumpWith(false);
+      expect(
+        tester.widget<FluentSwitch>(find.byType(FluentSwitch)).checked,
+        isTrue,
+        reason: 'toggling outlines off must not remount the story',
+      );
+    },
+  );
 
   testWidgets('a button gets the button ring, its Padding the box ring', (
     WidgetTester tester,

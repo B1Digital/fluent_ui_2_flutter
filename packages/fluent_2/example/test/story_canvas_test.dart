@@ -148,6 +148,7 @@ void main() {
       await press.moveBy(const Offset(1.5, 1.5));
       await tester.pump(const Duration(milliseconds: 10));
       await press.up();
+      await press.removePointer();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       // Ease-out is past half a turn at half time.

@@ -9,6 +9,7 @@ import 'package:fluent_2_example/shell/widgets/preview_card.dart';
 import 'package:fluent_2_example/shell/widgets/sidebar.dart';
 import 'package:fluent_2_example/shell/widgets/story_outlines.dart';
 import 'package:fluent_2_example/shell/widgets/toolbar_parts.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -112,6 +113,65 @@ void main() {
         everyElement(false),
       );
       expect(_button(tester, grid).active, isFalse);
+    });
+  });
+
+  group('F1: a bar tooltip hides on press, like a native title tooltip', () {
+    testWidgets('a quick click inside the show delay opens the menu but '
+        'keeps the tooltip hidden', (WidgetTester tester) async {
+      await _boot(tester);
+      final TestGesture press = await tester.startGesture(
+        tester.getCenter(_control(background)),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      await press.up();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(find.text('light'), findsOneWidget, reason: 'the menu opened');
+      expect(
+        find.text(background),
+        findsNothing,
+        reason: 'the tooltip stayed hidden',
+      );
+      await press.removePointer();
+    });
+
+    testWidgets('a press while the tooltip is visible hides it until the '
+        'pointer leaves and returns', (WidgetTester tester) async {
+      await _boot(tester);
+      final TestGesture mouse = await mouseHover(tester, _control(background));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(background),
+        findsOneWidget,
+        reason: 'visible before the press',
+      );
+
+      await mouse.down(tester.getCenter(_control(background)));
+      await tester.pump(const Duration(milliseconds: 50));
+      await mouse.up();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(find.text('light'), findsOneWidget, reason: 'the menu opened');
+      expect(
+        find.text(background),
+        findsNothing,
+        reason: 'the tooltip hid on press',
+      );
+
+      await mouse.moveTo(const Offset(0, 0));
+      await tester.pump();
+      await mouse.moveTo(tester.getCenter(_control(background)));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(background),
+        findsOneWidget,
+        reason: 'shows again after leave + re-enter',
+      );
+      await mouse.removePointer();
     });
   });
 

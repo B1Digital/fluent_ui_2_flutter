@@ -29,7 +29,7 @@ class ShellToolbar extends StatelessWidget {
     // `shortcut.ts:11,146-147`: `⌥` where `navigator.platform` is Mac-like
     // (Mac, iPhone, iPod, iPad), `alt` elsewhere. Upstream disables the
     // shortcut itself site-wide (`enableShortcuts: false`), so none is bound.
-    final String key = switch (defaultTargetPlatform) {
+    final String shortcut = switch (defaultTargetPlatform) {
       TargetPlatform.macOS || TargetPlatform.iOS => '⌥ F',
       _ => 'alt F',
     };
@@ -88,7 +88,7 @@ class ShellToolbar extends StatelessWidget {
           icon: scope.fullScreen
               ? FluentIcons.dismiss_circle_20_regular
               : FluentIcons.arrow_maximize_20_regular,
-          tooltip: '$fullScreen [$key]',
+          tooltip: '$fullScreen [$shortcut]',
           semanticLabel: fullScreen,
           onPressed: scope.onToggleSidebar,
         ),

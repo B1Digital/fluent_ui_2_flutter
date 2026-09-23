@@ -162,8 +162,8 @@ class _StoryCanvasState extends State<StoryCanvas> {
               // 1000ms ease-out`. Not a ToolbarButton, whose glyph is a bare
               // `Icon(icon)`: the turn has to sit between FluentButton's icon
               // slot, which paints the state colour, and the glyph.
-              FluentTooltip(
-                content: const Text('Remount component'),
+              ToolbarTooltip(
+                tooltip: 'Remount component',
                 child: FluentButton.icon(
                   icon: AnimatedRotation(
                     turns: _mount.toDouble(),
@@ -311,15 +311,17 @@ class _StoryCanvasState extends State<StoryCanvas> {
                 // start where it overflows (live: 320x568 at y=86, 1280x1024
                 // at y=40), under a `0 0 100px 100vw rgba(0,0,0,.5)` backdrop.
                 //
-                // ponytail: an overflowing frame is clipped where upstream's
-                // wrapper (`overflow: auto`) scrolls it; wrap the OverflowBox
-                // in a two-axis scroll view if Desktop in a short window
-                // matters. And there is no MediaQuery override inside the
-                // frame: fluent_2's popups measure their room from
-                // MediaQuery against global rects (`anchor_metrics.dart`),
-                // so a phone-sized MediaQuery would open menus outside the
-                // frame. The upgrade is a local Overlay in the frame plus
-                // overlay-relative anchor metrics in the library.
+                // ponytail: any preset taller than the stage is clipped
+                // where upstream's wrapper (`overflow: auto`) scrolls it —
+                // e.g. Tablet (1112 tall) is clipped below a ~1152px window,
+                // Large mobile (896) below ~936px. Wrap the OverflowBox in a
+                // two-axis scroll view if that ever matters. And there is no
+                // MediaQuery override inside the frame: fluent_2's popups
+                // measure their room from MediaQuery against global rects
+                // (`anchor_metrics.dart`), so a phone-sized MediaQuery would
+                // open menus outside the frame. The upgrade is a local
+                // Overlay in the frame plus overlay-relative anchor metrics
+                // in the library.
                 return ClipRect(
                   child: OverflowBox(
                     minWidth: 0,

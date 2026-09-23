@@ -19,8 +19,10 @@ class StoryOutlines extends StatelessWidget {
   /// Outlines every box in [child] while [enabled].
   const StoryOutlines({super.key, required this.enabled, required this.child});
 
-  /// Whether to outline. Off returns [child] as-is, with no extra render
-  /// object in the tree.
+  /// Whether to outline. Off paints [child] as-is and skips the ring walk —
+  /// the tree shape stays the same either way, so toggling this never
+  /// remounts [child] (`test/story_outlines_test.dart`'s stateful-child
+  /// case).
   final bool enabled;
 
   /// The story.
@@ -46,10 +48,11 @@ class StoryOutlines extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!enabled) {
-      return child;
-    }
+    // Always the same tree shape, enabled or not: branching to bare [child]
+    // here would change the tree shape on every toggle and remount it —
+    // exactly the bug this widget used to have (see the field doc above).
     return _Outlines(
+      enabled: enabled,
       // A scroll viewport is a repaint boundary: scrolling repaints only its
       // own layer, so the rings, which are recorded in this box's layer,
       // would stay where the content used to be. `context` is this widget's
@@ -66,10 +69,18 @@ class StoryOutlines extends StatelessWidget {
 }
 
 class _Outlines extends SingleChildRenderObjectWidget {
-  const _Outlines({required super.child});
+  const _Outlines({required this.enabled, required super.child});
+
+  final bool enabled;
 
   @override
-  RenderObject createRenderObject(BuildContext context) => _RenderOutlines();
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderOutlines(enabled);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderOutlines renderObject) {
+    renderObject.enabled = enabled;
+  }
 }
 
 // ponytail: every paint walks every painted descendant, O(n) in the story's
@@ -80,6 +91,18 @@ class _Outlines extends SingleChildRenderObjectWidget {
 // a persistent frame callback that re-collects the rings and calls
 // markNeedsPaint when the set changes.
 class _RenderOutlines extends RenderProxyBox {
+  _RenderOutlines(this._enabled);
+
+  bool _enabled;
+
+  /// While false, [paint] skips the ring walk entirely: no rings, no
+  /// per-paint walk cost.
+  set enabled(bool value) {
+    if (_enabled == value) return;
+    _enabled = value;
+    markNeedsPaint();
+  }
+
   /// Indexed by [_rank]: identical rects keep the most specific role.
   static const List<Color> _colours = <Color>[
     StoryOutlines.boxColor,
@@ -109,6 +132,7 @@ class _RenderOutlines extends RenderProxyBox {
   @override
   void paint(PaintingContext context, Offset offset) {
     super.paint(context, offset);
+    if (!_enabled) return;
 
     // Rect in this box's coordinates -> (rank, clip). The clip is the first
     // one seen: the outermost box of a stack of identical rects is the least

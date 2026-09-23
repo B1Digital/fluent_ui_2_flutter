@@ -137,8 +137,57 @@ class ToolbarFrame extends StatelessWidget {
   );
 }
 
+/// Wraps [child] with a bar tooltip that hides on pointer-down and stays
+/// hidden until the pointer leaves [child], then shows again on the next
+/// hover.
+///
+/// Upstream's toolbar tooltips are the browser's native `title` attribute,
+/// which has no press state of its own — it just tracks hover, and Chrome
+/// hides it on `mousedown` and does not re-show it until the pointer leaves
+/// the control and comes back. A bare [FluentTooltip] only reacts to
+/// hover/focus, and [FluentMenu] puts no barrier over its trigger, so
+/// without this a bar control's tooltip is still "hovering" once its click
+/// opens a menu below it: with a slow press it sits half under that menu,
+/// and with a quick one (inside the 250ms show delay) the pending show fires
+/// after the menu is already open and paints over its first row.
+///
+/// [FluentTooltip.enabled] going false tears its surface down at once and
+/// cancels a pending show (`didUpdateWidget` -> `_syncNow`,
+/// `fluent_2/lib/src/surfaces/tooltip.dart`), so flipping it false on
+/// pointer-down is the whole fix.
+class ToolbarTooltip extends StatefulWidget {
+  /// Creates the wrapper.
+  const ToolbarTooltip({super.key, required this.tooltip, required this.child});
+
+  /// Upstream's `title`, verbatim.
+  final String tooltip;
+
+  /// The trigger.
+  final Widget child;
+
+  @override
+  State<ToolbarTooltip> createState() => _ToolbarTooltipState();
+}
+
+class _ToolbarTooltipState extends State<ToolbarTooltip> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    onPointerDown: (_) => setState(() => _pressed = true),
+    child: MouseRegion(
+      onExit: (_) => setState(() => _pressed = false),
+      child: FluentTooltip(
+        content: Text(widget.tooltip),
+        enabled: !_pressed,
+        child: widget.child,
+      ),
+    ),
+  );
+}
+
 /// One bar control: a [FluentButton] in [toolbarButtonStyle] under a
-/// [FluentTooltip].
+/// [ToolbarTooltip].
 ///
 /// Give it an [icon], a [label], or both — the three shapes upstream's bar
 /// uses (Grid; Direction; Theme's arrow-then-text). The glyph is a bare
@@ -184,8 +233,8 @@ class ToolbarButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final FluentButtonStyle style = toolbarButtonStyle(active: active);
     final Widget? glyph = icon == null ? null : Icon(icon);
-    return FluentTooltip(
-      content: Text(tooltip),
+    return ToolbarTooltip(
+      tooltip: tooltip,
       child: label == null
           ? FluentButton.icon(
               icon: glyph!,

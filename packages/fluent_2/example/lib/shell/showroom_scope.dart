@@ -57,6 +57,12 @@ class ShowroomScope extends InheritedWidget {
   /// Upstream's "Toggle React Strict mode". React's dev-only double render has
   /// no Flutter counterpart; the one effect the live site shows — every story
   /// remounting on each toggle — is what previews do with it.
+  ///
+  /// ponytail: remount-only, not React StrictMode's double build — a story
+  /// that holds a `GlobalKey` is moved to the new element rather than
+  /// rebuilt twice (`preview_card.dart`'s `KeyedSubtree`, `story_canvas.dart`
+  /// the same). Upgrade path: run the story's builder twice and discard the
+  /// first build, if a story ever needs to catch a StrictMode-only bug.
   final bool strictMode;
 
   /// Whether the sidebar is on screen.
@@ -65,6 +71,15 @@ class ShowroomScope extends InheritedWidget {
   /// Upstream's full screen, `!navShown && !panelShown` (`layout.ts:146-148`).
   /// The showroom has no addons panel, so it is the hidden sidebar and
   /// nothing else.
+  ///
+  /// ponytail: full screen IS the hidden sidebar here, so any way of hiding
+  /// it — the toolbar button, or dragging the sidebar shut — reads as full
+  /// screen, and its control reads "Exit full screen" either way. Upstream
+  /// keeps the two apart: the gear's own "hide sidebar" toggles `navShown`
+  /// without touching `panelShown`, so it does not by itself read as full
+  /// screen. Upgrade path: a separate `sidebarVisible`-only affordance if a
+  /// showroom addons panel ever gives `fullScreen` a second input to differ
+  /// from.
   bool get fullScreen => !sidebarVisible;
 
   /// Called by both Theme controls.
