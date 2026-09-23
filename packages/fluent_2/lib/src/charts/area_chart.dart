@@ -920,6 +920,20 @@ class FluentAreaChartDelegate extends FluentCartesianSeriesDelegate {
       return const <FluentChartHitRegion>[];
     }
     final radius = style.pointRadius!.resolve(<WidgetState>{})!;
+    // `_getOnClickHandler` (`AreaChart.tsx:846-853`) clicks a circle only while
+    // no x repeats or goes missing. Each region sits on the last layer's
+    // circle, so that circle's point is the one it runs.
+    //
+    // parity: upstream also clicks the lower layers' circles, which have no
+    // region here, and `_onDataPointClick` (`:612-617`) flags the circle
+    // clicked, which shrinks it; neither is reproduced.
+    final onClickByX = dataSet.hasDuplicateXValues || dataSet.hasMissingXValues
+        ? const <Object, VoidCallback?>{}
+        : <Object, VoidCallback?>{
+            for (final point
+                in series.last.data.cast<FluentLineChartDataPoint>())
+              _xKey(point.x): point.onDataPointClick,
+          };
     return <FluentChartHitRegion>[
       for (var j = 0; j < dataSet.rows.length; j++)
         FluentChartHitRegion(
@@ -945,6 +959,7 @@ class FluentAreaChartDelegate extends FluentCartesianSeriesDelegate {
                 ),
             ],
           ),
+          onActivate: onClickByX[_xKey(dataSet.rows[j].xValue)],
         ),
     ];
   }

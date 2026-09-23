@@ -640,6 +640,9 @@ class FluentHeatMapChartDelegate extends FluentCartesianSeriesDelegate {
           ),
           semanticsLabel:
               placed.cell.semantics?.label ?? _ariaLabelOf(placed.cell),
+          // `onClick={dataPointObject.onClick}` on the cell's `<rect>`
+          // (`HeatMapChart.tsx:233`).
+          onActivate: placed.cell.onTap,
         ),
       );
     }

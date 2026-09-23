@@ -851,6 +851,9 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
         legend: _series[mark.seriesIndex].legend,
         popoverData: popoverFor(mark),
         semanticsLabel: mark.semanticsLabel,
+        // `_getClickHandler(onDataPointClick)` (`ScatterChart.tsx:472`).
+        onActivate:
+            _series[mark.seriesIndex].data[mark.pointIndex].onDataPointClick,
       ),
   ];
 

@@ -1243,6 +1243,9 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
               points[bar.index].yAxisCalloutData ?? '${points[bar.index].y}',
         ),
         semanticsLabel: semanticsLabelFor(points[bar.index]),
+        // `onClick={point.onClick}` on every bar (`VerticalBarChart.tsx:674`,
+        // `:740`, `:797`).
+        onActivate: points[bar.index].onClick,
       ),
   ];
 
