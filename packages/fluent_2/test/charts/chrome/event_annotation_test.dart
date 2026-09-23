@@ -3,6 +3,7 @@ import 'package:fluent_2/src/charts/internal/d3/scale_time.dart';
 import 'package:fluent_2/src/charts/internal/data_viz_palette.dart';
 import 'package:fluent_2/src/charts/model/chart_annotation.dart';
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -460,7 +461,11 @@ void main() {
 
     testWidgets('labels are not keyboard reachable', (tester) async {
       await pump(tester, <FluentEventAnnotation>[
-        FluentEventAnnotation(date: DateTime.utc(2026, 1, 10), event: 'a'),
+        FluentEventAnnotation(
+          date: DateTime.utc(2026, 1, 10),
+          event: 'a',
+          cardBuilder: (_) => const Text('card a'),
+        ),
       ]);
       expect(
         // The plan's unscoped `find.byType(Focus)` cannot hold: FluentApp's own
@@ -473,8 +478,82 @@ void main() {
         findsNothing,
         reason:
             'LabelLink.tsx:74 sets data-is-focusable to false, so the labels '
-            'are not tab stops. The click callout there is dead code (:35-59), '
-            'so there is nothing to reach anyway.',
+            'are not tab stops, even one whose click opens a card.',
+      );
+    });
+
+    /// Clicks the painted text of the only label with a drifting mouse.
+    Future<void> clickLabel(WidgetTester tester) async {
+      final painter = painterOf(tester);
+      final label = painter.labels.single;
+      // 15 into the text, which runs away from its anchor x, and halfway up
+      // its last line, which sits one line height above the baseline.
+      final at = Offset(
+        label.anchor == FluentEventLabelAnchor.end
+            ? label.x - 15
+            : label.x + 15,
+        painter.textBaseline - kEventAnnotationLineHeight / 2,
+      );
+      final gesture = await tester.startGesture(
+        at,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump(const Duration(milliseconds: 90));
+      await gesture.moveBy(const Offset(1.5, 0));
+      await gesture.up();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('clicking a label opens the cards of its events', (
+      tester,
+    ) async {
+      await pump(tester, <FluentEventAnnotation>[
+        FluentEventAnnotation(
+          date: DateTime.utc(2026, 1, 12),
+          event: 'c',
+          cardBuilder: (_) => const Text('card c'),
+        ),
+        FluentEventAnnotation(date: DateTime.utc(2026, 1, 11), event: 'b'),
+        FluentEventAnnotation(
+          date: DateTime.utc(2026, 1, 10),
+          event: 'a',
+          cardBuilder: (_) => const Text('card a'),
+        ),
+      ]);
+      expect(find.text('card a'), findsNothing);
+
+      await clickLabel(tester);
+      expect(
+        find.text('card a'),
+        findsOneWidget,
+        reason:
+            'LabelLink.tsx:33-37 — the click collects onRenderCard for every '
+            'event the merged label speaks for.',
+      );
+      expect(find.text('card c'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('card a')).dy,
+        lessThan(tester.getTopLeft(find.text('card c')).dy),
+        reason:
+            'The cards follow the date-sorted lineDefs (:37), and b has none.',
+      );
+    });
+
+    testWidgets('a label with no cards leaves the pointer to the chart', (
+      tester,
+    ) async {
+      await pump(tester, <FluentEventAnnotation>[
+        FluentEventAnnotation(date: DateTime.utc(2026, 1, 10), event: 'a'),
+      ]);
+      expect(
+        find.descendant(
+          of: find.byType(FluentEventAnnotationLayer),
+          matching: find.byType(GestureDetector),
+        ),
+        findsNothing,
+        reason:
+            'LabelLink.tsx:38 opens nothing without a card, so the label takes '
+            'no pointer from the plot beneath it.',
       );
     });
   });

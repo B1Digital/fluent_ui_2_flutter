@@ -4,6 +4,7 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../overlays/popover.dart';
 import '../internal/chart_text_measurer.dart';
 import '../internal/chart_text_styles.dart';
 import '../internal/d3/scale.dart';
@@ -243,6 +244,17 @@ class FluentEventAnnotationPainter extends CustomPainter {
       );
     }
 
+    for (final label in labels) {
+      final (painter, offset) = _layOut(label);
+      painter
+        ..paint(canvas, offset)
+        ..dispose();
+    }
+  }
+
+  /// Lays [label] out and returns it with the top-left it paints at. The
+  /// caller disposes the painter.
+  (TextPainter, Offset) _layOut(FluentEventLabel label) {
     // Built here rather than held by the widget because nothing is cached: a
     // wrapping label is laid out through [FluentChartTextMeasurer.layoutPainter]
     // and never through the string-keyed [FluentChartTextMeasurer.measure]. The
@@ -251,27 +263,31 @@ class FluentEventAnnotationPainter extends CustomPainter {
     final measurer = FluentChartTextMeasurer();
     final labelStyle = textStyle.copyWith(color: labelColor);
 
-    for (final label in labels) {
-      final painter = measurer.layoutPainter(label.text, labelStyle)
-        // The factory is a single-line one; `Textbox.tsx:21-42` wraps on
-        // whitespace at the label width.
-        ..maxLines = null
-        // LabelLink.tsx:81 puts the packed anchor on `text-anchor`.
-        ..textAlign = label.anchor == FluentEventLabelAnchor.end
-            ? TextAlign.right
-            : TextAlign.left
-        ..layout(maxWidth: labelWidth);
+    final painter = measurer.layoutPainter(label.text, labelStyle)
+      // The factory is a single-line one; `Textbox.tsx:21-42` wraps on
+      // whitespace at the label width.
+      ..maxLines = null
+      // LabelLink.tsx:81 puts the packed anchor on `text-anchor`.
+      ..textAlign = label.anchor == FluentEventLabelAnchor.end
+          ? TextAlign.right
+          : TextAlign.left
+      ..layout(maxWidth: labelWidth);
 
-      final lines = painter.computeLineMetrics().length;
-      // Textbox.tsx:44 — bottom alignment by lifting the block.
-      final top = textBaseline - lines * kEventAnnotationLineHeight;
-      final left = label.anchor == FluentEventLabelAnchor.end
-          ? label.x - painter.width
-          : label.x;
-      painter
-        ..paint(canvas, Offset(left, top))
-        ..dispose();
-    }
+    final lines = painter.computeLineMetrics().length;
+    // Textbox.tsx:44 — bottom alignment by lifting the block.
+    final top = textBaseline - lines * kEventAnnotationLineHeight;
+    final left = label.anchor == FluentEventLabelAnchor.end
+        ? label.x - painter.width
+        : label.x;
+    return (painter, Offset(left, top));
+  }
+
+  /// The box [label] paints into, where the layer puts its click target.
+  Rect _labelRect(FluentEventLabel label) {
+    final (painter, offset) = _layOut(label);
+    final rect = offset & painter.size;
+    painter.dispose();
+    return rect;
   }
 
   void _dashedLine(Canvas canvas, Offset from, Offset to, Paint paint) {
@@ -314,12 +330,13 @@ class FluentEventAnnotationPainter extends CustomPainter {
 ///
 /// Ports `EventsAnnotation` (`EventAnnotation.tsx`), `LabelLink` and `Textbox`.
 ///
-/// Clicking a label does nothing, deliberately: `LabelLink.tsx:35-59` is a
-/// commented-out v8 `Callout` block with `callout = null` beside a
-/// `TODO - need to replace callout with popover`, and `onRenderCard` is
-/// collected and never rendered. [FluentEventAnnotation.cardBuilder] is
-/// therefore accepted and ignored. `// parity:` `LabelLink.tsx:35-59` —
-/// implementing it would be new behaviour, not a port.
+/// Clicking a label opens a [FluentPopover] below it that lists the
+/// [FluentEventAnnotation.cardBuilder] cards of the events it speaks for, in
+/// date order. A label whose events carry no card is inert and takes no
+/// pointer. `// parity:` `LabelLink.tsx:33-59` — v9 collects `onRenderCard` on
+/// click but leaves `callout = null` beside a
+/// `TODO - need to replace callout with popover`, the v8 `Callout` commented
+/// out; this is that popover, listing what the v8 callout listed.
 class FluentEventAnnotationLayer extends StatelessWidget {
   /// Creates an event annotation overlay.
   const FluentEventAnnotationLayer({
@@ -399,34 +416,113 @@ class FluentEventAnnotationLayer extends StatelessWidget {
       range.first,
     );
 
-    return IgnorePointer(
-      child: CustomPaint(
-        painter: FluentEventAnnotationPainter(
-          rules: rules,
-          labels: <FluentEventLabel>[
-            for (final placement in placements)
-              FluentEventLabel(
-                // LabelLink.tsx:66-70.
-                text: placement.aggregatedIndices.length == 1
-                    ? sorted[placement.aggregatedIndices.single].event
-                    : mergedLabel(placement.aggregatedIndices.length),
-                x: placement.x,
-                anchor: placement.anchor,
-              ),
-          ],
-          lineTop: chartTop - kEventAnnotationLineTopOffset,
-          lineBottom: chartBottom,
-          textBaseline: chartTop - kEventAnnotationTextTopOffset,
-          labelWidth: labelWidth,
-          strokeColor: strokeColor ?? theme.colors.neutralForeground1,
-          labelColor: labelColor ?? theme.colors.neutralForeground1,
-          // EventAnnotation.tsx:22 — '10pt', which is 10 * 96 / 72 = 13.33px.
-          textStyle: FluentChartTextStyles.of(theme).markerLabel.copyWith(
-            fontSize: 10 * 96 / 72,
-            height: labelHeight / (10 * 96 / 72),
-          ),
+    final labels = <FluentEventLabel>[
+      for (final placement in placements)
+        FluentEventLabel(
+          // LabelLink.tsx:66-70.
+          text: placement.aggregatedIndices.length == 1
+              ? sorted[placement.aggregatedIndices.single].event
+              : mergedLabel(placement.aggregatedIndices.length),
+          x: placement.x,
+          anchor: placement.anchor,
         ),
+    ];
+    final painter = FluentEventAnnotationPainter(
+      rules: rules,
+      labels: labels,
+      lineTop: chartTop - kEventAnnotationLineTopOffset,
+      lineBottom: chartBottom,
+      textBaseline: chartTop - kEventAnnotationTextTopOffset,
+      labelWidth: labelWidth,
+      strokeColor: strokeColor ?? theme.colors.neutralForeground1,
+      labelColor: labelColor ?? theme.colors.neutralForeground1,
+      // EventAnnotation.tsx:22 — '10pt', which is 10 * 96 / 72 = 13.33px.
+      textStyle: FluentChartTextStyles.of(theme).markerLabel.copyWith(
+        fontSize: 10 * 96 / 72,
+        height: labelHeight / (10 * 96 / 72),
       ),
     );
+    final ltr = Directionality.of(context) == TextDirection.ltr;
+
+    return Stack(
+      children: <Widget>[
+        Positioned.fill(
+          child: IgnorePointer(child: CustomPaint(painter: painter)),
+        ),
+        for (var i = 0; i < placements.length; i++)
+          // LabelLink.tsx:37 — the non-null cards of every aggregated event.
+          if (<WidgetBuilder>[
+                for (final index in placements[i].aggregatedIndices)
+                  ?sorted[index].cardBuilder,
+              ]
+              case final cards when cards.isNotEmpty)
+            Positioned.fromRect(
+              rect: painter._labelRect(labels[i]),
+              child: _EventLabelLink(
+                label: labels[i].text,
+                cards: cards,
+                // The surface runs the same way as its label, so a label packed
+                // against the chart's edge keeps its card inside the chart.
+                align: (labels[i].anchor == FluentEventLabelAnchor.end) == ltr
+                    ? FluentPopoverAlign.end
+                    : FluentPopoverAlign.start,
+              ),
+            ),
+      ],
+    );
   }
+}
+
+/// One label's click target: `LabelLink.tsx:74`'s `<g onClick>`, which opens
+/// the cards of the events it speaks for.
+class _EventLabelLink extends StatefulWidget {
+  const _EventLabelLink({
+    required this.label,
+    required this.cards,
+    required this.align,
+  });
+
+  final String label;
+  final List<WidgetBuilder> cards;
+  final FluentPopoverAlign align;
+
+  @override
+  State<_EventLabelLink> createState() => _EventLabelLinkState();
+}
+
+class _EventLabelLinkState extends State<_EventLabelLink> {
+  /// `LabelLink.tsx:32` — `showCard`.
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) => FluentPopover(
+    open: _open,
+    onOpenChanged: (open) => setState(() => _open = open),
+    position: FluentPopoverPosition.below,
+    align: widget.align,
+    semanticLabel: widget.label,
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        for (final card in widget.cards) Builder(builder: card),
+      ],
+    ),
+    // LabelLink.tsx:74 — role="button" with a pointer cursor, and
+    // data-is-focusable={false}, so no tab stop.
+    child: Semantics(
+      button: true,
+      label: widget.label,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          // LabelLink.tsx:33 — a click only ever opens; Escape and an outside
+          // click close.
+          onTap: () => setState(() => _open = true),
+          child: const SizedBox.expand(),
+        ),
+      ),
+    ),
+  );
 }

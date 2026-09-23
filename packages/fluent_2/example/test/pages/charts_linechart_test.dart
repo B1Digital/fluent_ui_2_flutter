@@ -424,6 +424,43 @@ void main() {
       expect(band().labelColor, neutral);
     });
 
+    testWidgets('clicking the merged label opens its three event cards', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(
+        tester,
+        sectionOf('charts-linechart--line-chart-events'),
+      );
+      final FluentEventAnnotationPainter band =
+          paintersOf<FluentEventAnnotationPainter>(tester).single;
+      final FluentEventLabel merged = band.labels.first;
+      // 15 into the painted text, which runs away from its anchor x, and
+      // halfway up its last line, one line height above the baseline.
+      final Offset at =
+          tester.getTopLeft(plotOf<FluentEventAnnotationPainter>()) +
+          Offset(
+            merged.anchor == FluentEventLabelAnchor.end
+                ? merged.x - 15
+                : merged.x + 15,
+            band.textBaseline - kEventAnnotationLineHeight / 2,
+          );
+
+      expect(find.text('event 1 message'), findsNothing);
+      await mouseClickAt(tester, at, what: 'the "3 events" label');
+      for (final String card in <String>[
+        'event 1 message',
+        'event 2 message',
+        'event 3 message',
+      ]) {
+        expect(find.text(card), findsOneWidget);
+      }
+      expect(
+        find.text('event 4 message'),
+        findsNothing,
+        reason: 'event 4 has a label of its own',
+      );
+    });
+
     testWidgets('the currency tick format reaches the y axis', (
       WidgetTester tester,
     ) async {
