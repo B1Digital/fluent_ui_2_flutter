@@ -172,7 +172,42 @@ void main() {
       );
     });
 
-    testWidgets('backspace on an empty field removes the last chip', (
+    testWidgets("the field fills the chips' line until 24px are left", (
+      WidgetTester tester,
+    ) async {
+      // Upstream's input is `flexGrow: 1` with `minWidth: 24px`: it runs from
+      // 2px after the last tag to the end of the line — under the chevron,
+      // 13px in from the right, until the control first grows — while that
+      // leaves it 24px, and takes a line of its own below the tags once it
+      // does not (Chrome: after John, Jane and Max it is 28.75px wide).
+      await pumpSection(tester, section, loose: true);
+      final Finder picker = find.byType(FluentTagPicker<String>);
+      for (final String name in <String>[
+        'John Doe',
+        'Jane Doe',
+        'Max Mustermann',
+        'Erika Mustermann',
+      ]) {
+        await openPopup(tester);
+        await tapAndSettle(tester, find.text(name).last, what: 'the $name row');
+        final Rect box = tester.getRect(picker);
+        final Rect field = tester.getRect(find.byType(EditableText));
+        final Rect chip = tester.getRect(find.byType(FluentTag).last);
+        final bool oneRow =
+            chip.top == tester.getRect(find.byType(FluentTag).first).top;
+        if (oneRow && chip.right + 2 + 24 <= box.right - 13) {
+          expect(field.left, closeTo(chip.right + 2, 0.01), reason: name);
+          expect(field.right, box.right - 13, reason: name);
+          continue;
+        }
+        expect(field.left, box.left + 13, reason: '$name: a line of its own');
+        expect(field.top, greaterThan(chip.bottom), reason: name);
+        return;
+      }
+      fail('four chips never pushed the field off their line');
+    });
+
+    testWidgets('backspace focuses the last chip, and a second removes it', (
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
@@ -183,7 +218,24 @@ void main() {
       expect(find.byType(FluentTag), findsNWidgets(2));
 
       // Documented keyboard behaviour, and the only chip removal that needs no
-      // pointer at all.
+      // pointer at all. Upstream's first Backspace only moves focus onto the
+      // last tag; the second, on the tag, removes it.
+      await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
+      await settle(tester);
+      expect(find.byType(FluentTag), findsNWidgets(2));
+      expect(
+        find.ancestor(
+          of: find.text('Jane Doe'),
+          matching: find.byWidgetPredicate(
+            (Widget widget) =>
+                widget is Focus &&
+                widget.key is ValueKey<String> &&
+                widget.focusNode!.hasPrimaryFocus,
+          ),
+        ),
+        findsOneWidget,
+      );
+
       await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
       await settle(tester);
       expect(find.byType(FluentTag), findsOneWidget);
@@ -288,13 +340,20 @@ void main() {
       // Declared extra-large first, and the chip ramp moves with the control
       // the way upstream's `tagPickerSizeToTagSize` moves it: extra-large
       // picks a medium tag, large a small one, medium an extra-small one. The
-      // height is upstream's too: the line — a chip or the field, whichever is
-      // taller — padded 12 / 10 / 6 either side, inside the 1px border.
-      for (final (int index, double pad, double chip)
-          in <(int, double, double)>[(0, 12, 32), (1, 10, 24), (2, 6, 20)]) {
+      // height is upstream's too, 50 / 42 / 34 in Chrome: the taller of the
+      // tag group — a chip padded 8 / 8 / 6 either side — and the field — the
+      // line padded 12 / 10 / 6 — inside the 1px border.
+      for (final (int index, double tagPad, double fieldPad, double chip)
+          in <(int, double, double, double)>[
+            (0, 8, 12, 32),
+            (1, 8, 10, 24),
+            (2, 6, 6, 20),
+          ]) {
+        final double group = 2 * tagPad + chip;
+        final double field = 2 * fieldPad + lineHeight;
         expect(
           tester.getSize(pickers.at(index)).height,
-          2 + 2 * pad + (chip > lineHeight ? chip : lineHeight),
+          2 + (group > field ? group : field),
           reason: 'control $index',
         );
         expect(

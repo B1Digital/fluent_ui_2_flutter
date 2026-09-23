@@ -1,9 +1,20 @@
+import 'dart:async' show scheduleMicrotask;
 import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/foundation.dart' show listEquals;
-import 'package:flutter/gestures.dart' show kSecondaryMouseButton;
-import 'package:flutter/rendering.dart' show RenderProxyBox;
+import 'package:flutter/gestures.dart'
+    show PointerDeviceKind, kPrimaryButton, kSecondaryMouseButton, kTouchSlop;
+import 'package:flutter/rendering.dart'
+    show
+        BaselineOffset,
+        BoxHitTestResult,
+        ChildLayoutHelper,
+        ChildLayouter,
+        ContainerBoxParentData,
+        ContainerRenderObjectMixin,
+        RenderBoxContainerDefaultsMixin,
+        RenderProxyBox;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -11,6 +22,7 @@ import 'package:flutter/widgets.dart';
 import '../internal/anchor_metrics.dart';
 import '../internal/animated_style.dart';
 import '../internal/defer.dart';
+import '../internal/focus_ring.dart';
 import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
 import '../internal/tap_group.dart';
@@ -384,16 +396,19 @@ FluentTagPickerStyle resolveFluentTagPickerStyle(
   // The expand icon is 16 / 20 / 24 in a box of that same minimum height,
   // pinned to the top and centred, with `marginLeft` XXS / XXS / SNudge.
   //
-  // The chip gap is upstream's, not Figma's: `useTagPickerGroupStyles` sets
-  // `medium: { gap: spacingHorizontalXS }` and gives BOTH `large` and
-  // `'extra-large'` `spacingHorizontalSNudge` — so the ramp is 4 / 6 / 6, and
-  // it stops at large rather than continuing to 8.
+  // The chip gaps are upstream's, not Figma's, and two rules make them:
+  // `useTagPickerGroupStyles` sets `gap` XS / SNudge / SNudge with padding
+  // SNudge / S / S above and below, and then merges the `TagGroup` classes
+  // after its own, whose `columnGap` S on the medium tag an extra-large
+  // picker uses wins. So a row is 4 / 6 / 8 apart, rows 4 / 6 / 6 (Chrome).
   final (
     minHeight,
     inputInset,
     iconSize,
     iconGap,
     chipGap,
+    rowGap,
+    groupInset,
   ) = switch (state.size) {
     FluentTagPickerSize.medium => (
       32.0,
@@ -401,6 +416,8 @@ FluentTagPickerStyle resolveFluentTagPickerStyle(
       FluentSize.size160,
       FluentSpacing.xxs,
       FluentSpacing.xs,
+      FluentSpacing.xs,
+      FluentSpacing.sNudge,
     ),
     FluentTagPickerSize.large => (
       40.0,
@@ -408,13 +425,17 @@ FluentTagPickerStyle resolveFluentTagPickerStyle(
       FluentSize.size200,
       FluentSpacing.xxs,
       FluentSpacing.sNudge,
+      FluentSpacing.sNudge,
+      FluentSpacing.s,
     ),
     FluentTagPickerSize.extraLarge => (
       44.0,
       FluentSpacing.m,
       FluentSize.size240,
       FluentSpacing.sNudge,
+      FluentSpacing.s,
       FluentSpacing.sNudge,
+      FluentSpacing.s,
     ),
   };
   final iconInset = (minHeight - iconSize) / 2;
@@ -479,11 +500,14 @@ FluentTagPickerStyle resolveFluentTagPickerStyle(
       EdgeInsets.symmetric(vertical: inputInset),
     ),
     tagSpacing: WidgetStatePropertyAll<double?>(chipGap),
-    // ponytail: a fixed field width once chips are present. CSS lets the input
-    // flex-grow into whatever is left of the last wrapped line; Flutter's Wrap
-    // has no such measurement, and faking it needs a custom RenderBox. Raise
-    // `fieldWidth` if a host app types long values.
-    fieldWidth: const WidgetStatePropertyAll<double?>(96),
+    tagRunSpacing: WidgetStatePropertyAll<double?>(rowGap),
+    tagPadding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(
+      EdgeInsets.symmetric(vertical: groupInset),
+    ),
+    // The root's `columnGap: spacingHorizontalXXS`, between the group and the
+    // input, and the input's `minWidth: 24px`.
+    fieldSpacing: const WidgetStatePropertyAll<double?>(FluentSpacing.xxs),
+    fieldWidth: const WidgetStatePropertyAll<double?>(24),
     // `useTagPickerControlStyles` pins `minWidth: 250px`, and the live control
     // reports it at every size, beside the `minHeight` floor.
     minimumSize: WidgetStatePropertyAll<Size?>(Size(250, minHeight)),
@@ -622,7 +646,10 @@ Widget buildFluentTagPicker(
   final contentPadding =
       style.contentPadding?.resolve(states) ?? EdgeInsets.zero;
   final spacing = style.tagSpacing?.resolve(states) ?? FluentSpacing.xs;
-  final fieldWidth = style.fieldWidth?.resolve(states) ?? 96;
+  final runSpacing = style.tagRunSpacing?.resolve(states) ?? spacing;
+  final tagPadding = style.tagPadding?.resolve(states) ?? contentPadding;
+  final fieldSpacing = style.fieldSpacing?.resolve(states) ?? FluentSpacing.xxs;
+  final fieldWidth = style.fieldWidth?.resolve(states) ?? 24;
   final minimumSize = style.minimumSize?.resolve(states) ?? Size.zero;
   final secondaryColor = style.secondaryColor?.resolve(states);
   final secondaryTextStyle = style.secondaryTextStyle?.resolve(states);
@@ -632,26 +659,26 @@ Widget buildFluentTagPicker(
   final expandIconPadding =
       style.expandIconPadding?.resolve(states) ?? EdgeInsets.zero;
 
-  // With no chips the field takes the whole line, which is the common case and
-  // the one an empty picker must get right. With chips it joins the wrap at a
-  // fixed width; see `FluentTagPickerStyle.fieldWidth`.
-  //
-  // One Wrap either way, with the field always its last child, so the field's
-  // element survives the first chip arriving. A Row swapped for a Wrap there
-  // remounted the `EditableText` under a node that already had focus, and a
-  // new `EditableText` opens no input connection until focus *changes* — so
-  // after the first pick the field looked focused and swallowed every key.
-  final Widget content = Wrap(
-    spacing: spacing,
-    runSpacing: spacing,
-    crossAxisAlignment: WrapCrossAlignment.center,
-    children: <Widget>[
-      ...state.tags,
-      SizedBox(
-        width: state.tags.isEmpty ? double.infinity : fieldWidth,
-        child: state.field,
-      ),
-    ],
+  // One flow whether or not there are chips, with the field always its last
+  // child, so the field's element survives the first chip arriving. A Row
+  // swapped for a Wrap there remounted the `EditableText` under a node that
+  // already had focus, and a new `EditableText` opens no input connection
+  // until focus *changes* — so after the first pick the field looked focused
+  // and swallowed every key.
+  final Widget content = _TagFlow(
+    tagSpacing: spacing,
+    runSpacing: runSpacing,
+    tagPadding: tagPadding,
+    fieldSpacing: fieldSpacing,
+    fieldPadding: contentPadding,
+    fieldMinWidth: fieldWidth,
+    // The chevron's column, glyph and margin: the aside upstream's lines run
+    // under until it is reserved. A secondary action is reserved from the
+    // start, as its label's web font arriving resizes the aside in Chrome.
+    overhang: state.secondaryAction == null && state.expandIcon != null
+        ? expandIconPadding.horizontal + expandIconSize
+        : 0,
+    children: <Widget>[...state.tags, state.field],
   );
 
   final secondary = state.secondaryAction == null
@@ -739,12 +766,7 @@ Widget buildFluentTagPicker(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: <Widget>[
-                                Padding(
-                                  padding: contentPadding,
-                                  child: content,
-                                ),
-                              ],
+                              children: <Widget>[content],
                             ),
                           ),
                           ?expandIcon,
@@ -765,12 +787,7 @@ Widget buildFluentTagPicker(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: <Widget>[
-                                Padding(
-                                  padding: contentPadding,
-                                  child: content,
-                                ),
-                              ],
+                              children: <Widget>[content],
                             ),
                           ),
                           secondary,
@@ -805,6 +822,315 @@ Widget buildFluentTagPicker(
         ),
     ],
   );
+}
+
+/// Upstream's control content: `flexWrap: wrap` over two items, the tag group
+/// — a wrap of its own — and the input, which is `width: 0; minWidth: 24px;
+/// flexGrow: 1`.
+///
+/// So the field shares the tags' line, filling the rest of it, only while the
+/// tags fit one row and leave [fieldMinWidth], and its text fits what they
+/// leave; otherwise the tags wrap across the whole width and the field takes
+/// the next line, however much the last row leaves. The two keep their own
+/// vertical padding, and a shared line centres them (`alignItems: center`).
+/// The children are the tags, then the field.
+///
+/// [overhang] is the aside, which is absolutely positioned: the root reserves
+/// it only as `paddingRight: calc(M + var(--aside-width))`, and the
+/// ResizeObserver that writes the variable loses its first report (the frame
+/// it schedules is cancelled by an effect that runs after mount). So in Chrome
+/// the lines run under the chevron until the control first changes height,
+/// and stop short of it from then on, even once the tags that grew it are gone.
+/// This box does the same with its own height.
+class _TagFlow extends MultiChildRenderObjectWidget {
+  const _TagFlow({
+    required this.tagSpacing,
+    required this.runSpacing,
+    required this.tagPadding,
+    required this.fieldSpacing,
+    required this.fieldPadding,
+    required this.fieldMinWidth,
+    required this.overhang,
+    required super.children,
+  });
+
+  final double tagSpacing;
+  final double runSpacing;
+  final EdgeInsetsGeometry tagPadding;
+  final double fieldSpacing;
+  final EdgeInsetsGeometry fieldPadding;
+  final double fieldMinWidth;
+  final double overhang;
+
+  _TagFlowSpec _spec(BuildContext context) {
+    final direction = Directionality.of(context);
+    return (
+      tagSpacing: tagSpacing,
+      runSpacing: runSpacing,
+      tagPadding: tagPadding.resolve(direction),
+      fieldSpacing: fieldSpacing,
+      fieldPadding: fieldPadding.resolve(direction),
+      fieldMinWidth: fieldMinWidth,
+      overhang: overhang,
+      direction: direction,
+    );
+  }
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderTagFlow(_spec(context));
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderTagFlow renderObject) {
+    renderObject.spec = _spec(context);
+  }
+}
+
+typedef _TagFlowSpec = ({
+  double tagSpacing,
+  double runSpacing,
+  EdgeInsets tagPadding,
+  double fieldSpacing,
+  EdgeInsets fieldPadding,
+  double fieldMinWidth,
+  double overhang,
+  TextDirection direction,
+});
+
+class _TagFlowParentData extends ContainerBoxParentData<RenderBox> {}
+
+typedef _Flow = ({
+  Size size,
+  List<Offset> offsets,
+  BoxConstraints tags,
+  BoxConstraints field,
+});
+
+class _RenderTagFlow extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _TagFlowParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _TagFlowParentData> {
+  _RenderTagFlow(this._spec);
+
+  _TagFlowSpec _spec;
+  set spec(_TagFlowSpec value) {
+    if (value == _spec) return;
+    _spec = value;
+    markNeedsLayout();
+  }
+
+  /// Whether the aside is reserved: once set, it stays, as upstream's
+  /// variable does.
+  bool _reserved = false;
+  double? _height;
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _TagFlowParentData) {
+      child.parentData = _TagFlowParentData();
+    }
+  }
+
+  _Flow _flow(BoxConstraints constraints, ChildLayouter layoutChild) {
+    final s = _spec;
+    final ltr = s.direction == TextDirection.ltr;
+    final limit = constraints.maxWidth + (_reserved ? 0 : s.overhang);
+    final tagConstraints = BoxConstraints(
+      maxWidth: math.max(0, limit - s.tagPadding.horizontal),
+    );
+
+    // The tags, rows filled greedily as both Wrap and CSS do.
+    final tags = <Size>[];
+    final starts = <double>[];
+    final rows = <int>[];
+    final rowHeights = <double>[];
+    var x = 0.0;
+    var widest = 0.0;
+    for (var tag = firstChild; tag != lastChild; tag = childAfter(tag)) {
+      final size = layoutChild(tag!, tagConstraints);
+      if (tags.isEmpty ||
+          x + s.tagSpacing + size.width > tagConstraints.maxWidth) {
+        x = 0;
+        rowHeights.add(0);
+      } else {
+        x += s.tagSpacing;
+      }
+      starts.add(x);
+      rows.add(rowHeights.length - 1);
+      rowHeights.last = math.max(rowHeights.last, size.height);
+      x += size.width;
+      widest = math.max(widest, x);
+      tags.add(size);
+    }
+    final groupHeight = tags.isEmpty
+        ? 0.0
+        : s.tagPadding.vertical +
+              rowHeights.fold(0.0, (a, b) => a + b) +
+              s.runSpacing * (rowHeights.length - 1);
+
+    // The field beside a single row that leaves it its minimum, else below —
+    // and below too once its text overflows it there, as
+    // `setTagPickerInputStretchStyle` makes it `width: 100%` on every edit
+    // when `scrollWidth > offsetWidth + 1`: whole pixels, and a `scrollWidth`
+    // of the text alone, where the field's intrinsic width adds
+    // `RenderEditable`'s caret margin — its 1px gap and `FluentInput`'s 1px
+    // caret.
+    final lead = tags.isEmpty
+        ? 0.0
+        : widest + s.tagPadding.horizontal + s.fieldSpacing;
+    final shared =
+        rowHeights.length <= 1 &&
+        lead + s.fieldMinWidth <= limit &&
+        (tags.isEmpty ||
+            !limit.isFinite ||
+            (lastChild!.getMaxIntrinsicWidth(double.infinity) - 2)
+                    .roundToDouble() <=
+                (limit - lead - s.fieldPadding.horizontal).roundToDouble() + 1);
+    final fieldStart = shared ? lead : 0.0;
+    final fieldWidth = limit.isFinite ? limit - fieldStart : s.fieldMinWidth;
+    final fieldConstraints = BoxConstraints.tightFor(
+      width: math.max(0, fieldWidth - s.fieldPadding.horizontal),
+    );
+    final fieldHeight =
+        layoutChild(lastChild!, fieldConstraints).height +
+        s.fieldPadding.vertical;
+
+    final lineHeight = shared
+        ? math.max(groupHeight, fieldHeight)
+        : groupHeight;
+    final size = constraints.constrain(
+      Size(
+        limit.isFinite
+            ? constraints.maxWidth
+            : math.max(fieldStart + fieldWidth, lead),
+        shared ? lineHeight : groupHeight + fieldHeight,
+      ),
+    );
+
+    double at(double start, double width) =>
+        ltr ? start : size.width - start - width;
+    final offsets = <Offset>[];
+    final groupTop = (lineHeight - groupHeight) / 2 + s.tagPadding.top;
+    final tagStart = ltr ? s.tagPadding.left : s.tagPadding.right;
+    for (final (i, tag) in tags.indexed) {
+      var top = groupTop;
+      for (var row = 0; row < rows[i]; row++) {
+        top += rowHeights[row] + s.runSpacing;
+      }
+      offsets.add(
+        Offset(
+          at(tagStart + starts[i], tag.width),
+          top + (rowHeights[rows[i]] - tag.height) / 2,
+        ),
+      );
+    }
+    offsets.add(
+      Offset(
+        at(
+          fieldStart + (ltr ? s.fieldPadding.left : s.fieldPadding.right),
+          fieldConstraints.maxWidth,
+        ),
+        (shared ? (lineHeight - fieldHeight) / 2 : groupHeight) +
+            s.fieldPadding.top,
+      ),
+    );
+    return (
+      size: size,
+      offsets: offsets,
+      tags: tagConstraints,
+      field: fieldConstraints,
+    );
+  }
+
+  @override
+  void performLayout() {
+    var flow = _flow(constraints, ChildLayoutHelper.layoutChild);
+    // ponytail: the box's own height stands in for the control's. They differ
+    // only under a parent that fixes the control's height, where upstream's
+    // aside never resizes and so is never reserved.
+    if (!_reserved &&
+        _spec.overhang > 0 &&
+        _height != null &&
+        flow.size.height != _height) {
+      _reserved = true;
+      flow = _flow(constraints, ChildLayoutHelper.layoutChild);
+    }
+    _height = flow.size.height;
+    size = flow.size;
+    var child = firstChild;
+    for (final offset in flow.offsets) {
+      (child!.parentData! as _TagFlowParentData).offset = offset;
+      child = childAfter(child);
+    }
+  }
+
+  @override
+  Size computeDryLayout(covariant BoxConstraints constraints) =>
+      _flow(constraints, ChildLayoutHelper.dryLayoutChild).size;
+
+  @override
+  double? computeDryBaseline(
+    covariant BoxConstraints constraints,
+    TextBaseline baseline,
+  ) {
+    final flow = _flow(constraints, ChildLayoutHelper.dryLayoutChild);
+    var highest = BaselineOffset.noBaseline;
+    var child = firstChild;
+    for (final offset in flow.offsets) {
+      final own = child == lastChild ? flow.field : flow.tags;
+      highest = highest.minOf(
+        BaselineOffset(child!.getDryBaseline(own, baseline)) + offset.dy,
+      );
+      child = childAfter(child);
+    }
+    return highest.offset;
+  }
+
+  @override
+  double computeMinIntrinsicWidth(double height) {
+    var width = _spec.fieldMinWidth + _spec.fieldPadding.horizontal;
+    for (var tag = firstChild; tag != lastChild; tag = childAfter(tag)) {
+      width = math.max(
+        width,
+        tag!.getMinIntrinsicWidth(double.infinity) +
+            _spec.tagPadding.horizontal,
+      );
+    }
+    return width;
+  }
+
+  @override
+  double computeMaxIntrinsicWidth(double height) {
+    var width = _spec.fieldMinWidth + _spec.fieldPadding.horizontal;
+    if (firstChild != lastChild) {
+      width += _spec.tagPadding.horizontal + _spec.fieldSpacing;
+      for (var tag = firstChild; tag != lastChild; tag = childAfter(tag)) {
+        width += tag!.getMaxIntrinsicWidth(double.infinity);
+        if (childAfter(tag) != lastChild) width += _spec.tagSpacing;
+      }
+    }
+    return width;
+  }
+
+  @override
+  double computeMinIntrinsicHeight(double width) =>
+      getDryLayout(BoxConstraints(maxWidth: width)).height;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) =>
+      getDryLayout(BoxConstraints(maxWidth: width)).height;
+
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) =>
+      defaultComputeDistanceToHighestActualBaseline(baseline);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
 }
 
 /// Lays [child] out at its own height, then again at the height the parent
@@ -941,7 +1267,12 @@ class FluentTagPickerActivateIntent extends Intent {
   const FluentTagPickerActivateIntent();
 }
 
-/// Removes the last chip. Only ever enabled while the field is empty.
+/// Moves focus from the field to the last chip, where a further Backspace or
+/// Delete removes it. Only enabled while the caret sits at the very start of
+/// the field.
+///
+/// Bound to Backspace and Left, as `useTagPickerInput` binds them: nothing is
+/// removed on the way — the name predates that.
 class FluentTagPickerRemoveLastIntent extends Intent {
   /// Creates a backspace intent.
   const FluentTagPickerRemoveLastIntent();
@@ -979,9 +1310,10 @@ class FluentTagPickerRemoveLastIntent extends Intent {
 ///
 /// A click on the control outside its text field — the padding, the space
 /// around the chips, the chevron and the band above and below it — toggles the
-/// popup, as upstream's mousedown handler does. A click in the text field only
-/// ever opens it, so a caret placement leaves an open list alone (see
-/// `build`); upstream's input toggles there too.
+/// popup, as upstream's mousedown handler does. A click in the text field
+/// toggles it as well, as upstream's input `onClick` does — on the release,
+/// and only for a left press released on the field or a touch that stays
+/// within the slop; a middle or right press leaves the list be.
 ///
 /// ## Keyboard
 ///
@@ -990,14 +1322,28 @@ class FluentTagPickerRemoveLastIntent extends Intent {
 /// | Down / Up | opens on the first option | moves the active option |
 /// | Enter | opens | selects the active option |
 /// | Escape | — | closes, nothing selected |
-/// | Backspace on an empty field | removes the last chip | removes the last chip |
+/// | Backspace or Left at the start of the field | focuses the last chip | closes, focuses the last chip |
 ///
-/// Backspace is bound through [FluentTagPickerRemoveLastIntent], whose action
-/// reports `isEnabled: false` while the field holds text — so the key falls
-/// through to the framework's own text editing shortcuts and deletes a
-/// character instead. Focus never leaves the field: the popup rows sit outside
-/// the traversal order, which is what makes "focus returns to the field on
-/// close" structural rather than something this widget has to remember.
+/// Backspace and Left are bound through [FluentTagPickerRemoveLastIntent],
+/// whose action reports `isEnabled: false` unless the caret sits at the start
+/// of the field — so the key falls through to the framework's own text
+/// editing shortcuts and deletes a character or moves the caret instead. The
+/// popup rows sit outside the traversal order, so focus stays in the field
+/// while the list is open.
+///
+/// A chip is one focus stop, as upstream's dismissible tag is one button:
+/// a mouse press on it, a tap, or a key above focuses it, which closes the
+/// list, and a press elsewhere blurs it. On a focused chip Backspace,
+/// Delete, Enter and the release of Space remove it and focus the next chip,
+/// or the previous one, or the field once none is left; Left and Up, Right
+/// and Down, Home and End walk the chips, and Right past the last returns to
+/// the field. Tab reaches the chip last focused — until there is one, the
+/// first going forward and the last coming back. A pointer removal moves
+/// focus the same way.
+///
+/// Typed text the picker owns — no [controller] was passed — is cleared
+/// whenever the list closes or focus leaves the field, as upstream clears an
+/// uncontrolled value. A caller's controller keeps its text.
 ///
 /// ## Dismissing by pointer needs a [TapRegionSurface]
 ///
@@ -1012,10 +1358,6 @@ class FluentTagPickerRemoveLastIntent extends Intent {
 /// on a control behind an open popup dismisses the popup *and* presses that
 /// control, hover still tracks, and the page still scrolls — which is what
 /// upstream's document-level `useOnClickOutside` gives React.
-///
-/// Clicking the control itself while the popup is open does **not** dismiss it:
-/// the field is a text input, so a click there is a caret placement, and the
-/// list has to survive it. That is a combobox, not a toggle.
 ///
 /// Customisation follows the usual three rungs. [style] is merged last and
 /// wins; [FluentTagPickerTheme] restyles a subtree; and for anything further,
@@ -1114,8 +1456,41 @@ class FluentTagPicker<T> extends StatefulWidget {
 
 class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
   final LayerLink _link = LayerLink();
+
+  /// The popup's follower, which reads the control's bottom only when it
+  /// paints.
+  final GlobalKey _follower = GlobalKey();
   final WidgetStatesController _states = WidgetStatesController();
   final Map<int, GlobalKey> _rowKeys = <int, GlobalKey>{};
+
+  /// Each chip's focus, by value: upstream's dismissible tag is a `<button>`.
+  final Map<T, FocusNode> _chipNodes = <T, FocusNode>{};
+
+  /// Above the field and the chips, so its focus is the control's
+  /// `:focus-within` — the bar stays while a chip holds focus.
+  final FocusNode _within = FocusNode(
+    canRequestFocus: false,
+    skipTraversal: true,
+  );
+
+  /// The chip Tab and Shift+Tab land on: tabster's `memorizeCurrent` on the
+  /// tag group, which is one tab stop. Until a chip has had focus, Tab
+  /// enters at the first chip and Shift+Tab at the last (Chrome).
+  T? _memorized;
+
+  /// Whether a key, rather than a press, last put focus on a chip. The ring
+  /// follows upstream's focus-visible, which Backspace and Delete raise here
+  /// though they are not the navigation keys [FluentInputModality] watches.
+  bool _chipByKey = false;
+
+  /// The chip Space went down on: a `<button>` clicks on Space's release.
+  T? _spaceOn;
+
+  /// Where a primary press on the field went down, while it can still be the
+  /// input's `click` that toggles upstream's list; a touch reports primary
+  /// too. Null for another button, and once a touch passes the slop.
+  Offset? _fieldPress;
+
   OverlayEntry? _entry;
   TextEditingController? _internalController;
   FocusNode? _internalNode;
@@ -1151,6 +1526,7 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
       ..update(WidgetState.disabled, !_enabled)
       ..addListener(_rebuild);
     _focusNode.addListener(_handleFocusChange);
+    _within.addListener(_rebuild);
     // The accent bar and the placeholder both track the field, so the control
     // has to rebuild on the first and last character typed.
     _typed = _controller.text;
@@ -1230,6 +1606,13 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
       _typed = _controller.text;
       _controller.addListener(_handleText);
     }
+    // A chip that left the selection takes its node with it, once its Focus
+    // has unmounted.
+    _chipNodes.removeWhere((value, node) {
+      if (widget.selected.contains(value)) return false;
+      SchedulerBinding.instance.addPostFrameCallback((_) => node.dispose());
+      return true;
+    });
     if (!_enabled) {
       deferOrRun(_close);
     } else if (_open) {
@@ -1256,6 +1639,12 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
       ?..remove()
       ..dispose();
     _entry = null;
+    _within
+      ..removeListener(_rebuild)
+      ..dispose();
+    for (final node in _chipNodes.values) {
+      node.dispose();
+    }
     _internalNode?.dispose();
     _internalController?.dispose();
     super.dispose();
@@ -1266,8 +1655,32 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
   }
 
   void _handleFocusChange() {
-    if (!_focusNode.hasFocus && _open) deferOrRun(_close);
+    if (!_focusNode.hasFocus) deferOrRun(_open ? _close : _resetText);
     _rebuild();
+  }
+
+  /// A press outside the control and its list. The field blurs itself; a
+  /// chip keeps focus through a press elsewhere, where Chrome's mousedown on
+  /// the page body blurs the tag — so it is blurred here, two microtasks on
+  /// as `FluentDropdown` does, which lets a field the same press focused
+  /// keep that focus.
+  void _handleTapOutside() {
+    _close();
+    scheduleMicrotask(
+      () => scheduleMicrotask(() {
+        for (final node in _chipNodes.values) {
+          if (mounted && node.hasFocus) node.unfocus();
+        }
+      }),
+    );
+  }
+
+  /// `useComboboxBaseState`'s `setOpen(false)` resets an uncontrolled value,
+  /// and so does the input's blur while closed (Chrome: Escape, Tab, a click
+  /// outside and the chevron all clear typed text). A caller's controller is
+  /// the controlled `value`, which neither touches.
+  void _resetText() {
+    if (widget.controller == null) _internalController?.clear();
   }
 
   /// Hover and press, tracked while disabled too and filtered in [build]:
@@ -1386,6 +1799,7 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     entry
       ..remove()
       ..dispose();
+    _resetText();
     if (mounted) setState(() {});
   }
 
@@ -1417,6 +1831,11 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
   }
 
   void _handleTap() {
+    _focusField();
+    _openPopup();
+  }
+
+  void _focusField() {
     // Through the field's `requestKeyboard`, which marks the focus as its
     // own: a plain `requestFocus` trips `selectAllOnFocus` on desktop and the
     // web, selecting whatever a blurred field still held. Upstream's `focus()`
@@ -1424,7 +1843,6 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     final field = _focusNode.context
         ?.findAncestorStateOfType<EditableTextState>();
     field == null ? _focusNode.requestFocus() : field.requestKeyboard();
-    _openPopup();
   }
 
   /// A click on the control outside the field: `useTagPickerControl`'s
@@ -1461,17 +1879,109 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     _focusNode.requestFocus();
   }
 
-  void _remove(T value) {
+  /// The values drawn as chips, in order.
+  List<T> get _chips => <T>[
+    for (final value in widget.selected)
+      if (_optionFor(value) != null) value,
+  ];
+
+  FocusNode _chipNode(T value) => _chipNodes.putIfAbsent(
+    value,
+    () => FocusNode(debugLabel: 'FluentTagPicker chip'),
+  );
+
+  void _focusChip(T value) {
+    _chipByKey = true;
+    _chipNode(value).requestFocus();
+  }
+
+  /// `useTagPickerInput`'s Backspace and Left: `findLastFocusable(group)`.
+  void _focusLastChip() {
+    final chips = _chips;
+    if (chips.isNotEmpty) _focusChip(chips.last);
+  }
+
+  /// A chip's dismissal, by press or by key. `useTagGroup` then focuses the
+  /// next tag, or the previous one after the last, when focus was on a tag;
+  /// `useTagPickerGroup` hands it to the input when this was the only one.
+  /// A tap passes [focused]: Chrome's click lands on a tag its mousedown
+  /// focused, and a touch focuses it on the tap itself.
+  void _dismiss(T value, {bool focused = false}) {
     if (!_enabled) return;
+    final chips = _chips;
+    final index = chips.indexOf(value);
+    focused = focused || (_chipNodes[value]?.hasFocus ?? false);
     widget.onChanged!(<T>[
       for (final selected in widget.selected)
         if (selected != value) selected,
     ]);
+    if (chips.length == 1) {
+      _focusField();
+    } else if (focused && index >= 0) {
+      _chipNode(
+        chips[index + 1 < chips.length ? index + 1 : index - 1],
+      ).requestFocus();
+    }
   }
 
-  void _removeLast() {
-    if (!_enabled || widget.selected.isEmpty) return;
-    _remove(widget.selected.last);
+  /// A focused chip's keys, measured on components-tagpicker--default.
+  ///
+  /// ponytail: the arrows are physical, as upstream's own ArrowLeft and
+  /// ArrowRight handlers are; tabster's mover would mirror them under RTL.
+  KeyEventResult _handleChipKey(T value, KeyEvent event) {
+    if (!_enabled) return KeyEventResult.ignored;
+    final chips = _chips;
+    final index = chips.indexOf(value);
+    if (index < 0) return KeyEventResult.ignored;
+    // The tag is a button: Space clicks it on release, once however long it
+    // was held, and Enter on every keydown — which dismisses.
+    if (event.logicalKey == LogicalKeyboardKey.space) {
+      if (event is KeyDownEvent) _spaceOn = value;
+      if (event is KeyUpEvent && _spaceOn == value) {
+        _spaceOn = null;
+        _chipByKey = true;
+        _dismiss(value);
+      }
+      return KeyEventResult.handled;
+    }
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final keyboard = HardwareKeyboard.instance;
+    final chord =
+        keyboard.isAltPressed ||
+        keyboard.isControlPressed ||
+        keyboard.isMetaPressed;
+    final modified = chord || keyboard.isShiftPressed;
+    void go(int to) => _focusChip(chips[to.clamp(0, chips.length - 1)]);
+    switch (event.logicalKey) {
+      // Chrome clicks a button on Shift+Enter, not under the other three.
+      case LogicalKeyboardKey.enter || LogicalKeyboardKey.numpadEnter
+          when chord:
+        return KeyEventResult.ignored;
+      // `useTag` removes on Backspace and Delete under any modifier.
+      case LogicalKeyboardKey.backspace ||
+          LogicalKeyboardKey.delete ||
+          LogicalKeyboardKey.enter ||
+          LogicalKeyboardKey.numpadEnter:
+        _chipByKey = true;
+        _dismiss(value);
+      // `useTagPickerGroup` sends any Right to the input; tabster's mover
+      // takes the arrows, Home and End only without a modifier.
+      case LogicalKeyboardKey.arrowRight:
+        index + 1 < chips.length && !modified ? go(index + 1) : _focusField();
+      case _ when modified:
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.arrowLeft || LogicalKeyboardKey.arrowUp:
+        go(index - 1);
+      case LogicalKeyboardKey.arrowDown:
+        go(index + 1);
+      case LogicalKeyboardKey.home:
+        go(0);
+      case LogicalKeyboardKey.end:
+        go(chips.length - 1);
+      default:
+        return KeyEventResult.ignored;
+    }
+    return KeyEventResult.handled;
   }
 
   /// Upstream's `tagPickerSizeToTagSize`: each picker size takes the tag one
@@ -1534,6 +2044,7 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
       left: 0,
       top: 0,
       child: CompositedTransformFollower(
+        key: _follower,
         link: _link,
         showWhenUnlinked: false,
         targetAnchor: Alignment.bottomLeft,
@@ -1667,7 +2178,7 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
   FluentTagPickerState _state(Widget field) => resolveFluentTagPickerState(
     field: field,
     enabled: _enabled,
-    focused: _focusNode.hasFocus,
+    focused: _within.hasFocus,
     open: _open,
     error: widget.error,
     appearance: widget.appearance,
@@ -1676,36 +2187,9 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     // InteractionTag: no divider, and the small dismiss glyph. A disabled
     // picker keeps the glyph, greyed and inert, as upstream's disabled story
     // does.
-    //
-    // That `Tag` is one `<button>`, so a left click anywhere on it dismisses
-    // it, over the arrow cursor, and the control's mousedown toggle skips it:
-    // that fires only on the root, the group itself, the aside and the expand
-    // icon (Chrome). `FluentTag` makes only its glyph a button, hence the tap
-    // here; the glyph's own still wins over it.
     tags: <Widget>[
       for (final value in widget.selected)
-        if (_optionFor(value) case final option?)
-          GestureDetector(
-            key: ValueKey<T>(value),
-            // The glyph is the chip's announced dismiss action.
-            excludeFromSemantics: true,
-            onTap: _enabled ? () => _remove(value) : null,
-            child: MouseRegion(
-              cursor: _enabled ? SystemMouseCursors.basic : MouseCursor.defer,
-              child: FluentTag(
-                size: _tagSize,
-                appearance: _tagAppearance,
-                enabled: _enabled,
-                // Upstream's chip is `<Tag media={<Avatar/>}>`: the avatar
-                // sits 1px inside the border, not at the content inset.
-                media: option.tagMedia ?? option.media,
-                onDismiss: () => _remove(value),
-                dismissSemanticLabel:
-                    widget.dismissSemanticLabel ?? fluentL10n(context).remove,
-                child: option.label,
-              ),
-            ),
-          ),
+        if (_optionFor(value) case final option?) _buildChip(value, option),
     ],
     secondaryAction: widget.secondaryAction,
     expandIcon: widget.expandIcon == null
@@ -1721,6 +2205,73 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
             child: widget.expandIcon,
           ),
   );
+
+  /// One chip. Upstream's `Tag` is one `<button>`: a left click anywhere on
+  /// it dismisses it, over the arrow cursor, and the control's mousedown
+  /// toggle skips it — that fires only on the root, the group itself, the
+  /// aside and the expand icon (Chrome). `FluentTag` makes only its glyph a
+  /// button, hence the focus, the tap and the ring here, with the glyph kept
+  /// out of the traversal order; the glyph's own tap still wins.
+  Widget _buildChip(T value, FluentTagPickerOption<T> option) {
+    final node = _chipNode(value);
+    final chips = _chips;
+    return Focus(
+      key: ValueKey<T>(value),
+      focusNode: node,
+      canRequestFocus: _enabled,
+      skipTraversal: chips.contains(_memorized)
+          ? value != _memorized
+          : value != chips.first && value != chips.last,
+      onFocusChange: (focused) {
+        if (focused) _memorized = value;
+        _rebuild();
+      },
+      onKeyEvent: (_, event) => _handleChipKey(value, event),
+      // Chrome's mousedown focuses the tag whichever button is down, which
+      // blurs the input and so closes the list before anything is released.
+      // A touch focuses it on the tap instead, so a held finger or a scroll
+      // leaves the list open.
+      child: Listener(
+        onPointerDown: _enabled
+            ? (event) {
+                _chipByKey = false;
+                if (event.kind == PointerDeviceKind.mouse) node.requestFocus();
+              }
+            : null,
+        child: GestureDetector(
+          // The glyph is the chip's announced dismiss action.
+          excludeFromSemantics: true,
+          onTap: _enabled ? () => _dismiss(value, focused: true) : null,
+          child: MouseRegion(
+            cursor: _enabled ? SystemMouseCursors.basic : MouseCursor.defer,
+            // `createCustomFocusIndicatorStyle`: a 2px `colorStrokeFocus2`
+            // outline round the tag's own medium corners.
+            child: ValueListenableBuilder<bool>(
+              valueListenable: FluentInputModality.keyboard,
+              builder: (context, keyboard, tag) => FluentFocusRing(
+                visible: node.hasFocus && (keyboard || _chipByKey),
+                child: tag!,
+              ),
+              child: ExcludeFocus(
+                child: FluentTag(
+                  size: _tagSize,
+                  appearance: _tagAppearance,
+                  enabled: _enabled,
+                  // Upstream's chip is `<Tag media={<Avatar/>}>`: the avatar
+                  // sits 1px inside the border, not at the content inset.
+                  media: option.tagMedia ?? option.media,
+                  onDismiss: () => _dismiss(value, focused: true),
+                  dismissSemanticLabel:
+                      widget.dismissSemanticLabel ?? fluentL10n(context).remove,
+                  child: option.label,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1744,48 +2295,70 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     // release whoever claims the gesture. Release rather than press, so the
     // list opens under a finished click, the way every other press here reads.
     // The control's tap below therefore never fires for the same click, which
-    // matters: it toggles, and firing after this would close what this opened.
+    // matters: it toggles too, and firing after this would undo it.
     //
-    // `_openPopup` self-guards on disabled and on already-open, so clicking the
-    // field while the list is up moves the caret and leaves the list exactly
-    // as it was: no close, no close-then-reopen.
-    final field = Listener(
-      onPointerUp: (_) => _openPopup(),
-      // Typing opens the list, as upstream's input does after a pick or an
-      // Escape has closed it — on the key, not the edit: its
-      // `getDropdownActionFromKey` says 'Type' for one printable character
-      // that is not Space, with no Alt, Ctrl or Meta, so Space, Backspace and
-      // a paste change the text and leave the list shut (Chrome). A desktop
-      // embedder reports Escape, Backspace, Enter and Tab as control
-      // characters, which are not typing either. Ignored either way, so the
-      // key still reaches the field.
-      child: Focus(
-        canRequestFocus: false,
-        skipTraversal: true,
-        includeSemantics: false,
-        onKeyEvent: (_, event) {
-          final character = event.character;
-          final keyboard = HardwareKeyboard.instance;
-          if (event is KeyDownEvent &&
-              character != null &&
-              character.length == 1 &&
-              character.trim().isNotEmpty &&
-              !LogicalKeyboardKey.isControlCharacter(character) &&
-              !keyboard.isAltPressed &&
-              !keyboard.isControlPressed &&
-              !keyboard.isMetaPressed) {
-            _openPopup();
+    // The input's `onClick` is `setOpen(!open)`, so a click on the field
+    // closes an open list too, clearing typed text as every close does. Only
+    // a click: a middle or right press focuses the input and leaves the list
+    // be, a mouse released off the field clicks something else, and a touch
+    // past the slop is a scroll, not a tap (Chrome).
+    final field = Builder(
+      builder: (fieldContext) => Listener(
+        onPointerDown: (event) => _fieldPress =
+            event.buttons & kPrimaryButton != 0 ? event.position : null,
+        onPointerMove: (event) {
+          final from = _fieldPress;
+          if (from != null &&
+              event.kind != PointerDeviceKind.mouse &&
+              (event.position - from).distance > kTouchSlop) {
+            _fieldPress = null;
           }
-          return KeyEventResult.ignored;
         },
-        child: FluentInput(
-          controller: _controller,
-          focusNode: _focusNode,
-          enabled: _enabled,
-          autofocus: widget.autofocus,
-          placeholder: widget.placeholder,
-          style: style.strippedInputStyle(),
-          onSubmitted: (_) => _activate(),
+        onPointerCancel: (_) => _fieldPress = null,
+        onPointerUp: (event) {
+          final click = _fieldPress != null;
+          _fieldPress = null;
+          // Unmounted: the release can land after [dispose].
+          if (!click || !mounted || !_enabled) return;
+          final box = fieldContext.findRenderObject()! as RenderBox;
+          if (box.size.contains(event.localPosition)) _toggle();
+        },
+        // Typing opens the list, as upstream's input does after a pick or an
+        // Escape has closed it — on the key, not the edit: its
+        // `getDropdownActionFromKey` says 'Type' for one printable character
+        // that is not Space, with no Alt, Ctrl or Meta, so Space, Backspace and
+        // a paste change the text and leave the list shut (Chrome). A desktop
+        // embedder reports Escape, Backspace, Enter and Tab as control
+        // characters, which are not typing either. Ignored either way, so the
+        // key still reaches the field.
+        child: Focus(
+          canRequestFocus: false,
+          skipTraversal: true,
+          includeSemantics: false,
+          onKeyEvent: (_, event) {
+            final character = event.character;
+            final keyboard = HardwareKeyboard.instance;
+            if (event is KeyDownEvent &&
+                character != null &&
+                character.length == 1 &&
+                character.trim().isNotEmpty &&
+                !LogicalKeyboardKey.isControlCharacter(character) &&
+                !keyboard.isAltPressed &&
+                !keyboard.isControlPressed &&
+                !keyboard.isMetaPressed) {
+              _openPopup();
+            }
+            return KeyEventResult.ignored;
+          },
+          child: FluentInput(
+            controller: _controller,
+            focusNode: _focusNode,
+            enabled: _enabled,
+            autofocus: widget.autofocus,
+            placeholder: widget.placeholder,
+            style: style.strippedInputStyle(),
+            onSubmitted: (_) => _activate(),
+          ),
         ),
       ),
     );
@@ -1822,7 +2395,21 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
       ),
     );
 
-    control = CompositedTransformTarget(link: _link, child: control);
+    // A control that grows under an open list — typed text taking a line of
+    // its own — repaints the follower, which places the list against the
+    // control's bottom only as it paints.
+    control = NotificationListener<SizeChangedLayoutNotification>(
+      onNotification: (_) {
+        // Not after [_close]: the follower's element is on its way out.
+        if (_entry != null) {
+          _follower.currentContext?.findRenderObject()?.markNeedsPaint();
+        }
+        return true;
+      },
+      child: SizeChangedLayoutNotifier(
+        child: CompositedTransformTarget(link: _link, child: control),
+      ),
+    );
 
     // Outside taps dismiss the popup, replacing a full-screen
     // `HitTestBehavior.opaque` barrier that used to be drawn over the page from
@@ -1846,15 +2433,23 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     // of `dragDevices`. Left as is; the browser does the same thing.
     control = TapRegion(
       groupId: this,
-      // Registered only while the popup is up, so nothing is listening for
-      // outside taps the rest of the time.
-      onTapOutside: _open ? (_) => _close() : null,
+      // Registered only while the popup is up or a chip holds focus, so
+      // nothing is listening for outside taps the rest of the time.
+      onTapOutside: _open || _chipNodes.values.any((node) => node.hasFocus)
+          ? (_) => _handleTapOutside()
+          : null,
       // In the field's group too — see the note in `_buildPopup`. The chips and
       // `secondaryAction` sit beside the `EditableText`, not inside it, so
-      // without this a click on a chip's dismiss glyph is a tap OUTSIDE the text
-      // field: the field unfocuses, `_handleFocusChange` closes the popup, and
-      // removing one chip collapses the list the user was still picking from.
-      child: TextFieldTapRegion(child: control),
+      // without this a press on either is a tap OUTSIDE the text field, which
+      // unfocuses it on desktop before the press is handled. A chip moves
+      // focus onto itself on its own.
+      child: TextFieldTapRegion(
+        child: Focus(
+          focusNode: _within,
+          includeSemantics: false,
+          child: control,
+        ),
+      ),
     );
 
     // Bound here rather than on the focus node so they sit BELOW the app's own
@@ -1873,7 +2468,9 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
               FluentTagPickerMoveIntent(-1),
           SingleActivator(LogicalKeyboardKey.enter):
               FluentTagPickerActivateIntent(),
-          SingleActivator(LogicalKeyboardKey.backspace):
+          _AnyModifiers(LogicalKeyboardKey.backspace):
+              FluentTagPickerRemoveLastIntent(),
+          _AnyModifiers(LogicalKeyboardKey.arrowLeft):
               FluentTagPickerRemoveLastIntent(),
         },
         child: Actions(
@@ -1905,24 +2502,52 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
   }
 }
 
-/// Removes the last chip, and only while the field is empty.
+/// [key] pressed or repeating under any modifiers, or none: the check
+/// `useTagPickerInput` makes, which reads `event.key` alone (Chrome: Shift,
+/// Alt, Control or Meta with Backspace or Left at the start all move focus).
+class _AnyModifiers extends ShortcutActivator {
+  const _AnyModifiers(this.key);
+
+  final LogicalKeyboardKey key;
+
+  @override
+  Iterable<LogicalKeyboardKey> get triggers => <LogicalKeyboardKey>[key];
+
+  @override
+  bool accepts(KeyEvent event, HardwareKeyboard state) =>
+      event is! KeyUpEvent && event.logicalKey == key;
+
+  @override
+  String debugDescribeKeys() => key.keyLabel;
+}
+
+/// Focuses the last chip, and only while the caret is at the field's start —
+/// `useTagPickerInput`'s `selectionStart === 0 && selectionEnd === 0`.
 ///
 /// Reporting `isEnabled: false` rather than doing nothing is what lets the key
-/// fall through to `DefaultTextEditingShortcuts` and delete a character.
+/// fall through to `DefaultTextEditingShortcuts` and delete a character or
+/// move the caret.
 class _RemoveLastAction<T> extends Action<FluentTagPickerRemoveLastIntent> {
   _RemoveLastAction(this.state);
 
   final _FluentTagPickerState<T> state;
 
   @override
-  bool isEnabled(FluentTagPickerRemoveLastIntent intent) =>
-      state._enabled &&
-      state._controller.text.isEmpty &&
-      state.widget.selected.isNotEmpty;
+  bool isEnabled(FluentTagPickerRemoveLastIntent intent) {
+    final value = state._controller.value;
+    // An emptied controller's caret is -1, which is the start as well. The
+    // input's own keydown: a key a chip or `secondaryAction` let through
+    // bubbles here too.
+    return state._enabled &&
+        state._focusNode.hasFocus &&
+        state._chips.isNotEmpty &&
+        (value.text.isEmpty ||
+            (value.selection.isCollapsed && value.selection.baseOffset == 0));
+  }
 
   @override
   Object? invoke(FluentTagPickerRemoveLastIntent intent) {
-    state._removeLast();
+    state._focusLastChip();
     return null;
   }
 }
