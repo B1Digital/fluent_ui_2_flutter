@@ -94,7 +94,10 @@ class _FluentBoxDecorationPainter extends BoxPainter {
           Path()
             ..fillType = PathFillType.evenOdd
             ..addRect(reach)
-            ..addPath(_decoration.getClipPath(rect, textDirection), Offset.zero),
+            ..addPath(
+              _decoration.getClipPath(rect, textDirection),
+              Offset.zero,
+            ),
         );
       }
       // CSS paints the first shadow on top, so draw the list back to front.
