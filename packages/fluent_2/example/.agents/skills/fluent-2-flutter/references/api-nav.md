@@ -410,6 +410,9 @@ const FluentButtonStyle({
     this.iconSize,
     this.minimumSize,
     this.mouseCursor,
+    this.focusRingInsets,
+    this.focusRingInnerColor,
+    this.shadow,
   });
 ```
 
@@ -426,6 +429,9 @@ const FluentButtonStyle({
 | `iconSize` | `WidgetStateProperty<double?>?` | No | `null` | Icon edge length. |
 | `minimumSize` | `WidgetStateProperty<Size?>?` | No | `null` | Minimum tap target. |
 | `mouseCursor` | `WidgetStateProperty<MouseCursor?>?` | No | `null` | Cursor while hovering. |
+| `focusRingInsets` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | How deep the keyboard focus ring reaches in from each edge. |
+| `focusRingInnerColor` | `WidgetStateProperty<Color?>?` | No | `null` | A second, 1px ring just inside the focus ring, or null for none. |
+| `shadow` | `WidgetStateProperty<List<BoxShadow>?>?` | No | `null` | Drop shadow. Upstream gives a focused primary button `shadow2`. |
 
 ### `FluentDividerAppearance`
 
