@@ -103,8 +103,9 @@ class FluentSpinnerTailKeyframe {
 /// animation instead of a state transition, so it cannot go through
 /// [FluentAnimatedStyle]. It gets a raw [AnimationController] instead — and
 /// therefore has to honour [MediaQuery.disableAnimationsOf] itself, which
-/// `FluentSpinner` does by never starting the controller and painting
-/// [FluentSpinnerPose.resting].
+/// `FluentSpinner` does as upstream does under `prefers-reduced-motion`: the
+/// ring keeps turning at [reducedRotation]'s slower pace while the tail stops
+/// and paints [FluentSpinnerPose.reduced]'s fading arc.
 ///
 /// Both animations run for the same 1.5s, which is why one controller drives
 /// both.
@@ -121,6 +122,13 @@ abstract final class FluentSpinnerMotion {
   /// The whole ring turning once. Linear, so the rotation reads as constant.
   static const FluentMotionSpec rotation = FluentMotionSpec(
     duration: Duration(milliseconds: 1500),
+    curve: FluentCurve.linear,
+  );
+
+  /// [rotation] under reduced motion: upstream stretches it to 1.8s rather
+  /// than stopping it, and freezes the tail instead.
+  static const FluentMotionSpec reducedRotation = FluentMotionSpec(
+    duration: Duration(milliseconds: 1800),
     curve: FluentCurve.linear,
   );
 
@@ -157,7 +165,7 @@ abstract final class FluentSpinnerMotion {
   /// 3 o'clock.
   ///
   /// Read off the `Tail` ellipse's `arcData` on every `.SpinnerBase` variant,
-  /// and what [FluentSpinnerPose.resting] paints under reduced motion.
+  /// and what [FluentSpinnerPose.resting] paints.
   static const double restingTailSweep = math.pi / 2;
 }
 
@@ -173,9 +181,10 @@ class FluentSpinnerPose {
     required this.rotation,
     required this.tailStart,
     required this.tailSweep,
+    this.tailFades = false,
   });
 
-  /// The pose Figma draws, and the one painted when animations are disabled.
+  /// The pose Figma draws: what a spinner built without an animation shows.
   static const FluentSpinnerPose resting = FluentSpinnerPose(
     rotation: 0,
     tailStart: 0,
@@ -207,6 +216,20 @@ class FluentSpinnerPose {
     );
   }
 
+  /// The pose at [progress] through one 1.8s reduced-motion turn.
+  ///
+  /// Upstream's `prefers-reduced-motion` rules stop the tail's animation and
+  /// paint it as `conic-gradient(transparent 120deg, currentcolor 360deg)`
+  /// behind its 105° mask, while the ring keeps turning. So only [rotation]
+  /// moves; the tail is fixed from 30° to 270° (120° to 360° from 12 o'clock),
+  /// fading in towards its leading end.
+  factory FluentSpinnerPose.reduced(double progress) => FluentSpinnerPose(
+    rotation: progress.clamp(0.0, 1.0) * 2 * math.pi,
+    tailStart: math.pi / 6,
+    tailSweep: 4 * math.pi / 3,
+    tailFades: true,
+  );
+
   /// How far the whole ring has turned, in radians clockwise.
   final double rotation;
 
@@ -217,20 +240,25 @@ class FluentSpinnerPose {
   /// How far the tail extends from [tailStart], in radians.
   final double tailSweep;
 
+  /// Whether the tail fades from clear at its trailing edge to solid at its
+  /// leading one, rather than painting solid throughout.
+  final bool tailFades;
+
   @override
   bool operator ==(Object other) =>
       other is FluentSpinnerPose &&
       other.rotation == rotation &&
       other.tailStart == tailStart &&
-      other.tailSweep == tailSweep;
+      other.tailSweep == tailSweep &&
+      other.tailFades == tailFades;
 
   @override
-  int get hashCode => Object.hash(rotation, tailStart, tailSweep);
+  int get hashCode => Object.hash(rotation, tailStart, tailSweep, tailFades);
 
   @override
   String toString() =>
       'FluentSpinnerPose(rotation: $rotation, tailStart: $tailStart, '
-      'tailSweep: $tailSweep)';
+      'tailSweep: $tailSweep, tailFades: $tailFades)';
 }
 
 /// Paints the spinner's track and tail.
@@ -286,7 +314,12 @@ class FluentSpinnerPainter extends CustomPainter {
         math.min(size.width, size.height) / 2 - strokeWidth / 2 - 0.5;
     if (radius <= 0) return;
     final center = size.center(Offset.zero);
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    final rtl = textDirection == TextDirection.rtl;
     final start = rotation + tailStart;
+    // Mirroring about the vertical axis takes an angle θ to π − θ, so the arc
+    // [start, start + sweep] becomes [π − start − sweep, π − start].
+    final arcStart = rtl ? math.pi - start - tailSweep : start;
 
     canvas.drawCircle(
       center,
@@ -297,23 +330,35 @@ class FluentSpinnerPainter extends CustomPainter {
         ..color = trackColor,
     );
 
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      // Mirroring about the vertical axis takes an angle θ to π − θ, so the
-      // arc [start, start + sweep] becomes [π − start − sweep, π − start].
-      textDirection == TextDirection.rtl ? math.pi - start - tailSweep : start,
-      tailSweep,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth
-        // Upstream cuts both ends with conic-gradient hard stops, which are
-        // radial lines: on a circle, exactly a butt cap. Figma rounds the Tail
-        // ellipse's corners (`Corner radius/Medium`); the shipped component's
-        // flat ends win.
-        ..strokeCap = StrokeCap.butt
-        ..color = indicatorColor,
-    );
+    final tail = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      // Upstream cuts both ends with conic-gradient hard stops, which are
+      // radial lines: on a circle, exactly a butt cap. Figma rounds the Tail
+      // ellipse's corners (`Corner radius/Medium`); the shipped component's
+      // flat ends win.
+      ..strokeCap = StrokeCap.butt
+      ..color = indicatorColor;
+    if (pose.tailFades) {
+      // CSS interpolates the gradient premultiplied, so its clear end keeps the
+      // indicator's hue instead of fading through transparent black. Solid is
+      // the leading end, which mirroring moves to the arc's start.
+      // The sweep wraps from 2π back to 0, and antialiased pixels either side
+      // of the wrap clamp to opposite ends of the gradient; parked mid-gap, the
+      // wrap lies where nothing is drawn, so each edge blends to its own end.
+      final clear = indicatorColor.withAlpha(0);
+      final gap = (2 * math.pi - tailSweep) / 2;
+      tail
+        ..color = const Color(0xFF000000)
+        ..shader = SweepGradient(
+          startAngle: gap,
+          endAngle: gap + tailSweep,
+          colors: rtl ? [indicatorColor, clear] : [clear, indicatorColor],
+          transform: GradientRotation(arcStart - gap),
+        ).createShader(rect);
+    }
+
+    canvas.drawArc(rect, arcStart, tailSweep, false, tail);
   }
 
   @override
@@ -604,11 +649,11 @@ class FluentSpinnerTheme extends InheritedTheme {
 /// linearly, while the tail grows from 30° to 255° and back through
 /// [FluentSpinnerMotion.tailKeyframes] on `curveEasyEase`. Under a
 /// right-to-left [Directionality] the drawing mirrors and the ring turns
-/// anticlockwise. Under [MediaQuery.disableAnimationsOf] the controller never
-/// starts and the ring holds [FluentSpinnerPose.resting], the pose Figma draws
-/// — so reduced motion gets a legible static indicator rather than a blank
-/// box. Upstream instead keeps turning at 1.8s; this package starts no ticker
-/// at all.
+/// anticlockwise. Under [MediaQuery.disableAnimationsOf] it does what upstream
+/// does under `prefers-reduced-motion`: the tail stops growing and shrinking
+/// and holds [FluentSpinnerPose.reduced]'s fading arc, and the ring keeps
+/// turning, at [FluentSpinnerMotion.reducedRotation]'s slower 1.8s — so the
+/// indicator still reads as working without the tail's darting.
 ///
 /// ## Customisation
 ///
@@ -665,17 +710,19 @@ class _FluentSpinnerState extends State<FluentSpinner>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _reducedMotion = MediaQuery.disableAnimationsOf(context);
-    // Not merely paused: a stopped controller schedules no ticks at all, so a
-    // page full of spinners costs nothing when animations are off. Handled here
-    // rather than in initState so flipping the preference mid-life is honoured.
-    if (_reducedMotion) {
-      _controller
-        ..stop()
-        ..value = 0;
-    } else if (!_controller.isAnimating) {
-      _controller.repeat();
-    }
+    final reducedMotion = MediaQuery.disableAnimationsOf(context);
+    if (reducedMotion == _reducedMotion && _controller.isAnimating) return;
+    // Handled here rather than in initState so flipping the preference
+    // mid-life is honoured. Reduced motion slows the ring rather than stopping
+    // it, as upstream does; a new duration only takes effect on a new repeat.
+    _reducedMotion = reducedMotion;
+    _controller
+      ..duration =
+          (reducedMotion
+                  ? FluentSpinnerMotion.reducedRotation
+                  : FluentSpinnerMotion.rotation)
+              .duration
+      ..repeat();
   }
 
   @override
@@ -699,17 +746,17 @@ class _FluentSpinnerState extends State<FluentSpinner>
       FluentTheme.of(context),
     ).merge(FluentSpinnerTheme.maybeOf(context)).merge(widget.style);
 
-    final spinner = _reducedMotion
-        ? buildFluentSpinner(state, resolved, const <WidgetState>{})
-        : AnimatedBuilder(
-            animation: _controller,
-            builder: (context, _) => buildFluentSpinner(
-              state,
-              resolved,
-              const <WidgetState>{},
-              pose: FluentSpinnerPose.at(_controller.value),
-            ),
-          );
+    final spinner = AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) => buildFluentSpinner(
+        state,
+        resolved,
+        const <WidgetState>{},
+        pose: _reducedMotion
+            ? FluentSpinnerPose.reduced(_controller.value)
+            : FluentSpinnerPose.at(_controller.value),
+      ),
+    );
 
     return Semantics(
       label: widget.semanticLabel,

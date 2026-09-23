@@ -38,8 +38,10 @@ void main() {
 
   goldenGridTest('spinner', grid, elapsed: elapsed);
 
-  // With animations disabled the controller never starts, so the arc parks at
-  // its rest angle. Light only: the path is about motion, not tokens.
+  // With animations disabled the tail holds still as a fading arc while the
+  // ring turns once per 1.8s, so 750ms in, its solid head has turned 150° from
+  // 12 o'clock to about 5 o'clock. Light only: the path is about motion, not
+  // tokens.
   testWidgets('spinner, reduced motion — light', (tester) async {
     await expectGolden(
       tester,

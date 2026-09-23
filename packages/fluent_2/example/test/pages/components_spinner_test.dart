@@ -64,8 +64,8 @@ void main() {
         poses.first.tailSweep,
         isNot(closeTo(FluentSpinnerPose.resting.tailSweep, 0.0001)),
         reason:
-            'the resting pose is what reduced motion paints, not what a '
-            'running spinner holds',
+            "the resting pose is Figma's still drawing, not what a running "
+            'spinner holds',
       );
     });
 
