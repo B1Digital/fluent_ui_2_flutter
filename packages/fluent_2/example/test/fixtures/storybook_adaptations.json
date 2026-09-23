@@ -172,7 +172,7 @@
   },
   "charts-linechart--line-chart-events": {
     "kind": "reduced",
-    "why": "eventAnnotationProps splits into eventAnnotations + eventAnnotationMergedLabel; labelHeight, labelWidth, strokeColor and labelColor are not forwarded by FluentLineChart, so they are dropped. The '<input type=\"color\">' renders as its FluentLabel only \u2014 upstream's customEventAnnotationColor is a const undefined, so the control is inert there too, and our chart exposes no annotation-colour prop. yAxisTickFormat d3.format('$,') is hand-written as a String Function(double)."
+    "why": "eventAnnotationProps splits into eventAnnotations + eventAnnotationMergedLabel + eventAnnotationStrokeColor + eventAnnotationLabelColor; labelHeight and labelWidth are not forwarded by FluentLineChart, so they are dropped. The '<input type=\"color\">' becomes a FluentSwatchPicker whose pick feeds both colour props \u2014 live here, where upstream's customEventAnnotationColor is a const undefined and its input is never read. yAxisTickFormat d3.format('$,') is hand-written as a String Function(double)."
   },
   "charts-linechart--line-chart-gaps": {
     "kind": "reduced",
