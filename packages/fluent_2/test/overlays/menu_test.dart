@@ -1161,6 +1161,220 @@ void main() {
       expect(find.text('Values'), findsOneWidget);
       expect(fluentMenuHoverDelay, const Duration(milliseconds: 500));
     });
+
+    // Every way into `_openSubmenu` — the hover timer, a click, Enter — used to
+    // tear the open submenu down and push a fresh one, so each extra call
+    // replayed the entrance from opacity 0. A click lands one: the hover delay
+    // it beat was still pending, or the submenu it hit was already showing. The
+    // rest of the group is the hover timer outliving what it was armed for.
+    group('the entrance plays once, and only when asked', () {
+      late TestGesture mouse;
+
+      // Paste special > More > Deep, with 'Values' under 'More'.
+      List<FluentMenuItem> deep() => <FluentMenuItem>[
+        FluentMenuItem(
+          label: const Text('Paste special'),
+          submenu: <FluentMenuItem>[
+            FluentMenuItem(
+              label: const Text('More'),
+              submenu: <FluentMenuItem>[
+                FluentMenuItem(label: const Text('Deep'), onPressed: () {}),
+              ],
+            ),
+            FluentMenuItem(
+              label: const Text('Values'),
+              onPressed: () => invoked.add('Values'),
+            ),
+          ],
+        ),
+      ];
+
+      Future<void> pointAt(WidgetTester tester, String label) async {
+        mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: Offset.zero);
+        addTearDown(mouse.removePointer);
+        await mouse.moveTo(tester.getCenter(find.text(label)));
+      }
+
+      Future<void> moveTo(WidgetTester tester, String label) async {
+        await mouse.moveTo(tester.getCenter(find.text(label)));
+        await tester.pump();
+      }
+
+      Future<void> dwell(WidgetTester tester) async {
+        await tester.pump(fluentMenuHoverDelay);
+        await tester.pumpAndSettle();
+      }
+
+      // A real click: dwell, then a pixel and a half of drift.
+      Future<void> click(
+        WidgetTester tester, [
+        String label = 'Paste special',
+      ]) async {
+        await mouse.down(tester.getCenter(find.text(label)));
+        await tester.pump(const Duration(milliseconds: 90));
+        await mouse.moveBy(const Offset(1.5, 0));
+        await mouse.up();
+      }
+
+      /// Pumps [frames] 16ms frames and fails if the submenu ever fades back —
+      /// or is not there at all, which a close-instead-of-replay would be.
+      Future<void> expectNoReplay(
+        WidgetTester tester, {
+        int frames = 60,
+      }) async {
+        // Read before the first pump, while whatever was showing before the
+        // action is still mounted.
+        var last = find.text('Values').evaluate().isEmpty
+            ? 0.0
+            : entranceOpacity(tester);
+        for (var i = 0; i < frames; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+          expect(find.text('Values'), findsOneWidget, reason: 'frame $i');
+          final now = entranceOpacity(tester);
+          expect(now, greaterThanOrEqualTo(last), reason: 'frame $i');
+          last = now;
+        }
+        expect(last, 1);
+      }
+
+      Future<void> expectStaysClosed(WidgetTester tester, String label) async {
+        for (var i = 0; i < 45; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+          expect(find.text(label), findsNothing, reason: 'frame $i');
+        }
+      }
+
+      testWidgets('a click that beats the hover delay', (tester) async {
+        await pumpMenu(tester, items(), triggerFocus: triggerFocus);
+        await open(tester);
+        await pointAt(tester, 'Paste special');
+        await tester.pump(const Duration(milliseconds: 100));
+
+        await click(tester);
+        // Runs well past the 500ms the hover timer was armed for.
+        await expectNoReplay(tester);
+      });
+
+      // Clicking straight through two levels inside the first row's delay: that
+      // row's timer, left armed, collapsed everything below its submenu.
+      testWidgets('a click-through is not undone by the delay it beat', (
+        tester,
+      ) async {
+        await pumpMenu(tester, deep(), triggerFocus: triggerFocus);
+        await open(tester);
+        await pointAt(tester, 'Paste special');
+        await tester.pump(const Duration(milliseconds: 50));
+        await click(tester);
+        await tester.pump();
+        await moveTo(tester, 'More');
+        await click(tester, 'More');
+
+        for (var i = 0; i < 45; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+          expect(find.text('Deep'), findsOneWidget, reason: 'frame $i');
+        }
+      });
+
+      testWidgets('a click on a row whose submenu is showing', (tester) async {
+        await pumpMenu(tester, items(), triggerFocus: triggerFocus);
+        await open(tester);
+        await pointAt(tester, 'Paste special');
+        await dwell(tester);
+        expect(entranceOpacity(tester), 1);
+
+        await click(tester);
+        await expectNoReplay(tester);
+      });
+
+      testWidgets('coming back to the parent row from the submenu', (
+        tester,
+      ) async {
+        await pumpMenu(tester, items(), triggerFocus: triggerFocus);
+        await open(tester);
+        await pointAt(tester, 'Paste special');
+        await dwell(tester);
+
+        await moveTo(tester, 'Values');
+        await mouse.moveTo(tester.getCenter(find.text('Paste special')));
+        await expectNoReplay(tester);
+      });
+
+      // Focus goes into the row's submenu, so anything open below it has to
+      // go — or the chain on screen is not the one the keys are acting on.
+      testWidgets('a click on the grandparent row collapses to its submenu', (
+        tester,
+      ) async {
+        await pumpMenu(tester, deep(), triggerFocus: triggerFocus);
+        await open(tester);
+        await pointAt(tester, 'Paste special');
+        await dwell(tester);
+        await moveTo(tester, 'More');
+        await dwell(tester);
+        expect(find.text('Deep'), findsOneWidget);
+
+        await click(tester);
+        await expectNoReplay(tester);
+        expect(find.text('Deep'), findsNothing);
+
+        // One Escape closes one level: focus is in the submenu, not the root.
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pump();
+        expect(find.text('Values'), findsNothing);
+        expect(find.text('Paste special'), findsOneWidget);
+      });
+
+      testWidgets('a submenu closed inside the hover delay stays closed', (
+        tester,
+      ) async {
+        await pumpMenu(tester, items(), triggerFocus: triggerFocus);
+        await open(tester);
+        await pointAt(tester, 'Paste special');
+        await tester.pump(const Duration(milliseconds: 100));
+        await click(tester);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pump();
+        expect(find.text('Values'), findsNothing);
+
+        await expectStaysClosed(tester, 'Values');
+      });
+
+      // Coming back onto the row re-arms its timer, and Escape closes the
+      // submenu that timer was for.
+      testWidgets('so does one closed after the pointer came back', (
+        tester,
+      ) async {
+        await pumpMenu(tester, items(), triggerFocus: triggerFocus);
+        await open(tester);
+        await pointAt(tester, 'Paste special');
+        await dwell(tester);
+        await moveTo(tester, 'Values');
+        await moveTo(tester, 'Paste special');
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pump();
+        expect(find.text('Values'), findsNothing);
+
+        await expectStaysClosed(tester, 'Values');
+      });
+
+      // No row has an onExit, so a pointer that leaves 'More' straight for an
+      // ancestor row — crossing no sibling to cancel it — used to leave More's
+      // timer armed, and Deep opened under a pointer resting on the root.
+      testWidgets('a row the pointer left for an ancestor never opens', (
+        tester,
+      ) async {
+        await pumpMenu(tester, deep(), triggerFocus: triggerFocus);
+        await open(tester);
+        await pointAt(tester, 'Paste special');
+        await dwell(tester);
+        await moveTo(tester, 'More');
+        await tester.pump(const Duration(milliseconds: 100));
+
+        await moveTo(tester, 'Paste special');
+        await expectStaysClosed(tester, 'Deep');
+      });
+    });
   });
 
   // --- semantics ------------------------------------------------------------
