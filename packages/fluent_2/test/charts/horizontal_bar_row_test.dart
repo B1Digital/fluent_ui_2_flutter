@@ -172,7 +172,7 @@ void main() {
     });
   });
 
-  test('the painter draws every bar, including the one past the edge', () {
+  test('the painter draws every bar, the last one ending at the edge', () {
     final layout = FluentHorizontalBarRowLayout.compute(
       points: <FluentChartDataPoint>[point(30), point(40), point(30)],
       rowWidth: 400,
@@ -181,11 +181,10 @@ void main() {
     );
     expect(
       layout.rectOf(2, 12).right,
-      greaterThan(400),
+      closeTo(400, 1e-9),
       reason:
-          'The painter must not clip: '
-          'useHorizontalBarChartStyles.styles.ts:49 is overflow: visible, so '
-          'the overflow is part of the rendering.',
+          'The layout makes room for both 3px gaps, so no bar needs '
+          'clipping; upstream ends this row at 406.',
     );
     final canvas = record(
       FluentHorizontalBarStripPainter(
@@ -405,7 +404,8 @@ void main() {
         // (`HorizontalBarChart.tsx:309-315`), so the captured share is the
         // point's percentage of the total and feeding it back in with a total
         // of 100 reconstructs the input. The second point is the placeholder
-        // upstream synthesises as `total - x` (`:400-413`).
+        // upstream synthesises as `total - x` (`:400-413`); it is drawn as the
+        // label, so it takes no gap and the value bar keeps its full share.
         final share = rect.width!;
         final layout = FluentHorizontalBarRowLayout.compute(
           points: <FluentChartDataPoint>[
@@ -425,6 +425,7 @@ void main() {
           rowWidth: svg.width,
           barGap: barGap,
           isRtl: false,
+          absoluteLabelIndex: 1,
         );
 
         final canvas = record(
@@ -521,6 +522,7 @@ void main() {
       rowWidth: 400,
       barGap: 3,
       isRtl: true,
+      absoluteLabelIndex: 1,
     );
     final canvas = record(
       FluentHorizontalBarStripPainter(

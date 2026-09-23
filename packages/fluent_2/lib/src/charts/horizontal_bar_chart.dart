@@ -54,9 +54,9 @@ class FluentHorizontalBarSegment {
 
 /// The resolved geometry of one horizontal-bar row.
 ///
-/// A literal port of `_createBars` (`HorizontalBarChart.tsx:218-333`), kept
-/// pure so the two upstream defects it reproduces can be asserted numerically
-/// without a widget tree.
+/// A port of `_createBars` (`HorizontalBarChart.tsx:218-333`), kept pure so
+/// its arithmetic can be asserted numerically without a widget tree. It departs
+/// from upstream only where upstream overflows the row; see [compute].
 @immutable
 class FluentHorizontalBarRowLayout {
   const FluentHorizontalBarRowLayout._({
@@ -76,28 +76,37 @@ class FluentHorizontalBarRowLayout {
   /// paint runs with a gap of 0 and only the second has the real value; a
   /// `LayoutBuilder` gives Flutter the width on the first frame, which is a
   /// deliberate improvement and changes nothing after the first frame.
+  ///
+  /// Upstream means to shrink the bars into the room the gaps leave
+  /// (`:253-261`), but two errors turn that into an overflow. It counts its
+  /// bars from `point.data` (`:219-221`), which is the BENCHMARK field
+  /// (types/DataPoint.ts:112-159), so an ordinary row counts one bar and
+  /// reserves no room. It then DIVIDES by the scaling ratio (`:274`, `:276`),
+  /// which would grow the bars as soon as there was room to reserve. The bars
+  /// always fill 100%, and the gaps push a row of n bars `(n - 1) * barGap` px
+  /// past its edge (past its leading edge under RTL). This port counts the bars
+  /// that paint, shrinks them into the room the gaps leave, and offsets each
+  /// one by the gaps before it, so the row ends at [rowWidth].
+  ///
+  /// [absoluteLabelIndex] is the placeholder that the absolute-scale variant
+  /// draws as a label instead of a bar (`:284`). It takes no gap, so the value
+  /// bar keeps its exact share of the scale.
   static FluentHorizontalBarRowLayout compute({
     required List<FluentChartDataPoint> points,
     required double rowWidth,
     required double barGap,
     required bool isRtl,
+    int? absoluteLabelIndex,
   }) {
     // HorizontalBarChart.tsx:366 — the gap is converted to a percentage of the
     // same width every x is a percentage of, so it resolves back to exactly
-    // `index * barGap` pixels.
+    // `barGap` pixels between neighbouring bars.
     final gapPercent = rowWidth == 0 ? 0.0 : (barGap / rowWidth) * 100;
 
-    // parity: HorizontalBarChart.tsx:219-221 counts `point.data`, which is the
-    // BENCHMARK field (types/DataPoint.ts:112-159), not the bar value. For
-    // ordinary data every `point.data` is null, the reduce yields 0, and the
-    // `|| 1` makes this 1 — so `totalMarginPercent` below is always 0 and the
-    // bars are never shrunk to make room for the gaps.
-    var barCount = 0;
-    for (final point in points) {
-      if ((point.data ?? 0) > 0) barCount++;
-    }
-    if (barCount == 0) barCount = 1;
-    final totalMarginPercent = gapPercent * (barCount - 1);
+    // A bar is spaced from the next when it paints: its share is positive (a
+    // zero or negative share is zero wide) and it is not the label.
+    bool takesGap(int index, double share) =>
+        share > 0 && index != absoluteLabelIndex;
 
     // HorizontalBarChart.tsx:232-236 — a null or zero x contributes nothing.
     var total = 0.0;
@@ -105,11 +114,14 @@ class FluentHorizontalBarRowLayout {
       total += point.horizontalBarChartData?.x ?? 0;
     }
 
-    // Pass one: the clamped sum (HorizontalBarChart.tsx:240-252).
+    // Pass one: the clamped sum (HorizontalBarChart.tsx:240-252), and the bars
+    // that upstream's `noOfBars` (:219-221) means to count.
     var sumOfPercent = 0.0;
-    for (final point in points) {
-      final pointData = point.horizontalBarChartData?.x ?? 0;
+    var barCount = 0;
+    for (var index = 0; index < points.length; index++) {
+      final pointData = points[index].horizontalBarChartData?.x ?? 0;
       var value = total == 0 ? 0.0 : (pointData / total) * 100;
+      if (takesGap(index, value)) barCount++;
       if (value < 0) {
         value = 0;
       } else if (value < 1 && value != 0) {
@@ -118,21 +130,21 @@ class FluentHorizontalBarRowLayout {
       }
       sumOfPercent += value;
     }
+    final totalMarginPercent = barCount < 2 ? 0.0 : gapPercent * (barCount - 1);
 
-    // parity: HorizontalBarChart.tsx:262 — the comment above it at :253-261
-    // describes shrinking the bars to leave room for the margins, but the
-    // value is then DIVIDED by this ratio at :274 and :276, which grows them
-    // whenever the ratio is below 1. The noOfBars defect keeps the margin at 0
-    // for ordinary data, where the division degenerates to `v * 100 / sum` and
-    // the two errors cancel to exactly 100%.
+    // HorizontalBarChart.tsx:262, inverted: pass two divides by this ratio, so
+    // the bars scale down to the `100 - totalMarginPercent` the gaps leave.
+    // ponytail: a row narrower than its own gaps paints zero-width bars; shrink
+    // the gap instead if such rows ever matter.
     final scalingRatio = sumOfPercent != 0
-        ? (sumOfPercent - totalMarginPercent) / 100
+        ? sumOfPercent / (100 - totalMarginPercent).clamp(0.0, 100.0)
         : 1.0;
 
     // Pass two: positions (HorizontalBarChart.tsx:264-278).
     final segments = <FluentHorizontalBarSegment>[];
     var prevPosition = 0.0;
     var value = 0.0;
+    var gaps = 0;
     for (var index = 0; index < points.length; index++) {
       // parity: the accumulator adds the PREVIOUS iteration's value before
       // this one is computed (HorizontalBarChart.tsx:267-269), so it lags by
@@ -140,6 +152,7 @@ class FluentHorizontalBarRowLayout {
       if (index > 0) prevPosition += value;
       final pointData = points[index].horizontalBarChartData?.x ?? 0;
       value = total == 0 ? 0.0 : (pointData / total) * 100;
+      final spaced = takesGap(index, value);
       if (value < 0) {
         value = 0;
       } else if (value < 1 && value != 0) {
@@ -153,13 +166,15 @@ class FluentHorizontalBarRowLayout {
           index: index,
           startPercent: startPercent,
           widthPercent: value,
+          // HorizontalBarChart.tsx:311-312 offset by `index` gaps, which also
+          // counts the gap after a zero-width bar; this counts only the gaps
+          // after the painted bars before this one.
           xPercent: isRtl
-              // HorizontalBarChart.tsx:311.
-              ? 100 - startPercent - value - index * gapPercent
-              // HorizontalBarChart.tsx:312.
-              : startPercent + index * gapPercent,
+              ? 100 - startPercent - value - gaps * gapPercent
+              : startPercent + gaps * gapPercent,
         ),
       );
+      if (spaced) gaps++;
     }
 
     return FluentHorizontalBarRowLayout._(
@@ -192,9 +207,8 @@ class FluentHorizontalBarRowLayout {
 
   /// The painted rectangle of the bar at [index].
   ///
-  /// The result may extend past [rowWidth] — that is the upstream overflow,
-  /// and nothing clips it because the svg is `overflow: visible`
-  /// (`useHorizontalBarChartStyles.styles.ts:49`).
+  /// No bar extends past [rowWidth]: [compute] makes room for the gaps that
+  /// upstream lets overflow.
   Rect rectOf(int index, double barHeight) {
     final segment = segments[index];
     return Rect.fromLTWH(
@@ -242,7 +256,7 @@ enum FluentChartDataMode {
 ///
 /// Bars are drawn in `chartData` order with no stroke, no corner radius and no
 /// shadow (`HorizontalBarChart.tsx:306-330`), and the painter deliberately does
-/// not clip: the last bar of a full row ends `(n - 1) * 3` px past the row edge
+/// not clip: the absolute-scale label of a full bar starts past the row edge
 /// and upstream shows it, because the svg is `overflow: visible`
 /// (`useHorizontalBarChartStyles.styles.ts:49`).
 class FluentHorizontalBarStripPainter extends CustomPainter {
@@ -467,8 +481,8 @@ class FluentHorizontalBarChartTheme extends InheritedTheme {
 /// optional benchmark marker and a shared legend below.
 ///
 /// There is no d3 here — every position is percentage arithmetic over the row
-/// width. See [FluentHorizontalBarRowLayout] for the two upstream defects that
-/// arithmetic reproduces.
+/// width. See [FluentHorizontalBarRowLayout.compute] for where that arithmetic
+/// departs from upstream.
 class FluentHorizontalBarChart extends StatefulWidget {
   /// Creates a horizontal bar chart.
   const FluentHorizontalBarChart({
@@ -880,18 +894,19 @@ class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final layout = FluentHorizontalBarRowLayout.compute(
-          points: points,
-          rowWidth: constraints.maxWidth,
-          barGap: resolved.barGap!.resolve(states)!,
-          isRtl: direction == TextDirection.rtl,
-        );
-        final dimmed = resolved.dimmedOpacity!.resolve(states)!;
         // HorizontalBarChart.tsx:284 — only the absolute-scale variant swaps
         // the placeholder rect for a text.
         final placeholderIndex = isAbsolute
             ? points.indexWhere((p) => p.placeHolder)
             : -1;
+        final layout = FluentHorizontalBarRowLayout.compute(
+          points: points,
+          rowWidth: constraints.maxWidth,
+          barGap: resolved.barGap!.resolve(states)!,
+          isRtl: direction == TextDirection.rtl,
+          absoluteLabelIndex: placeholderIndex == -1 ? null : placeholderIndex,
+        );
+        final dimmed = resolved.dimmedOpacity!.resolve(states)!;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
