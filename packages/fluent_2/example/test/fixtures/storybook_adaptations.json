@@ -1599,11 +1599,11 @@
   },
   "components-tagpicker--default": {
     "kind": "slot",
-    "why": "FluentAvatar derives neither initials nor a colourful palette family from `name`, so both are spelled out per employee; `TagPickerGroup aria-label=\"Selected Employees\"` has no port because the chips are not a separately labellable group. Upstream's `no-options` guard becomes a disabled option row appended when every value is chosen."
+    "why": "FluentAvatar derives neither initials nor a colourful palette family from `name`, so both are spelled out per employee — the row's square 32 `media` and, in `FluentTagPickerOption.tagMedia`, the Tag's own 16 with its single initial; `TagPickerGroup aria-label=\"Selected Employees\"` has no port because the chips are not a separately labellable group. Upstream's `no-options` guard becomes a disabled option row appended when every value is chosen."
   },
   "components-tagpicker--disabled": {
     "kind": "model",
-    "why": "`onChanged: null` is how the picker is disabled here, which also removes the chips' dismiss affordance; upstream keeps `selectedOptions` editable from outside a disabled TagPicker."
+    "why": "`onChanged: null` is how the picker is disabled here, which leaves each chip's dismiss glyph greyed and inert; upstream keeps `selectedOptions` editable from outside a disabled TagPicker."
   },
   "components-tagpicker--expand-icon": {
     "kind": "slot",
@@ -1619,7 +1619,7 @@
   },
   "components-tagpicker--no-popover": {
     "kind": "composed",
-    "why": "`noPopover` has no port, and neither does `TagPickerInput onKeyDown`: FluentTagPicker owns its field and binds Enter to 'commit the active option'. The control is composed from the parts the picker itself uses \u2014 a FluentInput whose onSubmitted adds the typed text, over a Wrap of FluentInteractionTag chips. Verified: typing a name and submitting adds a chip."
+    "why": "`noPopover` has no port, and neither does `TagPickerInput onKeyDown`: FluentTagPicker owns its field and binds Enter to 'commit the active option'. The control is composed from the parts the picker itself uses \u2014 a FluentInput whose onSubmitted adds the typed text, over a Wrap of dismissible FluentTag chips, as upstream's Tags are. Verified: typing a name and submitting adds a chip."
   },
   "components-tagpicker--secondary-action": {
     "kind": "slot",

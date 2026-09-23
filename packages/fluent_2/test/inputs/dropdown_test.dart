@@ -657,6 +657,87 @@ void main() {
       expect(accentScale(tester), 0);
     });
 
+    testWidgets('a held mouse press focuses at pointer-down; the click opens', (
+      tester,
+    ) async {
+      // Chrome focuses the `<button>` on mousedown — left or right — so the
+      // bar grows while the press is held; the popup waits for the click,
+      // and a right press never opens it. The dropdown above holds focus
+      // first: its outside-press blur must not undo this one's focus.
+      final first = FocusNode();
+      final node = FocusNode();
+      addTearDown(first.dispose);
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            FluentDropdown<String>(
+              focusNode: first,
+              options: options,
+              onChanged: _ignore,
+            ),
+            FluentDropdown<String>(
+              key: key,
+              focusNode: node,
+              options: options,
+              onChanged: _ignore,
+            ),
+          ],
+        ),
+      );
+      first.requestFocus();
+      await tester.pumpAndSettle();
+      final centre = tester.getCenter(find.byKey(key));
+
+      for (final buttons in <int>[kPrimaryButton, kSecondaryMouseButton]) {
+        first.requestFocus();
+        await tester.pumpAndSettle();
+        final mouse = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+          buttons: buttons,
+        );
+        await mouse.addPointer(location: centre);
+        await mouse.down(centre);
+        await tester.pumpAndSettle();
+        expect(node.hasFocus, isTrue, reason: 'buttons $buttons, held');
+        expect(accentScale(tester), 1, reason: 'buttons $buttons, held');
+        expect(find.text('Lisbon'), findsNothing, reason: 'not yet open');
+
+        await mouse.up();
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Lisbon'),
+          buttons == kPrimaryButton ? findsOneWidget : findsNothing,
+          reason: 'buttons $buttons, released',
+        );
+        await mouse.removePointer();
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+      }
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('a disabled trigger shows the not-allowed cursor', (
+      tester,
+    ) async {
+      // `disabled: { cursor: 'not-allowed' }` on the button, as Chrome shows
+      // it.
+      await pump(
+        tester,
+        const FluentDropdown<String>(key: key, options: options),
+      );
+      // A mouse `TestPointer` is device 1.
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(find.byKey(key)));
+      addTearDown(mouse.removePointer);
+      await tester.pump();
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+        SystemMouseCursors.forbidden,
+      );
+    });
+
     testWidgets('focus moves the outline to Pressed, and hover wins over it', (
       tester,
     ) async {

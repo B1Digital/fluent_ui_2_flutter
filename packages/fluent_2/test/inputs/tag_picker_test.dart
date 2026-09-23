@@ -310,7 +310,12 @@ void main() {
       expect(find.byType(EditableText), findsOneWidget);
     });
 
-    testWidgets('chips are FluentInteractionTags', (tester) async {
+    testWidgets('chips are plain dismissible FluentTags, as upstream draws', (
+      tester,
+    ) async {
+      // Every upstream TagPicker story puts a `<Tag>` in the `TagPickerGroup`,
+      // not an InteractionTag: no divider, and on the extra-small tag a medium
+      // picker uses, 20 tall with a 12px dismiss glyph (Chrome).
       await tester.pumpWidget(
         app(
           FluentTagPicker<String>(
@@ -321,9 +326,87 @@ void main() {
           ),
         ),
       );
-      expect(find.byType(FluentInteractionTag), findsNWidgets(2));
+      expect(find.byType(FluentTag), findsNWidgets(2));
+      expect(find.byType(FluentInteractionTag), findsNothing);
       expect(find.text('Katri'), findsOneWidget);
       expect(find.text('Ben'), findsOneWidget);
+      final chip = find.byType(FluentTag).first;
+      expect(tester.getSize(chip).height, 20);
+      expect(
+        tester.getSize(
+          find.descendant(
+            of: chip,
+            matching: find.byType(FluentTagDismissGlyph),
+          ),
+        ),
+        const Size.square(12),
+      );
+    });
+
+    testWidgets('a chip draws tagMedia, and falls back to media', (
+      tester,
+    ) async {
+      // Upstream's stories hand the Tag and the TagPickerOption separate
+      // avatars: 16 in the extra-small chip, 32 in a 44-tall row.
+      const chipMedia = Key('chip media');
+      const katRow = Key('kat row media');
+      const benRow = Key('ben row media');
+      var selected = <String>['kat'];
+      await tester.pumpWidget(
+        app(
+          StatefulBuilder(
+            builder: (context, setState) => FluentTagPicker<String>(
+              key: key,
+              options: const <FluentTagPickerOption<String>>[
+                FluentTagPickerOption<String>(
+                  value: 'kat',
+                  label: Text('Katri'),
+                  media: SizedBox.square(key: katRow, dimension: 32),
+                  tagMedia: SizedBox.square(key: chipMedia, dimension: 16),
+                ),
+                FluentTagPickerOption<String>(
+                  value: 'ben',
+                  label: Text('Ben'),
+                  media: SizedBox.square(key: benRow, dimension: 16),
+                ),
+              ],
+              selected: selected,
+              autofocus: true,
+              onChanged: (value) => setState(() => selected = value),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(
+        find.descendant(
+          of: find.byType(FluentTag),
+          matching: find.byKey(chipMedia),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(katRow), findsNothing);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byType(FluentTag),
+          matching: find.byKey(benRow),
+        ),
+        findsNothing,
+        reason: 'Ben is a row, not a chip',
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byType(FluentTag),
+          matching: find.byKey(benRow),
+        ),
+        findsOneWidget,
+        reason: 'no tagMedia: the chip reuses media',
+      );
     });
 
     testWidgets('the accent bar is FluentInput\'s own focus underline', (
@@ -672,6 +755,60 @@ void main() {
       }
     });
 
+    testWidgets(
+      'the secondary action spans the control; the chevron stays up',
+      (tester) async {
+        // `components-tagpicker--secondary-action` in Chrome, at 400 and forced
+        // to wrap at 260: the aside and its button run the full inner height
+        // (32, then 64) with the label centred in it, flush after the content;
+        // only the expand icon is `alignSelf: flex-start`, its glyph 9 down,
+        // 2 after the button.
+        for (final (width, selected) in <(double, List<String>)>[
+          (400, <String>['kat']),
+          (260, <String>['kat', 'ben']),
+        ]) {
+          await tester.pumpWidget(
+            FluentApp(
+              theme: light,
+              home: Center(
+                child: SizedBox(
+                  width: width,
+                  child: FluentTagPicker<String>(
+                    key: key,
+                    options: options,
+                    selected: selected,
+                    onChanged: _noop,
+                    secondaryAction: FluentButton(
+                      appearance: FluentButtonAppearance.transparent,
+                      size: FluentButtonSize.small,
+                      onPressed: () {},
+                      child: const Text('All Clear'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+          final reason = 'at $width';
+          final box = tester.getRect(find.byKey(key));
+          final button = tester.getRect(find.byType(FluentButton));
+          final label = tester.getRect(find.text('All Clear'));
+          final chevron = tester.getRect(find.byIcon(fluentTagPickerChevron));
+          if (width == 260) expect(box.height, greaterThan(34), reason: reason);
+          expect(button.top, box.top + 1, reason: '$reason: button top');
+          expect(button.bottom, box.bottom - 1, reason: '$reason: button end');
+          expect(label.center.dy, button.center.dy, reason: '$reason: label');
+          expect(chevron.top - box.top, 9, reason: '$reason: chevron top');
+          expect(chevron.left - button.right, 2, reason: '$reason: icon gap');
+          expect(
+            button.left,
+            tester.getRect(find.byType(Wrap)).right,
+            reason: '$reason: the aside follows the content directly',
+          );
+        }
+      },
+    );
+
     testWidgets('the chevron toggles the popup and keeps focus in the field', (
       tester,
     ) async {
@@ -988,9 +1125,7 @@ void main() {
               ),
             ),
           );
-          final tag = tester.widget<FluentInteractionTag>(
-            find.byType(FluentInteractionTag),
-          );
+          final tag = tester.widget<FluentTag>(find.byType(FluentTag));
           expect(tag.size, entry.value, reason: entry.key.name);
           expect(
             tag.appearance,
@@ -1423,11 +1558,10 @@ void main() {
       final input = tester.widget<FluentInput>(find.byType(FluentInput));
       expect(input.enabled, isFalse);
 
-      final tag = tester.widget<FluentInteractionTag>(
-        find.byType(FluentInteractionTag),
-      );
-      expect(tag.onPressed, isNull);
-      expect(tag.onDismiss, isNull);
+      // Upstream's disabled story keeps each chip's dismiss glyph, greyed.
+      final tag = tester.widget<FluentTag>(find.byType(FluentTag));
+      expect(tag.enabled, isFalse);
+      expect(find.byType(FluentTagDismissGlyph), findsOneWidget);
 
       await tester.tap(find.byKey(key));
       await tester.pump();
@@ -1549,8 +1683,65 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
       expect(selected, <String>['kat']);
-      expect(find.byType(FluentInteractionTag), findsOneWidget);
+      expect(find.byType(FluentTag), findsOneWidget);
+
+      // The field is still the one taking keys, as upstream's input is.
+      tester.testTextInput.enterText('B');
+      await tester.pumpAndSettle();
+      expect(find.text('B'), findsOneWidget);
     });
+
+    testWidgets('only a printable key reopens a closed list', (tester) async {
+      // Upstream opens on `getDropdownActionFromKey(...) === 'Type'`: one
+      // printable character, not Space, with no Alt, Ctrl or Meta. Measured
+      // in Chrome: Space lands in the input and Backspace deletes it with the
+      // list still shut; a letter or a digit opens it. A desktop embedder
+      // reports Backspace as the control character it is, which is not
+      // typing either.
+      final controller = TextEditingController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        app(
+          FluentTagPicker<String>(
+            key: key,
+            options: options,
+            controller: controller,
+            autofocus: true,
+            onChanged: _noop,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Ben'), findsNothing);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      tester.testTextInput.enterText(' ');
+      await tester.pumpAndSettle();
+      expect(controller.text, ' ');
+      expect(find.text('Ben'), findsNothing, reason: 'Space');
+
+      await tester.sendKeyEvent(
+        LogicalKeyboardKey.backspace,
+        character: '\x7f',
+      );
+      await tester.pumpAndSettle();
+      expect(controller.text, isEmpty);
+      expect(find.text('Ben'), findsNothing, reason: 'Backspace');
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.pumpAndSettle();
+      expect(find.text('Ben'), findsNothing, reason: 'Meta+V');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyB);
+      await tester.pumpAndSettle();
+      expect(find.text('Ben'), findsOneWidget, reason: 'a letter');
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
     testWidgets('Escape closes without selecting', (tester) async {
       var selected = <String>[];
@@ -1734,6 +1925,97 @@ void main() {
 
       expect(selected, <String>['ben']);
     });
+
+    testWidgets(
+      'a mouse pick keeps the field focused, and typing reopens the list',
+      (tester) async {
+        // Upstream, measured in Chrome: after the first pick the list closes,
+        // the input keeps focus, and a typed character lands in it and opens
+        // the list again.
+        final node = FocusNode();
+        addTearDown(node.dispose);
+        var selected = <String>[];
+        await tester.pumpWidget(
+          app(
+            StatefulBuilder(
+              builder: (context, setState) => FluentTagPicker<String>(
+                key: key,
+                options: options,
+                selected: selected,
+                focusNode: node,
+                onChanged: (value) => setState(() => selected = value),
+              ),
+            ),
+          ),
+        );
+
+        await click(tester, find.byKey(key));
+        expect(find.text('Ben'), findsOneWidget, reason: 'the click opened');
+        await click(tester, find.text('Katri'));
+        expect(selected, <String>['kat']);
+        expect(node.hasFocus, isTrue, reason: 'the pick kept focus');
+        expect(find.text('Ben'), findsNothing, reason: 'the pick closed');
+
+        // A keystroke is its key event, then the text it inserts.
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyB);
+        tester.testTextInput.enterText('Be');
+        await tester.pumpAndSettle();
+        expect(find.text('Be'), findsOneWidget, reason: 'typed into the field');
+        expect(find.text('Ben'), findsOneWidget, reason: 'typing reopened');
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets(
+      "a click on a chip's body dismisses it and leaves the list shut",
+      (tester) async {
+        // Upstream's dismissible `Tag` is one `<button>`: a left click
+        // anywhere on it dismisses (Chrome), and the control's mousedown
+        // toggle skips it, because it only fires on the root, the group
+        // itself, the aside and the expand icon. The body shows the arrow.
+        // Middle and right clicks do nothing.
+        var selected = <String>['kat', 'ben'];
+        await tester.pumpWidget(
+          app(
+            StatefulBuilder(
+              builder: (context, setState) => FluentTagPicker<String>(
+                key: key,
+                options: options,
+                selected: selected,
+                onChanged: (value) => setState(() => selected = value),
+              ),
+            ),
+          ),
+        );
+
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: tester.getCenter(find.text('Katri')));
+        addTearDown(mouse.removePointer);
+        await tester.pump();
+        expect(
+          RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+          SystemMouseCursors.basic,
+        );
+
+        for (final buttons in <int>[kMiddleMouseButton, kSecondaryButton]) {
+          final other = await tester.createGesture(
+            kind: PointerDeviceKind.mouse,
+            buttons: buttons,
+          );
+          await other.down(tester.getCenter(find.text('Ben')));
+          await tester.pump();
+          await other.up();
+          await tester.pumpAndSettle();
+          expect(selected, <String>['kat', 'ben'], reason: 'buttons $buttons');
+          expect(find.text('Ola'), findsNothing, reason: 'buttons $buttons');
+        }
+
+        await click(tester, find.text('Katri'));
+        expect(selected, <String>['ben']);
+        expect(find.text('Ola'), findsNothing, reason: 'the list stays shut');
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
 
     testWidgets('a chip dismiss counts as inside: chip goes, list stays', (
       tester,

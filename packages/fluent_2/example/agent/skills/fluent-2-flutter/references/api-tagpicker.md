@@ -74,7 +74,7 @@ const FluentTagPicker({
 | `optionStyle` | `FluentDropdownOptionStyle?` | No | `null` | Row overrides layered over the theme defaults. Merged last, so it wins. |
 | `autofocus` | `bool` | No | `false` | Whether the field takes focus on mount. |
 | `semanticLabel` | `String?` | No | `null` | Announced by assistive technology. Use it when no visible label names the picker — a placeholder is not a label. |
-| `dismissSemanticLabel` | `String?` | No | `null` | Announced for a chip's dismiss half, which has no text of its own. |
+| `dismissSemanticLabel` | `String?` | No | `null` | Announced for a chip's dismiss glyph, which has no text of its own. |
 
 #### State, callback, and accessibility fields
 
@@ -211,6 +211,7 @@ const FluentTagPickerOption({
     required T value,
     required this.label,
     this.media,
+    this.tagMedia,
     this.enabled = true,
     this.text,
     // An initializing formal cannot be written here: the field is private and a
@@ -224,6 +225,7 @@ const FluentTagPickerOption({
 | `value` | `T` | Yes | — | The value represented, selected, or supplied by this API. |
 | `label` | `Widget` | Yes | — | What the row renders. |
 | `media` | `Widget?` | No | `null` | Leading media — normally a `FluentAvatar`. Null leaves the slot out entirely rather than reserving it. |
+| `tagMedia` | `Widget?` | No | `null` | The chip's leading media once the option is chosen. Null reuses [media]. |
 | `enabled` | `bool` | No | `true` | Whether the option can be chosen. Headers never are. |
 | `text` | `String?` | No | `null` | Plain text for assistive technology. Supply it when [label] is a glyph or a rich widget rather than a `Text`. |
 

@@ -1,7 +1,7 @@
 import 'package:fluent_2/fluent_2.dart';
 import 'package:fluent_2/src/internal/input_modality.dart';
 import 'package:flutter/gestures.dart'
-    show PointerDeviceKind, kSecondaryMouseButton;
+    show PointerDeviceKind, kPrimaryButton, kSecondaryMouseButton;
 import 'package:flutter/rendering.dart' show RendererBinding;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -697,6 +697,89 @@ void main() {
       await tester.pumpAndSettle();
     });
 
+    testWidgets('a held mouse press focuses at pointer-down; the click opens', (
+      tester,
+    ) async {
+      // Chrome focuses the `<input>` on mousedown — left or right — so the
+      // bar grows while the press is held; the listbox waits for the click,
+      // and a right press never opens it. The picker above holds focus
+      // first: its outside-press blur must not undo this one's focus.
+      for (final freeform in <bool>[false, true]) {
+        final first = FocusNode();
+        final node = FocusNode();
+        addTearDown(first.dispose);
+        addTearDown(node.dispose);
+        await tester.pumpWidget(
+          FluentApp(
+            theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+            home: Center(
+              child: SizedBox(
+                width: 280,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    FluentTimePicker(
+                      dateAnchor: _anchor,
+                      focusNode: first,
+                      onTimeChange: _noop,
+                    ),
+                    FluentTimePicker(
+                      key: const Key('picker'),
+                      dateAnchor: _anchor,
+                      focusNode: node,
+                      freeform: freeform,
+                      startHour: 8,
+                      endHour: 11,
+                      increment: 60,
+                      hourCycle: FluentHourCycle.h23,
+                      onTimeChange: _noop,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        final picker = find.byKey(const Key('picker'));
+        final bar = find.descendant(
+          of: picker,
+          matching: find.byType(FluentInputFocusUnderline),
+        );
+        final centre = tester.getCenter(picker);
+
+        for (final buttons in <int>[kPrimaryButton, kSecondaryMouseButton]) {
+          final reason = 'freeform $freeform, buttons $buttons';
+          first.requestFocus();
+          await tester.pumpAndSettle();
+          final mouse = await tester.createGesture(
+            kind: PointerDeviceKind.mouse,
+            buttons: buttons,
+          );
+          await mouse.addPointer(location: centre);
+          await mouse.down(centre);
+          await tester.pumpAndSettle();
+          expect(node.hasFocus, isTrue, reason: '$reason, held');
+          expect(
+            tester.widget<FluentInputFocusUnderline>(bar).focused,
+            isTrue,
+            reason: '$reason, held',
+          );
+          expect(find.text('09:00'), findsNothing, reason: '$reason, held');
+
+          await mouse.up();
+          await tester.pumpAndSettle();
+          expect(
+            find.text('09:00'),
+            buttons == kPrimaryButton ? findsOneWidget : findsNothing,
+            reason: '$reason, released',
+          );
+          await mouse.removePointer();
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+          await tester.pumpAndSettle();
+        }
+      }
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
     testWidgets('a right press is not :active; the chevron is a pointer', (
       tester,
     ) async {
@@ -789,6 +872,32 @@ void main() {
           const BorderRadius.vertical(bottom: FluentRadius.medium),
         );
       }
+    });
+
+    testWidgets('a tight parent height stretches the box, bar and all', (
+      tester,
+    ) async {
+      // A CSS `height` sizes the border box, and `::after` sits on its bottom.
+      await tester.pumpWidget(
+        FluentApp(
+          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+          home: Center(
+            child: SizedBox(
+              width: 280,
+              height: 60,
+              child: FluentTimePicker(dateAnchor: _anchor, onTimeChange: _noop),
+            ),
+          ),
+        ),
+      );
+      final painted = find.descendant(
+        of: find.byType(FluentTimePicker),
+        matching: find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is FluentInputBorderPainter,
+        ),
+      );
+      expect(tester.getRect(painted).height, 60);
+      expect(tester.getRect(bar).bottom, tester.getRect(painted).bottom);
     });
 
     testWidgets('the text and the chevron sit on upstream\'s pixels', (

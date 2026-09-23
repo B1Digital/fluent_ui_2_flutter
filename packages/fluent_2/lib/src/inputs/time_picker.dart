@@ -1,8 +1,9 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/gestures.dart'
-    show TapDragUpDetails, kSecondaryMouseButton;
+    show PointerDeviceKind, TapDragUpDetails, kSecondaryMouseButton;
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 
@@ -699,6 +700,10 @@ Widget buildFluentTimePicker(
     child: Stack(
       // The bar overhangs a borderless root: see below.
       clipBehavior: Clip.none,
+      // Passthrough, so a parent's tight height reaches the field and stretches
+      // the box, as a CSS `height` would. A loose Stack laid the field out at
+      // its own height and pinned the bar to the bottom of the taller Stack.
+      fit: StackFit.passthrough,
       children: <Widget>[
         field,
         // `::after { left: -1px; right: -1px; bottom: -1px }` against the
@@ -1574,10 +1579,22 @@ class _FluentTimePickerState extends State<FluentTimePicker>
       // Chrome sets `:active` for the primary and middle buttons, not for a
       // right press (storybook).
       child: Listener(
-        onPointerDown: (event) => _setInteraction(
-          WidgetState.pressed,
-          value: event.buttons != kSecondaryMouseButton,
-        ),
+        onPointerDown: (event) {
+          _setInteraction(
+            WidgetState.pressed,
+            value: event.buttons != kSecondaryMouseButton,
+          );
+          // Chrome focuses the `<input>` on mousedown, whichever button, so
+          // the bar grows while a press is still held; the tap focuses only
+          // on release. A microtask later, so an outside-press blur dispatched
+          // after this on the same event — another field's — cannot undo it.
+          // Touch focuses on the tap, as a browser's does.
+          if (_enabled && event.kind == PointerDeviceKind.mouse) {
+            scheduleMicrotask(() {
+              if (mounted && _enabled) _focusNode.requestFocus();
+            });
+          }
+        },
         onPointerUp: (_) => _setInteraction(WidgetState.pressed, value: false),
         onPointerCancel: (_) =>
             _setInteraction(WidgetState.pressed, value: false),

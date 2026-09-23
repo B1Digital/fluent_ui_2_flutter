@@ -13,7 +13,6 @@ import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
 import '../internal/tap_group.dart';
 import '../l10n/l10n.dart';
-import '../surfaces/interaction_tag.dart';
 import '../surfaces/tag.dart';
 import 'dropdown_option.dart';
 import 'dropdown_option_style.dart';
@@ -110,6 +109,7 @@ class FluentTagPickerOption<T> {
     required T value,
     required this.label,
     this.media,
+    this.tagMedia,
     this.enabled = true,
     this.text,
     // An initializing formal cannot be written here: the field is private and a
@@ -125,6 +125,7 @@ class FluentTagPickerOption<T> {
   const FluentTagPickerOption.header({required this.label, this.text})
     : _value = null,
       media = null,
+      tagMedia = null,
       enabled = false,
       type = FluentDropdownOptionType.header;
 
@@ -142,6 +143,14 @@ class FluentTagPickerOption<T> {
   /// Leading media — normally a `FluentAvatar`. Null leaves the slot out
   /// entirely rather than reserving it.
   final Widget? media;
+
+  /// The chip's leading media once the option is chosen. Null reuses [media].
+  ///
+  /// Upstream renders the row and the chip as separate elements, and its
+  /// stories give them different avatars: 32 in a row, and in the chip the
+  /// size the tag sets — 16 / 20 / 28 on the extra-small / small / medium tag
+  /// a medium / large / extra-large picker uses.
+  final Widget? tagMedia;
 
   /// Whether the option can be chosen. Headers never are.
   final bool enabled;
@@ -621,17 +630,24 @@ Widget buildFluentTagPicker(
   // With no chips the field takes the whole line, which is the common case and
   // the one an empty picker must get right. With chips it joins the wrap at a
   // fixed width; see `FluentTagPickerStyle.fieldWidth`.
-  final Widget content = state.tags.isEmpty
-      ? Row(children: <Widget>[Expanded(child: state.field)])
-      : Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: <Widget>[
-            ...state.tags,
-            SizedBox(width: fieldWidth, child: state.field),
-          ],
-        );
+  //
+  // One Wrap either way, with the field always its last child, so the field's
+  // element survives the first chip arriving. A Row swapped for a Wrap there
+  // remounted the `EditableText` under a node that already had focus, and a
+  // new `EditableText` opens no input connection until focus *changes* — so
+  // after the first pick the field looked focused and swallowed every key.
+  final Widget content = Wrap(
+    spacing: spacing,
+    runSpacing: spacing,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    children: <Widget>[
+      ...state.tags,
+      SizedBox(
+        width: state.tags.isEmpty ? double.infinity : fieldWidth,
+        child: state.field,
+      ),
+    ],
+  );
 
   final secondary = state.secondaryAction == null
       ? null
@@ -696,31 +712,41 @@ Widget buildFluentTagPicker(
             ),
             child: Padding(
               padding: padding.add(widths),
-              // Upstream's aside — the secondary action, then the chevron — is
-              // pinned to the top of the control rather than centred on it, so
-              // wrapped chips grow the control downwards past a chevron that
-              // stays on the first line.
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Expanded(
-                    child: Padding(padding: contentPadding, child: content),
-                  ),
-                  if (secondary != null || expandIcon != null)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        if (secondary != null)
-                          Padding(
-                            padding: const EdgeInsetsDirectional.only(
-                              start: FluentSpacing.sNudge,
-                            ),
-                            child: secondary,
-                          ),
-                        ?expandIcon,
-                      ],
+              // Upstream's aside is positioned over the root's right padding,
+              // top to bottom, and follows the content directly. The
+              // secondary action stretches with it — its button runs the full
+              // inner height, label centred — while the expand icon alone is
+              // `alignSelf: flex-start`, so wrapped chips grow the control
+              // downwards past a chevron that stays on the first line. The
+              // content is the root's `alignItems: center`.
+              //
+              // ponytail: IntrinsicHeight is what lets a Row stretch to its
+              // tallest child under an unbounded parent; it costs a second
+              // measuring pass of a handful of chips, and it asserts on a
+              // `LayoutBuilder` in a chip label or the secondary action. A
+              // render object that lays the aside out after the content is
+              // the upgrade, if either ever matters.
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          Padding(padding: contentPadding, child: content),
+                        ],
+                      ),
                     ),
-                ],
+                    ?secondary,
+                    if (expandIcon != null)
+                      Align(
+                        alignment: AlignmentDirectional.topCenter,
+                        child: expandIcon,
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -859,7 +885,7 @@ class FluentTagPickerRemoveLastIntent extends Intent {
 /// ## Composition
 ///
 /// Nothing here re-implements a component this package already ships. The chips
-/// are `FluentInteractionTag`s, the field is a `FluentInput` with its chrome
+/// are dismissible `FluentTag`s, the field is a `FluentInput` with its chrome
 /// switched off (see [FluentTagPickerStyle.strippedInputStyle]), the popup rows
 /// are rendered by [buildFluentDropdownOption], and the accent bar is
 /// [FluentInputFocusUnderline]. Only the control's surface — the fill and the
@@ -988,7 +1014,7 @@ class FluentTagPicker<T> extends StatefulWidget {
   /// picker — a placeholder is not a label.
   final String? semanticLabel;
 
-  /// Announced for a chip's dismiss half, which has no text of its own.
+  /// Announced for a chip's dismiss glyph, which has no text of its own.
   ///
   /// Null takes the wording from the ambient [FluentLocalizations],
   /// which falls back to English when no delegate is installed.
@@ -1466,19 +1492,37 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     error: widget.error,
     appearance: widget.appearance,
     size: widget.size,
+    // Upstream's stories put a plain dismissible `Tag` in the group, not an
+    // InteractionTag: no divider, and the small dismiss glyph. A disabled
+    // picker keeps the glyph, greyed and inert, as upstream's disabled story
+    // does.
+    //
+    // That `Tag` is one `<button>`, so a left click anywhere on it dismisses
+    // it, over the arrow cursor, and the control's mousedown toggle skips it:
+    // that fires only on the root, the group itself, the aside and the expand
+    // icon (Chrome). `FluentTag` makes only its glyph a button, hence the tap
+    // here; the glyph's own still wins over it.
     tags: <Widget>[
       for (final value in widget.selected)
         if (_optionFor(value) case final option?)
-          FluentInteractionTag(
+          GestureDetector(
             key: ValueKey<T>(value),
-            size: _tagSize,
-            appearance: _tagAppearance,
-            icon: option.media,
-            onPressed: _enabled ? () => _focusNode.requestFocus() : null,
-            onDismiss: _enabled ? () => _remove(value) : null,
-            dismissSemanticLabel:
-                widget.dismissSemanticLabel ?? fluentL10n(context).remove,
-            child: option.label,
+            // The glyph is the chip's announced dismiss action.
+            excludeFromSemantics: true,
+            onTap: _enabled ? () => _remove(value) : null,
+            child: MouseRegion(
+              cursor: _enabled ? SystemMouseCursors.basic : MouseCursor.defer,
+              child: FluentTag(
+                size: _tagSize,
+                appearance: _tagAppearance,
+                enabled: _enabled,
+                icon: option.tagMedia ?? option.media,
+                onDismiss: () => _remove(value),
+                dismissSemanticLabel:
+                    widget.dismissSemanticLabel ?? fluentL10n(context).remove,
+                child: option.label,
+              ),
+            ),
           ),
     ],
     secondaryAction: widget.secondaryAction,
@@ -1519,14 +1563,42 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     // as it was: no close, no close-then-reopen.
     final field = Listener(
       onPointerUp: (_) => _openPopup(),
-      child: FluentInput(
-        controller: _controller,
-        focusNode: _focusNode,
-        enabled: _enabled,
-        autofocus: widget.autofocus,
-        placeholder: widget.placeholder,
-        style: style.strippedInputStyle(),
-        onSubmitted: (_) => _activate(),
+      // Typing opens the list, as upstream's input does after a pick or an
+      // Escape has closed it — on the key, not the edit: its
+      // `getDropdownActionFromKey` says 'Type' for one printable character
+      // that is not Space, with no Alt, Ctrl or Meta, so Space, Backspace and
+      // a paste change the text and leave the list shut (Chrome). A desktop
+      // embedder reports Escape, Backspace, Enter and Tab as control
+      // characters, which are not typing either. Ignored either way, so the
+      // key still reaches the field.
+      child: Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        includeSemantics: false,
+        onKeyEvent: (_, event) {
+          final character = event.character;
+          final keyboard = HardwareKeyboard.instance;
+          if (event is KeyDownEvent &&
+              character != null &&
+              character.length == 1 &&
+              character.trim().isNotEmpty &&
+              !LogicalKeyboardKey.isControlCharacter(character) &&
+              !keyboard.isAltPressed &&
+              !keyboard.isControlPressed &&
+              !keyboard.isMetaPressed) {
+            _openPopup();
+          }
+          return KeyEventResult.ignored;
+        },
+        child: FluentInput(
+          controller: _controller,
+          focusNode: _focusNode,
+          enabled: _enabled,
+          autofocus: widget.autofocus,
+          placeholder: widget.placeholder,
+          style: style.strippedInputStyle(),
+          onSubmitted: (_) => _activate(),
+        ),
       ),
     );
 
@@ -1575,7 +1647,7 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     //
     // `groupId: this` ties the control to the popup across the Overlay
     // boundary. Everything the user can point at that belongs to this picker is
-    // inside this subtree — the field, every chip including its dismiss half,
+    // inside this subtree — the field, every chip including its dismiss glyph,
     // and `secondaryAction` — so none of them dismiss.
     //
     // Known cost: `RenderTapRegionSurface` "does not participate in the gesture
@@ -1591,7 +1663,7 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
       onTapOutside: _open ? (_) => _close() : null,
       // In the field's group too — see the note in `_buildPopup`. The chips and
       // `secondaryAction` sit beside the `EditableText`, not inside it, so
-      // without this a click on a chip's dismiss half is a tap OUTSIDE the text
+      // without this a click on a chip's dismiss glyph is a tap OUTSIDE the text
       // field: the field unfocuses, `_handleFocusChange` closes the popup, and
       // removing one chip collapses the list the user was still picking from.
       child: TextFieldTapRegion(child: control),

@@ -247,6 +247,14 @@ FluentTagPickerOption<String> _defaultOption(_DefaultEmployee employee) =>
         initials: employee.initials,
         color: employee.color,
         shape: FluentAvatarShape.square,
+      ),
+      // The Tag's own avatar: the extra-small tag's 16, where upstream's
+      // `Avatar` shows one initial.
+      tagMedia: FluentAvatar(
+        name: employee.name,
+        initials: employee.initials.substring(0, 1),
+        color: employee.color,
+        shape: FluentAvatarShape.square,
         size: FluentAvatarSize.size16,
       ),
     );
@@ -327,6 +335,14 @@ FluentTagPickerOption<String> _buttonOption(_ButtonEmployee employee) =>
         initials: employee.initials,
         color: employee.color,
         shape: FluentAvatarShape.square,
+      ),
+      // The Tag's own avatar: the extra-small tag's 16, where upstream's
+      // `Avatar` shows one initial.
+      tagMedia: FluentAvatar(
+        name: employee.name,
+        initials: employee.initials.substring(0, 1),
+        color: employee.color,
+        shape: FluentAvatarShape.square,
         size: FluentAvatarSize.size16,
       ),
     );
@@ -405,6 +421,14 @@ FluentTagPickerOption<String> _filteringOption(_FilteringEmployee employee) =>
       media: FluentAvatar(
         name: employee.name,
         initials: employee.initials,
+        color: employee.color,
+        shape: FluentAvatarShape.square,
+      ),
+      // The Tag's own avatar: the extra-small tag's 16, where upstream's
+      // `Avatar` shows one initial.
+      tagMedia: FluentAvatar(
+        name: employee.name,
+        initials: employee.initials.substring(0, 1),
         color: employee.color,
         shape: FluentAvatarShape.square,
         size: FluentAvatarSize.size16,
@@ -504,19 +528,35 @@ const List<_SizeEmployee> _sizeEmployees = <_SizeEmployee>[
   (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.teal),
 ];
 
-FluentTagPickerOption<String> _sizeOption(_SizeEmployee employee) =>
-    FluentTagPickerOption<String>(
-      value: employee.name,
-      label: Text(employee.name),
-      text: '${employee.name}, Microsoft FTE',
-      media: FluentAvatar(
-        name: employee.name,
-        initials: employee.initials,
-        color: employee.color,
-        shape: FluentAvatarShape.square,
-        size: FluentAvatarSize.size16,
-      ),
-    );
+// The Tag sizes its own avatar with the picker: 28 / 20 / 16 on the medium /
+// small / extra-small tag, and at 16 upstream's `Avatar` shows one initial.
+FluentTagPickerOption<String> _sizeOption(
+  _SizeEmployee employee,
+  FluentTagPickerSize size,
+) => FluentTagPickerOption<String>(
+  value: employee.name,
+  label: Text(employee.name),
+  text: '${employee.name}, Microsoft FTE',
+  media: FluentAvatar(
+    name: employee.name,
+    initials: employee.initials,
+    color: employee.color,
+    shape: FluentAvatarShape.square,
+  ),
+  tagMedia: FluentAvatar(
+    name: employee.name,
+    initials: size == FluentTagPickerSize.medium
+        ? employee.initials.substring(0, 1)
+        : employee.initials,
+    color: employee.color,
+    shape: FluentAvatarShape.square,
+    size: switch (size) {
+      FluentTagPickerSize.extraLarge => FluentAvatarSize.size28,
+      FluentTagPickerSize.large => FluentAvatarSize.size20,
+      FluentTagPickerSize.medium => FluentAvatarSize.size16,
+    },
+  ),
+);
 
 Widget _size(BuildContext context) => const Column(
   crossAxisAlignment: CrossAxisAlignment.start,
@@ -561,7 +601,7 @@ class _SizeExampleState extends State<_SizeExample> {
                 setState(() => _selected = values),
             options: <FluentTagPickerOption<String>>[
               for (final _SizeEmployee employee in _sizeEmployees)
-                _sizeOption(employee),
+                _sizeOption(employee, widget.size),
               if (_selected.length == _sizeEmployees.length)
                 const FluentTagPickerOption<String>(
                   value: 'no-options',
@@ -605,6 +645,14 @@ FluentTagPickerOption<String> _appearanceOption(_AppearanceEmployee employee) =>
       media: FluentAvatar(
         name: employee.name,
         initials: employee.initials,
+        color: employee.color,
+        shape: FluentAvatarShape.square,
+      ),
+      // The Tag's own avatar: the extra-small tag's 16, where upstream's
+      // `Avatar` shows one initial.
+      tagMedia: FluentAvatar(
+        name: employee.name,
+        initials: employee.initials.substring(0, 1),
         color: employee.color,
         shape: FluentAvatarShape.square,
         size: FluentAvatarSize.size16,
@@ -741,13 +789,21 @@ FluentTagPickerOption<String> _disabledOption(_DisabledEmployee employee) =>
         initials: employee.initials,
         color: employee.color,
         shape: FluentAvatarShape.square,
+      ),
+      // The Tag's own avatar: the extra-small tag's 16, where upstream's
+      // `Avatar` shows one initial.
+      tagMedia: FluentAvatar(
+        name: employee.name,
+        initials: employee.initials.substring(0, 1),
+        color: employee.color,
+        shape: FluentAvatarShape.square,
         size: FluentAvatarSize.size16,
       ),
     );
 
-// `onChanged: null` is how a picker is disabled here — the chips lose their
-// dismiss affordance with it, where upstream keeps `selectedOptions` editable
-// from outside.
+// `onChanged: null` is how a picker is disabled here — the chips keep their
+// dismiss glyph, greyed and inert, where upstream keeps `selectedOptions`
+// editable from outside.
 Widget _disabled(BuildContext context) => ConstrainedBox(
   constraints: const BoxConstraints(maxWidth: 400),
   child: FluentField(
@@ -793,6 +849,14 @@ FluentTagPickerOption<String> _expandIconOption(_ExpandIconEmployee employee) =>
       media: FluentAvatar(
         name: employee.name,
         initials: employee.initials,
+        color: employee.color,
+        shape: FluentAvatarShape.square,
+      ),
+      // The Tag's own avatar: the extra-small tag's 16, where upstream's
+      // `Avatar` shows one initial.
+      tagMedia: FluentAvatar(
+        name: employee.name,
+        initials: employee.initials.substring(0, 1),
         color: employee.color,
         shape: FluentAvatarShape.square,
         size: FluentAvatarSize.size16,
@@ -865,6 +929,14 @@ FluentTagPickerOption<String> _secondaryActionOption(
   media: FluentAvatar(
     name: employee.name,
     initials: employee.initials,
+    color: employee.color,
+    shape: FluentAvatarShape.square,
+  ),
+  // The Tag's own avatar: the extra-small tag's 16, where upstream's
+  // `Avatar` shows one initial.
+  tagMedia: FluentAvatar(
+    name: employee.name,
+    initials: employee.initials.substring(0, 1),
     color: employee.color,
     shape: FluentAvatarShape.square,
     size: FluentAvatarSize.size16,
@@ -947,6 +1019,14 @@ FluentTagPickerOption<String> _groupedOption(_GroupedEmployee employee) =>
       media: FluentAvatar(
         name: employee.name,
         initials: employee.initials,
+        color: employee.color,
+        shape: FluentAvatarShape.square,
+      ),
+      // The Tag's own avatar: the extra-small tag's 16, where upstream's
+      // `Avatar` shows one initial.
+      tagMedia: FluentAvatar(
+        name: employee.name,
+        initials: employee.initials.substring(0, 1),
         color: employee.color,
         shape: FluentAvatarShape.square,
         size: FluentAvatarSize.size16,
@@ -1094,6 +1174,14 @@ FluentTagPickerOption<String> _truncatedOption(_TruncatedEmployee employee) =>
         initials: employee.initials,
         color: employee.color,
         shape: FluentAvatarShape.square,
+      ),
+      // The Tag's own avatar: the extra-small tag's 16, where upstream's
+      // `Avatar` shows one initial.
+      tagMedia: FluentAvatar(
+        name: employee.name,
+        initials: employee.initials.substring(0, 1),
+        color: employee.color,
+        shape: FluentAvatarShape.square,
         size: FluentAvatarSize.size16,
       ),
     );
@@ -1168,6 +1256,14 @@ FluentTagPickerOption<String> _singleSelectOption(
     initials: employee.initials,
     color: employee.color,
     shape: FluentAvatarShape.square,
+  ),
+  // The Tag's own avatar: the extra-small tag's 16, where upstream's
+  // `Avatar` shows one initial.
+  tagMedia: FluentAvatar(
+    name: employee.name,
+    initials: employee.initials.substring(0, 1),
+    color: employee.color,
+    shape: FluentAvatarShape.square,
     size: FluentAvatarSize.size16,
   ),
 );
@@ -1212,7 +1308,7 @@ class _SingleSelectState extends State<_SingleSelect> {
 // `FluentTagPicker` owns its field and binds Enter to "commit the active
 // option". So the control is composed here from the parts the picker itself
 // uses — a `FluentInput` whose `onSubmitted` adds the typed text, over a `Wrap`
-// of `FluentInteractionTag` chips.
+// of dismissible `FluentTag` chips, as upstream's `Tag`s are.
 const List<FluentAvatarColor> _noPopoverColors = <FluentAvatarColor>[
   FluentAvatarColor.peach,
   FluentAvatarColor.platinum,
@@ -1271,9 +1367,9 @@ class _NoPopoverState extends State<_NoPopover> {
               runSpacing: 4,
               children: <Widget>[
                 for (final String value in _selected)
-                  FluentInteractionTag(
+                  FluentTag(
                     key: ValueKey<String>(value),
-                    size: FluentTagSize.small,
+                    size: FluentTagSize.extraSmall,
                     icon: FluentAvatar(
                       name: value,
                       initials: value.substring(0, 1).toUpperCase(),
@@ -1283,7 +1379,6 @@ class _NoPopoverState extends State<_NoPopover> {
                       shape: FluentAvatarShape.square,
                       size: FluentAvatarSize.size16,
                     ),
-                    onPressed: () {},
                     onDismiss: () => _remove(value),
                     child: Text(value),
                   ),
@@ -1330,6 +1425,14 @@ FluentTagPickerOption<String> _singleLineOption(_SingleLineEmployee employee) =>
       media: FluentAvatar(
         name: employee.name,
         initials: employee.initials,
+        color: employee.color,
+        shape: FluentAvatarShape.square,
+      ),
+      // The Tag's own avatar: the extra-small tag's 16, where upstream's
+      // `Avatar` shows one initial.
+      tagMedia: FluentAvatar(
+        name: employee.name,
+        initials: employee.initials.substring(0, 1),
         color: employee.color,
         shape: FluentAvatarShape.square,
         size: FluentAvatarSize.size16,

@@ -23,7 +23,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
-      expect(find.byType(FluentInteractionTag), findsNothing);
+      expect(find.byType(FluentTag), findsNothing);
 
       await openPopup(tester);
       expect(find.text('John Doe'), findsOneWidget);
@@ -32,15 +32,50 @@ void main() {
       await tapAndSettle(tester, find.text('Jane Doe').last, what: 'a row');
       // The popup closed with the commit, so nothing but the chip is left.
       expect(find.text('John Doe'), findsNothing);
-      expect(find.byType(FluentInteractionTag), findsOneWidget);
+      expect(find.byType(FluentTag), findsOneWidget);
       expect(find.text('Jane Doe'), findsOneWidget);
 
       await openPopup(tester);
       expect(find.text('John Doe'), findsOneWidget);
       // Still one: a chosen value leaves the list rather than appearing twice.
       expect(find.text('Jane Doe'), findsOneWidget);
-      expect(find.byType(FluentInteractionTag), findsOneWidget);
+      expect(find.byType(FluentTag), findsOneWidget);
     });
+
+    testWidgets(
+      'rows carry 32px avatars and the chip a 16px one, as upstream',
+      (WidgetTester tester) async {
+        // `components-tagpicker--default` in Chrome: a square 32 avatar makes a
+        // 44-tall row; the Tag's own avatar is the extra-small tag's 16, which
+        // shows a single initial.
+        await pumpSection(tester, section);
+        await openPopup(tester);
+        final Finder row = find
+            .ancestor(
+              of: find.text('John Doe'),
+              matching: find.byType(DecoratedBox),
+            )
+            .first;
+        expect(tester.getSize(row).height, 44);
+        expect(
+          tester.getSize(
+            find.descendant(of: row, matching: find.byType(FluentAvatar)),
+          ),
+          const Size.square(32),
+        );
+
+        await tapAndSettle(tester, find.text('John Doe').last, what: 'a row');
+        final Finder chipAvatar = find.descendant(
+          of: find.byType(FluentTag),
+          matching: find.byType(FluentAvatar),
+        );
+        expect(tester.getSize(chipAvatar), const Size.square(16));
+        expect(
+          find.descendant(of: chipAvatar, matching: find.text('J')),
+          findsOneWidget,
+        );
+      },
+    );
 
     // The regression this page cares about most: the control's tap used to
     // only call `_focusNode.requestFocus`, so a pointer could focus the picker
@@ -63,20 +98,20 @@ void main() {
       );
     });
 
-    testWidgets("a chip's dismiss half puts its option back on the list", (
+    testWidgets("a chip's dismiss glyph puts its option back on the list", (
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
       await openPopup(tester);
       await tapAndSettle(tester, find.text('Jane Doe').last, what: 'a row');
-      expect(find.byType(FluentInteractionTag), findsOneWidget);
+      expect(find.byType(FluentTag), findsOneWidget);
 
       await tapAndSettle(
         tester,
         find.byType(FluentTagDismissGlyph),
-        what: "the chip's dismiss half",
+        what: "the chip's dismiss glyph",
       );
-      expect(find.byType(FluentInteractionTag), findsNothing);
+      expect(find.byType(FluentTag), findsNothing);
 
       await openPopup(tester);
       expect(
@@ -94,13 +129,13 @@ void main() {
         await openPopup(tester);
         await tapAndSettle(tester, find.text(name).last, what: 'the $name row');
       }
-      expect(find.byType(FluentInteractionTag), findsNWidgets(2));
+      expect(find.byType(FluentTag), findsNWidgets(2));
 
       // Documented keyboard behaviour, and the only chip removal that needs no
       // pointer at all.
       await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
       await settle(tester);
-      expect(find.byType(FluentInteractionTag), findsOneWidget);
+      expect(find.byType(FluentTag), findsOneWidget);
       expect(find.text('Jane Doe'), findsNothing);
       expect(find.text('John Doe'), findsOneWidget);
     });
@@ -118,7 +153,7 @@ void main() {
         find.text('Pierre Dupont').last,
         what: 'a row',
       );
-      expect(find.byType(FluentInteractionTag), findsOneWidget);
+      expect(find.byType(FluentTag), findsOneWidget);
       expect(find.text('Pierre Dupont'), findsOneWidget);
     });
   });
@@ -170,7 +205,7 @@ void main() {
       // turn the apology itself into a chip.
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await settle(tester);
-      expect(find.byType(FluentInteractionTag), findsNothing);
+      expect(find.byType(FluentTag), findsNothing);
     });
   });
 
@@ -203,7 +238,7 @@ void main() {
               .getSize(
                 find.descendant(
                   of: pickers.at(index),
-                  matching: find.byType(FluentInteractionTag),
+                  matching: find.byType(FluentTag),
                 ),
               )
               .height,
@@ -270,12 +305,12 @@ void main() {
 
       final Finder picker = find.byType(FluentTagPicker<String>);
       final FluentThemeData theme = FluentTheme.of(tester.element(picker));
-      expect(find.byType(FluentInteractionTag), findsNWidgets(4));
+      expect(find.byType(FluentTag), findsNWidgets(4));
       // Upstream's `disabled`: a transparent fill, not Figma's disabled one.
       expect(fillOf(tester, picker)!.color, theme.colors.transparentBackground);
-      // Disabling drops the dismiss half rather than greying it: there is no
-      // `onChanged` to report a removal to.
-      expect(find.byType(FluentTagDismissGlyph), findsNothing);
+      // Upstream greys each chip's dismiss glyph rather than dropping it; with
+      // no `onChanged` to report a removal to, it is inert here.
+      expect(find.byType(FluentTagDismissGlyph), findsNWidgets(4));
       // A disabled control cannot take focus, so it has no accent bar at all,
       // not a hidden one.
       expect(find.byType(FluentInputFocusUnderline), findsNothing);
@@ -306,7 +341,7 @@ void main() {
       // Trailing, past the chip, in the aside after the wrapping strip.
       expect(
         tester.getRect(icon).left,
-        greaterThan(tester.getRect(find.byType(FluentInteractionTag)).right),
+        greaterThan(tester.getRect(find.byType(FluentTag)).right),
       );
     });
   });
@@ -319,18 +354,18 @@ void main() {
         tester,
         sectionOf('components-tagpicker--secondary-action'),
       );
-      expect(find.byType(FluentInteractionTag), findsOneWidget);
+      expect(find.byType(FluentTag), findsOneWidget);
 
       await mouseClick(tester, find.text('All Clear'));
       expect(
-        find.byType(FluentInteractionTag),
+        find.byType(FluentTag),
         findsNothing,
         reason: 'the secondary action has to clear the selection it names',
       );
 
       await openPopup(tester);
       await tapAndSettle(tester, find.text('Jane Doe').last, what: 'a row');
-      expect(find.byType(FluentInteractionTag), findsOneWidget);
+      expect(find.byType(FluentTag), findsOneWidget);
       expect(find.text('Jane Doe'), findsOneWidget);
     });
   });
@@ -356,7 +391,7 @@ void main() {
         await openPopup(tester);
         await tapAndSettle(tester, find.text(name).last, what: 'the $name row');
       }
-      expect(find.byType(FluentInteractionTag), findsNWidgets(4));
+      expect(find.byType(FluentTag), findsNWidgets(4));
 
       await openPopup(tester);
       expect(
@@ -376,7 +411,7 @@ void main() {
         tester,
         sectionOf('components-tagpicker--truncated-text'),
       );
-      expect(find.byType(FluentInteractionTag), findsNWidgets(9));
+      expect(find.byType(FluentTag), findsNWidgets(9));
 
       expect(
         tester
@@ -403,7 +438,7 @@ void main() {
           .right;
       for (int i = 0; i < 9; i++) {
         expect(
-          tester.getRect(find.byType(FluentInteractionTag).at(i)).right,
+          tester.getRect(find.byType(FluentTag).at(i)).right,
           lessThanOrEqualTo(right),
           reason: 'chip $i',
         );
@@ -422,12 +457,12 @@ void main() {
 
       await openPopup(tester);
       await tapAndSettle(tester, find.text('John Doe').last, what: 'a row');
-      expect(find.byType(FluentInteractionTag), findsOneWidget);
+      expect(find.byType(FluentTag), findsOneWidget);
 
       await openPopup(tester);
       await tapAndSettle(tester, find.text('Jane Doe').last, what: 'a row');
       expect(
-        find.byType(FluentInteractionTag),
+        find.byType(FluentTag),
         findsOneWidget,
         reason: 'this demo keeps only the value that was just added',
       );
@@ -441,10 +476,10 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpSection(tester, sectionOf('components-tagpicker--no-popover'));
-      expect(find.byType(FluentInteractionTag), findsNothing);
+      expect(find.byType(FluentTag), findsNothing);
 
       await _submit(tester, 'Ada Lovelace');
-      expect(find.byType(FluentInteractionTag), findsOneWidget);
+      expect(find.byType(FluentTag), findsOneWidget);
       expect(find.text('Ada Lovelace'), findsOneWidget);
       expect(
         editedText(tester, find.byType(FluentInput)),
@@ -454,24 +489,24 @@ void main() {
 
       await _submit(tester, 'Ada Lovelace');
       expect(
-        find.byType(FluentInteractionTag),
+        find.byType(FluentTag),
         findsOneWidget,
         reason: 'the demo refuses a duplicate rather than stacking two chips',
       );
 
       await _submit(tester, 'Grace Hopper');
-      expect(find.byType(FluentInteractionTag), findsNWidgets(2));
+      expect(find.byType(FluentTag), findsNWidgets(2));
 
       await tapAndSettle(
         tester,
         find.descendant(
-          of: find.widgetWithText(FluentInteractionTag, 'Ada Lovelace'),
+          of: find.widgetWithText(FluentTag, 'Ada Lovelace'),
           matching: find.byType(FluentTagDismissGlyph),
         ),
-        what: "Ada Lovelace's dismiss half",
+        what: "Ada Lovelace's dismiss glyph",
       );
       expect(find.text('Ada Lovelace'), findsNothing);
-      expect(find.byType(FluentInteractionTag), findsOneWidget);
+      expect(find.byType(FluentTag), findsOneWidget);
     });
   });
 

@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -1236,6 +1238,9 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
     final state = _state();
     final style = _resolvedStyle(state);
 
+    final cursor =
+        style.mouseCursor?.resolve(const <WidgetState>{}) ??
+        SystemMouseCursors.click;
     final trigger = FluentInteractive(
       // Tapping an open trigger closes it; it never commits, because a pointer
       // user has not chosen anything yet. Enter and Space go through
@@ -1244,11 +1249,13 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
       enabled: _enabled,
       focusNode: _focusNode,
       autofocus: widget.autofocus,
-      mouseCursor:
-          style.mouseCursor?.resolve(const <WidgetState>{}) ??
-          SystemMouseCursors.click,
-      builder: (context, states, _) =>
-          buildFluentDropdown(state, style, states),
+      mouseCursor: cursor,
+      // Here as well, because `FluentInteractive` shows the arrow while
+      // disabled, and the resolved style's is upstream's `not-allowed`.
+      builder: (context, states, _) => MouseRegion(
+        cursor: cursor,
+        child: buildFluentDropdown(state, style, states),
+      ),
     );
 
     // No `value:` here on purpose. The selected option's own label is already
@@ -1331,7 +1338,23 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
                 // dismiss here.
                 DismissIntent: _DismissDropdownAction<T>(this),
               },
-              child: trigger,
+              // Chrome focuses a `<button>` on mousedown, whichever button, so
+              // the bar grows while a press is still held; a tap would focus
+              // only on release. A microtask later, so an outside-press blur
+              // dispatched after this on the same event — another focused
+              // dropdown's, a text field's — cannot undo it. Touch focuses on
+              // the tap, as a browser's does.
+              child: Listener(
+                onPointerDown: (event) {
+                  if (!_enabled || event.kind != PointerDeviceKind.mouse) {
+                    return;
+                  }
+                  scheduleMicrotask(() {
+                    if (mounted && _enabled) _focusNode.requestFocus();
+                  });
+                },
+                child: trigger,
+              ),
             ),
           ),
         ),
