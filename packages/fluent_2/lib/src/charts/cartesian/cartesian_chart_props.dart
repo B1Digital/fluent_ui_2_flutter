@@ -183,10 +183,10 @@ class FluentCartesianChartProps {
   /// Annotations drawn over the plot. `CartesianChart.tsx:463`.
   final List<FluentChartAnnotation> annotations;
 
-  /// The user's requested gap between an x tick line and its label.
+  /// The user's requested gap between an x tick line and its label, or null
+  /// for the shell's default.
   ///
-  /// Read through [resolvedXAxisTickPadding], which reproduces the defect that
-  /// discards it.
+  /// Read through [resolvedXAxisTickPadding], which uses it as given.
   final double? tickPadding;
 
   /// Whether x tick labels are truncated and given a hover tooltip.
@@ -361,16 +361,17 @@ class FluentCartesianChartProps {
   /// keyboard stop has no pointer, so it anchors to the region either way.
   final bool popoverAnchorsToRegion;
 
-  /// The gap between an x tick line and its label.
+  /// The gap between an x tick line and its label: [tickPadding] when set,
+  /// otherwise 5 with [showXAxisLablesTooltip] and 10 without.
   ///
   /// `CartesianChart.tsx:215` is written
   /// `tickPadding: props.tickPadding || props.showXAxisLablesTooltip ? 5 : 10`,
   /// which JavaScript parses as
-  /// `(tickPadding || showXAxisLablesTooltip) ? 5 : 10`. A caller's number is
-  /// therefore never used: supplying `12` yields `5`. An explicit `0` is
-  /// JavaScript-falsy and skips the first operand entirely.
+  /// `(tickPadding || showXAxisLablesTooltip) ? 5 : 10` and so discards a
+  /// caller's number. The port corrects the precedence: supplying `12` yields
+  /// `12`, and an explicit `0` yields `0`.
   ///
-  /// The defect itself lives in [resolveShellXAxisTickPadding], which the axis
+  /// The rule itself lives in [resolveShellXAxisTickPadding], which the axis
   /// builders were written against; this getter is the shell's only caller of
   /// it, so the two can never drift.
   double get resolvedXAxisTickPadding => resolveShellXAxisTickPadding(

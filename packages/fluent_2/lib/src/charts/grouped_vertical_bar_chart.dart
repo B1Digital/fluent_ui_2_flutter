@@ -1316,8 +1316,9 @@ class FluentGroupedVerticalBarChartState
       selectedLegends: _selectedLegends,
       onLegendChange: (selected) => setState(() => _selectedLegends = selected),
       props: widget.props.copyWith(
-        // GVBC forwards `props.tickPadding || 5`, which the shell's precedence
-        // bug turns into a flat 5 (`.tsx:1006`, `CartesianChart.tsx:215`).
+        // GVBC forwards `props.tickPadding || 5` (`.tsx:1006`). Upstream's
+        // shell flattens any value to 5 (`CartesianChart.tsx:215`); the port's
+        // uses it as given (resolveShellXAxisTickPadding).
         tickPadding: widget.props.tickPadding ?? 5,
         chartTitleForSemantics:
             '${widget.chartTitle == null ? '' : '${widget.chartTitle}. '}'

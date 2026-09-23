@@ -936,6 +936,29 @@ void main() {
     });
   });
 
+  group('x tick padding', () {
+    testWidgets('a caller tickPadding reaches the painted x axis', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        chart(
+          props: const FluentCartesianChartProps(
+            hideLegend: true,
+            tickPadding: 25,
+          ),
+        ),
+      );
+      expect(
+        painterOf(tester).xAxis.tickPadding,
+        25,
+        reason:
+            'CartesianChart.tsx:215 uses the prop only as a truth test and '
+            'paints 5; the port hands the caller value to the x axis',
+      );
+    });
+  });
+
   group('annotation layer', () {
     Widget plot(List<FluentChartAnnotation> annotations) => SizedBox(
       width: 400,

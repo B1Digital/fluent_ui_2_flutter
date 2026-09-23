@@ -2,9 +2,9 @@ import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The shell's config bag. Two of its members are *resolvers*, not fields,
-/// because upstream computes them with expressions that carry defects the port
-/// reproduces: the `tickPadding` precedence bug at `CartesianChart.tsx:215`
-/// and the `hideTickOverlap` override at `:220`.
+/// because upstream computes them with expressions: the `tickPadding` one at
+/// `CartesianChart.tsx:215`, whose precedence bug the port corrects, and the
+/// `hideTickOverlap` override at `:220`, which it reproduces.
 void main() {
   group('FluentCartesianChartProps defaults', () {
     const props = FluentCartesianChartProps();
@@ -82,7 +82,7 @@ void main() {
     });
   });
 
-  group('resolvedXAxisTickPadding reproduces the precedence defect', () {
+  group('resolvedXAxisTickPadding corrects the precedence defect', () {
     test('neither set gives 10', () {
       expect(
         const FluentCartesianChartProps().resolvedXAxisTickPadding,
@@ -91,27 +91,25 @@ void main() {
       );
     });
 
-    test('a user value is discarded and collapses to 5', () {
+    test('a user value is used as given', () {
       expect(
         const FluentCartesianChartProps(
           tickPadding: 12,
         ).resolvedXAxisTickPadding,
-        5,
+        12,
         reason:
-            'parity: JS parses `a || b ? 5 : 10` as `(a || b) ? 5 : 10`, so 12 '
-            'is thrown away (CartesianChart.tsx:215)',
+            'JS parses `a || b ? 5 : 10` as `(a || b) ? 5 : 10` and throws 12 '
+            'away (CartesianChart.tsx:215); the port applies it',
       );
     });
 
-    test('an explicit zero is JS-falsy and does NOT collapse', () {
+    test('an explicit zero is kept', () {
       expect(
         const FluentCartesianChartProps(
           tickPadding: 0,
         ).resolvedXAxisTickPadding,
-        10,
-        reason:
-            '0 is falsy in JavaScript, so `props.tickPadding || ...` skips it '
-            '(CartesianChart.tsx:215)',
+        0,
+        reason: '`??` falls back only on null, not on JavaScript-falsy 0',
       );
     });
 

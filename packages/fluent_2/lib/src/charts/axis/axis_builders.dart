@@ -18,24 +18,21 @@ import 'tick_values.dart';
 /// Ports `CartesianChart.tsx:215`, which reads
 /// `tickPadding: props.tickPadding || props.showXAxisLablesTooltip ? 5 : 10`.
 ///
-/// parity: JavaScript binds `||` tighter than `?:`, so that line parses as
-/// `(props.tickPadding || props.showXAxisLablesTooltip) ? 5 : 10` and the
-/// user's own `tickPadding` is only ever used as a *truth test* — a caller
-/// asking for 25 gets 5. The author plainly meant
-/// `props.tickPadding ?? (props.showXAxisLablesTooltip ? 5 : 10)`. The defect is
-/// reproduced rather than corrected, because the captured geometry the port is
-/// held against was rendered by the defective code
+/// JavaScript binds `||` tighter than `?:`, so that line parses as
+/// `(props.tickPadding || props.showXAxisLablesTooltip) ? 5 : 10` and upstream
+/// uses the caller's own `tickPadding` only as a *truth test* — a caller asking
+/// for 25 gets 5. The port corrects the precedence to what the author plainly
+/// meant, `props.tickPadding ?? (props.showXAxisLablesTooltip ? 5 : 10)`, so a
+/// caller's [tickPadding] is used as given, an explicit `0` included. The
+/// captured geometry the port is held against sets no `tickPadding` of its
+/// own, and both of its fallbacks are unchanged
 /// (`charts-verticalbarchart--vertical-bar-axis-tooltip` puts its x labels at
-/// `y = 11`, which is `max(6, 0) + 5`).
-///
-/// [tickPadding] follows JavaScript truthiness, so an explicit `0` is falsy and
-/// falls through to the else branch. 5 and 10 are the two literals at `:215`.
+/// `y = 11`, which is `max(6, 0) + 5`). 5 and 10 are the two literals at
+/// `:215`.
 double resolveShellXAxisTickPadding({
   double? tickPadding,
   bool showXAxisLablesTooltip = false,
-}) => (tickPadding != null && tickPadding != 0) || showXAxisLablesTooltip
-    ? 5
-    : 10;
+}) => tickPadding ?? (showXAxisLablesTooltip ? 5 : 10);
 
 /// A linear scale, or a log one when [scaleType] says so.
 ///
@@ -60,8 +57,8 @@ d3.ScaleContinuous _createNumericScale(FluentAxisScaleType? scaleType) =>
 /// * HorizontalBarChartWithAxis and GanttChart get a negative inner tick size,
 ///   which is a full-height gridline (`:308-310`);
 /// * [FluentAxisSpec.tickPadding] is carried through untouched. The shell has
-///   already collapsed it to 5 or 10 by then — see
-///   [resolveShellXAxisTickPadding] for the precedence defect that does so.
+///   already resolved it to the caller's value, or to 5 or 10 — see
+///   [resolveShellXAxisTickPadding].
 ///
 /// The upstream `_useRtl` parameter is declared and never read (`:257`); RTL
 /// reaches this builder only through an already-reversed domain, so it is not

@@ -485,24 +485,33 @@ void main() {
   });
 
   group('resolveShellXAxisTickPadding', () {
-    test('discards a user-supplied tickPadding', () {
+    test('uses a user-supplied tickPadding as given', () {
       expect(
         resolveShellXAxisTickPadding(tickPadding: 25),
-        5,
+        25,
         reason:
             'CartesianChart.tsx:215 parses as '
-            '`(tickPadding || showXAxisLablesTooltip) ? 5 : 10`, so any truthy '
-            'user value selects 5 and the 25 is discarded.',
+            '`(tickPadding || showXAxisLablesTooltip) ? 5 : 10` and discards '
+            'the 25; the port corrects the precedence to '
+            '`tickPadding ?? (showXAxisLablesTooltip ? 5 : 10)`.',
+      );
+      expect(
+        resolveShellXAxisTickPadding(
+          tickPadding: 12,
+          showXAxisLablesTooltip: true,
+        ),
+        12,
+        reason: 'a caller value wins over the tooltip branch too.',
       );
     });
 
-    test('treats an explicit zero as JavaScript-falsy', () {
+    test('keeps an explicit zero', () {
       expect(
         resolveShellXAxisTickPadding(tickPadding: 0),
-        10,
+        0,
         reason:
-            '0 is falsy in JavaScript, so `props.tickPadding || …` skips it and '
-            'CartesianChart.tsx:215 falls to the 10 branch.',
+            '`??` only falls back on null, so a caller asking for no gap gets '
+            'none rather than JavaScript-falsy 10.',
       );
     });
 
@@ -572,8 +581,8 @@ void main() {
         reason:
             'the axis-tooltip story sets showXAxisLablesTooltip, so its labels '
             'sit 6 + 5 below the axis. No captured story supplies a tickPadding '
-            'of its own, so the corpus can confirm both outputs of :215 but not '
-            'the discarded input.',
+            'of its own, so the corpus can confirm both fallbacks of :215 but '
+            'not a caller value.',
       );
       expect(
         plain.tickLabelOffsets.length + tooltip.tickLabelOffsets.length,
