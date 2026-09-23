@@ -94,7 +94,8 @@ class FluentCartesianChartProps {
     this.xMaxValue,
     this.yAxisTickCount = 4,
     this.xAxisTickCount = 6,
-    this.xAxistickSize = 6,
+    double xAxisTickSize = 6,
+    @Deprecated('Use xAxisTickSize.') double? xAxistickSize,
     this.annotations = const <FluentChartAnnotation>[],
     this.tickPadding,
     this.showXAxisLablesTooltip = false,
@@ -136,7 +137,8 @@ class FluentCartesianChartProps {
     this.hitRegionGranularity = FluentChartHitGranularity.mark,
     this.closePopoverOnRegionExit = false,
     this.popoverAnchorsToRegion = false,
-  }) : assert(
+  }) : xAxisTickSize = xAxistickSize ?? xAxisTickSize,
+       assert(
          useUTC == null || useUTC is bool || useUTC is String,
          'useUTC is `string | boolean` upstream (CartesianChart.types.ts:448).',
        );
@@ -182,8 +184,14 @@ class FluentCartesianChartProps {
   /// Requested x tick count. `utilities.ts:285`.
   final int xAxisTickCount;
 
-  /// Length of an x tick line. `utilities.ts:266`.
-  final double xAxistickSize;
+  /// Length of an x tick line. `utilities.ts:266`, where upstream spells it
+  /// `xAxistickSize`.
+  final double xAxisTickSize;
+
+  /// The upstream spelling of [xAxisTickSize], kept so existing callers still
+  /// compile.
+  @Deprecated('Use xAxisTickSize.')
+  double get xAxistickSize => xAxisTickSize;
 
   /// Annotations drawn over the plot. `CartesianChart.tsx:463`.
   final List<FluentChartAnnotation> annotations;
@@ -424,7 +432,8 @@ class FluentCartesianChartProps {
     bool? closePopoverOnRegionExit,
     bool? popoverAnchorsToRegion,
     double? tickPadding,
-    double? xAxistickSize,
+    double? xAxisTickSize,
+    @Deprecated('Use xAxisTickSize.') double? xAxistickSize,
     bool? showRoundOffXTickValues,
     double? yMinValue,
     double? yMaxValue,
@@ -441,7 +450,7 @@ class FluentCartesianChartProps {
     xMaxValue: xMaxValue,
     yAxisTickCount: yAxisTickCount,
     xAxisTickCount: xAxisTickCount,
-    xAxistickSize: xAxistickSize ?? this.xAxistickSize,
+    xAxisTickSize: xAxistickSize ?? xAxisTickSize ?? this.xAxisTickSize,
     annotations: annotations,
     tickPadding: tickPadding ?? this.tickPadding,
     showXAxisLablesTooltip: showXAxisLablesTooltip,

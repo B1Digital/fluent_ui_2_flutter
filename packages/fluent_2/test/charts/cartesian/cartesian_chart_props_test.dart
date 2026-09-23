@@ -21,7 +21,7 @@ void main() {
         reason: 'utilities.ts:285 reads `xAxisCount ?? 6`',
       );
       expect(
-        props.xAxistickSize,
+        props.xAxisTickSize,
         6,
         reason:
             'utilities.ts:266 — the doc at CartesianChart.types.ts:314 says 10 '
@@ -79,6 +79,38 @@ void main() {
             'CartesianChart.tsx:345 reads `?? 100` — the only non-zero y bound '
             'default in the shell',
       );
+    });
+  });
+
+  group('the deprecated upstream spellings still work', () {
+    test('xAxistickSize forwards to xAxisTickSize', () {
+      const props = FluentCartesianChartProps(xAxistickSize: 4);
+      expect(props.xAxisTickSize, 4, reason: 'the old constructor argument');
+      expect(props.xAxistickSize, 4, reason: 'the old getter');
+      expect(
+        props.copyWith(xAxistickSize: 8).xAxisTickSize,
+        8,
+        reason: 'the old copyWith argument',
+      );
+      expect(
+        props.copyWith(xAxisTickSize: 2).xAxisTickSize,
+        2,
+        reason: 'the new copyWith argument',
+      );
+      const params = FluentXAxisParams(
+        domainNRangeValues: FluentChartDomainRange(
+          dStartValue: 0,
+          dEndValue: 1,
+          rStartValue: 0,
+          rEndValue: 1,
+        ),
+        containerHeight: 1,
+        containerWidth: 1,
+        margins: FluentChartMargins(),
+        xAxistickSize: 3,
+      );
+      expect(params.xAxisTickSize, 3, reason: 'FluentXAxisParams, old arg');
+      expect(params.xAxistickSize, 3, reason: 'FluentXAxisParams, old getter');
     });
   });
 

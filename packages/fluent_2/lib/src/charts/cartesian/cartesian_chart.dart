@@ -771,7 +771,7 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       containerWidth: size.width,
       margins: margins,
       showRoundOffXTickValues: props.showRoundOffXTickValues,
-      xAxistickSize: props.xAxistickSize,
+      xAxisTickSize: props.xAxisTickSize,
       tickPadding: props.resolvedXAxisTickPadding,
       xAxisCount: props.xAxisTickCount,
       xAxisPadding: delegate.xAxisPadding,

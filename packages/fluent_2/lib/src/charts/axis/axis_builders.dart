@@ -151,7 +151,7 @@ FluentAxisSpec createNumericXAxis(
     );
   }
 
-  var tickSizeInner = xAxisParams.xAxistickSize;
+  var tickSizeInner = xAxisParams.xAxisTickSize;
   if (chartType == FluentChartType.horizontalBarChartWithAxis ||
       chartType == FluentChartType.ganttChart) {
     // 0 stands in for an absent top margin, as upstream's `margins.top!`
@@ -358,7 +358,7 @@ FluentAxisSpec createDateXAxis(
     );
   }
 
-  var tickSizeInner = xAxisParams.xAxistickSize;
+  var tickSizeInner = xAxisParams.xAxisTickSize;
   if (chartType == FluentChartType.ganttChart) {
     // 0 stands in for an absent top margin, as upstream's `margins.top!`
     // asserts one is always resolved by then (`:530`).
@@ -501,7 +501,7 @@ FluentAxisSpec createStringXAxis(
     tickValues: tickValues.cast<Object>(),
     tickLabels: tickLabels,
     orientation: d3.FluentAxisOrientation.bottom,
-    tickSizeInner: xAxisParams.xAxistickSize,
+    tickSizeInner: xAxisParams.xAxisTickSize,
     // d3-axis leaves tickSizeOuter at 6 unless a caller changes it, and
     // utilities.ts:623-627 changes only the inner size and the padding.
     tickSizeOuter: 6,
