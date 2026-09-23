@@ -607,7 +607,7 @@ class _VerticalBarCustomAccessibilityState
       FluentCheckbox(
         checked: _isChecked,
         onChanged: (bool? value) => setState(() => _isChecked = value ?? false),
-        label: const Text('show  line(This will draw the line)'),
+        label: const Text('show line(This will draw the line)'),
       ),
       FluentCheckbox(
         checked: _useSingleColor,
@@ -1030,7 +1030,7 @@ class _VerticalBarStyledState extends State<_VerticalBarStyled> {
       FluentCheckbox(
         checked: _isChecked,
         onChanged: (bool? value) => setState(() => _isChecked = value ?? false),
-        label: const Text('show  line(This will draw the line)'),
+        label: const Text('show line(This will draw the line)'),
       ),
       FluentCheckbox(
         checked: _useSingleColor,

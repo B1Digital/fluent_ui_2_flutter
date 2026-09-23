@@ -36,7 +36,7 @@ const DocsPage fieldPage = DocsPage(
       title: 'Required',
       description:
           'When a Field is marked as required, the label has a red asterisk, '
-          'and the input gets the aria-required property for accessiblity '
+          'and the input gets the aria-required property for accessibility '
           'tools.',
       builder: _required,
     ),

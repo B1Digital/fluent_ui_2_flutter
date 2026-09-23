@@ -109,7 +109,10 @@
   },
   "charts-horizontalbarchart--horizontal-bar-custom-callout": {
     "kind": "reduced",
-    "why": "FluentHorizontalBarChart renders its own popover and takes neither calloutPropsPerDataPoint nor onRenderCalloutPerHorizontalBar. The Switch is live and drives the override through the two per-point fields the popover does read: xAxisCalloutData becomes 'Custom XVal' and yAxisCalloutData gains the ' h' suffix. Upstream's third popover line, 'Custom Legend', has no slot in our one-label/one-value popover."
+    "why": "FluentHorizontalBarChart renders its own popover and takes neither calloutPropsPerDataPoint nor onRenderCalloutPerHorizontalBar. The Switch is live and drives the override through the two per-point fields the popover does read: xAxisCalloutData becomes 'Custom XVal' and yAxisCalloutData gains the ' h' suffix. Upstream's third popover line, 'Custom Legend', has no slot in our one-label/one-value popover. Upstream labels the Switch 'User Popover Override', a typo the showroom corrects to 'Use Popover Override'.",
+    "sampleStringsSkip": [
+      "User Popover Override"
+    ]
   },
   "charts-horizontalbarchart--horizontal-bar-stacked-annotated-inline-legend": {
     "kind": "composed",
@@ -257,7 +260,10 @@
   },
   "charts-verticalbarchart--vertical-bar-custom-accessibility": {
     "kind": "model",
-    "why": "callOutAccessibilityData.ariaLabel is spelled callOutSemantics: FluentChartSemantics(label:) on FluentVerticalBarChartDataPoint; hideLegend/yAxisTickCount move into FluentCartesianChartProps."
+    "why": "callOutAccessibilityData.ariaLabel is spelled callOutSemantics: FluentChartSemantics(label:) on FluentVerticalBarChartDataPoint; hideLegend/yAxisTickCount move into FluentCartesianChartProps. Upstream's checkbox label 'show  line(This will draw the line)' has a stray double space, which the showroom drops.",
+    "sampleStringsSkip": [
+      "show  line(This will draw the line)"
+    ]
   },
   "charts-verticalbarchart--vertical-bar-date-axis": {
     "kind": "nearest-widget",
@@ -281,7 +287,10 @@
   },
   "charts-verticalbarchart--vertical-bar-styled": {
     "kind": "model",
-    "why": "Same prop relocation as custom-accessibility: hideLegend and yAxisTickCount into FluentCartesianChartProps, colors/barWidth/useSingleColor stay on the chart."
+    "why": "Same prop relocation as custom-accessibility: hideLegend and yAxisTickCount into FluentCartesianChartProps, colors/barWidth/useSingleColor stay on the chart. The 'show  line' checkbox label drops the same upstream double space as custom-accessibility.",
+    "sampleStringsSkip": [
+      "show  line(This will draw the line)"
+    ]
   },
   "charts-verticalstackedbarchart--vertical-stacked-bar-axis-category-order": {
     "kind": "reduced",
