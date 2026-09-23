@@ -64,10 +64,14 @@ enum FluentDatePickerErrorType {
 @immutable
 class FluentDatePickerValidationResult {
   /// Creates a result.
-  const FluentDatePickerValidationResult({this.error});
+  const FluentDatePickerValidationResult({this.error, this.message});
 
   /// What went wrong, or null.
   final FluentDatePickerErrorType? error;
+
+  /// The text for [error] from [FluentDatePicker.errorStrings], or null when
+  /// there is no error.
+  final String? message;
 
   /// Whether the field holds a usable date.
   bool get isValid => error == null;
@@ -825,6 +829,10 @@ class FluentDatePicker extends StatefulWidget {
 
   /// The messages offered for each error type.
   ///
+  /// The picker paints only the danger ramp. Each commit's message reaches
+  /// [onValidationResult] as [FluentDatePickerValidationResult.message], for a
+  /// `FluentField` around the picker to show — upstream's `Field` pattern.
+  ///
   /// Null takes them from the ambient [FluentLocalizations] — the same set
   /// [FluentDatePickerErrorStrings.of] returns.
   final FluentDatePickerErrorStrings? errorStrings;
@@ -1199,7 +1207,12 @@ class _FluentDatePickerState extends State<FluentDatePicker>
   }) {
     if (error != _error) setState(() => _error = error);
     widget.onValidationResult?.call(
-      FluentDatePickerValidationResult(error: error),
+      FluentDatePickerValidationResult(
+        error: error,
+        message:
+            (widget.errorStrings ?? FluentDatePickerErrorStrings.of(context))
+                .messageFor(error),
+      ),
     );
     if (changed) widget.onSelectDate?.call(value);
   }

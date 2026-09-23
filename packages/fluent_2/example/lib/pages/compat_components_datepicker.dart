@@ -757,13 +757,11 @@ class _ErrorHandlingState extends State<_ErrorHandling> {
       '${date.day.toString().padLeft(2, '0')} ${date.year}';
 
   DateTime? _value;
-  FluentDatePickerErrorType? _error;
+  String? _message;
 
   @override
   Widget build(BuildContext context) {
-    final String? message = defaultFluentDatePickerErrorStrings.messageFor(
-      _error,
-    );
+    final String? message = _message;
     return SizedBox(
       width: 300,
       child: FluentField(
@@ -787,8 +785,10 @@ class _ErrorHandlingState extends State<_ErrorHandling> {
           allowTextInput: true,
           value: _value,
           onSelectDate: (DateTime? date) => setState(() => _value = date),
+          // `result.message` is `errorStrings`' text for `result.error`, from
+          // the ambient `FluentLocalizations` unless overridden.
           onValidationResult: (FluentDatePickerValidationResult result) =>
-              setState(() => _error = result.error),
+              setState(() => _message = result.message),
           placeholder: const Text('Select a date...'),
         ),
       ),
