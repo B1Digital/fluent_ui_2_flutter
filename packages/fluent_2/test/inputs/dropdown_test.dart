@@ -779,6 +779,59 @@ void main() {
       await tester.pumpAndSettle();
     });
 
+    testWidgets(
+      'a held right press keeps the hover look; a middle one presses',
+      (tester) async {
+        // Chrome, held on the live storybook: right keeps #c7c7c7 sides,
+        // #575757 bottom and a #0f6cbd bar; middle paints #b3b3b3, #4d4d4d and
+        // #0f548c. The root loses `:active` a task after the `contextmenu`.
+        final colors = light().colors;
+        await pump(
+          tester,
+          const FluentDropdown<String>(
+            key: key,
+            options: options,
+            onChanged: _ignore,
+          ),
+        );
+        final centre = tester.getCenter(find.byKey(key));
+        for (final (buttons, side, bottom, bar) in <(int, Color, Color, Color)>[
+          (
+            kSecondaryMouseButton,
+            colors.neutralStroke1Hover,
+            colors.neutralStrokeAccessibleHover,
+            colors.compoundBrandStroke,
+          ),
+          (
+            kMiddleMouseButton,
+            colors.neutralStroke1Pressed,
+            colors.neutralStrokeAccessiblePressed,
+            colors.compoundBrandStrokePressed,
+          ),
+        ]) {
+          final mouse = await tester.createGesture(
+            kind: PointerDeviceKind.mouse,
+            buttons: buttons,
+          );
+          await mouse.addPointer(location: centre);
+          await tester.pump();
+          await mouse.down(centre);
+          await tester.pumpAndSettle();
+          expect(accentScale(tester), 1, reason: 'buttons $buttons, focused');
+          expect(borderPainter(tester).borderColor, side, reason: '$buttons');
+          expect(
+            borderPainter(tester).bottomBorderColor,
+            bottom,
+            reason: 'buttons $buttons',
+          );
+          expect(barColor(tester), bar, reason: 'buttons $buttons');
+          await mouse.up();
+          await mouse.removePointer();
+          await tester.pumpAndSettle();
+        }
+      },
+    );
+
     testWidgets('only Outline ramps: the fill and chevron never move', (
       tester,
     ) async {
@@ -1902,12 +1955,25 @@ void main() {
       expect(find.text('Oslo'), findsOneWidget, reason: 'Down opens');
       expect(node.hasFocus, isTrue, reason: 'focus stays on the trigger');
 
-      // Active starts on the first selectable row — the header is skipped.
+      // Active starts on the first option row — the header is skipped.
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await tester.pumpAndSettle();
-      // Oslo -> Helsinki -> Lisbon: the disabled Reykjavik is stepped over.
+      // Oslo -> Helsinki -> Reykjavik. Upstream's walker visits a disabled
+      // option too, and Enter or Space on it does nothing: the list stays open
+      // (Chrome, the Default story's Ferret).
+      for (final k in <LogicalKeyboardKey>[
+        LogicalKeyboardKey.enter,
+        LogicalKeyboardKey.space,
+      ]) {
+        await tester.sendKeyEvent(k);
+        await tester.pumpAndSettle();
+        expect(chosen, isNull, reason: '$k on a disabled row');
+        expect(find.text('Lisbon'), findsOneWidget, reason: 'still open');
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
       expect(chosen, 'lis');
@@ -1915,27 +1981,37 @@ void main() {
       expect(node.hasFocus, isTrue, reason: 'focus returned to the trigger');
     });
 
-    testWidgets('Up from closed opens on the last option', (tester) async {
+    testWidgets('Up from closed opens on the selection, else the first', (
+      tester,
+    ) async {
+      // Chrome: Up opens exactly as Down does — never on the last option.
       String? chosen;
       final node = FocusNode();
       addTearDown(node.dispose);
-      await pump(
-        tester,
-        FluentDropdown<String>(
-          key: key,
-          focusNode: node,
-          options: options,
-          onChanged: (value) => chosen = value,
-        ),
-      );
-      node.requestFocus();
-      await tester.pumpAndSettle();
+      for (final (value, expected) in <(String?, String)>[
+        (null, 'osl'),
+        ('hel', 'hel'),
+      ]) {
+        chosen = null;
+        await pump(
+          tester,
+          FluentDropdown<String>(
+            key: key,
+            focusNode: node,
+            value: value,
+            options: options,
+            onChanged: (value) => chosen = value,
+          ),
+        );
+        node.requestFocus();
+        await tester.pumpAndSettle();
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
-      await tester.pumpAndSettle();
-      await tester.sendKeyEvent(LogicalKeyboardKey.space);
-      await tester.pumpAndSettle();
-      expect(chosen, 'lis');
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.space);
+        await tester.pumpAndSettle();
+        expect(chosen, expected, reason: 'value $value');
+      }
     });
 
     testWidgets('Home and End jump to the ends', (tester) async {
@@ -1954,6 +2030,16 @@ void main() {
       node.requestFocus();
       await tester.pumpAndSettle();
 
+      // Closed, they do nothing (Chrome).
+      for (final k in <LogicalKeyboardKey>[
+        LogicalKeyboardKey.home,
+        LogicalKeyboardKey.end,
+      ]) {
+        await tester.sendKeyEvent(k);
+        await tester.pumpAndSettle();
+        expect(find.text('Lisbon'), findsNothing, reason: '$k while closed');
+      }
+
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.end);
@@ -1963,6 +2049,127 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
       expect(chosen, 'osl', reason: 'Home lands on the first selectable row');
+    });
+
+    testWidgets('the list scrolls just far enough, 2px clear of the edge', (
+      tester,
+    ) async {
+      // Upstream's `scrollIntoView` in Chrome on the Default story's ten
+      // animals, listbox held to 260px (scrollHeight 346, padding 4 inside the
+      // scroller): the scrollTop after each key, and where the active row
+      // lands against the listbox's own edges.
+      const animals = <String>[
+        'Cat', 'Caterpillar', 'Corgi', 'Chupacabra', 'Dog', //
+        'Ferret', 'Fish', 'Fox', 'Hamster', 'Snake',
+      ];
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      Future<void> mount(String? value) => pump(
+        tester,
+        FluentDropdown<String>(
+          key: key,
+          focusNode: node,
+          value: value,
+          style: const FluentDropdownStyle(
+            surfaceMaxHeight: WidgetStatePropertyAll<double?>(260),
+          ),
+          options: <FluentDropdownOption<String>>[
+            for (final a in animals)
+              FluentDropdownOption<String>(value: a, label: Text(a), text: a),
+          ],
+          onChanged: _ignore,
+        ),
+      );
+      final list = find.byType(SingleChildScrollView);
+      double scrollTop() => tester
+          .state<ScrollableState>(
+            find.descendant(of: list, matching: find.byType(Scrollable)),
+          )
+          .position
+          .pixels;
+      Future<void> key_(LogicalKeyboardKey k) async {
+        await tester.sendKeyEvent(k);
+        await tester.pumpAndSettle();
+      }
+
+      await mount(null);
+      node.requestFocus();
+      await tester.pump();
+      await key_(LogicalKeyboardKey.arrowDown);
+      expect(tester.getSize(list).height, 260);
+      expect(scrollTop(), 0);
+      final down = <double>[];
+      for (var i = 0; i < 9; i++) {
+        await key_(LogicalKeyboardKey.arrowDown);
+        down.add(scrollTop());
+      }
+      expect(down, <double>[0, 0, 0, 0, 0, 0, 16, 50, 84]);
+      expect(
+        tester.getRect(list).bottom - tester.getRect(find.text('Snake')).bottom,
+        greaterThan(0),
+      );
+      final up = <double>[];
+      for (var i = 0; i < 9; i++) {
+        await key_(LogicalKeyboardKey.arrowUp);
+        up.add(scrollTop());
+      }
+      expect(up, <double>[84, 84, 84, 84, 84, 84, 70, 36, 2]);
+      await key_(LogicalKeyboardKey.end);
+      expect(scrollTop(), 84, reason: 'End');
+      await key_(LogicalKeyboardKey.home);
+      expect(scrollTop(), 2, reason: 'Home');
+
+      // Opening on a selection runs the same rule from the top: Fish fits,
+      // Fox needs 16, Snake the 84 the arrows reach. (Chrome reads 86 for
+      // both there, but only because floating-ui's first pass holds that
+      // listbox at 140px when the rule runs, before shifting it over the
+      // trigger. This popup is laid out once, below the trigger.)
+      for (final (value, expected) in <(String, double)>[
+        ('Fish', 0),
+        ('Fox', 16),
+        ('Snake', 84),
+      ]) {
+        await key_(LogicalKeyboardKey.escape);
+        await mount(value);
+        await key_(LogicalKeyboardKey.arrowDown);
+        expect(scrollTop(), expected, reason: 'opened on $value');
+      }
+    });
+
+    testWidgets('a list that shrinks under the active row falls back to the '
+        'first option', (tester) async {
+      // Upstream's `useComboboxBaseState` re-runs `first()` whenever the
+      // children change under an open listbox with nothing active, and an
+      // option that has left the DOM is not active. Here the stale index
+      // threw a RangeError on Enter and left Up and Down stuck.
+      String? chosen;
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      Future<void> mount(List<String> items) => pump(
+        tester,
+        FluentDropdown<String>(
+          key: key,
+          focusNode: node,
+          options: <FluentDropdownOption<String>>[
+            for (final a in items)
+              FluentDropdownOption<String>(value: a, label: Text(a), text: a),
+          ],
+          onChanged: (value) => chosen = value,
+        ),
+      );
+      await mount(<String>['Cat', 'Dog', 'Fox', 'Owl']);
+      node.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.end);
+      await tester.pumpAndSettle();
+      await mount(<String>['Cat', 'Dog']);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(chosen, 'Cat');
+      expect(find.text('Dog'), findsNothing, reason: 'closed');
     });
 
     testWidgets('Escape closes and chooses nothing', (tester) async {

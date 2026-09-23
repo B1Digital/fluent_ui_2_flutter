@@ -150,7 +150,7 @@ const FluentDropdownBaseState({
 
 ### `FluentDropdownEdgeIntent`
 
-Jumps the active option to the first or last selectable row.
+Jumps the active option to the first or last option row.
 
 Source: `packages/fluent_2/lib/src/inputs/dropdown.dart`
 
