@@ -542,6 +542,18 @@ void main() {
     });
   });
 
+  testWidgets('no section offers an inert gradient switch', (
+    WidgetTester tester,
+  ) async {
+    // FluentHorizontalBarChartWithAxis fills every bar flat, so upstream's
+    // "Enable Gradient" switch is left out rather than shown as a live control
+    // that changes nothing.
+    for (final DocsSection each in sectionsOf(page)) {
+      await pumpSection(tester, each);
+      expect(find.textContaining('Gradient'), findsNothing, reason: each.id);
+    }
+  });
+
   group('lifecycle', () {
     testWidgets('every section unmounts without throwing', (
       WidgetTester tester,

@@ -77,7 +77,7 @@
   },
   "charts-gaugechart--gauge-chart-basic": {
     "kind": "reduced",
-    "why": "FluentGaugeChart has no `enableGradient` counterpart \u2014 the port paints flat segment fills. The 'Enable Gradient'/'Disable Gradient' switch is kept live so the section retains upstream's control set, but drives nothing; noted in a comment inside the docregion. The three range inputs become FluentSlider inside SizedBox, and width/height ride on a SizedBox because the chart's own Column needs a bounded box."
+    "why": "FluentGaugeChart has no `enableGradient` counterpart \u2014 the port paints flat segment fills \u2014 so the 'Enable Gradient'/'Disable Gradient' switch is left out rather than shown as a control that changes nothing; noted in a comment inside the docregion. The three range inputs become FluentSlider inside SizedBox, and width/height ride on a SizedBox because the chart's own Column needs a bounded box."
   },
   "charts-gaugechart--gauge-chart-responsive": {
     "kind": "nearest-widget",
@@ -85,7 +85,7 @@
   },
   "charts-gaugechart--gauge-chart-single-segment": {
     "kind": "reduced",
-    "why": "Same `enableGradient` gap: the switch renders and toggles but has no prop to drive. Everything else (chartTitle 'Storage capacity', sublabel 'used', fraction format, single-segment variant, roundCorners) maps one-to-one."
+    "why": "Same `enableGradient` gap: the switch has no prop to drive, so it is left out. Everything else (chartTitle 'Storage capacity', sublabel 'used', fraction format, single-segment variant, roundCorners) maps one-to-one."
   },
   "charts-groupedverticalbarchart--grouped-vertical-bar-default": {
     "kind": "platform",
@@ -120,7 +120,7 @@
   },
   "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-basic": {
     "kind": "local-state",
-    "why": "Upstream's width/height range inputs and its Field/RadioGroup/Checkbox/Switch knobs become FluentSlider, FluentField+FluentRadioGroup, FluentCheckbox and FluentSwitch driven by State. getColorFromToken(DataVizPalette.colorN) becomes FluentDataVizPalette.resolve(FluentDataVizToken.colorN). enableGradient has no counterpart on FluentHorizontalBarChartWithAxis, which fills bars flat, so the Enable Gradient switch is kept and honestly inert; the radio pair is inert here exactly as upstream, whose handler only toggles a boolean no prop reads. culture={window.navigator.language} becomes the fixed 'en-us' a test environment can reproduce. The width slider reaches 1000, wider than the docs column, so the chart box is a SizedBox inside a horizontal SingleChildScrollView instead of overflowing."
+    "why": "Upstream's width/height range inputs and its Field/RadioGroup/Checkbox/Switch knobs become FluentSlider, FluentField+FluentRadioGroup, FluentCheckbox and FluentSwitch driven by State. getColorFromToken(DataVizPalette.colorN) becomes FluentDataVizPalette.resolve(FluentDataVizToken.colorN). enableGradient has no counterpart on FluentHorizontalBarChartWithAxis, which fills bars flat, so the Enable Gradient switch is left out; the radio pair is inert here exactly as upstream, whose handler only toggles a boolean no prop reads. culture={window.navigator.language} becomes the fixed 'en-us' a test environment can reproduce. The width slider reaches 1000, wider than the docs column, so the chart box is a SizedBox inside a horizontal SingleChildScrollView instead of overflowing."
   },
   "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-category-order": {
     "kind": "reduced",
@@ -132,11 +132,11 @@
   },
   "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-negative": {
     "kind": "reduced",
-    "why": "enableGradient has no counterpart on FluentHorizontalBarChartWithAxis, so the Enable Gradient switch is inert. Upstream's eight categories.map(...) concat calls become one _seriesPoints helper applied to the same eight literal value arrays in the same order, so the point list is identical."
+    "why": "enableGradient has no counterpart on FluentHorizontalBarChartWithAxis, so the Enable Gradient switch is left out. Upstream's eight categories.map(...) concat calls become one _seriesPoints helper applied to the same eight literal value arrays in the same order, so the point list is identical."
   },
   "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-string-axis-tooltip": {
     "kind": "reduced",
-    "why": "enableGradient has no counterpart on FluentHorizontalBarChartWithAxis, so the Enable Gradient switch is kept for control parity but changes nothing. showYAxisLablesTooltip/showYAxisLables and hideLegend/hideTooltip move onto FluentCartesianChartProps, which is where our port carries the shell props; hideTooltip={false} is already the default so it is not restated."
+    "why": "enableGradient has no counterpart on FluentHorizontalBarChartWithAxis, so the Enable Gradient switch is left out. showYAxisLablesTooltip/showYAxisLables and hideLegend/hideTooltip move onto FluentCartesianChartProps, which is where our port carries the shell props; hideTooltip={false} is already the default so it is not restated."
   },
   "charts-legends--legends-basic": {
     "kind": "local-state",
@@ -298,7 +298,7 @@
   },
   "charts-verticalstackedbarchart--vertical-stacked-bar-axis-tooltip": {
     "kind": "reduced",
-    "why": "enableGradient has no counterpart on FluentVerticalStackedBarChart \u2014 our port paints flat segment fills \u2014 so the Enable/Disable Gradient switch is kept for control parity and drives nothing. The label literals barWidth:&nbsp;, xAxisInnerPadding:&nbsp; and xAxisOuterPadding:&nbsp; are written as real U+00A0 escapes, since Flutter has no HTML entity syntax."
+    "why": "enableGradient has no counterpart on FluentVerticalStackedBarChart \u2014 our port paints flat segment fills \u2014 so the Enable/Disable Gradient switch is left out. The label literals barWidth:&nbsp;, xAxisInnerPadding:&nbsp; and xAxisOuterPadding:&nbsp; are written as real U+00A0 escapes, since Flutter has no HTML entity syntax."
   },
   "charts-verticalstackedbarchart--vertical-stacked-bar-callout": {
     "kind": "reduced",

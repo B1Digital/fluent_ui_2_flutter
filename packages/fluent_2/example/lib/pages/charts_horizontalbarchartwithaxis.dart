@@ -286,7 +286,6 @@ class _HorizontalBarWithAxisBasicState
   double _height = 350;
   String? _calloutExample;
   bool _useSingleColor = false;
-  bool _enableGradient = false;
   bool _roundCorners = false;
   bool _selectMultipleLegends = false;
 
@@ -362,16 +361,8 @@ class _HorizontalBarWithAxisBasicState
         runSpacing: 8,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: <Widget>[
-          // `enableGradient` has no counterpart on the Flutter chart, which
-          // fills every bar flat. The switch stays so the story's controls are
-          // complete, and it is honestly inert.
-          FluentSwitch(
-            checked: _enableGradient,
-            onChanged: (bool value) => setState(() => _enableGradient = value),
-            label: Text(
-              _enableGradient ? 'Enable Gradient ON' : 'Enable Gradient OFF',
-            ),
-          ),
+          // Upstream also offers an "Enable Gradient" switch; the port has no
+          // gradient fill for bars, so that one knob is left out.
           FluentSwitch(
             checked: _roundCorners,
             onChanged: (bool value) => setState(() => _roundCorners = value),
@@ -452,7 +443,6 @@ class _HorizontalBarWithAxisStringAxisTooltipState
       ];
 
   String _selectedCallout = 'showTooltip';
-  bool _enableGradient = false;
   bool _roundCorners = false;
 
   @override
@@ -483,16 +473,8 @@ class _HorizontalBarWithAxisStringAxisTooltipState
         runSpacing: 8,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: <Widget>[
-          // `enableGradient` has no counterpart on the Flutter chart, which
-          // fills every bar flat. The switch stays so the story's controls are
-          // complete, and it is honestly inert.
-          FluentSwitch(
-            checked: _enableGradient,
-            onChanged: (bool value) => setState(() => _enableGradient = value),
-            label: Text(
-              _enableGradient ? 'Enable Gradient ON' : 'Enable Gradient OFF',
-            ),
-          ),
+          // Upstream also offers an "Enable Gradient" switch; the port has no
+          // gradient fill for bars, so that one knob is left out.
           FluentSwitch(
             checked: _roundCorners,
             onChanged: (bool value) => setState(() => _roundCorners = value),
@@ -811,7 +793,6 @@ class _HorizontalBarWithAxisNegativeState
       ];
 
   String _selectedCallout = 'showTooltip';
-  bool _enableGradient = false;
   bool _roundCorners = false;
 
   @override
@@ -842,16 +823,8 @@ class _HorizontalBarWithAxisNegativeState
         runSpacing: 8,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: <Widget>[
-          // `enableGradient` has no counterpart on the Flutter chart, which
-          // fills every bar flat. The switch stays so the story's controls are
-          // complete, and it is honestly inert.
-          FluentSwitch(
-            checked: _enableGradient,
-            onChanged: (bool value) => setState(() => _enableGradient = value),
-            label: Text(
-              _enableGradient ? 'Enable Gradient ON' : 'Enable Gradient OFF',
-            ),
-          ),
+          // Upstream also offers an "Enable Gradient" switch; the port has no
+          // gradient fill for bars, so that one knob is left out.
           FluentSwitch(
             checked: _roundCorners,
             onChanged: (bool value) => setState(() => _roundCorners = value),

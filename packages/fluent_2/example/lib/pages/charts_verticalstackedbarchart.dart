@@ -679,7 +679,6 @@ class _VerticalStackedBarAxisTooltipState
   double _xAxisOuterPadding = 0;
   double _width = 650;
   double _height = 350;
-  bool _enableGradient = false;
   bool _roundCorners = false;
 
   Widget _slider(
@@ -942,18 +941,8 @@ class _VerticalStackedBarAxisTooltipState
                 ],
               ),
             ),
-            // `enableGradient` has no counterpart on
-            // `FluentVerticalStackedBarChart`: our port paints flat segment
-            // fills. The switch stays so the section keeps upstream's control
-            // set, and it drives nothing.
-            FluentSwitch(
-              checked: _enableGradient,
-              label: Text(
-                _enableGradient ? 'Enable Gradient' : 'Disable Gradient',
-              ),
-              onChanged: (bool value) =>
-                  setState(() => _enableGradient = value),
-            ),
+            // Upstream also offers an "Enable Gradient" switch; the port has
+            // no gradient fill for bar segments, so that one knob is left out.
             FluentSwitch(
               checked: _roundCorners,
               label: Text(
