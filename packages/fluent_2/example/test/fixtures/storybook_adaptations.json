@@ -355,7 +355,8 @@
   },
   "compat-components-datepicker--date-range": {
     "kind": "reduced",
-    "why": "Upstream drives calendar.dateRangeType (Day/Work Week/Week/Month), which paints a whole week, work week or month as one selection. FluentCalendar selects a single day and has no range axis, so the DateRangeType control is live and stateful while the calendar keeps single-day selection. Upstream's native <Select> is rendered as FluentDropdown, our nearest equivalent."
+    "why": "Upstream drives calendar.dateRangeType (Day/Work Week/Week/Month), which paints a whole week, work week or month as one selection. FluentCalendar selects a single day and has no range axis, so upstream's DateRangeType <Select> is not ported: it could only ever change itself. The section keeps the single-day picker and its description says the port has no range selection. 'Select a DateRangeType' is waived because it labels that unported control.",
+    "sampleStringsSkip": ["Select a DateRangeType"]
   },
   "compat-components-datepicker--disabled": {
     "kind": "nearest-widget",
