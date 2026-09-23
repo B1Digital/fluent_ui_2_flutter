@@ -118,11 +118,10 @@ void main() {
           'port stringifies it because FluentFunnelDataPoint.stage is a '
           'non-nullable `num | String` (funnel_chart.dart:66-68).',
     );
-    expect(
-      chart.data.map((d) => d.value).toList(),
-      <double>[3, 1],
-      reason: 'PlotlySchemaAdapter.ts:3152 — `Number(values[i])`.',
-    );
+    expect(chart.data.map((d) => d.value).toList(), <double>[
+      3,
+      1,
+    ], reason: 'PlotlySchemaAdapter.ts:3152 — `Number(values[i])`.');
   });
 
   test('a non-stacked funnel drops a stage whose value is not a number', () {

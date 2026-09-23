@@ -112,11 +112,9 @@ void main() {
         item,
         (TextStyle style) => style.fontWeight == FontWeight.w600,
       );
-      expect(
-        bold.map((TextSpan span) => span.text),
-        <String>['Performance'],
-        reason: 'the strong run is the label, and only the label',
-      );
+      expect(bold.map((TextSpan span) => span.text), <String>[
+        'Performance',
+      ], reason: 'the strong run is the label, and only the label');
     });
 
     testWidgets('package names keep the monospace face', (
@@ -149,11 +147,9 @@ void main() {
         find.textContaining('Reach out to the Fluent UI React team'),
         (TextStyle style) => style.color == DocsMetrics.railActive,
       );
-      expect(
-        links.map((TextSpan span) => span.text),
-        <String>['GitHub'],
-        reason: 'exactly the anchor text is painted in the link colour',
-      );
+      expect(links.map((TextSpan span) => span.text), <String>[
+        'GitHub',
+      ], reason: 'exactly the anchor text is painted in the link colour');
     });
 
     testWidgets('a real click on it navigates nowhere', (

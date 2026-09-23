@@ -765,11 +765,9 @@ void main() {
       final marks = _lineDelegate(
         mode: const FluentLineMode(markers: true, lines: false),
       ).markersFor(_ctx());
-      expect(
-        marks.map((mark) => mark.shapeIndex).toSet(),
-        <int?>{null},
-        reason: 'LineChart.tsx:850 renders a <circle>, not _getPointPath',
-      );
+      expect(marks.map((mark) => mark.shapeIndex).toSet(), <int?>{
+        null,
+      }, reason: 'LineChart.tsx:850 renders a <circle>, not _getPointPath');
       expect(
         marks.map((mark) => mark.size).toSet(),
         <double>{3.5},
@@ -851,11 +849,9 @@ void main() {
         hasLength(3),
         reason: 'LineChart.tsx:775 walks every point, not every segment',
       );
-      expect(
-        marks.map((mark) => mark.strokeWidth).toSet(),
-        <double>{1},
-        reason: 'LineChart.tsx:803 pins the engine B marker stroke to 1',
-      );
+      expect(marks.map((mark) => mark.strokeWidth).toSet(), <double>{
+        1,
+      }, reason: 'LineChart.tsx:803 pins the engine B marker stroke to 1');
     });
 
     test('an engine B marker never grows, because upstream compares ids', () {
@@ -1730,15 +1726,11 @@ void main() {
             'the tile path is M-4,4 l8,-8 M0,16 l16,-16 M12,20 l8,-8, '
             'LineChart.tsx:1418',
       );
-      expect(
-        recorder.drawn,
-        const <(Offset, Offset)>[
-          (Offset(-4, 4), Offset(4, -4)),
-          (Offset(0, 16), Offset(16, 0)),
-          (Offset(12, 20), Offset(20, 12)),
-        ],
-        reason: 'each l8,-8 / l16,-16 is a 45° diagonal up and to the right',
-      );
+      expect(recorder.drawn, const <(Offset, Offset)>[
+        (Offset(-4, 4), Offset(4, -4)),
+        (Offset(0, 16), Offset(16, 0)),
+        (Offset(12, 20), Offset(20, 12)),
+      ], reason: 'each l8,-8 / l16,-16 is a 45° diagonal up and to the right');
       expect(recorder.strokeWidths, const <double>[
         1.25,
         1.25,
@@ -2618,11 +2610,11 @@ void main() {
         'Weekend',
         reason: 'LineChart.tsx:451 spreads colorFillBarsLegendDataItems last',
       );
-      expect(
-        legends.map((item) => item.title),
-        <String>['alpha', 'beta', 'Weekend'],
-        reason: 'the lines keep author order ahead of the bars',
-      );
+      expect(legends.map((item) => item.title), <String>[
+        'alpha',
+        'beta',
+        'Weekend',
+      ], reason: 'the lines keep author order ahead of the bars');
     });
 
     testWidgets('hovering a legend redraws the bands at the new opacity', (

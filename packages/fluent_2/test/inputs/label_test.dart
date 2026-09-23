@@ -95,16 +95,12 @@ void main() {
         }, reason: '${variant.name}: weight');
         // The colour is selected from the token the fixture names, never
         // reverse-engineered from the hex it resolved to.
-        expect(
-          style.color,
-          switch (text.tokens['fills']!.single) {
-            'Neutral/Foreground/1/Rest' => light.colors.neutralForeground1,
-            'Neutral/Foreground/Disabled/Rest' =>
-              light.colors.neutralForegroundDisabled,
-            final other => fail('unmapped fill token $other'),
-          },
-          reason: '${variant.name}: fill (${text.tokens['fills']!.single})',
-        );
+        expect(style.color, switch (text.tokens['fills']!.single) {
+          'Neutral/Foreground/1/Rest' => light.colors.neutralForeground1,
+          'Neutral/Foreground/Disabled/Rest' =>
+            light.colors.neutralForegroundDisabled,
+          final other => fail('unmapped fill token $other'),
+        }, reason: '${variant.name}: fill (${text.tokens['fills']!.single})');
         expect(
           tester.getSize(find.byKey(key)).height,
           variant.size.height,

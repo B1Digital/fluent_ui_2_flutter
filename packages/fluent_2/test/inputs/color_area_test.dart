@@ -175,11 +175,10 @@ void main() {
             '0x00000000 end stop drags the midpoint towards grey and lays a '
             'visible haze down the middle of the square.',
       );
-      expect(
-        FluentColorAreaPainter.valueRamp,
-        const <Color>[Color(0x00000000), Color(0xFF000000)],
-        reason: 'transparent black is correct here — the far stop is black',
-      );
+      expect(FluentColorAreaPainter.valueRamp, const <Color>[
+        Color(0x00000000),
+        Color(0xFF000000),
+      ], reason: 'transparent black is correct here — the far stop is black');
     });
 
     test('the painted midpoint is the browser\'s, to within a unit', () async {

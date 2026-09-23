@@ -64,11 +64,10 @@ void main() {
     // ticks and floors 06:30 to 06:00 — not to midnight. Verified against the
     // pinned module: `d3.scaleUtc().domain([...]).nice().domain()` returns
     // ['2024-01-01T06:00:00.000Z', '2024-01-03T18:00:00.000Z'].
-    expect(
-      s.domain.cast<DateTime>(),
-      <DateTime>[DateTime.utc(2024, 1, 1, 6), DateTime.utc(2024, 1, 3, 18)],
-      reason: 'time.js:56-60 nices through the chosen tick interval',
-    );
+    expect(s.domain.cast<DateTime>(), <DateTime>[
+      DateTime.utc(2024, 1, 1, 6),
+      DateTime.utc(2024, 1, 3, 18),
+    ], reason: 'time.js:56-60 nices through the chosen tick interval');
     // utcDay is an explicit interval, so time.js:58 skips tickInterval.
     final byInterval = scaleUtc()
       ..domainOfDates(<DateTime>[
@@ -76,11 +75,10 @@ void main() {
         DateTime.utc(2024, 1, 3, 17, 15),
       ])
       ..nice(utcDay);
-    expect(
-      byInterval.domain.cast<DateTime>(),
-      <DateTime>[DateTime.utc(2024), DateTime.utc(2024, 1, 4)],
-      reason: 'an explicit interval floors and ceils to whole days',
-    );
+    expect(byInterval.domain.cast<DateTime>(), <DateTime>[
+      DateTime.utc(2024),
+      DateTime.utc(2024, 1, 4),
+    ], reason: 'an explicit interval floors and ceils to whole days');
   });
 
   test('against the d3 golden corpus', () async {

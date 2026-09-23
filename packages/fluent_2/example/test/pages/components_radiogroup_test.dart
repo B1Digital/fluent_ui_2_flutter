@@ -34,11 +34,12 @@ void main() {
       expect(_dots(tester), <bool>[false, true, false, false]);
 
       await mouseClick(tester, find.text('Orange'));
-      expect(
-        _dots(tester),
-        <bool>[false, false, false, true],
-        reason: 'a radio group must deselect the old option, not add to it',
-      );
+      expect(_dots(tester), <bool>[
+        false,
+        false,
+        false,
+        true,
+      ], reason: 'a radio group must deselect the old option, not add to it');
 
       await mouseClick(tester, find.text('Pear'));
       expect(_dots(tester), <bool>[false, true, false, false]);
@@ -229,11 +230,12 @@ void main() {
         );
       }
 
-      expect(
-        _dots(tester),
-        <bool>[true, false, false, false],
-        reason: 'a disabled group that still selects is not disabled',
-      );
+      expect(_dots(tester), <bool>[
+        true,
+        false,
+        false,
+        false,
+      ], reason: 'a disabled group that still selects is not disabled');
     });
   });
 
@@ -260,11 +262,12 @@ void main() {
         what: 'the disabled item',
         warnIfMissed: false,
       );
-      expect(
-        _dots(tester),
-        <bool>[true, false, false, false],
-        reason: 'per-item disabled must beat the group being enabled',
-      );
+      expect(_dots(tester), <bool>[
+        true,
+        false,
+        false,
+        false,
+      ], reason: 'per-item disabled must beat the group being enabled');
 
       // Its siblings are still live — a disabled item that took the whole group
       // down with it would pass the assertion above and fail this one.

@@ -125,11 +125,10 @@ void main() {
       slice('Neg', -3),
       slice('B', 5),
     ]);
-    expect(
-      layout.legendPoints.map((p) => p.legend).toList(),
-      <String>['A', 'B'],
-      reason: 'DonutChart.tsx:331 — d.data >= 0 drops a negative.',
-    );
+    expect(layout.legendPoints.map((p) => p.legend).toList(), <String>[
+      'A',
+      'B',
+    ], reason: 'DonutChart.tsx:331 — d.data >= 0 drops a negative.');
     expect(
       layout.slices.length,
       3,
@@ -212,11 +211,11 @@ void main() {
       slice('large', 9),
       slice('mid', 5),
     ], order: FluentDonutOrder.sorted);
-    expect(
-      layout.legendPoints.map((p) => p.legend).toList(),
-      <String>['large', 'mid', 'small'],
-      reason: 'DonutChart.tsx:107-111 sorts descending by data.',
-    );
+    expect(layout.legendPoints.map((p) => p.legend).toList(), <String>[
+      'large',
+      'mid',
+      'small',
+    ], reason: 'DonutChart.tsx:107-111 sorts descending by data.');
     expect(
       layout.slices.map((s) => s.point.legend).toList(),
       <String>['small', 'large', 'mid'],

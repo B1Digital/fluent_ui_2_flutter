@@ -138,11 +138,9 @@ void main() {
               'multiple mode must keep the legend that was already selected',
         );
         await mouseClick(tester, find.text('Dogs'));
-        expect(
-          _delegate(tester).selectedLegends,
-          <String>['Oranges'],
-          reason: 'a second press on a selected legend removes just that one',
-        );
+        expect(_delegate(tester).selectedLegends, <String>[
+          'Oranges',
+        ], reason: 'a second press on a selected legend removes just that one');
       },
     );
 

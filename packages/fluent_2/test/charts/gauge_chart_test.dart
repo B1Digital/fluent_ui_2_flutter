@@ -419,11 +419,10 @@ void main() {
         tester,
         const FluentGaugeChart(key: key, chartValue: 50, segments: explicit),
       );
-      expect(
-        painterOf(tester).colours,
-        <Color>[const Color(0xFF107C10), const Color(0xFFC50F1F)],
-        reason: 'A normal theme keeps the caller\'s fills untouched.',
-      );
+      expect(painterOf(tester).colours, <Color>[
+        const Color(0xFF107C10),
+        const Color(0xFFC50F1F),
+      ], reason: 'A normal theme keeps the caller\'s fills untouched.');
 
       final hc = FluentThemeData.highContrast(
         fontPlatform: FluentFontPlatform.web,

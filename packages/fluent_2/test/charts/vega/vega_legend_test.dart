@@ -67,11 +67,10 @@ void main() {
         'color': <String, Object?>{'field': 'g', 'type': 'nominal'},
       },
     });
-    expect(
-      props.legends.map((legend) => legend.title).toList(),
-      <String>['q', 'p'],
-      reason: 'ts:1988-2042 walks the rows once and dedupes.',
-    );
+    expect(props.legends.map((legend) => legend.title).toList(), <String>[
+      'q',
+      'p',
+    ], reason: 'ts:1988-2042 walks the rows once and dedupes.');
   });
 
   test('a row missing the colour key is skipped, an explicit null is not', () {

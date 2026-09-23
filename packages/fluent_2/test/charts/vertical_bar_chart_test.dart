@@ -1042,11 +1042,9 @@ void main() {
             'series fill to CanvasText, so FluentChartColors.flattenMark must '
             'be on every bar fill',
       );
-      expect(
-        canvas.pathStrokes.map(rgb).toSet(),
-        <int>{rgb(_canvasTextColour)},
-        reason: 'the overlaid line is a series mark and flattens with them',
-      );
+      expect(canvas.pathStrokes.map(rgb).toSet(), <int>{
+        rgb(_canvasTextColour),
+      }, reason: 'the overlaid line is a series mark and flattens with them');
       expect(
         canvas.circleStrokes.map(rgb).toSet(),
         <int>{rgb(_canvasColour)},

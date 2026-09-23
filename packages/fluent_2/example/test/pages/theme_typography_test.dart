@@ -275,11 +275,9 @@ void main() {
         line,
         (TextStyle style) => style.color == DocsMetrics.sidebarSelected,
       );
-      expect(
-        linkRuns.map((TextSpan span) => span.text),
-        <String>['Text component documentation'],
-        reason: 'exactly the reference run is painted in the link blue',
-      );
+      expect(linkRuns.map((TextSpan span) => span.text), <String>[
+        'Text component documentation',
+      ], reason: 'exactly the reference run is painted in the link blue');
       expect(linkRuns.single.style!.decoration, TextDecoration.underline);
 
       // A real press, because the shell owns navigation and a body has no route

@@ -97,19 +97,21 @@ void main() {
       await mouseClick(tester, find.text('Visitors'));
       expect(opacities(tester), <double>[1, 0.1, 0.1, 0.1]);
       await mouseClick(tester, find.text('Signups'));
-      expect(
-        opacities(tester),
-        <double>[0.1, 1, 0.1, 0.1],
-        reason: 'single select keeps only the last legend pressed',
-      );
+      expect(opacities(tester), <double>[
+        0.1,
+        1,
+        0.1,
+        0.1,
+      ], reason: 'single select keeps only the last legend pressed');
 
       await tapAndSettle(tester, find.text('Multiple Legend Selection'));
       await tapAndSettle(tester, find.text('Visitors'));
-      expect(
-        opacities(tester),
-        <double>[1, 1, 0.1, 0.1],
-        reason: 'multi select must let the second press join the first',
-      );
+      expect(opacities(tester), <double>[
+        1,
+        1,
+        0.1,
+        0.1,
+      ], reason: 'multi select must let the second press join the first');
     });
 
     testWidgets('hovering a segment opens its stage popover', (

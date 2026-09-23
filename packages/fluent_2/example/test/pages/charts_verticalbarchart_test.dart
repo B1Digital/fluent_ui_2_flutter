@@ -274,11 +274,9 @@ void main() {
     ) async {
       await pumpSection(tester, section);
       await typeAndCommit(tester, find.byType(FluentSpinButton).at(0), '200');
-      expect(
-        _bars(tester).map((Rect r) => r.width).toSet(),
-        <double>{100},
-        reason: 'maxBarWidth is 100, so a 200px request must be cut to it',
-      );
+      expect(_bars(tester).map((Rect r) => r.width).toSet(), <double>{
+        100,
+      }, reason: 'maxBarWidth is 100, so a 200px request must be cut to it');
 
       await typeAndCommit(tester, find.byType(FluentSpinButton).at(1), '30');
       expect(_bars(tester).map((Rect r) => r.width).toSet(), <double>{30});

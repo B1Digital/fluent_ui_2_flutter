@@ -64,11 +64,10 @@ void main() {
   });
 
   test('range is half-open and starts from the ceiling', () {
-    expect(
-      d3.utcDay.range(utc(2024, 1, 1, 6), utc(2024, 1, 4)),
-      <DateTime>[utc(2024, 1, 2), utc(2024, 1, 3)],
-      reason: 'interval.js:27-34 ceils the start and excludes the stop',
-    );
+    expect(d3.utcDay.range(utc(2024, 1, 1, 6), utc(2024, 1, 4)), <DateTime>[
+      utc(2024, 1, 2),
+      utc(2024, 1, 3),
+    ], reason: 'interval.js:27-34 ceils the start and excludes the stop');
     expect(
       d3.utcDay.range(utc(2024, 1, 4), utc(2024)),
       isEmpty,

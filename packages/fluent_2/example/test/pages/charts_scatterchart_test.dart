@@ -130,11 +130,11 @@ void main() {
       expect(_litSeries(tester), <int>{1});
 
       await mouseAway(tester, mouse);
-      expect(
-        _litSeries(tester),
-        <int>{0, 1, 2},
-        reason: 'leaving the row must restore every series to full strength',
-      );
+      expect(_litSeries(tester), <int>{
+        0,
+        1,
+        2,
+      }, reason: 'leaving the row must restore every series to full strength');
     });
 
     testWidgets('hovering a marker opens the popover for that point', (

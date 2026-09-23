@@ -502,11 +502,10 @@ void main() {
       12.5,
       reason: 'PlotlySchemaAdapter.ts:2074.',
     );
-    expect(
-      series.polarLineOptions!.axisLabel,
-      <String>['alpha', 'beta'],
-      reason: 'PlotlySchemaAdapter.ts:2077-2079.',
-    );
+    expect(series.polarLineOptions!.axisLabel, <String>[
+      'alpha',
+      'beta',
+    ], reason: 'PlotlySchemaAdapter.ts:2077-2079.');
     expect(
       scatter(polar).data.scatterChartData!.single.polarLineOptions!.direction,
       'clockwise',

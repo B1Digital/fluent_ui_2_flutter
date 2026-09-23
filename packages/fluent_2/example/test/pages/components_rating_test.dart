@@ -49,11 +49,13 @@ void main() {
       final Finder rating = find.byType(FluentRating);
 
       final TestGesture mouse = await mouseHover(tester, row(rating));
-      expect(
-        fills(tester, rating),
-        <double>[1, 1, 1, 0, 0],
-        reason: 'the shapes under the pointer must preview the value',
-      );
+      expect(fills(tester, rating), <double>[
+        1,
+        1,
+        1,
+        0,
+        0,
+      ], reason: 'the shapes under the pointer must preview the value');
       expect(
         tester.widget<FluentRating>(rating).value,
         0,
@@ -61,11 +63,13 @@ void main() {
       );
 
       await mouseAway(tester, mouse);
-      expect(
-        fills(tester, rating),
-        <double>[0, 0, 0, 0, 0],
-        reason: 'the preview must be given back when the pointer leaves',
-      );
+      expect(fills(tester, rating), <double>[
+        0,
+        0,
+        0,
+        0,
+        0,
+      ], reason: 'the preview must be given back when the pointer leaves');
     });
 
     testWidgets('a hover previews exactly what a click there commits', (
@@ -110,11 +114,13 @@ void main() {
 
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
       await settle(tester);
-      expect(
-        fills(tester, rating),
-        <double>[1, 1, 1, 0, 0],
-        reason: 'right after left must land back where it started',
-      );
+      expect(fills(tester, rating), <double>[
+        1,
+        1,
+        1,
+        0,
+        0,
+      ], reason: 'right after left must land back where it started');
     });
 
     testWidgets('unmounts cleanly', (WidgetTester tester) async {
@@ -136,11 +142,13 @@ void main() {
       expect(fills(tester, rating), <double>[1, 1, 1, 1, 0]);
 
       await mouseClick(tester, find.text('Clear Rating'));
-      expect(
-        fills(tester, rating),
-        <double>[0, 0, 0, 0, 0],
-        reason: 'the button the section ships must actually clear the row',
-      );
+      expect(fills(tester, rating), <double>[
+        0,
+        0,
+        0,
+        0,
+        0,
+      ], reason: 'the button the section ships must actually clear the row');
       expect(tester.widget<FluentRating>(rating).value, 0);
 
       await mouseClickAt(
@@ -293,11 +301,13 @@ void main() {
       );
       expect(fills(tester, rating.at(1)), <double>[1, 1, 1, 1, 1]);
       for (final int other in <int>[0, 2, 3]) {
-        expect(
-          fills(tester, rating.at(other)),
-          <double>[1, 1, 1, 0, 0],
-          reason: 'the demo keeps one value per row; row $other moved too',
-        );
+        expect(fills(tester, rating.at(other)), <double>[
+          1,
+          1,
+          1,
+          0,
+          0,
+        ], reason: 'the demo keeps one value per row; row $other moved too');
       }
     });
 
@@ -382,11 +392,13 @@ void main() {
         0,
         0,
       ], reason: 'this row is built with step 0.5');
-      expect(
-        fills(tester, rating.at(1)),
-        <double>[0, 0, 0, 0, 0],
-        reason: 'the square row has its own value and must not follow',
-      );
+      expect(fills(tester, rating.at(1)), <double>[
+        0,
+        0,
+        0,
+        0,
+        0,
+      ], reason: 'the square row has its own value and must not follow');
     });
 
     testWidgets('unmounts cleanly', (WidgetTester tester) async {

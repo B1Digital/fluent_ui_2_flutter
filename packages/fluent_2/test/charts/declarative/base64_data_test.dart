@@ -22,11 +22,10 @@ void main() {
     });
     final trace =
         (decoded['data']! as List<Object?>).first! as Map<String, Object?>;
-    expect(
-      trace['y'],
-      <double>[1.5, -2.25],
-      reason: "DecodeBase64Data.ts:56-57 maps dtype 'f8' onto Float64Array.",
-    );
+    expect(trace['y'], <double>[
+      1.5,
+      -2.25,
+    ], reason: "DecodeBase64Data.ts:56-57 maps dtype 'f8' onto Float64Array.");
   });
 
   test('decodes i2 to 16-bit signed ints', () {
@@ -35,11 +34,10 @@ void main() {
       'bdata': base64Encode(bytes),
       'dtype': 'i2',
     });
-    expect(
-      decoded,
-      <int>[-1, 300],
-      reason: "DecodeBase64Data.ts:64-65 maps dtype 'i2' onto Int16Array.",
-    );
+    expect(decoded, <int>[
+      -1,
+      300,
+    ], reason: "DecodeBase64Data.ts:64-65 maps dtype 'i2' onto Int16Array.");
   });
 
   test('reshapes a flat payload with a two-dimensional shape', () {

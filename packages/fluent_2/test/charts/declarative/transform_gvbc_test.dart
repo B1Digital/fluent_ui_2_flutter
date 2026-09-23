@@ -47,11 +47,10 @@ void main() {
       reason:
           'PlotlySchemaAdapter.ts:1658-1765 walks the traces and pushes one series each.',
     );
-    expect(
-      chart.dataV2!.map((series) => series.data.length).toList(),
-      <int>[1, 1],
-      reason: 'One x value per trace, so one point each.',
-    );
+    expect(chart.dataV2!.map((series) => series.data.length).toList(), <int>[
+      1,
+      1,
+    ], reason: 'One x value per trace, so one point each.');
   });
 
   testWidgets('each x value becomes one group holding one bar per trace', (
@@ -233,19 +232,14 @@ void main() {
           'PlotlySchemaAdapter.ts:1178 keeps the supplied labels when there '
           'is one per object.',
     );
-    expect(
-      normalised.traces.map((trace) => trace['name']).toList(),
-      <Object?>['p', 'q'],
-      reason: 'PlotlySchemaAdapter.ts:1211-1240 emits one trace per key.',
-    );
-    expect(
-      normalised.traces.map((trace) => trace['y']).toList(),
-      <Object?>[
-        <double>[1, 3],
-        <double>[2, 4],
-      ],
-      reason: 'PlotlySchemaAdapter.ts:1216-1227 columnises the key.',
-    );
+    expect(normalised.traces.map((trace) => trace['name']).toList(), <Object?>[
+      'p',
+      'q',
+    ], reason: 'PlotlySchemaAdapter.ts:1211-1240 emits one trace per key.');
+    expect(normalised.traces.map((trace) => trace['y']).toList(), <Object?>[
+      <double>[1, 3],
+      <double>[2, 4],
+    ], reason: 'PlotlySchemaAdapter.ts:1216-1227 columnises the key.');
   });
 
   test('style and non-numeric keys are dropped, and labels default', () {
@@ -272,11 +266,9 @@ void main() {
           'flattened with dots by :520-538; `color` and `labelStyle` are '
           'ignored by :493-511 and the string `name` is not numeric.',
     );
-    expect(
-      normalised.traces.first['y'],
-      <double>[1],
-      reason: "PlotlySchemaAdapter.ts:1223 parses the numeric string '1'.",
-    );
+    expect(normalised.traces.first['y'], <double>[
+      1,
+    ], reason: "PlotlySchemaAdapter.ts:1223 parses the numeric string '1'.");
   });
 
   test('an object-array y trace is split before the chart is built', () {

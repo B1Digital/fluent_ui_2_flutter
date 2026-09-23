@@ -25,11 +25,10 @@ void main() {
   });
 
   test('extent returns a pair and both halves are null on empty', () {
-    expect(
-      d3.extent<num>(<Object?>[]),
-      (null, null),
-      reason: 'extent.js:28 returns [undefined, undefined]',
-    );
+    expect(d3.extent<num>(<Object?>[]), (
+      null,
+      null,
+    ), reason: 'extent.js:28 returns [undefined, undefined]');
     expect(d3.extent<num>(<Object?>[5, -2, 9]), (
       -2,
       9,

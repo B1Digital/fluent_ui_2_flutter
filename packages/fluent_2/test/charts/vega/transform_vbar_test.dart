@@ -128,11 +128,10 @@ void main() {
         reason:
             'ts:2325: `!colorField` is false, and `legend.disable` is absent.',
       );
-      expect(
-        coloured.data.map((d) => d.legend).toList(),
-        <String>['north', 'south'],
-        reason: 'ts:2254-2256 takes the legend from the colour column.',
-      );
+      expect(coloured.data.map((d) => d.legend).toList(), <String>[
+        'north',
+        'south',
+      ], reason: 'ts:2254-2256 takes the legend from the colour column.');
       expect(
         build(
           <Object?>[
@@ -235,11 +234,10 @@ void main() {
       <String, String>{},
       isDark: false,
     );
-    expect(
-      chart.data.map((d) => d.y).toList(),
-      <double>[4, 10],
-      reason: 'ts:2162-2163 sums per category before any bar is built.',
-    );
+    expect(chart.data.map((d) => d.y).toList(), <double>[
+      4,
+      10,
+    ], reason: 'ts:2162-2163 sums per category before any bar is built.');
     expect(
       chart.data.map((d) => d.legend).toList(),
       <String>['Bar', 'Bar'],
@@ -385,11 +383,9 @@ void main() {
       <String, String>{},
       isDark: false,
     );
-    expect(
-      chart.data.map((d) => d.x).toList(),
-      <String>['a'],
-      reason: 'ts:2250-2252 skips a row whose x or y is invalid.',
-    );
+    expect(chart.data.map((d) => d.x).toList(), <String>[
+      'a',
+    ], reason: 'ts:2250-2252 skips a row whose x or y is invalid.');
   });
 }
 

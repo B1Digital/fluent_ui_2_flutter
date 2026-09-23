@@ -147,14 +147,10 @@ void main() {
 
   group('FluentAxisScaleType', () {
     test("renames 'default' to auto because default is a Dart keyword", () {
-      expect(
-        FluentAxisScaleType.values,
-        <FluentAxisScaleType>[
-          FluentAxisScaleType.auto,
-          FluentAxisScaleType.log,
-        ],
-        reason: "DataPoint.ts:1085 — 'default' | 'log'.",
-      );
+      expect(FluentAxisScaleType.values, <FluentAxisScaleType>[
+        FluentAxisScaleType.auto,
+        FluentAxisScaleType.log,
+      ], reason: "DataPoint.ts:1085 — 'default' | 'log'.");
     });
   });
 
@@ -295,11 +291,11 @@ void main() {
 
     test('explicit carries the caller order verbatim', () {
       const order = FluentAxisCategoryOrder.explicit(<String>['b', 'a', 'c']);
-      expect(
-        (order as FluentAxisCategoryOrderExplicit).categories,
-        <String>['b', 'a', 'c'],
-        reason: 'The `string[]` arm at types/DataPoint.ts:956.',
-      );
+      expect((order as FluentAxisCategoryOrderExplicit).categories, <String>[
+        'b',
+        'a',
+        'c',
+      ], reason: 'The `string[]` arm at types/DataPoint.ts:956.');
     });
   });
 }

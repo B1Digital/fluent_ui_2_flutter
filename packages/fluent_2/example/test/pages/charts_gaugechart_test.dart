@@ -155,20 +155,20 @@ void main() {
       await mouseClick(tester, find.text('Low Risk'));
       expect(gaugePainter(tester).opacities, <double>[1, 0.1, 0.1]);
       await mouseClick(tester, find.text('Medium Risk'));
-      expect(
-        gaugePainter(tester).opacities,
-        <double>[0.1, 1, 0.1],
-        reason: 'single select keeps only the last legend pressed',
-      );
+      expect(gaugePainter(tester).opacities, <double>[
+        0.1,
+        1,
+        0.1,
+      ], reason: 'single select keeps only the last legend pressed');
 
       await tapAndSettle(tester, find.text('legendMultiSelect OFF'));
       expect(find.text('legendMultiSelect ON'), findsOneWidget);
       await tapAndSettle(tester, find.text('Low Risk'));
-      expect(
-        gaugePainter(tester).opacities,
-        <double>[1, 1, 0.1],
-        reason: 'multi select must let the second press join the first',
-      );
+      expect(gaugePainter(tester).opacities, <double>[
+        1,
+        1,
+        0.1,
+      ], reason: 'multi select must let the second press join the first');
     });
 
     testWidgets('the gradient switch relabels itself and leaves fills flat', (

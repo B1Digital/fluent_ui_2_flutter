@@ -37,11 +37,10 @@ void main() {
       // synthesises no enter at all — a row that only responded to hover would
       // pass a tap-driven suite and be dead under a cursor.
       await mouseClick(tester, find.text('First'));
-      expect(
-        donutPainter(tester).opacities,
-        <double>[1, 0.1],
-        reason: 'selecting one legend must dim every arc it did not select',
-      );
+      expect(donutPainter(tester).opacities, <double>[
+        1,
+        0.1,
+      ], reason: 'selecting one legend must dim every arc it did not select');
       // `valueInsideDonut` is the literal 35000 until a selection narrows it,
       // and then it is the selected slice's own value — so the hole is the one
       // place a legend press is legible without a screen reader.
@@ -164,11 +163,12 @@ void main() {
       expect(labelTexts(tester), <String>['40', '20', '30', '10']);
 
       await tapAndSettle(tester, percentCheckbox, what: 'the percent checkbox');
-      expect(
-        labelTexts(tester),
-        <String>['40%', '20%', '30%', '10%'],
-        reason: 'the labels are the only place showLabelsInPercent shows',
-      );
+      expect(labelTexts(tester), <String>[
+        '40%',
+        '20%',
+        '30%',
+        '10%',
+      ], reason: 'the labels are the only place showLabelsInPercent shows');
 
       await tapAndSettle(tester, percentCheckbox, what: 'the percent checkbox');
       expect(labelTexts(tester), <String>['40', '20', '30', '10']);
@@ -274,11 +274,10 @@ void main() {
 
       expect(find.text('39,000'), findsOneWidget);
       await mouseClick(tester, find.text('First'));
-      expect(
-        donutPainter(tester).opacities,
-        <double>[1, 0.1],
-        reason: 'the frame must not swallow the legend presses inside it',
-      );
+      expect(donutPainter(tester).opacities, <double>[
+        1,
+        0.1,
+      ], reason: 'the frame must not swallow the legend presses inside it');
       expect(find.text('20,000'), findsOneWidget);
     });
   });

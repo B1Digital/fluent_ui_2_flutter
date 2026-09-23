@@ -152,11 +152,10 @@ void main() {
         },
       ],
     });
-    expect(
-      chart.segments.map((s) => s.legend).toList(),
-      <String>['Current', 'Target'],
-      reason: 'PlotlySchemaAdapter.ts:2752-2769.',
-    );
+    expect(chart.segments.map((s) => s.legend).toList(), <String>[
+      'Current',
+      'Target',
+    ], reason: 'PlotlySchemaAdapter.ts:2752-2769.');
     expect(
       chart.segments.last.size,
       70,
@@ -249,11 +248,10 @@ void main() {
           'PlotlySchemaAdapter.ts:2737: `step.name || `Segment \${index + 1}`` '
           '— a one-based ordinal, not a zero-based one.',
     );
-    expect(
-      chart.segments.map((s) => s.size).toList(),
-      <double>[40, 60],
-      reason: 'PlotlySchemaAdapter.ts:2748: range[1] - range[0].',
-    );
+    expect(chart.segments.map((s) => s.size).toList(), <double>[
+      40,
+      60,
+    ], reason: 'PlotlySchemaAdapter.ts:2748: range[1] - range[0].');
     expect(
       chart.variant,
       FluentGaugeChartVariant.multipleSegments,
@@ -412,11 +410,10 @@ void main() {
         'font': <String, Object?>{'size': 17},
       },
     });
-    expect(
-      chart.headers.map((h) => h.value).toList(),
-      <String>['h1', 'h2'],
-      reason: 'PlotlySchemaAdapter.ts:3008 with :2921-2928.',
-    );
+    expect(chart.headers.map((h) => h.value).toList(), <String>[
+      'h1',
+      'h2',
+    ], reason: 'PlotlySchemaAdapter.ts:3008 with :2921-2928.');
     expect(
       chart.headers.map((h) => h.textStyle?.fontSize).toList(),
       <double>[17, 17],

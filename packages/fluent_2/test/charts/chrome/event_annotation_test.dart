@@ -43,11 +43,9 @@ void main() {
     });
 
     test('the rule is dashed at 8', () {
-      expect(
-        kEventAnnotationDashArray,
-        <double>[8],
-        reason: 'EventAnnotation.tsx:34 — `strokeDasharray="8"`.',
-      );
+      expect(kEventAnnotationDashArray, <double>[
+        8,
+      ], reason: 'EventAnnotation.tsx:34 — `strokeDasharray="8"`.');
     });
 
     test('the line height is 18 raw pixels', () {
@@ -122,11 +120,11 @@ void main() {
             'below 200) nor on the right (315 and 320 both exceed maxX 300), so '
             'the scan at :99-103 finds nothing and both are swallowed.',
       );
-      expect(
-        placed.single.aggregatedIndices,
-        <int>[0, 1, 2],
-        reason: 'EventAnnotation.tsx:108-111 collects i .. idx - 1.',
-      );
+      expect(placed.single.aggregatedIndices, <int>[
+        0,
+        1,
+        2,
+      ], reason: 'EventAnnotation.tsx:108-111 collects i .. idx - 1.');
     });
 
     test('a crowded successor with right-hand room is not swallowed', () {
@@ -446,13 +444,9 @@ void main() {
     testWidgets('a palette token is resolved against the live theme', (
       tester,
     ) async {
-      await pump(
-        tester,
-        <FluentEventAnnotation>[
-          FluentEventAnnotation(date: DateTime.utc(2026, 1, 10), event: 'a'),
-        ],
-        strokeColor: FluentDataVizPalette.resolve(FluentDataVizToken.color3),
-      );
+      await pump(tester, <FluentEventAnnotation>[
+        FluentEventAnnotation(date: DateTime.utc(2026, 1, 10), event: 'a'),
+      ], strokeColor: FluentDataVizPalette.resolve(FluentDataVizToken.color3));
       expect(
         painterOf(tester).strokeColor.toARGB32(),
         FluentDataVizPalette.resolve(FluentDataVizToken.color3).toARGB32(),
