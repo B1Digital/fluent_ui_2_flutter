@@ -37,7 +37,15 @@
     width;
   - `FluentTagPicker` draws upstream's expand chevron by default (`expandIcon`,
     `fluentTagPickerChevron`), is 34/42/46 tall, and has 32px option rows and
-    upstream-sized tags.
+    upstream-sized tags;
+  - `FluentTagDismissPainter.inkRatio` is gone: the dismiss glyph fills
+    upstream's `DismissRegular` path instead of a scaled cross;
+  - `FluentSpinButtonStepper` is now a `StatefulWidget` (it repeats while
+    held).
+- **`FluentTag.media` is new** — upstream's `media` slot, for an avatar, 1px
+  inside the border; `icon` stays at the content inset. A `FluentTagPicker`
+  chip puts its avatar there (new `FluentTagPickerOption.tagMedia`, which
+  falls back to `media`).
 - **`FluentInputBorderPainter` is new** and is what paints the border. Where the
   bottom colour differs from the sides, the two meet along each bottom corner's
   diagonal the way a browser joins adjacent border colours, instead of the
@@ -99,11 +107,55 @@
   style resolver.** They used to hide it so a default, read-only picker did not
   render greyed out; with read-only unstyled there is nothing left to hide.
 
+- **Every text field focuses on mouse-down, as Chrome does, so the focus bar
+  grows under a held press.** Flutter's text gestures focus on tap-down, which
+  a middle press never reaches and which waits for the gesture arena whenever
+  it is contested: the bar started a whole click late. `FluentInput` (and so
+  `FluentTagPicker`), `FluentTextarea`, `FluentSearchBox`, `FluentSpinButton`,
+  `FluentDatePicker`, `FluentTimePicker` and `FluentDropdown` now focus on a
+  mouse press of any button, with the caret where it landed, through the
+  field's own selection path so desktop's select-all-on-focus stays out.
+  SearchBox focuses only from its `<input>` box, not the icon or padding, and a
+  right press that moves focus there is not `:active` (Chrome).
+- **Behaviour now follows upstream in Chrome:**
+  - SpinButton steppers step on press and repeat while held (305 / 541 /
+    725ms…, within a frame of upstream); a stepper whose value equals its
+    bound goes inert — greyed glyph, no fill, `not-allowed` — and a press
+    there takes focus away;
+  - TagPicker keeps its field (and focus) when the first tag appears, so
+    typing continues after a pick; a printable key reopens the list and
+    highlights the first option starting with the text, which Enter adds; the
+    list refreshes while typing; a click anywhere on a chip removes it; the
+    secondary-action aside stretches to the full height;
+  - DatePicker gained hover and press, and shows the hover ramp rather than
+    the focused one while the calendar holds focus;
+  - a right press shows `:active` on Input, DatePicker, Textarea, SearchBox and
+    SpinButton's text, but not on a live stepper or the Combobox family;
+  - Textarea shows touch selection handles for touch only;
+  - a disabled field shows `not-allowed` over its text, and a disabled
+    Dropdown over its whole trigger.
+- **A fixed parent height stretches every text field**, with the focus bar on
+  its bottom edge, as CSS `height` does — it used to draw the box at its
+  natural height and the bar below it.
+
 ### Fixed
 
 - **Turning reduced motion off again left the focus bar snapping.** The bar
   zeroed its durations when `MediaQuery.disableAnimations` came on and never
   restored them; they are now set on every dependency change.
+- **Pressing another field while a `FluentDropdown` held focus focused
+  nothing until release.** The Dropdown's outside-tap blur ran on the same
+  pointer-down and parked focus on the route's scope, cancelling the pressed
+  field's own request. It now blurs only if focus is still its own once that
+  event has settled, as a click on the page body does.
+- **A field removed mid-press threw on the release.** `FluentInteractive`,
+  `FluentInput`, `FluentTextarea`, `FluentSearchBox`, `FluentSpinButton`,
+  `FluentDatePicker`, `FluentTimePicker` and `FluentTagPicker` ignore a press
+  that ends after they are gone.
+- **Hover and press were lost when a field was re-enabled under the mouse.**
+  `FluentDatePicker`, `FluentTimePicker`, `FluentTagPicker`, `FluentTextarea`
+  and `FluentSearchBox` track them while disabled and filter them in the
+  build, as Chrome keeps a disabled root's `:hover` and `:active`.
 
 ## 0.0.5
 
