@@ -39,6 +39,7 @@ const FluentNav({
     super.key,
     required this.children,
     this.size = FluentNavSize.medium,
+    this.tabbable = false,
     this.selectedValue,
     this.defaultSelectedValue,
     this.onSelect,
@@ -54,6 +55,7 @@ const FluentNav({
 | `key` | `Key?` | No | `null` | Flutter widget identity. |
 | `children` | `List<Widget>` | Yes | — | The rows, in order. |
 | `size` | `FluentNavSize` | No | `FluentNavSize.medium` | Row height and density. |
+| `tabbable` | `bool` | No | `false` | Whether every row is a tab stop, rather than the nav being one. |
 | `selectedValue` | `Object?` | No | `null` | The selected row's value, when the caller owns it. |
 | `defaultSelectedValue` | `Object?` | No | `null` | The initially selected value while uncontrolled. |
 | `onSelect` | `ValueChanged<Object>?` | No | `null` | Called with the value the nav is moving to, before it is applied. |
@@ -282,6 +284,22 @@ Source: `packages/fluent_2/lib/src/navigation/nav.dart`
 const FluentNavCollapseIntent();
 ```
 
+### `FluentNavEdgeIntent`
+
+Requests that focus move to the first or last row of the nav.
+
+Source: `packages/fluent_2/lib/src/navigation/nav.dart`
+
+#### Constructor: `FluentNavEdgeIntent`
+
+```dart
+const FluentNavEdgeIntent({required this.last});
+```
+
+| Field | Type | Required | Default | Purpose |
+| --- | --- | --- | --- | --- |
+| `last` | `bool` | Yes | — | Whether to move to the last row rather than the first. |
+
 ### `FluentNavExpandIntent`
 
 Requests that the focused category open.
@@ -419,7 +437,11 @@ Source: `packages/fluent_2/lib/src/navigation/nav.dart`
 ```dart
 const FluentNavItemTheme({
     super.key,
-    required this.style,
+    this.style,
+    this.appItemStyle,
+    this.categoryStyle,
+    this.itemStyle,
+    this.subItemStyle,
     required super.child,
   });
 ```
@@ -427,8 +449,28 @@ const FluentNavItemTheme({
 | Field | Type | Required | Default | Purpose |
 | --- | --- | --- | --- | --- |
 | `key` | `Key?` | No | `null` | Flutter widget identity. |
-| `style` | `FluentNavItemStyle` | Yes | — | The style layered over the kind and size defaults. |
+| `style` | `FluentNavItemStyle?` | No | `null` | The style layered over every kind's defaults. |
+| `appItemStyle` | `FluentNavItemStyle?` | No | `null` | Layered over [style] for [FluentNavItemKind.appItem] rows. |
+| `categoryStyle` | `FluentNavItemStyle?` | No | `null` | Layered over [style] for [FluentNavItemKind.category] rows. |
+| `itemStyle` | `FluentNavItemStyle?` | No | `null` | Layered over [style] for [FluentNavItemKind.item] rows. |
+| `subItemStyle` | `FluentNavItemStyle?` | No | `null` | Layered over [style] for [FluentNavItemKind.subItem] rows. |
 | `child` | `Widget` | Yes | — | The widget subtree rendered or affected by this API. |
+
+### `FluentNavMoveIntent`
+
+Requests that focus move [delta] rows through the nav.
+
+Source: `packages/fluent_2/lib/src/navigation/nav.dart`
+
+#### Constructor: `FluentNavMoveIntent`
+
+```dart
+const FluentNavMoveIntent(this.delta);
+```
+
+| Field | Type | Required | Default | Purpose |
+| --- | --- | --- | --- | --- |
+| `delta` | `int` | Yes | — | How many rows to move, and in which direction. Negative is upward. |
 
 ### `FluentNavSize`
 
@@ -475,22 +517,56 @@ Widget buildFluentNavItem(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/stories/drawer_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/test/goldens/nav_golden_test.dart`:
 
 ```dart
 FluentNav(
-            selectedValue: _selected,
-            onSelect: (value) => setState(() => _selected = value),
-            semanticLabel: 'Main navigation',
-            children: <Widget>[
-              for (final (value, icon, label) in _destinations)
-                FluentNavItem(
-                  value: value,
-                  icon: Icon(icon),
-                  child: Text(label),
-                ),
-            ],
-          )
+      size: size,
+      selectedValue: open ? 'weekly' : 'home',
+      openCategories: open ? const <Object>{'reports'} : const <Object>{},
+      children: <Widget>[
+        FluentNavAppItem(
+          icon: const Icon(FluentIcons.person_circle_32_regular),
+          onPressed: () {},
+          child: const Text('Contoso'),
+        ),
+        const FluentNavDivider(),
+        const FluentNavItem(
+          value: 'home',
+          icon: Icon(FluentIcons.home_20_regular),
+          child: Text('Home'),
+        ),
+        FluentNavItem(
+          value: 'files',
+          icon: const Icon(FluentIcons.document_20_regular),
+          secondaryActions: <Widget>[
+            FluentButton.icon(
+              icon: const Icon(FluentIcons.more_horizontal_20_regular),
+              semanticLabel: 'More',
+              size: FluentButtonSize.small,
+              appearance: FluentButtonAppearance.transparent,
+              onPressed: () {},
+            ),
+          ],
+          child: const Text('Files'),
+        ),
+        const FluentNavItem(
+          value: 'archive',
+          icon: Icon(FluentIcons.archive_20_regular),
+          enabled: false,
+          child: Text('Archive'),
+        ),
+        const FluentNavCategory(
+          value: 'reports',
+          icon: Icon(FluentIcons.folder_20_regular),
+          child: Text('Reports'),
+          children: <Widget>[
+            FluentNavSubItem(value: 'weekly', child: Text('Weekly')),
+            FluentNavSubItem(value: 'monthly', child: Text('Monthly')),
+          ],
+        ),
+      ],
+    )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -500,8 +576,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/navigation/nav.dart`
-- Tests: `packages/fluent_2/test/goldens/nav_golden_test.dart`, `packages/fluent_2/test/navigation/nav_test.dart`
-- Stories: `packages/fluent_2/example/lib/stories/drawer_stories.dart`, `packages/fluent_2/example/lib/stories/nav_stories.dart`
+- Tests: `packages/fluent_2/test/goldens/nav_golden_test.dart`, `packages/fluent_2/test/navigation/nav_drawer_test.dart`, `packages/fluent_2/test/navigation/nav_section_header_test.dart`, `packages/fluent_2/test/navigation/nav_test.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_nav.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/nav/usage/
 - Design decisions: `references/components-navigation-data.md`
 

@@ -322,16 +322,22 @@ Widget buildFluentBreadcrumbSurface(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/navigation_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_breadcrumb.dart`:
 
 ```dart
 FluentBreadcrumb(
-            items: const [
-              FluentBreadcrumbItem(label: Text('Home'), onPressed: null),
-              FluentBreadcrumbItem(label: Text('Library'), onPressed: null),
-              FluentBreadcrumbItem(label: Text('Fluent 2'), onPressed: null),
-            ],
-          )
+  semanticLabel: 'Breadcrumb default example',
+  items: <FluentBreadcrumbItem>[
+    FluentBreadcrumbItem(label: const Text('Item 1'), onPressed: () {}),
+    FluentBreadcrumbItem(
+      label: const Text('Item 2'),
+      icon: const Icon(FluentIcons.calendar_month_20_regular),
+      onPressed: () {},
+    ),
+    FluentBreadcrumbItem(label: const Text('Item 3'), onPressed: () {}),
+    const FluentBreadcrumbItem(label: Text('Item 4')),
+  ],
+)
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -341,8 +347,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/navigation/breadcrumb.dart`
-- Tests: `packages/fluent_2/test/goldens/breadcrumb_golden_test.dart`, `packages/fluent_2/test/navigation/breadcrumb_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/navigation_stories.dart`
+- Tests: `packages/fluent_2/test/goldens/breadcrumb_golden_test.dart`, `packages/fluent_2/test/navigation/breadcrumb_test.dart`, `packages/fluent_2/test/navigation/nav_test.dart`, `packages/fluent_2_core/test/scroll_behavior_test.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_breadcrumb.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/breadcrumb/usage/
 - Design decisions: `references/components-navigation-data.md`
 

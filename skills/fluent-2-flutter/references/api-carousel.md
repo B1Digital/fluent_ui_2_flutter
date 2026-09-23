@@ -51,11 +51,11 @@ const FluentCarousel({
     this.pauseButton = FluentCarouselPauseButton.onContentClick,
     this.style,
     this.semanticLabel,
-    this.previousLabel = 'Previous slide',
-    this.nextLabel = 'Next slide',
-    this.playLabel = 'Start automatic slide show',
-    this.pauseLabel = 'Pause automatic slide show',
-    this.stepLabel = defaultFluentCarouselStepLabel,
+    this.previousLabel,
+    this.nextLabel,
+    this.playLabel,
+    this.pauseLabel,
+    this.stepLabel,
   });
 ```
 
@@ -76,11 +76,11 @@ const FluentCarousel({
 | `pauseButton` | `FluentCarouselPauseButton` | No | `FluentCarouselPauseButton.onContentClick` | Where the autoplay affordance lives. |
 | `style` | `FluentCarouselStyle?` | No | `null` | Overrides layered over the theme defaults. Merged last, so it wins. |
 | `semanticLabel` | `String?` | No | `null` | Announced by assistive technology for the carousel as a whole. |
-| `previousLabel` | `String` | No | `'Previous slide'` | Announced for the previous-slide chevron. |
-| `nextLabel` | `String` | No | `'Next slide'` | Announced for the next-slide chevron. |
-| `playLabel` | `String` | No | `'Start automatic slide show'` | Announced for the autoplay button while paused. |
-| `pauseLabel` | `String` | No | `'Pause automatic slide show'` | Announced for the autoplay button while playing. |
-| `stepLabel` | `String Function(int index, int count)` | No | `defaultFluentCarouselStepLabel` | Announced for the step at a given index. |
+| `previousLabel` | `String?` | No | `null` | Announced for the previous-slide chevron. |
+| `nextLabel` | `String?` | No | `null` | Announced for the next-slide chevron. |
+| `playLabel` | `String?` | No | `null` | Announced for the autoplay button while paused. |
+| `pauseLabel` | `String?` | No | `null` | Announced for the autoplay button while playing. |
+| `stepLabel` | `String Function(int index, int count)?` | No | `null` | Announced for the step at a given index. |
 
 #### State, callback, and accessibility fields
 
@@ -352,10 +352,10 @@ FluentCarouselState resolveFluentCarouselState({
   FluentCarouselChevronPlacement chevronPlacement =
       FluentCarouselChevronPlacement.flexibleToEdges,
   FluentCarouselNavType navType = FluentCarouselNavType.steps,
-  String previousLabel = 'Previous slide',
-  String nextLabel = 'Next slide',
-  String Function(int index, int count) stepLabel =
-      defaultFluentCarouselStepLabel,
+  String? previousLabel,
+  String? nextLabel,
+  String Function(int index, int count)? stepLabel,
+  FluentLocalizations? l10n,
   Widget? header,
   List<Widget>? previews,
   Widget? autoplayControl,
@@ -378,24 +378,28 @@ Widget buildFluentCarousel(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_carousel_carousel.dart`:
 
 ```dart
 FluentCarousel(
-        header: const Text('Featured'),
-        slides: [
-          for (var i = 1; i <= 3; i++)
-            Container(
-              height: 160,
-              alignment: Alignment.center,
-              color: FluentTheme.of(context).colors.brandBackground2,
-              child: Text(
-                'Slide $i',
-                style: FluentTheme.of(context).typography.title1,
-              ),
-            ),
-        ],
-      )
+    loop: true,
+    autoplay: true,
+    pauseButton: FluentCarouselPauseButton.inNav,
+    chevronPlacement: FluentCarouselChevronPlacement.groupedToSteps,
+    previousLabel: 'Go to prev',
+    nextLabel: 'Go to next',
+    playLabel: 'Start autoplay',
+    pauseLabel: 'Pause autoplay',
+    stepLabel: (int index, int count) => 'Carousel Nav Button $index',
+    slides: <Widget>[
+      for (int index = 0; index < _defaultImages.length; index++)
+        _DefaultBannerCard(
+          imageSrc: _defaultImages[index],
+          index: index,
+          title: 'Card ${index + 1}',
+        ),
+    ],
+  )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -406,7 +410,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/surfaces/carousel.dart`
 - Tests: `packages/fluent_2/test/goldens/carousel_golden_test.dart`, `packages/fluent_2/test/surfaces/carousel_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_carousel_carousel.dart`, `packages/fluent_2/example/lib/pages/components_carousel_carouselnav.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/carousel/usage/
 - Design decisions: `references/components-navigation-data.md`
 

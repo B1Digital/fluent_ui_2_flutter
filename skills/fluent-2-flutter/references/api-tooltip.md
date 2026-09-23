@@ -102,6 +102,7 @@ Source: `packages/fluent_2/lib/src/surfaces/tooltip.dart`
 const FluentTooltipArrowPainter({
     required this.color,
     required this.position,
+    this.textDirection = TextDirection.ltr,
   });
 ```
 
@@ -109,6 +110,7 @@ const FluentTooltipArrowPainter({
 | --- | --- | --- | --- | --- |
 | `color` | `Color` | Yes | — | The arrow fill — always the surface's own background token. |
 | `position` | `FluentTooltipPosition` | Yes | — | Which side of the target the surface is on. The arrow points the other way, towards the target. |
+| `textDirection` | `TextDirection` | No | `TextDirection.ltr` | The reading direction [position] is resolved against. |
 
 ### `FluentTooltipBaseState`
 
@@ -252,17 +254,21 @@ Widget buildFluentTooltip(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/compat_components_calendar.dart`:
 
 ```dart
 FluentTooltip(
-                  position: position,
-                  content: Text(position.name),
-                  child: FluentButton(
-                    onPressed: () {},
-                    child: Text(position.name),
-                  ),
-                )
+        content: Text(
+          'custom title from customDayCellRef: ${_selectedDate ?? _today}',
+        ),
+        child: FluentCalendar(
+          highlightSelectedMonth: true,
+          showGoToToday: true,
+          restrictedDates: _weekends,
+          onSelectDate: _onSelectDate,
+          value: _selectedDate,
+        ),
+      )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -272,8 +278,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/surfaces/tooltip.dart`
-- Tests: `packages/fluent_2/test/goldens/tooltip_golden_test.dart`, `packages/fluent_2/test/overlays/popover_test.dart`, `packages/fluent_2/test/surfaces/tooltip_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`
+- Tests: `packages/fluent_2/test/charts/chrome/axis_label_tooltip_test.dart`, `packages/fluent_2/test/goldens/tooltip_golden_test.dart`, `packages/fluent_2/test/overlays/popover_test.dart`, `packages/fluent_2/test/surfaces/tooltip_test.dart`
+- Stories: `packages/fluent_2/example/lib/pages/compat_components_calendar.dart`, `packages/fluent_2/example/lib/pages/components_avatargroup.dart`, `packages/fluent_2/example/lib/pages/components_breadcrumb.dart`, `packages/fluent_2/example/lib/pages/components_button_button.dart`, `packages/fluent_2/example/lib/pages/components_button_compoundbutton.dart`, `packages/fluent_2/example/lib/pages/components_button_menubutton.dart`, `packages/fluent_2/example/lib/pages/components_button_splitbutton.dart`, `packages/fluent_2/example/lib/pages/components_button_togglebutton.dart`, `packages/fluent_2/example/lib/pages/components_menu_menu.dart`, `packages/fluent_2/example/lib/pages/components_nav.dart`, `packages/fluent_2/example/lib/pages/components_swatchpicker.dart`, `packages/fluent_2/example/lib/pages/components_toolbar.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/tooltip/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

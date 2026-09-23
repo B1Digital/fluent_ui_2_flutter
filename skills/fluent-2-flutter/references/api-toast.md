@@ -46,7 +46,7 @@ const FluentToast({
     this.icon,
     this.showIcon = true,
     this.onDismiss,
-    this.dismissSemanticLabel = 'Dismiss',
+    this.dismissSemanticLabel,
     this.timestamp,
     this.action,
     this.style,
@@ -68,7 +68,7 @@ const FluentToast({
 | `icon` | `Widget?` | No | `null` | Overrides the glyph [intent] would otherwise select. Required for [FluentToastIntent.custom], which has none of its own. |
 | `showIcon` | `bool` | No | `true` | Whether a glyph is drawn at all. False removes it, its gap and the body's indent. |
 | `onDismiss` | `VoidCallback?` | No | `null` | Invoked by the dismiss button. Null renders no dismiss button, even when [type] is [FluentToastType.dismiss]. |
-| `dismissSemanticLabel` | `String` | No | `'Dismiss'` | Announced by assistive technology for the dismiss button, which has no text of its own. |
+| `dismissSemanticLabel` | `String?` | No | `null` | Announced by assistive technology for the dismiss button, which has no text of its own. |
 | `timestamp` | `Widget?` | No | `null` | The end slot's label when [type] is [FluentToastType.timestamp]. |
 | `action` | `Widget?` | No | `null` | The end slot's affordance when [type] is [FluentToastType.action]. Usually a `FluentLink`. |
 | `style` | `FluentToastStyle?` | No | `null` | Overrides layered over the theme defaults. Merged last, so it wins. |
@@ -328,14 +328,22 @@ Widget buildFluentToast(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_toast.dart`:
 
 ```dart
 FluentToast(
-        intent: FluentToastIntent.success,
-        title: Text(message),
-        onDismiss: () => _controller.dismiss(id),
-      )
+      intent: FluentToastIntent.success,
+      // Upstream puts `action` on ToastTitle; ours is the toast's end slot.
+      type: FluentToastType.action,
+      action: FluentLink(onPressed: () {}, child: const Text('Undo')),
+      title: const Text('Email sent'),
+      body: const Text('This is a toast body'),
+      subtitle: const Text('Subtitle'),
+      footer: <Widget>[
+        FluentLink(onPressed: () {}, child: const Text('Action')),
+        FluentLink(onPressed: () {}, child: const Text('Action')),
+      ],
+    )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -346,7 +354,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/overlays/toast.dart`, `packages/fluent_2/lib/src/overlays/toaster.dart`
 - Tests: `packages/fluent_2/test/goldens/toast_golden_test.dart`, `packages/fluent_2/test/overlays/toast_test.dart`, `packages/fluent_2/test/overlays/toaster_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_toast.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/toast/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

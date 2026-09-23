@@ -581,6 +581,7 @@ FluentPresenceBadgeState resolveFluentPresenceBadgeState({
   bool outOfOffice = false,
   FluentPresenceBadgeSize size = FluentPresenceBadgeSize.medium,
   String? semanticLabel,
+  FluentLocalizations? l10n,
 });
 
 FluentPresenceBadgeStyle resolveFluentPresenceBadgeStyle(
@@ -603,10 +604,10 @@ Widget buildFluentPresenceBadge(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_avatar.dart`:
 
 ```dart
-FluentAvatar(name: 'Kat Larsson', initials: 'KL')
+FluentAvatar(name: 'Guest')
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -616,8 +617,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/surfaces/avatar.dart`, `packages/fluent_2/lib/src/surfaces/presence_badge.dart`
-- Tests: `packages/fluent_2/test/goldens/avatar_golden_test.dart`, `packages/fluent_2/test/goldens/list_item_golden_test.dart`, `packages/fluent_2/test/goldens/persona_golden_test.dart`, `packages/fluent_2/test/goldens/presence_badge_golden_test.dart`, `packages/fluent_2/test/inputs/radio_test.dart`, `packages/fluent_2/test/surfaces/avatar_group_test.dart`, `packages/fluent_2/test/surfaces/avatar_test.dart`, `packages/fluent_2/test/surfaces/badge_test.dart`, `packages/fluent_2/test/surfaces/persona_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
+- Tests: `packages/fluent_2/test/goldens/avatar_golden_test.dart`, `packages/fluent_2/test/goldens/list_item_golden_test.dart`, `packages/fluent_2/test/goldens/persona_golden_test.dart`, `packages/fluent_2/test/goldens/presence_badge_golden_test.dart`, `packages/fluent_2/test/inputs/radio_test.dart`, `packages/fluent_2/test/surfaces/avatar_group_test.dart`, `packages/fluent_2/test/surfaces/avatar_test.dart`, `packages/fluent_2/test/surfaces/badge_test.dart`, `packages/fluent_2/test/surfaces/persona_test.dart`, `packages/fluent_2/test/surfaces/presence_badge_test.dart`, `packages/fluent_2_core/test/token_parity_test.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_avatar.dart`, `packages/fluent_2/example/lib/pages/components_avatargroup.dart`, `packages/fluent_2/example/lib/pages/components_badge_presencebadge.dart`, `packages/fluent_2/example/lib/pages/components_card_card.dart`, `packages/fluent_2/example/lib/pages/components_datagrid.dart`, `packages/fluent_2/example/lib/pages/components_persona.dart`, `packages/fluent_2/example/lib/pages/components_tag_interactiontag.dart`, `packages/fluent_2/example/lib/pages/components_tag_tag.dart`, `packages/fluent_2/example/lib/pages/components_tag_taggroup.dart`, `packages/fluent_2/example/lib/pages/components_tagpicker.dart`, `packages/fluent_2/example/lib/pages/components_toast.dart`, `packages/fluent_2/example/lib/pages/components_tree.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/avatar/usage/
 - Design decisions: `references/components-identity-content.md`
 

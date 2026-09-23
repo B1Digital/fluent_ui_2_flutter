@@ -276,27 +276,65 @@ Widget buildFluentCard(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/stories/card_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_card_card.dart`:
 
 ```dart
 FluentCard(
-            appearance: knobs.get<FluentCardAppearance>(
-              'appearance',
-              FluentCardAppearance.filled,
+      header: Row(
+        spacing: 12,
+        children: <Widget>[
+          const FluentAvatar(name: 'Elvia Atkins', initials: 'EA'),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text.rich(
+                  TextSpan(
+                    children: <InlineSpan>[
+                      TextSpan(text: 'Elvia Atkins', style: type.body1Strong),
+                      const TextSpan(text: ' mentioned you'),
+                    ],
+                  ),
+                  style: type.body1,
+                ),
+                Text('5h ago · About us - Overview', style: type.caption1),
+              ],
             ),
-            size: knobs.get<FluentCardSize>('size', FluentCardSize.medium),
-            orientation: orientation,
-            selected: knobs.get<bool>('selected', false),
-            disabled: knobs.get<bool>('disabled', false),
-            onPressed: knobs.get<bool>('interactive', true) ? () {} : null,
-            semanticLabel: 'Quarterly revenue',
-            preview: knobs.get<bool>('preview', true)
-                ? _Preview(square: horizontal)
-                : null,
-            header: const _Title('Quarterly revenue'),
-            footer: const _Caption('Updated 2 minutes ago'),
-            child: const Text('Revenue is up 4% against the same week in Q3.'),
-          )
+          ),
+        ],
+      ),
+      preview: const Stack(
+        children: <Widget>[
+          Image(
+            image: AssetImage('assets/storybook/image.png'),
+            height: 240,
+            width: double.infinity,
+            fit: BoxFit.cover,
+          ),
+          Positioned(
+            left: 12,
+            bottom: 12,
+            child: Icon(FluentIcons.document_20_regular, size: 32),
+          ),
+        ],
+      ),
+      footer: Row(
+        spacing: 8,
+        children: <Widget>[
+          FluentButton(
+            icon: const Icon(FluentIcons.arrow_reply_20_regular, size: 16),
+            onPressed: () {},
+            child: const Text('Reply'),
+          ),
+          FluentButton(
+            icon: const Icon(FluentIcons.share_20_regular, size: 16),
+            onPressed: () {},
+            child: const Text('Share'),
+          ),
+        ],
+      ),
+    )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -307,7 +345,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/surfaces/card.dart`
 - Tests: `packages/fluent_2/test/goldens/card_golden_test.dart`, `packages/fluent_2/test/surfaces/card_test.dart`
-- Stories: `packages/fluent_2/example/lib/stories/card_stories.dart`, `packages/fluent_2/example/lib/stories/carousel_stories.dart`, `packages/fluent_2/example/lib/stories/dialog_stories.dart`, `packages/fluent_2/example/lib/stories/popover_stories.dart`, `packages/fluent_2/example/lib/stories/tab_list_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_card_card.dart`, `packages/fluent_2/example/lib/pages/components_card_cardfooter.dart`, `packages/fluent_2/example/lib/pages/components_card_cardheader.dart`, `packages/fluent_2/example/lib/pages/components_card_cardpreview.dart`, `packages/fluent_2/example/lib/pages/components_list.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/card/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

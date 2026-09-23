@@ -46,7 +46,7 @@ const FluentMessageBar({
     this.showIcon = true,
     this.actions = const <Widget>[],
     this.onDismiss,
-    this.dismissSemanticLabel = 'Dismiss',
+    this.dismissSemanticLabel,
     this.style,
     this.liveRegion = true,
     this.semanticLabel,
@@ -65,7 +65,7 @@ const FluentMessageBar({
 | `showIcon` | `bool` | No | `true` | Whether a glyph is drawn at all. False removes it and its gap. |
 | `actions` | `List<Widget>` | No | `const <Widget>[]` | Action affordances. Usually small `FluentButton`s. |
 | `onDismiss` | `VoidCallback?` | No | `null` | Invoked by the dismiss button. Null renders no dismiss button. |
-| `dismissSemanticLabel` | `String` | No | `'Dismiss'` | Announced by assistive technology for the dismiss button, which has no text of its own. |
+| `dismissSemanticLabel` | `String?` | No | `null` | Announced by assistive technology for the dismiss button, which has no text of its own. |
 | `style` | `FluentMessageBarStyle?` | No | `null` | Overrides layered over the theme defaults. Merged last, so it wins. |
 | `liveRegion` | `bool` | No | `true` | Whether assistive technology announces the bar when it appears. |
 | `semanticLabel` | `String?` | No | `null` | Announced by assistive technology in place of the subtree's own reading of the title and body. |
@@ -276,21 +276,45 @@ Widget buildFluentMessageBar(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_messagebar.dart`:
 
 ```dart
 FluentMessageBar(
-                  intent: intent,
-                  actions: [
-                    FluentButton(
-                      appearance: FluentButtonAppearance.primary,
-                      onPressed: () {},
-                      child: const Text('Action'),
-                    ),
-                  ],
-                  title: const Text('Message title'),
-                  child: const Text('This is the message body.'),
-                )
+  title: const Text('Descriptive title'),
+  actions: <Widget>[
+    FluentButton(
+      size: FluentButtonSize.small,
+      onPressed: () {},
+      child: const Text('Action'),
+    ),
+    FluentButton(
+      size: FluentButtonSize.small,
+      onPressed: () {},
+      child: const Text('Action'),
+    ),
+  ],
+  onDismiss: () {},
+  dismissSemanticLabel: 'dismiss',
+  child: Text.rich(
+    TextSpan(
+      children: <InlineSpan>[
+        const TextSpan(
+          text:
+              'Message providing information to the user with actionable insights. ',
+        ),
+        WidgetSpan(
+          alignment: PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          child: FluentLink(
+            inline: true,
+            onPressed: () {},
+            child: const Text('Link'),
+          ),
+        ),
+      ],
+    ),
+  ),
+)
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -301,7 +325,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/surfaces/message_bar.dart`
 - Tests: `packages/fluent_2/test/goldens/message_bar_golden_test.dart`, `packages/fluent_2/test/overlays/toast_test.dart`, `packages/fluent_2/test/surfaces/message_bar_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_messagebar.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/messagebar/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

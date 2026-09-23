@@ -50,7 +50,7 @@ const FluentTagPicker({
     this.optionStyle,
     this.autofocus = false,
     this.semanticLabel,
-    this.dismissSemanticLabel = 'Remove',
+    this.dismissSemanticLabel,
   });
 ```
 
@@ -70,7 +70,7 @@ const FluentTagPicker({
 | `optionStyle` | `FluentDropdownOptionStyle?` | No | `null` | Row overrides layered over the theme defaults. Merged last, so it wins. |
 | `autofocus` | `bool` | No | `false` | Whether the field takes focus on mount. |
 | `semanticLabel` | `String?` | No | `null` | Announced by assistive technology. Use it when no visible label names the picker — a placeholder is not a label. |
-| `dismissSemanticLabel` | `String` | No | `'Remove'` | Announced for a chip's dismiss half, which has no text of its own. |
+| `dismissSemanticLabel` | `String?` | No | `null` | Announced for a chip's dismiss half, which has no text of its own. |
 
 #### State, callback, and accessibility fields
 
@@ -435,7 +435,7 @@ signatures above and verify any new example with Dart analysis and a widget test
 
 - Implementation: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 - Tests: `packages/fluent_2/test/goldens/tag_picker_golden_test.dart`, `packages/fluent_2/test/inputs/tag_picker_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_tagpicker.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/tagpicker/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

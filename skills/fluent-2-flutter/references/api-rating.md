@@ -141,6 +141,7 @@ const FluentRatingPainter({
     required this.unselected,
     required this.unselectedStroke,
     required this.strokeWidth,
+    this.textDirection = TextDirection.ltr,
   });
 ```
 
@@ -154,6 +155,7 @@ const FluentRatingPainter({
 | `unselected` | `Color?` | Yes | — | Fill of the unselected portion, or null when it is drawn as an outline with no fill at all. |
 | `unselectedStroke` | `Color?` | Yes | — | Outline of the unselected portion. |
 | `strokeWidth` | `double` | Yes | — | Outline width. Zero suppresses the outline entirely. |
+| `textDirection` | `TextDirection` | No | `TextDirection.ltr` | Which edge the first shape sits against: the left in [TextDirection.ltr]. |
 
 #### State, callback, and accessibility fields
 
@@ -321,18 +323,13 @@ Widget buildFluentRating(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_rating.dart`:
 
 ```dart
 FluentRating(
-                  value: context.knobs.slider(
-                    label: 'Rating',
-                    initial: 3,
-                    min: 0,
-                    max: 5,
-                  ),
-                  onChanged: (value) {},
-                )
+    value: _value,
+    onChanged: (double value) => setState(() => _value = value),
+  )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -343,7 +340,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/inputs/rating.dart`
 - Tests: `packages/fluent_2/test/goldens/rating_golden_test.dart`, `packages/fluent_2/test/inputs/rating_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_rating.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/rating/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

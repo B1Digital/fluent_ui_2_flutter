@@ -340,7 +340,7 @@ signatures above and verify any new example with Dart analysis and a widget test
 
 - Implementation: `packages/fluent_2/lib/src/navigation/tab_list.dart`
 - Tests: `packages/fluent_2/test/goldens/tab_list_golden_test.dart`, `packages/fluent_2/test/navigation/tab_list_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/navigation_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_tablist.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/tablist/usage/
 - Design decisions: `references/components-navigation-data.md`
 

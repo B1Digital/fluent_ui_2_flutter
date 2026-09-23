@@ -258,25 +258,14 @@ Widget buildFluentBadge(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/stories/badge_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_avatar.dart`:
 
 ```dart
 FluentBadge(
-            color: knobs.get<FluentBadgeColor>('color', FluentBadgeColor.brand),
-            size: knobs.get<FluentBadgeSize>('size', FluentBadgeSize.medium),
-            appearance: knobs.get<FluentBadgeAppearance>(
-              'appearance',
-              FluentBadgeAppearance.filled,
-            ),
-            iconPosition: knobs.get<FluentBadgeIconPosition>(
-              'iconPosition',
-              FluentBadgeIconPosition.before,
-            ),
-            icon: knobs.get<bool>('icon', false)
-                ? const Icon(FluentIcons.checkmark_12_filled)
-                : null,
-            child: Text(knobs.get<String>('label', 'New')),
-          )
+        size: FluentBadgeSize.small,
+        color: FluentBadgeColor.success,
+        icon: Icon(FluentIcons.calendar_month_20_regular),
+      )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -286,8 +275,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/surfaces/badge.dart`
-- Tests: `packages/fluent_2/test/goldens/badge_golden_test.dart`, `packages/fluent_2/test/surfaces/badge_test.dart`
-- Stories: `packages/fluent_2/example/lib/stories/badge_stories.dart`, `packages/fluent_2/example/lib/stories/data_grid_stories.dart`
+- Tests: `packages/fluent_2/test/charts/annotation_only_chart_style_test.dart`, `packages/fluent_2/test/charts/cartesian/cartesian_chart_style_test.dart`, `packages/fluent_2/test/charts/chart_table_style_test.dart`, `packages/fluent_2/test/charts/declarative/declarative_chart_style_test.dart`, `packages/fluent_2/test/charts/donut_chart_style_test.dart`, `packages/fluent_2/test/charts/horizontal_bar_chart_style_test.dart`, `packages/fluent_2/test/charts/horizontal_bar_chart_with_axis_test.dart`, `packages/fluent_2/test/charts/sparkline_style_test.dart`, `packages/fluent_2/test/charts/vega/vega_style_test.dart`, `packages/fluent_2/test/goldens/badge_golden_test.dart`, `packages/fluent_2/test/surfaces/badge_test.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_avatar.dart`, `packages/fluent_2/example/lib/pages/components_badge_badge.dart`, `packages/fluent_2/example/lib/pages/components_badge_counter_badge.dart`, `packages/fluent_2/example/lib/pages/components_card_card.dart`, `packages/fluent_2/example/lib/pages/components_tree.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/badge/usage/
 - Design decisions: `references/components-identity-content.md`
 

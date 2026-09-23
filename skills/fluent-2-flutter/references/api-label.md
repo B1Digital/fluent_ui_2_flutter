@@ -205,13 +205,12 @@ Widget buildFluentLabel(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/charts_linechart.dart`:
 
 ```dart
 FluentLabel(
-              size: FluentLabelSize.large,
-              child: const Text('Slider'),
-            )
+            child: Text('Use Custom Color for Event Annotation'),
+          )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -222,7 +221,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/inputs/label.dart`
 - Tests: `packages/fluent_2/test/goldens/info_label_golden_test.dart`, `packages/fluent_2/test/goldens/label_golden_test.dart`, `packages/fluent_2/test/inputs/field_test.dart`, `packages/fluent_2/test/inputs/info_label_test.dart`, `packages/fluent_2/test/inputs/label_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`, `packages/fluent_2/example/lib/storybook/components/story_kit.dart`
+- Stories: `packages/fluent_2/example/lib/pages/charts_linechart.dart`, `packages/fluent_2/example/lib/pages/components_checkbox.dart`, `packages/fluent_2/example/lib/pages/components_colorpicker.dart`, `packages/fluent_2/example/lib/pages/components_dropdown.dart`, `packages/fluent_2/example/lib/pages/components_field.dart`, `packages/fluent_2/example/lib/pages/components_infolabel.dart`, `packages/fluent_2/example/lib/pages/components_input.dart`, `packages/fluent_2/example/lib/pages/components_label.dart`, `packages/fluent_2/example/lib/pages/components_messagebar.dart`, `packages/fluent_2/example/lib/pages/components_nav.dart`, `packages/fluent_2/example/lib/pages/components_slider.dart`, `packages/fluent_2/example/lib/pages/components_spinbutton.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/label/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

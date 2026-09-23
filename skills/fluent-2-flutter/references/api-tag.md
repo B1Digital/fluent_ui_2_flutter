@@ -55,7 +55,7 @@ const FluentTag({
     this.enabled = true,
     this.onDismiss,
     this.dismissIcon,
-    this.dismissSemanticLabel = 'Dismiss',
+    this.dismissSemanticLabel,
     this.style,
     this.focusNode,
     this.autofocus = false,
@@ -75,7 +75,7 @@ const FluentTag({
 | `enabled` | `bool` | No | `true` | Whether the tag reads as active. |
 | `onDismiss` | `VoidCallback?` | No | `null` | Invoked when the dismiss glyph is activated. Null omits the glyph. |
 | `dismissIcon` | `Widget?` | No | `null` | Replaces the built-in [FluentTagDismissGlyph]. |
-| `dismissSemanticLabel` | `String` | No | `'Dismiss'` | Announced for the dismiss affordance, which has no text of its own. |
+| `dismissSemanticLabel` | `String?` | No | `null` | Announced for the dismiss affordance, which has no text of its own. |
 | `style` | `FluentTagStyle?` | No | `null` | Overrides layered over the theme defaults. Merged last, so it wins. |
 | `focusNode` | `FocusNode?` | No | `null` | Focus node for the dismiss affordance. One is created internally when omitted. |
 | `autofocus` | `bool` | No | `false` | Whether the dismiss affordance takes focus on mount. |
@@ -110,7 +110,7 @@ const FluentInteractionTag({
     this.selected = false,
     this.onDismiss,
     this.dismissIcon,
-    this.dismissSemanticLabel = 'Dismiss',
+    this.dismissSemanticLabel,
     this.style,
     this.focusNode,
     this.dismissFocusNode,
@@ -131,7 +131,7 @@ const FluentInteractionTag({
 | `selected` | `bool` | No | `false` | Whether the tag is chosen. Selected overrides [appearance]: all three render as a brand-filled tag. |
 | `onDismiss` | `VoidCallback?` | No | `null` | Invoked when the dismiss half is activated. Null omits that half. |
 | `dismissIcon` | `Widget?` | No | `null` | Replaces the built-in [FluentTagDismissGlyph]. |
-| `dismissSemanticLabel` | `String` | No | `'Dismiss'` | Announced for the dismiss half, which has no text of its own. |
+| `dismissSemanticLabel` | `String?` | No | `null` | Announced for the dismiss half, which has no text of its own. |
 | `style` | `FluentTagStyle?` | No | `null` | Overrides layered over the theme defaults. Merged last, so it wins. |
 | `focusNode` | `FocusNode?` | No | `null` | Focus node for the primary half. |
 | `dismissFocusNode` | `FocusNode?` | No | `null` | Focus node for the dismiss half. |
@@ -575,15 +575,10 @@ Widget buildFluentTag(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_tag_tag.dart`:
 
 ```dart
-FluentTag(
-              appearance: appearance,
-              onDismiss: () {},
-              icon: const Icon(Icons.tag),
-              child: const Text('Tag'),
-            )
+FluentTag(child: Text('Primary text'))
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -594,7 +589,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/surfaces/tag.dart`, `packages/fluent_2/lib/src/surfaces/interaction_tag.dart`
 - Tests: `packages/fluent_2/test/goldens/tag_golden_test.dart`, `packages/fluent_2/test/goldens/tag_picker_golden_test.dart`, `packages/fluent_2/test/inputs/tag_picker_test.dart`, `packages/fluent_2/test/surfaces/tag_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`, `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_tag_interactiontag.dart`, `packages/fluent_2/example/lib/pages/components_tag_tag.dart`, `packages/fluent_2/example/lib/pages/components_tag_taggroup.dart`, `packages/fluent_2/example/lib/pages/components_tagpicker.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/tag/usage/
 - Design decisions: `references/components-identity-content.md`
 
