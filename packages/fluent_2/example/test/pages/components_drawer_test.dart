@@ -241,20 +241,14 @@ void main() {
       expect(find.text('End Inline Drawer'), findsOneWidget);
     });
 
-    testWidgets('the bottom toggle is inert', (WidgetTester tester) async {
+    testWidgets('offers no inert bottom toggle', (WidgetTester tester) async {
       await pumpSection(tester, section);
       // FluentDrawerPosition is start/end only — the drawer anchors to a
       // vertical edge in reading order — so upstream's third drawer has no
-      // counterpart and the button that would open it must say so by being
-      // disabled rather than by doing nothing when pressed.
-      expect(
-        tester
-            .widget<FluentButton>(
-              find.widgetWithText(FluentButton, 'Toggle bottom'),
-            )
-            .onPressed,
-        isNull,
-      );
+      // counterpart. A disabled primary button beside the two working ones
+      // reads as broken, so the section leaves it out.
+      expect(find.text('Toggle bottom'), findsNothing);
+      expect(inertButtons, findsNothing);
     });
   });
 
@@ -286,14 +280,13 @@ void main() {
       );
 
       expect(
-        tester
-            .widget<FluentButton>(
-              find.widgetWithText(FluentButton, 'Open Bottom'),
-            )
-            .onPressed,
-        isNull,
-        reason: 'there is no bottom edge to anchor to',
+        find.text('Open Bottom'),
+        findsNothing,
+        reason:
+            'there is no bottom edge to anchor to, so there is no button '
+            'that pretends to open one',
       );
+      expect(inertButtons, findsNothing);
     });
   });
 
@@ -386,6 +379,11 @@ void main() {
         find.text('Drawer with separator'),
         findsNWidgets(2),
         reason: 'this section opens both inline drawers up front',
+      );
+      expect(
+        inertButtons,
+        findsNothing,
+        reason: 'there is no bottom drawer, so no disabled toggle for one',
       );
 
       await tapAndSettle(tester, find.text('Toggle start'));
@@ -879,6 +877,16 @@ Future<void> dragRule(WidgetTester tester, Finder rule, double delta) async {
 /// `Close` *action* in the body as well, and one wraps its header row in a
 /// heading annotation that swallows the button's own label.
 const IconData drawerCloseIcon = FluentIcons.dismiss_24_regular;
+
+/// Every [FluentButton] that is shown but cannot be pressed.
+///
+/// Upstream's bottom-drawer buttons used to be ported as disabled peers of the
+/// working start and end ones, which reads as a broken control rather than as
+/// "not supported".
+final Finder inertButtons = find.byWidgetPredicate(
+  (Widget widget) => widget is FluentButton && widget.onPressed == null,
+  description: 'a disabled FluentButton',
+);
 
 /// Every backdrop currently painted, in tree order.
 ///

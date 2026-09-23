@@ -830,7 +830,7 @@
   },
   "components-drawer--inline": {
     "kind": "reduced",
-    "why": "FluentDrawerPosition is start/end only, so the third (bottom) inline drawer has no equivalent and 'Toggle bottom' is rendered disabled; ToggleButton is a plain FluentButton."
+    "why": "FluentDrawerPosition is start/end only, so the third (bottom) inline drawer has no equivalent and it and its 'Toggle bottom' button are left out rather than shown disabled; ToggleButton is a plain FluentButton."
   },
   "components-drawer--keep-rendered-in-the-dom": {
     "kind": "reduced",
@@ -858,7 +858,7 @@
   },
   "components-drawer--position": {
     "kind": "reduced",
-    "why": "FluentDrawerPosition is start/end only \u2014 the drawer anchors to a vertical edge in reading order \u2014 so 'Open Bottom' is rendered disabled."
+    "why": "FluentDrawerPosition is start/end only \u2014 the drawer anchors to a vertical edge in reading order \u2014 so 'Open Bottom' is left out rather than shown disabled, and the description drops the bottom position."
   },
   "components-drawer--prevent-close": {
     "kind": "nearest-widget",
@@ -874,7 +874,7 @@
   },
   "components-drawer--separator": {
     "kind": "reduced",
-    "why": "Same missing bottom position: the start and end inline drawers carry the separator, the bottom one is dropped and its toggle is disabled."
+    "why": "Same missing bottom position: the start and end inline drawers carry the separator, and the bottom one is dropped together with its toggle."
   },
   "components-drawer--with-navigation": {
     "kind": "slot",
