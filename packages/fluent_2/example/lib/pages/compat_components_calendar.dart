@@ -866,9 +866,9 @@ class _CalendarMultidayDayViewState extends State<_CalendarMultidayDayView> {
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 8,
       children: <Widget>[
-        const Text(
+        Text(
           'This calendar uses dateRangeType = Day and '
-          'daysToSelectInView = 4.',
+          'daysToSelectInView = $_daysToSelectInDayView.',
         ),
         Text(
           'Selected date: '
