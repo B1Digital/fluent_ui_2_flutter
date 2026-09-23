@@ -117,12 +117,12 @@ const FluentSpinButtonStepper({
 | --- | --- | --- | --- | --- |
 | `key` | `Key?` | No | `null` | Flutter widget identity. |
 | `direction` | `FluentSpinButtonStepperDirection` | Yes | — | Which half this is. |
-| `style` | `FluentSpinButtonStyle` | Yes | — | The resolved spin button style. Only the `stepper*` and `glyphSize` properties are read. |
-| `onPressed` | `VoidCallback?` | No | `null` | Invoked on tap. Null makes the half inert, which is what a disabled *or* read-only spin button does — Figma pins the `State=Disabled` stepper on both. |
+| `style` | `FluentSpinButtonStyle` | Yes | — | The resolved spin button style. Only the `stepper*`, `glyphSize` and `borderRadius` properties are read. |
+| `onPressed` | `VoidCallback?` | No | `null` | Invoked on tap. Null makes the half inert, which is what a disabled *or* read-only spin button does: upstream renders both buttons `disabled`. |
 
 #### State, callback, and accessibility fields
 
-- `onPressed` (`VoidCallback?`): Invoked on tap. Null makes the half inert, which is what a disabled *or* read-only spin button does — Figma pins the `State=Disabled` stepper on both.
+- `onPressed` (`VoidCallback?`): Invoked on tap. Null makes the half inert, which is what a disabled *or* read-only spin button does: upstream renders both buttons `disabled`.
 
 ## Related public types
 
@@ -177,7 +177,7 @@ const FluentSpinButtonBaseState({
 
 ### `FluentSpinButtonChevronPainter`
 
-Paints one stepper's chevron.
+Paints one stepper's chevron: upstream's `ChevronUp16Regular` / `ChevronDown16Regular`, from the svg's own path.
 
 Source: `packages/fluent_2/lib/src/inputs/spin_button.dart`
 
@@ -187,8 +187,6 @@ Source: `packages/fluent_2/lib/src/inputs/spin_button.dart`
 const FluentSpinButtonChevronPainter({
     required this.direction,
     required this.color,
-    required this.glyphSize,
-    this.strokeWidth = FluentStroke.width15,
   });
 ```
 
@@ -196,8 +194,6 @@ const FluentSpinButtonChevronPainter({
 | --- | --- | --- | --- | --- |
 | `direction` | `FluentSpinButtonStepperDirection` | Yes | — | Which way the chevron points. |
 | `color` | `Color` | Yes | — | Chevron tone. A `neutralForeground3` ramp stop, never derived from the surface behind it. |
-| `glyphSize` | `double` | Yes | — | Edge length of the glyph box the ink is proportioned against. |
-| `strokeWidth` | `double` | No | `FluentStroke.width15` | Thickness of the stroke. `FluentStroke.width15` reads as the same weight as the filled 12px glyph without needing its outline. |
 
 ### `FluentSpinButtonSize`
 
@@ -293,11 +289,11 @@ const FluentSpinButtonStyle({
 | Field | Type | Required | Default | Purpose |
 | --- | --- | --- | --- | --- |
 | `backgroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Surface fill behind the text and the steppers. |
-| `borderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Border colour, uniform on all four sides. Null and transparent are different: Fluent's `transparentStroke` family becomes opaque in high contrast, which is the only thing outlining a filled input there. |
-| `borderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Border width. Zero means no border, which is not the same as a transparent one — a zero-width border cannot become visible in high contrast. |
-| `borderRadius` | `WidgetStateProperty<BorderRadius?>?` | No | `null` | Corner radius. |
-| `bottomRuleColor` | `WidgetStateProperty<Color?>?` | No | `null` | The rule along the bottom edge, drawn over the border. |
-| `bottomRuleWidth` | `WidgetStateProperty<double?>?` | No | `null` | Thickness of [bottomRuleColor]'s rule. |
+| `borderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Colour of the border's top, left and right sides — and of the bottom too when [bottomRuleColor] is null. Null is no side border at all, which is not the same as transparent: Fluent's `transparentStroke` family becomes opaque in high contrast, which is the only thing outlining a filled input there. |
+| `borderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Width of the border's top, left and right sides. Zero means no side border, which is not the same as a transparent one — a zero-width border cannot become visible in high contrast. |
+| `borderRadius` | `WidgetStateProperty<BorderRadius?>?` | No | `null` | Corner radius of the fill and of the steppers' outer corners. The border and the focus bar take it too, unless there is no side border: a bottom-only border is square, as upstream's underline is. |
+| `bottomRuleColor` | `WidgetStateProperty<Color?>?` | No | `null` | Colour of the border's bottom side, joined to [borderColor] on the corner diagonal the way a browser joins two border colours. |
+| `bottomRuleWidth` | `WidgetStateProperty<double?>?` | No | `null` | Width of the border's bottom side. |
 | `focusUnderlineColor` | `WidgetStateProperty<Color?>?` | No | `null` | The brand rule that grows from the centre when the field takes focus. |
 | `focusUnderlineWidth` | `WidgetStateProperty<double?>?` | No | `null` | Thickness of the focus rule. `FluentStroke.thick` upstream and in Figma. |
 | `foregroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Colour of the value text. |
@@ -307,13 +303,13 @@ const FluentSpinButtonStyle({
 | `stepperForegroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Chevron colour on the stepper column. Resolved against the *stepper's* own interaction states, not the field's. |
 | `stepperBackgroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Fill behind one stepper, resolved against that stepper's own states. |
 | `textStyle` | `WidgetStateProperty<TextStyle?>?` | No | `null` | Text ramp of the value and the placeholder alike. |
-| `padding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset from the control's edge to the content row. Left only in Fluent — the stepper column sits flush against the right edge. |
+| `padding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset from the control's edge to the content row. Start only in Fluent — the stepper column sits flush against the end edge. |
 | `contentPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around the editable text itself, inside [padding]. |
 | `stepperSize` | `WidgetStateProperty<Size?>?` | No | `null` | Size of one stepper. Both halves are the same size, and the column is two of them stacked. |
-| `stepperPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset from one stepper's box to its chevron glyph box. Asymmetric: the increase half is padded at the top, the decrease half at the bottom, so the value given here is applied to whichever edge faces away from the middle. |
-| `glyphSize` | `WidgetStateProperty<double?>?` | No | `null` | Edge length of a chevron's glyph box. |
+| `stepperPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset from one stepper's box to the box its chevron is centred in, stated for the increase half. The decrease half mirrors it top to bottom, so the larger inset always faces away from the middle of the column. |
+| `glyphSize` | `WidgetStateProperty<double?>?` | No | `null` | Size of the chevron icon. It may be taller than the box [stepperPadding] leaves, and overflows it evenly, as upstream's svg does. |
 | `minimumSize` | `WidgetStateProperty<Size?>?` | No | `null` | Minimum size of the whole control. Only the height is a Fluent number; the width is whatever the caller gives it. |
-| `mouseCursor` | `WidgetStateProperty<MouseCursor?>?` | No | `null` | Cursor while hovering the text area. |
+| `mouseCursor` | `WidgetStateProperty<MouseCursor?>?` | No | `null` | Cursor over the text column, the full height of the control. |
 
 ### `FluentSpinButtonTheme`
 

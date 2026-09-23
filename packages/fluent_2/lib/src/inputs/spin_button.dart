@@ -1,6 +1,7 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
 // For clampDouble, which widgets.dart does not re-export.
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -12,11 +13,12 @@ import 'spin_button_style.dart';
 
 /// How a spin button is filled and outlined. Figma's `Style` axis.
 enum FluentSpinButtonAppearance {
-  /// Neutral fill, a border on all four sides and a darker bottom rule. The
+  /// Neutral fill, a border on all four sides and a darker bottom side. The
   /// default.
   outline,
 
-  /// No fill and no box border — a single rule along the bottom edge.
+  /// Neutral fill like [outline], but a border on the bottom side only, with
+  /// square ends.
   underline,
 
   /// `neutralBackground3` fill and no visible border.
@@ -73,8 +75,8 @@ class FluentSpinButtonBaseState {
 
   /// Whether the value can be read and focused but not changed.
   ///
-  /// A distinct Figma variant, not a flavour of disabled: read-only keeps the
-  /// value at full contrast (`neutralForeground1`) where disabled dims it.
+  /// Not a flavour of disabled: upstream styles a read-only spin button
+  /// exactly like rest, and only its steppers go inert.
   final bool readOnly;
 
   /// Whether the value fails validation. Figma's `State=Error`.
@@ -96,13 +98,6 @@ class FluentSpinButtonBaseState {
 
   /// Subtracts one step. Null makes the decrease half inert.
   final VoidCallback? onDecrease;
-
-  /// Whether the surface uses the disabled token ramp.
-  ///
-  /// Read-only and disabled share every surface token in Figma — the same
-  /// absent fill and the same `neutralStrokeDisabled` border — and differ only
-  /// in the colour of the text and in whether focus is possible.
-  bool get inert => !enabled || readOnly;
 }
 
 /// A spin button's fully resolved state, including the design axes.
@@ -162,112 +157,122 @@ FluentSpinButtonState resolveFluentSpinButtonState({
 /// that reads the design axes. Every value comes from a Fluent token; nothing
 /// here computes a colour.
 ///
-/// Token sources are the Figma `Spin button` set (56 variants) and the
-/// `.Spin button stepper` set (8), extracted into
-/// `test/fixtures/spin_button.json` and `test/fixtures/spin_button_stepper.json`
-/// and asserted variant-by-variant in the tests.
+/// The oracle is upstream as it renders — `useSpinButtonStyles.styles.ts`
+/// measured in Chrome on the live storybook — not the Figma `Spin button` set.
+/// Where the two disagree, upstream wins:
 ///
-/// Three things here are worth reading before changing them.
-///
-/// **The bottom edge is two rules, not one.** Outline paints a full box border
-/// in the `neutralStroke1` ramp *and* a 1px `neutralStrokeAccessible` rule over
-/// its bottom edge; Underline paints only that rule; the two filled appearances
-/// paint neither. Figma models this as a separate rectangle under the frame,
-/// which is why `bottomRuleColor` is a property rather than a fourth border
-/// side — Flutter refuses a rounded rectangle whose sides disagree.
-///
-/// **Read-only is not disabled.** Both drop the fill and take
-/// `neutralStrokeDisabled`, and both use the *disabled* stepper, but read-only
-/// keeps `neutralForeground1` on the value while disabled takes
-/// `neutralForegroundDisabled`.
-///
-/// **The filled appearances carry a transparent border.** Figma paints no
-/// stroke at all on `Filled darker` / `Filled lighter` at rest, hover and
-/// pressed. `useSpinButtonStyles.styles.ts` declares
-/// `colorTransparentStroke` / `colorTransparentStrokeInteractive` there, and
-/// React wins on this one point: the two are pixel-identical in a normal theme,
-/// but Fluent's transparent tokens turn opaque in high contrast, where that
-/// border is the only thing outlining a filled input. This is the same call
-/// `FluentSwitch` makes about its checked track.
+/// * **Read only has no styling.** Upstream has no read-only rule: the surface
+///   keeps its fill and every interactive border rule, and only the steppers
+///   change, because it renders both `disabled`. Only
+///   [FluentSpinButtonBaseState.enabled] changes the ramp.
+/// * **Focus moves the outline border.** `outlineInteractive` writes
+///   `:active,:focus-within` as one rule, which Griffel sorts after `:hover`,
+///   so a focused field shows `Stroke1Pressed` / `StrokeAccessiblePressed`
+///   whether or not it is hovered — as `FluentInput` does.
+/// * **The border is one CSS border**, on `::before`, whose bottom side takes
+///   [FluentSpinButtonStyle.bottomRuleColor]. [FluentInputBorderPainter] joins
+///   the two colours on the corner diagonal, as the browser does.
+/// * **Underline keeps the root's fill and radius.** Only `::before` and the
+///   focus bar are squared off.
+/// * **Invalid is `colorPaletteRedBorder2`**, not the status danger token.
+/// * **The filled appearances carry a transparent border**:
+///   `colorTransparentStroke` at rest, `colorTransparentStrokeInteractive` on
+///   hover and focus. Invisible in light and dark; in high contrast the tokens
+///   turn opaque and it is the only thing outlining a filled field.
 FluentSpinButtonStyle resolveFluentSpinButtonStyle(
   FluentSpinButtonState state,
   FluentThemeData theme,
 ) {
   final c = theme.colors;
+  final disabled = !state.enabled;
+  final focused = state.focused;
   final underline = state.appearance == FluentSpinButtonAppearance.underline;
+  final filled =
+      state.appearance == FluentSpinButtonAppearance.filledDarker ||
+      state.appearance == FluentSpinButtonAppearance.filledLighter;
   // The invalid treatment is gated on focus because upstream gates it:
   // `useSpinButtonStyles.styles.ts` writes `colorPaletteRedBorder2` under
   // `':not(:focus-within),:hover:not(:focus-within)'`, so a focused invalid
-  // spin button falls back to the ordinary ramp and the brand rule marks it
-  // instead. Figma cannot contradict this — Error and Selected are two values
-  // of one `State` axis there, so the file has no Error-while-focused variant.
-  final invalid = state.invalid && !state.focused;
+  // spin button falls back to the ordinary ramp and the brand bar marks it
+  // instead.
+  final invalid = state.invalid && !focused;
+  // `colorPaletteRedBorder2`. The palette layer knows nothing of high contrast,
+  // where the status token is the system text colour instead.
+  final danger = c is FluentHighContrastColors
+      ? c.statusDangerBorder2
+      : c.palette.stroke2Rest(FluentPaletteFamily.red)!;
 
-  // Surface. Figma binds one Rest token per appearance and never ramps it —
-  // hover and pressed carry the identical fill on all 56 variants.
-  final background = state.inert
-      ? FluentStateColor.tokens(rest: c.transparentBackground)
-      : switch (state.appearance) {
-          FluentSpinButtonAppearance.outline ||
-          FluentSpinButtonAppearance.filledLighter => FluentStateColor.tokens(
-            rest: c.neutralBackground1,
-          ),
-          FluentSpinButtonAppearance.filledDarker => FluentStateColor.tokens(
-            rest: c.neutralBackground3,
-          ),
-          // Figma paints no fill on an Underline input. React declares
-          // `colorNeutralBackground1`; Figma wins, so the canvas shows through.
-          FluentSpinButtonAppearance.underline => FluentStateColor.tokens(
-            rest: c.transparentBackground,
-          ),
-        };
-
-  final border = state.inert
-      ? FluentStateColor.tokens(rest: c.neutralStrokeDisabled)
-      : invalid
-      ? FluentStateColor.tokens(rest: c.statusDangerBorder2)
-      : switch (state.appearance) {
-          FluentSpinButtonAppearance.outline => FluentStateColor.tokens(
-            rest: c.neutralStroke1,
-            hover: c.neutralStroke1Hover,
-            pressed: c.neutralStroke1Pressed,
-          ),
-          // See the note above: transparent in light and dark, the highlight in
-          // high contrast.
-          FluentSpinButtonAppearance.filledDarker ||
-          FluentSpinButtonAppearance.filledLighter ||
-          FluentSpinButtonAppearance.underline => FluentStateColor.tokens(
-            rest: c.transparentStrokeInteractive,
-          ),
-        };
-
-  // Underline has no box border at all; every other appearance has a thin one.
-  final borderWidth = underline ? FluentStroke.none : FluentStroke.thin;
-
-  // The darker rule over the bottom edge. Null where the box border already is
-  // the bottom edge, which is every inert or invalid Outline variant and every
-  // filled variant in every state.
-  final rule = switch ((underline, state.inert, invalid)) {
-    (true, true, _) => FluentStateColor.tokens(rest: c.neutralStrokeDisabled),
-    (true, false, true) => FluentStateColor.tokens(rest: c.statusDangerBorder2),
-    (_, false, false)
-        when state.appearance == FluentSpinButtonAppearance.outline ||
-            underline =>
-      FluentStateColor.tokens(
-        rest: c.neutralStrokeAccessible,
-        hover: c.neutralStrokeAccessibleHover,
-        pressed: c.neutralStrokeAccessiblePressed,
-      ),
-    _ => null,
+  // The root's `colorNeutralBackground1`, which underline keeps. Hover and
+  // press never move it.
+  final background = switch (state.appearance) {
+    _ when disabled => c.transparentBackground,
+    FluentSpinButtonAppearance.filledDarker => c.neutralBackground3,
+    FluentSpinButtonAppearance.outline ||
+    FluentSpinButtonAppearance.underline ||
+    FluentSpinButtonAppearance.filledLighter => c.neutralBackground1,
   };
 
-  // Geometry, verbatim from the Figma frames. `padding` is the Contents inset
-  // and is left-only: the stepper column sits flush against the right edge.
+  // The top, left and right sides of `::before`. Underline has none: its
+  // widths are `0 0 1px 0`.
+  final WidgetStateProperty<Color>? border;
+  if (underline) {
+    border = null;
+  } else if (disabled) {
+    border = FluentStateColor.tokens(rest: c.neutralStrokeDisabled);
+  } else if (invalid) {
+    border = FluentStateColor.tokens(rest: danger);
+  } else if (filled) {
+    // `filledInteractive` moves both `:hover` and `:focus-within` (and so
+    // `:active`) to the Interactive token.
+    border = FluentStateColor.tokens(
+      rest: focused ? c.transparentStrokeInteractive : c.transparentStroke,
+      hover: c.transparentStrokeInteractive,
+      pressed: c.transparentStrokeInteractive,
+    );
+  } else {
+    // Focus holds the Pressed stop through a hover: see the doc comment.
+    border = FluentStateColor.tokens(
+      rest: focused ? c.neutralStroke1Pressed : c.neutralStroke1,
+      hover: focused ? c.neutralStroke1Pressed : c.neutralStroke1Hover,
+      pressed: c.neutralStroke1Pressed,
+    );
+  }
+
+  // The bottom side. Null on the filled appearances, whose transparent border
+  // runs round all four sides; the accessible-contrast ramp on outline, and
+  // the only side there is on underline.
+  final WidgetStateProperty<Color>? rule;
+  if (filled) {
+    rule = null;
+  } else if (disabled) {
+    rule = FluentStateColor.tokens(rest: c.neutralStrokeDisabled);
+  } else if (invalid) {
+    rule = FluentStateColor.tokens(rest: danger);
+  } else {
+    rule = FluentStateColor.tokens(
+      rest: focused
+          ? c.neutralStrokeAccessiblePressed
+          : c.neutralStrokeAccessible,
+      hover: focused
+          ? c.neutralStrokeAccessiblePressed
+          : c.neutralStrokeAccessibleHover,
+      pressed: c.neutralStrokeAccessiblePressed,
+    );
+  }
+
+  // Geometry, as measured in Chrome. The root pads its start edge only — the
+  // stepper column sits flush against the end — and the `<input>` has no
+  // padding of its own, so the content padding only centres the line box.
+  //
+  // The stepper insets are upstream's own, "computed by hand" to seat a 16px
+  // icon: 4 and 1 top and bottom, 5 each side on medium; 3 and 0, 4 start and
+  // 6 end on small. Stated for the increase half; the decrease half mirrors
+  // them top to bottom.
   final (
     height,
     textStyle,
-    leftInset,
-    contentInset,
+    inset,
+    lineInset,
     stepper,
     stepperInset,
   ) = switch (state.size) {
@@ -275,66 +280,45 @@ FluentSpinButtonStyle resolveFluentSpinButtonStyle(
       32.0,
       theme.typography.body1,
       FluentSpacing.mNudge,
-      const EdgeInsets.symmetric(
-        horizontal: FluentSpacing.xxs,
-        vertical: FluentSpacing.sNudge,
-      ),
+      FluentSpacing.sNudge,
       const Size(24, 16),
-      const EdgeInsets.fromLTRB(
-        FluentSpacing.sNudge,
-        FluentSpacing.xs,
-        FluentSpacing.sNudge,
-        0,
-      ),
+      const EdgeInsetsDirectional.fromSTEB(5, 4, 5, 1),
     ),
     FluentSpinButtonSize.small => (
       24.0,
       theme.typography.caption1,
-      // Figma insets a small input by SNudge (6). React's
-      // `spacingHorizontalS` is 8. Figma wins.
-      FluentSpacing.sNudge,
-      const EdgeInsets.symmetric(
-        horizontal: FluentSpacing.xxs,
-        vertical: FluentSpacing.xs,
-      ),
+      FluentSpacing.s,
+      FluentSpacing.xs,
       const Size(24, 12),
-      const EdgeInsets.fromLTRB(
-        FluentSpacing.sNudge,
-        FluentSpacing.xxs,
-        FluentSpacing.sNudge,
-        0,
-      ),
+      const EdgeInsetsDirectional.fromSTEB(4, 3, 6, 0),
     ),
   };
 
   return FluentSpinButtonStyle(
-    backgroundColor: background,
+    backgroundColor: WidgetStatePropertyAll<Color?>(background),
     borderColor: border,
-    borderWidth: WidgetStatePropertyAll<double?>(borderWidth),
-    // `Corner-radius/Input/Small` resolves to 4, which is FluentRadius.medium.
-    // Underline squares its corners off entirely.
-    borderRadius: WidgetStatePropertyAll<BorderRadius?>(
-      underline ? BorderRadius.zero : FluentRadius.allMedium,
+    borderWidth: WidgetStatePropertyAll<double?>(
+      underline ? FluentStroke.none : FluentStroke.thin,
+    ),
+    // `borderRadiusMedium` on the root in every appearance, underline too.
+    // `buildFluentSpinButton` squares off the border and the focus bar of an
+    // appearance with no side border.
+    borderRadius: const WidgetStatePropertyAll<BorderRadius?>(
+      FluentRadius.allMedium,
     ),
     bottomRuleColor: rule,
+    // 1px in every state: upstream recolours the bottom side, never thickens
+    // it.
     bottomRuleWidth: const WidgetStatePropertyAll<double?>(FluentStroke.thin),
-    // Figma binds `Neutral/Stroke/Accessible/Selected`; React writes
-    // `colorCompoundBrandStroke`. Both resolve to the same value in all three
-    // themes, and Figma's is the one the file states. The Pressed stop is
-    // React's alone — `':focus-within:active::after'` moves the rule to
-    // `colorCompoundBrandStrokePressed`, and Figma has no Selected+Pressed
-    // variant to disagree with. `FluentInput` and `FluentTextarea` already
-    // carry it.
+    // `colorCompoundBrandStroke`, and `colorCompoundBrandStrokePressed` under
+    // `':focus-within:active::after'`: a field pressed while it holds focus.
     focusUnderlineColor: FluentStateColor.tokens(
-      rest: c.neutralStrokeAccessibleSelected,
+      rest: c.compoundBrandStroke,
       pressed: c.compoundBrandStrokePressed,
     ),
     focusUnderlineWidth: const WidgetStatePropertyAll<double?>(
       FluentStroke.thick,
     ),
-    // Figma only ever draws a placeholder, except in `Read only`, where the
-    // text is a real value and binds `Neutral/Foreground/1/Rest`. That variant
-    // is what pins the value colour.
     foregroundColor: FluentStateColor.tokens(
       rest: c.neutralForeground1,
       disabled: c.neutralForegroundDisabled,
@@ -353,42 +337,48 @@ FluentSpinButtonStyle resolveFluentSpinButtonStyle(
     stepperForegroundColor: FluentStateColor.tokens(
       rest: c.neutralForeground3,
       hover: c.neutralForeground3Hover,
-      // Figma binds `Neutral/Foreground/3/Hover` on Pressed too. Core defines
-      // `neutralForeground3Pressed` *as* the hover value, so naming the
-      // pressed token keeps React's spelling without changing a pixel.
       pressed: c.neutralForeground3Pressed,
       disabled: c.neutralForegroundDisabled,
     ),
-    // `.Spin button stepper` has its own two-value Style axis, and the Spin
-    // button set pins `Darker` on exactly the Filled darker variants and
-    // `Default` on the other three. React reaches for
-    // `colorSubtleBackgroundHover` here, which is the same value as
-    // `neutralBackground1Hover`; Figma names the neutral one.
-    stepperBackgroundColor:
-        state.appearance == FluentSpinButtonAppearance.filledDarker
-        ? FluentStateColor.tokens(
-            rest: c.transparentBackground,
-            hover: c.neutralBackground3Hover,
-            pressed: c.neutralBackground3Pressed,
-            disabled: c.transparentBackground,
-          )
-        : FluentStateColor.tokens(
-            rest: c.transparentBackground,
-            hover: c.neutralBackground1Hover,
-            pressed: c.neutralBackground1Pressed,
-            disabled: c.transparentBackground,
-          ),
+    // Per appearance, as upstream's button styles: the subtle ramp on outline
+    // and underline, the ramp of the field's own fill on the filled two.
+    // Subtle and `neutralBackground1` agree in light only.
+    stepperBackgroundColor: switch (state.appearance) {
+      FluentSpinButtonAppearance.outline ||
+      FluentSpinButtonAppearance.underline => FluentStateColor.tokens(
+        rest: c.transparentBackground,
+        hover: c.subtleBackgroundHover,
+        pressed: c.subtleBackgroundPressed,
+        disabled: c.transparentBackground,
+      ),
+      FluentSpinButtonAppearance.filledLighter => FluentStateColor.tokens(
+        rest: c.transparentBackground,
+        hover: c.neutralBackground1Hover,
+        pressed: c.neutralBackground1Pressed,
+        disabled: c.transparentBackground,
+      ),
+      FluentSpinButtonAppearance.filledDarker => FluentStateColor.tokens(
+        rest: c.transparentBackground,
+        hover: c.neutralBackground3Hover,
+        pressed: c.neutralBackground3Pressed,
+        disabled: c.transparentBackground,
+      ),
+    },
     textStyle: WidgetStatePropertyAll<TextStyle?>(textStyle),
     padding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(
-      EdgeInsetsDirectional.only(start: leftInset),
+      EdgeInsetsDirectional.only(start: inset),
     ),
-    contentPadding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(contentInset),
+    contentPadding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(
+      EdgeInsets.symmetric(vertical: lineInset),
+    ),
     stepperSize: WidgetStatePropertyAll<Size?>(stepper),
     stepperPadding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(stepperInset),
-    glyphSize: const WidgetStatePropertyAll<double?>(FluentSize.size120),
+    // `ChevronUp16Regular` / `ChevronDown16Regular`: a 16px svg that the 14px
+    // wide content box shrinks to 14 square.
+    glyphSize: const WidgetStatePropertyAll<double?>(FluentSize.size140),
     minimumSize: WidgetStatePropertyAll<Size?>(Size(0, height)),
-    mouseCursor: const WidgetStatePropertyAll<MouseCursor?>(
-      SystemMouseCursors.text,
+    mouseCursor: WidgetStatePropertyAll<MouseCursor?>(
+      disabled ? SystemMouseCursors.forbidden : SystemMouseCursors.text,
     ),
   );
 }
@@ -398,11 +388,17 @@ FluentSpinButtonStyle resolveFluentSpinButtonStyle(
 /// The third of the three-function recomposition contract. Takes
 /// [FluentSpinButtonBaseState] rather than [FluentSpinButtonState] on purpose:
 /// it never reads appearance or size, so a consumer can supply their own style
-/// and still use Fluent's layout, rules and stepper column.
+/// and still use Fluent's layout, border and stepper column.
 ///
 /// [states] is the live interaction set of the *control* — hover, press and
 /// disabled. Each stepper resolves its own set independently, which is what
 /// makes a stepper hold at rest while the field around it is hovered.
+///
+/// Paint order is upstream's: the fill, the content (steppers included), the
+/// border over both — upstream draws it on `::before` at `z-index: 10`, so a
+/// hovered stepper never covers it — and the focus bar (`::after`, 20) on top.
+/// That `::before` is an absolute overlay, so unlike `buildFluentInput` the
+/// border does not inset the content.
 ///
 /// The only thing that animates is the focus underline, which grows from the
 /// centre — `useSpinButtonStyles.styles.ts` declares exactly one transition,
@@ -433,7 +429,11 @@ Widget buildFluentSpinButton(
       style.contentPadding?.resolve(states) ?? EdgeInsets.zero;
   final minimumSize = style.minimumSize?.resolve(states) ?? Size.zero;
 
-  Widget field = Padding(padding: contentPadding, child: state.field);
+  // The `<input>` spans the control's full height, and so does its cursor.
+  Widget field = MouseRegion(
+    cursor: style.mouseCursor?.resolve(states) ?? MouseCursor.defer,
+    child: Padding(padding: contentPadding, child: state.field),
+  );
   if (textStyle != null || foreground != null) {
     field = DefaultTextStyle.merge(
       style: (textStyle ?? const TextStyle()).copyWith(color: foreground),
@@ -447,6 +447,8 @@ Widget buildFluentSpinButton(
     // padding table already makes the field box exactly as tall as the stepper
     // column — 6 + 20 + 6 and 4 + 16 + 4 — so centring lands on the same pixel.
     crossAxisAlignment: CrossAxisAlignment.center,
+    // Upstream's grid `columnGap: spacingHorizontalXS`, at both sizes.
+    spacing: FluentSpacing.xs,
     children: <Widget>[
       Expanded(child: field),
       // The steppers duplicate the increment and decrement actions the control
@@ -472,22 +474,15 @@ Widget buildFluentSpinButton(
     ],
   );
 
-  // The two rules are overlays rather than a fourth border side: Flutter
-  // refuses a rounded rectangle whose sides disagree in colour, and the bottom
-  // edge of an Outline input is a different token from its other three. Figma
-  // models them as separate rectangles anyway.
-  //
-  // Both carry the field's own bottom corners. The radius has to be painted on
-  // a TALLER box and clipped back — Skia scales every corner by
-  // `min(edge / sum-of-radii-on-that-edge)`, so a 4px corner on a 1px rule
-  // ships as 0.5 and the ends read square against a rounded field.
-  // FluentInputUnderline is that clip, and it is upstream's own trick:
-  // `height: max(2px, borderRadiusMedium)` plus
-  // `clipPath: inset(calc(100% - 2px) 0 0 0)` on the `::after`.
-  final ruleRadius = BorderRadius.only(
-    bottomLeft: radius.bottomLeft,
-    bottomRight: radius.bottomRight,
-  );
+  // A null colour is no side at all, whatever the width says.
+  final side = borderColor == null ? FluentStroke.none : borderWidth;
+  // A border with no sides is drawn square: upstream's underline zeroes the
+  // radius of `::before` ("corners look strange if rounded") and of the focus
+  // bar, and keeps the root's for the fill. Underline is the only appearance
+  // with no side border, so that is what tells it apart here.
+  // ponytail: keyed on the side width, not a style property of its own; add
+  // one if a caller ever needs a rounded bottom-only border.
+  final edge = side > 0 ? radius : BorderRadius.zero;
 
   return Stack(
     children: <Widget>[
@@ -497,28 +492,19 @@ Widget buildFluentSpinButton(
           minWidth: minimumSize.width,
         ),
         child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: radius,
-            border: borderWidth > 0 && borderColor != null
-                ? Border.all(color: borderColor, width: borderWidth)
-                : null,
+          decoration: BoxDecoration(color: background, borderRadius: radius),
+          child: CustomPaint(
+            foregroundPainter: FluentInputBorderPainter(
+              radius: edge,
+              borderColor: borderColor,
+              borderWidth: side,
+              bottomBorderColor: ruleColor,
+              bottomBorderWidth: ruleColor == null ? side : ruleWidth,
+            ),
+            child: Padding(padding: padding, child: content),
           ),
-          child: Padding(padding: padding, child: content),
         ),
       ),
-      if (ruleColor != null && ruleWidth > 0)
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: ruleWidth,
-          child: FluentInputUnderline(
-            color: ruleColor,
-            thickness: ruleWidth,
-            borderRadius: ruleRadius,
-          ),
-        ),
       if (focusColor != null && focusWidth > 0)
         Positioned(
           left: 0,
@@ -528,7 +514,10 @@ Widget buildFluentSpinButton(
           child: FluentInputFocusUnderline(
             focused: state.focused,
             color: focusColor,
-            borderRadius: ruleRadius,
+            borderRadius: BorderRadius.only(
+              bottomLeft: edge.bottomLeft,
+              bottomRight: edge.bottomRight,
+            ),
             thickness: focusWidth,
           ),
         ),
@@ -536,19 +525,19 @@ Widget buildFluentSpinButton(
   );
 }
 
-/// Paints one stepper's chevron.
+/// Paints one stepper's chevron: upstream's `ChevronUp16Regular` /
+/// `ChevronDown16Regular`, from the svg's own path.
 ///
-/// A painter rather than an icon widget because this package does not ship
-/// Fluent's icon font. The proportions are read off the Figma vector:
-/// `ChevronUp12`'s ink is **8 x 4.5** inside a 12 glyph box, so the chevron is
-/// two thirds of the box wide and three eighths of it tall at every size.
+/// Not the icon font's glyph of the same name: a text rasterizer darkens small
+/// glyphs, and on macOS it drew this one a third heavier than Chrome fills the
+/// svg, and half a pixel higher. A path fills the way the browser does.
+///
+/// Public, with its fields, so tests can read the resolved tone directly.
 class FluentSpinButtonChevronPainter extends CustomPainter {
   /// Creates a painter for one chevron.
   const FluentSpinButtonChevronPainter({
     required this.direction,
     required this.color,
-    required this.glyphSize,
-    this.strokeWidth = FluentStroke.width15,
   });
 
   /// Which way the chevron points.
@@ -558,62 +547,56 @@ class FluentSpinButtonChevronPainter extends CustomPainter {
   /// surface behind it.
   final Color color;
 
-  /// Edge length of the glyph box the ink is proportioned against.
-  final double glyphSize;
+  /// `ChevronUp16Regular`'s `d`, in its 16-unit viewBox:
+  /// `M3.15 10.35c.2.2.5.2.7 0L8 6.21l4.15 4.14a.5.5 0 0 0 .7-.7l-4.5-4.5`
+  /// `a.5.5 0 0 0-.7 0l-4.5 4.5a.5.5 0 0 0 0 .7Z`. The down chevron's is the
+  /// same path mirrored about y = 8.
+  static final Path _up = Path()
+    ..moveTo(3.15, 10.35)
+    ..relativeCubicTo(.2, .2, .5, .2, .7, 0)
+    ..lineTo(8, 6.21)
+    ..relativeLineTo(4.15, 4.14)
+    ..relativeArcToPoint(const Offset(.7, -.7), radius: _arc, clockwise: false)
+    ..relativeLineTo(-4.5, -4.5)
+    ..relativeArcToPoint(const Offset(-.7, 0), radius: _arc, clockwise: false)
+    ..relativeLineTo(-4.5, 4.5)
+    ..relativeArcToPoint(const Offset(0, .7), radius: _arc, clockwise: false)
+    ..close();
 
-  /// Thickness of the stroke. `FluentStroke.width15` reads as the same weight
-  /// as the filled 12px glyph without needing its outline.
-  final double strokeWidth;
-
-  /// Ink width as a fraction of the glyph box: 8 of 12.
-  static const double _inkWidth = 8 / 12;
-
-  /// Ink height as a fraction of the glyph box: 4.5 of 12.
-  static const double _inkHeight = 4.5 / 12;
+  static const Radius _arc = Radius.circular(.5);
 
   @override
   void paint(Canvas canvas, Size size) {
-    // ponytail: the ink is centred in the box. Figma seats it 0.75 higher in a
-    // 12 box; that is the icon's own optical nudge and is below the threshold
-    // the fixture asserts.
-    final width = glyphSize * _inkWidth;
-    final height = glyphSize * _inkHeight;
-    final left = (size.width - width) / 2;
-    final top = (size.height - height) / 2;
-    final radius = strokeWidth / 2;
-
+    // Scaled to fit and centred, which is what the svg's default
+    // `preserveAspectRatio` does with a 16 viewBox.
+    final scale = size.shortestSide / 16;
     final up = direction == FluentSpinButtonStepperDirection.increase;
-    final ends = up ? top + height - radius : top + radius;
-    final apex = up ? top + radius : top + height - radius;
-
-    canvas.drawPath(
-      Path()
-        ..moveTo(left + radius, ends)
-        ..lineTo(left + width / 2, apex)
-        ..lineTo(left + width - radius, ends),
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
-    );
+    canvas
+      ..save()
+      ..translate(size.width / 2, size.height / 2)
+      ..scale(scale, up ? scale : -scale)
+      ..translate(-8, -8)
+      ..drawPath(_up, Paint()..color = color)
+      ..restore();
   }
 
   @override
   bool shouldRepaint(FluentSpinButtonChevronPainter oldDelegate) =>
-      oldDelegate.direction != direction ||
-      oldDelegate.color != color ||
-      oldDelegate.glyphSize != glyphSize ||
-      oldDelegate.strokeWidth != strokeWidth;
+      oldDelegate.direction != direction || oldDelegate.color != color;
 }
 
 /// One half of a spin button's stepper column.
 ///
-/// Its own Figma component set (`.Spin button stepper`, 8 variants) and its own
-/// interaction surface: hovering the increase half must not light the decrease
-/// half, and neither may take focus — upstream gives both `tabIndex={-1}` and
-/// keeps the whole control a single tab stop.
+/// Its own interaction surface: hovering the increase half must not light the
+/// decrease half, and neither may take focus — upstream gives both
+/// `tabIndex={-1}` and keeps the whole control a single tab stop.
+///
+/// The chevron is [FluentSpinButtonChevronPainter] at
+/// [FluentSpinButtonStyle.glyphSize], centred in the padded box and allowed to
+/// overflow it top and bottom, as upstream's svg does. The fill takes the
+/// field's outer corner — upstream rounds the increment's top-end and the
+/// decrement's bottom-end corner in every appearance — so a hovered stepper
+/// follows the curve under the border.
 ///
 /// Public because [buildFluentSpinButton] places it, and a consumer
 /// substituting their own build needs to be able to place it too.
@@ -629,58 +612,90 @@ class FluentSpinButtonStepper extends StatelessWidget {
   /// Which half this is.
   final FluentSpinButtonStepperDirection direction;
 
-  /// The resolved spin button style. Only the `stepper*` and `glyphSize`
-  /// properties are read.
+  /// The resolved spin button style. Only the `stepper*`, `glyphSize` and
+  /// `borderRadius` properties are read.
   final FluentSpinButtonStyle style;
 
   /// Invoked on tap. Null makes the half inert, which is what a disabled *or*
-  /// read-only spin button does — Figma pins the `State=Disabled` stepper on
-  /// both.
+  /// read-only spin button does: upstream renders both buttons `disabled`.
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     const rest = <WidgetState>{};
+    final up = direction == FluentSpinButtonStepperDirection.increase;
     final box = style.stepperSize?.resolve(rest) ?? const Size(24, 16);
-    final glyph = style.glyphSize?.resolve(rest) ?? FluentSize.size120;
+    final glyph = style.glyphSize?.resolve(rest) ?? FluentSize.size140;
+    final radius = style.borderRadius?.resolve(rest) ?? BorderRadius.zero;
     final inset = (style.stepperPadding?.resolve(rest) ?? EdgeInsets.zero)
         .resolve(Directionality.of(context));
     // The style states one inset, for the increase half. The decrease half is
-    // its vertical mirror: the padding always sits on the edge facing away
-    // from the middle of the column.
-    final padding = direction == FluentSpinButtonStepperDirection.increase
+    // its vertical mirror: the larger inset always sits on the edge facing
+    // away from the middle of the column.
+    final padding = up
         ? inset
         : EdgeInsets.fromLTRB(inset.left, inset.bottom, inset.right, inset.top);
+    // Griffel flips upstream's `borderTopRightRadius` in RTL, as `End` does.
+    final corner = up
+        ? BorderRadiusDirectional.only(topEnd: radius.topRight)
+        : BorderRadiusDirectional.only(bottomEnd: radius.bottomRight);
+    // Chrome paints upstream's svg — 16 tall, centred in the padded box, the
+    // glyph centred in it — from a whole-pixel top. That top is x.5 at both
+    // sizes, so the chevron lands half a pixel below the box's centre.
+    // ponytail: snapped against the stepper's own top, which assumes the
+    // control sits on a whole pixel; Chrome snaps against the page.
+    const svg = 16.0;
+    final svgTop = padding.top + (box.height - padding.vertical - svg) / 2;
+    final nudge = (svgTop + .5).floorToDouble() - svgTop;
 
-    return ExcludeFocus(
-      child: FluentInteractive(
-        onPressed: onPressed,
-        enabled: onPressed != null,
-        builder: (context, states, _) {
-          final foreground =
-              style.stepperForegroundColor?.resolve(states) ??
-              const Color(0x00000000);
-          return SizedBox.fromSize(
-            size: box,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: style.stepperBackgroundColor?.resolve(states),
-              ),
-              child: Padding(
-                padding: padding,
-                child: SizedBox.expand(
-                  child: CustomPaint(
-                    painter: FluentSpinButtonChevronPainter(
-                      direction: direction,
-                      color: foreground,
-                      glyphSize: glyph,
-                    ),
-                  ),
+    Widget face(Set<WidgetState> states) => SizedBox.fromSize(
+      size: box,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: style.stepperBackgroundColor?.resolve(states),
+          borderRadius: corner,
+        ),
+        child: Padding(
+          padding: padding,
+          // Centred at full size in a box shorter than it, 14 in 11 (medium)
+          // or 9 (small), as upstream's flex-centred svg is.
+          child: Transform.translate(
+            offset: Offset(0, nudge),
+            child: OverflowBox(
+              maxWidth: glyph,
+              maxHeight: glyph,
+              child: CustomPaint(
+                size: Size.square(glyph),
+                painter: FluentSpinButtonChevronPainter(
+                  direction: direction,
+                  color:
+                      style.stepperForegroundColor?.resolve(states) ??
+                      const Color(0x00000000),
                 ),
               ),
             ),
-          );
-        },
+          ),
+        ),
+      ),
+    );
+
+    // Upstream's `disabled` button: no hover, no press, `cursor: not-allowed`,
+    // and a click on it focuses nothing. The empty tap wins the arena so the
+    // control's own tap-to-focus never sees it.
+    if (onPressed == null) {
+      return MouseRegion(
+        cursor: SystemMouseCursors.forbidden,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {},
+          child: face(const <WidgetState>{WidgetState.disabled}),
+        ),
+      );
+    }
+    return ExcludeFocus(
+      child: FluentInteractive(
+        onPressed: onPressed,
+        builder: (context, states, _) => face(states),
       ),
     );
   }
@@ -991,6 +1006,11 @@ class _FluentSpinButtonState extends State<FluentSpinButton>
     _states.update(state, value);
   }
 
+  /// Focuses the field the way its own tap does. A bare `requestFocus` is
+  /// focus from outside, and on desktop and the web `EditableText` answers
+  /// that by selecting the whole value — a browser selects nothing on a click.
+  void _focusField() => _editableKey.currentState?.requestKeyboard();
+
   int get _precision => widget.precision ?? _decimalsOf(widget.step);
 
   static int _decimalsOf(double step) {
@@ -1132,6 +1152,12 @@ class _FluentSpinButtonState extends State<FluentSpinButton>
       autofocus: widget.autofocus,
       style: textStyle.copyWith(color: foreground),
       cursorColor: cursorColor,
+      // The browser's caret is 1px; `EditableText`'s default is 2.
+      cursorWidth: FluentStroke.thin,
+      // `buildFluentSpinButton` sets the cursor over the whole field column,
+      // where upstream's `<input>` sits. The text box's own `text` would
+      // otherwise win over a disabled field's `not-allowed`.
+      mouseCursor: MouseCursor.defer,
       backgroundCursorColor: theme.colors.neutralForeground4,
       selectionColor: _focused
           ? resolved.selectionColor?.resolve(states)
@@ -1154,24 +1180,31 @@ class _FluentSpinButtonState extends State<FluentSpinButton>
       cursorOpacityAnimates: false,
     );
 
-    final field = Stack(
-      children: <Widget>[
-        if (_controller.text.isEmpty && widget.placeholder != null)
-          IgnorePointer(
-            child: ExcludeSemantics(
-              child: Text(
-                widget.placeholder!,
-                maxLines: 1,
-                overflow: TextOverflow.clip,
-                style: textStyle.copyWith(color: placeholderColor),
+    final field = Listener(
+      // A read-only `<input>` focuses on mousedown too. The control's handler
+      // below skips read-only, whose steppers must not take focus.
+      onPointerDown: (event) {
+        if (_enabled && event.kind == PointerDeviceKind.mouse) _focusField();
+      },
+      child: Stack(
+        children: <Widget>[
+          if (_controller.text.isEmpty && widget.placeholder != null)
+            IgnorePointer(
+              child: ExcludeSemantics(
+                child: Text(
+                  widget.placeholder!,
+                  maxLines: 1,
+                  overflow: TextOverflow.clip,
+                  style: textStyle.copyWith(color: placeholderColor),
+                ),
               ),
             ),
+          _gestures.buildGestureDetector(
+            behavior: HitTestBehavior.translucent,
+            child: editable,
           ),
-        _gestures.buildGestureDetector(
-          behavior: HitTestBehavior.translucent,
-          child: editable,
-        ),
-      ],
+        ],
+      ),
     );
 
     final resolvedState = resolveFluentSpinButtonState(
@@ -1193,20 +1226,30 @@ class _FluentSpinButtonState extends State<FluentSpinButton>
     // on the resolved state instead — Fluent's focus underline is a
     // `:focus-within` rule, so it must light for pointer focus too.
     final control = MouseRegion(
-      cursor: _enabled
-          ? resolved.mouseCursor?.resolve(states) ?? SystemMouseCursors.text
-          : SystemMouseCursors.basic,
+      // Upstream's root: the default arrow over its padding, `not-allowed`
+      // everywhere once disabled. The field and the steppers set their own.
+      cursor: _enabled ? MouseCursor.defer : SystemMouseCursors.forbidden,
       onEnter: (_) => _setState(WidgetState.hovered, value: true),
       onExit: (_) => _setState(WidgetState.hovered, value: false),
       child: Listener(
-        onPointerDown: (_) => _setState(WidgetState.pressed, value: true),
+        onPointerDown: (event) {
+          _setState(WidgetState.pressed, value: true);
+          // A browser focuses on mousedown — the `<input>`, or a stepper's
+          // `<button tabindex=-1>` — so the root is `:focus-within` and the
+          // bar grows while a stepper is still held. Focus goes to the field
+          // rather than the stepper, which keeps the arrow keys working.
+          // Upstream's read-only steppers are `disabled` and take no focus.
+          // Mouse only: a finger landing here may be starting a scroll, and
+          // must not raise the keyboard.
+          if (_editable && event.kind == PointerDeviceKind.mouse) _focusField();
+        },
         onPointerUp: (_) => _setState(WidgetState.pressed, value: false),
         onPointerCancel: (_) => _setState(WidgetState.pressed, value: false),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           // A tap anywhere on the chrome puts the caret in the field, the way
           // clicking a browser input's padding does.
-          onTap: _enabled ? _focusNode.requestFocus : null,
+          onTap: _enabled ? _focusField : null,
           // The steppers and the faceplate are chrome, outside the region
           // `EditableText` installs for itself — so every chevron click read as
           // a tap outside the field and dropped focus on pointer down, which
