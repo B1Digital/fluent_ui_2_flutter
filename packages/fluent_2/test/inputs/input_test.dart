@@ -564,6 +564,86 @@ void main() {
       await blur(tester);
     });
 
+    testWidgets(
+      'every mouse button presses the field, the right one included',
+      (tester) async {
+        // Unlike the Combobox family, Chrome sets `:active` on `.fui-Input`
+        // for a right press too (storybook, fresh page per button), so
+        // `:focus-within:active::after` turns the bar Pressed for all three.
+        await pump(
+          tester,
+          FluentInput(key: key, controller: controller, focusNode: node),
+        );
+        for (final button in <int>[
+          kPrimaryMouseButton,
+          kMiddleMouseButton,
+          kSecondaryMouseButton,
+        ]) {
+          final press = await tester.startGesture(
+            tester.getCenter(find.byKey(key)),
+            kind: PointerDeviceKind.mouse,
+            buttons: button,
+          );
+          await tester.pump();
+          expect(
+            borderOf(tester).borderColor,
+            light.colors.neutralStroke1Pressed,
+            reason: 'button $button: sides',
+          );
+          expect(
+            barOf(tester)!.color,
+            light.colors.compoundBrandStrokePressed,
+            reason: 'button $button: bar',
+          );
+          await press.up();
+          await press.removePointer();
+          await blur(tester);
+        }
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets('a tight parent height stretches the box, bar and all', (
+      tester,
+    ) async {
+      // A CSS `height` sizes the border box, and `::after` sits on its bottom.
+      await pump(
+        tester,
+        SizedBox(
+          height: 60,
+          child: FluentInput(key: key, controller: controller, focusNode: node),
+        ),
+      );
+      final painted = find.descendant(
+        of: find.byKey(key),
+        matching: find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is FluentInputBorderPainter,
+        ),
+      );
+      final bar = find.byType(FluentInputFocusUnderline);
+      expect(tester.getRect(painted).height, 60);
+      expect(tester.getRect(bar).bottom, tester.getRect(painted).bottom);
+    });
+
+    testWidgets('a field removed mid-press takes the release quietly', (
+      tester,
+    ) async {
+      // The release still reaches the detached `Listener`, after `dispose`.
+      await pump(
+        tester,
+        FluentInput(key: key, controller: controller, focusNode: node),
+      );
+      final press = await tester.startGesture(
+        tester.getCenter(find.byKey(key)),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await pump(tester, const SizedBox());
+      await press.up();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
     testWidgets('focus lifts the filled border and shows the brand bar', (
       tester,
     ) async {
@@ -1119,6 +1199,40 @@ void main() {
         theme.colors.neutralForegroundDisabled,
       );
     });
+
+    testWidgets('the cursor is text, or not-allowed over a disabled field', (
+      tester,
+    ) async {
+      // Chrome: the `<input>` is `text`, and a disabled root and input are
+      // both `not-allowed`. `EditableText` installs its own region, so the
+      // outer one never showed over the text.
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        pointer: 1,
+      );
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      for (final enabled in <bool>[true, false]) {
+        await pump(
+          tester,
+          FluentInput(
+            key: key,
+            controller: controller,
+            focusNode: node,
+            enabled: enabled,
+          ),
+        );
+        await mouse.moveTo(tester.getCenter(find.byType(EditableText)));
+        await tester.pump();
+        expect(
+          RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+          enabled ? SystemMouseCursors.text : SystemMouseCursors.forbidden,
+          reason: 'enabled: $enabled',
+        );
+        await mouse.moveTo(Offset.zero);
+        await tester.pump();
+      }
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
     testWidgets('the placeholder shows only while the value is empty', (
       tester,

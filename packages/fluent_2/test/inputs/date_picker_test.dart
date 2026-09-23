@@ -1,5 +1,7 @@
 import 'package:fluent_2/fluent_2.dart';
 import 'package:fluent_2/src/internal/input_modality.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -117,6 +119,222 @@ void main() {
       expect(live.color, isNot(disabled.color));
       expect(liveBorder, isNot(_border(tester).borderColor));
     });
+  });
+
+  // Upstream's DatePicker is a `.fui-Input`: `useInputStyles` as it renders in
+  // Chrome on the live storybook, driven with a real mouse.
+  group('FluentDatePicker — upstream Input rules', () {
+    final colors = FluentThemeData.light(
+      fontPlatform: FluentFontPlatform.web,
+    ).colors;
+    final picker = find.byType(FluentDatePicker);
+    final bar = find.descendant(
+      of: picker,
+      matching: find.byType(FluentInputFocusUnderline),
+    );
+
+    testWidgets('hover ramps the border; any button presses it', (
+      tester,
+    ) async {
+      // Chrome sets `:active` on `.fui-Input` for the right button as well as
+      // the left and middle, so `:focus-within:active::after` turns the bar
+      // Pressed for all three.
+      await _pump(tester);
+      expect(_border(tester).borderColor, colors.neutralStroke1);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(picker));
+      await tester.pump();
+      expect(_border(tester).borderColor, colors.neutralStroke1Hover);
+      expect(
+        _border(tester).bottomBorderColor,
+        colors.neutralStrokeAccessibleHover,
+      );
+
+      for (final button in <int>[
+        kPrimaryMouseButton,
+        kMiddleMouseButton,
+        kSecondaryMouseButton,
+      ]) {
+        final press = await tester.startGesture(
+          tester.getCenter(picker),
+          kind: PointerDeviceKind.mouse,
+          buttons: button,
+        );
+        await tester.pump();
+        expect(
+          _border(tester).borderColor,
+          colors.neutralStroke1Pressed,
+          reason: 'button $button: sides',
+        );
+        expect(
+          _border(tester).bottomBorderColor,
+          colors.neutralStrokeAccessiblePressed,
+          reason: 'button $button: bottom',
+        );
+        expect(
+          tester.widget<FluentInputFocusUnderline>(bar).color,
+          colors.compoundBrandStrokePressed,
+          reason: 'button $button: bar, #0f548c',
+        );
+        // Cancelled rather than released, so no tap opens the popup.
+        await press.cancel();
+        await tester.pump();
+        expect(_border(tester).borderColor, colors.neutralStroke1Hover);
+      }
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('focus holds the Pressed stops through a hover', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        wrap: (_) => FluentDatePicker(
+          today: _today,
+          onSelectDate: _noop,
+          autofocus: true,
+        ),
+      );
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(picker));
+      await tester.pump();
+      expect(_border(tester).borderColor, colors.neutralStroke1Pressed);
+      expect(
+        _border(tester).bottomBorderColor,
+        colors.neutralStrokeAccessiblePressed,
+      );
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('the cursor is a pointer, or the arrow when disabled', (
+      tester,
+    ) async {
+      // Chrome: root, input and calendar glyph are all `pointer` — typing
+      // allowed or not — and all `default` when disabled, where Input's own
+      // `not-allowed` is overridden. A disabled picker does not ramp either.
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        pointer: 1,
+      );
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      for (final (enabled, allowTextInput) in <(bool, bool)>[
+        (true, false),
+        (true, true),
+        (false, false),
+      ]) {
+        await _pump(
+          tester,
+          onSelectDate: enabled ? _noop : null,
+          allowTextInput: allowTextInput,
+        );
+        final expected = enabled
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.basic;
+        for (final at in <Finder>[
+          find.byType(EditableText),
+          find.byIcon(fluentDatePickerIcon),
+        ]) {
+          await mouse.moveTo(tester.getCenter(at));
+          await tester.pump();
+          expect(
+            RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+            expected,
+            reason: 'enabled: $enabled, text: $allowTextInput, over $at',
+          );
+        }
+        if (!enabled) {
+          expect(_border(tester).borderColor, colors.neutralStrokeDisabled);
+          final press = await tester.startGesture(
+            tester.getCenter(picker),
+            kind: PointerDeviceKind.mouse,
+          );
+          await tester.pump();
+          expect(_border(tester).borderColor, colors.neutralStrokeDisabled);
+          await press.cancel();
+        }
+        await mouse.moveTo(Offset.zero);
+        await tester.pump();
+      }
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('a tight parent height stretches the box, bar and all', (
+      tester,
+    ) async {
+      // A CSS `height` sizes the border box, and `::after` sits on its bottom.
+      for (final inline in <bool>[false, true]) {
+        await _pump(
+          tester,
+          wrap: (_) => SizedBox(
+            height: 60,
+            child: FluentDatePicker(
+              today: _today,
+              onSelectDate: _noop,
+              inlinePopup: inline,
+            ),
+          ),
+        );
+        final painted = find.descendant(
+          of: picker,
+          matching: find.byWidgetPredicate(
+            (w) => w is CustomPaint && w.painter is FluentInputBorderPainter,
+          ),
+        );
+        expect(tester.getRect(painted).height, 60, reason: 'inline: $inline');
+        expect(
+          tester.getRect(bar).bottom,
+          tester.getRect(painted).bottom,
+          reason: 'inline: $inline',
+        );
+      }
+    });
+
+    testWidgets('re-enabled under a resting mouse, it hovers and presses', (
+      tester,
+    ) async {
+      // Chrome: a disabled root still matches `:hover`, and `:active` under a
+      // held press, so dropping `disabled` shows both at once, unmoved.
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await _pump(tester);
+      await mouse.moveTo(tester.getCenter(picker));
+      await tester.pump();
+      await _pump(tester, onSelectDate: null);
+      expect(_border(tester).borderColor, colors.neutralStrokeDisabled);
+      await _pump(tester);
+      expect(_border(tester).borderColor, colors.neutralStroke1Hover);
+
+      await _pump(tester, onSelectDate: null);
+      final press = await tester.startGesture(
+        tester.getCenter(picker),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await _pump(tester);
+      expect(_border(tester).borderColor, colors.neutralStroke1Pressed);
+      await press.cancel();
+      await tester.pump();
+      expect(_border(tester).borderColor, colors.neutralStroke1Hover);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('a picker removed mid-press takes the release quietly', (
+      tester,
+    ) async {
+      await _pump(tester);
+      final press = await tester.startGesture(
+        tester.getCenter(picker),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await _pump(tester, wrap: (_) => const SizedBox());
+      await press.up();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
   });
 
   // The picker owns its controller and does not rebuild on a keystroke, so a

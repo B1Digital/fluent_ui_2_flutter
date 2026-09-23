@@ -420,7 +420,12 @@ FluentDatePickerStyle resolveFluentDatePickerStyle(
     textStyle: field.textStyle,
     padding: field.padding,
     minimumSize: field.minimumSize,
-    mouseCursor: field.mouseCursor,
+    // `useDatePickerStyles` overrides Input's cursors: Chrome reads `pointer`
+    // on the root, the input and the glyph, typing allowed or not, and
+    // `default` on all three when disabled.
+    mouseCursor: WidgetStatePropertyAll<MouseCursor?>(
+      state.enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+    ),
     iconColor: field.contentColor,
     iconSize: field.iconSize,
     iconPadding: field.contentPadding,
@@ -921,6 +926,7 @@ class _FluentDatePickerState extends State<FluentDatePicker>
   FocusNode? _restore;
   bool _uncontrolledOpen = false;
   bool _focused = false;
+  final Set<WidgetState> _interaction = <WidgetState>{};
   bool _wasInside = false;
   bool _reducedMotion = false;
   String _lastFormatted = '';
@@ -1114,6 +1120,22 @@ class _FluentDatePickerState extends State<FluentDatePicker>
       // would clear the range out from under a live picker.
       collapseFluentSelectionOnBlur(_focusNode, _controller);
     });
+  }
+
+  /// Hover and press, fed by the faceplate's own [MouseRegion] and [Listener]
+  /// as `FluentInput` feeds its own: the outline's Hover and Pressed stops and
+  /// the bar's `:focus-within:active` colour read them.
+  ///
+  /// Tracked while disabled too and filtered in [build], because Chrome keeps
+  /// a disabled root's `:hover` and `:active`: re-enabled under a resting
+  /// mouse, the picker hovers at once. The release of a press can land after
+  /// [dispose], on the detached [Listener].
+  void _setInteraction(WidgetState state, {required bool value}) {
+    if (!mounted) return;
+    final changed = value
+        ? _interaction.add(state)
+        : _interaction.remove(state);
+    if (changed) setState(() {});
   }
 
   void _handleFieldTap() {
@@ -1431,9 +1453,10 @@ class _FluentDatePickerState extends State<FluentDatePicker>
     final states = <WidgetState>{
       if (!_enabled) WidgetState.disabled,
       if (_focused) WidgetState.focused,
+      if (_enabled) ..._interaction,
     };
 
-    final field = buildFluentDatePicker(
+    var field = buildFluentDatePicker(
       resolveFluentDatePickerState(
         controller: _controller,
         focusNode: _focusNode,
@@ -1467,6 +1490,22 @@ class _FluentDatePickerState extends State<FluentDatePicker>
       ),
       style,
       states,
+    );
+
+    // Hover and press, wired the way `FluentInput` wires them. No right-button
+    // guard: unlike the Combobox family's roots, Chrome sets `:active` on
+    // `.fui-Input` for a right press too (storybook).
+    field = MouseRegion(
+      cursor: style.mouseCursor?.resolve(states) ?? SystemMouseCursors.click,
+      onEnter: (_) => _setInteraction(WidgetState.hovered, value: true),
+      onExit: (_) => _setInteraction(WidgetState.hovered, value: false),
+      child: Listener(
+        onPointerDown: (_) => _setInteraction(WidgetState.pressed, value: true),
+        onPointerUp: (_) => _setInteraction(WidgetState.pressed, value: false),
+        onPointerCancel: (_) =>
+            _setInteraction(WidgetState.pressed, value: false),
+        child: field,
+      ),
     );
 
     return Semantics(
@@ -1525,6 +1564,9 @@ class _FluentDatePickerState extends State<FluentDatePicker>
               child: widget.inlinePopup
                   ? Stack(
                       clipBehavior: Clip.none,
+                      // Passthrough, so a parent's tight height still reaches
+                      // the faceplate, as it does without an inline popup.
+                      fit: StackFit.passthrough,
                       children: <Widget>[
                         // Unpositioned, so the field alone sizes the stack and
                         // the picker keeps the footprint it has without a popup.

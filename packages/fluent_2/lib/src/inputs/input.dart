@@ -498,6 +498,7 @@ Widget buildFluentInput(
   final minimumSize = style.minimumSize?.resolve(states) ?? Size.zero;
   final cursorColor = style.cursorColor?.resolve(states);
   final selectionColor = style.selectionColor?.resolve(states);
+  final mouseCursor = style.mouseCursor?.resolve(states);
 
   final valueStyle = textStyle.copyWith(color: foreground);
 
@@ -536,6 +537,10 @@ Widget buildFluentInput(
     onSubmitted: state.onSubmitted,
     // The gesture detector built by `FluentInput` owns pointer handling.
     rendererIgnoresPointer: true,
+    // `EditableText` installs a region of its own that defaults to the text
+    // cursor, and the innermost region wins: without this a disabled field
+    // showed `text` over its value where upstream shows `not-allowed`.
+    mouseCursor: mouseCursor,
     showCursor: state.enabled && !state.readOnly,
     autofillHints: state.autofillHints,
   );
@@ -624,6 +629,10 @@ Widget buildFluentInput(
   // result again for their popups.
   return TextFieldTapRegion(
     child: Stack(
+      // Passthrough, so a parent's tight height stretches the box itself, as a
+      // CSS `height` would. A loose Stack laid the box out at its own height and
+      // pinned the bar to the bottom of the taller Stack, below it.
+      fit: StackFit.passthrough,
       children: <Widget>[
         ConstrainedBox(
           constraints: BoxConstraints(
@@ -774,14 +783,13 @@ class _FluentInputFocusUnderlineState extends State<FluentInputFocusUnderline>
 /// A rule pinned to a field's bottom edge that keeps the field's corner radius.
 ///
 /// This is the body of the 2px focus accent that [FluentInputFocusUnderline]
-/// animates, and the resting bottom rule of the sibling fields that still draw
-/// one as an overlay. An input's own resting bottom border is painted by
-/// [FluentInputBorderPainter] instead, joined to the sides the way CSS joins
-/// them. The rule cannot simply draw a rounded box,
-/// because a corner radius larger than the rule is thick cannot survive on its
-/// own — Skia scales every radius by `min(edge / sum-of-radii-on-that-edge)`,
-/// so a 4px corner on a 2px bar ships as 2, half of that is lost to the bar's
-/// own height, and the ends read square against a rounded field.
+/// animates, and that is its only use: every field's resting bottom border is
+/// painted by [FluentInputBorderPainter], joined to the sides the way CSS
+/// joins them. The rule cannot simply draw a rounded box, because a corner
+/// radius larger than the rule is thick cannot survive on its own — Skia
+/// scales every radius by `min(edge / sum-of-radii-on-that-edge)`, so a 4px
+/// corner on a 2px bar ships as 2, half of that is lost to the bar's own
+/// height, and the ends read square against a rounded field.
 ///
 /// React hits the identical CSS clamp and answers it the same way
 /// (`useDropdownStyles.styles.ts:45`): draw the pseudo-element at
@@ -1294,6 +1302,8 @@ class _FluentInputState extends State<FluentInput>
   }
 
   void _set(WidgetState state, {required bool value}) {
+    // A press released after `dispose` still reaches the detached `Listener`.
+    if (!mounted) return;
     if (!widget.enabled && value) return;
     _states.update(state, value);
   }
@@ -1342,6 +1352,9 @@ class _FluentInputState extends State<FluentInput>
       cursor: resolved.mouseCursor?.resolve(states) ?? SystemMouseCursors.text,
       onEnter: (_) => _set(WidgetState.hovered, value: true),
       onExit: (_) => _set(WidgetState.hovered, value: false),
+      // Every button presses, the right one included: unlike the Combobox
+      // family's roots, Chrome sets `:active` on `.fui-Input` for a right press
+      // too (storybook), so no `kSecondaryMouseButton` guard here.
       child: Listener(
         onPointerDown: (_) => _set(WidgetState.pressed, value: true),
         onPointerUp: (_) => _set(WidgetState.pressed, value: false),
