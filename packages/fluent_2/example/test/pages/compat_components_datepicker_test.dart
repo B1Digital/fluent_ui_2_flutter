@@ -253,22 +253,29 @@ void main() {
       'compat-components-datepicker--date-range',
     );
 
-    testWidgets('the range dropdown commits and the picker keeps working', (
+    testWidgets('offers no range knob and still picks a single day', (
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
-      final Finder dropdown = find.byType(FluentDropdown<String>);
-      expect(tester.widget<FluentDropdown<String>>(dropdown).value, 'Week');
+      // FluentCalendar has no dateRangeType, so a DateRangeType dropdown here
+      // could only ever change itself (#23). The section must not offer one.
+      expect(
+        find.byType(FluentDropdown<String>),
+        findsNothing,
+        reason: 'a range-type control the calendar cannot honour is inert',
+      );
 
-      // FluentCalendar has no range axis, so this control is documented in the
-      // page as live-but-unwired; asserting a range would be asserting a
-      // feature the demo never claims to have. What must still hold is that
-      // turning it does not break the picker beside it.
-      expect(await pickDropdown<String>(tester, dropdown, 'Month'), 'Month');
-
-      await _open(tester);
-      await tapAndSettle(tester, _dayCell(_target), what: 'a day cell');
+      await mouseClick(tester, find.byType(FluentDatePicker));
+      expect(find.byType(FluentCalendar), findsOneWidget);
+      await mouseClick(tester, _dayCell(_target));
       expect(_fieldText(tester), fluentFormatDate(_target));
+
+      await mouseClick(tester, find.byType(FluentDatePicker));
+      expect(
+        _selectedCell(_target),
+        findsOneWidget,
+        reason: 'the popup must reopen on the day the click committed',
+      );
     });
   });
 

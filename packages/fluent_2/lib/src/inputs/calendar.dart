@@ -859,6 +859,8 @@ class FluentCalendarPanel {
     this.previousLabel = '',
     this.nextLabel = '',
     this.style,
+    this.slideProgress,
+    this.slideForwards,
   });
 
   /// Cells per row — seven for a day grid, four otherwise.
@@ -922,6 +924,21 @@ class FluentCalendarPanel {
   /// panel has to carry its own or its cells overflow the box its column was
   /// sized to. Null uses the calendar's.
   final FluentCalendarStyle? style;
+
+  /// How far through its own entrance this panel's grid is, 0 to 1, when it
+  /// moves independently of the other panel. Null follows
+  /// [FluentCalendarBaseState.slideProgress].
+  ///
+  /// Upstream animates each picker on its own: `CalendarDayGrid.tsx` replays
+  /// when the first day it draws changes, and `CalendarMonth.tsx` only when
+  /// the navigated year does (`useAnimateBackwards`, `replayKey`). So a month
+  /// picker beside a day grid stays still while the day grid pages within a
+  /// year, which one shared progress cannot express.
+  final double? slideProgress;
+
+  /// Which way this panel's last page change went. Null follows
+  /// [FluentCalendarBaseState.slideForwards].
+  final bool? slideForwards;
 }
 
 /// Everything needed to render a calendar, independent of which view it is.
@@ -945,9 +962,13 @@ class FluentCalendarBaseState {
   final bool enabled;
 
   /// How far through the entrance the grids are, 0 to 1. One at rest.
+  ///
+  /// A panel with its own [FluentCalendarPanel.slideProgress] ignores this.
   final double slideProgress;
 
   /// Which way the last page change went, deciding the slide's direction.
+  ///
+  /// A panel with its own [FluentCalendarPanel.slideForwards] ignores this.
   final bool slideForwards;
 
   /// Returns the calendar to today. Null renders the link disabled.
@@ -1285,8 +1306,9 @@ Widget buildFluentCalendarCell(
 /// `1px solid colorNeutralStroke2` border. One panel is 220 wide, two are 440.
 ///
 /// The entrance is a plain function of
-/// [FluentCalendarBaseState.slideProgress], which keeps this pure: the caller
-/// drives that value from a ticker, and under
+/// [FluentCalendarBaseState.slideProgress], or of a panel's own
+/// [FluentCalendarPanel.slideProgress], which keeps this pure: the caller
+/// drives those values from tickers, and under
 /// `MediaQuery.disableAnimationsOf` simply never leaves 1.
 Widget buildFluentCalendar(
   FluentCalendarBaseState state,
@@ -1299,20 +1321,19 @@ Widget buildFluentCalendar(
   final dividerWidth = style.dividerWidth?.resolve(states) ?? FluentStroke.thin;
   final dividerColor = style.dividerColor?.resolve(states);
 
-  final progress = state.slideProgress.clamp(0.0, 1.0);
-  final slide = fluentCalendarViewSlide.curve.transform(progress);
-  // The weekday labels fade over `durationGentle` while the grid slides over
-  // `durationSlower`, so their progress runs ahead of the grid's on the same
-  // controller.
-  final fade = fluentCalendarWeekdayFade.curve.transform(
-    (progress *
-            fluentCalendarViewSlide.duration.inMilliseconds /
-            fluentCalendarWeekdayFade.duration.inMilliseconds)
-        .clamp(0.0, 1.0),
-  );
-
   final columns = <Widget>[];
   for (var i = 0; i < state.panels.length; i++) {
+    final progress = (state.panels[i].slideProgress ?? state.slideProgress)
+        .clamp(0.0, 1.0);
+    // The weekday labels fade over `durationGentle` while the grid slides over
+    // `durationSlower`, so their progress runs ahead of the grid's on the same
+    // controller.
+    final fade = fluentCalendarWeekdayFade.curve.transform(
+      (progress *
+              fluentCalendarViewSlide.duration.inMilliseconds /
+              fluentCalendarWeekdayFade.duration.inMilliseconds)
+          .clamp(0.0, 1.0),
+    );
     if (i > 0 && dividerColor != null && dividerWidth > 0) {
       columns.add(
         SizedBox(
@@ -1327,7 +1348,7 @@ Widget buildFluentCalendar(
         state: state,
         style: style,
         states: states,
-        slide: slide,
+        slide: fluentCalendarViewSlide.curve.transform(progress),
         fade: fade,
         // The link belongs under the last panel, which is where upstream puts
         // it: `monthPickerWrapper` holds it when a month picker is showing.
@@ -1557,7 +1578,9 @@ class _CalendarPanelView extends StatelessWidget {
                   child: Transform.translate(
                     offset: Offset(
                       0,
-                      (state.slideForwards ? _slideDistance : -_slideDistance) *
+                      ((panel.slideForwards ?? state.slideForwards)
+                              ? _slideDistance
+                              : -_slideDistance) *
                           (1 - slide),
                     ),
                     child: grid,
@@ -2103,7 +2126,7 @@ class FluentCalendar extends StatefulWidget {
 }
 
 class _FluentCalendarState extends State<FluentCalendar>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   /// Six rows of seven is the largest month; a month or decade grid needs
   /// twelve. Allocated once so paging never churns a node and never drops
   /// focus.
@@ -2128,6 +2151,14 @@ class _FluentCalendarState extends State<FluentCalendar>
     value: 1,
   );
 
+  /// The month picker's own entrance when it sits beside the day grid. See
+  /// [FluentCalendarPanel.slideProgress].
+  late final AnimationController _sideSlide = AnimationController(
+    vsync: this,
+    duration: fluentCalendarViewSlide.duration,
+    value: 1,
+  );
+
   late DateTime _today;
   late DateTime _pickerDate;
   late DateTime _sidePickerDate;
@@ -2136,6 +2167,10 @@ class _FluentCalendarState extends State<FluentCalendar>
   late FluentCalendarView _view;
   FluentCalendarView _sideView = FluentCalendarView.year;
   bool _forwards = true;
+  // The direction each panel's running slide started with, so paging one
+  // panel cannot flip the other mid-flight.
+  bool _slideForwards = true;
+  bool _sideSlideForwards = true;
   bool _focusOnNextBuild = false;
   bool _focusSideOnNextBuild = false;
   bool _reducedMotion = false;
@@ -2192,7 +2227,7 @@ class _FluentCalendarState extends State<FluentCalendar>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _reducedMotion = MediaQuery.disableAnimationsOf(context);
-    _slide.duration = _reducedMotion
+    _slide.duration = _sideSlide.duration = _reducedMotion
         ? Duration.zero
         : fluentCalendarViewSlide.duration;
   }
@@ -2225,6 +2260,7 @@ class _FluentCalendarState extends State<FluentCalendar>
       node.dispose();
     }
     _slide.dispose();
+    _sideSlide.dispose();
     super.dispose();
   }
 
@@ -2369,25 +2405,68 @@ class _FluentCalendarState extends State<FluentCalendar>
     return false;
   }
 
-  void _restartSlide() {
+  void _restartSlide(AnimationController slide) {
     if (_reducedMotion) {
-      _slide.value = 1;
+      slide.value = 1;
       return;
     }
-    _slide.forward(from: 0);
+    slide.forward(from: 0);
+  }
+
+  /// Applies [change] and replays the entrance of each panel whose page or
+  /// view it moved, and only those.
+  ///
+  /// Upstream gates each picker on its own content: `CalendarDayGrid.tsx`
+  /// replays on `navigationEpoch`, the first day it draws, and
+  /// `CalendarMonth.tsx` only when `navigatedDate.getFullYear()` changes.
+  /// Comparing each panel's page before and after is that gate, so paging one
+  /// grid never replays the other.
+  void _navigate(VoidCallback change) {
+    setState(() {
+      final primary = _primaryPage;
+      final side = _sidePage;
+      change();
+      if (_primaryPage != primary) {
+        _slideForwards = _forwards;
+        _restartSlide(_slide);
+      }
+      if (_split && _sidePage != side) {
+        _sideSlideForwards = _forwards;
+        _restartSlide(_sideSlide);
+      }
+    });
+  }
+
+  /// What the primary panel is showing, normalised so a month-only calendar
+  /// moving its anchor within the year it shows is not a new page.
+  (FluentCalendarView, DateTime) get _primaryPage =>
+      (_primaryView, _pageStart(_pickerDate, _primaryView));
+
+  (FluentCalendarView, DateTime) get _sidePage =>
+      (_sideView, _pageStart(_sidePickerDate, _sideView));
+
+  /// Keeps the month picker on the day grid's year, as upstream's
+  /// `navigateDay` (`Calendar.tsx`) moves `navigatedMonth` along with
+  /// `navigatedDay`. Without it the day grid can page into 2027 while the
+  /// month picker beside it still shows 2026.
+  void _followPrimary() {
+    if (!_split) return;
+    final page = _pageFor(_pickerDate, _sideView);
+    if (page == _sidePickerDate) return;
+    _sidePickerDate = page;
+    _sideFocusedDate = _pickerDate;
   }
 
   // --- navigation ------------------------------------------------------------
 
   void _focusTo(DateTime date, {required bool side}) {
-    setState(() {
+    _navigate(() {
       final view = side ? _sideView : _primaryView;
       if (side) {
         _sideFocusedDate = date;
         if (!_onScreen(date, _cellsFor(_sidePickerDate, view), view)) {
           _forwards = date.isAfter(_sidePickerDate);
           _sidePickerDate = _pageFor(date, view);
-          _restartSlide();
         }
         _focusSideOnNextBuild = true;
       } else {
@@ -2395,7 +2474,7 @@ class _FluentCalendarState extends State<FluentCalendar>
         if (!_onScreen(date, _cellsFor(_pickerDate, view), view)) {
           _forwards = date.isAfter(_pickerDate);
           _pickerDate = _pageFor(date, view);
-          _restartSlide();
+          _followPrimary();
           widget.onPickerDateChanged?.call(fluentCalendarLocalDay(_pickerDate));
         }
         _focusOnNextBuild = true;
@@ -2476,11 +2555,10 @@ class _FluentCalendarState extends State<FluentCalendar>
   }
 
   void _page(int pages, {required bool side}) {
-    setState(() {
+    _navigate(() {
       _forwards = pages > 0;
       if (side) {
         _sidePickerDate = _shiftPage(_sidePickerDate, pages, _sideView);
-        _restartSlide();
         if (!_onScreen(
           _sideFocusedDate,
           _cellsFor(_sidePickerDate, _sideView),
@@ -2490,7 +2568,7 @@ class _FluentCalendarState extends State<FluentCalendar>
         }
       } else {
         _pickerDate = _shiftPage(_pickerDate, pages, _primaryView);
-        _restartSlide();
+        _followPrimary();
         widget.onPickerDateChanged?.call(fluentCalendarLocalDay(_pickerDate));
         if (!_onScreen(
           _focusedDate,
@@ -2506,11 +2584,10 @@ class _FluentCalendarState extends State<FluentCalendar>
   /// Drills the side panel out — month grid to decade grid.
   void _drillSide() {
     if (_sideView != FluentCalendarView.year) return;
-    setState(() {
+    _navigate(() {
       _sideView = FluentCalendarView.decade;
       _sidePickerDate = DateTime.utc(_sideFocusedDate.year, 1, 1);
       _forwards = false;
-      _restartSlide();
       _focusSideOnNextBuild = true;
     });
   }
@@ -2524,7 +2601,7 @@ class _FluentCalendarState extends State<FluentCalendar>
       FluentCalendarView.decade => null,
     };
     if (next == null) return;
-    setState(() {
+    _navigate(() {
       if (widget.isDayPickerVisible) {
         _view = next;
         _pickerDate = _pageFor(_focusedDate, next);
@@ -2533,7 +2610,6 @@ class _FluentCalendarState extends State<FluentCalendar>
         _pickerDate = _pageFor(_focusedDate, next);
       }
       _forwards = false;
-      _restartSlide();
       _focusOnNextBuild = true;
     });
   }
@@ -2544,7 +2620,7 @@ class _FluentCalendarState extends State<FluentCalendar>
       case FluentCalendarView.month:
         widget.onSelectDate!(fluentCalendarLocalDay(cell.date));
       case FluentCalendarView.year:
-        setState(() {
+        _navigate(() {
           if (widget.isDayPickerVisible) {
             _view = FluentCalendarView.month;
           } else {
@@ -2553,7 +2629,6 @@ class _FluentCalendarState extends State<FluentCalendar>
           _focusedDate = cell.date;
           _pickerDate = _pageFor(cell.date, FluentCalendarView.month);
           _forwards = true;
-          _restartSlide();
           _focusOnNextBuild = true;
         });
         // With the day grid hidden there is nothing to drill in to, so the
@@ -2565,13 +2640,12 @@ class _FluentCalendarState extends State<FluentCalendar>
           widget.onSelectDate!(fluentCalendarLocalDay(cell.date));
         }
       case FluentCalendarView.decade:
-        setState(() {
+        _navigate(() {
           _sideView = FluentCalendarView.year;
           _view = FluentCalendarView.year;
           _focusedDate = cell.date;
           _pickerDate = _pageFor(cell.date, FluentCalendarView.year);
           _forwards = true;
-          _restartSlide();
           _focusOnNextBuild = true;
         });
     }
@@ -2580,7 +2654,7 @@ class _FluentCalendarState extends State<FluentCalendar>
   /// Activating a side cell moves the day grid rather than selecting anything.
   void _activateSide(FluentCalendarCell cell) {
     if (!_enabled || !cell.selectable) return;
-    setState(() {
+    _navigate(() {
       if (_sideView == FluentCalendarView.decade) {
         _sideView = FluentCalendarView.year;
         _sidePickerDate = DateTime.utc(cell.date.year, 1, 1);
@@ -2592,7 +2666,6 @@ class _FluentCalendarState extends State<FluentCalendar>
         widget.onPickerDateChanged?.call(fluentCalendarLocalDay(_pickerDate));
       }
       _forwards = true;
-      _restartSlide();
     });
   }
 
@@ -2618,6 +2691,8 @@ class _FluentCalendarState extends State<FluentCalendar>
     required DateTime focused,
     required bool side,
     required VoidCallback? onCaptionPressed,
+    double? slideProgress,
+    bool? slideForwards,
   }) {
     final cells = _cellsFor(page, view);
 
@@ -2754,6 +2829,8 @@ class _FluentCalendarState extends State<FluentCalendar>
         FluentCalendarView.decade => _strings.nextYearRange,
       },
       style: style,
+      slideProgress: slideProgress,
+      slideForwards: slideForwards,
     );
   }
 
@@ -2797,28 +2874,30 @@ class _FluentCalendarState extends State<FluentCalendar>
         ),
       );
     }
-    if (widget.isMonthPickerVisible && (_split || !widget.isDayPickerVisible)) {
-      panels.add(
-        _buildPanel(
-          page: widget.isDayPickerVisible ? _sidePickerDate : _pickerDate,
-          view: _sideView,
-          style: sideStyle,
-          nodes: widget.isDayPickerVisible ? _sideNodes : _nodes,
-          focused: widget.isDayPickerVisible ? _sideFocusedDate : _focusedDate,
-          side: widget.isDayPickerVisible,
-          onCaptionPressed: widget.isDayPickerVisible
-              ? (_sideView == FluentCalendarView.year ? _drillSide : null)
-              : _drillPrimary,
-        ),
-      );
-    }
+    final monthPicker =
+        widget.isMonthPickerVisible && (_split || !widget.isDayPickerVisible);
+    // Built inside the AnimatedBuilder below rather than here: beside the day
+    // grid it carries its own entrance, read off `_sideSlide` every frame.
+    FluentCalendarPanel monthPanel() => _buildPanel(
+      page: widget.isDayPickerVisible ? _sidePickerDate : _pickerDate,
+      view: _sideView,
+      style: sideStyle,
+      nodes: widget.isDayPickerVisible ? _sideNodes : _nodes,
+      focused: widget.isDayPickerVisible ? _sideFocusedDate : _focusedDate,
+      side: widget.isDayPickerVisible,
+      onCaptionPressed: widget.isDayPickerVisible
+          ? (_sideView == FluentCalendarView.year ? _drillSide : null)
+          : _drillPrimary,
+      slideProgress: _split ? _sideSlide.value : null,
+      slideForwards: _split ? _sideSlideForwards : null,
+    );
 
     final onToday =
         widget.showGoToToday &&
             _enabled &&
             _pageFor(_today, _primaryView) != _pickerDate
         ? () {
-            setState(() {
+            _navigate(() {
               _forwards = _today.isAfter(_pickerDate);
               if (widget.isDayPickerVisible) _view = FluentCalendarView.month;
               _sideView = FluentCalendarView.year;
@@ -2826,7 +2905,6 @@ class _FluentCalendarState extends State<FluentCalendar>
               _sidePickerDate = DateTime.utc(_today.year, 1, 1);
               _focusedDate = _today;
               _sideFocusedDate = _today;
-              _restartSlide();
               widget.onPickerDateChanged?.call(
                 fluentCalendarLocalDay(_pickerDate),
               );
@@ -2895,14 +2973,17 @@ class _FluentCalendarState extends State<FluentCalendar>
           ),
         },
         child: AnimatedBuilder(
-          animation: _slide,
+          animation: Listenable.merge(<Listenable>[_slide, _sideSlide]),
           builder: (context, _) => buildFluentCalendar(
             resolveFluentCalendarState(
-              panels: panels,
+              panels: <FluentCalendarPanel>[
+                ...panels,
+                if (monthPicker) monthPanel(),
+              ],
               view: _primaryView,
               enabled: _enabled,
               slideProgress: _slide.value,
-              slideForwards: _forwards,
+              slideForwards: _slideForwards,
               onGoToToday: onToday,
               goToTodayLabel: widget.showGoToToday ? _strings.goToToday : null,
               semanticLabel: widget.semanticLabel,

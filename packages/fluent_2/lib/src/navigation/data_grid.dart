@@ -1401,12 +1401,21 @@ class _FluentDataGridState extends State<FluentDataGrid> {
                     context,
                   ).sortedDescending,
                 },
-                icon: Icon(
-                  direction == FluentDataGridSortDirection.descending
-                      ? FluentIcons.arrow_down_20_regular
-                      : FluentIcons.arrow_up_20_regular,
-                  size: FluentSize.size200,
-                ),
+                // An unsorted column keeps its button but draws no arrow, as
+                // upstream's TableHeaderCell only shows a sort icon once
+                // sortDirection is set (components-table.md:35). The empty
+                // 20px slot stops the header shifting when the sort moves.
+                icon: switch (direction) {
+                  null => const SizedBox.square(dimension: FluentSize.size200),
+                  FluentDataGridSortDirection.ascending => const Icon(
+                    FluentIcons.arrow_up_20_regular,
+                    size: FluentSize.size200,
+                  ),
+                  FluentDataGridSortDirection.descending => const Icon(
+                    FluentIcons.arrow_down_20_regular,
+                    size: FluentSize.size200,
+                  ),
+                },
                 onPressed: () => widget.onSort!(index),
               ),
           ],

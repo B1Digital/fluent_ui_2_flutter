@@ -222,7 +222,9 @@ const DocsPage gaugeChartPage = DocsPage(
       name: 'culture',
       type: 'String?',
       defaultValue: 'null',
-      description: 'The locale tag used to format popover text.',
+      description:
+          'No visible effect: every popover string is prebuilt text, which '
+          "upstream's culture pass leaves unchanged too.",
     ),
     PropRow(
       name: 'variant',
@@ -268,7 +270,6 @@ class _GaugeChartBasicState extends State<_GaugeChartBasic> {
   double _height = 128;
   double _chartValue = 50;
   bool _hideMinMax = false;
-  bool _enableGradient = false;
   bool _roundedCorners = false;
   bool _legendMultiSelect = false;
 
@@ -351,16 +352,8 @@ class _GaugeChartBasicState extends State<_GaugeChartBasic> {
         spacing: 16,
         runSpacing: 8,
         children: <Widget>[
-          // `enableGradient` has no counterpart on `FluentGaugeChart`: our port
-          // paints flat segment fills. The switch stays so the section keeps
-          // upstream's control set, and it drives nothing.
-          FluentSwitch(
-            checked: _enableGradient,
-            label: Text(
-              _enableGradient ? 'Enable Gradient' : 'Disable Gradient',
-            ),
-            onChanged: (bool value) => setState(() => _enableGradient = value),
-          ),
+          // Upstream also offers an "Enable Gradient" switch; the port has no
+          // gradient fill for gauge segments, so that one knob is left out.
           FluentSwitch(
             checked: _roundedCorners,
             label: Text(
@@ -433,7 +426,6 @@ class _GaugeChartSingleSegmentState extends State<_GaugeChartSingleSegment> {
   double _width = 252;
   double _height = 173;
   double _chartValue = 50;
-  bool _enableGradient = false;
   bool _roundedCorners = false;
 
   @override
@@ -508,16 +500,8 @@ class _GaugeChartSingleSegmentState extends State<_GaugeChartSingleSegment> {
         spacing: 16,
         runSpacing: 8,
         children: <Widget>[
-          // `enableGradient` has no counterpart on `FluentGaugeChart`: our port
-          // paints flat segment fills. The switch stays so the section keeps
-          // upstream's control set, and it drives nothing.
-          FluentSwitch(
-            checked: _enableGradient,
-            label: Text(
-              _enableGradient ? 'Enable Gradient' : 'Disable Gradient',
-            ),
-            onChanged: (bool value) => setState(() => _enableGradient = value),
-          ),
+          // Upstream also offers an "Enable Gradient" switch; the port has no
+          // gradient fill for gauge segments, so that one knob is left out.
           FluentSwitch(
             checked: _roundedCorners,
             label: Text(

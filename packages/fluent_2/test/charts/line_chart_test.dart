@@ -2764,6 +2764,43 @@ void main() {
       );
     });
 
+    testWidgets('the annotation colours reach the rules and the labels', (
+      tester,
+    ) async {
+      const stroke = Color(0xFFFF1921);
+      const label = Color(0xFF006EBD);
+      await pump(
+        tester,
+        FluentLineChart(
+          data: _dateLineData(),
+          eventAnnotations: <FluentEventAnnotation>[
+            FluentEventAnnotation(
+              date: DateTime.utc(2024, 3, 15),
+              event: 'Launch',
+            ),
+          ],
+          eventAnnotationMergedLabel: (int n) => '$n events',
+          eventAnnotationStrokeColor: stroke,
+          eventAnnotationLabelColor: label,
+        ),
+      );
+      final painter =
+          tester
+                  .widget<CustomPaint>(
+                    find.descendant(
+                      of: find.byType(FluentEventAnnotationLayer),
+                      matching: find.byType(CustomPaint),
+                    ),
+                  )
+                  .painter!
+              as FluentEventAnnotationPainter;
+      // EventsAnnotationProps.strokeColor / labelColor
+      // (EventAnnotation.tsx:29-31, LabelLink.tsx:61-63): set, they replace
+      // colorNeutralForeground1 on the rules and the labels respectively.
+      expect(painter.strokeColor, stroke);
+      expect(painter.labelColor, label);
+    });
+
     testWidgets('the legend row appends the colour-fill bars after the lines', (
       tester,
     ) async {

@@ -67,7 +67,7 @@ void main() {
       isFalse,
       reason: 'utilities.ts:265 destructures showRoundOffXTickValues = false.',
     );
-    expect(params.xAxistickSize, 6, reason: 'utilities.ts:266 destructures 6.');
+    expect(params.xAxisTickSize, 6, reason: 'utilities.ts:266 destructures 6.');
     expect(params.tickPadding, 10, reason: 'utilities.ts:267 destructures 10.');
     expect(
       params.hideTickOverlap,

@@ -326,28 +326,20 @@ void main() {
 
       await tapAndSettle(
         tester,
-        find.byType(FluentSwitch).at(1),
+        find.byType(FluentSwitch).at(0),
         what: 'the rounded-corners switch',
       );
       expect(_rounded(tester), hasLength(segments));
     });
 
-    testWidgets('the gradient switch is inert by design', (
+    testWidgets('the section offers no inert gradient switch', (
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
-      final Finder gradient = find.byType(FluentSwitch).at(0);
-      final List<Rect> before = _bars(tester);
-      final List<Color> fills = _fills(tester);
-
-      await tapAndSettle(tester, gradient, what: 'the gradient switch');
-      expect(tester.widget<FluentSwitch>(gradient).checked, isTrue);
-      // `enableGradient` has no counterpart on the port, which paints flat
-      // segment fills; the switch is kept only so the section carries
-      // upstream's control set. This is what would catch it being wired up
-      // without the page's own comment following.
-      expect(_bars(tester), before);
-      expect(_fills(tester), fills);
+      // The port paints flat segment fills, so upstream's "Enable Gradient"
+      // switch is left out rather than shown as a live control that changes
+      // nothing.
+      expect(find.textContaining('Gradient'), findsNothing);
     });
   });
 
@@ -684,12 +676,6 @@ List<RecordedInvocation> _ops(WidgetTester tester) => paintOps(tester, _canvas);
 List<Rect> _bars(WidgetTester tester) => <Rect>[
   for (final ({Paint paint, Rect rect}) mark in paintedRects(_ops(tester)))
     mark.rect,
-];
-
-/// The fill each segment was painted with, alpha included.
-List<Color> _fills(WidgetTester tester) => <Color>[
-  for (final ({Paint paint, Rect rect}) mark in paintedRects(_ops(tester)))
-    mark.paint.color,
 ];
 
 /// The segments drawn as RRects, which are absent from [_bars].

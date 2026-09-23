@@ -901,7 +901,7 @@ class _HorizontalBarCustomCalloutState
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: FluentSwitch(
-              label: const Text('User Popover Override'),
+              label: const Text('Use Popover Override'),
               checked: _useCustomPopover,
               onChanged: (bool value) =>
                   setState(() => _useCustomPopover = value),

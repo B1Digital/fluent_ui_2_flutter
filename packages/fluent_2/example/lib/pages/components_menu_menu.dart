@@ -10,6 +10,10 @@ import '../shell/catalog.dart';
 /// id, so the "Show code" panel can read this file back and print exactly the
 /// code that rendered.
 ///
+/// The exception is the two Motion sections' copy: upstream's teaches a
+/// `surfaceMotion` slot FluentMenu does not have, so it says what the menu does
+/// instead.
+///
 /// Upstream composes a menu out of `Menu`, `MenuTrigger`, `MenuPopover`,
 /// `MenuList` and a family of `MenuItem*` elements. [FluentMenu] collapses that
 /// into one widget: `items` is the list, and `builder` is the trigger. So every
@@ -258,16 +262,23 @@ const DocsPage menuPage = DocsPage(
       id: 'components-menu-menu--motion-custom',
       title: 'Motion Custom',
       description:
-          'Menu animations can be customized using the Motion APIs, together '
-          'with the surfaceMotion slot.',
+          'FluentMenu takes no motion parameters. Its surface always fades in '
+          'while it slides 10px into place, over 400ms, and closes with no '
+          "exit animation. When the MediaQuery above the app's Overlay sets "
+          'disableAnimations, the surface appears in place with no '
+          'transition.',
       builder: _motionCustom,
     ),
     DocsSection(
       id: 'components-menu-menu--motion-disabled',
       title: 'Motion Disabled',
       description:
-          'To disable the Menu transition animation, set the surfaceMotion '
-          'prop to null.',
+          'FluentMenu has no per-menu switch for its motion. Its surface is '
+          "built in the app's Overlay and follows the disableAnimations flag "
+          'of the MediaQuery there, which the OS reduce-motion setting sets; '
+          'the surface then appears in place with no transition. A MediaQuery '
+          'wrapped around one FluentMenu does not reach its surface, so this '
+          'demo is a default menu.',
       builder: _motionDisabled,
     ),
   ],

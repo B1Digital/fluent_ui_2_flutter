@@ -46,6 +46,8 @@ class FluentLineChart extends StatefulWidget {
     this.props = const FluentCartesianChartProps(),
     this.eventAnnotations = const <FluentEventAnnotation>[],
     this.eventAnnotationMergedLabel,
+    this.eventAnnotationStrokeColor,
+    this.eventAnnotationLabelColor,
     this.colorFillBars = const <FluentColorFillBar>[],
     this.allowMultipleShapesForPoints = false,
     this.optimizeLargeData = false,
@@ -70,6 +72,16 @@ class FluentLineChart extends StatefulWidget {
   /// (`EventAnnotation.tsx:61-119`). Required when [eventAnnotations] is not
   /// empty.
   final String Function(int count)? eventAnnotationMergedLabel;
+
+  /// Colour of the event-annotation rules, or null for
+  /// `colorNeutralForeground1`. `EventsAnnotationProps.strokeColor`
+  /// (`LineChart.types.ts:104`, read at `EventAnnotation.tsx:29-31`).
+  final Color? eventAnnotationStrokeColor;
+
+  /// Colour of the event-annotation labels, or null for
+  /// `colorNeutralForeground1`. `EventsAnnotationProps.labelColor`
+  /// (`LineChart.types.ts:105`, read at `LabelLink.tsx:61-63`).
+  final Color? eventAnnotationLabelColor;
 
   /// Shaded x ranges drawn behind the lines.
   final List<FluentColorFillBar> colorFillBars;
@@ -254,6 +266,8 @@ class FluentLineChartState extends State<FluentLineChart> {
               mergedLabel:
                   widget.eventAnnotationMergedLabel ??
                   (count) => '$count events',
+              strokeColor: widget.eventAnnotationStrokeColor,
+              labelColor: widget.eventAnnotationLabelColor,
             ),
       onChartMouseLeave: () => setState(() {
         // `_handleChartMouseLeave` clears the hover (`:1195-1200`).
@@ -2029,6 +2043,7 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
         popoverData: FluentChartPopoverData(
           xValue: xValue,
           isCalloutForStack: isCalloutForStack,
+          culture: culture,
           yValues: stack == null
               ? null
               : <FluentYValueHover>[

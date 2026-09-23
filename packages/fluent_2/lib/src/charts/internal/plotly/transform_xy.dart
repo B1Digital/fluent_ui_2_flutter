@@ -900,7 +900,7 @@ _transformScatterTrace(
       // re-interpret them as UTC.
       useUTC: false,
       // `:2177`.
-      showYAxisLables: true,
+      showYAxisLabels: true,
       // `:2178`.
       roundedTicks: true,
       xMinValue: xRange.xMinValue,
@@ -948,7 +948,7 @@ _transformScatterTrace(
           : yBounds.startValue,
       yMaxValue: isAreaChart || yBounds.endValue.isNaN ? 0 : yBounds.endValue,
       // `:2199-2204`: the scatter branch alone.
-      showYAxisLablesTooltip: isScatterChart,
+      showYAxisLabelsTooltip: isScatterChart,
       xAxisCategoryOrder: isScatterChart
           ? categoryOrder.x ?? FluentAxisCategoryOrder.defaultOrder
           : FluentAxisCategoryOrder.defaultOrder,
@@ -1371,13 +1371,13 @@ FluentHeatMapChart transformPlotlyToHeatmap(
       // `:2609`: unconditional, so `isMultiPlot` is not consulted here.
       hideLegend: true,
       // `:2610`.
-      showYAxisLables: true,
+      showYAxisLabels: true,
       // `:2614`.
       hideTickOverlap: true,
       // `:2615`: 20 characters before an ellipsis.
       noOfCharsToTruncate: 20,
       // `:2616`.
-      showYAxisLablesTooltip: true,
+      showYAxisLabelsTooltip: true,
       xAxisCategoryOrder:
           categoryOrder.x ?? FluentAxisCategoryOrder.defaultOrder,
       yAxisCategoryOrder:

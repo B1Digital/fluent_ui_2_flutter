@@ -5,6 +5,7 @@ import '../l10n/l10n.dart';
 import 'axis/axis_builders.dart' as builders;
 import 'axis/axis_types.dart';
 import 'axis/domain_range.dart';
+import 'axis/tick_format.dart';
 import 'cartesian/cartesian_chart.dart';
 import 'cartesian/cartesian_chart_props.dart';
 import 'cartesian/cartesian_layout.dart';
@@ -50,12 +51,10 @@ class FluentScatterChart extends StatefulWidget {
 
   /// BCP-47 locale used to format popover values.
   ///
-  /// ponytail: declared, not yet consumed. Upstream spends it in exactly one
-  /// place — `formatDateToLocaleString(x, props.culture, …)` at
-  /// `ScatterChart.tsx:568` and `:534`, which formats a *date* x value for the
-  /// popover header. [FluentScatterChartDelegate.popoverFor] prints the raw x,
-  /// so wiring this means teaching that method to format, which is the same
-  /// change every cartesian chart needs and is better made once.
+  /// It formats the popover's x reading
+  /// (`formatDateToLocaleString(x, props.culture, …)`, `ScatterChart.tsx:535`
+  /// and `:568`) and its y readings (`culture: props.culture`, `:696`), and
+  /// the delegate hands it to the shell for the x-axis tick labels.
   final String? culture;
 
   /// Style override, highest precedence.
@@ -86,35 +85,23 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
   String? _activePointId;
   FluentChartPopoverData? _popoverData;
   Offset? _popoverAnchor;
-  FocusNode? _internalFocusNode;
   FluentScatterChartDelegate? _delegate;
   late FluentChartTextMeasurer _measurer;
 
-  FocusNode get _focusNode =>
-      widget.focusNode ?? (_internalFocusNode ??= FocusNode());
+  /// `useUTC` is `string | boolean` upstream and is read as a JS truthy value
+  /// (`CartesianChart.types.ts:448`), so an empty string is false.
+  bool get _useUtc =>
+      widget.props.useUTC == true ||
+      (widget.props.useUTC is String && (widget.props.useUTC! as String) != '');
 
   @override
   void initState() {
     super.initState();
     _measurer = FluentChartTextMeasurer();
-    _focusNode.addListener(_handleFocusChange);
-  }
-
-  @override
-  void didUpdateWidget(FluentScatterChart oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.focusNode != oldWidget.focusNode) {
-      (oldWidget.focusNode ?? _internalFocusNode)?.removeListener(
-        _handleFocusChange,
-      );
-      _focusNode.addListener(_handleFocusChange);
-    }
   }
 
   @override
   void dispose() {
-    _focusNode.removeListener(_handleFocusChange);
-    _internalFocusNode?.dispose();
     _measurer.invalidate();
     super.dispose();
   }
@@ -128,13 +115,24 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
   /// focus, which the widget reproduces by suppressing the shell's popover
   /// layer outright and rendering its own on hover instead.
   ///
-  /// ponytail: the active point pins to the first marker rather than following
-  /// the roving index, because the shell's index is private and it reports no
-  /// focus-change callback. Upgrade path: add one to
-  /// [FluentCartesianChart] — plan 05 owns that file — and set the id from it.
-  void _handleFocusChange() {
-    final hasFocus = _focusNode.hasFocus;
-    setState(() => _activePointId = hasFocus ? '0_0' : null);
+  /// The grown marker follows the shell's roving index. Its regions are built
+  /// one per mark by [FluentScatterChartDelegate.buildHitRegions], so region i
+  /// is mark i, and the first stop is the last series' first point, as the
+  /// circles render from `ScatterChart.tsx:399`. Upstream makes every circle a
+  /// tab stop, so a Tab alone grows one; here a Tab lands on the plot and
+  /// nothing grows until an arrow picks a marker, the moment the shell starts
+  /// narrating one. Blur shrinks it again, because the shell drops its stop
+  /// there, where upstream's `onBlur` (`:471`) only hides the hover rule.
+  void _handleFocusedRegionChange(
+    int? index,
+    FluentCartesianChildContext context,
+  ) {
+    final mark = index == null ? null : _delegate?.marksFor(context)[index];
+    setState(
+      () => _activePointId = mark == null
+          ? null
+          : '${mark.seriesIndex}_${mark.pointIndex}',
+    );
   }
 
   /// `_handleHover` (`ScatterChart.tsx:558-590`), bound to the circle's own
@@ -212,9 +210,11 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
       xMinValue: widget.props.xMinValue,
       xMaxValue: widget.props.xMaxValue,
       yAxisCategoryOrder: widget.props.yAxisCategoryOrder,
+      culture: widget.culture,
+      useUtc: _useUtc,
     );
     return FluentCartesianChart(
-      focusNode: _focusNode,
+      focusNode: widget.focusNode,
       // parity: ScatterChart.tsx:722 passes the title through UNADORNED — no
       // 'Scatter chart with N series' suffix, unlike Area (`:1012`) and Line
       // (`:1843-1846`). It still has to be handed over explicitly: neither this
@@ -225,9 +225,10 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
         chartTitleForSemantics: widget.data.chartTitle,
         // The shell opens its popover for the focused region as readily as for
         // the hovered one, and upstream's focus path cannot open one at all
-        // (see [_handleFocusChange]). Replacing the shell's layer with an empty
-        // one leaves this widget the only thing that can raise a popover, which
-        // it does from [_handlePointerMove] through `overlayBuilder`.
+        // (see [_handleFocusedRegionChange]). Replacing the shell's layer with
+        // an empty one leaves this widget the only thing that can raise a
+        // popover, which it does from [_handlePointerMove] through
+        // `overlayBuilder`.
         popoverBuilder: (context) => const SizedBox.shrink(),
         // `{...(_isScatterPolarRef.current ? { yMaxValue: 1, yMinValue: -1 }
         // : {})}` (`ScatterChart.tsx:742`), spread after `{...props}` at `:723`
@@ -264,6 +265,7 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
       delegate: _delegate!,
       overlayBuilder: _buildPopoverLayer,
       onPointerMoveInPlot: _handlePointerMove,
+      onFocusedRegionChange: _handleFocusedRegionChange,
       onChartMouseLeave: _handleChartMouseLeave,
     );
   }
@@ -375,6 +377,8 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
     this.xMinValue,
     this.xMaxValue,
     this.yAxisCategoryOrder,
+    this.culture,
+    this.useUtc = false,
   });
 
   /// The chart's data bundle. Only [FluentChartData.scatterChartData] is read.
@@ -420,6 +424,17 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
   /// the labels come back in insertion order — **not** in the reverse-series
   /// order the explicit [FluentAxisCategoryOrder.defaultOrder] selects.
   final FluentAxisCategoryOrder? yAxisCategoryOrder;
+
+  /// BCP-47 locale for the popover's readings (`props.culture`).
+  ///
+  /// Overrides the base getter, so the shell formats this chart's tick labels
+  /// with it too: `ScatterChart.tsx:721` spreads `props` into `CartesianChart`,
+  /// which hands `culture` to the x axis builders (`CartesianChart.tsx:237-277`).
+  @override
+  final String? culture;
+
+  /// Whether a date reading is formatted in UTC (`props.useUTC`).
+  final bool useUtc;
 
   List<FluentScatterChartSeries> get _series =>
       data.scatterChartData ?? const <FluentScatterChartSeries>[];
@@ -856,6 +871,9 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
         legend: _series[mark.seriesIndex].legend,
         popoverData: popoverFor(mark),
         semanticsLabel: mark.semanticsLabel,
+        // `_getClickHandler(onDataPointClick)` (`ScatterChart.tsx:472`).
+        onActivate:
+            _series[mark.seriesIndex].data[mark.pointIndex].onDataPointClick,
       ),
   ];
 
@@ -864,10 +882,16 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
     final series = _series[mark.seriesIndex];
     final point = series.data[mark.pointIndex];
     return FluentChartPopoverData(
-      xValue: point.xAxisCalloutData ?? '${point.x}',
+      // `formatDateToLocaleString(x, props.culture, props.useUTC)`
+      // (`ScatterChart.tsx:535`), then `ChartPopover.tsx:128` formats the
+      // reading once more, which is what groups a numeric x.
+      xValue:
+          point.xAxisCalloutData ??
+          formatToLocaleString(point.x, culture: culture, useUtc: useUtc),
       // ScatterChart.tsx:695 always sets isCalloutForStack, so the multi-value
       // popover body is used even for a single marker.
       isCalloutForStack: true,
+      culture: culture,
       yValues: <FluentYValueHover>[
         FluentYValueHover(
           legend: series.legend,

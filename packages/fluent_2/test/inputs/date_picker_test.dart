@@ -16,6 +16,7 @@ Future<void> _pump(
   DateTime? minDate,
   DateTime? maxDate,
   ValueChanged<FluentDatePickerValidationResult>? onValidationResult,
+  FluentDatePickerErrorStrings? errorStrings,
   bool reducedMotion = false,
   Widget? placeholder,
   ValueChanged<bool>? onOpenChange,
@@ -31,6 +32,7 @@ Future<void> _pump(
     minDate: minDate,
     maxDate: maxDate,
     onValidationResult: onValidationResult,
+    errorStrings: errorStrings,
     placeholder: placeholder,
     onOpenChange: onOpenChange,
   );
@@ -603,6 +605,61 @@ void main() {
       expect(picked, <DateTime>[DateTime(2027, 4, 2)]);
     });
 
+    // #17: errorStrings was stored and never read, so no message reached anyone.
+    Future<FluentDatePickerValidationResult?> commitResult(
+      WidgetTester tester, {
+      FluentDatePickerErrorStrings? errorStrings,
+      Widget Function(Widget child)? wrap,
+    }) async {
+      FluentDatePickerValidationResult? result;
+      await _pump(
+        tester,
+        allowTextInput: true,
+        errorStrings: errorStrings,
+        onValidationResult: (r) => result = r,
+        wrap: wrap,
+      );
+      await tester.enterText(find.byType(EditableText), 'not a date');
+      // Let the picker see the focus arrive, so the blur below is a commit.
+      await tester.pumpAndSettle();
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      return result;
+    }
+
+    testWidgets('errorStrings supplies the reported message', (tester) async {
+      final result = await commitResult(
+        tester,
+        errorStrings: const FluentDatePickerErrorStrings(invalidInput: 'Nope'),
+      );
+      expect(result?.error, FluentDatePickerErrorType.invalidInput);
+      expect(result?.message, 'Nope');
+    });
+
+    testWidgets("without errorStrings the message is the ambient locale's", (
+      tester,
+    ) async {
+      const turkish = Locale('tr');
+      final result = await commitResult(
+        tester,
+        wrap: (picker) => Builder(
+          builder: (context) => Localizations.override(
+            context: context,
+            locale: turkish,
+            delegates: const <LocalizationsDelegate<dynamic>>[
+              FluentLocalizations.delegate,
+            ],
+            child: picker,
+          ),
+        ),
+      );
+      expect(result?.error, FluentDatePickerErrorType.invalidInput);
+      expect(
+        result?.message,
+        lookupFluentLocalizations(turkish).invalidDateFormat,
+      );
+    });
+
     // Upstream's ambiguity rule: a format may not round-trip, so re-parsing our
     // own output could silently move the date.
     testWidgets('text we wrote ourselves is never re-parsed', (tester) async {
@@ -682,5 +739,27 @@ void main() {
           .map((widget) => widget.opacity);
       expect(opacities.every((value) => value == 1), isTrue);
     });
+  });
+
+  // #30: accentWidth was resolved into the style and then dropped, because the
+  // shared faceplate drew its focus bar at a constant FluentStroke.thick.
+  testWidgets('style.accentWidth sizes the focus bar', (tester) async {
+    await _pump(
+      tester,
+      wrap: (_) => FluentDatePicker(
+        today: _today,
+        onSelectDate: _noop,
+        autofocus: true,
+        style: const FluentDatePickerStyle(
+          accentWidth: WidgetStatePropertyAll<double?>(8),
+        ),
+      ),
+    );
+    final bar = find.descendant(
+      of: find.byType(FluentDatePicker),
+      matching: find.byType(FluentInputFocusUnderline),
+    );
+    expect(tester.widget<FluentInputFocusUnderline>(bar).thickness, 8);
+    expect(tester.getSize(bar).height, 8);
   });
 }

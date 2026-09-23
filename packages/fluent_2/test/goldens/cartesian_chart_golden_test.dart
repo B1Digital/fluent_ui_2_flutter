@@ -64,7 +64,7 @@ void main() {
       cell(
         props: const FluentCartesianChartProps(
           hideLegend: true,
-          rotateXAxisLables: true,
+          rotateXAxisLabels: true,
         ),
         delegate: StubCartesianDelegate(
           xAxisType: FluentChartAxisType.category,

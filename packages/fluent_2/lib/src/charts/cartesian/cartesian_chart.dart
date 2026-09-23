@@ -77,6 +77,7 @@ class FluentCartesianChart extends StatefulWidget {
     this.onChartMouseLeave,
     this.overlayBuilder,
     this.onPointerMoveInPlot,
+    this.onFocusedRegionChange,
     this.style,
   });
 
@@ -157,6 +158,19 @@ class FluentCartesianChart extends StatefulWidget {
   final void Function(Offset local, FluentCartesianChildContext childContext)?
   onPointerMoveInPlot;
 
+  /// Called when the roving keyboard index moves, with the focused region's
+  /// position in the list [FluentCartesianSeriesDelegate.buildHitRegions]
+  /// returned and the scales that list was built with, or with a null index
+  /// when the plot loses focus and the index resets.
+  ///
+  /// Upstream's marks are DOM elements that take focus themselves, so a chart
+  /// hears about a focused mark through the mark's own `onFocus`
+  /// (`ScatterChart.tsx:468-470`). Here one node roves over painted regions,
+  /// and this is how a chart learns which one it is on. Under
+  /// [FluentChartHitGranularity.group] the index is into the coalesced list.
+  final void Function(int? index, FluentCartesianChildContext childContext)?
+  onFocusedRegionChange;
+
   /// Style overrides layered over the theme-derived defaults.
   final FluentCartesianChartStyle? style;
 
@@ -190,14 +204,27 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
   List<String> _selectedLegends = const <String>[];
   FocusNode? _internalFocusNode;
   List<FluentChartHitRegion> _regions = const <FluentChartHitRegion>[];
+
+  /// The scales [_regions] were built with, for
+  /// [FluentCartesianChart.onFocusedRegionChange].
+  late FluentCartesianChildContext _childContext;
+
+  /// The delegate's regions before [_coalesceRegionsByIndex] merges them, which
+  /// is what a press activates.
+  ///
+  /// A merged stop stands for several marks with a handler each, and a click
+  /// still lands on one of them: GroupedVerticalBarChart keeps `onClick` on
+  /// every rect under `isCalloutForStack` (`GroupedVerticalBarChart.tsx:594`).
+  List<FluentChartHitRegion> _marks = const <FluentChartHitRegion>[];
   int _focusedIndex = -1;
   int _hoveredIndex = -1;
 
-  /// The region the press landed in, which is the one the release activates.
+  /// The mark in [_marks] the press landed in, which is the one the release
+  /// activates.
   ///
   /// A tap targets where it BEGAN: a mark built as a widget — the `onClick`
-  /// donut, heat map and horizontal bar charts hang off theirs — fires for a
-  /// press inside it and a release two pixels out, which is what a hand does
+  /// donut and horizontal bar charts hang off theirs — fires for a press
+  /// inside it and a release two pixels out, which is what a hand does
   /// between pressing and letting go. Hit-testing the release position instead
   /// makes every mark thinner than that drift unclickable, and a canvas chart
   /// has plenty: a 3px stacked segment sitting on the plot floor loses the
@@ -255,7 +282,7 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
     // scroller on a chart whose marks are inert.
     if (event.logicalKey == LogicalKeyboardKey.enter ||
         event.logicalKey == LogicalKeyboardKey.space) {
-      return _activate(_focusedIndex)
+      return _activate(_regions, _focusedIndex)
           ? KeyEventResult.handled
           : KeyEventResult.ignored;
     }
@@ -273,36 +300,37 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
           ? (step > 0 ? 0 : count - 1)
           : (_focusedIndex + step + count) % count;
     });
+    widget.onFocusedRegionChange?.call(_focusedIndex, _childContext);
     return KeyEventResult.handled;
   }
 
-  /// The region under [position], or -1.
+  /// The one of [regions] under [position], or -1.
   ///
   /// Walks backwards so a region painted later wins an overlap, matching the
   /// SVG hit-testing upstream relies on.
-  int _regionAt(Offset position) {
-    for (var i = _regions.length - 1; i >= 0; i--) {
-      if (_regions[i].bounds.contains(position)) return i;
+  static int _regionAt(List<FluentChartHitRegion> regions, Offset position) {
+    for (var i = regions.length - 1; i >= 0; i--) {
+      if (regions[i].bounds.contains(position)) return i;
     }
     return -1;
   }
 
-  /// Runs region [index]'s [FluentChartHitRegion.onActivate], and reports
-  /// whether there was one to run.
+  /// Runs the [FluentChartHitRegion.onActivate] of [regions] at [index], and
+  /// reports whether there was one to run.
   ///
   /// The pointer and the roving index share it because upstream's marks are
   /// DOM elements: one `onClick` attribute gives them the click and the
   /// keyboard activation together (`LineChart.tsx:1701`).
-  bool _activate(int index) {
-    final onActivate = index < 0 || index >= _regions.length
+  static bool _activate(List<FluentChartHitRegion> regions, int index) {
+    final onActivate = index < 0 || index >= regions.length
         ? null
-        : _regions[index].onActivate;
+        : regions[index].onActivate;
     onActivate?.call();
     return onActivate != null;
   }
 
   void _onPointer(Offset position) {
-    final index = _regionAt(position);
+    final index = _regionAt(_regions, position);
     // Only HorizontalBarChartWithAxis closes the callout when the pointer
     // leaves a mark (`HorizontalBarChartWithAxis.tsx:266-268`). Every other
     // per-mark leave handler is an empty stub — `VerticalBarChart.tsx:496-498`,
@@ -327,6 +355,12 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
   /// the union of its segments. The first region of each index wins the popover
   /// data and the narration, which is where a group-mode chart puts its
   /// stack-wide values (`:1146`, `:281-292`).
+  ///
+  /// A merged region carries no [FluentChartHitRegion.onActivate]: its marks
+  /// each bring their own, so Enter on the stop has no one handler to run,
+  /// while a click reaches the mark it lands on through [_marks]. A chart whose
+  /// group has one handler of its own merges its regions itself, as
+  /// VerticalStackedBarChart does for `onBarClick`.
   static List<FluentChartHitRegion> _coalesceRegionsByIndex(
     List<FluentChartHitRegion> regions,
   ) {
@@ -379,6 +413,7 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
   void _onFocusChange({required bool hasFocus}) {
     if (!hasFocus && _focusedIndex != -1) {
       setState(() => _focusedIndex = -1);
+      widget.onFocusedRegionChange?.call(null, _childContext);
     }
   }
 
@@ -462,9 +497,11 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
   }) => LayoutBuilder(
     builder: (context, constraints) {
       final size = Size(constraints.maxWidth, constraints.maxHeight);
-      // `enableFirstRenderOptimization` skips the whole solve while the box has
-      // no usable size (`CartesianChart.tsx:190-191`). A degenerate box is
-      // skipped either way — there is nothing to divide a range by.
+      // Upstream's `enableFirstRenderOptimization` skips the whole solve on the
+      // render before its container is mounted (`CartesianChart.tsx:190-191`).
+      // A LayoutBuilder always has real constraints, so the port has no such
+      // render and ignores the flag; a degenerate box is skipped regardless —
+      // there is nothing to divide a range by.
       if (size.width <= 0 || size.height <= 0 || !size.isFinite) {
         return const SizedBox.expand();
       }
@@ -517,21 +554,18 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
     required FluentChartTextStyles textStyles,
     required double crispOffset,
   }) {
-    final childContext = FluentCartesianChildContext(
+    final childContext = _childContext = FluentCartesianChildContext(
       xScale: geometry.xAxis.scale,
       yScalePrimary: geometry.yAxisPrimary.scale,
       yScaleSecondary: geometry.yAxisSecondary?.scale,
       containerWidth: geometry.layout.size.width,
       containerHeight: geometry.layout.size.height,
     );
-    final regions = widget.delegate.buildHitRegions(
-      childContext,
-      geometry.layout,
-    );
+    _marks = widget.delegate.buildHitRegions(childContext, geometry.layout);
     _regions =
         widget.props.hitRegionGranularity == FluentChartHitGranularity.group
-        ? _coalesceRegionsByIndex(regions)
-        : regions;
+        ? _coalesceRegionsByIndex(_marks)
+        : _marks;
     if (_hoveredIndex >= _regions.length) {
       _hoveredIndex = -1;
     }
@@ -590,7 +624,7 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
                   // The press picks the mark; the release only confirms it.
                   // `_onPointer` alongside is the hover half of what a mark
                   // does — it opens the callout and nothing more.
-                  _pressedIndex = _regionAt(details.localPosition);
+                  _pressedIndex = _regionAt(_marks, details.localPosition);
                   // A region wins, as upstream's marker circle sits above the
                   // line it would otherwise hand the click to.
                   _pressedOffRegion = _pressedIndex == -1
@@ -609,7 +643,7 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
                   if (_pressedIndex == -1) {
                     _pressedOffRegion?.call();
                   } else {
-                    _activate(_pressedIndex);
+                    _activate(_marks, _pressedIndex);
                   }
                 },
                 child: CustomPaint(
@@ -696,9 +730,9 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
     final labelWidth =
         calcMaxLabelWidthWithTransform(
           labels,
-          wrapXAxisLabels: widget.props.wrapXAxisLables,
-          rotateXAxisLabels: widget.props.rotateXAxisLables,
-          showXAxisLabelsTooltip: widget.props.showXAxisLablesTooltip,
+          wrapXAxisLabels: widget.props.wrapXAxisLabels,
+          rotateXAxisLabels: widget.props.rotateXAxisLabels,
+          showXAxisLabelsTooltip: widget.props.showXAxisLabelsTooltip,
           xAxisType: widget.delegate.xAxisType,
           noOfCharsToTruncate: widget.props.noOfCharsToTruncate,
           style: textStyles.axisTick,
@@ -740,9 +774,9 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       textStyles: textStyles,
       startFromX: 0,
     );
-    if (widget.props.showYAxisLables) {
+    if (widget.props.showYAxisLabels) {
       final labels = geometry.axisData.yAxisTickText.map(
-        (label) => widget.props.showYAxisLablesTooltip
+        (label) => widget.props.showYAxisLabelsTooltip
             // `CartesianChart.tsx:152-153`.
             ? truncateString(label, widget.props.noOfCharsToTruncate)
             : label,
@@ -787,7 +821,7 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       containerWidth: size.width,
       margins: margins,
       showRoundOffXTickValues: props.showRoundOffXTickValues,
-      xAxistickSize: props.xAxistickSize,
+      xAxisTickSize: props.xAxisTickSize,
       tickPadding: props.resolvedXAxisTickPadding,
       xAxisCount: props.xAxisTickCount,
       xAxisPadding: delegate.xAxisPadding,
@@ -800,9 +834,9 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       ),
       calcMaxLabelWidth: (labels) => calcMaxLabelWidthWithTransform(
         labels,
-        wrapXAxisLabels: props.wrapXAxisLables,
-        rotateXAxisLabels: props.rotateXAxisLables,
-        showXAxisLabelsTooltip: props.showXAxisLablesTooltip,
+        wrapXAxisLabels: props.wrapXAxisLabels,
+        rotateXAxisLabels: props.rotateXAxisLabels,
+        showXAxisLabelsTooltip: props.showXAxisLabelsTooltip,
         xAxisType: delegate.xAxisType,
         noOfCharsToTruncate: props.noOfCharsToTruncate,
         style: textStyles.axisTick,

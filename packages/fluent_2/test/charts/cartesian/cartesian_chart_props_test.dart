@@ -2,9 +2,9 @@ import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The shell's config bag. Two of its members are *resolvers*, not fields,
-/// because upstream computes them with expressions that carry defects the port
-/// reproduces: the `tickPadding` precedence bug at `CartesianChart.tsx:215`
-/// and the `hideTickOverlap` override at `:220`.
+/// because upstream computes them with expressions: the `tickPadding` one at
+/// `CartesianChart.tsx:215`, whose precedence bug the port corrects, and the
+/// `hideTickOverlap` override at `:220`, which it reproduces.
 void main() {
   group('FluentCartesianChartProps defaults', () {
     const props = FluentCartesianChartProps();
@@ -21,7 +21,7 @@ void main() {
         reason: 'utilities.ts:285 reads `xAxisCount ?? 6`',
       );
       expect(
-        props.xAxistickSize,
+        props.xAxisTickSize,
         6,
         reason:
             'utilities.ts:266 — the doc at CartesianChart.types.ts:314 says 10 '
@@ -82,7 +82,69 @@ void main() {
     });
   });
 
-  group('resolvedXAxisTickPadding reproduces the precedence defect', () {
+  group('the deprecated upstream spellings still work', () {
+    test('xAxistickSize forwards to xAxisTickSize', () {
+      const props = FluentCartesianChartProps(xAxistickSize: 4);
+      expect(props.xAxisTickSize, 4, reason: 'the old constructor argument');
+      expect(props.xAxistickSize, 4, reason: 'the old getter');
+      expect(
+        props.copyWith(xAxistickSize: 8).xAxisTickSize,
+        8,
+        reason: 'the old copyWith argument',
+      );
+      expect(
+        props.copyWith(xAxisTickSize: 2).xAxisTickSize,
+        2,
+        reason: 'the new copyWith argument',
+      );
+      const params = FluentXAxisParams(
+        domainNRangeValues: FluentChartDomainRange(
+          dStartValue: 0,
+          dEndValue: 1,
+          rStartValue: 0,
+          rEndValue: 1,
+        ),
+        containerHeight: 1,
+        containerWidth: 1,
+        margins: FluentChartMargins(),
+        xAxistickSize: 3,
+      );
+      expect(params.xAxisTickSize, 3, reason: 'FluentXAxisParams, old arg');
+      expect(params.xAxistickSize, 3, reason: 'FluentXAxisParams, old getter');
+    });
+
+    test('the *Lables flags forward to the *Labels ones', () {
+      const props = FluentCartesianChartProps(
+        showXAxisLablesTooltip: true,
+        wrapXAxisLables: true,
+        rotateXAxisLables: true,
+        showYAxisLables: true,
+        showYAxisLablesTooltip: true,
+      );
+      expect(props.showXAxisLabelsTooltip, isTrue);
+      expect(props.wrapXAxisLabels, isTrue);
+      expect(props.rotateXAxisLabels, isTrue);
+      expect(props.showYAxisLabels, isTrue);
+      expect(props.showYAxisLabelsTooltip, isTrue);
+      expect(props.showXAxisLablesTooltip, isTrue, reason: 'old getter');
+      expect(props.wrapXAxisLables, isTrue, reason: 'old getter');
+      expect(props.rotateXAxisLables, isTrue, reason: 'old getter');
+      expect(props.showYAxisLables, isTrue, reason: 'old getter');
+      expect(props.showYAxisLablesTooltip, isTrue, reason: 'old getter');
+      expect(
+        props.copyWith(tickPadding: 1).showYAxisLabels,
+        isTrue,
+        reason: 'copyWith carries the flags over',
+      );
+      expect(
+        resolveShellXAxisTickPadding(showXAxisLablesTooltip: true),
+        5,
+        reason: 'the old resolver argument still selects the tooltip branch',
+      );
+    });
+  });
+
+  group('resolvedXAxisTickPadding corrects the precedence defect', () {
     test('neither set gives 10', () {
       expect(
         const FluentCartesianChartProps().resolvedXAxisTickPadding,
@@ -91,34 +153,32 @@ void main() {
       );
     });
 
-    test('a user value is discarded and collapses to 5', () {
+    test('a user value is used as given', () {
       expect(
         const FluentCartesianChartProps(
           tickPadding: 12,
         ).resolvedXAxisTickPadding,
-        5,
+        12,
         reason:
-            'parity: JS parses `a || b ? 5 : 10` as `(a || b) ? 5 : 10`, so 12 '
-            'is thrown away (CartesianChart.tsx:215)',
+            'JS parses `a || b ? 5 : 10` as `(a || b) ? 5 : 10` and throws 12 '
+            'away (CartesianChart.tsx:215); the port applies it',
       );
     });
 
-    test('an explicit zero is JS-falsy and does NOT collapse', () {
+    test('an explicit zero is kept', () {
       expect(
         const FluentCartesianChartProps(
           tickPadding: 0,
         ).resolvedXAxisTickPadding,
-        10,
-        reason:
-            '0 is falsy in JavaScript, so `props.tickPadding || ...` skips it '
-            '(CartesianChart.tsx:215)',
+        0,
+        reason: '`??` falls back only on null, not on JavaScript-falsy 0',
       );
     });
 
     test('the tooltip flag alone collapses it to 5', () {
       expect(
         const FluentCartesianChartProps(
-          showXAxisLablesTooltip: true,
+          showXAxisLabelsTooltip: true,
         ).resolvedXAxisTickPadding,
         5,
         reason: 'the second operand of the || at CartesianChart.tsx:215',
@@ -131,15 +191,15 @@ void main() {
           expect(
             FluentCartesianChartProps(
               tickPadding: tickPadding,
-              showXAxisLablesTooltip: showTooltip,
+              showXAxisLabelsTooltip: showTooltip,
             ).resolvedXAxisTickPadding,
             resolveShellXAxisTickPadding(
               tickPadding: tickPadding,
-              showXAxisLablesTooltip: showTooltip,
+              showXAxisLabelsTooltip: showTooltip,
             ),
             reason:
                 'the shell must not fork axis_builders.dart:33 — tickPadding '
-                '$tickPadding, showXAxisLablesTooltip $showTooltip',
+                '$tickPadding, showXAxisLabelsTooltip $showTooltip',
           );
         }
       }
@@ -160,7 +220,7 @@ void main() {
     test('rotation disables it', () {
       expect(
         const FluentCartesianChartProps(
-          rotateXAxisLables: true,
+          rotateXAxisLabels: true,
         ).resolveHideTickOverlap(FluentTickLayout.defaultLayout),
         isFalse,
         reason: 'first arm of the ternary at CartesianChart.tsx:220',

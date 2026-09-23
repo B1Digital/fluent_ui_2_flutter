@@ -25,6 +25,10 @@ dependencies:
   # Opening a browser tab has no package-free path on web, and the preview
   # card's "Open in new tab" and the toolbar's "View as Markdown" both need one.
   url_launcher: ^6.3.1
+  # The DeclarativeChart page's Download saves through an `<a download>`, as
+  # upstream's story does; `shell/file_saver_web.dart` needs the DOM for that.
+  # Already in the lock through url_launcher_web.
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:

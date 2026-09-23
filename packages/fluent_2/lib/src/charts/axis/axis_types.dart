@@ -234,7 +234,8 @@ class FluentXAxisParams {
     required this.margins,
     this.showRoundOffXTickValues = false,
     // The tick line length upstream destructures (`utilities.ts:266`).
-    this.xAxistickSize = 6,
+    double xAxisTickSize = 6,
+    @Deprecated('Use xAxisTickSize.') double? xAxistickSize,
     // The tick-to-label gap upstream destructures (`utilities.ts:267`).
     this.tickPadding = 10,
     this.xAxisCount,
@@ -249,7 +250,7 @@ class FluentXAxisParams {
     this.tick0,
     this.tickText,
     this.tickLayout = FluentTickLayout.defaultLayout,
-  });
+  }) : xAxisTickSize = xAxistickSize ?? xAxisTickSize;
 
   /// The pre-resolved domain and range, produced by `domain_range.dart`.
   final FluentChartDomainRange domainNRangeValues;
@@ -270,7 +271,13 @@ class FluentXAxisParams {
 
   /// The tick line length. Destructures to `6` (`utilities.ts:266`, `:455`,
   /// `:572`) even though `CartesianChart.types.ts:316` documents `10`.
-  final double xAxistickSize;
+  /// Upstream spells it `xAxistickSize`.
+  final double xAxisTickSize;
+
+  /// The upstream spelling of [xAxisTickSize], kept so existing callers still
+  /// compile.
+  @Deprecated('Use xAxisTickSize.')
+  double get xAxistickSize => xAxisTickSize;
 
   /// The gap between tick and label. Destructures to `10` on numeric and band
   /// axes (`utilities.ts:267`, `:573`) and to `6` on the date axis (`:454`).
