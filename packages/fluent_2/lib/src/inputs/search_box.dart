@@ -1,4 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/gestures.dart' show kSecondaryMouseButton;
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -135,6 +139,7 @@ class FluentSearchBoxState extends FluentSearchBoxBaseState {
     required super.field,
     required this.appearance,
     required this.size,
+    this.error = false,
     super.placeholder,
     super.icon,
     super.clear,
@@ -142,6 +147,10 @@ class FluentSearchBoxState extends FluentSearchBoxBaseState {
 
   /// Fill and outline treatment.
   final FluentSearchBoxAppearance appearance;
+
+  /// Whether the field is showing a validation error: upstream's
+  /// `aria-invalid="true"`, which the root styles with Input's invalid rule.
+  final bool error;
 
   /// Height and type ramp.
   final FluentSearchBoxSize size;
@@ -154,6 +163,7 @@ FluentSearchBoxState resolveFluentSearchBoxState({
   required Widget field,
   bool enabled = true,
   bool focused = false,
+  bool error = false,
   FluentSearchBoxAppearance appearance = FluentSearchBoxAppearance.outline,
   FluentSearchBoxSize size = FluentSearchBoxSize.medium,
   Widget? placeholder,
@@ -165,6 +175,7 @@ FluentSearchBoxState resolveFluentSearchBoxState({
   field: field,
   appearance: appearance,
   size: size,
+  error: error,
   placeholder: placeholder,
   icon: icon,
   clear: clear,
@@ -176,32 +187,42 @@ FluentSearchBoxState resolveFluentSearchBoxState({
 /// that reads the design axes. Every value comes from a Fluent token; nothing
 /// here computes a colour.
 ///
-/// Token sources are the Figma `SearchBox` component set (`9315:3026`, 36
-/// variants over `Style`, `Size` and `State`), extracted into
-/// `test/fixtures/search_box.json`, reconciled against
-/// `useSearchBoxStyles.styles.ts` and `useInputStyles.styles.ts`.
+/// The oracle is upstream as it renders — `useSearchBoxStyles.styles.ts` over
+/// `useInputStyles.styles.ts`, measured in Chrome on the live storybook
+/// (`components-searchbox--default`) — not the Figma `SearchBox` set. The root
+/// is a `.fui-Input`, so every border, radius, bar and invalid value is
+/// Input's, and resolves exactly as [resolveFluentInputStyle] does:
 ///
-/// Three things worth knowing before "correcting" anything below:
-///
-/// * **Focus does not move the border.** All twelve Figma `State=Focus`
-///   variants bind `Neutral/Stroke/1/Rest`, where React's `:focus-within`
-///   selects `colorNeutralStroke1Pressed`. Figma wins; the focus signal is the
-///   2px `compoundBrandStroke` underline and nothing else.
-/// * **The filled appearances keep a transparent border.** Figma paints no
-///   stroke on them at all — it binds `Stroke width/Thin` and leaves the paint
-///   empty — but Fluent's transparent stroke tokens turn *opaque* in high
-///   contrast, and that border is the only thing outlining a filled search box
-///   there. This is the same call `FluentSwitch` makes about its checked track.
-/// * **Disabled comes from React alone.** The Figma set has no `Disabled`
-///   variant, so the whole disabled ramp is `useInputStyles.styles.ts`
-///   verbatim: a transparent fill, `neutralStrokeDisabled` all round, no
-///   bottom rule and no focus underline.
+/// * **Focus moves the border.** `outlineInteractive` writes
+///   `:active,:focus-within` as one rule, which Griffel sorts after `:hover`,
+///   so a focused box shows `Stroke1Pressed` / `StrokeAccessiblePressed`
+///   whether or not it is hovered. A press held anywhere on the root shows the
+///   same colours, focused or not.
+/// * **The filled appearances keep a transparent border.** It takes up 1px
+///   like any CSS border, and Fluent's transparent stroke tokens turn *opaque*
+///   in high contrast, where it is the only thing outlining a filled box.
+/// * **Read only has no styling.** Only [FluentSearchBoxBaseState.enabled]
+///   changes the ramp.
+/// * **Invalid is `colorPaletteRedBorder2`**, under
+///   `:not(:focus-within)`: a focused invalid box falls back to the ordinary
+///   ramp and the brand bar.
+/// * **Disabled** is a transparent fill and `neutralStrokeDisabled` on every
+///   side that exists — all four on Outline and the filled pair, the bottom
+///   alone on Transparent — and no focus bar.
 FluentSearchBoxStyle resolveFluentSearchBoxStyle(
   FluentSearchBoxState state,
   FluentThemeData theme,
 ) {
   final c = theme.colors;
   final disabled = !state.enabled;
+  final focused = state.focused;
+  final invalid = state.error && !focused;
+  final underline = state.appearance == FluentSearchBoxAppearance.transparent;
+  // `colorPaletteRedBorder2`. The palette layer knows nothing of high contrast,
+  // where the status token is the system text colour instead.
+  final danger = c is FluentHighContrastColors
+      ? c.statusDangerBorder2
+      : c.palette.stroke2Rest(FluentPaletteFamily.red)!;
 
   final background = switch (state.appearance) {
     _ when disabled => FluentStateColor.tokens(rest: c.transparentBackground),
@@ -212,81 +233,80 @@ FluentSearchBoxStyle resolveFluentSearchBoxStyle(
     FluentSearchBoxAppearance.outline => FluentStateColor.tokens(
       rest: c.neutralBackground1,
     ),
-    // Figma paints nothing here; upstream's `underline` sets
-    // colorTransparentBackground, which is a real token and turns opaque in
-    // high contrast where a bare surface would not.
+    // Upstream's `underline` sets colorTransparentBackground, which is a real
+    // token and turns opaque in high contrast where a bare surface would not.
     FluentSearchBoxAppearance.transparent => FluentStateColor.tokens(
       rest: c.transparentBackground,
     ),
   };
 
+  // The ordinary interactive ramp. Focus holds the Pressed stop through a
+  // hover: see the doc comment.
+  WidgetStateProperty<Color> ramp(Color rest, Color hover, Color pressed) =>
+      FluentStateColor.tokens(
+        rest: focused ? pressed : rest,
+        hover: focused ? pressed : hover,
+        pressed: pressed,
+      );
+
   final border = switch (state.appearance) {
+    // Upstream's `underline` strips the top, left and right borders outright,
+    // disabled or not.
+    FluentSearchBoxAppearance.transparent => null,
     _ when disabled => FluentStateColor.tokens(rest: c.neutralStrokeDisabled),
-    FluentSearchBoxAppearance.outline => FluentStateColor.tokens(
-      rest: c.neutralStroke1,
-      hover: c.neutralStroke1Hover,
+    _ when invalid => FluentStateColor.tokens(rest: danger),
+    FluentSearchBoxAppearance.outline => ramp(
+      c.neutralStroke1,
+      c.neutralStroke1Hover,
+      c.neutralStroke1Pressed,
     ),
+    // `filledInteractive` moves `:hover` and `:focus-within` (and therefore
+    // `:active`) to the Interactive token.
     FluentSearchBoxAppearance.filledDarker ||
     FluentSearchBoxAppearance.filledLighter => FluentStateColor.tokens(
-      rest: c.transparentStroke,
+      rest: focused ? c.transparentStrokeInteractive : c.transparentStroke,
       hover: c.transparentStrokeInteractive,
+      pressed: c.transparentStrokeInteractive,
     ),
-    // Upstream's `underline` strips the top, left and right borders outright.
-    FluentSearchBoxAppearance.transparent => null,
   };
 
-  // The 1px rule Figma draws across the bottom as its own full-width rectangle
-  // rather than as a border side.
-  //
-  // Figma's `Style=Transparent, State=Hover` variants bind
-  // `Neutral/Stroke/Accessible/Rest` where their `Style=Outline` twins bind
-  // `.../Hover` — Figma disagreeing with itself about the same physical rule,
-  // on the one appearance where that rule is the entire component. React ramps
-  // both (`underlineInteractive`), so both ramp here.
+  // The bottom border, in its own higher-contrast token. The filled pair have
+  // none of their own: their transparent border runs round all four sides.
   final bottomBorder = switch (state.appearance) {
-    _ when disabled => null,
-    FluentSearchBoxAppearance.outline ||
-    FluentSearchBoxAppearance.transparent => FluentStateColor.tokens(
-      rest: c.neutralStrokeAccessible,
-      hover: c.neutralStrokeAccessibleHover,
-    ),
     FluentSearchBoxAppearance.filledDarker ||
     FluentSearchBoxAppearance.filledLighter => null,
+    _ when disabled => FluentStateColor.tokens(rest: c.neutralStrokeDisabled),
+    _ when invalid => FluentStateColor.tokens(rest: danger),
+    FluentSearchBoxAppearance.outline ||
+    FluentSearchBoxAppearance.transparent => ramp(
+      c.neutralStrokeAccessible,
+      c.neutralStrokeAccessibleHover,
+      c.neutralStrokeAccessiblePressed,
+    ),
   };
 
-  // Geometry, verbatim from the Figma SearchBox set. The `padding` is the
-  // `Contents` frame's horizontal inset; `gap` is the `Icon-Text-stack`'s
-  // itemSpacing plus the `.Text` slot's own XXS inset; `contentGap` is the
-  // `Contents` itemSpacing plus the `Icon after container`'s XXS inset.
-  final (
-    padding,
-    height,
-    textStyle,
-    iconSize,
-    clearIconSize,
-  ) = switch (state.size) {
+  // Upstream's box, inside the 1px border: root padding 6 / 8 / 10 on each
+  // side; `gap` is the `<input>`'s own padding-left (SNudge; the root's
+  // column-gap is 0); `contentGap` is the `contentAfter` slot's padding-left
+  // (M). Both glyphs are 1em SVGs on the same 16 / 20 / 24 font-size ramp.
+  final (padding, height, textStyle, iconSize) = switch (state.size) {
     FluentSearchBoxSize.small => (
       FluentSpacing.sNudge,
       24.0,
       theme.typography.caption1,
-      16.0,
-      // 12, not React's 16. Figma draws both trailing glyphs at 12 in every
-      // small variant.
-      12.0,
+      FluentSize.size160,
     ),
     FluentSearchBoxSize.medium => (
       FluentSpacing.s,
       32.0,
       theme.typography.body1,
-      20.0,
-      20.0,
+      FluentSize.size200,
     ),
     FluentSearchBoxSize.large => (
       FluentSpacing.mNudge,
       40.0,
       theme.typography.body2,
-      24.0,
-      24.0,
+      FluentSize.size240,
     ),
   };
 
@@ -295,11 +315,8 @@ FluentSearchBoxStyle resolveFluentSearchBoxStyle(
     borderColor: border,
     bottomBorderColor: bottomBorder,
     // `disabled` sets `::after { content: unset }` upstream: the focus bar is
-    // removed outright, not merely never scaled up. The Pressed stop is
-    // React's alone — `':focus-within:active::after'` moves the bar to
-    // `colorCompoundBrandStrokePressed`, and Figma's SearchBox set has no
-    // Pressed state to disagree with. `FluentInput` and `FluentTextarea`
-    // already carry it.
+    // removed outright, not merely never scaled up.
+    // `':focus-within:active::after'` moves it to the Pressed stop.
     focusUnderlineColor: disabled
         ? null
         : FluentStateColor.tokens(
@@ -309,11 +326,12 @@ FluentSearchBoxStyle resolveFluentSearchBoxStyle(
     borderWidth: WidgetStatePropertyAll<double?>(
       border == null ? FluentStroke.none : FluentStroke.thin,
     ),
-    // `Corner-radius/Input/Small` and `Corner-radius/Input/Medium` both resolve
-    // to 4, so one radius covers every size — as React's hard-coded
-    // borderRadiusMedium does.
-    borderRadius: const WidgetStatePropertyAll<BorderRadius?>(
-      FluentRadius.allMedium,
+    // Underline zeroes both the root's radius and the focus bar's
+    // (`underlineInteractive`'s `::after { borderRadius: 0 }`): a flat rule
+    // with square ends. Every other appearance is borderRadiusMedium at every
+    // size.
+    borderRadius: WidgetStatePropertyAll<BorderRadius?>(
+      underline ? BorderRadius.zero : FluentRadius.allMedium,
     ),
     foregroundColor: FluentStateColor.tokens(
       rest: disabled ? c.neutralForegroundDisabled : c.neutralForeground1,
@@ -334,22 +352,20 @@ FluentSearchBoxStyle resolveFluentSearchBoxStyle(
     padding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(
       EdgeInsets.symmetric(horizontal: padding),
     ),
-    gap: const WidgetStatePropertyAll<double?>(
-      FluentSpacing.xs + FluentSpacing.xxs,
-    ),
-    contentGap: const WidgetStatePropertyAll<double?>(
-      FluentSpacing.mNudge + FluentSpacing.xxs,
-    ),
+    gap: const WidgetStatePropertyAll<double?>(FluentSpacing.sNudge),
+    contentGap: const WidgetStatePropertyAll<double?>(FluentSpacing.m),
     iconSize: WidgetStatePropertyAll<double?>(iconSize),
-    clearIconSize: WidgetStatePropertyAll<double?>(clearIconSize),
+    clearIconSize: WidgetStatePropertyAll<double?>(iconSize),
     minimumSize: WidgetStatePropertyAll<Size?>(Size(0, height)),
-    // Upstream caps every size at 468px, which is also the width of all 36
-    // Figma variant frames.
+    // Upstream caps every size at 468px.
     maximumSize: const WidgetStatePropertyAll<Size?>(
       Size(468, double.infinity),
     ),
+    // The `<input>`'s cursor, which [buildFluentSearchBox] puts on the text
+    // column. The root padding and the search icon show the arrow; disabled is
+    // `not-allowed` everywhere.
     mouseCursor: WidgetStatePropertyAll<MouseCursor?>(
-      disabled ? SystemMouseCursors.basic : SystemMouseCursors.text,
+      disabled ? SystemMouseCursors.forbidden : SystemMouseCursors.text,
     ),
   );
 }
@@ -370,13 +386,12 @@ FluentSearchBoxStyle resolveFluentSearchBoxStyle(
 /// clear button appearing all change on the frame they change, and reduced
 /// motion is handled inside [FluentInputFocusUnderline], which is the bar.
 ///
-/// The bottom rule is drawn as a square-cornered overlay rather than a
-/// [BorderSide], for two reasons: Flutter refuses a rounded rectangle whose
-/// border sides disagree in colour, and Figma models it the same way — a
-/// full-width `Thin underline` rectangle laid over the `Contents` frame.
+/// The border is [FluentInputBorderPainter], shared with `FluentInput`: it
+/// takes up space the way a CSS border does, and joins the bottom colour to
+/// the sides on the CSS corner diagonal.
 ///
-/// [states] is the resolved interaction set: hovered and disabled only. See
-/// [FluentSearchBoxBaseState.focused] for why focus is not in it.
+/// [states] is the resolved interaction set: hovered, pressed and disabled.
+/// See [FluentSearchBoxBaseState.focused] for why focus is not in it.
 Widget buildFluentSearchBox(
   FluentSearchBoxBaseState state,
   FluentSearchBoxStyle style,
@@ -385,7 +400,7 @@ Widget buildFluentSearchBox(
   final radius = style.borderRadius?.resolve(states) ?? FluentRadius.allMedium;
   final borderWidth = style.borderWidth?.resolve(states) ?? FluentStroke.none;
   final borderColor = style.borderColor?.resolve(states);
-  final bottomBorderColor = style.bottomBorderColor?.resolve(states);
+  final bottomColor = style.bottomBorderColor?.resolve(states);
   final underlineColor = style.focusUnderlineColor?.resolve(states);
   final iconColor = style.iconColor?.resolve(states);
   final foreground = style.foregroundColor?.resolve(states);
@@ -401,6 +416,19 @@ Widget buildFluentSearchBox(
   final maximumSize =
       style.maximumSize?.resolve(states) ??
       const Size(double.infinity, double.infinity);
+  final mouseCursor = style.mouseCursor?.resolve(states) ?? MouseCursor.defer;
+
+  // CSS box model: a border that exists takes space, so the content sits
+  // inside it — 1px on every side for Outline and the filled pair (whose
+  // transparent border still counts), the bottom alone for Transparent. The
+  // bottom is 1px in every state: upstream recolours it, never thickens it.
+  final side = borderColor == null ? FluentStroke.none : borderWidth;
+  final widths = EdgeInsets.fromLTRB(
+    side,
+    side,
+    side,
+    bottomColor == null ? side : FluentStroke.thin,
+  );
 
   final field = state.placeholder == null
       ? state.field
@@ -421,44 +449,57 @@ Widget buildFluentSearchBox(
           ],
         );
 
-  final row = Row(
+  // [end] is the `<input>`'s own padding-right; see the Builder below.
+  Widget row(double end) => Row(
     children: <Widget>[
       if (state.icon != null)
         IconTheme.merge(
           data: IconThemeData(color: iconColor, size: iconSize),
-          child: SizedBox(width: iconSize, height: iconSize, child: state.icon),
+          child: _SnapToPixel(
+            child: SizedBox(
+              width: iconSize,
+              height: iconSize,
+              child: state.icon,
+            ),
+          ),
         ),
-      if (state.icon != null) SizedBox(width: gap),
-      Expanded(child: field),
+      // The `<input>`'s box: its padding-left (the gap) plus the text, the full
+      // height of the content box. It is what shows the text cursor; the root
+      // padding and the icon keep the arrow. The gap stays without an icon:
+      // it is the input's own padding, not spacing after the glyph (storybook,
+      // `contentBefore: null`, text at 15 of 200).
+      Expanded(
+        child: MouseRegion(
+          cursor: mouseCursor,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: math.max(0, minimumSize.height - widths.vertical),
+            ),
+            child: Padding(
+              padding: EdgeInsetsDirectional.only(start: gap, end: end),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                heightFactor: 1,
+                child: field,
+              ),
+            ),
+          ),
+        ),
+      ),
       if (state.clear != null) ...<Widget>[
         SizedBox(width: contentGap),
         IconTheme.merge(
           data: IconThemeData(color: iconColor, size: clearIconSize),
-          child: SizedBox(
-            width: clearIconSize,
-            height: clearIconSize,
-            child: state.clear,
+          child: _SnapToPixel(
+            child: SizedBox(
+              width: clearIconSize,
+              height: clearIconSize,
+              child: state.clear,
+            ),
           ),
         ),
       ],
     ],
-  );
-
-  final surface = DecoratedBox(
-    decoration: BoxDecoration(
-      color: style.backgroundColor?.resolve(states),
-      borderRadius: radius,
-      border: borderWidth > 0 && borderColor != null
-          ? Border.all(color: borderColor, width: borderWidth)
-          : null,
-    ),
-    child: Padding(
-      padding: padding,
-      child: DefaultTextStyle.merge(
-        style: textStyle.copyWith(color: foreground),
-        child: row,
-      ),
-    ),
   );
 
   return ConstrainedBox(
@@ -468,36 +509,57 @@ Widget buildFluentSearchBox(
         // The minimum has to reach the DECORATED box, not the Stack.
         // RenderStack lays non-positioned children out with StackFit.loose,
         // which drops minHeight to 0 — so a ConstrainedBox wrapped around the
-        // Stack leaves the surface to size to its 20px content and strands both
-        // bottom-pinned overlays a dozen pixels below it. FluentInput already
-        // nests it this way.
+        // Stack leaves the surface to size to its 20px content and strands the
+        // bottom-pinned bar a dozen pixels below it.
         ConstrainedBox(
           constraints: BoxConstraints(
             minHeight: minimumSize.height,
             minWidth: minimumSize.width,
           ),
-          child: surface,
-        ),
-        if (bottomBorderColor != null)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            // Figma's `Thin underline` is its own 1px rectangle rather than a
-            // border side, so it does not follow `borderWidth` — the
-            // Transparent appearance has no border at all and still draws it.
-            height: FluentStroke.thin,
-            // Rounded like the accent below it: a bare rectangle here runs
-            // past the field's curve at both ends. See FluentInputUnderline.
-            child: FluentInputUnderline(
-              color: bottomBorderColor,
-              thickness: FluentStroke.thin,
-              borderRadius: BorderRadius.only(
-                bottomLeft: radius.bottomLeft,
-                bottomRight: radius.bottomRight,
+          // Background, then border, then content, then the focus bar below:
+          // CSS's paint order for a root and its positioned `::after`.
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: style.backgroundColor?.resolve(states),
+              borderRadius: radius,
+            ),
+            child: CustomPaint(
+              painter: FluentInputBorderPainter(
+                radius: radius,
+                borderColor: borderColor,
+                borderWidth: side,
+                bottomBorderColor: bottomColor,
+                bottomBorderWidth: widths.bottom,
+              ),
+              // Without the clear slot, upstream zeroes the root's
+              // padding-right and gives the `<input>` the same padding
+              // instead, so that strip belongs to the text column: text
+              // cursor, and a click there focuses (storybook, x 195 of 200).
+              child: Builder(
+                builder: (context) {
+                  final dir =
+                      Directionality.maybeOf(context) ?? TextDirection.ltr;
+                  final p = padding.resolve(dir);
+                  final end = state.clear != null
+                      ? 0.0
+                      : dir == TextDirection.ltr
+                      ? p.right
+                      : p.left;
+                  return Padding(
+                    padding:
+                        p +
+                        widths -
+                        EdgeInsetsDirectional.only(end: end).resolve(dir),
+                    child: DefaultTextStyle.merge(
+                      style: textStyle.copyWith(color: foreground),
+                      child: row(end),
+                    ),
+                  );
+                },
               ),
             ),
           ),
+        ),
         if (underlineColor != null)
           Positioned(
             left: 0,
@@ -518,13 +580,41 @@ Widget buildFluentSearchBox(
   );
 }
 
+/// Paints [child] at its offset rounded to whole logical pixels.
+///
+/// Chrome paints an inline `<svg>` that way: on Transparent the glyphs are
+/// centred 5.5px down a 31px content box (the bottom border alone insets it),
+/// `getBoundingClientRect` reports 5.5, and the ink lands at 6 — measured at
+/// every size in the storybook capture. Layout is untouched; only paint moves.
+///
+/// ponytail: rounds in the enclosing layer's coordinates, which are the
+/// screen's unless a repaint boundary sits at a fractional offset.
+class _SnapToPixel extends SingleChildRenderObjectWidget {
+  const _SnapToPixel({required super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderSnapToPixel();
+}
+
+class _RenderSnapToPixel extends RenderProxyBox {
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final child = this.child;
+    if (child == null) return;
+    context.paintChild(
+      child,
+      Offset(offset.dx.roundToDouble(), offset.dy.roundToDouble()),
+    );
+  }
+}
+
 /// Paints the leading magnifier and the trailing clear cross.
 ///
 /// A painter rather than icon widgets because this package ships no icon font.
-/// Both outlines are transcribed from `microsoft/fluentui-system-icons`
-/// (`Search20Regular`, `Dismiss20Regular`) and normalised against their own
-/// 20-unit viewBox, so they scale with the glyph box the way the icon
-/// components do.
+/// Both are the `@fluentui/react-icons` `SearchRegular` and `DismissRegular`
+/// paths verbatim — the SVGs upstream renders at 1em on a 20-unit viewBox —
+/// filled and scaled to the glyph box, so they match Chrome's rendering at
+/// 16, 20 and 24.
 ///
 /// Every input is a public field so tests can assert the resolved glyph and
 /// tone directly instead of diffing pixels.
@@ -538,59 +628,86 @@ class FluentSearchBoxGlyphPainter extends CustomPainter {
   /// The glyph tone. `neutralForeground3`, or `neutralForegroundDisabled`.
   final Color color;
 
-  // Search20Regular: a ring centred at (8.5, 8.5) whose outer radius is 5.5 and
-  // inner radius 4 — a 1.5-wide stroke on a 4.75 centreline — plus a 1.5-wide
-  // round-capped handle running out to (16.6, 16.6).
-  static const double _ringCentre = 8.5 / 20;
-  static const double _ringRadius = 4.75 / 20;
-  static const double _handleStart = 11.86 / 20;
-  static const double _handleEnd = 16.6 / 20;
+  // M12.73 13.44a6.5 6.5 0 1 1 .7-.7l3.42 3.4a.5.5 0 0 1-.63.77l-.07-.06
+  // -3.42-3.41Zm-.71-.71A5.54 5.54 0 0 0 14 8.5a5.5 5.5 0 1 0-1.98 4.23Z
+  static final Path _search = Path()
+    ..moveTo(12.73, 13.44)
+    ..relativeArcToPoint(
+      const Offset(.7, -.7),
+      radius: const Radius.circular(6.5),
+      largeArc: true,
+    )
+    ..relativeLineTo(3.42, 3.4)
+    ..relativeArcToPoint(
+      const Offset(-.63, .77),
+      radius: const Radius.circular(.5),
+    )
+    ..relativeLineTo(-.07, -.06)
+    ..relativeLineTo(-3.42, -3.41)
+    ..close()
+    ..moveTo(12.02, 12.73)
+    ..arcToPoint(
+      const Offset(14, 8.5),
+      radius: const Radius.circular(5.54),
+      clockwise: false,
+    )
+    ..relativeArcToPoint(
+      const Offset(-1.98, 4.23),
+      radius: const Radius.circular(5.5),
+      largeArc: true,
+      clockwise: false,
+    )
+    ..close();
 
-  // Dismiss20Regular: two 1.5-wide round-capped strokes across the box.
-  static const double _crossMin = 4.5 / 20;
-  static const double _crossMax = 15.5 / 20;
-
-  // ponytail: one stroke width, scaled proportionally. Fluent draws separate
-  // 12/16/24 glyphs whose ink is optically tuned rather than scaled; split this
-  // into a per-size table if a fixture ever disagrees.
-  static const double _strokeWidth = 1.5 / 20;
+  // m4.09 4.22.06-.07a.5.5 0 0 1 .63-.06l.07.06L10 9.29l5.15-5.14a.5.5 0 0 1
+  // .63-.06l.07.06c.18.17.2.44.06.63l-.06.07L10.71 10l5.14 5.15c.18.17.2.44.06
+  // .63l-.06.07a.5.5 0 0 1-.63.06l-.07-.06L10 10.71l-5.15 5.14a.5.5 0 0 1-.63
+  // .06l-.07-.06a.5.5 0 0 1-.06-.63l.06-.07L9.29 10 4.15 4.85a.5.5 0 0 1-.06
+  // -.63l.06-.07-.06.07Z
+  static final Path _dismiss = () {
+    const r = Radius.circular(.5);
+    return Path()
+      ..moveTo(4.09, 4.22)
+      ..relativeLineTo(.06, -.07)
+      ..relativeArcToPoint(const Offset(.63, -.06), radius: r)
+      ..relativeLineTo(.07, .06)
+      ..lineTo(10, 9.29)
+      ..relativeLineTo(5.15, -5.14)
+      ..relativeArcToPoint(const Offset(.63, -.06), radius: r)
+      ..relativeLineTo(.07, .06)
+      ..relativeCubicTo(.18, .17, .2, .44, .06, .63)
+      ..relativeLineTo(-.06, .07)
+      ..lineTo(10.71, 10)
+      ..relativeLineTo(5.14, 5.15)
+      ..relativeCubicTo(.18, .17, .2, .44, .06, .63)
+      ..relativeLineTo(-.06, .07)
+      ..relativeArcToPoint(const Offset(-.63, .06), radius: r)
+      ..relativeLineTo(-.07, -.06)
+      ..lineTo(10, 10.71)
+      ..relativeLineTo(-5.15, 5.14)
+      ..relativeArcToPoint(const Offset(-.63, .06), radius: r)
+      ..relativeLineTo(-.07, -.06)
+      ..relativeArcToPoint(const Offset(-.06, -.63), radius: r)
+      ..relativeLineTo(.06, -.07)
+      ..lineTo(9.29, 10)
+      ..lineTo(4.15, 4.85)
+      ..relativeArcToPoint(const Offset(-.06, -.63), radius: r)
+      ..relativeLineTo(.06, -.07)
+      ..relativeLineTo(-.06, .07)
+      ..close();
+  }();
 
   @override
   void paint(Canvas canvas, Size size) {
-    final edge = size.shortestSide;
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = _strokeWidth * edge
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    switch (glyph) {
-      case FluentSearchBoxGlyph.search:
-        canvas
-          ..drawCircle(
-            Offset(_ringCentre * edge, _ringCentre * edge),
-            _ringRadius * edge,
-            paint,
-          )
-          ..drawLine(
-            Offset(_handleStart * edge, _handleStart * edge),
-            Offset(_handleEnd * edge, _handleEnd * edge),
-            paint,
-          );
-      case FluentSearchBoxGlyph.dismiss:
-        canvas
-          ..drawLine(
-            Offset(_crossMin * edge, _crossMin * edge),
-            Offset(_crossMax * edge, _crossMax * edge),
-            paint,
-          )
-          ..drawLine(
-            Offset(_crossMax * edge, _crossMin * edge),
-            Offset(_crossMin * edge, _crossMax * edge),
-            paint,
-          );
-    }
+    final scale = size.shortestSide / 20;
+    canvas
+      ..save()
+      ..scale(scale)
+      ..drawPath(switch (glyph) {
+        FluentSearchBoxGlyph.search => _search,
+        FluentSearchBoxGlyph.dismiss => _dismiss,
+      }, Paint()..color = color)
+      ..restore();
   }
 
   @override
@@ -664,6 +781,19 @@ class _ClearIntent extends Intent {
 /// button and the focus underline, and swaps to the disabled token ramp
 /// wholesale.
 ///
+/// ## Pointer
+///
+/// As in a browser, only the `<input>`'s box takes focus: the text column,
+/// from the end of the search icon (the input's own padding-left) to the
+/// clear button, at full height. Unfocused, it runs on to the border: upstream
+/// then hands the root's padding-right to the input. The root padding and the
+/// search icon are a plain `<span>` upstream; pressing them shows the Pressed
+/// border while held and focuses nothing.
+///
+/// One difference is deliberate, and shared by every Fluent text field: a
+/// press on that chrome while focused keeps focus, where Chrome blurs the
+/// field, because the faceplate is a [TextFieldTapRegion].
+///
 /// Customisation follows the usual three rungs. [style] is merged last and
 /// wins; [FluentSearchBoxTheme] restyles a subtree; and for anything further,
 /// [resolveFluentSearchBoxState], [resolveFluentSearchBoxStyle] and
@@ -676,6 +806,7 @@ class FluentSearchBox extends StatefulWidget {
     this.controller,
     this.focusNode,
     this.enabled = true,
+    this.error = false,
     this.appearance = FluentSearchBoxAppearance.outline,
     this.size = FluentSearchBoxSize.medium,
     this.placeholder,
@@ -703,6 +834,11 @@ class FluentSearchBox extends StatefulWidget {
 
   /// Whether the search box accepts input. False is a real disabled state.
   final bool enabled;
+
+  /// Whether to paint the validation-error treatment: a
+  /// `colorPaletteRedBorder2` border while unfocused, as upstream styles
+  /// `aria-invalid="true"`.
+  final bool error;
 
   /// Fill and outline treatment.
   final FluentSearchBoxAppearance appearance;
@@ -784,6 +920,15 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
   TextEditingController? _internalController;
   FocusNode? _internalFocusNode;
   bool _hovered = false;
+  bool _pressed = false;
+
+  /// The resolved [FluentSearchBoxStyle.gap] from the last build: the
+  /// `<input>`'s padding-left, which belongs to its hit box.
+  double _gap = 0;
+
+  /// Where the current tap went down. A browser decides focus at mousedown, so
+  /// a click that drifts off the `<input>` before release still focuses it.
+  Offset? _tapDownAt;
 
   /// Mirrors the node, so a property-only notification is not read as a blur.
   bool _focused = false;
@@ -795,8 +940,10 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
   @override
   bool get forcePressEnabled => false;
 
+  // Read only still selects, as a read-only `<input>` does; only disabled
+  // stops it.
   @override
-  bool get selectionEnabled => _interactive;
+  bool get selectionEnabled => widget.enabled;
 
   bool get _interactive => widget.enabled && !widget.readOnly;
 
@@ -828,8 +975,8 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
       _focusNode.addListener(_onFocusChanged);
       _focused = _focusNode.hasFocus;
     }
-    // Disabling mid-hover must not leave a stale hover behind.
-    if (!widget.enabled && _hovered) _hovered = false;
+    // Disabling mid-hover or mid-press must not leave either state behind.
+    if (!widget.enabled) _hovered = _pressed = false;
   }
 
   @override
@@ -872,6 +1019,33 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
     _focusNode.requestFocus();
   }
 
+  void _setPressed(bool value) {
+    if (_pressed == value || (value && !widget.enabled)) return;
+    setState(() => _pressed = value);
+  }
+
+  /// A tap in the `<input>`'s box but off the text itself — its padding-left,
+  /// or above or below the line — focuses it and puts the caret at the nearest
+  /// position, as a browser does. Taps on the text are the selection gesture
+  /// detector's; taps on the root padding or the search icon do nothing
+  /// (upstream `extra.json`: `click_x4`, `click_x18` stay unfocused).
+  void _handleTapUp(TapUpDetails details) {
+    final editable = editableTextKey.currentState?.renderEditable;
+    final at = _tapDownAt ?? details.globalPosition;
+    if (!widget.enabled || editable == null) return;
+    final x = editable.globalToLocal(at).dx;
+    final width = editable.size.width;
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    // Before the gap is the search icon and the root padding.
+    if (rtl ? x > width + _gap : x < -_gap) return;
+    // Past the text, a focused box has the clear slot and the root padding;
+    // an unfocused one has the `<input>`'s own padding-right (and the 1px
+    // border, too thin to matter).
+    if (_focusNode.hasFocus && (rtl ? x < 0 : x > width)) return;
+    editable.selectPositionAt(from: at, cause: SelectionChangedCause.tap);
+    _focusNode.requestFocus();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
@@ -882,6 +1056,8 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
     final probe = resolveFluentSearchBoxState(
       field: const SizedBox.shrink(),
       enabled: widget.enabled,
+      focused: _focusNode.hasFocus,
+      error: widget.error,
       appearance: widget.appearance,
       size: widget.size,
     );
@@ -893,6 +1069,7 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
     final states = <WidgetState>{
       if (!widget.enabled) WidgetState.disabled,
       if (_hovered && widget.enabled) WidgetState.hovered,
+      if (_pressed && widget.enabled) WidgetState.pressed,
     };
 
     final textStyle = resolved.textStyle?.resolve(states) ?? const TextStyle();
@@ -901,39 +1078,48 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
     final clearIconSize =
         resolved.clearIconSize?.resolve(states) ?? FluentSize.size200;
 
-    final field = _selectionGestures.buildGestureDetector(
-      behavior: HitTestBehavior.translucent,
-      child: EditableText(
-        key: editableTextKey,
-        controller: _controller,
-        focusNode: _focusNode,
-        readOnly: widget.readOnly || !widget.enabled,
-        autofocus: widget.autofocus,
-        obscureText: widget.obscureText,
-        keyboardType: widget.keyboardType,
-        textInputAction: widget.textInputAction,
-        selectionControls: widget.selectionControls,
-        contextMenuBuilder: fluentTextContextMenuBuilder,
-        enableInteractiveSelection: _interactive,
-        // The gesture detector above owns pointers, which is what makes
-        // drag-to-select and double-tap-to-select-word work.
-        rendererIgnoresPointer: true,
-        style: textStyle.copyWith(color: foreground),
-        cursorColor:
-            resolved.cursorColor?.resolve(states) ??
-            theme.colors.neutralForeground1,
-        backgroundCursorColor: theme.colors.neutralForeground3,
-        // `_interactive` alone was never the dismissal signal: `enabled &&
-        // !readOnly` does not change when focus leaves, so the highlight stayed
-        // lit after a click away. Focus is the term that was missing; both are
-        // kept, so a disabled or read-only box still paints nothing.
-        selectionColor: _interactive && _focusNode.hasFocus
-            ? resolved.selectionColor?.resolve(states)
-            : null,
-        onChanged: widget.onChanged,
-        onSubmitted: widget.onSubmitted,
-      ),
+    final Widget editable = EditableText(
+      key: editableTextKey,
+      controller: _controller,
+      focusNode: _focusNode,
+      readOnly: widget.readOnly || !widget.enabled,
+      autofocus: widget.autofocus,
+      obscureText: widget.obscureText,
+      keyboardType: widget.keyboardType,
+      textInputAction: widget.textInputAction,
+      selectionControls: widget.selectionControls,
+      contextMenuBuilder: fluentTextContextMenuBuilder,
+      enableInteractiveSelection: widget.enabled,
+      // The selection gesture detector around it owns pointers, which is
+      // what makes drag-to-select and double-tap-to-select-word work.
+      rendererIgnoresPointer: true,
+      // `EditableText` puts its own I-beam over the text line, inside the
+      // column's region; disabled is `not-allowed` there too.
+      mouseCursor: resolved.mouseCursor?.resolve(states),
+      style: textStyle.copyWith(color: foreground),
+      cursorColor:
+          resolved.cursorColor?.resolve(states) ??
+          theme.colors.neutralForeground1,
+      // The browser's caret is 1px; `EditableText`'s default is 2.
+      cursorWidth: FluentStroke.thin,
+      backgroundCursorColor: theme.colors.neutralForeground3,
+      // Gated on focus, because nulling this colour is the only way Flutter
+      // stops painting a selection: blur leaves `controller.selection`
+      // alone. Read only still paints it; a read-only `<input>` selects.
+      selectionColor: widget.enabled && _focusNode.hasFocus
+          ? resolved.selectionColor?.resolve(states)
+          : null,
+      onChanged: widget.onChanged,
+      onSubmitted: widget.onSubmitted,
     );
+    // Only an enabled box recognises gestures, as `FluentInput` does: a
+    // disabled one must leave the tap to whatever encloses it.
+    final field = widget.enabled
+        ? _selectionGestures.buildGestureDetector(
+            behavior: HitTestBehavior.translucent,
+            child: editable,
+          )
+        : editable;
 
     final showClear = widget.enabled && _focusNode.hasFocus;
 
@@ -951,6 +1137,7 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
       field: field,
       enabled: widget.enabled,
       focused: _focusNode.hasFocus,
+      error: widget.error,
       appearance: widget.appearance,
       size: widget.size,
       placeholder: _controller.text.isEmpty && widget.placeholder != null
@@ -995,6 +1182,8 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
           : null,
     );
 
+    _gap = resolved.gap?.resolve(states) ?? FluentSpacing.sNudge;
+
     // Wrapped so the faceplate counts as part of the field: the chrome sits
     // outside the region `EditableText` installs for itself, so a press on the
     // leading glyph or the padding read as a tap outside and dropped focus on
@@ -1004,19 +1193,34 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
       child: buildFluentSearchBox(state, resolved, states),
     );
 
+    // The root's own cursor: the arrow, or `not-allowed` when disabled. The
+    // text column carries [FluentSearchBoxStyle.mouseCursor] inside it.
     searchBox = MouseRegion(
-      cursor: resolved.mouseCursor?.resolve(states) ?? SystemMouseCursors.basic,
+      cursor: widget.enabled
+          ? SystemMouseCursors.basic
+          : SystemMouseCursors.forbidden,
       onEnter: (_) {
         if (widget.enabled) setState(() => _hovered = true);
       },
       onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.deferToChild,
-        // Clicking the padding, the leading glyph or anywhere else that is not
-        // itself interactive focuses the field, the way a browser focuses an
-        // input when its wrapper is clicked.
-        onTap: _interactive ? _focusNode.requestFocus : null,
-        child: searchBox,
+      // `:active` holds on the root for a press anywhere inside it — padding,
+      // icon, text or clear button — until release. Chrome sets it for the
+      // primary and middle buttons, not for a right press (storybook).
+      child: Listener(
+        onPointerDown: (event) =>
+            _setPressed(event.buttons != kSecondaryMouseButton),
+        onPointerUp: (_) => _setPressed(false),
+        onPointerCancel: (_) => _setPressed(false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.deferToChild,
+          // Both null when disabled, so no recogniser joins the arena and an
+          // ancestor's tap still wins.
+          onTapDown: widget.enabled
+              ? (details) => _tapDownAt = details.globalPosition
+              : null,
+          onTapUp: widget.enabled ? _handleTapUp : null,
+          child: searchBox,
+        ),
       ),
     );
 
