@@ -254,7 +254,6 @@ void main() {
           dimmed: false,
           selected: false,
           indexInList: 0,
-          listLength: 1,
           style: resolveFluentChartLegendStyle(theme),
           focusNode: node,
           skipTraversal: false,
@@ -284,7 +283,6 @@ void main() {
           dimmed: true,
           selected: false,
           indexInList: 0,
-          listLength: 1,
           style: resolveFluentChartLegendStyle(theme),
           focusNode: node,
           skipTraversal: false,
@@ -321,7 +319,6 @@ void main() {
           dimmed: true,
           selected: false,
           indexInList: 0,
-          listLength: 1,
           style: resolveFluentChartLegendStyle(theme),
           focusNode: node,
           skipTraversal: false,
@@ -357,7 +354,6 @@ void main() {
           dimmed: true,
           selected: false,
           indexInList: 0,
-          listLength: 1,
           style: resolveFluentChartLegendStyle(theme),
           focusNode: node,
           skipTraversal: false,
@@ -413,7 +409,6 @@ void main() {
           dimmed: false,
           selected: false,
           indexInList: 0,
-          listLength: 1,
           style: resolveFluentChartLegendStyle(theme),
           focusNode: node,
           skipTraversal: false,
@@ -454,7 +449,6 @@ void main() {
           dimmed: false,
           selected: false,
           indexInList: 0,
-          listLength: 1,
           style: resolveFluentChartLegendStyle(theme),
           focusNode: node,
           skipTraversal: false,
@@ -486,7 +480,6 @@ void main() {
           dimmed: false,
           selected: false,
           indexInList: 0,
-          listLength: 1,
           style: resolveFluentChartLegendStyle(theme),
           focusNode: node,
           skipTraversal: false,
@@ -503,7 +496,12 @@ void main() {
       );
     });
 
-    testWidgets('semantics carry position, size and selection', (tester) async {
+    testWidgets('semantics carry label and selection without a set size', (
+      tester,
+    ) async {
+      // Legends.tsx:345 also sets aria-setsize, which Flutter has no semantics
+      // for, so the row no longer demands the ignored listLength: this row is
+      // built without one.
       final handle = tester.ensureSemantics();
       final node = FocusNode();
       addTearDown(node.dispose);
@@ -518,7 +516,6 @@ void main() {
           dimmed: false,
           selected: true,
           indexInList: 2,
-          listLength: 5,
           style: resolveFluentChartLegendStyle(theme),
           focusNode: node,
           skipTraversal: false,
@@ -530,6 +527,11 @@ void main() {
         reason:
             'Legends.tsx:343 sets aria-label to the title; the title-cased '
             'label is what a screen reader announces.',
+      );
+      expect(
+        tester.getSemantics(find.text('First')).flagsCollection.isSelected,
+        Tristate.isTrue,
+        reason: 'Legends.tsx:341 sets aria-selected from the selection.',
       );
       handle.dispose();
     });
@@ -611,7 +613,6 @@ void main() {
           dimmed: false,
           selected: false,
           indexInList: 0,
-          listLength: 4,
           style: resolveFluentChartLegendStyle(theme),
           focusNode: node,
           skipTraversal: false,
