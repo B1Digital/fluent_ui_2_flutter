@@ -99,6 +99,31 @@ FluentInputBorderPainter _border(WidgetTester tester) => tester
 TextEditingController _controller(WidgetTester tester) =>
     tester.widget<EditableText>(find.byType(EditableText)).controller;
 
+/// Whether the primary focus sits inside the popup's calendar.
+bool _focusInCalendar() =>
+    FocusManager.instance.primaryFocus?.context
+        ?.findAncestorWidgetOfExactType<FluentCalendar>() !=
+    null;
+
+/// A left mouse press at [from], moved to [to] in steps, then released.
+Future<void> _drag(WidgetTester tester, Offset from, Offset to) async {
+  final mouse = await tester.startGesture(
+    from,
+    kind: PointerDeviceKind.mouse,
+    buttons: kPrimaryMouseButton,
+  );
+  await tester.pump(const Duration(milliseconds: 80));
+  for (var i = 1; i <= 5; i++) {
+    await mouse.moveTo(Offset.lerp(from, to, i / 5)!);
+    await tester.pump(const Duration(milliseconds: 16));
+  }
+  await mouse.up();
+  await tester.pumpAndSettle();
+}
+
+/// A left mouse click at [at], held 80ms as a hand holds it.
+Future<void> _click(WidgetTester tester, Offset at) => _drag(tester, at, at);
+
 void main() {
   setUp(FluentInputModality.debugReset);
 
@@ -684,19 +709,210 @@ void main() {
   });
 
   group('FluentDatePicker — open and close', () {
-    testWidgets('clicking opens, clicking again closes', (tester) async {
-      await _pump(tester);
-      expect(find.byType(FluentCalendar), findsNothing);
+    final picker = find.byType(FluentDatePicker);
+    final calendar = find.byType(FluentCalendar);
+    bool barFocused(WidgetTester tester) => tester
+        .widget<FluentInputFocusUnderline>(
+          find.descendant(
+            of: picker,
+            matching: find.byType(FluentInputFocusUnderline),
+          ),
+        )
+        .focused;
 
-      await tester.tap(find.byType(FluentDatePicker));
-      await tester.pumpAndSettle();
-      expect(find.byType(FluentCalendar), findsOneWidget);
+    testWidgets('clicking opens, clicking again leaves it open', (
+      tester,
+    ) async {
+      // Upstream's `onInputClick` dismisses only when `allowTextInput` is set;
+      // without it a click on the open picker's input does nothing, and the
+      // focus trap keeps focus in the calendar (Chrome).
+      final opens = <bool>[];
+      await _pump(tester, onOpenChange: opens.add);
+      expect(calendar, findsNothing);
+
+      await _click(tester, tester.getCenter(picker));
+      expect(calendar, findsOneWidget);
       expect(find.text('March 2026'), findsOneWidget);
 
-      await tester.tap(find.byType(FluentDatePicker));
-      await tester.pumpAndSettle();
-      expect(find.byType(FluentCalendar), findsNothing);
-    });
+      await _click(tester, tester.getCenter(picker));
+      expect(calendar, findsOneWidget);
+      expect(opens, <bool>[true]);
+      expect(_focusInCalendar(), isTrue);
+      expect(barFocused(tester), isFalse);
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('with allowTextInput, the click that closes it lands the caret '
+        'where it went down; one on the glyph keeps it', (tester) async {
+      // Chrome, text-input story with a value, opened by a click near the
+      // start: the trap takes focus from the closing press but not its caret,
+      // so the dismissing `focus()` shows the caret where that press went down
+      // — a drag's press included, and no range — never the select-all a
+      // tab-in gives. A click on the glyph beside the `<input>` moves nothing.
+      final opens = <bool>[];
+      await _pump(
+        tester,
+        allowTextInput: true,
+        value: DateTime(2026, 3, 14),
+        onOpenChange: opens.add,
+      );
+      final text = tester.getRect(find.byType(EditableText));
+      final near = Offset(text.left + 8, text.center.dy);
+      final far = Offset(text.left + 60, text.center.dy);
+      TextSelection caretAt(Offset at) => TextSelection.fromPosition(
+        tester
+            .state<EditableTextState>(find.byType(EditableText))
+            .renderEditable
+            .getPositionForPoint(at),
+      );
+      expect(caretAt(near), isNot(caretAt(far)));
+
+      await _click(tester, near);
+      expect(calendar, findsOneWidget);
+      expect(_controller(tester).selection, caretAt(near));
+
+      await _click(tester, far);
+      expect(calendar, findsNothing);
+      expect(opens, <bool>[true, false]);
+      expect(barFocused(tester), isTrue);
+      expect(_controller(tester).selection, caretAt(far), reason: 'click');
+
+      await _click(tester, near);
+      await _click(tester, tester.getCenter(find.byIcon(fluentDatePickerIcon)));
+      expect(calendar, findsNothing);
+      expect(_controller(tester).selection, caretAt(near), reason: 'glyph');
+
+      await _click(tester, near);
+      await _drag(tester, far, far + const Offset(40, 0));
+      expect(calendar, findsNothing);
+      expect(_controller(tester).selection, caretAt(far), reason: 'drag');
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('a quick second click counts, as Chrome fires one per click', (
+      tester,
+    ) async {
+      // Chrome, 50–250ms between two clicks or a native dblclick: text-input
+      // closes again with the input focused, default stays open. Flutter
+      // reports the second as a double tap, never a single tap up.
+      for (final allowTextInput in <bool>[false, true]) {
+        await tester.pumpWidget(const SizedBox());
+        final opens = <bool>[];
+        await _pump(
+          tester,
+          allowTextInput: allowTextInput,
+          onOpenChange: opens.add,
+        );
+        final center = tester.getCenter(picker);
+        for (var i = 0; i < 2; i++) {
+          final mouse = await tester.startGesture(
+            center,
+            kind: PointerDeviceKind.mouse,
+            buttons: kPrimaryMouseButton,
+          );
+          await tester.pump(const Duration(milliseconds: 60));
+          await mouse.up();
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        await tester.pumpAndSettle();
+        final mode = 'allowTextInput $allowTextInput';
+        if (allowTextInput) {
+          expect(opens, <bool>[true, false], reason: mode);
+          expect(barFocused(tester), isTrue, reason: mode);
+        } else {
+          expect(opens, <bool>[true], reason: mode);
+          expect(_focusInCalendar(), isTrue, reason: mode);
+        }
+      }
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('a drag released on a zoomed field still opens it', (
+      tester,
+    ) async {
+      // The example's preview zoom scales its story with a Transform.scale,
+      // so the release is tested in the field's own coordinates rather than
+      // against its unscaled rect. Pressed inside the unscaled box too, since
+      // the test's SizedBox parent only hit-tests that much; released past it,
+      // still on the field as painted.
+      await _pump(
+        tester,
+        wrap: (child) => Transform.scale(
+          scale: 2,
+          alignment: Alignment.topLeft,
+          child: child,
+        ),
+      );
+      final origin = tester.getTopLeft(picker);
+      await _drag(
+        tester,
+        origin + const Offset(150, 16),
+        origin + const Offset(350, 20),
+      );
+      expect(calendar, findsOneWidget);
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('with allowTextInput, a press on the open picker keeps focus '
+        'in the calendar', (tester) async {
+      // Chrome, text-input story, calendar open: every button, held, leaves
+      // focus in the popup and the bar down. A left release is the click that
+      // closes; a middle or right release fires no click and changes nothing.
+      await _pump(tester, allowTextInput: true, value: DateTime(2026, 3, 14));
+      final center = tester.getCenter(picker);
+      for (final button in <int>[
+        kPrimaryMouseButton,
+        kMiddleMouseButton,
+        kSecondaryMouseButton,
+      ]) {
+        if (calendar.evaluate().isEmpty) await _click(tester, center);
+        expect(calendar, findsOneWidget, reason: 'button $button: open');
+
+        final press = await tester.startGesture(
+          center,
+          kind: PointerDeviceKind.mouse,
+          buttons: button,
+        );
+        await tester.pump();
+        await tester.pump();
+        expect(_focusInCalendar(), isTrue, reason: 'button $button: held');
+        expect(barFocused(tester), isFalse, reason: 'button $button: held');
+
+        await press.up();
+        await tester.pumpAndSettle();
+        if (button == kPrimaryMouseButton) {
+          expect(calendar, findsNothing, reason: 'the left click closes');
+          expect(barFocused(tester), isTrue, reason: 'and focuses the field');
+        } else {
+          expect(calendar, findsOneWidget, reason: 'button $button: released');
+          expect(_focusInCalendar(), isTrue, reason: 'button $button: up');
+          expect(barFocused(tester), isFalse, reason: 'button $button: up');
+        }
+      }
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('a press dragged off the field and released outside does '
+        'nothing more', (tester) async {
+      // Chrome fires `click` on the common ancestor of the press and the
+      // release, so a press on the `<input>` let go above it never reaches
+      // `onInputClick`: closed, the field keeps the focus the press gave it
+      // and does not open; open, nothing changes. A drag that ends back on
+      // the field is still a click on it, and opens.
+      for (final allowTextInput in <bool>[false, true]) {
+        final mode = 'allowTextInput $allowTextInput';
+        await tester.pumpWidget(const SizedBox());
+        await _pump(tester, allowTextInput: allowTextInput);
+        final center = tester.getCenter(picker);
+        final above = Offset(center.dx, tester.getTopLeft(picker).dy - 20);
+
+        await _drag(tester, center, above);
+        expect(calendar, findsNothing, reason: '$mode: closed, released off');
+        expect(barFocused(tester), isTrue, reason: '$mode: focus kept');
+
+        await _drag(tester, center, center + const Offset(30, 0));
+        expect(calendar, findsOneWidget, reason: '$mode: released on it');
+
+        await _drag(tester, center, above);
+        expect(calendar, findsOneWidget, reason: '$mode: open, released off');
+        expect(_focusInCalendar(), isTrue, reason: '$mode: focus stays');
+      }
+    }, variant: TargetPlatformVariant.desktop());
 
     // Opening moves focus off the field on one frame and into the popup scope
     // on the next. A synchronous blur handler sees "neither has focus" in
@@ -816,12 +1032,13 @@ void main() {
     // Nothing covered this before: the barrier sat ABOVE the trigger, so the
     // field's own toggle could not fire while the calendar was open and this
     // path was dead. With the barrier gone the click reaches the field, and it
-    // has to close exactly once rather than close-then-reopen.
+    // has to close exactly once rather than close-then-reopen. Only with
+    // `allowTextInput`: without it upstream's click leaves the popup open.
     testWidgets('clicking the field while open closes it exactly once', (
       tester,
     ) async {
       final opens = <bool>[];
-      await _pump(tester, onOpenChange: opens.add);
+      await _pump(tester, allowTextInput: true, onOpenChange: opens.add);
 
       await tester.tap(find.byType(FluentDatePicker));
       await tester.pumpAndSettle();
@@ -895,6 +1112,68 @@ void main() {
 
       expect(find.byType(FluentCalendar), findsNothing);
     });
+
+    testWidgets('Escape hands focus back with the caret where it was', (
+      tester,
+    ) async {
+      // Chrome, text-input story: Escape `focus()`es the `<input>`, and its
+      // caret is where the opening click put it rather than select-all.
+      await _pump(tester, allowTextInput: true, value: DateTime(2026, 3, 14));
+      await _click(tester, tester.getCenter(find.byType(FluentDatePicker)));
+      final caret = _controller(tester).selection;
+      expect(caret.isCollapsed, isTrue);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(FluentCalendar), findsNothing);
+      expect(_controller(tester).selection, caret);
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('a picked day hands focus back with the caret after it', (
+      tester,
+    ) async {
+      // Chrome, text-input story: after a pick the `<input>` is focused with
+      // its caret after the new text. The parent echoing the value back must
+      // not wipe that caret — rewriting unchanged text drops the selection.
+      DateTime? value;
+      await _pump(
+        tester,
+        allowTextInput: true,
+        wrap: (_) => StatefulBuilder(
+          builder: (context, setState) => FluentDatePicker(
+            today: _today,
+            value: value,
+            allowTextInput: true,
+            onSelectDate: (date) => setState(() => value = date),
+          ),
+        ),
+      );
+      await _click(tester, tester.getCenter(find.byType(FluentDatePicker)));
+      await _click(tester, tester.getCenter(find.text('15').last));
+      expect(find.byType(FluentCalendar), findsNothing);
+      expect(value, DateTime(2026, 3, 15));
+      final text = _controller(tester).text;
+      expect(text, isNotEmpty);
+      expect(
+        _controller(tester).selection,
+        TextSelection.collapsed(offset: text.length),
+      );
+
+      // Typed text committed with Enter comes back reformatted, and a
+      // browser setting `value` leaves the caret after it.
+      _controller(tester).value = const TextEditingValue(
+        text: '2026-03-20',
+        selection: TextSelection.collapsed(offset: 2),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(value, DateTime(2026, 3, 20));
+      expect(_controller(tester).text, '3/20/2026');
+      expect(
+        _controller(tester).selection,
+        const TextSelection.collapsed(offset: 9),
+      );
+    }, variant: TargetPlatformVariant.desktop());
 
     testWidgets('ArrowDown opens the popup', (tester) async {
       await _pump(tester, openOnClick: false);
