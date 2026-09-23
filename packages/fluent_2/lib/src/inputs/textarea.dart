@@ -399,6 +399,10 @@ Widget buildFluentTextarea(
   // Background, then border, then text, then the focus bar: CSS's paint order
   // for a root and its positioned `::after`, which spans the border box.
   return Stack(
+    // Passthrough, so a parent's tight height stretches the box itself, as a
+    // CSS `height` would. A loose Stack laid the box out at its own height and
+    // pinned the bar to the bottom of the taller Stack, below it.
+    fit: StackFit.passthrough,
     children: <Widget>[
       ConstrainedBox(
         constraints: BoxConstraints(
@@ -663,6 +667,7 @@ class _FluentTextareaState extends State<FluentTextarea>
   FocusNode? _internalFocusNode;
   final WidgetStatesController _statesController = WidgetStatesController();
   bool _focused = false;
+  bool _showHandles = false;
 
   TextEditingController get _controller =>
       widget.controller ?? (_internalController ??= TextEditingController());
@@ -727,6 +732,22 @@ class _FluentTextareaState extends State<FluentTextarea>
     setState(() => _focused = _focusNode.hasFocus);
   }
 
+  // TextField's rule: the builder records whether the gesture that moved the
+  // selection was a touch or a stylus, so a mouse and the keyboard never show
+  // the touch handles.
+  void _handleSelectionChanged(
+    TextSelection selection,
+    SelectionChangedCause? cause,
+  ) {
+    final show =
+        _gestures.shouldShowSelectionHandles &&
+        cause != SelectionChangedCause.keyboard &&
+        !(widget.readOnly && selection.isCollapsed) &&
+        (cause == SelectionChangedCause.longPress ||
+            _controller.text.isNotEmpty);
+    if (show != _showHandles) setState(() => _showHandles = show);
+  }
+
   void _set(WidgetState state, {required bool value}) {
     if (!_enabled && value) return;
     _statesController.update(state, value);
@@ -781,7 +802,8 @@ class _FluentTextareaState extends State<FluentTextarea>
           : null,
       selectionControls:
           widget.selectionControls ?? fluentTextSelectionControls,
-      showSelectionHandles: true,
+      showSelectionHandles: _showHandles,
+      onSelectionChanged: _handleSelectionChanged,
       contextMenuBuilder:
           widget.contextMenuBuilder ?? fluentTextContextMenuBuilder,
       autofocus: widget.autofocus,
@@ -853,6 +875,8 @@ class _FluentTextareaState extends State<FluentTextarea>
             resolved.mouseCursor?.resolve(states) ?? SystemMouseCursors.text,
         onEnter: (_) => _set(WidgetState.hovered, value: true),
         onExit: (_) => _set(WidgetState.hovered, value: false),
+        // Any button: a `<textarea>` takes `:active` from a right press too,
+        // unlike the Combobox family (Chrome).
         child: Listener(
           onPointerDown: (_) => _set(WidgetState.pressed, value: true),
           onPointerUp: (_) => _set(WidgetState.pressed, value: false),

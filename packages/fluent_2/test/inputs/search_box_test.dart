@@ -592,15 +592,16 @@ void main() {
       await tester.pump();
       expect(node.hasFocus, isFalse);
 
-      // Chrome sets `:active` for the primary and middle buttons only; a
-      // right press on the same spot keeps the Hover colours.
+      // A right press takes `:active` too (Chrome, root padding and icon,
+      // unfocused), unlike the Combobox family.
       final right = await tester.startGesture(
         origin + const Offset(4, 16),
         kind: PointerDeviceKind.mouse,
         buttons: kSecondaryMouseButton,
       );
       await tester.pump();
-      expect(borderOf(tester).borderColor, c.neutralStroke1Hover);
+      expect(borderOf(tester).borderColor, c.neutralStroke1Pressed);
+      expect(bottomOf(tester), c.neutralStrokeAccessiblePressed);
       await right.up();
       await tester.pump();
 
@@ -615,6 +616,18 @@ void main() {
       // `:focus-within:active::after`.
       expect(underlineOf(tester).color, c.compoundBrandStrokePressed);
       await held.up();
+      await tester.pump();
+      expect(underlineOf(tester).color, c.compoundBrandStroke);
+
+      // A right press on the focused text holds it too (Chrome).
+      final heldRight = await tester.startGesture(
+        tester.getCenter(find.byType(EditableText)),
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryMouseButton,
+      );
+      await tester.pump();
+      expect(underlineOf(tester).color, c.compoundBrandStrokePressed);
+      await heldRight.up();
       await tester.pump();
       expect(underlineOf(tester).color, c.compoundBrandStroke);
     });
@@ -1278,6 +1291,27 @@ void main() {
         reason: '${entry.key.name}: the underline must not detach',
       );
     }
+  });
+  testWidgets('a tight parent height stretches the box, bar and all', (
+    tester,
+  ) async {
+    // A CSS `height` sizes the border box, and `::after` sits on its bottom.
+    await pump(
+      tester,
+      const SizedBox(height: 60, child: FluentSearchBox(key: key)),
+    );
+    final painted = find.descendant(
+      of: find.byKey(key),
+      matching: find.byWidgetPredicate(
+        (w) => w is CustomPaint && w.painter is FluentInputBorderPainter,
+      ),
+    );
+    final bar = find.descendant(
+      of: find.byKey(key),
+      matching: find.byType(FluentInputFocusUnderline),
+    );
+    expect(tester.getRect(painted).height, 60);
+    expect(tester.getRect(bar).bottom, tester.getRect(painted).bottom);
   });
   // One shape, one implementation: the focus bar is `FluentInputFocusUnderline`
   // (input.dart), which is where the `max(thickness, radius)` + clip trick that

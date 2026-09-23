@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
-import 'package:flutter/gestures.dart' show kSecondaryMouseButton;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -505,12 +504,14 @@ Widget buildFluentSearchBox(
   return ConstrainedBox(
     constraints: BoxConstraints(maxWidth: maximumSize.width),
     child: Stack(
+      // Passthrough, so a parent's tight height stretches the box itself, as a
+      // CSS `height` would. A loose Stack laid the box out at its own 24 / 32 /
+      // 40 and pinned the bar to the bottom of the taller Stack, below it.
+      fit: StackFit.passthrough,
       children: <Widget>[
-        // The minimum has to reach the DECORATED box, not the Stack.
-        // RenderStack lays non-positioned children out with StackFit.loose,
-        // which drops minHeight to 0 — so a ConstrainedBox wrapped around the
-        // Stack leaves the surface to size to its 20px content and strands the
-        // bottom-pinned bar a dozen pixels below it.
+        // The minimum sits on the DECORATED box, not the Stack, so the surface
+        // itself is never shorter than the control and the bottom-pinned bar
+        // stays on its bottom edge.
         ConstrainedBox(
           constraints: BoxConstraints(
             minHeight: minimumSize.height,
@@ -1204,11 +1205,12 @@ class _FluentSearchBoxState extends State<FluentSearchBox>
       },
       onExit: (_) => setState(() => _hovered = false),
       // `:active` holds on the root for a press anywhere inside it — padding,
-      // icon, text or clear button — until release. Chrome sets it for the
-      // primary and middle buttons, not for a right press (storybook).
+      // icon, text or clear button — until release, for any button: unlike
+      // the Combobox family, a right press takes it too (Chrome). Chrome drops
+      // it only for a right press that also moves focus, which no press here
+      // does on pointer down.
       child: Listener(
-        onPointerDown: (event) =>
-            _setPressed(event.buttons != kSecondaryMouseButton),
+        onPointerDown: (_) => _setPressed(true),
         onPointerUp: (_) => _setPressed(false),
         onPointerCancel: (_) => _setPressed(false),
         child: GestureDetector(

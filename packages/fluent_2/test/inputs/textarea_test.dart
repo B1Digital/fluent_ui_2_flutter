@@ -209,6 +209,23 @@ void main() {
       );
     });
 
+    testWidgets('a tight parent height stretches the box, bar and all', (
+      tester,
+    ) async {
+      // A CSS `height` sizes the border box, and `::after` sits on its bottom.
+      await pump(
+        tester,
+        const SizedBox(height: 120, child: FluentTextarea(key: key)),
+      );
+      final painted = find.descendant(
+        of: find.byKey(key),
+        matching: find.byKey(fluentTextareaUnderlineKey),
+      );
+      final bar = find.byKey(fluentTextareaFocusUnderlineKey);
+      expect(tester.getRect(painted).height, 120);
+      expect(tester.getRect(bar).bottom, tester.getRect(painted).bottom);
+    });
+
     testWidgets('resting fill and border match every appearance', (
       tester,
     ) async {
@@ -328,6 +345,23 @@ void main() {
       );
       expect(focusRuleOf(tester).color, c.compoundBrandStrokePressed);
       await mouse.up();
+      await tester.pumpAndSettle();
+
+      // Unlike the Combobox family, a `<textarea>` takes `:active` from a
+      // right press too, focused or not (Chrome, every spot measured).
+      final right = await tester.startGesture(
+        tester.getCenter(find.byKey(key)),
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryMouseButton,
+      );
+      await tester.pump();
+      expect(borderOf(tester).borderColor, c.neutralStroke1Pressed);
+      expect(
+        borderOf(tester).bottomBorderColor,
+        c.neutralStrokeAccessiblePressed,
+      );
+      expect(focusRuleOf(tester).color, c.compoundBrandStrokePressed);
+      await right.up();
       await tester.pumpAndSettle();
     });
 
@@ -1165,6 +1199,65 @@ void main() {
               as BoxDecoration;
       expect(decoration.color, light().colors.compoundBrandStroke);
       expect(decoration.shape, BoxShape.circle);
+    });
+
+    bool handlesShown(WidgetTester tester) =>
+        tester
+            .state<EditableTextState>(find.byType(EditableText))
+            .selectionOverlay
+            ?.handlesAreVisible ??
+        false;
+
+    testWidgets(
+      'a mouse never shows the touch handles',
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+      (tester) async {
+        final controller = TextEditingController(text: 'hello world again');
+        addTearDown(controller.dispose);
+        await pump(tester, FluentTextarea(key: key, controller: controller));
+        final text = tester.getTopLeft(find.byType(EditableText));
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        addTearDown(mouse.removePointer);
+
+        // Click.
+        await mouse.down(text + const Offset(20, 10));
+        await mouse.up();
+        await tester.pumpAndSettle();
+        expect(controller.selection.isCollapsed, isTrue);
+        expect(handlesShown(tester), isFalse, reason: 'click');
+
+        // Drag.
+        await mouse.down(text + const Offset(4, 10));
+        await tester.pump();
+        await mouse.moveTo(text + const Offset(80, 10));
+        await tester.pump();
+        await mouse.up();
+        await tester.pumpAndSettle();
+        expect(controller.selection.isCollapsed, isFalse);
+        expect(handlesShown(tester), isFalse, reason: 'drag');
+
+        // Double-click.
+        await tester.pump(const Duration(milliseconds: 500));
+        await mouse.down(text + const Offset(20, 10));
+        await mouse.up();
+        await tester.pump(const Duration(milliseconds: 50));
+        await mouse.down(text + const Offset(20, 10));
+        await mouse.up();
+        await tester.pumpAndSettle();
+        expect(controller.selection.textInside(controller.text), 'hello');
+        expect(handlesShown(tester), isFalse, reason: 'double-click');
+      },
+    );
+
+    testWidgets('a touch long-press shows the handles', (tester) async {
+      final controller = TextEditingController(text: 'hello world again');
+      addTearDown(controller.dispose);
+      await pump(tester, FluentTextarea(key: key, controller: controller));
+      await tester.longPressAt(
+        tester.getTopLeft(find.byType(EditableText)) + const Offset(20, 10),
+      );
+      await tester.pumpAndSettle();
+      expect(handlesShown(tester), isTrue);
     });
 
     testWidgets('the field wires them in', (tester) async {
