@@ -93,7 +93,7 @@
   },
   "charts-groupedverticalbarchart--grouped-vertical-bar-negative": {
     "kind": "reduced",
-    "why": "Upstream's useEffect injects a focus-ring stylesheet into document.head, which has no Flutter counterpart and is dropped; the 'Pick one' radio pair is kept with upstream's own inert comparison (isCalloutForStack === 'StackCallout' never matches its 'singleCallout'/'stackedCallout' values), and reflowProps={{mode:'min-width'}} maps to FluentCartesianChartProps(reflowMode: FluentChartReflowMode.minWidth)."
+    "why": "Upstream's useEffect injects a focus-ring stylesheet into document.head, which has no Flutter counterpart and is dropped; the 'Pick one' radio pair keeps upstream's 'singleCallout'/'stackedCallout' values, but isCalloutForStack compares against 'stackedCallout' rather than upstream's 'StackCallout', which never matches, so the Stacked callout option works, and reflowProps={{mode:'min-width'}} maps to FluentCartesianChartProps(reflowMode: FluentChartReflowMode.minWidth)."
   },
   "charts-heatmapchart--heat-map-chart-basic": {
     "kind": "platform",

@@ -889,11 +889,10 @@ class _GroupedVerticalBarNegativeState
             culture: 'en-us',
             chartTitle: 'Grouped Vertical Bar chart basic example',
             data: _data,
-            // Upstream compares against 'StackCallout' while its own radios
-            // carry 'singleCallout' and 'stackedCallout', so neither choice
-            // ever turns the stack callout on. The port keeps the control and
-            // the same inert comparison.
-            isCalloutForStack: _selectedCallout == 'StackCallout',
+            // Upstream compares against 'StackCallout', which its own radios
+            // never carry (story .tsx:384); the port compares against the
+            // radio's real value so "Stacked callout" works.
+            isCalloutForStack: _selectedCallout == 'stackedCallout',
             barWidth: _barWidth,
             hideLabels: _hideLabels,
             roundCorners: _roundCorners,
