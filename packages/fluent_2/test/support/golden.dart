@@ -17,8 +17,11 @@
 ///
 /// So the images are recorded where CI compares them: Linux amd64, `TZ=UTC`,
 /// Flutter 3.47.1, from the pinned image in `test/goldens/Dockerfile`.
-/// Anywhere else [expectGolden] marks its test skipped instead of comparing,
-/// because every image with a glyph in it would fail.
+/// Anywhere else [expectGolden] still builds and settles the widget, so a
+/// component that throws or never settles fails on any machine, but skips the
+/// comparison, because every image with a glyph in it would fail. On a CI
+/// runner (the `CI` environment variable is set) it fails instead: a runner
+/// that moved off Linux amd64 must not pass by skipping every golden.
 ///
 /// ## Using it
 ///
@@ -33,6 +36,7 @@
 library;
 
 import 'dart:ffi' show Abi;
+import 'dart:io' show Platform;
 
 import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/widgets.dart';
@@ -51,6 +55,10 @@ final String? _goldenSkipReason = Abi.current() == Abi.linuxX64
     ? null
     : 'golden images are recorded on Linux amd64, not ${Abi.current()}; '
           'run them with `dart run melos run goldens`';
+
+/// Whether this is a CI run, where a golden that cannot be compared means the
+/// runner changed, not that a developer is on a Mac.
+final bool _onCi = Platform.environment.containsKey('CI');
 
 /// The three themes every component grid is captured in.
 ///
@@ -84,12 +92,6 @@ Future<void> expectGolden(
   Duration? elapsed,
   bool reducedMotion = false,
 }) async {
-  final skipReason = _goldenSkipReason;
-  if (skipReason != null) {
-    markTestSkipped(skipReason);
-    return;
-  }
-
   tester.view.physicalSize = surfaceSize ?? const Size(1200, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -130,6 +132,15 @@ Future<void> expectGolden(
     await tester.pumpAndSettle();
   } else {
     await tester.pump(elapsed);
+  }
+
+  // Only the pixel comparison is platform-bound; the build and settle above
+  // ran everywhere.
+  final skipReason = _goldenSkipReason;
+  if (skipReason != null) {
+    if (_onCi) fail('$skipReason. A CI runner must compare goldens.');
+    markTestSkipped(skipReason);
+    return;
   }
 
   await expectLater(

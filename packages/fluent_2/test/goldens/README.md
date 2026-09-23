@@ -44,9 +44,12 @@ and x86 round some paths and gradients one level apart (`color_picker`,
 So the images are recorded where CI compares them: **Linux amd64, `TZ=UTC`,
 Flutter 3.47.1**, in the image [`Dockerfile`](Dockerfile) pins (Ubuntu 24.04 by
 digest, Flutter by tag and revision). Anywhere else, `expectGolden` in
-`test/support/golden.dart` marks the test **skipped**, with a reason that names
-the command below. A plain `flutter test` on a Mac stays green and says what it
-did not check; CI on `ubuntu-latest` runs every image.
+`test/support/golden.dart` still builds and settles the widget, then marks the
+test **skipped** with a reason that names the command below. A plain
+`flutter test` on a Mac stays green and says what it did not check; CI on
+`ubuntu-latest` runs every image. A CI run (the `CI` environment variable is
+set) on anything but Linux amd64 **fails** instead of skipping, so moving CI to
+another runner cannot quietly drop all 264 comparisons.
 
 ## Layout
 
