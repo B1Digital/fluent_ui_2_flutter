@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' show ImageByteFormat, PictureRecorder;
 
 import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/semantics.dart' show SemanticsRole;
@@ -10,7 +12,7 @@ import '../support/spec_fixture.dart';
 /// `FluentSpinner` is the first component in the package that is animated
 /// rather than state-driven, so these tests carry two extra burdens on top of
 /// the usual pixel fidelity: the motion has to match upstream's timing exactly,
-/// and it has to stop dead under reduced motion.
+/// and it has to calm down the way upstream's does under reduced motion.
 ///
 /// Two fixtures back it, because Figma ships two component sets:
 ///
@@ -331,6 +333,57 @@ void main() {
       );
     });
 
+    test('the cycle closes without a jump', () {
+      // At 100% the arc must be exactly where it was at 0%, whole turns apart,
+      // or the tail pops once every cycle.
+      final end = FluentSpinnerPose.at(1);
+      final start = FluentSpinnerPose.at(0);
+      final turns =
+          (end.rotation + end.tailStart - start.rotation - start.tailStart) /
+          (2 * math.pi);
+      expect(turns, closeTo(turns.roundToDouble(), 1e-9));
+      expect(end.tailSweep, closeTo(start.tailSweep, 1e-9));
+    });
+
+    test('the arc tracks upstream through the cycle', () {
+      // Trailing and leading edge, degrees clockwise from 12 o'clock, of
+      // @fluentui/react-spinner 9.8.6's compiled CSS
+      // (useSpinnerStyles.styles.ts — useSpinnerBaseClassName and
+      // useSpinnerTailBaseClassName), which Chrome renders within 0.2° of
+      // these: 30° at both ends of the cycle, 255° at the middle. At the
+      // quarter points any symmetric curve lands on the same values, so the
+      // 0.1 and 0.6 rows, read off Chrome, are what pin `curveEasyEase`.
+      const upstream = [
+        (0.0, 330.0, 0.0),
+        (0.1, 20.15, 73.67),
+        (0.25, 127.5, 270.0),
+        (0.5, 285.0, 180.0),
+        (0.6, 344.58, 215.89),
+        (0.75, 127.5, 270.0),
+        (1.0, 330.0, 0.0),
+      ];
+      double clockFace(double radians) => radians * 180 / math.pi + 90;
+      double gap(double a, double b) {
+        final d = (a - b) % 360;
+        return math.min(d, 360 - d);
+      }
+
+      for (final (progress, trail, lead) in upstream) {
+        final pose = FluentSpinnerPose.at(progress);
+        final start = pose.rotation + pose.tailStart;
+        expect(
+          gap(clockFace(start), trail),
+          lessThan(0.5),
+          reason: 'trailing edge at $progress',
+        );
+        expect(
+          gap(clockFace(start + pose.tailSweep), lead),
+          lessThan(0.5),
+          reason: 'leading edge at $progress',
+        );
+      }
+    });
+
     testWidgets('the ring is a quarter turn behind at 750ms', (tester) async {
       await pump(tester, const FluentSpinner(key: key));
       expect(painterOf(tester).rotation, 0);
@@ -346,22 +399,149 @@ void main() {
       expect(painterOf(tester).rotation, closeTo(math.pi * 1.5, 1e-6));
     });
 
-    testWidgets('reduced motion holds the Figma resting pose', (tester) async {
+    testWidgets('reduced motion turns slower under a still, fading tail', (
+      tester,
+    ) async {
+      // Upstream under prefers-reduced-motion: the ring keeps its linear turn,
+      // stretched to 1.8s, and the tail stops animating and becomes a
+      // conic-gradient from transparent at 120° to the indicator at 360°,
+      // from 12 o'clock — 30° to 270° from Flutter's 3 o'clock.
       await pump(tester, const FluentSpinner(key: key), reducedMotion: true);
-      final before = painterOf(tester);
-      expect(before.rotation, FluentSpinnerPose.resting.rotation);
-      expect(before.tailStart, FluentSpinnerPose.resting.tailStart);
-      expect(
-        before.tailSweep,
-        closeTo(math.pi / 2, 1e-9),
-        reason: 'Figma draws the static tail as a quarter arc',
-      );
+      expect(painterOf(tester).pose, FluentSpinnerPose.reduced(0));
 
-      // A whole cycle of wall clock must change nothing: the controller is not
-      // merely paused at a frame boundary, it never started.
-      await tester.pump(const Duration(milliseconds: 1500));
-      expect(painterOf(tester).rotation, before.rotation);
-      expect(painterOf(tester).tailSweep, before.tailSweep);
+      await tester.pump(const Duration(milliseconds: 900));
+      final pose = painterOf(tester).pose;
+      expect(
+        pose.rotation,
+        closeTo(math.pi, 1e-6),
+        reason: 'half of a 1.8s turn',
+      );
+      expect(pose.tailStart, math.pi / 6);
+      expect(pose.tailSweep, 4 * math.pi / 3);
+      expect(pose.tailFades, isTrue);
+    });
+
+    test(
+      'the fading tail is opaque at its leading end, both ways round',
+      () async {
+        // Straight RGBA, so the hue of a half-clear pixel is visible: CSS
+        // interpolates the gradient premultiplied, so it must stay red rather
+        // than darken towards transparent black.
+        Future<ByteData> render(TextDirection direction) async {
+          final recorder = PictureRecorder();
+          FluentSpinnerPainter(
+            trackColor: const Color(0x00000000),
+            indicatorColor: const Color(0xFFFF0000),
+            strokeWidth: 20,
+            pose: FluentSpinnerPose.reduced(0),
+            textDirection: direction,
+          ).paint(Canvas(recorder), const Size(200, 200));
+          final image = recorder.endRecording().toImageSync(200, 200);
+          return (await image.toByteData(
+            format: ImageByteFormat.rawStraightRgba,
+          ))!;
+        }
+
+        // The pixel on the ring's centre-line, degrees clockwise from 12.
+        List<int> at(ByteData data, double degrees) {
+          final radians = degrees * math.pi / 180;
+          final x = (100 + 89.5 * math.sin(radians)).floor();
+          final y = (100 - 89.5 * math.cos(radians)).floor();
+          final i = (y * 200 + x) * 4;
+          return [for (var c = 0; c < 4; c++) data.getUint8(i + c)];
+        }
+
+        // The brightest pixel in the degree just outside the clear end, across
+        // the whole stroke: antialiasing there must blend towards clear, not
+        // towards the solid head the gradient reaches at its other end.
+        int seam(ByteData data, double from, double to) {
+          var brightest = 0;
+          for (var degrees = from; degrees <= to; degrees += 0.1) {
+            final radians = degrees * math.pi / 180;
+            for (var r = 80.0; r <= 99.0; r += 0.5) {
+              final x = (100 + r * math.sin(radians)).floor();
+              final y = (100 - r * math.cos(radians)).floor();
+              brightest = math.max(
+                brightest,
+                data.getUint8((y * 200 + x) * 4 + 3),
+              );
+            }
+          }
+          return brightest;
+        }
+
+        final ltr = await render(TextDirection.ltr);
+        expect(at(ltr, 350)[3], greaterThan(230), reason: 'head, LTR');
+        expect(at(ltr, 130)[3], lessThan(25), reason: 'tail end, LTR');
+        expect(at(ltr, 240)[0], greaterThan(240), reason: 'mid-fade hue, LTR');
+        expect(seam(ltr, 119, 120), lessThan(10), reason: 'clear edge, LTR');
+
+        final rtl = await render(TextDirection.rtl);
+        expect(at(rtl, 10)[3], greaterThan(230), reason: 'head, RTL');
+        expect(at(rtl, 230)[3], lessThan(25), reason: 'tail end, RTL');
+        expect(seam(rtl, 240, 241), lessThan(10), reason: 'clear edge, RTL');
+      },
+    );
+  });
+
+  group('ring geometry against upstream', () {
+    final ring = find.byWidgetPredicate(
+      (widget) =>
+          widget is CustomPaint && widget.painter is FluentSpinnerPainter,
+    );
+
+    testWidgets('the ends are cut flat and the ring sits half a pixel in', (
+      tester,
+    ) async {
+      await pump(tester, const FluentSpinner(key: key));
+      // Medium is 32 across and 3 thick. Upstream's radial-gradient mask fades
+      // each edge over 1px, which centres the ring on 16 − 1.5 − 0.5 = 14, and
+      // its conic-gradient hard stops are radial lines: a butt cap. The first
+      // frame is the first keyframe, 11 to 12 o'clock.
+      expect(
+        ring,
+        paints
+          ..circle(x: 16, y: 16, radius: 14, strokeWidth: 3)
+          ..arc(
+            rect: Rect.fromCircle(center: const Offset(16, 16), radius: 14),
+            startAngle: -2 * math.pi / 3,
+            sweepAngle: math.pi / 6,
+            strokeCap: StrokeCap.butt,
+          ),
+      );
+    });
+
+    testWidgets('right-to-left mirrors the ring, as upstream does', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const Directionality(
+          textDirection: TextDirection.rtl,
+          child: FluentSpinner(key: key),
+        ),
+      );
+      expect(painterOf(tester).textDirection, TextDirection.rtl);
+      // Mirroring takes the angle θ to π − θ: 11 to 12 o'clock becomes 12 to
+      // 1 o'clock.
+      expect(
+        ring,
+        paints..arc(
+          startAngle: math.pi - (-2 * math.pi / 3) - math.pi / 6,
+          sweepAngle: math.pi / 6,
+        ),
+      );
+    });
+
+    testWidgets('the ring repaints on a layer of its own', (tester) async {
+      await pump(tester, const FluentSpinner(key: key));
+      expect(
+        find.descendant(
+          of: find.byKey(key),
+          matching: find.byType(RepaintBoundary),
+        ),
+        findsOneWidget,
+      );
     });
   });
 

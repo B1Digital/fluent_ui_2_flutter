@@ -79,6 +79,8 @@ const FluentAccordionItem({
     this.size = FluentAccordionSize.medium,
     this.expandIconPosition = FluentAccordionExpandIconPosition.start,
     this.enabled = true,
+    this.collapseMotion = FluentMotionSpec.collapse,
+    this.animateOpacity = true,
     this.style,
     this.focusNode,
     this.autofocus = false,
@@ -95,6 +97,8 @@ const FluentAccordionItem({
 | `size` | `FluentAccordionSize` | No | `FluentAccordionSize.medium` | Header height and type ramp. |
 | `expandIconPosition` | `FluentAccordionExpandIconPosition` | No | `FluentAccordionExpandIconPosition.start` | Which side of the header the chevron sits on. |
 | `enabled` | `bool` | No | `true` | Whether the header responds to input. |
+| `collapseMotion` | `FluentMotionSpec` | No | `FluentMotionSpec.collapse` | The transition the panel opens and closes on. |
+| `animateOpacity` | `bool` | No | `true` | Whether the panel fades while it grows, rather than growing at full opacity. Upstream's `Collapse.animateOpacity`, which likewise defaults to true. |
 | `style` | `FluentAccordionItemStyle?` | No | `null` | Overrides layered over the theme defaults. Merged last, so it wins. |
 | `focusNode` | `FocusNode?` | No | `null` | Focus node to use. One is created internally when omitted. |
 | `autofocus` | `bool` | No | `false` | Whether to take focus on mount. |
@@ -247,6 +251,21 @@ enum FluentAccordionSize {
 }
 ```
 
+### `FluentMotionSpec`
+
+Source: `packages/fluent_2/lib/src/internal/animated_style.dart`
+
+#### Constructor: `FluentMotionSpec`
+
+```dart
+const FluentMotionSpec({required this.duration, required this.curve});
+```
+
+| Field | Type | Required | Default | Purpose |
+| --- | --- | --- | --- | --- |
+| `duration` | `Duration` | Yes | — | How long the transition runs, before reduced motion is taken into account. See [FluentAnimatedStyle], which clamps this to [Duration.zero] when animations are disabled. |
+| `curve` | `Curve` | Yes | — | The easing applied across [duration]. |
+
 ## Advanced public recomposition functions
 
 Use these only when the complete widget/style/theme composition cannot
@@ -277,23 +296,28 @@ Widget buildFluentAccordionItem(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/stories/accordion_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_accordion.dart`:
 
 ```dart
 FluentAccordion(
-    children: [
-      for (final (title, body) in _sections)
-        FluentAccordionItem(
-          value: title,
-          size: size,
-          expandIconPosition: position,
-          enabled: enabled,
-          icon: icon ? const Icon(FluentIcons.box_20_regular) : null,
-          header: Text(title),
-          child: _Panel(body),
-        ),
-    ],
-  )
+  children: <Widget>[
+    FluentAccordionItem(
+      value: '1',
+      header: Text('Accordion Header 1'),
+      child: Text('Accordion Panel 1'),
+    ),
+    FluentAccordionItem(
+      value: '2',
+      header: Text('Accordion Header 2'),
+      child: Text('Accordion Panel 2'),
+    ),
+    FluentAccordionItem(
+      value: '3',
+      header: Text('Accordion Header 3'),
+      child: Text('Accordion Panel 3'),
+    ),
+  ],
+)
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -304,7 +328,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/surfaces/accordion.dart`
 - Tests: `packages/fluent_2/test/goldens/accordion_golden_test.dart`, `packages/fluent_2/test/surfaces/accordion_test.dart`
-- Stories: `packages/fluent_2/example/lib/stories/accordion_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_accordion.dart`, `packages/fluent_2/example/lib/shell/dart_highlighter.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/accordion/usage/
 - Design decisions: `references/components-navigation-data.md`
 

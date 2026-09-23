@@ -47,6 +47,8 @@ const FluentTree({
     this.selectedItems = const <Object>{},
     this.onSelectionChange,
     this.onInvoke,
+    this.collapseMotion,
+    this.animateOpacity = true,
     this.style,
     this.semanticLabel,
   });
@@ -65,6 +67,8 @@ const FluentTree({
 | `selectedItems` | `Set<Object>` | No | `const <Object>{}` | The selected set, driving both the selection control and the `Selected` token ramp. |
 | `onSelectionChange` | `ValueChanged<Set<Object>>?` | No | `null` | Reports the next selected set. Null renders the selection control disabled. |
 | `onInvoke` | `ValueChanged<Object>?` | No | `null` | Invoked when a row is activated by click, Space or Enter, in addition to whatever the activation did to the open set. |
+| `collapseMotion` | `FluentMotionSpec?` | No | `null` | The transition every subtree opens and closes on. Null — the default — is no transition at all. |
+| `animateOpacity` | `bool` | No | `true` | Whether a subtree fades while it grows, rather than growing at full opacity. Upstream's `Collapse.animateOpacity`, and dead without [collapseMotion]. |
 | `style` | `FluentTreeItemStyle?` | No | `null` | Overrides layered over the theme defaults. Merged last, so it wins. |
 | `semanticLabel` | `String?` | No | `null` | Announced by assistive technology as the name of the tree. |
 
@@ -78,6 +82,21 @@ const FluentTree({
 - `semanticLabel` (`String?`): Announced by assistive technology as the name of the tree.
 
 ## Related public types
+
+### `FluentMotionSpec`
+
+Source: `packages/fluent_2/lib/src/internal/animated_style.dart`
+
+#### Constructor: `FluentMotionSpec`
+
+```dart
+const FluentMotionSpec({required this.duration, required this.curve});
+```
+
+| Field | Type | Required | Default | Purpose |
+| --- | --- | --- | --- | --- |
+| `duration` | `Duration` | Yes | — | How long the transition runs, before reduced motion is taken into account. See [FluentAnimatedStyle], which clamps this to [Duration.zero] when animations are disabled. |
+| `curve` | `Curve` | Yes | — | The easing applied across [duration]. |
 
 ### `FluentTreeAppearance`
 
@@ -371,22 +390,37 @@ Widget buildFluentTreeItem(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/stories/tree_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_tree.dart`:
 
 ```dart
 FluentTree(
-    semanticLabel: 'Project files',
-    size: knobs.get<FluentTreeSize>('size', FluentTreeSize.medium),
-    appearance: knobs.get<FluentTreeAppearance>(
-      'appearance',
-      FluentTreeAppearance.subtle,
+  semanticLabel: 'Default',
+  items: <FluentTreeItem>[
+    FluentTreeItem(
+      value: '1',
+      label: Text('level 1, item 1'),
+      children: <FluentTreeItem>[
+        FluentTreeItem(value: '1-1', label: Text('level 2, item 1')),
+        FluentTreeItem(value: '1-2', label: Text('level 2, item 2')),
+        FluentTreeItem(value: '1-3', label: Text('level 2, item 3')),
+      ],
     ),
-    defaultOpenItems: const <Object>{'lib'},
-    items: _projectTree(
-      icons: knobs.get<bool>('icons', true),
-      disabledBranch: knobs.get<bool>('disabled', false),
+    FluentTreeItem(
+      value: '2',
+      label: Text('level 1, item 2'),
+      children: <FluentTreeItem>[
+        FluentTreeItem(
+          value: '2-1',
+          label: Text('level 2, item 1'),
+          children: <FluentTreeItem>[
+            FluentTreeItem(value: '2-1-1', label: Text('level 3, item 1')),
+          ],
+        ),
+      ],
     ),
-  )
+    FluentTreeItem(value: '3', label: Text('level 1, item 3')),
+  ],
+)
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -397,7 +431,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/navigation/tree.dart`
 - Tests: `packages/fluent_2/test/goldens/tree_golden_test.dart`, `packages/fluent_2/test/navigation/tree_test.dart`
-- Stories: `packages/fluent_2/example/lib/stories/tree_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_tree.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/tree/usage/
 - Design decisions: `references/components-navigation-data.md`
 

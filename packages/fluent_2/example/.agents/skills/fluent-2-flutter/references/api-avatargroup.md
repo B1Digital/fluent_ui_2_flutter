@@ -206,16 +206,20 @@ Widget buildFluentAvatarGroup(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_avatargroup.dart`:
 
 ```dart
 FluentAvatarGroup(
-            children: const [
-              FluentAvatar(name: 'A', initials: 'AL'),
-              FluentAvatar(name: 'B', initials: 'BT'),
-              FluentAvatar(name: 'C', initials: 'GH'),
-            ],
-          )
+  children: <Widget>[
+    for (final _DefaultPerson person in _defaultPeople.sublist(7))
+      FluentAvatar(
+        name: person.name,
+        initials: person.initials,
+        color: person.color,
+      ),
+    _DefaultOverflow(people: _defaultPeople.sublist(0, 7)),
+  ],
+)
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -226,7 +230,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/surfaces/avatar_group.dart`
 - Tests: `packages/fluent_2/test/goldens/avatar_golden_test.dart`, `packages/fluent_2/test/surfaces/avatar_group_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_avatargroup.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/avatargroup/usage/
 - Design decisions: `references/components-identity-content.md`
 

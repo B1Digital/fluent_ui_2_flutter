@@ -534,6 +534,7 @@ const FluentSplitButtonEdgePainter({
     required this.borderWidth,
     required this.dividerColor,
     required this.radius,
+    required this.roundsLeft,
     this.dividerWidth = FluentStroke.thin,
   });
 ```
@@ -545,6 +546,7 @@ const FluentSplitButtonEdgePainter({
 | `borderWidth` | `double` | Yes | — | Width of the three outer sides. Zero on the unbordered appearances, where nothing outside the divider is drawn. |
 | `dividerColor` | `Color` | Yes | — | Colour of the rule between the halves. Painted only on [FluentSplitButtonSide.primaryAction] — upstream gives the chevron half `borderLeftWidth: 0` so the rule is drawn exactly once. |
 | `radius` | `BorderRadius` | Yes | — | This half's corner radius, already squared off on the inner edge. |
+| `roundsLeft` | `bool` | Yes | — | Whether this half's rounded corners — and so its closed border edge — are on the left. False on the primary half under RTL, and on the menu half under LTR: the outer edge is a *leading* one for the primary action and a *trailing* one for the menu, and both mirror with the reading direction. |
 | `dividerWidth` | `double` | No | `FluentStroke.thin` | Width of the rule. [FluentStroke.thin], matching upstream's `strokeWidthThin` border. |
 
 ### `FluentSplitButtonState`
@@ -693,14 +695,16 @@ Widget buildFluentSplitButton(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/button_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/charts_declarativechart.dart`:
 
 ```dart
 FluentButton(
-                  appearance: appearance,
-                  onPressed: disabled ? null : () {},
-                  child: Text(label),
-                )
+              icon: _loadingMore
+                  ? const FluentSpinner(size: FluentSpinnerSize.tiny)
+                  : null,
+              onPressed: _loadingMore ? null : _loadSchemas,
+              child: Text(_loadingMore ? 'Loading' : 'Load more'),
+            )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -711,7 +715,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/buttons/button.dart`, `packages/fluent_2/lib/src/buttons/compound_button.dart`, `packages/fluent_2/lib/src/buttons/split_button.dart`
 - Tests: `packages/fluent_2/test/buttons/button_test.dart`, `packages/fluent_2/test/buttons/split_compound_button_test.dart`, `packages/fluent_2/test/goldens/button_golden_test.dart`, `packages/fluent_2/test/goldens/dialog_golden_test.dart`, `packages/fluent_2/test/goldens/field_golden_test.dart`, `packages/fluent_2/test/goldens/message_bar_golden_test.dart`, `packages/fluent_2/test/goldens/nav_golden_test.dart`, `packages/fluent_2/test/goldens/split_compound_button_golden_test.dart`, `packages/fluent_2/test/goldens/teaching_popover_golden_test.dart`, `packages/fluent_2/test/goldens/toolbar_golden_test.dart`, `packages/fluent_2/test/goldens/tree_golden_test.dart`, `packages/fluent_2/test/inputs/field_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/button_stories.dart`, `packages/fluent_2/example/lib/storybook/components/navigation_stories.dart`, `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`, `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/charts_declarativechart.dart`, `packages/fluent_2/example/lib/pages/charts_donutchart.dart`, `packages/fluent_2/example/lib/pages/charts_horizontalbarchartwithaxis.dart`, `packages/fluent_2/example/lib/pages/charts_legends.dart`, `packages/fluent_2/example/lib/pages/charts_verticalbarchart.dart`, `packages/fluent_2/example/lib/pages/charts_verticalstackedbarchart.dart`, `packages/fluent_2/example/lib/pages/compat_components_calendar.dart`, `packages/fluent_2/example/lib/pages/compat_components_datepicker.dart`, `packages/fluent_2/example/lib/pages/components_button_button.dart`, `packages/fluent_2/example/lib/pages/components_button_compoundbutton.dart`, `packages/fluent_2/example/lib/pages/components_button_menubutton.dart`, `packages/fluent_2/example/lib/pages/components_button_splitbutton.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/button/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

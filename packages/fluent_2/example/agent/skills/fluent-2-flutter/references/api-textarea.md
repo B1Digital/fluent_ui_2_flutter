@@ -278,10 +278,15 @@ Widget buildFluentTextarea(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/stories/field_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/charts_vegadeclarativechart.dart`:
 
 ```dart
-FluentTextarea(placeholder: 'What is this for?')
+FluentTextarea(
+                  controller: _schemaText,
+                  readOnly: true,
+                  minLines: 20,
+                  maxLines: 20,
+                )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -291,8 +296,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/inputs/textarea.dart`
-- Tests: `packages/fluent_2/test/goldens/textarea_golden_test.dart`, `packages/fluent_2/test/inputs/textarea_test.dart`, `packages/fluent_2/test/internal/text_context_menu_test.dart`
-- Stories: `packages/fluent_2/example/lib/stories/field_stories.dart`, `packages/fluent_2/example/lib/stories/textarea_stories.dart`
+- Tests: `packages/fluent_2/test/goldens/textarea_golden_test.dart`, `packages/fluent_2/test/inputs/selection_dismissal_test.dart`, `packages/fluent_2/test/inputs/textarea_test.dart`, `packages/fluent_2/test/internal/text_context_menu_test.dart`
+- Stories: `packages/fluent_2/example/lib/pages/charts_vegadeclarativechart.dart`, `packages/fluent_2/example/lib/pages/components_field.dart`, `packages/fluent_2/example/lib/pages/components_textarea.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/textarea/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

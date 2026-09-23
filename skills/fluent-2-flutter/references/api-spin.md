@@ -369,22 +369,17 @@ Widget buildFluentSpinButton(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/charts_verticalbarchart.dart`:
 
 ```dart
 FluentSpinButton(
-          value: context.knobs.slider(
-            label: 'Value',
-            initial: 5,
-            min: 0,
-            max: 10,
-          ),
-          min: 0,
-          max: 10,
-          step: 1,
-          onChanged: (value) {},
-          semanticLabel: 'Quantity',
-        )
+                value: _barWidth,
+                min: 1,
+                max: 300,
+                semanticLabel: 'barWidth',
+                onChanged: (double? value) =>
+                    setState(() => _barWidth = value ?? _barWidth),
+              )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -394,8 +389,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/inputs/spin_button.dart`
-- Tests: `packages/fluent_2/test/goldens/spin_button_golden_test.dart`, `packages/fluent_2/test/inputs/spin_button_test.dart`, `packages/fluent_2/test/inputs/time_picker_test.dart`, `packages/fluent_2/test/internal/text_context_menu_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
+- Tests: `packages/fluent_2/test/goldens/spin_button_golden_test.dart`, `packages/fluent_2/test/inputs/selection_dismissal_test.dart`, `packages/fluent_2/test/inputs/spin_button_test.dart`, `packages/fluent_2/test/inputs/time_picker_test.dart`, `packages/fluent_2/test/internal/text_context_menu_test.dart`
+- Stories: `packages/fluent_2/example/lib/pages/charts_verticalbarchart.dart`, `packages/fluent_2/example/lib/pages/charts_verticalstackedbarchart.dart`, `packages/fluent_2/example/lib/pages/components_carousel_carousel.dart`, `packages/fluent_2/example/lib/pages/components_colorpicker.dart`, `packages/fluent_2/example/lib/pages/components_field.dart`, `packages/fluent_2/example/lib/pages/components_spinbutton.dart`, `packages/fluent_2/example/lib/pages/components_toast.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/spin/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

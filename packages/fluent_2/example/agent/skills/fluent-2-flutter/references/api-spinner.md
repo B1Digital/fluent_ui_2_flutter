@@ -119,6 +119,7 @@ const FluentSpinnerPainter({
     required this.indicatorColor,
     required this.strokeWidth,
     required this.pose,
+    this.textDirection = TextDirection.ltr,
   });
 ```
 
@@ -128,6 +129,7 @@ const FluentSpinnerPainter({
 | `indicatorColor` | `Color` | Yes | — | The moving arc drawn over the rail. |
 | `strokeWidth` | `double` | Yes | — | Thickness of both, in logical pixels. |
 | `pose` | `FluentSpinnerPose` | Yes | — | Where the tail currently is. |
+| `textDirection` | `TextDirection` | No | `TextDirection.ltr` | Which way the ring turns. Right-to-left mirrors the whole drawing, so the ring turns anticlockwise, as upstream's does under `dir="rtl"`. |
 
 ### `FluentSpinnerSize`
 
@@ -248,13 +250,10 @@ Widget buildFluentSpinner(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/stories/button_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/charts_declarativechart.dart`:
 
 ```dart
-FluentSpinner(
-            size: FluentSpinnerSize.tiny,
-            semanticLabel: 'Uploading',
-          )
+FluentSpinner(label: Text('Loading...'))
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -265,7 +264,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/surfaces/spinner.dart`
 - Tests: `packages/fluent_2/test/goldens/spinner_golden_test.dart`, `packages/fluent_2/test/surfaces/spinner_test.dart`
-- Stories: `packages/fluent_2/example/lib/stories/button_stories.dart`, `packages/fluent_2/example/lib/stories/compound_button_stories.dart`, `packages/fluent_2/example/lib/stories/spinner_stories.dart`, `packages/fluent_2/example/lib/stories/toast_stories.dart`, `packages/fluent_2/example/lib/stories/tree_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/charts_declarativechart.dart`, `packages/fluent_2/example/lib/pages/components_button_button.dart`, `packages/fluent_2/example/lib/pages/components_searchbox.dart`, `packages/fluent_2/example/lib/pages/components_spinner.dart`, `packages/fluent_2/example/lib/pages/components_toast.dart`, `packages/fluent_2/example/lib/pages/components_tree.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/spinner/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

@@ -119,7 +119,7 @@ const FluentRadio({
 
 ### `FluentRadioGroupScope<T>`
 
-Carries a `FluentRadioGroup`'s selection down to the radios inside it.
+Carries a `FluentRadioGroup`'s *presentation* down to the radios inside it.
 
 Source: `packages/fluent_2/lib/src/inputs/radio.dart`
 
@@ -128,8 +128,6 @@ Source: `packages/fluent_2/lib/src/inputs/radio.dart`
 ```dart
 const FluentRadioGroupScope({
     super.key,
-    required this.value,
-    required this.onChanged,
     required this.disabled,
     required this.labelPosition,
     required super.child,
@@ -139,16 +137,9 @@ const FluentRadioGroupScope({
 | Field | Type | Required | Default | Purpose |
 | --- | --- | --- | --- | --- |
 | `key` | `Key?` | No | `null` | Flutter widget identity. |
-| `value` | `T?` | Yes | — | The group's selected value, or null when nothing is selected. |
-| `onChanged` | `ValueChanged<T>?` | Yes | — | Invoked with the newly selected value. Null disables the whole group. |
 | `disabled` | `bool` | Yes | — | Whether every radio in the group is disabled. |
 | `labelPosition` | `FluentRadioLabelPosition` | Yes | — | The label position the group's layout implies. |
 | `child` | `Widget` | Yes | — | The widget subtree rendered or affected by this API. |
-
-#### State, callback, and accessibility fields
-
-- `value` (`T?`): The group's selected value, or null when nothing is selected.
-- `onChanged` (`ValueChanged<T>?`): Invoked with the newly selected value. Null disables the whole group.
 
 ## Related public types
 
@@ -322,7 +313,7 @@ signatures above and verify any new example with Dart analysis and a widget test
 
 - Implementation: `packages/fluent_2/lib/src/inputs/radio_group.dart`, `packages/fluent_2/lib/src/inputs/radio.dart`
 - Tests: `packages/fluent_2/test/goldens/radio_golden_test.dart`, `packages/fluent_2/test/goldens/tree_golden_test.dart`, `packages/fluent_2/test/inputs/radio_test.dart`, `packages/fluent_2/test/navigation/data_grid_test.dart`, `packages/fluent_2/test/navigation/list_item_test.dart`, `packages/fluent_2/test/navigation/tree_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/charts_areachart.dart`, `packages/fluent_2/example/lib/pages/charts_charttable.dart`, `packages/fluent_2/example/lib/pages/charts_funnelchart.dart`, `packages/fluent_2/example/lib/pages/charts_groupedverticalbarchart.dart`, `packages/fluent_2/example/lib/pages/charts_horizontalbarchartwithaxis.dart`, `packages/fluent_2/example/lib/pages/charts_linechart.dart`, `packages/fluent_2/example/lib/pages/charts_scatterchart.dart`, `packages/fluent_2/example/lib/pages/charts_verticalbarchart.dart`, `packages/fluent_2/example/lib/pages/charts_verticalstackedbarchart.dart`, `packages/fluent_2/example/lib/pages/components_dialog.dart`, `packages/fluent_2/example/lib/pages/components_drawer.dart`, `packages/fluent_2/example/lib/pages/components_field.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/radiogroup/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

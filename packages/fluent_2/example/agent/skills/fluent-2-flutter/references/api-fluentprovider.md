@@ -665,39 +665,22 @@ factory FluentTypography.android({Color? color});
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/gallery/gallery_app.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/shell/showroom_app.dart`:
 
 ```dart
-FluentApp(
-      title: 'Fluent 2 for Flutter',
-      theme: theme,
-      debugShowCheckedModeBanner: false,
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(
-          context,
-        ).copyWith(disableAnimations: _reducedMotion),
-        child: Directionality(
-          textDirection: _rtl ? TextDirection.rtl : TextDirection.ltr,
-          child: child!,
-        ),
-      ),
-      home: _GalleryShell(
-        sections: widget.sections,
-        section: _section,
-        story: _story,
-        onSelect: _select,
-        theme: _theme,
-        onThemeChanged: (t) => setState(() => _theme = t),
-        rtl: _rtl,
-        onRtlChanged: (v) => setState(() => _rtl = v),
-        reducedMotion: _reducedMotion,
-        onReducedMotionChanged: (v) => setState(() => _reducedMotion = v),
-        brandKey: _brandKey,
-        onBrandKeyChanged: (c) => setState(() => _brandKey = c),
-        knobs: _knobs,
-        onKnobChanged: (id, v) => setState(() => _knobs[id] = v),
-      ),
-    )
+FluentApp.router(
+        title: 'Fluent UI Flutter v9',
+        debugShowCheckedModeBanner: false,
+        // The chrome is pinned light and never follows the Theme dropdown.
+        // Storybook's own chrome does not change with the selected story theme
+        // either, and more practically the sidebar has to stay readable while a
+        // preview renders High Contrast.
+        theme: FluentThemeData.light(),
+        themeMode: FluentThemeMode.light,
+        routeInformationProvider: _provider,
+        routeInformationParser: const DocsRouteParser(),
+        routerDelegate: _delegate,
+      )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -707,8 +690,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2_core/lib/src/app.dart`, `packages/fluent_2_core/lib/src/theme.dart`
-- Tests: `packages/fluent_2/test/buttons/button_test.dart`, `packages/fluent_2/test/buttons/split_compound_button_test.dart`, `packages/fluent_2/test/goldens/breadcrumb_golden_test.dart`, `packages/fluent_2/test/goldens/card_golden_test.dart`, `packages/fluent_2/test/goldens/carousel_golden_test.dart`, `packages/fluent_2/test/goldens/dialog_golden_test.dart`, `packages/fluent_2/test/goldens/drawer_golden_test.dart`, `packages/fluent_2/test/goldens/dropdown_golden_test.dart`, `packages/fluent_2/test/goldens/info_label_golden_test.dart`, `packages/fluent_2/test/goldens/link_golden_test.dart`, `packages/fluent_2/test/goldens/menu_golden_test.dart`, `packages/fluent_2/test/goldens/popover_golden_test.dart`
-- Stories: `packages/fluent_2/example/lib/gallery/gallery_app.dart`, `packages/fluent_2/example/lib/stories/accordion_stories.dart`, `packages/fluent_2/example/lib/stories/acrylic_surface_stories.dart`, `packages/fluent_2/example/lib/stories/avatar_group_stories.dart`, `packages/fluent_2/example/lib/stories/avatar_stories.dart`, `packages/fluent_2/example/lib/stories/badge_stories.dart`, `packages/fluent_2/example/lib/stories/breadcrumb_stories.dart`, `packages/fluent_2/example/lib/stories/button_stories.dart`, `packages/fluent_2/example/lib/stories/card_stories.dart`, `packages/fluent_2/example/lib/stories/carousel_stories.dart`, `packages/fluent_2/example/lib/stories/checkbox_stories.dart`, `packages/fluent_2/example/lib/stories/data_grid_stories.dart`
+- Tests: `packages/fluent_2/test/buttons/button_test.dart`, `packages/fluent_2/test/buttons/split_compound_button_test.dart`, `packages/fluent_2/test/charts/annotation_only_chart_style_test.dart`, `packages/fluent_2/test/charts/annotation_only_chart_test.dart`, `packages/fluent_2/test/charts/area_chart_test.dart`, `packages/fluent_2/test/charts/axis/axis_engine_test.dart`, `packages/fluent_2/test/charts/axis/axis_painter_test.dart`, `packages/fluent_2/test/charts/axis_category_order_test.dart`, `packages/fluent_2/test/charts/barrel_test.dart`, `packages/fluent_2/test/charts/cartesian/cartesian_chart_style_test.dart`, `packages/fluent_2/test/charts/cartesian/cartesian_chart_test.dart`, `packages/fluent_2/test/charts/cartesian/cartesian_painter_test.dart`
+- Stories: `packages/fluent_2/example/lib/pages/charts_charttable.dart`, `packages/fluent_2/example/lib/pages/charts_heatmapchart.dart`, `packages/fluent_2/example/lib/pages/charts_linechart.dart`, `packages/fluent_2/example/lib/pages/charts_vegadeclarativechart.dart`, `packages/fluent_2/example/lib/pages/compat_components_calendar.dart`, `packages/fluent_2/example/lib/pages/components_badge_badge.dart`, `packages/fluent_2/example/lib/pages/components_breadcrumb.dart`, `packages/fluent_2/example/lib/pages/components_button_button.dart`, `packages/fluent_2/example/lib/pages/components_button_togglebutton.dart`, `packages/fluent_2/example/lib/pages/components_card_card.dart`, `packages/fluent_2/example/lib/pages/components_card_cardheader.dart`, `packages/fluent_2/example/lib/pages/components_carousel_carousel.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/fluentprovider/usage/
 - Design decisions: `references/flutter-foundations.md`
 

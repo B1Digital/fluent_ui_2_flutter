@@ -69,7 +69,9 @@ async function findRepository() {
 // newlines. Structural scans can then balance Dart delimiters without being
 // confused by examples, comments, interpolation, or literal punctuation.
 function maskNonCode(source) {
-  const output = [...source];
+  // UTF-16 units, as every index below is: spreading the string would split it
+  // by code point, and each emoji before an offset would shift it by one.
+  const output = source.split('');
   let index = 0;
   let blockDepth = 0;
   let quote = null;

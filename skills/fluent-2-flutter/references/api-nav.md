@@ -768,14 +768,13 @@ Widget buildFluentNavItem(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/navigation_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_nav.dart`:
 
 ```dart
 FluentHamburger(
-            onPressed: () {},
-            expanded: true,
-            semanticLabel: 'Collapse navigation',
-          )
+                onPressed: () => setState(() => _isOpen = !_isOpen),
+                semanticLabel: 'Close Navigation',
+              )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -786,7 +785,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/navigation/hamburger.dart`, `packages/fluent_2/lib/src/navigation/nav.dart`, `packages/fluent_2/lib/src/navigation/nav_drawer.dart`
 - Tests: `packages/fluent_2/test/goldens/nav_golden_test.dart`, `packages/fluent_2/test/navigation/hamburger_test.dart`, `packages/fluent_2/test/navigation/nav_drawer_test.dart`, `packages/fluent_2/test/navigation/nav_section_header_test.dart`, `packages/fluent_2/test/navigation/nav_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/navigation_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_nav.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/nav/usage/
 - Design decisions: `references/components-navigation-data.md`
 

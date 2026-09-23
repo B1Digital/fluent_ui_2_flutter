@@ -266,43 +266,29 @@ Widget buildFluentDrawer(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/stories/drawer_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_drawer.dart`:
 
 ```dart
 FluentDrawer(
-        open: open,
-        onDismiss: () => setOpen(false),
-        type: type,
-        size: size,
-        position: position,
-        separator: knobs.get<bool>('separator', true),
-        semanticLabel: 'Filters',
-        header: <Widget>[
-          Row(
-            children: <Widget>[
-              const Expanded(child: Text('Filters')),
-              FluentButton.icon(
-                icon: const Icon(FluentIcons.dismiss_20_regular),
-                semanticLabel: 'Close',
-                appearance: FluentButtonAppearance.subtle,
-                onPressed: () => setOpen(false),
-              ),
-            ],
-          ),
-        ],
-        footer: <Widget>[
-          FluentButton(
-            appearance: FluentButtonAppearance.primary,
-            onPressed: () => setOpen(false),
-            child: const Text('Apply'),
-          ),
-          FluentButton(
-            onPressed: () => setOpen(false),
-            child: const Text('Reset'),
-          ),
-        ],
-        child: const Text(_blurb),
-      )
+          type: _type,
+          separator: true,
+          open: _isOpen,
+          onDismiss: () => setState(() => _isOpen = false),
+          header: <Widget>[
+            Row(
+              children: <Widget>[
+                const Expanded(child: Text('Default Drawer')),
+                FluentButton.icon(
+                  appearance: FluentButtonAppearance.subtle,
+                  semanticLabel: 'Close',
+                  icon: const Icon(FluentIcons.dismiss_24_regular),
+                  onPressed: () => setState(() => _isOpen = false),
+                ),
+              ],
+            ),
+          ],
+          child: const Text('Drawer content'),
+        )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -312,8 +298,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/overlays/drawer.dart`
-- Tests: `packages/fluent_2/test/goldens/drawer_golden_test.dart`, `packages/fluent_2/test/overlays/drawer_test.dart`
-- Stories: `packages/fluent_2/example/lib/stories/drawer_stories.dart`
+- Tests: `packages/fluent_2/test/goldens/drawer_golden_test.dart`, `packages/fluent_2/test/goldens/nav_golden_test.dart`, `packages/fluent_2/test/navigation/nav_drawer_test.dart`, `packages/fluent_2/test/overlays/drawer_test.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_dialog.dart`, `packages/fluent_2/example/lib/pages/components_drawer.dart`, `packages/fluent_2/example/lib/pages/components_nav.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/drawer/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

@@ -6,8 +6,8 @@ import '../support/golden.dart';
 
 /// The spinner rotates forever, so `pumpAndSettle` would time out. Each image
 /// is one frame at a fixed elapsed time: 750ms is exactly half of the 1500ms
-/// rotation, so the arc sits opposite its rest position and a stalled
-/// controller shows up immediately.
+/// cycle, where the arc is at its longest (255°, from about half past 9 round
+/// to 6 o'clock), so a stalled controller shows up immediately.
 ///
 /// Row one: the eight sizes, primary. Row two: the same sizes, subtle, on a
 /// brand fill — subtle resolves to `neutralStrokeOnBrand2`, which is white and
@@ -38,8 +38,10 @@ void main() {
 
   goldenGridTest('spinner', grid, elapsed: elapsed);
 
-  // With animations disabled the controller never starts, so the arc parks at
-  // its rest angle. Light only: the path is about motion, not tokens.
+  // With animations disabled the tail holds still as a fading arc while the
+  // ring turns once per 1.8s, so 750ms in, its solid head has turned 150° from
+  // 12 o'clock to about 5 o'clock. Light only: the path is about motion, not
+  // tokens.
   testWidgets('spinner, reduced motion — light', (tester) async {
     await expectGolden(
       tester,

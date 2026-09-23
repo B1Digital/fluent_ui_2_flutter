@@ -374,29 +374,15 @@ Widget buildFluentPersona(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/stories/persona_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_accordion.dart`:
 
 ```dart
 FluentPersona(
-          name: knobs.get<String>('name', 'Ada Lovelace'),
-          secondary: secondary.isEmpty ? null : Text(secondary),
-          initials: 'AL',
-          size: knobs.get<FluentPersonaSize>('size', FluentPersonaSize.medium),
-          textPosition: knobs.get<FluentPersonaTextPosition>(
-            'textPosition',
-            FluentPersonaTextPosition.after,
-          ),
-          textAlignment: knobs.get<FluentPersonaTextAlignment>(
-            'textAlignment',
-            FluentPersonaTextAlignment.center,
-          ),
-          presenceOnly: knobs.get<bool>('presenceOnly', false),
-          status: knobs.get<FluentPresenceStatus?>(
-            'status',
-            FluentPresenceStatus.available,
-          ),
-          outOfOffice: knobs.get<bool>('outOfOffice', false),
-        )
+        name: 'Kevin Sturgis',
+        secondary: Text('Available'),
+        status: FluentPresenceStatus.available,
+        image: AssetImage('assets/storybook/persona-male.png'),
+      )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -407,7 +393,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/surfaces/persona.dart`
 - Tests: `packages/fluent_2/test/goldens/persona_golden_test.dart`, `packages/fluent_2/test/surfaces/persona_test.dart`
-- Stories: `packages/fluent_2/example/lib/stories/persona_stories.dart`, `packages/fluent_2/example/lib/stories/presence_badge_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_accordion.dart`, `packages/fluent_2/example/lib/pages/components_avatargroup.dart`, `packages/fluent_2/example/lib/pages/components_carousel_carousel.dart`, `packages/fluent_2/example/lib/pages/components_dropdown.dart`, `packages/fluent_2/example/lib/pages/components_list.dart`, `packages/fluent_2/example/lib/pages/components_persona.dart`, `packages/fluent_2/example/lib/pages/components_tree.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/persona/usage/
 - Design decisions: `references/components-identity-content.md`
 

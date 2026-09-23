@@ -138,6 +138,7 @@ Source: `packages/fluent_2/lib/src/overlays/popover.dart`
 const FluentPopoverArrowPainter({
     required this.color,
     required this.position,
+    required this.textDirection,
   });
 ```
 
@@ -145,6 +146,7 @@ const FluentPopoverArrowPainter({
 | --- | --- | --- | --- | --- |
 | `color` | `Color` | Yes | — | The arrow fill — always the surface's own background token. |
 | `position` | `FluentPopoverPosition` | Yes | — | Which side of the anchor the surface is on. The arrow points the other way, towards the anchor. |
+| `textDirection` | `TextDirection` | Yes | — | The reading direction the surface is laid out in. |
 
 ### `FluentPopoverBaseState`
 
@@ -310,18 +312,36 @@ Widget buildFluentPopover(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_avatargroup.dart`:
 
 ```dart
 FluentPopover(
-        open: open,
-        onOpenChanged: (value) {},
-        content: const Padding(
-          padding: EdgeInsets.all(8),
-          child: Text('Popover content goes here.'),
-        ),
-        child: const FluentButton(child: Text('Toggle popover with the knob')),
-      )
+    open: _open,
+    onOpenChanged: (bool value) => setState(() => _open = value),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 8,
+      children: <Widget>[
+        for (final _DefaultPerson person in widget.people)
+          FluentPersona(
+            name: person.name,
+            initials: person.initials,
+            color: person.color,
+          ),
+      ],
+    ),
+    child: GestureDetector(
+      onTap: () => setState(() => _open = true),
+      child: FluentAvatar(
+        color: FluentAvatarColor.overflow,
+        initials: '+${widget.people.length}',
+        name: widget.people
+            .map((_DefaultPerson person) => person.name)
+            .join(', '),
+      ),
+    ),
+  )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -331,8 +351,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/overlays/popover.dart`
-- Tests: `packages/fluent_2/test/goldens/popover_golden_test.dart`, `packages/fluent_2/test/goldens/teaching_popover_golden_test.dart`, `packages/fluent_2/test/inputs/info_button_test.dart`, `packages/fluent_2/test/overlays/popover_test.dart`, `packages/fluent_2/test/overlays/teaching_popover_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`
+- Tests: `packages/fluent_2/test/charts/chrome/chart_popover_test.dart`, `packages/fluent_2/test/goldens/popover_golden_test.dart`, `packages/fluent_2/test/goldens/teaching_popover_golden_test.dart`, `packages/fluent_2/test/inputs/color_picker_test.dart`, `packages/fluent_2/test/inputs/info_button_test.dart`, `packages/fluent_2/test/overlays/popover_test.dart`, `packages/fluent_2/test/overlays/teaching_popover_test.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_avatargroup.dart`, `packages/fluent_2/example/lib/pages/components_colorpicker.dart`, `packages/fluent_2/example/lib/pages/components_popover.dart`, `packages/fluent_2/example/lib/pages/components_swatchpicker.dart`, `packages/fluent_2/example/lib/pages/components_tag_interactiontag.dart`, `packages/fluent_2/example/lib/pages/components_teachingpopover.dart`, `packages/fluent_2/example/lib/pages/components_toolbar.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/popover/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

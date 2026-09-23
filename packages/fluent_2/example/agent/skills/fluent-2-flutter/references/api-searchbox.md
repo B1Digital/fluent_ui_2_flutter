@@ -56,7 +56,7 @@ const FluentSearchBox({
     this.onSubmitted,
     this.onClear,
     this.semanticLabel,
-    this.clearSemanticLabel = 'Clear',
+    this.clearSemanticLabel,
   });
 ```
 
@@ -82,7 +82,7 @@ const FluentSearchBox({
 | `onSubmitted` | `ValueChanged<String>?` | No | `null` | Called when the user commits with Enter. |
 | `onClear` | `VoidCallback?` | No | `null` | Called after the value is cleared, by the button or by Escape. |
 | `semanticLabel` | `String?` | No | `null` | Announced by assistive technology as the field's name. |
-| `clearSemanticLabel` | `String` | No | `'Clear'` | Announced by assistive technology for the clear button. |
+| `clearSemanticLabel` | `String?` | No | `null` | Announced by assistive technology for the clear button. |
 
 #### State, callback, and accessibility fields
 
@@ -310,18 +310,10 @@ Widget buildFluentSearchBox(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/stories/search_box_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_searchbox.dart`:
 
 ```dart
-FluentSearchBox(
-            appearance: knobs.get(
-              'appearance',
-              FluentSearchBoxAppearance.outline,
-            ),
-            size: knobs.get('size', FluentSearchBoxSize.medium),
-            enabled: !knobs.get('disabled', false),
-            placeholder: knobs.get('placeholder', 'Search'),
-          )
+FluentSearchBox()
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -331,8 +323,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/inputs/search_box.dart`
-- Tests: `packages/fluent_2/test/goldens/search_box_golden_test.dart`, `packages/fluent_2/test/inputs/search_box_test.dart`, `packages/fluent_2/test/internal/text_context_menu_test.dart`
-- Stories: `packages/fluent_2/example/lib/stories/search_box_stories.dart`
+- Tests: `packages/fluent_2/test/goldens/search_box_golden_test.dart`, `packages/fluent_2/test/inputs/search_box_test.dart`, `packages/fluent_2/test/inputs/selection_dismissal_test.dart`, `packages/fluent_2/test/internal/text_context_menu_test.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_searchbox.dart`, `packages/fluent_2/example/lib/pages/theme_colors.dart`, `packages/fluent_2/example/lib/shell/widgets/sidebar.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/searchbox/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

@@ -49,7 +49,7 @@ const FluentDialog({
     this.size = FluentDialogSize.medium,
     this.style,
     this.semanticLabel,
-    this.closeButtonSemanticLabel = 'Close',
+    this.closeButtonSemanticLabel,
   });
 ```
 
@@ -68,7 +68,7 @@ const FluentDialog({
 | `size` | `FluentDialogSize` | No | `FluentDialogSize.medium` | Width and action layout. |
 | `style` | `FluentDialogStyle?` | No | `null` | Overrides layered over the theme defaults. Merged last, so it wins. |
 | `semanticLabel` | `String?` | No | `null` | Announced by assistive technology as the dialog's name. |
-| `closeButtonSemanticLabel` | `String` | No | `'Close'` | Announced for the header's close button, which has no text of its own. |
+| `closeButtonSemanticLabel` | `String?` | No | `null` | Announced for the header's close button, which has no text of its own. |
 
 #### State, callback, and accessibility fields
 
@@ -259,35 +259,35 @@ Widget buildFluentDialog(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_dialog.dart`:
 
 ```dart
 FluentDialog(
-        open: open,
-        onOpenChange: (value) {},
-        title: const Text('Order lunch'),
-        content: const Text(
-          'You should eat more vegetables. '
-          'Have you had a salad today?',
-        ),
-        actions: [
-          FluentButton(
-            appearance: FluentButtonAppearance.primary,
-            onPressed: () {},
-            child: const Text('Order'),
-          ),
-          FluentButton(onPressed: () {}, child: const Text('Cancel')),
-        ],
-        child: const Center(
-          child: SizedBox(
-            width: 120,
-            child: FluentButton(
-              onPressed: null,
-              child: Text('Open the dialog via the knob'),
-            ),
-          ),
-        ),
-      )
+    open: _open,
+    onOpenChange: (bool open) => setState(() => _open = open),
+    title: const Text('Dialog title'),
+    content: const Text(
+      'Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam '
+      'exercitationem cumque repellendus eaque est dolor eius expedita nulla '
+      'ullam? Tenetur reprehenderit aut voluptatum impedit voluptates in '
+      'natus iure cumque eaque?',
+    ),
+    actions: <Widget>[
+      FluentButton(
+        appearance: FluentButtonAppearance.primary,
+        onPressed: () {},
+        child: const Text('Do Something'),
+      ),
+      FluentButton(
+        onPressed: () => setState(() => _open = false),
+        child: const Text('Close'),
+      ),
+    ],
+    child: FluentButton(
+      onPressed: () => setState(() => _open = true),
+      child: const Text('Open dialog'),
+    ),
+  )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -297,8 +297,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/overlays/dialog.dart`
-- Tests: `packages/fluent_2/test/goldens/dialog_golden_test.dart`, `packages/fluent_2/test/overlays/dialog_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/overlays_stories.dart`
+- Tests: `packages/fluent_2/test/goldens/dialog_golden_test.dart`, `packages/fluent_2/test/l10n/localizations_test.dart`, `packages/fluent_2/test/overlays/dialog_test.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_carousel_carousel.dart`, `packages/fluent_2/example/lib/pages/components_dialog.dart`, `packages/fluent_2/example/lib/pages/components_drawer.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/dialog/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

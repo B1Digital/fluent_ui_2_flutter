@@ -374,14 +374,15 @@ Widget buildFluentPersona(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_accordion.dart`:
 
 ```dart
 FluentPersona(
-            name: 'Kat Larsson',
-            secondary: Text('Software Engineer'),
-            tertiary: Text('Contoso'),
-          )
+        name: 'Kevin Sturgis',
+        secondary: Text('Available'),
+        status: FluentPresenceStatus.available,
+        image: AssetImage('assets/storybook/persona-male.png'),
+      )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -392,7 +393,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/surfaces/persona.dart`
 - Tests: `packages/fluent_2/test/goldens/persona_golden_test.dart`, `packages/fluent_2/test/surfaces/persona_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_accordion.dart`, `packages/fluent_2/example/lib/pages/components_avatargroup.dart`, `packages/fluent_2/example/lib/pages/components_carousel_carousel.dart`, `packages/fluent_2/example/lib/pages/components_dropdown.dart`, `packages/fluent_2/example/lib/pages/components_list.dart`, `packages/fluent_2/example/lib/pages/components_persona.dart`, `packages/fluent_2/example/lib/pages/components_tree.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/persona/usage/
 - Design decisions: `references/components-identity-content.md`
 

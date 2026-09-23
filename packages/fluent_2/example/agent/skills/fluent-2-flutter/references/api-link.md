@@ -213,13 +213,13 @@ Widget buildFluentLink(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/stories/data_grid_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_card_card.dart`:
 
 ```dart
 FluentLink(
-              onPressed: _noop,
-              child: const Text('Open in the browser'),
-            )
+                  onPressed: () => _report('https://www.microsoft.com/'),
+                  child: Text('App Name', style: type.body1Strong),
+                )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -230,7 +230,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/inputs/link.dart`
 - Tests: `packages/fluent_2/test/goldens/link_golden_test.dart`, `packages/fluent_2/test/goldens/toast_golden_test.dart`, `packages/fluent_2/test/inputs/link_test.dart`, `packages/fluent_2/test/navigation/data_grid_test.dart`, `packages/fluent_2/test/overlays/toast_test.dart`
-- Stories: `packages/fluent_2/example/lib/stories/data_grid_stories.dart`, `packages/fluent_2/example/lib/stories/dialog_stories.dart`, `packages/fluent_2/example/lib/stories/link_stories.dart`, `packages/fluent_2/example/lib/stories/popover_stories.dart`, `packages/fluent_2/example/lib/stories/tag_picker_stories.dart`, `packages/fluent_2/example/lib/stories/toast_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_card_card.dart`, `packages/fluent_2/example/lib/pages/components_infolabel.dart`, `packages/fluent_2/example/lib/pages/components_link.dart`, `packages/fluent_2/example/lib/pages/components_menu_menu.dart`, `packages/fluent_2/example/lib/pages/components_messagebar.dart`, `packages/fluent_2/example/lib/pages/components_popover.dart`, `packages/fluent_2/example/lib/pages/components_tag_interactiontag.dart`, `packages/fluent_2/example/lib/pages/components_toast.dart`, `packages/fluent_2/example/lib/pages/components_tooltip.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/link/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

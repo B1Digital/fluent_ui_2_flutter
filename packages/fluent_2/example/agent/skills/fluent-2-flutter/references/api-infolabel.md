@@ -415,13 +415,13 @@ Widget buildFluentInfoTip(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/stories/field_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_field.dart`:
 
 ```dart
 FluentInfoLabel(
-      info: Text('Deleted items are kept for 30 days, then purged.'),
-      infoSemanticLabel: 'About the retention period',
-      child: Text('Retention period'),
+      info: Text('Example info'),
+      infoSemanticLabel: 'More information',
+      child: Text('Field with an info button'),
     )
 ```
 
@@ -433,7 +433,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/inputs/info_label.dart`, `packages/fluent_2/lib/src/inputs/info_button.dart`
 - Tests: `packages/fluent_2/test/goldens/info_label_golden_test.dart`, `packages/fluent_2/test/inputs/info_button_test.dart`, `packages/fluent_2/test/inputs/info_label_test.dart`
-- Stories: `packages/fluent_2/example/lib/stories/field_stories.dart`, `packages/fluent_2/example/lib/stories/info_label_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_field.dart`, `packages/fluent_2/example/lib/pages/components_infolabel.dart`, `packages/fluent_2/example/lib/pages/components_tooltip.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/infolabel/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

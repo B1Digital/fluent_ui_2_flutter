@@ -276,15 +276,65 @@ Widget buildFluentCard(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_card_card.dart`:
 
 ```dart
 FluentCard(
-            header: Text('Card title'),
-            preview: SizedBox(height: 120, width: 240),
-            footer: Text('Footer'),
-            child: Text('Body content goes here.'),
-          )
+      header: Row(
+        spacing: 12,
+        children: <Widget>[
+          const FluentAvatar(name: 'Elvia Atkins', initials: 'EA'),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text.rich(
+                  TextSpan(
+                    children: <InlineSpan>[
+                      TextSpan(text: 'Elvia Atkins', style: type.body1Strong),
+                      const TextSpan(text: ' mentioned you'),
+                    ],
+                  ),
+                  style: type.body1,
+                ),
+                Text('5h ago · About us - Overview', style: type.caption1),
+              ],
+            ),
+          ),
+        ],
+      ),
+      preview: const Stack(
+        children: <Widget>[
+          Image(
+            image: AssetImage('assets/storybook/image.png'),
+            height: 240,
+            width: double.infinity,
+            fit: BoxFit.cover,
+          ),
+          Positioned(
+            left: 12,
+            bottom: 12,
+            child: Icon(FluentIcons.document_20_regular, size: 32),
+          ),
+        ],
+      ),
+      footer: Row(
+        spacing: 8,
+        children: <Widget>[
+          FluentButton(
+            icon: const Icon(FluentIcons.arrow_reply_20_regular, size: 16),
+            onPressed: () {},
+            child: const Text('Reply'),
+          ),
+          FluentButton(
+            icon: const Icon(FluentIcons.share_20_regular, size: 16),
+            onPressed: () {},
+            child: const Text('Share'),
+          ),
+        ],
+      ),
+    )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -295,7 +345,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/surfaces/card.dart`
 - Tests: `packages/fluent_2/test/goldens/card_golden_test.dart`, `packages/fluent_2/test/surfaces/card_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_card_card.dart`, `packages/fluent_2/example/lib/pages/components_card_cardfooter.dart`, `packages/fluent_2/example/lib/pages/components_card_cardheader.dart`, `packages/fluent_2/example/lib/pages/components_card_cardpreview.dart`, `packages/fluent_2/example/lib/pages/components_list.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/card/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

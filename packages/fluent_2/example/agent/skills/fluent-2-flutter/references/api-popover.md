@@ -138,6 +138,7 @@ Source: `packages/fluent_2/lib/src/overlays/popover.dart`
 const FluentPopoverArrowPainter({
     required this.color,
     required this.position,
+    required this.textDirection,
   });
 ```
 
@@ -145,6 +146,7 @@ const FluentPopoverArrowPainter({
 | --- | --- | --- | --- | --- |
 | `color` | `Color` | Yes | — | The arrow fill — always the surface's own background token. |
 | `position` | `FluentPopoverPosition` | Yes | — | Which side of the anchor the surface is on. The arrow points the other way, towards the anchor. |
+| `textDirection` | `TextDirection` | Yes | — | The reading direction the surface is laid out in. |
 
 ### `FluentPopoverBaseState`
 
@@ -310,30 +312,36 @@ Widget buildFluentPopover(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/stories/popover_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_avatargroup.dart`:
 
 ```dart
 FluentPopover(
-      open: open,
-      onOpenChanged: enabled ? setOpen : null,
-      appearance: knobs.get<FluentPopoverAppearance>(
-        'appearance',
-        FluentPopoverAppearance.normal,
+    open: _open,
+    onOpenChanged: (bool value) => setState(() => _open = value),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 8,
+      children: <Widget>[
+        for (final _DefaultPerson person in widget.people)
+          FluentPersona(
+            name: person.name,
+            initials: person.initials,
+            color: person.color,
+          ),
+      ],
+    ),
+    child: GestureDetector(
+      onTap: () => setState(() => _open = true),
+      child: FluentAvatar(
+        color: FluentAvatarColor.overflow,
+        initials: '+${widget.people.length}',
+        name: widget.people
+            .map((_DefaultPerson person) => person.name)
+            .join(', '),
       ),
-      size: knobs.get<FluentPopoverSize>('size', FluentPopoverSize.medium),
-      position: knobs.get<FluentPopoverPosition>(
-        'position',
-        FluentPopoverPosition.above,
-      ),
-      align: knobs.get<FluentPopoverAlign>('align', FluentPopoverAlign.center),
-      withArrow: knobs.get<bool>('arrow', false),
-      semanticLabel: 'About sharing',
-      content: _body('Sharing', 'Anyone with the link can open this file.'),
-      child: FluentButton(
-        onPressed: () => setOpen(!open),
-        child: Text(enabled ? 'Show popover' : 'Disabled'),
-      ),
-    )
+    ),
+  )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -343,8 +351,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/overlays/popover.dart`
-- Tests: `packages/fluent_2/test/goldens/popover_golden_test.dart`, `packages/fluent_2/test/goldens/teaching_popover_golden_test.dart`, `packages/fluent_2/test/inputs/info_button_test.dart`, `packages/fluent_2/test/overlays/popover_test.dart`, `packages/fluent_2/test/overlays/teaching_popover_test.dart`
-- Stories: `packages/fluent_2/example/lib/stories/popover_stories.dart`, `packages/fluent_2/example/lib/stories/swatch_picker_stories.dart`, `packages/fluent_2/example/lib/stories/teaching_popover_stories.dart`, `packages/fluent_2/example/lib/stories/toolbar_stories.dart`
+- Tests: `packages/fluent_2/test/charts/chrome/chart_popover_test.dart`, `packages/fluent_2/test/goldens/popover_golden_test.dart`, `packages/fluent_2/test/goldens/teaching_popover_golden_test.dart`, `packages/fluent_2/test/inputs/color_picker_test.dart`, `packages/fluent_2/test/inputs/info_button_test.dart`, `packages/fluent_2/test/overlays/popover_test.dart`, `packages/fluent_2/test/overlays/teaching_popover_test.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_avatargroup.dart`, `packages/fluent_2/example/lib/pages/components_colorpicker.dart`, `packages/fluent_2/example/lib/pages/components_popover.dart`, `packages/fluent_2/example/lib/pages/components_swatchpicker.dart`, `packages/fluent_2/example/lib/pages/components_tag_interactiontag.dart`, `packages/fluent_2/example/lib/pages/components_teachingpopover.dart`, `packages/fluent_2/example/lib/pages/components_toolbar.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/popover/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

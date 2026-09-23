@@ -201,17 +201,10 @@ Widget buildFluentProgressBar(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_progressbar.dart`:
 
 ```dart
-FluentProgressBar(
-                  value: context.knobs.slider(
-                    label: 'Value',
-                    initial: 0.6,
-                    min: 0,
-                    max: 1,
-                  ),
-                )
+FluentProgressBar(value: 0.5)
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -222,7 +215,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/surfaces/progressbar.dart`
 - Tests: `packages/fluent_2/test/goldens/progressbar_golden_test.dart`, `packages/fluent_2/test/surfaces/message_bar_test.dart`, `packages/fluent_2/test/surfaces/progressbar_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_progressbar.dart`, `packages/fluent_2/example/lib/pages/components_toast.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/progressbar/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 
