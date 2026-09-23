@@ -559,6 +559,9 @@ class _FluentMenuState extends State<FluentMenu> {
   /// above it.
   void _closeFrom(int depth) {
     if (depth >= _levels.length) return;
+    // The parent row's pending hover open is for the submenu being closed, so
+    // Escape inside the delay would otherwise have it reopen on its own.
+    if (depth > 0) _levels[depth - 1].hoverTimer?.cancel();
     final removed = _levels.sublist(depth);
     _levels.removeRange(depth, _levels.length);
     for (final level in removed) {
@@ -590,6 +593,19 @@ class _FluentMenuState extends State<FluentMenu> {
     final level = _levels[depth];
     final item = level.items[index];
     if (!item.hasSubmenu || !item.enabled) return;
+    // Upstream's `setOpen` clears its hover timeout before anything else. Left
+    // armed, a click that beat the delay was followed by a second open 500ms
+    // later.
+    level.hoverTimer?.cancel();
+    // Already showing: re-pushing it would replay its entrance from opacity 0.
+    // Upstream's Right on an open submenu moves focus in, and so does this —
+    // after closing anything open below it, so the chain on screen is the one
+    // the keys act on.
+    if (level.active == index && _levels.length > depth + 1) {
+      _closeFrom(depth + 2);
+      _levels[depth + 1].focusNode.requestFocus();
+      return;
+    }
     _closeFrom(depth + 1);
     level.active = index;
     level.entry?.markNeedsBuild();
@@ -689,7 +705,12 @@ class _FluentMenuState extends State<FluentMenu> {
   void _hoverRow(int depth, int index) {
     if (depth >= _levels.length) return;
     final level = _levels[depth];
-    level.hoverTimer?.cancel();
+    // Rows have no onExit, so the pointer arriving here is what abandons a
+    // pending open on this level — and on any below it, which it can leave
+    // for an ancestor row without crossing a sibling that would cancel it.
+    for (final open in _levels.skip(depth)) {
+      open.hoverTimer?.cancel();
+    }
     if (level.active != index) {
       level.active = index;
       level.entry?.markNeedsBuild();
