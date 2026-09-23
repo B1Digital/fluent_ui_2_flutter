@@ -740,4 +740,26 @@ void main() {
       expect(opacities.every((value) => value == 1), isTrue);
     });
   });
+
+  // #30: accentWidth was resolved into the style and then dropped, because the
+  // shared faceplate drew its focus bar at a constant FluentStroke.thick.
+  testWidgets('style.accentWidth sizes the focus bar', (tester) async {
+    await _pump(
+      tester,
+      wrap: (_) => FluentDatePicker(
+        today: _today,
+        onSelectDate: _noop,
+        autofocus: true,
+        style: const FluentDatePickerStyle(
+          accentWidth: WidgetStatePropertyAll<double?>(8),
+        ),
+      ),
+    );
+    final bar = find.descendant(
+      of: find.byType(FluentDatePicker),
+      matching: find.byType(FluentInputFocusUnderline),
+    );
+    expect(tester.widget<FluentInputFocusUnderline>(bar).thickness, 8);
+    expect(tester.getSize(bar).height, 8);
+  });
 }

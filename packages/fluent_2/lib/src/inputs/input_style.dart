@@ -21,8 +21,9 @@ import 'package:flutter/widgets.dart';
 ///   the box's bottom edge. On `outline` this is the
 ///   `Neutral/Stroke/Accessible/*` ramp that upstream writes as
 ///   `borderBottomColor`; on `underline` it is the only rule the field has.
-/// * [focusUnderlineColor] — the brand bar that grows across the bottom while
-///   the field holds focus. Upstream's `::after` pseudo-element.
+/// * [focusUnderlineColor] / [focusUnderlineWidth] — the brand bar that grows
+///   across the bottom while the field holds focus. Upstream's `::after`
+///   pseudo-element.
 @immutable
 class FluentInputStyle {
   /// Creates a style. Omitted properties inherit.
@@ -34,6 +35,7 @@ class FluentInputStyle {
     this.bottomBorderColor,
     this.bottomBorderWidth,
     this.focusUnderlineColor,
+    this.focusUnderlineWidth,
     this.foregroundColor,
     this.placeholderColor,
     this.contentColor,
@@ -69,9 +71,12 @@ class FluentInputStyle {
   /// Bottom-rule thickness. 1 at rest, 2 while pressed.
   final WidgetStateProperty<double?>? bottomBorderWidth;
 
-  /// The brand focus bar's colour. Its thickness is fixed at
-  /// `FluentStroke.thick`, as upstream hard-codes `2px solid`.
+  /// The brand focus bar's colour. Its thickness is [focusUnderlineWidth].
   final WidgetStateProperty<Color?>? focusUnderlineColor;
+
+  /// The brand focus bar's thickness. Null is `FluentStroke.thick`, as upstream
+  /// hard-codes `2px solid`.
+  final WidgetStateProperty<double?>? focusUnderlineWidth;
 
   /// Typed-text colour.
   final WidgetStateProperty<Color?>? foregroundColor;
@@ -125,6 +130,7 @@ class FluentInputStyle {
       bottomBorderColor: other.bottomBorderColor ?? bottomBorderColor,
       bottomBorderWidth: other.bottomBorderWidth ?? bottomBorderWidth,
       focusUnderlineColor: other.focusUnderlineColor ?? focusUnderlineColor,
+      focusUnderlineWidth: other.focusUnderlineWidth ?? focusUnderlineWidth,
       foregroundColor: other.foregroundColor ?? foregroundColor,
       placeholderColor: other.placeholderColor ?? placeholderColor,
       contentColor: other.contentColor ?? contentColor,
@@ -149,6 +155,7 @@ class FluentInputStyle {
     WidgetStateProperty<Color?>? bottomBorderColor,
     WidgetStateProperty<double?>? bottomBorderWidth,
     WidgetStateProperty<Color?>? focusUnderlineColor,
+    WidgetStateProperty<double?>? focusUnderlineWidth,
     WidgetStateProperty<Color?>? foregroundColor,
     WidgetStateProperty<Color?>? placeholderColor,
     WidgetStateProperty<Color?>? contentColor,
@@ -169,6 +176,7 @@ class FluentInputStyle {
     bottomBorderColor: bottomBorderColor ?? this.bottomBorderColor,
     bottomBorderWidth: bottomBorderWidth ?? this.bottomBorderWidth,
     focusUnderlineColor: focusUnderlineColor ?? this.focusUnderlineColor,
+    focusUnderlineWidth: focusUnderlineWidth ?? this.focusUnderlineWidth,
     foregroundColor: foregroundColor ?? this.foregroundColor,
     placeholderColor: placeholderColor ?? this.placeholderColor,
     contentColor: contentColor ?? this.contentColor,
@@ -195,6 +203,7 @@ class FluentInputStyle {
     Color? bottomBorderColor,
     double? bottomBorderWidth,
     Color? focusUnderlineColor,
+    double? focusUnderlineWidth,
     Color? foregroundColor,
     Color? placeholderColor,
     Color? contentColor,
@@ -215,6 +224,7 @@ class FluentInputStyle {
     bottomBorderColor: _all(bottomBorderColor),
     bottomBorderWidth: _all(bottomBorderWidth),
     focusUnderlineColor: _all(focusUnderlineColor),
+    focusUnderlineWidth: _all(focusUnderlineWidth),
     foregroundColor: _all(foregroundColor),
     placeholderColor: _all(placeholderColor),
     contentColor: _all(contentColor),
@@ -242,6 +252,7 @@ class FluentInputStyle {
       other.bottomBorderColor == bottomBorderColor &&
       other.bottomBorderWidth == bottomBorderWidth &&
       other.focusUnderlineColor == focusUnderlineColor &&
+      other.focusUnderlineWidth == focusUnderlineWidth &&
       other.foregroundColor == foregroundColor &&
       other.placeholderColor == placeholderColor &&
       other.contentColor == contentColor &&
@@ -264,6 +275,7 @@ class FluentInputStyle {
     bottomBorderColor,
     bottomBorderWidth,
     focusUnderlineColor,
+    focusUnderlineWidth,
     foregroundColor,
     placeholderColor,
     contentColor,

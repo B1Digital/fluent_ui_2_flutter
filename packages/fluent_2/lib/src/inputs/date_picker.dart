@@ -461,6 +461,7 @@ FluentInputStyle _fieldStyle(FluentDatePickerStyle style) => FluentInputStyle(
   bottomBorderColor: style.underlineColor,
   bottomBorderWidth: style.underlineWidth,
   focusUnderlineColor: style.accentColor,
+  focusUnderlineWidth: style.accentWidth,
   foregroundColor: style.foregroundColor,
   placeholderColor: style.placeholderColor,
   contentColor: style.iconColor,
