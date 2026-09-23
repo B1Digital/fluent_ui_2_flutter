@@ -77,6 +77,7 @@ class FluentCartesianChart extends StatefulWidget {
     this.onChartMouseLeave,
     this.overlayBuilder,
     this.onPointerMoveInPlot,
+    this.onFocusedRegionChange,
     this.style,
   });
 
@@ -157,6 +158,19 @@ class FluentCartesianChart extends StatefulWidget {
   final void Function(Offset local, FluentCartesianChildContext childContext)?
   onPointerMoveInPlot;
 
+  /// Called when the roving keyboard index moves, with the focused region's
+  /// position in the list [FluentCartesianSeriesDelegate.buildHitRegions]
+  /// returned and the scales that list was built with, or with a null index
+  /// when the plot loses focus and the index resets.
+  ///
+  /// Upstream's marks are DOM elements that take focus themselves, so a chart
+  /// hears about a focused mark through the mark's own `onFocus`
+  /// (`ScatterChart.tsx:468-470`). Here one node roves over painted regions,
+  /// and this is how a chart learns which one it is on. Under
+  /// [FluentChartHitGranularity.group] the index is into the coalesced list.
+  final void Function(int? index, FluentCartesianChildContext childContext)?
+  onFocusedRegionChange;
+
   /// Style overrides layered over the theme-derived defaults.
   final FluentCartesianChartStyle? style;
 
@@ -190,6 +204,10 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
   List<String> _selectedLegends = const <String>[];
   FocusNode? _internalFocusNode;
   List<FluentChartHitRegion> _regions = const <FluentChartHitRegion>[];
+
+  /// The scales [_regions] were built with, for
+  /// [FluentCartesianChart.onFocusedRegionChange].
+  late FluentCartesianChildContext _childContext;
   int _focusedIndex = -1;
   int _hoveredIndex = -1;
 
@@ -269,6 +287,7 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
           ? (step > 0 ? 0 : count - 1)
           : (_focusedIndex + step + count) % count;
     });
+    widget.onFocusedRegionChange?.call(_focusedIndex, _childContext);
     return KeyEventResult.handled;
   }
 
@@ -375,6 +394,7 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
   void _onFocusChange({required bool hasFocus}) {
     if (!hasFocus && _focusedIndex != -1) {
       setState(() => _focusedIndex = -1);
+      widget.onFocusedRegionChange?.call(null, _childContext);
     }
   }
 
@@ -513,7 +533,7 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
     required FluentChartTextStyles textStyles,
     required double crispOffset,
   }) {
-    final childContext = FluentCartesianChildContext(
+    final childContext = _childContext = FluentCartesianChildContext(
       xScale: geometry.xAxis.scale,
       yScalePrimary: geometry.yAxisPrimary.scale,
       yScaleSecondary: geometry.yAxisSecondary?.scale,
