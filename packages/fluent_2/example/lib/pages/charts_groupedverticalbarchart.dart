@@ -476,7 +476,7 @@ class _GroupedVerticalBarDefaultState
               max: 1000,
               semanticLabel: 'Change Width',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _width = value),
             ),
@@ -490,7 +490,7 @@ class _GroupedVerticalBarDefaultState
               max: 1000,
               semanticLabel: 'Change Height',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _height = value),
             ),
@@ -792,7 +792,7 @@ class _GroupedVerticalBarNegativeState
               max: 1000,
               semanticLabel: 'Change Width',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _width = value),
             ),
@@ -806,7 +806,7 @@ class _GroupedVerticalBarNegativeState
               max: 1000,
               semanticLabel: 'Change Height',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _height = value),
             ),
@@ -889,11 +889,10 @@ class _GroupedVerticalBarNegativeState
             culture: 'en-us',
             chartTitle: 'Grouped Vertical Bar chart basic example',
             data: _data,
-            // Upstream compares against 'StackCallout' while its own radios
-            // carry 'singleCallout' and 'stackedCallout', so neither choice
-            // ever turns the stack callout on. The port keeps the control and
-            // the same inert comparison.
-            isCalloutForStack: _selectedCallout == 'StackCallout',
+            // Upstream compares against 'StackCallout', which its own radios
+            // never carry (story .tsx:384); the port compares against the
+            // radio's real value so "Stacked callout" works.
+            isCalloutForStack: _selectedCallout == 'stackedCallout',
             barWidth: _barWidth,
             hideLabels: _hideLabels,
             roundCorners: _roundCorners,
@@ -1023,7 +1022,7 @@ class _GroupedVerticalBarSecondaryYAxisState
               max: 1000,
               semanticLabel: 'Change Width',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _width = value),
             ),
@@ -1037,7 +1036,7 @@ class _GroupedVerticalBarSecondaryYAxisState
               max: 1000,
               semanticLabel: 'Change Height',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _height = value),
             ),
@@ -1171,7 +1170,7 @@ class _GroupedVerticalBarChartLineState
               max: 1000,
               semanticLabel: 'Change Width',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _width = value),
             ),
@@ -1185,7 +1184,7 @@ class _GroupedVerticalBarChartLineState
               max: 1000,
               semanticLabel: 'Change Height',
               semanticFormatter: (double value) =>
-                  "current value ${value.round()}', Minimum 200 and Maximum "
+                  'current value ${value.round()}, Minimum 200 and Maximum '
                   '1000',
               onChanged: (double value) => setState(() => _height = value),
             ),

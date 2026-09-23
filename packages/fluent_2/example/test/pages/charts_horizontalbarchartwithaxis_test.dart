@@ -167,29 +167,31 @@ void main() {
       );
     });
 
-    testWidgets('the callout radio commits, though the port keeps it inert', (
+    testWidgets('the custom callout radio swaps in the custom popover', (
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
-      final Rect before = _plot(tester);
-      final List<Color> fills = _fills(tester);
-
-      // Upstream's handler for this pair only flips a boolean, and the
-      // `onRenderCalloutPerHorizontalBar` it would have driven is commented
-      // out in the story itself. The port says so in a comment and keeps the
-      // same inert behaviour, so the honest assertion is that the control
-      // commits and that the chart is deliberately untouched.
-      await mouseClick(tester, find.text('Custom Callout Example'));
-      expect(
-        tester
-            .widget<FluentRadioGroup<String>>(
-              find.byType(FluentRadioGroup<String>),
-            )
-            .value,
-        'Custom Callout Example',
+      final Finder canvas = find.descendant(
+        of: find.byType(FluentHorizontalBarChartWithAxis),
+        matching: find.byType(CustomPaint),
       );
-      expect(_plot(tester), before);
-      expect(_fills(tester), fills);
+      Future<TestGesture> hoverFirstBar() => mouseHoverAt(
+        tester,
+        tester.getTopLeft(canvas.first) +
+            paintedRects(paintOps(tester, canvas)).first.rect.center,
+        what: 'the first bar',
+      );
+
+      TestGesture mouse = await hoverFirstBar();
+      expect(find.byType(FluentChartPopover), findsOneWidget);
+      expect(find.text('Custom callout'), findsNothing);
+      await mouseAway(tester, mouse);
+
+      await mouseClick(tester, find.text('Custom Callout Example'));
+      mouse = await hoverFirstBar();
+      expect(find.text('Custom callout'), findsOneWidget);
+      expect(find.byType(FluentChartPopover), findsNothing);
+      await mouseAway(tester, mouse);
     });
   });
 
@@ -540,6 +542,18 @@ void main() {
       await mouseClick(tester, find.text('Change data'));
       expect(_xValues(tester), isNot(before));
     });
+  });
+
+  testWidgets('no section offers an inert gradient switch', (
+    WidgetTester tester,
+  ) async {
+    // FluentHorizontalBarChartWithAxis fills every bar flat, so upstream's
+    // "Enable Gradient" switch is left out rather than shown as a live control
+    // that changes nothing.
+    for (final DocsSection each in sectionsOf(page)) {
+      await pumpSection(tester, each);
+      expect(find.textContaining('Gradient'), findsNothing, reason: each.id);
+    }
   });
 
   group('lifecycle', () {

@@ -11,8 +11,8 @@ import 'harness.dart';
 /// `CustomPaint`. So every assertion below reads the chart's own display list —
 /// [paintOps] — or the geometry the painter was handed. A knob that flips the
 /// demo's state and leaves the display list untouched is the defect this suite
-/// exists to catch, and there is exactly one knob on this page that is
-/// *supposed* to do that; it is asserted as inert on purpose.
+/// exists to catch. The one exception is the callout radio, which swaps the
+/// hover popover — a widget — and is asserted through a real mouse hover.
 void main() {
   const String page = 'charts-verticalbarchart';
 
@@ -158,23 +158,11 @@ void main() {
       );
     });
 
-    testWidgets('the callout radios commit while the demo stays inert', (
+    testWidgets('the custom callout radio swaps in the custom popover', (
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
-      final Finder group = find.byType(FluentRadioGroup<String>);
-      final List<Rect> before = _bars(tester);
-
-      await mouseClick(tester, find.text('Custom Callout Example'));
-      expect(
-        tester.widget<FluentRadioGroup<String>>(group).value,
-        'Custom Callout Example',
-      );
-      // Upstream's radio pair swaps in `onRenderCalloutPerDataPoint`, which is
-      // commented out in the story source; the port documents the same inert
-      // behaviour, so the plot must NOT move. This assertion is what would fail
-      // if the pair were ever wired up without the docs following.
-      expect(_bars(tester), before);
+      await _expectCustomCallout(tester);
     });
   });
 
@@ -635,22 +623,11 @@ void main() {
         expect(_paragraphs(tester), titled);
       });
 
-      testWidgets('$id commits its callout radios while staying inert', (
+      testWidgets('$id swaps in the custom popover on demand', (
         WidgetTester tester,
       ) async {
         await pumpSection(tester, section);
-        final Finder group = find.byType(FluentRadioGroup<String>);
-        final List<Rect> before = _bars(tester);
-
-        await mouseClick(tester, find.text('Custom Callout Example'));
-        expect(
-          tester.widget<FluentRadioGroup<String>>(group).value,
-          'Custom Callout Example',
-        );
-        // The same inert pair the default section carries: upstream's story
-        // comments out the renderer they select, and the port keeps both the
-        // control and the inertness.
-        expect(_bars(tester), before);
+        await _expectCustomCallout(tester);
       });
 
       testWidgets('$id hides its labels and collapses its palette', (
@@ -759,17 +736,36 @@ void main() {
   });
 }
 
-/// The chart's display list.
-///
-/// The plot is the first `CustomPaint` under the chart; the legend's swatches
-/// are the others, and they come after it in tree order.
-List<RecordedInvocation> _ops(WidgetTester tester) => paintOps(
-  tester,
-  find.descendant(
-    of: find.byType(FluentVerticalBarChart),
-    matching: find.byType(CustomPaint),
-  ),
+/// The plot's canvas: the first `CustomPaint` under the chart; the legend's
+/// swatches are the others, and they come after it in tree order.
+final Finder _canvas = find.descendant(
+  of: find.byType(FluentVerticalBarChart),
+  matching: find.byType(CustomPaint),
 );
+
+/// The chart's display list.
+List<RecordedInvocation> _ops(WidgetTester tester) => paintOps(tester, _canvas);
+
+/// Hovers the first bar with a real mouse, picks "Custom Callout Example", and
+/// hovers it again: the built-in popover must give way to the demo's body.
+Future<void> _expectCustomCallout(WidgetTester tester) async {
+  Future<TestGesture> hoverFirstBar() => mouseHoverAt(
+    tester,
+    tester.getTopLeft(_canvas.first) + _bars(tester).first.center,
+    what: 'the first bar',
+  );
+
+  TestGesture mouse = await hoverFirstBar();
+  expect(find.byType(FluentChartPopover), findsOneWidget);
+  expect(find.text('Custom callout'), findsNothing);
+  await mouseAway(tester, mouse);
+
+  await mouseClick(tester, find.text('Custom Callout Example'));
+  mouse = await hoverFirstBar();
+  expect(find.text('Custom callout'), findsOneWidget);
+  expect(find.byType(FluentChartPopover), findsNothing);
+  await mouseAway(tester, mouse);
+}
 
 /// Every square-cornered bar the chart drew, in paint order.
 List<Rect> _bars(WidgetTester tester) => <Rect>[
