@@ -361,6 +361,42 @@ void main() {
       expect(band.rules, hasLength(3));
     });
 
+    testWidgets('the custom colour swatch recolours the rules and labels', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(
+        tester,
+        sectionOf('charts-linechart--line-chart-events'),
+      );
+      FluentEventAnnotationPainter band() =>
+          paintersOf<FluentEventAnnotationPainter>(tester).single;
+      final Color neutral = FluentTheme.of(
+        tester.element(find.byType(FluentLineChart)),
+      ).colors.neutralForeground1;
+      expect(band().strokeColor, neutral);
+      expect(band().labelColor, neutral);
+
+      // The 'Use Custom Color for Event Annotation' label used to stand alone
+      // with no control beside it; the swatch picker it now labels drives both
+      // the rule and the label colour, as upstream's customEventAnnotationColor
+      // was meant to.
+      final Finder red = find.byWidgetPredicate(
+        (Widget w) => w is FluentSwatch && w.semanticLabel == 'red',
+      );
+      await mouseClick(tester, red);
+      expect(band().strokeColor, const Color(0xFFFF1921));
+      expect(band().labelColor, const Color(0xFFFF1921));
+
+      await mouseClick(
+        tester,
+        find.byWidgetPredicate(
+          (Widget w) => w is FluentSwatch && w.semanticLabel == 'default',
+        ),
+      );
+      expect(band().strokeColor, neutral);
+      expect(band().labelColor, neutral);
+    });
+
     testWidgets('the currency tick format reaches the y axis', (
       WidgetTester tester,
     ) async {
