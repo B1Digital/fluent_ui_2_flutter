@@ -415,13 +415,14 @@ Widget buildFluentInfoTip(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_field.dart`:
 
 ```dart
 FluentInfoLabel(
-              info: const Text('Your full legal name.'),
-              child: const Text('Full name'),
-            )
+      info: Text('Example info'),
+      infoSemanticLabel: 'More information',
+      child: Text('Field with an info button'),
+    )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -432,7 +433,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/inputs/info_label.dart`, `packages/fluent_2/lib/src/inputs/info_button.dart`
 - Tests: `packages/fluent_2/test/goldens/info_label_golden_test.dart`, `packages/fluent_2/test/inputs/info_button_test.dart`, `packages/fluent_2/test/inputs/info_label_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_field.dart`, `packages/fluent_2/example/lib/pages/components_infolabel.dart`, `packages/fluent_2/example/lib/pages/components_tooltip.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/infolabel/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

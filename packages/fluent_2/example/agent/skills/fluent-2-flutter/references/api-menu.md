@@ -351,21 +351,21 @@ Widget buildFluentMenu(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/stories/button_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_button_menubutton.dart`:
 
 ```dart
 FluentMenu(
-      semanticLabel: 'Sharing options',
-      items: _shareItems((label) => setState(() => _chosen = label)),
-      builder: (context, toggle) => FluentButton(
-        appearance: widget.appearance,
-        size: widget.size,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
-        onPressed: toggle,
-        child: const Text('Share'),
-      ),
-    )
+  items: <FluentMenuItem>[
+    FluentMenuItem(label: const Text('Item a'), onPressed: () {}),
+    FluentMenuItem(label: const Text('Item b'), onPressed: () {}),
+  ],
+  builder: (BuildContext context, VoidCallback toggle) => FluentButton(
+    onPressed: toggle,
+    icon: fluentMenuChevron,
+    iconPosition: FluentButtonIconPosition.after,
+    child: const Text('Example'),
+  ),
+)
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -375,8 +375,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/overlays/menu.dart`
-- Tests: `packages/fluent_2/test/goldens/menu_golden_test.dart`, `packages/fluent_2/test/overlays/menu_test.dart`
-- Stories: `packages/fluent_2/example/lib/stories/button_stories.dart`, `packages/fluent_2/example/lib/stories/menu_stories.dart`, `packages/fluent_2/example/lib/stories/split_button_stories.dart`, `packages/fluent_2/example/lib/stories/toolbar_stories.dart`
+- Tests: `packages/fluent_2/test/charts/declarative/declarative_export_test.dart`, `packages/fluent_2/test/goldens/menu_golden_test.dart`, `packages/fluent_2/test/overlays/menu_test.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_button_menubutton.dart`, `packages/fluent_2/example/lib/pages/components_button_splitbutton.dart`, `packages/fluent_2/example/lib/pages/components_datagrid.dart`, `packages/fluent_2/example/lib/pages/components_list.dart`, `packages/fluent_2/example/lib/pages/components_menu_menu.dart`, `packages/fluent_2/example/lib/pages/components_menu_menulist.dart`, `packages/fluent_2/example/lib/pages/components_nav.dart`, `packages/fluent_2/example/lib/pages/components_tablist.dart`, `packages/fluent_2/example/lib/pages/components_tag_taggroup.dart`, `packages/fluent_2/example/lib/pages/components_toolbar.dart`, `packages/fluent_2/example/lib/pages/components_tree.dart`, `packages/fluent_2/example/lib/pages/theme_colors.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/menu/usage/
 - Design decisions: `references/components-navigation-data.md`
 

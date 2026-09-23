@@ -278,14 +278,25 @@ Widget buildFluentCheckbox(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/charts_donutchart.dart`:
 
 ```dart
 FluentCheckbox(
-                  checked: true,
-                  onChanged: (_) {},
-                  label: const Text('Checked'),
-                )
+          // A Row lays its label out unbounded, so the box that lets this
+          // sentence wrap has to be the label's own.
+          label: const SizedBox(
+            width: 600,
+            child: Text(
+              'Hide labels (Note: The inner radius is changed along with this '
+              'to keep the arc width same)',
+            ),
+          ),
+          checked: _hideLabels,
+          onChanged: (bool? checked) => setState(() {
+            _hideLabels = checked ?? false;
+            _innerRadius = _hideLabels ? 55 : 35;
+          }),
+        )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -296,7 +307,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/inputs/checkbox.dart`
 - Tests: `packages/fluent_2/test/goldens/checkbox_golden_test.dart`, `packages/fluent_2/test/goldens/tree_golden_test.dart`, `packages/fluent_2/test/inputs/checkbox_test.dart`, `packages/fluent_2/test/navigation/data_grid_test.dart`, `packages/fluent_2/test/navigation/list_item_test.dart`, `packages/fluent_2/test/navigation/tree_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/charts_donutchart.dart`, `packages/fluent_2/example/lib/pages/charts_gaugechart.dart`, `packages/fluent_2/example/lib/pages/charts_groupedverticalbarchart.dart`, `packages/fluent_2/example/lib/pages/charts_horizontalbarchart.dart`, `packages/fluent_2/example/lib/pages/charts_horizontalbarchartwithaxis.dart`, `packages/fluent_2/example/lib/pages/charts_linechart.dart`, `packages/fluent_2/example/lib/pages/charts_verticalbarchart.dart`, `packages/fluent_2/example/lib/pages/charts_verticalstackedbarchart.dart`, `packages/fluent_2/example/lib/pages/components_card_card.dart`, `packages/fluent_2/example/lib/pages/components_checkbox.dart`, `packages/fluent_2/example/lib/pages/components_datagrid.dart`, `packages/fluent_2/example/lib/pages/components_dialog.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/checkbox/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

@@ -245,14 +245,26 @@ Widget buildFluentField(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/charts_areachart.dart`:
 
 ```dart
 FluentField(
-              label: FluentLabel(child: Text('First name')),
-              hint: Text('Enter your name'),
-              child: FluentInput(),
-            )
+        label: const Text('Pick one'),
+        child: FluentRadioGroup<String>(
+          value: _example,
+          onChanged: (String value) => setState(() => _example = value),
+          children: const <Widget>[
+            FluentRadio<String>(
+              value: 'basicExample',
+              label: Text('Basic Example'),
+            ),
+            FluentRadio<String>(
+              value: 'calloutExample',
+              label: Text('Custom Callout Example'),
+            ),
+          ],
+        ),
+      )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -262,8 +274,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/inputs/field.dart`
-- Tests: `packages/fluent_2/test/goldens/field_golden_test.dart`, `packages/fluent_2/test/inputs/field_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/inputs_stories.dart`
+- Tests: `packages/fluent_2/test/goldens/field_golden_test.dart`, `packages/fluent_2/test/inputs/field_test.dart`, `packages/fluent_2/test/inputs/switch_test.dart`, `packages/fluent_2/test/surfaces/status_indicator_test.dart`
+- Stories: `packages/fluent_2/example/lib/pages/charts_areachart.dart`, `packages/fluent_2/example/lib/pages/charts_charttable.dart`, `packages/fluent_2/example/lib/pages/charts_declarativechart.dart`, `packages/fluent_2/example/lib/pages/charts_funnelchart.dart`, `packages/fluent_2/example/lib/pages/charts_groupedverticalbarchart.dart`, `packages/fluent_2/example/lib/pages/charts_horizontalbarchartwithaxis.dart`, `packages/fluent_2/example/lib/pages/charts_linechart.dart`, `packages/fluent_2/example/lib/pages/charts_scatterchart.dart`, `packages/fluent_2/example/lib/pages/charts_vegadeclarativechart.dart`, `packages/fluent_2/example/lib/pages/charts_verticalbarchart.dart`, `packages/fluent_2/example/lib/pages/charts_verticalstackedbarchart.dart`, `packages/fluent_2/example/lib/pages/compat_components_calendar.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/field/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

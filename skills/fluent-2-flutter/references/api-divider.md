@@ -222,10 +222,10 @@ Widget buildFluentDivider(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_carousel_carousel.dart`:
 
 ```dart
-FluentDivider(child: Text('OR'))
+FluentDivider(vertical: true)
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -236,7 +236,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/surfaces/divider.dart`
 - Tests: `packages/fluent_2/test/goldens/divider_golden_test.dart`, `packages/fluent_2/test/navigation/nav_test.dart`, `packages/fluent_2/test/navigation/toolbar_test.dart`, `packages/fluent_2/test/surfaces/divider_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_carousel_carousel.dart`, `packages/fluent_2/example/lib/pages/components_divider.dart`, `packages/fluent_2/example/lib/pages/components_tree.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/divider/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

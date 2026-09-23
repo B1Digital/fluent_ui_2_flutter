@@ -215,10 +215,10 @@ Widget buildFluentSkeleton(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_skeleton.dart`:
 
 ```dart
-FluentSkeleton(width: 200, height: 16)
+FluentSkeleton(height: 16, semanticLabel: 'Loading Content')
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -229,7 +229,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/surfaces/skeleton.dart`
 - Tests: `packages/fluent_2/test/goldens/skeleton_golden_test.dart`, `packages/fluent_2/test/surfaces/skeleton_test.dart`
-- Stories: `packages/fluent_2/example/lib/storybook/components/surfaces_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_skeleton.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/skeleton/usage/
 - Design decisions: `references/components-surfaces-feedback.md`
 

@@ -283,16 +283,17 @@ Widget buildFluentSlider(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/gallery/gallery_app.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/charts_areachart.dart`:
 
 ```dart
 FluentSlider(
-            value: (value as double?) ?? min,
-            min: min,
-            max: max,
-            step: step,
-            onChanged: (v) => onChanged(knob.id, v),
-          )
+              value: _width,
+              min: 200,
+              max: 1000,
+              step: 1,
+              semanticLabel: 'Change Width',
+              onChanged: (double value) => setState(() => _width = value),
+            )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -303,7 +304,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/inputs/slider.dart`
 - Tests: `packages/fluent_2/test/goldens/slider_golden_test.dart`, `packages/fluent_2/test/inputs/slider_test.dart`
-- Stories: `packages/fluent_2/example/lib/gallery/gallery_app.dart`, `packages/fluent_2/example/lib/stories/field_stories.dart`, `packages/fluent_2/example/lib/stories/slider_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/charts_areachart.dart`, `packages/fluent_2/example/lib/pages/charts_charttable.dart`, `packages/fluent_2/example/lib/pages/charts_funnelchart.dart`, `packages/fluent_2/example/lib/pages/charts_ganttchart.dart`, `packages/fluent_2/example/lib/pages/charts_gaugechart.dart`, `packages/fluent_2/example/lib/pages/charts_groupedverticalbarchart.dart`, `packages/fluent_2/example/lib/pages/charts_heatmapchart.dart`, `packages/fluent_2/example/lib/pages/charts_horizontalbarchartwithaxis.dart`, `packages/fluent_2/example/lib/pages/charts_linechart.dart`, `packages/fluent_2/example/lib/pages/charts_polarchart.dart`, `packages/fluent_2/example/lib/pages/charts_sankeychart.dart`, `packages/fluent_2/example/lib/pages/charts_scatterchart.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/slider/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

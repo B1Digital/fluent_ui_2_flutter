@@ -55,6 +55,7 @@ const FluentInput({
     this.onChanged,
     this.onSubmitted,
     this.autofocus = false,
+    this.autofillHints,
     this.style,
     this.semanticLabel,
   });
@@ -81,6 +82,7 @@ const FluentInput({
 | `onChanged` | `ValueChanged<String>?` | No | `null` | Invoked on every edit. |
 | `onSubmitted` | `ValueChanged<String>?` | No | `null` | Invoked when the action key is pressed. |
 | `autofocus` | `bool` | No | `false` | Whether to take focus on mount. |
+| `autofillHints` | `Iterable<String>?` | No | `null` | Autofill categories for this field, e.g. `[AutofillHints.username]`. |
 | `style` | `FluentInputStyle?` | No | `null` | Overrides layered over the theme defaults. Merged last, so it wins. |
 | `semanticLabel` | `String?` | No | `null` | Announced by assistive technology. Use it when no visible label names the field — a placeholder is not a label. |
 
@@ -163,6 +165,7 @@ const FluentInputBaseState({
     this.onChanged,
     this.onSubmitted,
     this.autofocus = false,
+    this.autofillHints,
   });
 ```
 
@@ -186,6 +189,7 @@ const FluentInputBaseState({
 | `onChanged` | `ValueChanged<String>?` | No | `null` | Invoked on every edit. |
 | `onSubmitted` | `ValueChanged<String>?` | No | `null` | Invoked when the action key is pressed. |
 | `autofocus` | `bool` | No | `false` | Whether to take focus on mount. |
+| `autofillHints` | `Iterable<String>?` | No | `null` | Autofill categories for this field, e.g. `[AutofillHints.username]`. |
 
 #### State, callback, and accessibility fields
 
@@ -238,6 +242,7 @@ const FluentInputState({
     super.onChanged,
     super.onSubmitted,
     super.autofocus,
+    super.autofillHints,
   });
 ```
 
@@ -263,6 +268,7 @@ const FluentInputState({
 | `onChanged` | `ValueChanged<String>?` | No | `null` | Invoked on every edit. |
 | `onSubmitted` | `ValueChanged<String>?` | No | `null` | Invoked when the action key is pressed. |
 | `autofocus` | `bool` | No | `false` | Whether to take focus on mount. |
+| `autofillHints` | `Iterable<String>?` | No | `null` | Autofill categories for this field, e.g. `[AutofillHints.username]`. |
 
 ### `FluentInputStyle`
 
@@ -279,6 +285,7 @@ const FluentInputStyle({
     this.bottomBorderColor,
     this.bottomBorderWidth,
     this.focusUnderlineColor,
+    this.focusUnderlineWidth,
     this.foregroundColor,
     this.placeholderColor,
     this.contentColor,
@@ -302,7 +309,8 @@ const FluentInputStyle({
 | `borderRadius` | `WidgetStateProperty<BorderRadius?>?` | No | `null` | Corner radius. |
 | `bottomBorderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Bottom-rule colour, painted over the box's bottom edge. Null draws no rule, which is what the two filled appearances want. |
 | `bottomBorderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Bottom-rule thickness. 1 at rest, 2 while pressed. |
-| `focusUnderlineColor` | `WidgetStateProperty<Color?>?` | No | `null` | The brand focus bar's colour. Its thickness is fixed at `FluentStroke.thick`, as upstream hard-codes `2px solid`. |
+| `focusUnderlineColor` | `WidgetStateProperty<Color?>?` | No | `null` | The brand focus bar's colour. Its thickness is [focusUnderlineWidth]. |
+| `focusUnderlineWidth` | `WidgetStateProperty<double?>?` | No | `null` | The brand focus bar's thickness. Null is `FluentStroke.thick`, as upstream hard-codes `2px solid`. |
 | `foregroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Typed-text colour. |
 | `placeholderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Placeholder colour. A separate ramp from [foregroundColor] — Figma's `.Text` layer binds `Neutral/Foreground/4/Rest` in every state but `Read only`, which is the placeholder, not the value. |
 | `contentColor` | `WidgetStateProperty<Color?>?` | No | `null` | Colour of the content-before and content-after slots. |
@@ -365,6 +373,7 @@ FluentInputState resolveFluentInputState({
   ValueChanged<String>? onChanged,
   ValueChanged<String>? onSubmitted,
   bool autofocus = false,
+  Iterable<String>? autofillHints,
 });
 
 FluentInputStyle resolveFluentInputStyle(
@@ -381,12 +390,12 @@ Widget buildFluentInput(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/gallery/gallery_app.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/charts_declarativechart.dart`:
 
 ```dart
 FluentInput(
-            controller: TextEditingController(text: value as String? ?? ''),
-            onChanged: (v) => onChanged(knob.id, v),
+            controller: _selectedLegends,
+            onChanged: (String _) => setState(() {}),
           )
 ```
 
@@ -397,8 +406,8 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/inputs/input.dart`
-- Tests: `packages/fluent_2/test/goldens/input_golden_test.dart`, `packages/fluent_2/test/inputs/dropdown_test.dart`, `packages/fluent_2/test/inputs/input_test.dart`, `packages/fluent_2/test/inputs/radio_test.dart`, `packages/fluent_2/test/inputs/search_box_test.dart`, `packages/fluent_2/test/inputs/spin_button_test.dart`, `packages/fluent_2/test/inputs/swatch_test.dart`, `packages/fluent_2/test/inputs/tag_picker_test.dart`, `packages/fluent_2/test/inputs/textarea_test.dart`, `packages/fluent_2/test/internal/input_modality_test.dart`, `packages/fluent_2/test/internal/interaction_test.dart`, `packages/fluent_2/test/internal/text_context_menu_test.dart`
-- Stories: `packages/fluent_2/example/lib/gallery/gallery_app.dart`, `packages/fluent_2/example/lib/stories/dialog_stories.dart`, `packages/fluent_2/example/lib/stories/field_stories.dart`, `packages/fluent_2/example/lib/stories/info_label_stories.dart`, `packages/fluent_2/example/lib/stories/input_stories.dart`, `packages/fluent_2/example/lib/stories/label_stories.dart`, `packages/fluent_2/example/lib/stories/popover_stories.dart`, `packages/fluent_2/example/lib/stories/tag_picker_stories.dart`
+- Tests: `packages/fluent_2/test/goldens/input_golden_test.dart`, `packages/fluent_2/test/inputs/calendar_test.dart`, `packages/fluent_2/test/inputs/date_picker_test.dart`, `packages/fluent_2/test/inputs/dropdown_test.dart`, `packages/fluent_2/test/inputs/input_test.dart`, `packages/fluent_2/test/inputs/radio_test.dart`, `packages/fluent_2/test/inputs/search_box_test.dart`, `packages/fluent_2/test/inputs/selection_dismissal_test.dart`, `packages/fluent_2/test/inputs/spin_button_test.dart`, `packages/fluent_2/test/inputs/swatch_test.dart`, `packages/fluent_2/test/inputs/tag_picker_test.dart`, `packages/fluent_2/test/inputs/textarea_test.dart`
+- Stories: `packages/fluent_2/example/lib/pages/charts_declarativechart.dart`, `packages/fluent_2/example/lib/pages/charts_vegadeclarativechart.dart`, `packages/fluent_2/example/lib/pages/components_colorpicker.dart`, `packages/fluent_2/example/lib/pages/components_dialog.dart`, `packages/fluent_2/example/lib/pages/components_drawer.dart`, `packages/fluent_2/example/lib/pages/components_field.dart`, `packages/fluent_2/example/lib/pages/components_infolabel.dart`, `packages/fluent_2/example/lib/pages/components_input.dart`, `packages/fluent_2/example/lib/pages/components_tagpicker.dart`, `packages/fluent_2/example/lib/pages/theme_colors.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/input/usage/
 - Design decisions: `references/components-actions-inputs.md`
 

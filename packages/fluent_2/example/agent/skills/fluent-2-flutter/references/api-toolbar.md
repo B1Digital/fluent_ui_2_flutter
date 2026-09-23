@@ -234,23 +234,22 @@ Widget buildFluentToolbar(
 
 ## Verified usage
 
-Checked-in usage excerpt from `packages/fluent_2/example/lib/stories/toolbar_stories.dart`:
+Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_carousel_carousel.dart`:
 
 ```dart
 FluentToolbar(
-    semanticLabel: 'Formatting',
-    size: knobs.get<FluentToolbarSize>('size', FluentToolbarSize.medium),
-    type: knobs.get<FluentToolbarType>('type', FluentToolbarType.standard),
-    items: <Widget>[
-      ..._formatting,
-      if (dividers) const FluentToolbarDivider(),
-      _item(FluentIcons.text_bullet_list_20_regular, 'Bulleted list'),
-      _item(FluentIcons.text_number_list_ltr_20_regular, 'Numbered list'),
-      if (dividers) const FluentToolbarDivider(),
-      _item(FluentIcons.link_20_regular, 'Insert link'),
-      _item(FluentIcons.image_20_regular, 'Insert image'),
-    ],
-  )
+                  items: <Widget>[
+                    for (int index = 0; index < _slideCount; index++)
+                      FluentButton(
+                        appearance: FluentButtonAppearance.subtle,
+                        semanticLabel: 'Carousel Nav Button $index ',
+                        onPressed: index == _activeIndex
+                            ? null
+                            : () => _setActiveIndex(index),
+                        child: Text('$index'),
+                      ),
+                  ],
+                )
 ```
 
 This excerpt verifies current constructor names. It may depend on local
@@ -261,7 +260,7 @@ copying it into a standalone application.
 
 - Implementation: `packages/fluent_2/lib/src/navigation/toolbar.dart`
 - Tests: `packages/fluent_2/test/goldens/toolbar_golden_test.dart`, `packages/fluent_2/test/navigation/toolbar_test.dart`
-- Stories: `packages/fluent_2/example/lib/stories/toolbar_stories.dart`
+- Stories: `packages/fluent_2/example/lib/pages/components_carousel_carousel.dart`, `packages/fluent_2/example/lib/pages/components_drawer.dart`, `packages/fluent_2/example/lib/pages/components_toolbar.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/toolbar/usage/
 - Design decisions: `references/components-navigation-data.md`
 
