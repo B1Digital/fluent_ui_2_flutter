@@ -1308,32 +1308,93 @@ void main() {
     });
 
     testWidgets(
-      'a right press is not :active, as Chrome renders it',
+      'a right press is :active everywhere but on a live stepper, as in Chrome',
       variant: macOS,
       (tester) async {
-        // Chrome sets `:active` for the primary and middle buttons only. A
-        // right press still focuses the `<input>`, so the bar grows, but at
-        // `colorCompoundBrandStroke` (#0f6cbd) rather than the Pressed stop.
-        for (final (buttons, bar) in <(int, Color)>[
-          (kSecondaryMouseButton, c.compoundBrandStroke),
-          (kMiddleMouseButton, c.compoundBrandStrokePressed),
-          (kPrimaryButton, c.compoundBrandStrokePressed),
-        ]) {
-          final node = FocusNode();
-          addTearDown(node.dispose);
-          await pump(tester, build(focusNode: node), theme: light);
-          final at = tester.getRect(find.byKey(key)).centerLeft;
+        // Measured in Chrome, a fresh page per press: a right press on the
+        // `<input>` or the root's padding sets the root's `:active`, so the
+        // focused bar takes the Pressed stop (#0f548c). A right press on a
+        // stepper `<button>` does not, and the bar stays #0f6cbd. Primary and
+        // middle are `:active` everywhere.
+        for (final where in <String>['text', 'padding', 'stepper']) {
+          for (final buttons in <int>[
+            kSecondaryMouseButton,
+            kMiddleMouseButton,
+            kPrimaryButton,
+          ]) {
+            final reason = '$where, buttons $buttons';
+            final node = FocusNode();
+            addTearDown(node.dispose);
+            await pump(tester, build(focusNode: node), theme: light);
+            final box = tester.getRect(find.byKey(key));
+            final at = switch (where) {
+              'text' => tester.getRect(under(EditableText)).centerLeft,
+              'padding' => box.centerLeft,
+              _ => tester.getCenter(stepper(up)),
+            };
+            final mouse = await tester.createGesture(
+              kind: PointerDeviceKind.mouse,
+              buttons: buttons,
+            );
+            await mouse.addPointer(location: at);
+            await tester.pump();
+            await mouse.down(at + const Offset(4, 0));
+            await tester.pump();
+            await tester.pump();
+            expect(node.hasFocus, isTrue, reason: reason);
+            expect(
+              focusBarOf(tester).color,
+              where == 'stepper' && buttons == kSecondaryMouseButton
+                  ? c.compoundBrandStroke
+                  : c.compoundBrandStrokePressed,
+              reason: reason,
+            );
+            await mouse.up();
+            await mouse.removePointer();
+            await pump(tester, const SizedBox());
+          }
+        }
+      },
+    );
+
+    testWidgets(
+      'a right press on a stepper disabled before it is :active, as in Chrome',
+      variant: macOS,
+      (tester) async {
+        // Measured in Chrome, a fresh page per press: only a live stepper
+        // `<button>` keeps a right press's `:active` off the root. One already
+        // `disabled` — read only, or at its bound — leaves the root `:active`,
+        // its sides at the Pressed stop (#b3b3b3). One the press steps onto
+        // its bound was live when pressed, and the root stays at Hover.
+        for (final (name, initial, readOnly, pressed)
+            in <(String, double, bool, bool)>[
+              ('read only', 10, true, true),
+              ('at the bound', 20, false, true),
+              ('onto the bound', 19, false, false),
+            ]) {
+          await pump(
+            tester,
+            controlled(
+              reported: <double?>[],
+              initial: initial,
+              max: 20,
+              readOnly: readOnly,
+            ),
+            theme: light,
+          );
           final mouse = await mouseOn(
             tester,
-            find.byKey(key),
-            buttons: buttons,
+            stepper(up),
+            buttons: kSecondaryMouseButton,
           );
-          // The start padding: chrome, with no text menu to open.
-          await mouse.down(at + const Offset(4, 0));
+          await mouse.down(tester.getCenter(stepper(up)));
           await tester.pump();
           await tester.pump();
-          expect(node.hasFocus, isTrue, reason: 'buttons $buttons');
-          expect(focusBarOf(tester).color, bar, reason: 'buttons $buttons');
+          expect(
+            borderOf(tester).borderColor,
+            pressed ? c.neutralStroke1Pressed : c.neutralStroke1Hover,
+            reason: name,
+          );
           await mouse.up();
           await mouse.removePointer();
           await pump(tester, const SizedBox());
@@ -1836,6 +1897,115 @@ void main() {
           box.center.dy,
           reason: size.name,
         );
+      }
+    });
+
+    testWidgets('a custom field may hold a LayoutBuilder', (tester) async {
+      // No intrinsic pass: a LayoutBuilder cannot answer one, and the
+      // recomposition contract lets a caller pass any field.
+      for (final size in FluentSpinButtonSize.values) {
+        final state = resolveFluentSpinButtonState(
+          size: size,
+          field: LayoutBuilder(
+            builder: (context, constraints) => const SizedBox(height: 10),
+          ),
+        );
+        await pump(
+          tester,
+          KeyedSubtree(
+            key: key,
+            child: buildFluentSpinButton(
+              state,
+              resolveFluentSpinButtonStyle(state, light),
+              const <WidgetState>{},
+            ),
+          ),
+          theme: light,
+        );
+        expect(tester.takeException(), isNull, reason: size.name);
+        final box = tester.getRect(find.byKey(key));
+        final (height, half) = size == FluentSpinButtonSize.medium
+            ? (32.0, 16.0)
+            : (24.0, 12.0);
+        expect(box.height, height, reason: size.name);
+        expect(
+          tester.getTopLeft(stepper(down)).dy - box.top,
+          half,
+          reason: size.name,
+        );
+        expect(
+          tester.getTopRight(stepper(up)).dx,
+          box.right,
+          reason: size.name,
+        );
+      }
+    });
+
+    /// Asked of both ends: whether the field asks for handles, and whether the
+    /// overlay built any.
+    bool handlesShown(WidgetTester tester) =>
+        editableOf(tester).showSelectionHandles ||
+        (tester
+                .state<EditableTextState>(under(EditableText))
+                .selectionOverlay
+                ?.handlesAreVisible ??
+            false);
+
+    testWidgets('a mouse drag never shows the touch handles', variant: macOS, (
+      tester,
+    ) async {
+      await pump(tester, build(value: 123456), theme: light);
+      final text = tester.getRect(under(EditableText)).centerLeft;
+      final mouse = await tester.startGesture(
+        text + const Offset(2, 0),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await mouse.moveTo(text + const Offset(32, 0));
+      await tester.pump();
+      await mouse.up();
+      await tester.pumpAndSettle();
+      expect(controllerOf(tester).selection.isCollapsed, isFalse);
+      expect(handlesShown(tester), isFalse);
+      await mouse.removePointer();
+    });
+
+    testWidgets('a right click never shows the touch handles', variant: macOS, (
+      tester,
+    ) async {
+      await pump(tester, build(value: 123456), theme: light);
+      final at = tester.getRect(under(EditableText)).centerLeft;
+      final right = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryMouseButton,
+      );
+      await right.addPointer(location: at + const Offset(12, 0));
+      await right.down(at + const Offset(12, 0));
+      await right.up();
+      await tester.pumpAndSettle();
+      // macOS selects the word under a right click.
+      expect(controllerOf(tester).selection.isCollapsed, isFalse);
+      expect(handlesShown(tester), isFalse);
+      await right.removePointer();
+    });
+
+    testWidgets('a touch long-press shows the handles unless disabled', (
+      tester,
+    ) async {
+      // TextField's rule: a disabled field never shows them, whatever the
+      // gesture selected.
+      for (final (name, field, shown) in <(String, Widget, bool)>[
+        ('live', build(value: 123456), true),
+        ('read only', build(value: 123456, readOnly: true), true),
+        ('disabled', build(value: 123456, onChanged: null), false),
+      ]) {
+        await pump(tester, field, theme: light);
+        await tester.longPressAt(
+          tester.getRect(under(EditableText)).centerLeft + const Offset(12, 0),
+        );
+        await tester.pumpAndSettle();
+        expect(handlesShown(tester), shown, reason: name);
+        await pump(tester, const SizedBox());
       }
     });
   });

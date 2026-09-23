@@ -433,11 +433,13 @@ Widget buildFluentSpinButton(
   final minimumSize = style.minimumSize?.resolve(states) ?? Size.zero;
 
   // The `<input>` spans the control's full height, and so does its cursor;
-  // its text sits in the middle of it.
+  // its text sits in the middle of it. `heightFactor` keeps it at its own
+  // height when the parent's is loose, and centres it in a taller tight one.
   Widget field = MouseRegion(
     cursor: style.mouseCursor?.resolve(states) ?? MouseCursor.defer,
     child: Align(
       alignment: AlignmentDirectional.centerStart,
+      heightFactor: 1,
       child: Padding(padding: contentPadding, child: state.field),
     ),
   );
@@ -464,25 +466,39 @@ Widget buildFluentSpinButton(
     ),
   );
 
-  // Intrinsic, so `stretch` has a height to stretch to when the parent's is
-  // unbounded (a Column, a Center): the taller of the field and the steppers,
-  // as the grid's `auto` height is. A tight parent height skips the measure.
-  final content = IntrinsicHeight(
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      // Upstream's grid `columnGap: spacingHorizontalXS`, at both sizes.
-      spacing: FluentSpacing.xs,
+  // The grid's `auto` height is the taller of the field and the two stepper
+  // rows. The stepper column's size is known from the style, so the field
+  // sizes the box and the column is pinned over its end: no intrinsic pass,
+  // which a caller's field (a LayoutBuilder, say) may be unable to answer.
+  const rest = <WidgetState>{};
+  final stepperBox = style.stepperSize?.resolve(rest) ?? const Size(24, 16);
+  final content = ConstrainedBox(
+    constraints: BoxConstraints(minHeight: stepperBox.height * 2),
+    child: Stack(
+      fit: StackFit.passthrough,
       children: <Widget>[
-        Expanded(child: field),
+        Padding(
+          // Upstream's grid `columnGap: spacingHorizontalXS`, at both sizes.
+          padding: EdgeInsetsDirectional.only(
+            end: stepperBox.width + FluentSpacing.xs,
+          ),
+          child: field,
+        ),
         // The steppers duplicate the increment and decrement actions the
         // control already publishes on itself, so announcing them again would
         // read the field twice.
-        ExcludeSemantics(
-          child: Column(
-            children: <Widget>[
-              stepper(FluentSpinButtonStepperDirection.increase),
-              stepper(FluentSpinButtonStepperDirection.decrease),
-            ],
+        PositionedDirectional(
+          end: 0,
+          top: 0,
+          bottom: 0,
+          width: stepperBox.width,
+          child: ExcludeSemantics(
+            child: Column(
+              children: <Widget>[
+                stepper(FluentSpinButtonStepperDirection.increase),
+                stepper(FluentSpinButtonStepperDirection.decrease),
+              ],
+            ),
           ),
         ),
       ],
@@ -652,17 +668,20 @@ class FluentSpinButtonStepper extends StatefulWidget {
       _FluentSpinButtonStepperState();
 }
 
-/// The last pointer down a stepper took, and which stepper took it.
+/// The last pointer down a stepper took, which stepper took it, and whether
+/// that stepper was live when it did.
 ///
 /// Flutter hands a pointer event to the deepest hit first, so a stepper sees a
 /// press before the control around it does. [FluentSpinButton] reads this to
 /// tell a press on a `disabled` stepper — which Chrome answers by leaving
-/// nothing focused — from one on the field or the padding.
+/// nothing focused — from one on the field or the padding, and a right press
+/// on a live stepper, which Chrome leaves off the root's `:active`, from one
+/// on a stepper that was already `disabled`, which it does not.
 ///
 /// ponytail: one library-wide slot, matched by identity against the very event
 /// being dispatched, so a stale entry never matches a later press. Pass the
 /// press down an InheritedWidget instead if a second reader ever needs it.
-(PointerEvent, FluentSpinButtonStepperDirection)? _stepperPress;
+(PointerEvent, FluentSpinButtonStepperDirection, bool)? _stepperPress;
 
 class _FluentSpinButtonStepperState extends State<FluentSpinButtonStepper> {
   // `useSpinButton.tsx`'s DEFAULT_SPIN_DELAY_MS, MIN_SPIN_DELAY_MS and
@@ -719,7 +738,11 @@ class _FluentSpinButtonStepperState extends State<FluentSpinButtonStepper> {
   }
 
   void _handleDown(PointerDownEvent event) {
-    _stepperPress = (event.original ?? event, widget.direction);
+    _stepperPress = (
+      event.original ?? event,
+      widget.direction,
+      widget.onPressed != null,
+    );
     if (widget.onPressed == null) return;
     // Chrome sets `:active` for the primary and middle buttons, not for a
     // right press, which still steps: upstream's `onMouseDown` never asks
@@ -1285,17 +1308,21 @@ class _FluentSpinButtonState extends State<FluentSpinButton>
     if (_stepperInert(sign)) _focusNode.unfocus();
   }
 
+  // TextField's rule: the builder records whether the gesture that moved the
+  // selection was a touch or a stylus, so a mouse drag and a right click never
+  // show the touch handles, and a disabled field shows none at all.
   void _handleSelectionChanged(
     TextSelection selection,
     SelectionChangedCause? cause,
   ) {
-    final show = switch (cause) {
-      SelectionChangedCause.longPress ||
-      SelectionChangedCause.drag ||
-      SelectionChangedCause.stylusHandwriting => true,
-      SelectionChangedCause.tap => !selection.isCollapsed,
-      _ => false,
-    };
+    final show =
+        _enabled &&
+        _gestures.shouldShowSelectionHandles &&
+        cause != SelectionChangedCause.keyboard &&
+        !(widget.readOnly && selection.isCollapsed) &&
+        (cause == SelectionChangedCause.longPress ||
+            cause == SelectionChangedCause.stylusHandwriting ||
+            _controller.text.isNotEmpty);
     if (show != _showHandles) setState(() => _showHandles = show);
   }
 
@@ -1420,23 +1447,29 @@ class _FluentSpinButtonState extends State<FluentSpinButton>
       onExit: (_) => _setState(WidgetState.hovered, value: false),
       child: Listener(
         onPointerDown: (event) {
-          // `:active` holds on the root for a press anywhere inside it. Chrome
-          // sets it for the primary and middle buttons, not for a right press.
-          _setState(
-            WidgetState.pressed,
-            value: event.buttons != kSecondaryMouseButton,
-          );
-          // Mouse only: a finger landing here may be starting a scroll, and
-          // must not raise the keyboard.
-          if (event.kind != PointerDeviceKind.mouse) return;
           // The stepper under the press, if any, saw it first.
-          final press = _stepperPress;
-          final sign =
-              press == null || !identical(press.$1, event.original ?? event)
+          final stored = _stepperPress;
+          final press =
+              stored != null && identical(stored.$1, event.original ?? event)
+              ? stored
+              : null;
+          final sign = press == null
               ? 0
               : press.$2 == FluentSpinButtonStepperDirection.increase
               ? 1
               : -1;
+          // `:active` holds on the root for a press anywhere inside it. Chrome
+          // sets it for a right press on the `<input>`, the padding and a
+          // stepper already `disabled`, but not for one on a live stepper
+          // `<button>` — not even one the press steps onto its bound.
+          _setState(
+            WidgetState.pressed,
+            value:
+                event.buttons != kSecondaryMouseButton || !(press?.$3 ?? false),
+          );
+          // Mouse only: a finger landing here may be starting a scroll, and
+          // must not raise the keyboard.
+          if (event.kind != PointerDeviceKind.mouse) return;
           if (sign != 0 && _stepperInert(sign)) {
             // A `disabled` stepper — read only, or at its bound, including
             // the one this very press stepped onto it — cannot take focus, so
