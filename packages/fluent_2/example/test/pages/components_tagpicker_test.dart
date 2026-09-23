@@ -77,6 +77,57 @@ void main() {
       },
     );
 
+    testWidgets('avatars take the families upstream hashes the names to', (
+      WidgetTester tester,
+    ) async {
+      // `Avatar color="colorful"` in Chrome: getHashCode(name) % 30.
+      await pumpSection(tester, section);
+      await openPopup(tester);
+      const Map<String, FluentAvatarColor> upstream =
+          <String, FluentAvatarColor>{
+            'John Doe': FluentAvatarColor.pumpkin,
+            'Jane Doe': FluentAvatarColor.mink,
+            'Max Mustermann': FluentAvatarColor.teal,
+            'Erika Mustermann': FluentAvatarColor.lavender,
+            'Pierre Dupont': FluentAvatarColor.marigold,
+            'Amelie Dupont': FluentAvatarColor.cranberry,
+            'Mario Rossi': FluentAvatarColor.darkRed,
+            'Maria Rossi': FluentAvatarColor.royalBlue,
+          };
+      for (final MapEntry<String, FluentAvatarColor> entry
+          in upstream.entries) {
+        final FluentAvatar avatar = tester.widget<FluentAvatar>(
+          find.byWidgetPredicate(
+            (Widget w) =>
+                w is FluentAvatar &&
+                w.name == entry.key &&
+                w.size == FluentAvatarSize.size32,
+          ),
+        );
+        expect(avatar.color, entry.value, reason: entry.key);
+      }
+    });
+
+    testWidgets('typing makes the first name starting with it active', (
+      WidgetTester tester,
+    ) async {
+      // components-tagpicker--default in Chrome: 'ma' moves the active option
+      // from John Doe to Max Mustermann, and Enter adds him.
+      await pumpSection(tester, section);
+      await openPopup(tester);
+      await tester.enterText(_field(), 'ma');
+      await settle(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await settle(tester);
+      expect(
+        find.descendant(
+          of: find.byType(FluentTag),
+          matching: find.text('Max Mustermann'),
+        ),
+        findsOneWidget,
+      );
+    });
+
     // The regression this page cares about most: the control's tap used to
     // only call `_focusNode.requestFocus`, so a pointer could focus the picker
     // but never open its popup — and the field's own selection gestures win
@@ -188,6 +239,19 @@ void main() {
       await settle(tester);
       expect(find.text('John Doe'), findsOneWidget);
       expect(find.text('Mario Rossi'), findsOneWidget);
+    });
+
+    testWidgets('an open list follows the query as it is typed', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(tester, section);
+      await openPopup(tester);
+      expect(find.text('John Doe'), findsOneWidget);
+
+      await tester.enterText(_field(), 'mario');
+      await settle(tester);
+      expect(find.text('Mario Rossi'), findsOneWidget);
+      expect(find.text('John Doe'), findsNothing);
     });
 
     testWidgets('a query with no matches says so, and offers nothing to pick', (

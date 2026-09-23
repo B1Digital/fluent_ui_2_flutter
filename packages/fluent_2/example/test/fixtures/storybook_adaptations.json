@@ -1555,7 +1555,7 @@
   },
   "components-tag-tag--media": {
     "kind": "slot",
-    "why": "Upstream's separate `media` slot does not exist; FluentTag has one leading `icon` slot, which is what an avatar goes in. FluentAvatar also does not derive initials from `name`, so 'KA' is spelled out alongside the verbatim 'Katri Athokas'."
+    "why": "FluentAvatar does not derive initials from `name`, so 'KA' is spelled out alongside the verbatim 'Katri Athokas'. The avatar goes in FluentTag's `media` slot, as upstream's does."
   },
   "components-tag-tag--shape": {
     "kind": "composed",
@@ -1611,7 +1611,7 @@
   },
   "components-tagpicker--filtering": {
     "kind": "local-state",
-    "why": "`useTagPickerFilter` and `disableAutoFocus` have no port, so filtering is a comprehension over the picker's own controller. The filtered list is mutated in place WITHOUT setState: FluentTagPicker.didUpdateWidget calls `_entry!.markNeedsBuild()` un-deferred, so a parent rebuild while the popup is open asserts 'setState called during build'. The picker rebuilds itself from the same controller, so the rows are fresh whenever the popup is (re)opened; a popup already on screen keeps its rows. Verified with widget tests."
+    "why": "`useTagPickerFilter` and `disableAutoFocus` have no port, so filtering is a comprehension over the picker's own controller. The filtered list is mutated in place without setState: the picker listens to the same controller, after the page, and refreshes an open popup from the list on every keystroke. Verified with widget tests."
   },
   "components-tagpicker--grouped": {
     "kind": "model",

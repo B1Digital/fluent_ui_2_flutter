@@ -1133,8 +1133,6 @@ class _FluentTimePickerState extends State<FluentTimePicker>
       _controller.text = text;
       _committedText = text;
     }
-    // A picker disabled mid-gesture must not keep a stale hover or press.
-    if (!_enabled) _interaction.clear();
     // Deferred: `_syncEntry` inserts into the Overlay, which is a `setState` on
     // a branch that has already been built by the time `didUpdateWidget` runs.
     // A parent flipping a controlled `open:` from false to true would otherwise
@@ -1161,8 +1159,13 @@ class _FluentTimePickerState extends State<FluentTimePicker>
   /// Hover and press, fed by the faceplate's own [MouseRegion] and
   /// [Listener] as `FluentInput` feeds its own: the outline's Hover and Pressed
   /// stops and the bar's `:focus-within:active` colour read them.
+  ///
+  /// Tracked while disabled too and filtered in [build], because Chrome keeps
+  /// a disabled root's `:hover`: re-enabled under a resting mouse, the picker
+  /// hovers at once. The release of a press can land after [dispose], on the
+  /// detached [Listener].
   void _setInteraction(WidgetState state, {required bool value}) {
-    if (!_enabled && value) return;
+    if (!mounted) return;
     final changed = value
         ? _interaction.add(state)
         : _interaction.remove(state);
@@ -1588,10 +1591,15 @@ class _FluentTimePickerState extends State<FluentTimePicker>
           // the bar grows while a press is still held; the tap focuses only
           // on release. A microtask later, so an outside-press blur dispatched
           // after this on the same event — another field's — cannot undo it.
-          // Touch focuses on the tap, as a browser's does.
+          // Touch focuses on the tap, as a browser's does. Through
+          // `requestKeyboard`, which marks the focus as the field's own: a
+          // plain `requestFocus` trips `selectAllOnFocus` on desktop and the
+          // web, and a right or middle press selected the whole value.
           if (_enabled && event.kind == PointerDeviceKind.mouse) {
             scheduleMicrotask(() {
-              if (mounted && _enabled) _focusNode.requestFocus();
+              if (mounted && _enabled) {
+                editableTextKey.currentState?.requestKeyboard();
+              }
             });
           }
         },

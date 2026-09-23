@@ -1,7 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/gestures.dart' show kSecondaryMouseButton;
+import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -157,6 +159,9 @@ class FluentTagPickerOption<T> {
 
   /// Plain text for assistive technology. Supply it when [label] is a glyph or
   /// a rich widget rather than a `Text`.
+  ///
+  /// Type-ahead reads it too: typing makes the first option whose text starts
+  /// with what was typed active. A `Text` label's data stands in when null.
   final String? text;
 
   /// What this row is.
@@ -719,35 +724,64 @@ Widget buildFluentTagPicker(
               // `alignSelf: flex-start`, so wrapped chips grow the control
               // downwards past a chevron that stays on the first line. The
               // content is the root's `alignItems: center`.
-              //
-              // ponytail: IntrinsicHeight is what lets a Row stretch to its
-              // tallest child under an unbounded parent; it costs a second
-              // measuring pass of a handful of chips, and it asserts on a
-              // `LayoutBuilder` in a chip label or the secondary action. A
-              // render object that lays the aside out after the content is
-              // the upgrade, if either ever matters.
-              child: IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+              child: secondary == null
+                  // With no secondary action nothing has to stretch: a
+                  // start-aligned Row pins the chevron, and the content
+                  // centres only when a tight parent or the minimum height
+                  // makes the row taller than it. No intrinsic pass runs, so a
+                  // `LayoutBuilder` in a chip, which cannot answer one, lays
+                  // out.
+                  ? _NaturalThenTight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: <Widget>[
+                                Padding(
+                                  padding: contentPadding,
+                                  child: content,
+                                ),
+                              ],
+                            ),
+                          ),
+                          ?expandIcon,
+                        ],
+                      ),
+                    )
+                  // ponytail: IntrinsicHeight is what lets the aside stretch to
+                  // the content under an unbounded parent; it costs a second
+                  // measuring pass of a handful of chips, and it asserts on a
+                  // `LayoutBuilder` in a chip or in the secondary action. A
+                  // render object that lays the aside out after the content is
+                  // the upgrade, if that ever matters.
+                  : IntrinsicHeight(
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: <Widget>[
-                          Padding(padding: contentPadding, child: content),
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: <Widget>[
+                                Padding(
+                                  padding: contentPadding,
+                                  child: content,
+                                ),
+                              ],
+                            ),
+                          ),
+                          secondary,
+                          if (expandIcon != null)
+                            Align(
+                              alignment: AlignmentDirectional.topCenter,
+                              child: expandIcon,
+                            ),
                         ],
                       ),
                     ),
-                    ?secondary,
-                    if (expandIcon != null)
-                      Align(
-                        alignment: AlignmentDirectional.topCenter,
-                        child: expandIcon,
-                      ),
-                  ],
-                ),
-              ),
             ),
           ),
         ),
@@ -771,6 +805,56 @@ Widget buildFluentTagPicker(
         ),
     ],
   );
+}
+
+/// Lays [child] out at its own height, then again at the height the parent
+/// forces when that is taller — so a `MainAxisAlignment.center` column inside
+/// centres only then.
+///
+/// What `IntrinsicHeight` did for the control, without the intrinsic pass a
+/// `LayoutBuilder` in a chip cannot answer. The first pass is unbounded, so
+/// nothing in [child] may expand to fill it.
+class _NaturalThenTight extends SingleChildRenderObjectWidget {
+  const _NaturalThenTight({required Widget super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderNaturalThenTight();
+}
+
+class _RenderNaturalThenTight extends RenderProxyBox {
+  static BoxConstraints _natural(BoxConstraints constraints) =>
+      constraints.copyWith(minHeight: 0, maxHeight: double.infinity);
+
+  @override
+  void performLayout() {
+    final child = this.child!;
+    child.layout(_natural(constraints), parentUsesSize: true);
+    final height = constraints.constrainHeight(child.size.height);
+    if (height != child.size.height) {
+      child.layout(constraints.tighten(height: height), parentUsesSize: true);
+    }
+    size = constraints.constrain(child.size);
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) =>
+      constraints.constrain(child!.getDryLayout(_natural(constraints)));
+
+  @override
+  double? computeDryBaseline(
+    BoxConstraints constraints,
+    TextBaseline baseline,
+  ) {
+    final natural = child!.getDryLayout(_natural(constraints)).height;
+    final height = constraints.constrainHeight(natural);
+    return child!.getDryBaseline(
+      height == natural
+          ? _natural(constraints)
+          : constraints.tighten(height: height),
+      baseline,
+    );
+  }
 }
 
 /// Renders the popup surface [child] sits on.
@@ -978,6 +1062,10 @@ class FluentTagPicker<T> extends StatefulWidget {
   final Widget? placeholder;
 
   /// The trailing action — Fluent's `TagPicker/Secondary action`.
+  ///
+  /// With one, the control measures its content with an intrinsic pass so the
+  /// action can span its full height, and a `LayoutBuilder` in the action or
+  /// in a chip cannot answer that pass. Without one, no intrinsic pass runs.
   final Widget? secondaryAction;
 
   /// The chevron after the content, which toggles the popup. Pass null to
@@ -1034,6 +1122,18 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
   int? _active;
   ScrollPosition? _scrollPosition;
 
+  /// Whether type-ahead chose [_active]. Upstream's match is focus-visible
+  /// whatever opened the list, so it rings even after a mouse open.
+  bool _typedActive = false;
+
+  /// The field's text as [_handleText] last saw it, so a caret move is not
+  /// read as typing.
+  String _typed = '';
+
+  /// The rows the popup last listed, to tell a caller's filtering apart from
+  /// a keystroke over the same list.
+  List<FluentTagPickerOption<T>> _listed = const [];
+
   TextEditingController get _controller =>
       widget.controller ?? (_internalController ??= TextEditingController());
 
@@ -1053,7 +1153,8 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     _focusNode.addListener(_handleFocusChange);
     // The accent bar and the placeholder both track the field, so the control
     // has to rebuild on the first and last character typed.
-    _controller.addListener(_rebuild);
+    _typed = _controller.text;
+    _controller.addListener(_handleText);
   }
 
   /// The enclosing popup chain's group, or null when this popup is top-level.
@@ -1123,17 +1224,16 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
       _focusNode.addListener(_handleFocusChange);
     }
     if (widget.controller != oldWidget.controller) {
-      (oldWidget.controller ?? _internalController)?.removeListener(_rebuild);
-      _controller.addListener(_rebuild);
+      (oldWidget.controller ?? _internalController)?.removeListener(
+        _handleText,
+      );
+      _typed = _controller.text;
+      _controller.addListener(_handleText);
     }
     if (!_enabled) {
-      // Clear the interaction states rather than leaving a stale hover behind
-      // when a control is disabled mid-gesture.
-      _states
-        ..update(WidgetState.hovered, false)
-        ..update(WidgetState.pressed, false);
       deferOrRun(_close);
     } else if (_open) {
+      _relist();
       // `markNeedsBuild` is a `setState` on the Overlay, same as an insert —
       // deferred for the same reason the branch above is.
       deferOrRun(() => _entry?.markNeedsBuild());
@@ -1147,7 +1247,7 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
       ..removeListener(_rebuild)
       ..dispose();
     (widget.focusNode ?? _internalNode)?.removeListener(_handleFocusChange);
-    (widget.controller ?? _internalController)?.removeListener(_rebuild);
+    (widget.controller ?? _internalController)?.removeListener(_handleText);
     // The listener is what would outlive this State; the position itself is the
     // Scrollable's to dispose, and `removeListener` is documented as safe to
     // call on a notifier that has already gone.
@@ -1170,9 +1270,77 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     _rebuild();
   }
 
+  /// Hover and press, tracked while disabled too and filtered in [build]:
+  /// Chrome keeps a disabled root's `:hover`, so a picker re-enabled under a
+  /// resting mouse hovers at once. The release of a press can land after
+  /// [dispose], on the detached [Listener].
   void _set(WidgetState state, {required bool value}) {
-    if (!_enabled && value) return;
+    if (!mounted) return;
     _states.update(state, value);
+  }
+
+  /// Upstream's `getOptionFromInput`: typed text makes the first option whose
+  /// text starts with it active, and text that starts none leaves nothing
+  /// active — so Enter adds nothing. A caller that filtered the rows on the
+  /// same keystroke gets the new list's first option instead: upstream's
+  /// fallback when an open listbox's children change.
+  void _handleText() {
+    final text = _controller.text;
+    if (text != _typed) {
+      _typed = text;
+      if (_open) {
+        final rows = _rows;
+        // Options compare by identity, so a list rebuilt from fresh options
+        // counts as changed, as a re-rendered upstream `children` does.
+        final changed = !listEquals(rows, _listed);
+        _listed = rows;
+        final query = text.trim().toLowerCase();
+        int? match;
+        if (query.isNotEmpty) {
+          for (var i = 0; i < rows.length && match == null; i++) {
+            final label = rows[i].label;
+            final optionText =
+                rows[i].text ?? (label is Text ? label.data : null);
+            if (_selectable(rows, i) &&
+                (optionText?.toLowerCase().startsWith(query) ?? false)) {
+              match = i;
+            }
+          }
+          if (changed) match ??= _seek(rows, 0, 1);
+        }
+        _active = match;
+        _typedActive = match != null;
+        // The rows themselves may have moved: a caller filtering on this
+        // controller hands over its new list without rebuilding the picker.
+        deferOrRun(() => _entry?.markNeedsBuild());
+        _revealActive();
+      }
+    }
+    _rebuild();
+  }
+
+  /// Carries the active option, not its row, into rows the caller changed:
+  /// upstream's active descendant is an option id. A caller filtering through
+  /// `setState` rebuilds after [_handleText] matched against the old rows.
+  /// When the option is gone, or typed text left nothing active, the first row
+  /// takes over — upstream's fallback when an open listbox's children change.
+  void _relist() {
+    final rows = _rows;
+    if (listEquals(rows, _listed)) return;
+    final index = _active;
+    final was = index != null && index < _listed.length ? _listed[index] : null;
+    _listed = rows;
+    int? next;
+    for (var i = 0; was != null && i < rows.length && next == null; i++) {
+      if (_selectable(rows, i) && rows[i].value == was.value) next = i;
+    }
+    if (next == null && (was != null || _typed.trim().isNotEmpty)) {
+      next = _seek(rows, 0, 1);
+      // Upstream's fallback after a keystroke is focus-visible, as a match is.
+      _typedActive = _typed.trim().isNotEmpty;
+    }
+    _active = next;
+    _revealActive();
   }
 
   /// The options that are not already chosen, which is what the popup lists.
@@ -1192,14 +1360,17 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
   }
 
   void _openPopup({int? active}) {
-    if (_open || !_enabled) return;
+    // Unmounted: the field's release can land after [dispose].
+    if (_open || !_enabled || !mounted) return;
     final overlay = Overlay.of(context, debugRequiredFor: widget);
     // FluentTheme is an InheritedTheme, so this carries it — and any other
     // InheritedTheme between here and the overlay, FluentTagPickerTheme
     // included — across the boundary. MediaQuery does NOT ride along, which is
     // why the popup rows animate nothing.
     final captured = InheritedTheme.capture(from: context, to: overlay.context);
-    _active = active ?? _seek(_rows, 0, 1);
+    _listed = _rows;
+    _active = active ?? _seek(_listed, 0, 1);
+    _typedActive = false;
     _entry = OverlayEntry(builder: (_) => captured.wrap(_buildPopup()));
     overlay.insert(_entry!);
     setState(() {});
@@ -1230,6 +1401,7 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
   void _setActive(int? index) {
     if (index == null || index == _active) return;
     _active = index;
+    _typedActive = false;
     _entry?.markNeedsBuild();
     _revealActive();
   }
@@ -1245,7 +1417,13 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
   }
 
   void _handleTap() {
-    _focusNode.requestFocus();
+    // Through the field's `requestKeyboard`, which marks the focus as its
+    // own: a plain `requestFocus` trips `selectAllOnFocus` on desktop and the
+    // web, selecting whatever a blurred field still held. Upstream's `focus()`
+    // restores the caret.
+    final field = _focusNode.context
+        ?.findAncestorStateOfType<EditableTextState>();
+    field == null ? _focusNode.requestFocus() : field.requestKeyboard();
     _openPopup();
   }
 
@@ -1476,8 +1654,10 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
                 // framework's focus never leaves the field. `_active` is set by
                 // hover too, so on its own it means "active descendant" —
                 // upstream's `data-activedescendant`. The ring belongs to its
-                // focus-visible sibling, which is this AND.
-                if (index == _active && keyboard) WidgetState.focused,
+                // focus-visible sibling, which is this AND — or a type-ahead
+                // match, which upstream always shows focus-visible.
+                if (index == _active && (keyboard || _typedActive))
+                  WidgetState.focused,
               }),
         ),
       ),
@@ -1516,7 +1696,9 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
                 size: _tagSize,
                 appearance: _tagAppearance,
                 enabled: _enabled,
-                icon: option.tagMedia ?? option.media,
+                // Upstream's chip is `<Tag media={<Avatar/>}>`: the avatar
+                // sits 1px inside the border, not at the content inset.
+                media: option.tagMedia ?? option.media,
                 onDismiss: () => _remove(value),
                 dismissSemanticLabel:
                     widget.dismissSemanticLabel ?? fluentL10n(context).remove,
@@ -1543,6 +1725,12 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
   @override
   Widget build(BuildContext context) {
     final states = <WidgetState>{..._states.value};
+    if (!_enabled) {
+      states.removeAll(const <WidgetState>{
+        WidgetState.hovered,
+        WidgetState.pressed,
+      });
+    }
     // Resolved twice: once without a field to get the style the stripped input
     // is built from, then once with it. The first pass never renders.
     final probe = _state(const SizedBox.shrink());

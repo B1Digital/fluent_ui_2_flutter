@@ -219,8 +219,9 @@ const DocsPage tagpickerPage = DocsPage(
 // #docregion components-tagpicker--default
 // `Avatar color="colorful"` hashes the name to a palette family and `Avatar
 // name` derives the initials; `FluentAvatar` does neither, so both are spelled
-// out per employee. `TagPickerGroup aria-label="Selected Employees"` has no
-// port either — the chips are not a separately labellable group here.
+// out per employee — the families upstream's hash picks for these names.
+// `TagPickerGroup aria-label="Selected Employees"` has no port either — the
+// chips are not a separately labellable group here.
 typedef _DefaultEmployee = ({
   String name,
   String initials,
@@ -228,14 +229,14 @@ typedef _DefaultEmployee = ({
 });
 
 const List<_DefaultEmployee> _defaultEmployees = <_DefaultEmployee>[
-  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.peach),
-  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.platinum),
-  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.seafoam),
+  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.pumpkin),
+  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.mink),
+  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.teal),
   (name: 'Erika Mustermann', initials: 'EM', color: FluentAvatarColor.lavender),
-  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.cornflower),
-  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.marigold),
-  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.steel),
-  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.teal),
+  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.marigold),
+  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.cranberry),
+  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.darkRed),
+  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.royalBlue),
 ];
 
 FluentTagPickerOption<String> _defaultOption(_DefaultEmployee employee) =>
@@ -315,14 +316,14 @@ typedef _ButtonEmployee = ({
 });
 
 const List<_ButtonEmployee> _buttonEmployees = <_ButtonEmployee>[
-  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.peach),
-  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.platinum),
-  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.seafoam),
+  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.pumpkin),
+  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.mink),
+  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.teal),
   (name: 'Erika Mustermann', initials: 'EM', color: FluentAvatarColor.lavender),
-  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.cornflower),
-  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.marigold),
-  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.steel),
-  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.teal),
+  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.marigold),
+  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.cranberry),
+  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.darkRed),
+  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.royalBlue),
 ];
 
 FluentTagPickerOption<String> _buttonOption(_ButtonEmployee employee) =>
@@ -390,12 +391,9 @@ class _ButtonState extends State<_Button> {
 // `controller`. `disableAutoFocus` has no port either — the first selectable
 // row is always the active one when the popup opens.
 //
-// The filtered list is mutated in place and deliberately WITHOUT `setState`.
-// The picker listens to the same controller and rebuilds itself on every
-// keystroke, so it picks the new rows up; handing it a fresh list from here
-// instead would rebuild the picker from its parent, and a parent rebuild while
-// the popup is open asks an overlay to rebuild mid-build. The cost is that a
-// popup already on screen keeps its rows until it is reopened.
+// The filtered list is mutated in place, without `setState`: the picker
+// listens to the same controller, after this page does, and refreshes an open
+// popup from the list on every keystroke.
 typedef _FilteringEmployee = ({
   String name,
   String initials,
@@ -403,14 +401,14 @@ typedef _FilteringEmployee = ({
 });
 
 const List<_FilteringEmployee> _filteringEmployees = <_FilteringEmployee>[
-  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.peach),
-  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.platinum),
-  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.seafoam),
+  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.pumpkin),
+  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.mink),
+  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.teal),
   (name: 'Erika Mustermann', initials: 'EM', color: FluentAvatarColor.lavender),
-  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.cornflower),
-  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.marigold),
-  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.steel),
-  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.teal),
+  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.marigold),
+  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.cranberry),
+  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.darkRed),
+  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.royalBlue),
 ];
 
 FluentTagPickerOption<String> _filteringOption(_FilteringEmployee employee) =>
@@ -518,14 +516,14 @@ typedef _SizeEmployee = ({
 });
 
 const List<_SizeEmployee> _sizeEmployees = <_SizeEmployee>[
-  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.peach),
-  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.platinum),
-  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.seafoam),
+  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.pumpkin),
+  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.mink),
+  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.teal),
   (name: 'Erika Mustermann', initials: 'EM', color: FluentAvatarColor.lavender),
-  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.cornflower),
-  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.marigold),
-  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.steel),
-  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.teal),
+  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.marigold),
+  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.cranberry),
+  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.darkRed),
+  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.royalBlue),
 ];
 
 // The Tag sizes its own avatar with the picker: 28 / 20 / 16 on the medium /
@@ -627,14 +625,14 @@ typedef _AppearanceEmployee = ({
 });
 
 const List<_AppearanceEmployee> _appearanceEmployees = <_AppearanceEmployee>[
-  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.peach),
-  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.platinum),
-  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.seafoam),
+  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.pumpkin),
+  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.mink),
+  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.teal),
   (name: 'Erika Mustermann', initials: 'EM', color: FluentAvatarColor.lavender),
-  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.cornflower),
-  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.marigold),
-  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.steel),
-  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.teal),
+  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.marigold),
+  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.cranberry),
+  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.darkRed),
+  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.royalBlue),
 ];
 
 FluentTagPickerOption<String> _appearanceOption(_AppearanceEmployee employee) =>
@@ -769,14 +767,14 @@ typedef _DisabledEmployee = ({
 });
 
 const List<_DisabledEmployee> _disabledEmployees = <_DisabledEmployee>[
-  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.peach),
-  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.platinum),
-  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.seafoam),
+  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.pumpkin),
+  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.mink),
+  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.teal),
   (name: 'Erika Mustermann', initials: 'EM', color: FluentAvatarColor.lavender),
-  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.cornflower),
-  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.marigold),
-  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.steel),
-  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.teal),
+  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.marigold),
+  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.cranberry),
+  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.darkRed),
+  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.royalBlue),
 ];
 
 FluentTagPickerOption<String> _disabledOption(_DisabledEmployee employee) =>
@@ -831,14 +829,14 @@ typedef _ExpandIconEmployee = ({
 });
 
 const List<_ExpandIconEmployee> _expandIconEmployees = <_ExpandIconEmployee>[
-  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.peach),
-  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.platinum),
-  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.seafoam),
+  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.pumpkin),
+  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.mink),
+  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.teal),
   (name: 'Erika Mustermann', initials: 'EM', color: FluentAvatarColor.lavender),
-  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.cornflower),
-  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.marigold),
-  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.steel),
-  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.teal),
+  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.marigold),
+  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.cranberry),
+  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.darkRed),
+  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.royalBlue),
 ];
 
 FluentTagPickerOption<String> _expandIconOption(_ExpandIconEmployee employee) =>
@@ -910,14 +908,14 @@ typedef _SecondaryActionEmployee = ({
 
 const List<_SecondaryActionEmployee>
 _secondaryActionEmployees = <_SecondaryActionEmployee>[
-  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.peach),
-  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.platinum),
-  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.seafoam),
+  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.pumpkin),
+  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.mink),
+  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.teal),
   (name: 'Erika Mustermann', initials: 'EM', color: FluentAvatarColor.lavender),
-  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.cornflower),
-  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.marigold),
-  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.steel),
-  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.teal),
+  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.marigold),
+  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.cranberry),
+  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.darkRed),
+  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.royalBlue),
 ];
 
 FluentTagPickerOption<String> _secondaryActionOption(
@@ -998,17 +996,17 @@ typedef _GroupedEmployee = ({
 });
 
 const List<_GroupedEmployee> _groupedManagers = <_GroupedEmployee>[
-  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.peach),
-  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.platinum),
-  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.seafoam),
+  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.pumpkin),
+  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.mink),
+  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.teal),
   (name: 'Erika Mustermann', initials: 'EM', color: FluentAvatarColor.lavender),
 ];
 
 const List<_GroupedEmployee> _groupedDevs = <_GroupedEmployee>[
-  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.cornflower),
-  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.marigold),
-  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.steel),
-  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.teal),
+  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.marigold),
+  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.cranberry),
+  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.darkRed),
+  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.royalBlue),
 ];
 
 FluentTagPickerOption<String> _groupedOption(_GroupedEmployee employee) =>
@@ -1101,19 +1099,19 @@ const List<_TruncatedEmployee> _truncatedEmployees = <_TruncatedEmployee>[
   (
     name: 'John Doe',
     initials: 'JD',
-    color: FluentAvatarColor.peach,
+    color: FluentAvatarColor.pumpkin,
     fixedWidth: false,
   ),
   (
     name: 'Jane Doe',
     initials: 'JD',
-    color: FluentAvatarColor.platinum,
+    color: FluentAvatarColor.mink,
     fixedWidth: false,
   ),
   (
     name: 'Max Mustermann',
     initials: 'MM',
-    color: FluentAvatarColor.seafoam,
+    color: FluentAvatarColor.teal,
     fixedWidth: false,
   ),
   (
@@ -1125,25 +1123,25 @@ const List<_TruncatedEmployee> _truncatedEmployees = <_TruncatedEmployee>[
   (
     name: 'Pierre Dupont',
     initials: 'PD',
-    color: FluentAvatarColor.cornflower,
+    color: FluentAvatarColor.marigold,
     fixedWidth: false,
   ),
   (
     name: 'Amelie Dupont',
     initials: 'AD',
-    color: FluentAvatarColor.marigold,
+    color: FluentAvatarColor.cranberry,
     fixedWidth: false,
   ),
   (
     name: 'Maria Rossi',
     initials: 'MR',
-    color: FluentAvatarColor.teal,
+    color: FluentAvatarColor.royalBlue,
     fixedWidth: false,
   ),
   (
     name: 'This tag has text truncation based on a fixed width of 50px',
     initials: 'TT',
-    color: FluentAvatarColor.steel,
+    color: FluentAvatarColor.darkGreen,
     fixedWidth: true,
   ),
   (
@@ -1152,7 +1150,7 @@ const List<_TruncatedEmployee> _truncatedEmployees = <_TruncatedEmployee>[
         'long text that will be truncated when it reaches the end of the '
         'container.',
     initials: 'TT',
-    color: FluentAvatarColor.brass,
+    color: FluentAvatarColor.cranberry,
     fixedWidth: false,
   ),
 ];
@@ -1235,14 +1233,14 @@ typedef _SingleSelectEmployee = ({
 
 const List<_SingleSelectEmployee>
 _singleSelectEmployees = <_SingleSelectEmployee>[
-  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.peach),
-  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.platinum),
-  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.seafoam),
+  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.pumpkin),
+  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.mink),
+  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.teal),
   (name: 'Erika Mustermann', initials: 'EM', color: FluentAvatarColor.lavender),
-  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.cornflower),
-  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.marigold),
-  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.steel),
-  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.teal),
+  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.marigold),
+  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.cranberry),
+  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.darkRed),
+  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.royalBlue),
 ];
 
 FluentTagPickerOption<String> _singleSelectOption(
@@ -1370,7 +1368,7 @@ class _NoPopoverState extends State<_NoPopover> {
                   FluentTag(
                     key: ValueKey<String>(value),
                     size: FluentTagSize.extraSmall,
-                    icon: FluentAvatar(
+                    media: FluentAvatar(
                       name: value,
                       initials: value.substring(0, 1).toUpperCase(),
                       color:
@@ -1407,14 +1405,14 @@ typedef _SingleLineEmployee = ({
 });
 
 const List<_SingleLineEmployee> _singleLineEmployees = <_SingleLineEmployee>[
-  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.peach),
-  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.platinum),
-  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.seafoam),
+  (name: 'John Doe', initials: 'JD', color: FluentAvatarColor.pumpkin),
+  (name: 'Jane Doe', initials: 'JD', color: FluentAvatarColor.mink),
+  (name: 'Max Mustermann', initials: 'MM', color: FluentAvatarColor.teal),
   (name: 'Erika Mustermann', initials: 'EM', color: FluentAvatarColor.lavender),
-  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.cornflower),
-  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.marigold),
-  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.steel),
-  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.teal),
+  (name: 'Pierre Dupont', initials: 'PD', color: FluentAvatarColor.marigold),
+  (name: 'Amelie Dupont', initials: 'AD', color: FluentAvatarColor.cranberry),
+  (name: 'Mario Rossi', initials: 'MR', color: FluentAvatarColor.darkRed),
+  (name: 'Maria Rossi', initials: 'MR', color: FluentAvatarColor.royalBlue),
 ];
 
 FluentTagPickerOption<String> _singleLineOption(_SingleLineEmployee employee) =>

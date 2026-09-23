@@ -1,5 +1,6 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
-import 'package:flutter/gestures.dart' show TapDragEndDetails, TapDragUpDetails;
+import 'package:flutter/gestures.dart'
+    show PointerDeviceKind, TapDragEndDetails, TapDragUpDetails;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
@@ -1105,11 +1106,16 @@ class _FluentDatePickerState extends State<FluentDatePicker>
   /// notify the field's node, so one listener would miss half the transitions.
   /// `FluentDropdown` and `FluentTagPicker` never hit this because their popups
   /// never take focus.
+  ///
+  /// [_focused] is the FIELD's own focus, not the picker's: the popup is not
+  /// inside upstream's `.fui-Input`, so focus in the calendar drops
+  /// `:focus-within` and takes the bar away (Chrome).
   void _handleFocusChange() {
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final inside = _focusNode.hasFocus || _scope.hasFocus;
-      if (inside != _focused) setState(() => _focused = _focusNode.hasFocus);
+      final focused = _focusNode.hasFocus;
+      if (focused != _focused) setState(() => _focused = focused);
+      final inside = focused || _scope.hasFocus;
       if (inside == _wasInside) return;
       _wasInside = inside;
       if (inside) return;
@@ -1500,7 +1506,23 @@ class _FluentDatePickerState extends State<FluentDatePicker>
       onEnter: (_) => _setInteraction(WidgetState.hovered, value: true),
       onExit: (_) => _setInteraction(WidgetState.hovered, value: false),
       child: Listener(
-        onPointerDown: (_) => _setInteraction(WidgetState.pressed, value: true),
+        onPointerDown: (event) {
+          _setInteraction(WidgetState.pressed, value: true);
+          // Chrome focuses the `<input>` on mousedown, any button, read-only
+          // or not, so the bar grows under a held press and the click then
+          // opens the popup. `requestKeyboard` rather than `requestFocus`:
+          // that is focus from outside, which on desktop selects the whole
+          // value. A touch still focuses on the tap, as a browser does. Not
+          // while open: upstream traps focus in the popup, so the press leaves
+          // it in the calendar and the bar stays down (Chrome).
+          //
+          // ponytail: the whole faceplate, where Chrome skips the calendar
+          // glyph and the padding past it (focus goes to the body there).
+          // Hit-test the glyph if that difference ever shows.
+          if (_enabled && !_open && event.kind == PointerDeviceKind.mouse) {
+            editableTextKey.currentState?.requestKeyboard();
+          }
+        },
         onPointerUp: (_) => _setInteraction(WidgetState.pressed, value: false),
         onPointerCancel: (_) =>
             _setInteraction(WidgetState.pressed, value: false),

@@ -1,7 +1,12 @@
 import 'package:fluent_2/fluent_2.dart';
 import 'package:fluent_2/src/internal/input_modality.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/gestures.dart'
-    show PointerDeviceKind, kPrimaryButton, kSecondaryMouseButton;
+    show
+        PointerDeviceKind,
+        kMiddleMouseButton,
+        kPrimaryButton,
+        kSecondaryMouseButton;
 import 'package:flutter/rendering.dart' show RendererBinding;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -803,6 +808,87 @@ void main() {
       expect(_border(tester).borderColor, colors.neutralStroke1Hover);
       await mouse.up();
       await tester.pumpAndSettle();
+    });
+
+    testWidgets('a mouse press focuses without selecting the value', (
+      tester,
+    ) async {
+      // Chrome focuses the `<input>` on mousedown and leaves its text alone;
+      // an external `requestFocus` would trip `selectAllOnFocus` on Windows,
+      // Linux and the web, selecting the whole time on a right or middle press.
+      for (final buttons in <int>[
+        kPrimaryButton,
+        kSecondaryMouseButton,
+        kMiddleMouseButton,
+      ]) {
+        await tester.pumpWidget(const SizedBox());
+        await _pump(
+          tester,
+          freeform: true,
+          selectedTime: DateTime(2026, 3, 10, 9, 30),
+        );
+        final editable = tester.state<EditableTextState>(
+          find.byType(EditableText),
+        );
+        final text = tester.getRect(find.byType(EditableText));
+        final at = Offset(text.left + 10, text.center.dy);
+        final mouse = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+          buttons: buttons,
+        );
+        await mouse.addPointer(location: at);
+        await mouse.down(at);
+        await tester.pump();
+        expect(editable.widget.focusNode.hasFocus, isTrue);
+        expect(editable.textEditingValue.text, '09:30');
+        expect(
+          editable.textEditingValue.selection.isCollapsed,
+          isTrue,
+          reason: 'buttons $buttons, held',
+        );
+        await mouse.up();
+        await tester.pumpAndSettle();
+        // A right click on macOS selects the word under it, natively and in
+        // Chrome alike.
+        if (buttons != kSecondaryMouseButton ||
+            defaultTargetPlatform != TargetPlatform.macOS) {
+          expect(
+            editable.textEditingValue.selection.isCollapsed,
+            isTrue,
+            reason: 'buttons $buttons, released',
+          );
+        }
+        await mouse.removePointer();
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+      }
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('a press released after the picker is gone is harmless', (
+      tester,
+    ) async {
+      await _pump(tester);
+      final at = tester.getCenter(find.byType(FluentTimePicker));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: at);
+      addTearDown(mouse.removePointer);
+      await mouse.down(at);
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox());
+      await mouse.up();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('re-enabled under a resting mouse, it hovers at once', (
+      tester,
+    ) async {
+      // Chrome keeps a disabled root's `:hover`, so no new mouseenter is
+      // needed once the picker is enabled again.
+      await _pump(tester, onTimeChange: null);
+      await hover(tester);
+      await _pump(tester);
+      expect(_border(tester).borderColor, colors.neutralStroke1Hover);
     });
 
     testWidgets('Underline and the filled appearances never ramp', (

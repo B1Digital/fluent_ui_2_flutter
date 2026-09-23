@@ -133,12 +133,14 @@ void main() {
       matching: find.byType(FluentInputFocusUnderline),
     );
 
-    testWidgets('hover ramps the border; any button presses it', (
+    testWidgets('hover ramps the border; any button presses and focuses it', (
       tester,
     ) async {
       // Chrome sets `:active` on `.fui-Input` for the right button as well as
-      // the left and middle, so `:focus-within:active::after` turns the bar
-      // Pressed for all three.
+      // the left and middle, and focuses the `<input>` on mousedown for all
+      // three, so `:focus-within:active::after` grows the bar Pressed under
+      // each of them. The focus outlives the press: #b3b3b3 sides and the
+      // #0f6cbd bar after a middle or right release (storybook).
       await _pump(tester);
       expect(_border(tester).borderColor, colors.neutralStroke1);
 
@@ -158,11 +160,17 @@ void main() {
         kMiddleMouseButton,
         kSecondaryMouseButton,
       ]) {
+        FocusManager.instance.primaryFocus?.unfocus();
+        await tester.pumpAndSettle();
+        expect(tester.widget<FluentInputFocusUnderline>(bar).focused, isFalse);
+        expect(_border(tester).borderColor, colors.neutralStroke1Hover);
+
         final press = await tester.startGesture(
           tester.getCenter(picker),
           kind: PointerDeviceKind.mouse,
           buttons: button,
         );
+        await tester.pump();
         await tester.pump();
         expect(
           _border(tester).borderColor,
@@ -175,6 +183,11 @@ void main() {
           reason: 'button $button: bottom',
         );
         expect(
+          tester.widget<FluentInputFocusUnderline>(bar).focused,
+          isTrue,
+          reason: 'button $button: the bar grows while held',
+        );
+        expect(
           tester.widget<FluentInputFocusUnderline>(bar).color,
           colors.compoundBrandStrokePressed,
           reason: 'button $button: bar, #0f548c',
@@ -182,7 +195,138 @@ void main() {
         // Cancelled rather than released, so no tap opens the popup.
         await press.cancel();
         await tester.pump();
-        expect(_border(tester).borderColor, colors.neutralStroke1Hover);
+        expect(find.byType(FluentCalendar), findsNothing);
+        expect(
+          _border(tester).borderColor,
+          colors.neutralStroke1Pressed,
+          reason: 'button $button: focus holds the Pressed sides',
+        );
+        expect(
+          tester.widget<FluentInputFocusUnderline>(bar).color,
+          colors.compoundBrandStroke,
+          reason: 'button $button: bar, #0f6cbd',
+        );
+      }
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('a left press focuses at once; the click still opens', (
+      tester,
+    ) async {
+      // Chrome focuses the `<input>` on mousedown, so the #0f548c bar grows
+      // under a held press, and the popup opens on the click. Focus arrives
+      // the way the field's own tap brings it: a bare `requestFocus` on
+      // desktop selects the whole value, where a browser selects nothing.
+      await _pump(tester, value: DateTime(2026, 3, 14));
+      final press = await tester.startGesture(
+        tester.getCenter(picker),
+        kind: PointerDeviceKind.mouse,
+        buttons: kPrimaryMouseButton,
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(tester.widget<FluentInputFocusUnderline>(bar).focused, isTrue);
+      expect(
+        tester.widget<FluentInputFocusUnderline>(bar).color,
+        colors.compoundBrandStrokePressed,
+      );
+      expect(_controller(tester).selection.isCollapsed, isTrue);
+      expect(find.byType(FluentCalendar), findsNothing);
+
+      await press.up();
+      await tester.pumpAndSettle();
+      expect(find.byType(FluentCalendar), findsOneWidget);
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('focus in the open calendar is not focus in the field', (
+      tester,
+    ) async {
+      // The calendar takes focus, so `.fui-Input` loses `:focus-within`: no
+      // bar, and the resting mouse shows the Hover ramp, #c7c7c7 / #575757
+      // (Chrome). Escape hands focus back, and the bar with it.
+      await _pump(tester);
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: kPrimaryMouseButton,
+      );
+      await mouse.addPointer(location: tester.getCenter(picker));
+      addTearDown(mouse.removePointer);
+      await mouse.down(tester.getCenter(picker));
+      await tester.pump(const Duration(milliseconds: 80));
+      await mouse.up();
+      await tester.pumpAndSettle();
+      expect(find.byType(FluentCalendar), findsOneWidget);
+
+      expect(tester.widget<FluentInputFocusUnderline>(bar).focused, isFalse);
+      expect(_border(tester).borderColor, colors.neutralStroke1Hover);
+      expect(
+        _border(tester).bottomBorderColor,
+        colors.neutralStrokeAccessibleHover,
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(FluentCalendar), findsNothing);
+      expect(tester.widget<FluentInputFocusUnderline>(bar).focused, isTrue);
+      expect(_border(tester).borderColor, colors.neutralStroke1Pressed);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('a press while the calendar is open leaves focus in it', (
+      tester,
+    ) async {
+      // Upstream traps focus in the popup (`legacyTrapFocus`), so a mousedown
+      // on the `<input>` never focuses it while the calendar is open: any
+      // button, held, shows the Pressed sides (#b3b3b3) and no bar, and the
+      // popup keeps focus (Chrome).
+      await _pump(tester);
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: kPrimaryMouseButton,
+      );
+      await mouse.addPointer(location: tester.getCenter(picker));
+      addTearDown(mouse.removePointer);
+      await mouse.down(tester.getCenter(picker));
+      await mouse.up();
+      await tester.pumpAndSettle();
+      final calendar = find.byType(FluentCalendar);
+      expect(calendar, findsOneWidget);
+
+      for (final button in <int>[
+        kPrimaryMouseButton,
+        kMiddleMouseButton,
+        kSecondaryMouseButton,
+      ]) {
+        final press = await tester.startGesture(
+          tester.getCenter(picker),
+          kind: PointerDeviceKind.mouse,
+          buttons: button,
+        );
+        await tester.pump();
+        await tester.pump();
+        expect(
+          tester.widget<FluentInputFocusUnderline>(bar).focused,
+          isFalse,
+          reason: 'button $button: no bar',
+        );
+        expect(
+          _border(tester).borderColor,
+          colors.neutralStroke1Pressed,
+          reason: 'button $button: sides',
+        );
+        expect(
+          find.ancestor(
+            of: find.byWidgetPredicate(
+              (w) =>
+                  w is Focus &&
+                  w.focusNode == FocusManager.instance.primaryFocus,
+            ),
+            matching: calendar,
+          ),
+          findsOneWidget,
+          reason: 'button $button: focus stays in the calendar',
+        );
+        await press.cancel();
+        await tester.pumpAndSettle();
+        expect(calendar, findsOneWidget, reason: 'button $button: still open');
       }
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
