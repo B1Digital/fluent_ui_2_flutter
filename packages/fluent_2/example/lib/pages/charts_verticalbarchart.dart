@@ -1474,9 +1474,9 @@ class _VerticalBarAllNegativeState extends State<_VerticalBarAllNegative> {
       const SizedBox(
         width: 650,
         child: Text(
-          'In this example the supportNegativeData property is enabled and all '
-          'negative y points are passed to the data. As a result chart with '
-          'negative y axis data is rendered.',
+          'In this example all y points are negative. FluentVerticalBarChart '
+          'always plots against a signed y axis, so no extra property is '
+          'needed to render negative data.',
         ),
       ),
       Row(
@@ -1685,9 +1685,9 @@ class _VerticalBarNegativeState extends State<_VerticalBarNegative> {
       const SizedBox(
         width: 650,
         child: Text(
-          'In this example the supportNegativeData property is enabled and '
-          'some positive and some negative y points are passed to the data. As '
-          'a result chart with negative y axis data is rendered.',
+          'In this example some y points are positive and some are negative. '
+          'FluentVerticalBarChart always plots against a signed y axis, so no '
+          'extra property is needed to render negative data.',
         ),
       ),
       const Text('Change Width:'),

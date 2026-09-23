@@ -118,16 +118,12 @@ void main() {
             fill.strokeWidth,
             reason: '${variant.name}: inside stroke width',
           );
-          expect(
-            fill.token('strokeWidth'),
-            switch (fill.strokeWidth!) {
-              1.0 => 'Stroke width/Thin',
-              2.0 => 'Stroke width/Thick',
-              3.0 => 'Stroke width/Thicker',
-              _ => 'Stroke width/Thickest',
-            },
-            reason: '${variant.name}: the fixture names the width token',
-          );
+          expect(fill.token('strokeWidth'), switch (fill.strokeWidth!) {
+            1.0 => 'Stroke width/Thin',
+            2.0 => 'Stroke width/Thick',
+            3.0 => 'Stroke width/Thicker',
+            _ => 'Stroke width/Thickest',
+          }, reason: '${variant.name}: the fixture names the width token');
 
           if (type == 'Initials') {
             final text = variant.text!;
