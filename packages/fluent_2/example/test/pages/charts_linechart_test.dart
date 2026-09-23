@@ -223,11 +223,11 @@ void main() {
     testWidgets('clicking a data point fires the callback it declares', (
       WidgetTester tester,
     ) async {
-      // Every point in this demo carries an `onDataPointClick` that prints, and
-      // the first series carries an `onLineClick`. Upstream binds the click
-      // handler to each rendered marker (`LineChart.tsx:908`, `:1074`,
-      // `:1151`), so a click has to reach one of them. Restored inside the body
-      // rather than in a tearDown: the framework verifies its debug hooks
+      // Every point in this demo carries an `onDataPointClick` that prints.
+      // Upstream binds the click handler to each rendered marker
+      // (`LineChart.tsx:908`, `:1074`, `:1151`), above the line and its
+      // `onLineClick`, so a click has to reach one of them. Restored inside the
+      // body rather than in a tearDown: the framework verifies its debug hooks
       // before tearDowns run.
       final List<String> printed = <String>[];
       final DebugPrintCallback original = debugPrint;
@@ -245,6 +245,33 @@ void main() {
         isNotEmpty,
         reason: 'the point declares onDataPointClick and nothing invoked it',
       );
+    });
+
+    testWidgets('clicking the line between two points fires onLineClick', (
+      WidgetTester tester,
+    ) async {
+      // The first series' `onLineClick` prints its legend. Upstream spreads it
+      // onto every `<line>` the series draws (`LineChart.tsx:1287`), so a
+      // mouse click on the stroke midway between two markers has to reach it.
+      final List<String> printed = <String>[];
+      final DebugPrintCallback original = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) =>
+          printed.add(message ?? '');
+      try {
+        await pumpSection(tester, section);
+        await mouseClickAt(
+          tester,
+          Offset.lerp(
+            markCentre(tester, series: 0, point: 3),
+            markCentre(tester, series: 0, point: 4),
+            0.5,
+          )!,
+          what: 'the first line between its fourth and fifth points',
+        );
+      } finally {
+        debugPrint = original;
+      }
+      expect(printed, <String>['From_Legacy_to_O365']);
     });
   });
 

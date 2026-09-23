@@ -176,7 +176,9 @@ final class FluentLineSeries extends FluentDataSeries {
   /// (`types/DataPoint.ts:1268`).
   final bool hideInactiveDots;
 
-  /// Invoked when the drawn line itself is activated
-  /// (`types/DataPoint.ts:1273`).
+  /// Declared by `types/DataPoint.ts:1273` and never invoked:
+  /// GroupedVerticalBarChart, the only chart that draws this series, binds no
+  /// line click upstream either. [FluentLineChartSeries.onLineClick] is the
+  /// one a `FluentLineChart` invokes.
   final VoidCallback? onLineClick;
 }

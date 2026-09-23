@@ -1985,6 +1985,106 @@ void main() {
     });
   });
 
+  group('FluentLineChartDelegate.activationAt', () {
+    test('hits the stroke of a selected, drawn line and nothing else', () {
+      void alpha() {}
+      void beta() {}
+      // alpha runs along y = 100 with a gap over its second segment
+      // (`index > 1 && index <= 2`); beta runs along y = 300. Default 4px
+      // strokes, so the hit band is 2px either side of the centreline.
+      final series = <FluentLineChartSeries>[
+        FluentLineChartSeries(
+          legend: 'alpha',
+          gaps: const <FluentLineChartGap>[
+            FluentLineChartGap(startIndex: 1, endIndex: 2),
+          ],
+          onLineClick: alpha,
+          data: <FluentLineChartDataPoint>[
+            for (final x in <double>[0, 100, 200])
+              FluentLineChartDataPoint(x: x, y: 100),
+          ],
+        ),
+        FluentLineChartSeries(
+          legend: 'beta',
+          onLineClick: beta,
+          data: <FluentLineChartDataPoint>[
+            for (final x in <double>[0, 200])
+              FluentLineChartDataPoint(x: x, y: 300),
+          ],
+        ),
+      ];
+      VoidCallback? at(
+        Offset position, {
+        String selectedLegend = '',
+        bool optimizeLargeData = false,
+      }) => _delegate(
+        series,
+        theme: _theme(),
+        selectedLegend: selectedLegend,
+        optimizeLargeData: optimizeLargeData,
+      ).activationAt(_identityCtx(), position);
+
+      expect(at(const Offset(50, 101.5)), equals(alpha));
+      expect(at(const Offset(100, 300)), equals(beta));
+      expect(at(const Offset(50, 103)), isNull, reason: 'off the stroke');
+      expect(
+        at(const Offset(150, 100)),
+        isNull,
+        reason: 'LineChart.tsx:1217 draws no <line> inside a gap',
+      );
+      expect(
+        at(const Offset(100, 300), selectedLegend: 'alpha'),
+        isNull,
+        reason: 'the dimmed arm (LineChart.tsx:1291) spreads no click handler',
+      );
+      // Engine B draws one path per series straight through the gap, and
+      // hangs the handler on it (`LineChart.tsx:731`).
+      expect(
+        at(const Offset(150, 100), optimizeLargeData: true),
+        equals(alpha),
+      );
+      expect(
+        at(
+          const Offset(100, 300),
+          selectedLegend: 'alpha',
+          optimizeLargeData: true,
+        ),
+        isNull,
+        reason: 'nor does engine B\'s dimmed arm (LineChart.tsx:736)',
+      );
+    });
+
+    test('the topmost line takes the click, handler or not', () {
+      void top() {}
+      void under() {}
+      FluentLineChartSeries line(String legend, VoidCallback? onLineClick) =>
+          FluentLineChartSeries(
+            legend: legend,
+            onLineClick: onLineClick,
+            data: <FluentLineChartDataPoint>[
+              for (final x in <double>[0, 200])
+                FluentLineChartDataPoint(x: x, y: 100),
+            ],
+          );
+      VoidCallback? at(List<FluentLineChartSeries> series) => _delegate(
+        series,
+        theme: _theme(),
+        selectedLegend: '',
+      ).activationAt(_identityCtx(), const Offset(100, 100));
+
+      // Series 0 paints last, so it is on top (`LineChart.tsx:535`).
+      expect(
+        at(<FluentLineChartSeries>[line('a', top), line('b', under)]),
+        equals(top),
+      );
+      expect(
+        at(<FluentLineChartSeries>[line('a', null), line('b', under)]),
+        isNull,
+        reason: 'an SVG click lands on the topmost <line> and stops there',
+      );
+    });
+  });
+
   group('FluentLineChart', () {
     Future<void> pump(
       WidgetTester tester,
@@ -2521,6 +2621,84 @@ void main() {
             'LineChart.tsx:1447 pushes',
       );
       handle.dispose();
+    });
+
+    testWidgets('a mouse click on the line runs onLineClick', (tester) async {
+      var lineClicks = 0;
+      var pointClicks = 0;
+      await pump(
+        tester,
+        FluentLineChart(
+          data: FluentChartData(
+            lineChartData: <FluentLineChartSeries>[
+              FluentLineChartSeries(
+                legend: 'alpha',
+                onLineClick: () => lineClicks++,
+                data: <Object>[
+                  for (var i = 1; i <= 4; i++)
+                    FluentLineChartDataPoint(
+                      x: i,
+                      y: i * 10.0,
+                      onDataPointClick: () => pointClicks++,
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final plot = find
+          .descendant(
+            of: find.byType(FluentCartesianChart),
+            matching: find.byType(CustomPaint),
+          )
+          .first;
+      final painter =
+          tester.widget<CustomPaint>(plot).painter!
+              as FluentCartesianChartPainter;
+      final marks = (painter.delegate as FluentLineChartDelegate).markersFor(
+        FluentCartesianChildContext(
+          xScale: painter.xAxis.scale,
+          yScalePrimary: painter.yAxisPrimary.scale,
+          yScaleSecondary: painter.yAxisSecondary?.scale,
+          containerWidth: painter.layout.size.width,
+          containerHeight: painter.layout.size.height,
+        ),
+      );
+      final origin = tester.getTopLeft(plot);
+      final a = marks.firstWhere((mark) => mark.pointIndex == 1).centre;
+      final b = marks.firstWhere((mark) => mark.pointIndex == 2).centre;
+      // A real mouse: press, hold, drift, release.
+      Future<void> click(Offset position) async {
+        final gesture = await tester.startGesture(
+          origin + position,
+          kind: ui.PointerDeviceKind.mouse,
+        );
+        await tester.pump(const Duration(milliseconds: 90));
+        await gesture.moveBy(const Offset(1.5, 0));
+        await gesture.up();
+        await tester.pumpAndSettle();
+      }
+
+      await click(a);
+      expect(
+        (pointClicks, lineClicks),
+        (1, 0),
+        reason:
+            'the marker sits above the line, so it takes the click '
+            '(LineChart.tsx:908)',
+      );
+      await click(Offset.lerp(a, b, 0.5)!);
+      expect(
+        (pointClicks, lineClicks),
+        (1, 1),
+        reason:
+            'LineChart.tsx:1287 spreads onLineClick onto the <line>, so a '
+            'click on the stroke between two markers must run it',
+      );
+      await click(Offset.lerp(a, b, 0.5)! + const Offset(0, 20));
+      expect(lineClicks, 1, reason: 'a click off the stroke is no line click');
     });
 
     testWidgets('a date x reaches the callout formatted', (tester) async {
