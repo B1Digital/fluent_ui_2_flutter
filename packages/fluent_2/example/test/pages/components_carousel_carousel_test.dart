@@ -122,6 +122,64 @@ void main() {
     });
   });
 
+  // The port's autoplay button has no pressed/toggled semantics (upstream's
+  // CarouselAutoplayButton reports aria-pressed), so swapping playLabel for
+  // pauseLabel is the only cue a screen reader gets for the playback state.
+  group('autoplay button', () {
+    testWidgets('every autoplay demo gives play and pause distinct labels', (
+      WidgetTester tester,
+    ) async {
+      final List<String> same = <String>[];
+      for (final DocsSection section in sectionsOf(page)) {
+        await pumpSection(tester, section);
+        for (final FluentCarousel carousel in tester.widgetList<FluentCarousel>(
+          find.byType(FluentCarousel),
+        )) {
+          if (carousel.playLabel != null &&
+              carousel.playLabel == carousel.pauseLabel) {
+            same.add('${section.id}: "${carousel.playLabel}"');
+          }
+        }
+        await expectCleanTeardown(tester, section.id);
+      }
+      expect(same, isEmpty, reason: 'identical play/pause labels:\n$same');
+    });
+
+    testWidgets('toggling autoplay renames the button', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      final Finder toggle = find.byWidgetPredicate(
+        (Widget w) =>
+            w is Icon &&
+            (w.icon == FluentIcons.play_20_regular ||
+                w.icon == FluentIcons.pause_20_regular),
+      );
+      // Default drives the library's in-nav button; Controlled hand-builds
+      // its own toggle beside a controlled carousel.
+      for (final String id in <String>['default', 'controlled']) {
+        await pumpSection(tester, sectionOf('$page--$id'));
+        expect(toggle, findsOneWidget, reason: id);
+        final IconData? icon = tester.widget<Icon>(toggle).icon;
+        final String before = tester.getSemantics(toggle).label;
+
+        await mouseClick(tester, toggle);
+        expect(
+          tester.widget<Icon>(toggle).icon,
+          isNot(icon),
+          reason: '$id: the click must toggle autoplay',
+        );
+        expect(
+          tester.getSemantics(toggle).label,
+          isNot(before),
+          reason: '$id: the autoplay button is "$before" in both states',
+        );
+        await expectCleanTeardown(tester, id);
+      }
+      handle.dispose();
+    });
+  });
+
   group('lifecycle', () {
     testWidgets('every section unmounts without throwing', (
       WidgetTester tester,
