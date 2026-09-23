@@ -40,7 +40,9 @@ class FluentFocusRing extends StatelessWidget {
     required this.visible,
     required this.child,
     this.borderRadius = FluentRadius.allMedium,
-  }) : innerWidth = FluentStroke.none;
+  }) : innerWidth = FluentStroke.none,
+       insets = null,
+       innerColor = null;
 
   /// Draws Figma's two-tone ring: 2px `strokeFocus2` outside, 1px
   /// `strokeFocus1` inside.
@@ -52,7 +54,26 @@ class FluentFocusRing extends StatelessWidget {
     required this.visible,
     required this.child,
     this.borderRadius = FluentRadius.allMedium,
-  }) : innerWidth = FluentStroke.thin;
+  }) : innerWidth = FluentStroke.thin,
+       insets = null,
+       innerColor = null;
+
+  /// Draws upstream Button's indicator, which sits INSIDE the component.
+  ///
+  /// `useButtonStyles`' `createCustomFocusIndicatorStyle` turns the button's
+  /// border `strokeFocus2` and adds a 1px inset shadow of the same colour, so
+  /// the ring is [insets] deep: 2px wherever the component has a border, 1px
+  /// where it has none. [innerColor], when given, is a further 1px ring inside
+  /// that — primary's `colorNeutralForegroundOnBrand`. Nothing is drawn
+  /// outside the component, so nothing a neighbour paints can cover it.
+  const FluentFocusRing.inset({
+    super.key,
+    required this.visible,
+    required this.child,
+    this.borderRadius = FluentRadius.allMedium,
+    EdgeInsetsGeometry this.insets = const EdgeInsets.all(FluentStroke.thick),
+    this.innerColor,
+  }) : innerWidth = innerColor == null ? FluentStroke.none : FluentStroke.thin;
 
   /// Whether the ring is drawn.
   ///
@@ -71,8 +92,17 @@ class FluentFocusRing extends StatelessWidget {
   final Widget child;
 
   /// Width of the inner ring: [FluentStroke.none], or [FluentStroke.thin] for
-  /// [FluentFocusRing.twoTone].
+  /// [FluentFocusRing.twoTone] and an [FluentFocusRing.inset] with an
+  /// [innerColor].
   final double innerWidth;
+
+  /// How deep [FluentFocusRing.inset]'s ring reaches in from each edge. Null
+  /// for the rings drawn outside.
+  final EdgeInsetsGeometry? insets;
+
+  /// The inner ring's colour for [FluentFocusRing.inset]; `strokeFocus1`
+  /// otherwise.
+  final Color? innerColor;
 
   @override
   Widget build(BuildContext context) {
@@ -83,9 +113,12 @@ class FluentFocusRing extends StatelessWidget {
       foregroundPainter: FluentFocusRingPainter(
         visible: visible,
         outer: colors.strokeFocus2,
-        inner: colors.strokeFocus1,
+        inner: innerColor ?? colors.strokeFocus1,
         borderRadius: borderRadius,
         innerWidth: innerWidth,
+        insets: insets?.resolve(
+          Directionality.maybeOf(context) ?? TextDirection.ltr,
+        ),
       ),
       child: child,
     );
@@ -109,6 +142,7 @@ class FluentFocusRingPainter extends CustomPainter {
     required this.borderRadius,
     this.outerWidth = FluentStroke.thick,
     this.innerWidth = FluentStroke.none,
+    this.insets,
   });
 
   /// Whether anything is painted at all.
@@ -130,10 +164,32 @@ class FluentFocusRingPainter extends CustomPainter {
   /// Figma's second tone.
   final double innerWidth;
 
+  /// How deep an inside ring reaches in from each edge, replacing
+  /// [outerWidth]; null draws the rings outside the component.
+  final EdgeInsets? insets;
+
   @override
   void paint(Canvas canvas, Size size) {
     if (!visible) return;
     final rect = Offset.zero & size;
+
+    final insets = this.insets;
+    if (insets != null) {
+      // Inside: the band between the component's own outline and that outline
+      // brought in by [insets], its radii shrinking with it as a CSS padding
+      // edge's do; the inner tone, if any, is the next pixel in.
+      final edge = borderRadius.toRRect(rect);
+      final ring = insets.deflateRRect(edge);
+      canvas.drawDRRect(edge, ring, Paint()..color = outer);
+      if (innerWidth > 0) {
+        canvas.drawDRRect(
+          ring,
+          ring.deflate(innerWidth),
+          Paint()..color = inner,
+        );
+      }
+      return;
+    }
 
     // A stroke is centred on its path, so strokeAlign OUTSIDE for a width-w
     // stroke is the same path inflated by w/2, and INSIDE is deflated by w/2.
@@ -141,7 +197,7 @@ class FluentFocusRingPainter extends CustomPainter {
     // concentric instead of merely nested — so a width-w ring around a radius-r
     // component has an OUTER corner radius of r + w.
     //
-    // That matches the `box-shadow: 0 0 0 2px` idiom Tab and Button use, where
+    // That matches the `box-shadow: 0 0 0 2px` idiom Tab uses, where
     // CSS grows the shadow's corner radius by the spread. Components on
     // `createFocusOutlineStyle` instead get a `::after` box at inset -2px
     // carrying a flat `border-radius: 4px`, i.e. an outer radius of 4 whatever
@@ -189,5 +245,6 @@ class FluentFocusRingPainter extends CustomPainter {
       oldDelegate.inner != inner ||
       oldDelegate.outerWidth != outerWidth ||
       oldDelegate.innerWidth != innerWidth ||
-      oldDelegate.borderRadius != borderRadius;
+      oldDelegate.borderRadius != borderRadius ||
+      oldDelegate.insets != insets;
 }

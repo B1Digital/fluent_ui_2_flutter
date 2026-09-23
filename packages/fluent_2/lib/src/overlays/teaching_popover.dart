@@ -327,9 +327,13 @@ FluentTeachingPopoverStyle resolveFluentTeachingPopoverStyle(
       hover: c.transparentBackgroundHover,
       pressed: c.transparentBackgroundPressed,
     ),
+    // Upstream's nav sets its dots 4 apart (`gap: 4px`, no padding), where
+    // Figma's 4-wide tap targets set them 8 apart. Half Figma's padding keeps
+    // a target round each dot at upstream's spacing — and is what lets the
+    // dots and a page count sit between two footer buttons at their 96 floor.
     dotPadding: const WidgetStatePropertyAll<EdgeInsetsGeometry?>(
       EdgeInsets.symmetric(
-        horizontal: FluentSpacing.xs,
+        horizontal: FluentSpacing.xxs,
         vertical: FluentSpacing.sNudge,
       ),
     ),
@@ -579,9 +583,8 @@ Widget _buildCarousel(
     mainAxisSize: MainAxisSize.min,
     crossAxisAlignment: CrossAxisAlignment.center,
     children: <Widget>[
-      // No gap: Figma's `Pagination` frame has itemSpacing 0 and the dots are
-      // held apart by their own 4-wide padding. React's nav uses a 4 gap on top
-      // of unpadded dots, which halves the distance between them.
+      // No gap: the dots are held apart by their own padding, 2 a side, which
+      // lands them 4 apart as React's nav does.
       for (var i = 0; i < carousel.steps; i++)
         _buildDot(carousel, i, style, states),
       if (pageCount != null)
