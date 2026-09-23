@@ -59,6 +59,18 @@ melos:
         dirExists: test
       description: Run every test suite with line coverage.
 
+    goldens:
+      # The golden images are recorded on Linux amd64 under TZ=UTC, where CI
+      # compares them, and `test` skips them everywhere else. These two run
+      # them in that pinned image from any host with Docker. See
+      # packages/fluent_2/test/goldens/README.md.
+      run: bash packages/fluent_2/test/goldens/docker.sh
+      description: Check the golden images in the pinned Linux amd64 image.
+
+    goldens:update:
+      run: bash packages/fluent_2/test/goldens/docker.sh --update-goldens
+      description: Regenerate the golden images in the pinned Linux amd64 image.
+
     gen-l10n:
       # Regenerates packages/fluent_2/lib/src/l10n/ from l10n/*.arb. The
       # output is checked in, so this is only run when a message changes.

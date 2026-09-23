@@ -2,15 +2,23 @@
 ///
 /// These images catch *unintended* visual change between commits — a padding
 /// that moved, a token that stopped resolving, a surface that went transparent.
-/// They prove nothing about whether the component matches Figma, because the
-/// `flutter test` does not register bundled application fonts, so it substitutes
-/// a deterministic placeholder font whose glyphs are all identical boxes.
-/// Figma fidelity is asserted numerically by `spec_fixture.dart` against
-/// `test/fixtures/*.json`.
+/// They prove nothing about whether the component matches Figma: that is
+/// asserted numerically by `spec_fixture.dart` against `test/fixtures/*.json`.
 ///
-/// The open-source Selawik substitute is bundled for real applications but is
-/// deliberately not loaded by this harness. The placeholder font is what makes
-/// these goldens reproduce across machines.
+/// ## Linux amd64 owns the images
+///
+/// The images hold real glyphs. `test/flutter_test_config.dart` loads Selawik
+/// and both Fluent System Icons fonts before every test, so text and icons
+/// render as they do in a release Web build. Glyphs are what the engine does
+/// not rasterise the same everywhere: the macOS `flutter_tester` draws them
+/// through CoreText, heavier and with a wider anti-aliased edge, while the
+/// Linux one uses the FreeType it links statically and reads no system font.
+/// Paths and gradients also round one level apart on arm64 and x86.
+///
+/// So the images are recorded where CI compares them: Linux amd64, `TZ=UTC`,
+/// Flutter 3.47.1, from the pinned image in `test/goldens/Dockerfile`.
+/// Anywhere else [expectGolden] marks its test skipped instead of comparing,
+/// because every image with a glyph in it would fail.
 ///
 /// ## Using it
 ///
@@ -18,9 +26,13 @@
 /// goldenGridTest('badge', () => goldenGrid(<Widget>[...], columns: 4));
 /// ```
 ///
-/// That emits one image per theme into `test/goldens/goldens/`. Regenerate with
-/// `flutter test --update-goldens test/goldens/`, then re-run without the flag.
+/// That emits one image per theme into `test/goldens/goldens/`. From the
+/// repository root, `dart run melos run goldens` checks them in the pinned
+/// image and `dart run melos run goldens:update` regenerates them; see
+/// `test/goldens/README.md`.
 library;
+
+import 'dart:ffi' show Abi;
 
 import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/widgets.dart';
@@ -32,6 +44,13 @@ const Key _boundary = Key('golden-boundary');
 
 /// Inset between the grid and the edge of the captured image.
 const double _margin = FluentSpacing.l;
+
+/// Why goldens are not compared on this machine, or null on Linux amd64,
+/// the only platform the images are recorded on.
+final String? _goldenSkipReason = Abi.current() == Abi.linuxX64
+    ? null
+    : 'golden images are recorded on Linux amd64, not ${Abi.current()}; '
+          'run them with `dart run melos run goldens`';
 
 /// The three themes every component grid is captured in.
 ///
@@ -65,6 +84,12 @@ Future<void> expectGolden(
   Duration? elapsed,
   bool reducedMotion = false,
 }) async {
+  final skipReason = _goldenSkipReason;
+  if (skipReason != null) {
+    markTestSkipped(skipReason);
+    return;
+  }
+
   tester.view.physicalSize = surfaceSize ?? const Size(1200, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -117,9 +142,8 @@ Future<void> expectGolden(
 ///
 /// One image of every variant beats 150 one-variant images: a reviewer diffs a
 /// single PNG per component per theme and sees which cell moved. Cells are not
-/// labelled — the placeholder test font draws every glyph as the same box, so a
-/// caption would be noise. The cell order is the order in the test file, which
-/// is the legend.
+/// labelled: a caption would be text the component did not draw. The cell
+/// order is the order in the test file, which is the legend.
 Widget goldenGrid(List<Widget> cells, {int columns = 4, double gap = 16}) =>
     Column(
       mainAxisSize: MainAxisSize.min,

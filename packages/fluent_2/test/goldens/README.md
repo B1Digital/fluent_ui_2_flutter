@@ -8,12 +8,8 @@ resolving, a surface that went transparent — fails a test instead of shipping.
 
 ## What these are not
 
-**Not proof of Figma fidelity.** The application bundles the open-source Selawik
-substitute, but this test harness deliberately does not register application
-fonts. `flutter test` therefore substitutes a placeholder font that draws every
-glyph as an identical box. The icon font is not loaded either, so icons are
-boxes too. An image that matches its golden says the component renders the same
-as it did last commit — nothing more.
+**Not proof of Figma fidelity.** An image that matches its golden says the
+component renders the same as it did last commit — nothing more.
 
 Fidelity against the design is asserted **numerically**, by
 `test/support/spec_fixture.dart` against `test/fixtures/*.json`: resolved sizes,
@@ -21,8 +17,36 @@ paddings, radii, stroke widths and ARGB fills, compared to the values extracted
 from the Figma file. That is the file to change if you want to know whether a
 component is *correct*. This directory only knows whether it *changed*.
 
-The placeholder font is a feature here, not a limitation — it is what makes the
-images reproduce byte-for-byte across machines.
+## The text and icons are real
+
+`test/flutter_test_config.dart` loads the Selawik family a release Web build
+uses, and both Fluent System Icons fonts, before every test. Labels and icons
+in these images are the real glyphs, not the identical boxes of `flutter
+test`'s placeholder font. A character Selawik lacks still falls back to that
+placeholder and draws as a box.
+
+## Linux amd64 owns the images
+
+Real glyphs are what make the images platform-bound. Text is laid out the same
+everywhere, but it is not rasterised the same:
+
+- The **macOS** `flutter_tester` draws glyphs through CoreText. They come out
+  heavier, with a wider anti-aliased edge.
+- The **Linux** `flutter_tester` draws them with the FreeType it links
+  statically. It reads no system font and no fontconfig, so a bare container
+  and a CI runner produce the same pixels.
+
+Glyph positions, image sizes and colours agree; glyph edges do not, so every
+image with text or an icon in it differs between the two. On top of that, arm64
+and x86 round some paths and gradients one level apart (`color_picker`,
+`search_box.focused`, a few charts).
+
+So the images are recorded where CI compares them: **Linux amd64, `TZ=UTC`,
+Flutter 3.47.1**, in the image [`Dockerfile`](Dockerfile) pins (Ubuntu 24.04 by
+digest, Flutter by tag and revision). Anywhere else, `expectGolden` in
+`test/support/golden.dart` marks the test **skipped**, with a reason that names
+the command below. A plain `flutter test` on a Mac stays green and says what it
+did not check; CI on `ubuntu-latest` runs every image.
 
 ## Layout
 
@@ -30,9 +54,9 @@ One image per component per theme, not one per variant: `badge.light.png` holds
 all 28 colour/appearance pairs plus the sizes and layouts. A reviewer diffs one
 PNG and sees which cell moved, instead of scrolling 150 near-identical files.
 
-Cells are **not labelled** — a caption would render as a row of boxes. The cell
-order is the order of the list in the matching `*_golden_test.dart`, and that
-file's header comment says what each row is.
+Cells are **not labelled** — a caption would be text the component did not
+draw. The cell order is the order of the list in the matching
+`*_golden_test.dart`, and that file's header comment says what each row is.
 
 Three themes each: `light`, `dark`, `high_contrast`. High contrast is not
 garnish. It is the mode nobody looks at, and the one where a hardcoded
@@ -51,19 +75,30 @@ out on them. Their tests pump a single frame at a **fixed elapsed time**
 rotation, a quarter of the 3000ms indeterminate sweep. Mid-cycle on purpose — at
 an endpoint a stalled controller would look identical to a working one.
 
-## Regenerating
+## Running and regenerating
+
+From the repository root, with Docker running:
 
 ```sh
-cd packages/fluent_2
-flutter test --update-goldens test/goldens/   # rewrite the images
-flutter test test/goldens/                    # then verify a clean run passes
+dart run melos run goldens          # compare with the committed images
+dart run melos run goldens:update   # rewrite them, then run `goldens` again
 ```
+
+Both run [`docker.sh`](docker.sh). It builds the image for `linux/amd64`
+(emulated on Apple Silicon), copies the tree into a container without any
+`.dart_tool` or `build/`, and runs `flutter pub get` and `flutter test
+test/goldens/` there. Only images come back: `goldens/*.png` after a successful
+update, and `failures/` when a comparison fails. The host's own `.dart_tool`,
+whose `package_config.json` holds host paths, is never touched.
+
+On a Linux amd64 machine with Flutter 3.47.1 the images can be checked
+natively: `TZ=UTC flutter test test/goldens/` in `packages/fluent_2`.
 
 Never commit a `--update-goldens` run you have not looked at. The whole point is
 that the diff is reviewable, and an unexamined regeneration converts a caught
 regression into a committed one.
 
-261 images, ~6.3 MB total. Keep the growth per component small: coarsen a grid
+264 images, ~6.8 MB total. Keep the growth per component small: coarsen a grid
 rather than adding a megabyte of PNG.
 
 ## Known ceiling
@@ -71,7 +106,8 @@ rather than adding a megabyte of PNG.
 Flutter goldens are only stable for a given engine build. A Flutter upgrade that
 changes rasterisation or text layout will fail every image at once; that is a
 regeneration, not a regression. A wholesale failure across every image at once
-is the signal.
+is the signal. Move the tag and revision in `Dockerfile` together with
+`flutter-version` in `.github/workflows/test.yml`, then run `goldens:update`.
 
 ## What the first run caught
 
