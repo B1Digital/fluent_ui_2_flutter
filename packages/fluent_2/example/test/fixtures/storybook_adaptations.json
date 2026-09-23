@@ -790,7 +790,11 @@
   },
   "components-dialog--motion-custom": {
     "kind": "reduced",
-    "why": "FluentDialog exposes no surfaceMotion/backdropMotion hook \u2014 fluentDialogSurfaceEnter, fluentDialogSurfaceExit, fluentDialogScrim and fluentDialogOutScale are package constants. The four controls are live and the dialog animation is not, rather than dressing up a knob that does nothing as working."
+    "why": "FluentDialog exposes no surfaceMotion/backdropMotion hook \u2014 fluentDialogSurfaceEnter, fluentDialogSurfaceExit, fluentDialogScrim and fluentDialogOutScale are package constants, and only MediaQuery.disableAnimationsOf changes them. Upstream's four motion controls are left out rather than shown moving nothing, and the description, dialog title and body say what the dialog really plays.",
+    "sampleStringsSkip": [
+      "Surface animateOpacity",
+      "Dialog with custom motion params"
+    ]
   },
   "components-dialog--no-focusable-element": {
     "kind": "slot",
