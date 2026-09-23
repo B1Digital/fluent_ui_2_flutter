@@ -386,6 +386,10 @@ void main() {
         'event 5',
       ]);
       expect(band.rules, hasLength(3));
+      // 4 and 5 keep separate labels only at the story's `labelWidth: 50`. At
+      // the default 105 the packer merges them whenever the axis ends exactly
+      // on Mar 9, which it does for a viewer in UTC; upstream does the same.
+      expect(band.labelWidth, 50);
     });
 
     testWidgets('the custom colour swatch recolours the rules and labels', (

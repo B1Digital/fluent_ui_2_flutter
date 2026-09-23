@@ -373,12 +373,13 @@ class FluentEventAnnotationLayer extends StatelessWidget {
   /// `LabelLink.tsx:62-64`.
   final Color? labelColor;
 
-  /// Line height of a wrapped label.
+  /// Line height of a wrapped label, 18 by default, which is what
+  /// `EventAnnotation.tsx:21` hard-codes.
   ///
-  /// `EventsAnnotationProps.labelHeight` (`LineChart.types.ts:106`) is declared
-  /// upstream and never read; `EventAnnotation.tsx:21` hard-codes 18 instead.
-  /// ponytail: wired to the real line height here, because a dead prop on a
-  /// public API is worse than a live one and the default is unchanged.
+  /// Not upstream's `EventsAnnotationProps.labelHeight`: `EventAnnotation.tsx`
+  /// never reads that, but `LineChart.tsx:179-181` does, as the height of the
+  /// band reserved above the plot. That is `FluentLineChartStyle`'s
+  /// `eventLabelHeight` here.
   final double labelHeight;
 
   /// Width the labels wrap at.

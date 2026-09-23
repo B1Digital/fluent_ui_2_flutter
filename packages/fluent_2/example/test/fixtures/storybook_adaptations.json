@@ -172,7 +172,7 @@
   },
   "charts-linechart--line-chart-events": {
     "kind": "reduced",
-    "why": "eventAnnotationProps splits into eventAnnotations + eventAnnotationMergedLabel + eventAnnotationStrokeColor + eventAnnotationLabelColor; labelHeight and labelWidth are not forwarded by FluentLineChart, so they are dropped. The '<input type=\"color\">' becomes a FluentSwatchPicker whose pick feeds both colour props \u2014 live here, where upstream's customEventAnnotationColor is a const undefined and its input is never read. yAxisTickFormat d3.format('$,') is hand-written as a String Function(double)."
+    "why": "eventAnnotationProps splits into eventAnnotations + eventAnnotationMergedLabel + eventAnnotationStrokeColor + eventAnnotationLabelColor + eventAnnotationLabelWidth; labelHeight, which LineChart.tsx:179-181 reads as the reserved band height, becomes style: FluentLineChartStyle.from(eventLabelHeight: 18). The '<input type=\"color\">' becomes a FluentSwatchPicker whose pick feeds both colour props \u2014 live here, where upstream's customEventAnnotationColor is a const undefined and its input is never read. yAxisTickFormat d3.format('$,') is hand-written as a String Function(double)."
   },
   "charts-linechart--line-chart-gaps": {
     "kind": "reduced",
