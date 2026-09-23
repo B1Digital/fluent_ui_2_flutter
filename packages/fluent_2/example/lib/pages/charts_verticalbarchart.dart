@@ -906,8 +906,8 @@ class _VerticalBarAxisTooltipState extends State<_VerticalBarAxisTooltip> {
                 : null,
             props: FluentCartesianChartProps(
               hideLegend: true,
-              showXAxisLablesTooltip: _selectedCallout == 'showTooltip',
-              wrapXAxisLables: _selectedCallout == 'WrapTickValues',
+              showXAxisLabelsTooltip: _selectedCallout == 'showTooltip',
+              wrapXAxisLabels: _selectedCallout == 'WrapTickValues',
             ),
           ),
         ),
@@ -945,7 +945,7 @@ Widget _verticalBarRotateLabels(BuildContext context) => const SizedBox(
         color: Color(0xFF0E7878),
       ),
     ],
-    props: FluentCartesianChartProps(hideLegend: true, rotateXAxisLables: true),
+    props: FluentCartesianChartProps(hideLegend: true, rotateXAxisLabels: true),
   ),
 );
 // #enddocregion charts-verticalbarchart--vertical-bar-rotate-labels

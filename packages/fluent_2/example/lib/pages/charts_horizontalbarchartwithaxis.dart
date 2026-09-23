@@ -84,7 +84,7 @@ const DocsPage horizontalBarChartWithAxisPage = DocsPage(
           'hover callout.\n'
           'If the y data points are of string type there are 2 modes to '
           'view them\n'
-          '1. truncate yaxis labels using `showYAxisLablesTooltip`\n'
+          '1. truncate yaxis labels using `showYAxisLabelsTooltip`\n'
           '2. shrink the x axis and display the complete labels using '
           '`expandYAxisLabels` property.\n',
     ),
@@ -498,8 +498,8 @@ class _HorizontalBarWithAxisStringAxisTooltipState
             roundCorners: _roundCorners,
             props: FluentCartesianChartProps(
               hideLegend: true,
-              showYAxisLablesTooltip: _selectedCallout == 'showTooltip',
-              showYAxisLables: _selectedCallout == 'expandYAxisLabels',
+              showYAxisLabelsTooltip: _selectedCallout == 'showTooltip',
+              showYAxisLabels: _selectedCallout == 'expandYAxisLabels',
             ),
           ),
         ),
@@ -848,8 +848,8 @@ class _HorizontalBarWithAxisNegativeState
             roundCorners: _roundCorners,
             props: FluentCartesianChartProps(
               hideLegend: true,
-              showYAxisLablesTooltip: _selectedCallout == 'showTooltip',
-              showYAxisLables: _selectedCallout == 'expandYAxisLabels',
+              showYAxisLabelsTooltip: _selectedCallout == 'showTooltip',
+              showYAxisLabels: _selectedCallout == 'expandYAxisLabels',
             ),
           ),
         ),
@@ -1045,7 +1045,7 @@ class _HorizontalBarWithAxisCategoryOrderState
             ),
             props: const FluentCartesianChartProps(
               hideLegend: true,
-              showYAxisLables: true,
+              showYAxisLabels: true,
             ),
           ),
         ),

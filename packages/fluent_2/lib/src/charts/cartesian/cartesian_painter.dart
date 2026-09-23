@@ -226,7 +226,7 @@ class FluentCartesianChartPainter extends CustomPainter {
     labels: createYAxisLabels(
       yAxisPrimary.tickLabels,
       props.noOfCharsToTruncate,
-      truncateLabel: props.showYAxisLablesTooltip,
+      truncateLabel: props.showYAxisLabelsTooltip,
       isRtl: layout.isRtl,
     ),
     reserveHeight: 0,

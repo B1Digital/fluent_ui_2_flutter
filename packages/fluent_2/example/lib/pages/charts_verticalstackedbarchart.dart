@@ -972,8 +972,8 @@ class _VerticalStackedBarAxisTooltipState
               roundCorners: _roundCorners,
               barGapMax: barGapMax,
               props: FluentCartesianChartProps(
-                showXAxisLablesTooltip: _selectedCallout == 'showTooltip',
-                wrapXAxisLables: _selectedCallout == 'WrapTickValues',
+                showXAxisLabelsTooltip: _selectedCallout == 'showTooltip',
+                wrapXAxisLabels: _selectedCallout == 'WrapTickValues',
               ),
             ),
           ),

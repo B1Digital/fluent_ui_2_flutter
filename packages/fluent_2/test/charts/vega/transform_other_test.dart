@@ -261,7 +261,7 @@ void main() {
       reason: 'VegaLiteSchemaAdapter.ts:3511.',
     );
     expect(
-      chart.props.showYAxisLables,
+      chart.props.showYAxisLabels,
       isTrue,
       reason: 'VegaLiteSchemaAdapter.ts:3512.',
     );
@@ -285,12 +285,12 @@ void main() {
           'distinct x values clear neither the 20 nor the 10 rung.',
     );
     expect(
-      chart.props.showYAxisLablesTooltip,
+      chart.props.showYAxisLabelsTooltip,
       isTrue,
       reason: 'VegaLiteSchemaAdapter.ts:3516.',
     );
     expect(
-      chart.props.wrapXAxisLables,
+      chart.props.wrapXAxisLabels,
       isTrue,
       reason: 'VegaLiteSchemaAdapter.ts:3517.',
     );

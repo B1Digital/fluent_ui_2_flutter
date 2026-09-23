@@ -387,7 +387,7 @@ void main() {
       expect(
         layout!.rotationRadians,
         isNot(0),
-        reason: 'rotateXAxisLables is the whole subject of this section',
+        reason: 'rotateXAxisLabels is the whole subject of this section',
       );
       expect(_bars(tester), hasLength(4));
     });

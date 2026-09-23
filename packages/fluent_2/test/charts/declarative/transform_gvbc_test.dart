@@ -111,7 +111,7 @@ void main() {
     );
     expect(chart.roundCorners, isTrue, reason: 'PlotlySchemaAdapter.ts:1778.');
     expect(
-      chart.props.showYAxisLables,
+      chart.props.showYAxisLabels,
       isTrue,
       reason: 'PlotlySchemaAdapter.ts:1779.',
     );

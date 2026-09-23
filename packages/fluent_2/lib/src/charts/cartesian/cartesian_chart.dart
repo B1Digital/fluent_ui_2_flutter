@@ -493,9 +493,11 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
   }) => LayoutBuilder(
     builder: (context, constraints) {
       final size = Size(constraints.maxWidth, constraints.maxHeight);
-      // `enableFirstRenderOptimization` skips the whole solve while the box has
-      // no usable size (`CartesianChart.tsx:190-191`). A degenerate box is
-      // skipped either way — there is nothing to divide a range by.
+      // Upstream's `enableFirstRenderOptimization` skips the whole solve on the
+      // render before its container is mounted (`CartesianChart.tsx:190-191`).
+      // A LayoutBuilder always has real constraints, so the port has no such
+      // render and ignores the flag; a degenerate box is skipped regardless —
+      // there is nothing to divide a range by.
       if (size.width <= 0 || size.height <= 0 || !size.isFinite) {
         return const SizedBox.expand();
       }
@@ -710,9 +712,9 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
     final labelWidth =
         calcMaxLabelWidthWithTransform(
           labels,
-          wrapXAxisLabels: widget.props.wrapXAxisLables,
-          rotateXAxisLabels: widget.props.rotateXAxisLables,
-          showXAxisLabelsTooltip: widget.props.showXAxisLablesTooltip,
+          wrapXAxisLabels: widget.props.wrapXAxisLabels,
+          rotateXAxisLabels: widget.props.rotateXAxisLabels,
+          showXAxisLabelsTooltip: widget.props.showXAxisLabelsTooltip,
           xAxisType: widget.delegate.xAxisType,
           noOfCharsToTruncate: widget.props.noOfCharsToTruncate,
           style: textStyles.axisTick,
@@ -754,9 +756,9 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       textStyles: textStyles,
       startFromX: 0,
     );
-    if (widget.props.showYAxisLables) {
+    if (widget.props.showYAxisLabels) {
       final labels = geometry.axisData.yAxisTickText.map(
-        (label) => widget.props.showYAxisLablesTooltip
+        (label) => widget.props.showYAxisLabelsTooltip
             // `CartesianChart.tsx:152-153`.
             ? truncateString(label, widget.props.noOfCharsToTruncate)
             : label,
@@ -801,7 +803,7 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       containerWidth: size.width,
       margins: margins,
       showRoundOffXTickValues: props.showRoundOffXTickValues,
-      xAxistickSize: props.xAxistickSize,
+      xAxisTickSize: props.xAxisTickSize,
       tickPadding: props.resolvedXAxisTickPadding,
       xAxisCount: props.xAxisTickCount,
       xAxisPadding: delegate.xAxisPadding,
@@ -814,9 +816,9 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       ),
       calcMaxLabelWidth: (labels) => calcMaxLabelWidthWithTransform(
         labels,
-        wrapXAxisLabels: props.wrapXAxisLables,
-        rotateXAxisLabels: props.rotateXAxisLables,
-        showXAxisLabelsTooltip: props.showXAxisLablesTooltip,
+        wrapXAxisLabels: props.wrapXAxisLabels,
+        rotateXAxisLabels: props.rotateXAxisLabels,
+        showXAxisLabelsTooltip: props.showXAxisLabelsTooltip,
         xAxisType: delegate.xAxisType,
         noOfCharsToTruncate: props.noOfCharsToTruncate,
         style: textStyles.axisTick,

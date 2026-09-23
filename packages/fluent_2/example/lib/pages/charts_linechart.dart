@@ -1131,7 +1131,7 @@ class _LineChartStyledState extends State<_LineChartStyled> {
             data: _data,
             props: FluentCartesianChartProps(
               yMaxValue: 90,
-              showXAxisLablesTooltip: true,
+              showXAxisLabelsTooltip: true,
               customDateTimeFormatter: _monthDay,
               tickValues: <Object>[
                 DateTime.utc(2018),

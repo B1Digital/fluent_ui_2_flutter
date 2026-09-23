@@ -244,12 +244,12 @@ void main() {
     );
   });
 
-  testWidgets('showYAxisLables widens the left margin in the same frame', (
+  testWidgets('showYAxisLabels widens the left margin in the same frame', (
     tester,
   ) async {
     await pump(
       tester,
-      chart(props: const FluentCartesianChartProps(showYAxisLables: true)),
+      chart(props: const FluentCartesianChartProps(showYAxisLabels: true)),
     );
     expect(
       painterOf(tester).layout.startFromX,
@@ -932,6 +932,29 @@ void main() {
         '$storyId yAxisGElementSecondary translate x',
         story.absoluteTranslate(secondary).dx,
         layout.secondaryYAxisTranslateX,
+      );
+    });
+  });
+
+  group('x tick padding', () {
+    testWidgets('a caller tickPadding reaches the painted x axis', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        chart(
+          props: const FluentCartesianChartProps(
+            hideLegend: true,
+            tickPadding: 25,
+          ),
+        ),
+      );
+      expect(
+        painterOf(tester).xAxis.tickPadding,
+        25,
+        reason:
+            'CartesianChart.tsx:215 uses the prop only as a truth test and '
+            'paints 5; the port hands the caller value to the x axis',
       );
     });
   });

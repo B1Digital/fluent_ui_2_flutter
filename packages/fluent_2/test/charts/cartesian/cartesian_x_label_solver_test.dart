@@ -91,7 +91,7 @@ void main() {
       measurer: measurer,
     );
     final layout = solve(
-      const FluentCartesianChartProps(rotateXAxisLables: true),
+      const FluentCartesianChartProps(rotateXAxisLabels: true),
       categories: categories,
     );
     expect(
@@ -117,8 +117,8 @@ void main() {
   test('rotation is skipped when wrapping is also on', () {
     final layout = solve(
       const FluentCartesianChartProps(
-        wrapXAxisLables: true,
-        rotateXAxisLables: true,
+        wrapXAxisLabels: true,
+        rotateXAxisLabels: true,
       ),
       categories: categories,
     );
@@ -127,13 +127,13 @@ void main() {
       0,
       reason:
           'the rotate guard at CartesianChart.tsx:644 is '
-          '`!wrapXAxisLables && rotateXAxisLables`',
+          '`!wrapXAxisLabels && rotateXAxisLabels`',
     );
   });
 
   test('rotation is skipped on a non-category x axis', () {
     final layout = solveFluentCartesianXAxisLabels(
-      props: const FluentCartesianChartProps(rotateXAxisLables: true),
+      props: const FluentCartesianChartProps(rotateXAxisLabels: true),
       xAxis: bandAxis(categories, 400),
       xAxisType: FluentChartAxisType.numeric,
       tickLayout: FluentTickLayout.defaultLayout,
@@ -154,7 +154,7 @@ void main() {
 
   test('the automatic tick layout replaces both branches', () {
     final layout = solve(
-      const FluentCartesianChartProps(rotateXAxisLables: true),
+      const FluentCartesianChartProps(rotateXAxisLabels: true),
       categories: categories,
       tickLayout: FluentTickLayout.auto,
     );
@@ -171,12 +171,12 @@ void main() {
     'a multi-category band wraps at the step, a single one at the width',
     () {
       final narrow = solve(
-        const FluentCartesianChartProps(wrapXAxisLables: true),
+        const FluentCartesianChartProps(wrapXAxisLabels: true),
         categories: categories,
         containerWidth: 90,
       );
       final wide = solve(
-        const FluentCartesianChartProps(wrapXAxisLables: true),
+        const FluentCartesianChartProps(wrapXAxisLabels: true),
         categories: const <String>['Alpha beta'],
         containerWidth: 900,
       );
@@ -249,7 +249,7 @@ void main() {
         );
       }
 
-      const props = FluentCartesianChartProps(rotateXAxisLables: true);
+      const props = FluentCartesianChartProps(rotateXAxisLabels: true);
       // The story draws no axis title and no annotation, and its y tick labels
       // are narrow enough to leave the left default in force, so the solved
       // bottom is the untouched default rather than a number this test picked.
