@@ -391,6 +391,27 @@ void main() {
       expect(range.dEndValue, 110, reason: 'and adds the end padding.');
     });
 
+    test('coerces a Date that wins the extent to epoch milliseconds', () {
+      final date = DateTime.utc(2020, 3, 5);
+      final range = domainRangeOfNumericForAreaLineScatterCharts(
+        <Object>[
+          _series('a', <(Object, double)>[(1, 10), (9, 20)]),
+          _series('d', <(Object, double)>[(date, 30)]),
+        ],
+        margins,
+        700,
+        isRtl: false,
+      );
+      expect(
+        range.dEndValue,
+        date.millisecondsSinceEpoch,
+        reason:
+            'utilities.ts:1364 casts the extent to number only in the types; '
+            'd3Max picks the Date by valueOf and the linear scale coerces it '
+            'with +d.',
+      );
+    });
+
     test('overrides the domain to the unit circle for scatterpolar', () {
       final range = domainRangeOfNumericForAreaLineScatterCharts(
         <Object>[

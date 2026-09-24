@@ -233,8 +233,10 @@ FluentChartDomainRange domainRangeOfNumericForAreaLineScatterCharts(
   final extent = getScatterXDomainExtent(points, scaleType: scaleType);
   // `utilities.ts:1364` casts the extent to `[number, number]` and lets an empty
   // series produce NaN, so the port names that not-a-number rather than throwing.
-  var xMin = (extent.$1 as num?)?.toDouble() ?? double.nan;
-  var xMax = (extent.$2 as num?)?.toDouble() ?? double.nan;
+  // The cast is type-only: a Date in an earlier series still wins d3Min/d3Max by
+  // valueOf, and the linear scale coerces it with `+d`.
+  var xMin = _asNumber(extent.$1);
+  var xMax = _asNumber(extent.$2);
 
   if (hasMarkersMode) {
     final padding = getDomainPaddingForMarkers(
@@ -417,6 +419,14 @@ DateTime? _asDate(Object? v) => switch (v) {
   DateTime() => v,
   num() when v.isFinite => DateTime.fromMillisecondsSinceEpoch(v.toInt()),
   _ => null,
+};
+
+/// JS `+v` for an x extent: a [DateTime] by its epoch milliseconds, NaN for
+/// none.
+double _asNumber(Object? v) => switch (v) {
+  num() => v.toDouble(),
+  DateTime() => v.millisecondsSinceEpoch.toDouble(),
+  _ => double.nan,
 };
 
 /// The domain and range of a date x axis.
