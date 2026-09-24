@@ -49,13 +49,12 @@ void main() {
       ),
       // Measured 0.007% — 8 of 115,942 px, aligned: 7 antialiased pixels
       // along the Medium Risk arc's inner edge at the top of the gauge
-      // (x 462-469, y 30) and 1 on its outer edge (x 469, y 18). The needle,
-      // the "75%" and the
-      // legend land on the capture. Was 0.134% while `chartValueTextStyle`
-      // had no `fontFamily`, so "75%" was measured in the fallback font and
-      // drawn 10 px left and 7 px low (91 px; 6bb4129), and the swatches were
-      // painted at their fractional x where Chromium snaps them (56 px;
-      // 61c1a1c).
+      // (x 462-468, y 30) and 1 on its outer edge (x 469, y 18). The needle,
+      // the "75%" and the legend land on the capture. Was 0.134% while
+      // `chartValueTextStyle` had no `fontFamily`, so "75%" was measured in
+      // the fallback font and drawn 10 px left and 7 px low (91 px;
+      // 6bb4129), and the swatches were painted at their fractional x where
+      // Chromium snaps them (56 px; 61c1a1c).
       maxMismatch: 0.01,
     );
   });
