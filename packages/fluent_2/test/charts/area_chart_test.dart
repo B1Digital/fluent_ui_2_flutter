@@ -1101,6 +1101,23 @@ void main() {
       expect(canvas.lines, isEmpty, reason: 'visibility hidden, :839');
     });
 
+    test('a nearest x the scale cannot place draws no rule', () {
+      final delegate = _multiStackDelegate(nearestX: DateTime.utc(2020));
+      final canvas = _RecordingCanvas();
+      delegate.paintSeries(
+        canvas,
+        _linearContext(width: 700),
+        _layout(),
+        delegate.colors,
+      );
+      expect(
+        canvas.lines,
+        isEmpty,
+        reason:
+            'a hover left over from date data must not throw on numeric data',
+      );
+    });
+
     test('circles are invisible until hovered or focused', () {
       final delegate = _areaDelegate();
       expect(
@@ -1191,6 +1208,56 @@ void main() {
         isTrue,
         reason: 'a hover anchors at the pointer, ChartPopover.tsx:23-34',
       );
+    });
+
+    test('right to left the bands still run from the left edge', () {
+      // `domainRangeOfNumericForAreaLineScatterCharts` reverses the domain
+      // under RTL (utilities.ts:1375-1376): x = 3 at 50, x = 1 at 650.
+      final xScale = d3.scaleLinear()
+        ..domainOf(<double>[3, 1])
+        ..rangeOf(<double>[50, 650]);
+      final yScale = d3.scaleLinear()
+        ..domainOf(<double>[0, 100])
+        ..rangeOf(<double>[300, 0]);
+      final regions = _multiStackDelegate().buildHitRegions(
+        FluentCartesianChildContext(
+          xScale: xScale,
+          yScalePrimary: yScale,
+          containerWidth: 700,
+          containerHeight: 300,
+        ),
+        FluentCartesianLayout.resolve(
+          size: const Size(700, 300),
+          margins: const FluentChartMargins(
+            left: 50,
+            right: 50,
+            top: 0,
+            bottom: 0,
+          ),
+          xAxisLabelReserve: 0,
+          isRtl: true,
+          startFromX: 0,
+        ),
+      );
+      int hovered(double x) =>
+          regions.lastIndexWhere((r) => r.bounds.contains(Offset(x, 150)));
+      expect(
+        hovered(20),
+        2,
+        reason:
+            'the <rect> has no x, so it starts at the left edge and bisects '
+            'there to the last x (AreaChart.tsx:1133-1141)',
+      );
+      expect(
+        hovered(680),
+        -1,
+        reason:
+            'it ends at the last tick, the smallest right to left, so the '
+            'margin right of x = 1 does not listen',
+      );
+      expect(hovered(650), 0, reason: 'x = 1 itself does');
+      expect(hovered(500), 0, reason: 'a midpoint keeps the lower x, :215');
+      expect(hovered(200), 1);
     });
 
     test('a keyboard stop anchors at the top circle of its x', () {
@@ -1352,6 +1419,18 @@ void main() {
         reason:
             'the ring keeps the flattenMark colour, so the inverted marker is '
             'still visible against the flattened area',
+      );
+    });
+
+    test('high contrast draws the hover rule in the ring colour', () {
+      final canvas = paint(isHighContrast: true);
+      expect(canvas.lines, isNotEmpty);
+      expect(
+        canvas.lines.map((line) => rgb(line.colour)).toSet(),
+        <int>{rgb(_canvasText)},
+        reason:
+            'the rule and the rings share `lineColor` (AreaChart.tsx:770, '
+            ':837); the hairline Canvas colour would vanish on the background',
       );
     });
   });
@@ -1580,6 +1659,51 @@ void main() {
         reason:
             'the listening rect ends at the last x (AreaChart.tsx:1128); '
             'beyond it the state is left as it was',
+      );
+      expect(find.byType(FluentChartPopover), findsOneWidget);
+    });
+
+    testWidgets('right to left the plot listens from the left edge', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        Directionality(
+          textDirection: TextDirection.rtl,
+          child: FluentAreaChart(data: _threeSeriesData()),
+        ),
+      );
+      final painter = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((paint) => paint.painter)
+          .whereType<FluentCartesianChartPainter>()
+          .single;
+      final origin = tester.getTopLeft(find.byType(FluentCartesianChart));
+      final y = painter.layout.plotRect.center.dy;
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(origin + Offset(painter.xAxis.scale(2)! + 3, y));
+      await tester.pump();
+      final state = tester.state<FluentAreaChartState>(
+        find.byType(FluentAreaChart),
+      );
+      expect(state.nearestX, 2);
+      await gesture.moveTo(origin + Offset(painter.xAxis.scale(1)! + 5, y));
+      await tester.pump();
+      expect(
+        state.nearestX,
+        2,
+        reason:
+            'the rect ends at the smallest tick, x = 1, on the right '
+            '(AreaChart.tsx:1127-1135); past it the state is left as it was',
+      );
+      await gesture.moveTo(origin + Offset(painter.xAxis.scale(3)! - 5, y));
+      await tester.pump();
+      expect(
+        state.nearestX,
+        3,
+        reason: 'and it starts at the left edge, beyond the last x',
       );
       expect(find.byType(FluentChartPopover), findsOneWidget);
     });

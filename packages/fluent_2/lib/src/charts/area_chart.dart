@@ -216,15 +216,17 @@ class FluentAreaChartState extends State<FluentAreaChart> {
     if (inverted == null || _series.isEmpty || _series.first.data.isEmpty) {
       return;
     }
-    // The plot `<rect>` that listens runs from the chart's leading edge to
-    // the last x (`AreaChart.tsx:1128-1141`); past it nothing hears the move,
-    // which is where the delegate's hover bands stop too.
-    // ponytail: upstream's rect ends at the last *tick* and the area paths
-    // carry the listener on to the last x; the two only differ when a date or
+    // The plot `<rect>` that listens has no `x`: it runs from the chart's left
+    // edge to the last tick (`AreaChart.tsx:1127-1141`), the largest x left to
+    // right and the smallest right to left, so right of the rightmost x
+    // nothing hears the move, which is where the delegate's hover bands stop
+    // too.
+    // ponytail: upstream's rect ends at the extreme *tick* and the area paths
+    // carry the listener on to the x itself; the two only differ when a date or
     // numeric domain does not end on a tick.
     final first = context.xScale(_dataSet.rows.first.xValue)!;
     final last = context.xScale(_dataSet.rows.last.xValue)!;
-    if ((local.dx - last) * (last - first) > 0) {
+    if (local.dx > math.max(first, last)) {
       return;
     }
     final candidate = nearestXValueForInverted(_xOrder(inverted));
@@ -1006,17 +1008,20 @@ class FluentAreaChartDelegate extends FluentCartesianSeriesDelegate {
     }
     // Pass 3: the vertical rule at the nearest x, pushed after every circle
     // (`:827-842`). It spans `getGraphData`'s height, 0 to the plot's content
-    // height, in `lineColor` — which the circle loop leaves on the last series.
+    // height, in `lineColor` — which the circle loop leaves on the last series,
+    // so it takes the circles' ring colour, not the hairline's `Canvas` one
+    // that would vanish on a forced-colours background.
     final nearest = nearestX;
-    if (nearest == null || layers.isEmpty) {
+    // A nearest x left over from data of another axis type has no place.
+    final x = nearest == null ? null : context.xScale(nearest);
+    if (x == null || layers.isEmpty) {
       return;
     }
-    final x = context.xScale(nearest)!;
     final bottom = layout.plotContentHeight;
     final pattern = style.hoverLineDashPattern!.resolve(<WidgetState>{})!;
     final rule = Paint()
       ..strokeWidth = style.hoverLineWidth!.resolve(<WidgetState>{})!
-      ..color = layers.last.strokeColour.withValues(
+      ..color = layers.last.colour.withValues(
         alpha: style.hoverLineOpacity!.resolve(<WidgetState>{}),
       );
     // SVG repeats an odd-length dash array to make it even, which is what
@@ -1050,30 +1055,32 @@ class FluentAreaChartDelegate extends FluentCartesianSeriesDelegate {
     }
     // One band per x: the stretch of the plot the bisector at
     // `AreaChart.tsx:193-228` resolves to it, cut at the midpoints of its
-    // neighbours in data space. The first reaches back to the chart's edge,
-    // where the listening `<rect>` starts (`:1133-1141`); the last stops at its
-    // own x, as `FluentAreaChartState` does.
+    // neighbours in data space. The listening `<rect>` has no `x`, so it runs
+    // from the chart's left edge to the last tick (`:1127-1141`), and right to
+    // left the last tick is the smallest: either way the leftmost band reaches
+    // the edge and the rightmost x ends the span, as `FluentAreaChartState`
+    // does.
     // ponytail: the rect stops `margins.top` short of the bottom (`:1129`),
     // inside the x tick labels; the bands run the full height.
     //
     // `Rect.contains` gives a shared edge to the band on its right, while the
-    // bisector keeps the lower x on a tie (`:215`) and the rect holds the last
-    // x itself. Left to right, both sit on a band's right edge, so each right
-    // edge moves on by a hair; right to left they are already left edges.
-    final nudge = layout.isRtl ? 0.0 : 1e-9;
-    double edgeAfter(int j) =>
+    // bisector keeps the lower x on a tie (`:215`) and the rect holds the
+    // rightmost x itself. Left to right, both sit on a band's right edge, so
+    // they move on by a hair; right to left only the rightmost x does.
+    final rtl = layout.isRtl;
+    final last = rows.length - 1;
+    final nudge = rtl ? 0.0 : 1e-9;
+    double cut(int j) =>
         nudge +
         context.xScale(
-          j == rows.length - 1
-              ? _xOrder(rows[j].xValue)
-              : (_xOrder(rows[j].xValue) + _xOrder(rows[j + 1].xValue)) / 2,
+          (_xOrder(rows[j].xValue) + _xOrder(rows[j + 1].xValue)) / 2,
         )!;
-    final edge = layout.isRtl ? context.containerWidth : 0.0;
+    final end = 1e-9 + context.xScale(rows[rtl ? 0 : last].xValue)!;
     final bands = <Rect>[
-      for (var j = 0; j < rows.length; j++)
+      for (var j = 0; j <= last; j++)
         Rect.fromPoints(
-          Offset(j == 0 ? edge : edgeAfter(j - 1), 0),
-          Offset(edgeAfter(j), context.containerHeight),
+          Offset(j == 0 ? (rtl ? end : 0) : cut(j - 1), 0),
+          Offset(j == last ? (rtl ? 0 : end) : cut(j), context.containerHeight),
         ),
     ];
     Offset circle(int layer, int j) => Offset(
