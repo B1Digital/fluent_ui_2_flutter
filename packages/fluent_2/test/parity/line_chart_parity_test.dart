@@ -95,9 +95,10 @@ void main() {
       ),
       // Measured 0.014% — 26 pixels of 191,179, aligned — then pinned just
       // above it. Skia and Chromium genuinely agree on this chart: 22 are
-      // antialiasing along the teal line's shallow Mar 06-07 segment where the
-      // purple line crosses it (x 449-468), and 4 are the left fringe of the
-      // "152.1k" tick's leading "1", which Selawik's tabular digits set a
+      // antialiasing on both edges of the teal line's shallow Mar 06-07
+      // segment just before the Mar 07 vertex (x 449-468, well clear of where
+      // the purple line crosses it near x 410), and 4 are the left fringe of
+      // the "152.1k" tick's leading "1", which Selawik's tabular digits set a
       // pixel left of its mask. (0.028% before the legend swatches snapped to
       // device pixels as Chromium's do.)
       //

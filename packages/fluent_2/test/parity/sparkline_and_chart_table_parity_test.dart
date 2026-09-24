@@ -157,14 +157,20 @@ void main() {
         headers: headers,
         rows: rows,
       ),
-      // Measured 0.850% — 1,419 pixels of 167,002 (21,798 masked), aligned.
-      // The cell text is masked now that the corpus records the table's
-      // `<foreignObject>` text (react_png/README.md), so what is left is
-      // geometry. 1,408 are the four inner vertical lines in the body rows
-      // (the header row's grey fill sits within tolerance of the line
-      // colour): every horizontal line lands exactly, rows 0/34/68/102/136/170
-      // in both, but the verticals land on 0/128/245/362/479/596/698 against
-      // the capture's 0/129/243/360/477/595/698 — pitches
+      // Measured 0.850% — 1,419 pixels of 167,002 (21,798 masked). The shift
+      // probe reports shift(1,0) would give 0.793%: moving the render a
+      // column left brings the three verticals that sit 2px right of the
+      // capture's to within 1px and costs the first, which sits 1px left.
+      // The verticals are off in both directions, so no whole-image shift
+      // aligns the grid. The cell text is masked now that the corpus records
+      // the table's `<foreignObject>` text (react_png/README.md), so what is
+      // left is geometry. 1,408 are four of the five inner vertical lines in
+      // the body rows (the header row's grey fill sits within tolerance of
+      // the line colour, and the fifth, at 596 against 595, antialiases to
+      // within it): every horizontal line lands exactly, rows
+      // 0/34/68/102/136/170 in both, but the verticals land on
+      // 0/128/245/362/479/596/698 against the capture's
+      // 0/129/243/360/477/595/698 — pitches
       // 128/117/117/117/117/102 against 129/114/117/117/118/103. The other 11
       // are the trailing "s" of "Q2 Sales", "Q3 Sales" and "Q4 Sales" poking
       // a column past its mask.
