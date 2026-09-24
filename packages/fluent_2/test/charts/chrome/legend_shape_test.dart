@@ -645,35 +645,59 @@ void mainPart3() {
       );
 
       expect(
-        pixel(5, 0),
+        pixel(4, 0),
         stripe.toARGB32(),
         reason:
-            'Phase at (5, 0) is 3.54, inside the clamped 3..4 colour band, so '
-            'the pixel takes the legend colour.',
+            'The centre of pixel (4, 0) has phase 5 / sqrt2 = 3.54, inside the '
+            'clamped 3..4 colour band, so the pixel takes the legend colour.',
       );
       expect(
-        pixel(2, 0),
+        pixel(1, 0),
         0x00000000,
         reason:
-            'Phase at (2, 0) is 1.41, inside the transparent 0..3 band. A '
-            'naive port of the literal stops would have coloured it, because '
-            'the source says the colour starts at 1px.',
+            'The centre of pixel (1, 0) has phase 1.41, inside the transparent '
+            '0..3 band. A naive port of the literal stops would have coloured '
+            'it, because the source says the colour starts at 1px.',
       );
       expect(
-        pixel(6, 0),
+        pixel(5, 0),
         0x00000000,
         reason:
-            'Phase at (6, 0) is 4.24, which is 0.24 into the next period and '
-            'therefore transparent again — the period is 4, not 5.',
+            'The centre of pixel (5, 0) has phase 4.24, which is 0.24 into the '
+            'next period and therefore transparent again — the period is 4, '
+            'not 5.',
+      );
+    });
+
+    test('matches the stripes Chrome paints in a 12x12 content box', () async {
+      final pixel = await renderPainter(
+        const FluentChartStripePainter(color: stripe),
+        size: const Size(12, 12),
+      );
+      final painted = <int>{
+        for (var y = 0; y < 12; y++)
+          for (var x = 0; x < 12; x++)
+            if (pixel(x, y) != 0x00000000) x + y,
+      };
+      expect(
+        painted,
+        <int>{4, 9, 10, 15, 21},
+        reason:
+            'Measured in Chrome: a div with Legends.tsx:379-381\'s content '
+            'gradient colours exactly the anti-diagonals x + y = 4, 9, 10, 15 '
+            'and 21 of its content box, which is the gradient sampled at pixel '
+            'centres. Sampling at pixel corners gives 5, 10, 11, 16 and 22 — '
+            'every stripe a diagonal step off.',
       );
     });
 
     // The painter's own comment states the contract that used to hold the two
     // expressions together by hand: the pixel at (x, y) is coloured iff
-    // `fluentChartStripePhase(Offset(x, y))` lands in a colour band. Asserting
-    // it per pixel is what makes the painter's call to that function
-    // load-bearing rather than decorative — every band the loop fails to emit
-    // shows up here as a pixel that disagrees with the shared definition.
+    // `fluentChartStripePhase(Offset(x + 0.5, y + 0.5))` — its centre — lands
+    // in a colour band. Asserting it per pixel is what makes the painter's call
+    // to that function load-bearing rather than decorative — every band the
+    // loop fails to emit shows up here as a pixel that disagrees with the
+    // shared definition.
     for (final size in const <Size>[
       // The swatch box itself.
       Size(kLegendShapeViewportSize, kLegendShapeViewportSize),
@@ -692,9 +716,7 @@ void mainPart3() {
         final disagreed = <String>[];
         for (var y = 0; y < size.height; y++) {
           for (var x = 0; x < size.width; x++) {
-            final phase = fluentChartStripePhase(
-              Offset(x.toDouble(), y.toDouble()),
-            );
+            final phase = fluentChartStripePhase(Offset(x + 0.5, y + 0.5));
             // `%` on a double is Dart's Euclidean remainder, so it is
             // non-negative for the negative phases a rotated frame produces.
             final coloured = phase % kStripePeriod >= kStripeColourStart;
@@ -712,8 +734,8 @@ void mainPart3() {
           isEmpty,
           reason:
               'FluentChartStripePainter documents that a pixel is coloured '
-              'exactly when fluentChartStripePhase puts it in the clamped '
-              '3..4 band of Legends.tsx:300. These pixels do not:\n'
+              'exactly when fluentChartStripePhase puts its centre in the '
+              'clamped 3..4 band of Legends.tsx:300. These pixels do not:\n'
               '${disagreed.join('\n')}',
         );
       });

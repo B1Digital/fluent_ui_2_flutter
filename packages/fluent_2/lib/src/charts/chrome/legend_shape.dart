@@ -296,9 +296,8 @@ class FluentChartLegendShapePainter extends CustomPainter {
     //
     // The width alone, because the svg attribute and the viewBox are both
     // square (`shape.tsx:39-41`), so upstream's two scales are equal by
-    // construction. The port's one non-square box is the 4px line-in-bar
-    // swatch (`legend.dart:356-358`), and upstream keeps its svg square through
-    // that case too: `Legends.tsx:376`'s height reaches only the non-svg div
+    // construction. The legend keeps the box square even for a line-in-bar
+    // legend: `Legends.tsx:376`'s 4px height reaches only the non-svg div
     // (`shape.tsx:35`).
     canvas.scale(size.width / kLegendShapeViewportSize);
     canvas.translate(kLegendShapeViewBoxOrigin, kLegendShapeViewBoxOrigin);
@@ -358,7 +357,10 @@ double fluentChartStripePhase(Offset point) =>
 /// Paints the legend's diagonal stripe pattern.
 ///
 /// Used when `Legend.stripePattern` is set, which suppresses the flat
-/// background fill (`Legends.tsx:297`, `:377`) and substitutes this.
+/// background fill (`Legends.tsx:297`, `:377`) and substitutes this. The
+/// gradient is the swatch div's `content` (`Legends.tsx:379-381`), which
+/// Chromium draws in the div's *content* box, inside its 1px border — so the
+/// legend hands this painter that box and phase zero is its top-left corner.
 ///
 /// Antialiasing is off deliberately: the CSS stop at 3px is a hard edge
 /// because the preceding stop was clamped onto it, so there is no gradient to
@@ -376,14 +378,14 @@ class FluentChartStripePainter extends CustomPainter {
     canvas.save();
     canvas.clipRect(Offset.zero & size);
     // A raster with antialiasing off keeps a pixel when its *centre* falls
-    // inside the band, but [fluentChartStripePhase] is defined at a pixel's
-    // *origin* — the top-left corner the CSS gradient line starts from. Half a
-    // logical pixel on each axis is the offset between the two, so shifting by
-    // it makes the painted grid and the phase function agree exactly: the pixel
-    // at (x, y) is coloured iff `fluentChartStripePhase(Offset(x, y))` lands in
-    // a coloured band. Visually this is a sub-pixel phase shift of the infinite
-    // pattern, which upstream leaves to the browser's own device grid anyway.
-    canvas.translate(0.5, 0.5);
+    // inside the band, and a centre is also where Chromium evaluates a CSS
+    // gradient: the pixel at (x, y) is coloured iff
+    // `fluentChartStripePhase(Offset(x + 0.5, y + 0.5))` lands in a coloured
+    // band. Measured in Chrome on the 12×12 content box `Legends.tsx:379-381`
+    // lays the gradient in: coloured exactly where x + y is 4, 9, 10, 15 or 21.
+    // So no half-pixel shift here — an earlier one sampled at pixel corners
+    // and put every stripe a diagonal step off.
+    //
     // Rotating by +45 degrees makes the gradient axis the canvas x axis, so one
     // band is a rectangle rather than a sheared quadrilateral — and it makes a
     // band's local x its own phase, because the local point (u, 0) is the
@@ -400,12 +402,8 @@ class FluentChartStripePainter extends CustomPainter {
     // A loop anchored on anything else moves every band. The previous bound ran
     // from `-(width + height)` in steps of [kStripePeriod], so the bands landed
     // at phases congruent to `-(width + height)` and were correct only when
-    // that sum was a multiple of 4: right for the 14×14 swatch, and two pixels
-    // out along the gradient for the 14×4 line-in-bar swatch
-    // (`legend.dart:356-358`). It also emitted the band below zero, whose
-    // closed upper edge painted the box's own corner pixel — the one point of
-    // phase exactly 0, which the clamped `3..4` band of `Legends.tsx:300`
-    // leaves transparent.
+    // that sum was a multiple of 4 — not for the 12×4 content box of a
+    // line-in-bar swatch.
     final nearPhase = fluentChartStripePhase(Offset.zero);
     final farPhase = fluentChartStripePhase(Offset(size.width, size.height));
     for (var phase = nearPhase; phase <= farPhase; phase += kStripePeriod) {

@@ -4,6 +4,7 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 // `listEquals` is not in the `show` list `widgets.dart` re-exports foundation
 // with, so it has to be imported directly.
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter/services.dart'
     show KeyDownEvent, KeyEvent, KeyRepeatEvent, LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
@@ -125,7 +126,9 @@ class FluentChartLegendItem {
   final bool stripePattern;
 
   /// Whether this row represents a line overlaid on a bar chart, which renders
-  /// as a 4px bar rather than a 12px square. `Legends.tsx:296`, `:376`.
+  /// as a 14×6 bar rather than a 14px square: a 4px content box in place of
+  /// 12px (`Legends.tsx:296`, `:376`), inside the same 1px border. A [shape]
+  /// keeps its 14px svg box.
   final bool isLineLegendInBarChart;
 
   /// Fired after the selection has been updated. `Legends.tsx:251`.
@@ -279,11 +282,15 @@ int fluentChartLegendVisibleCount(
 /// layout reads it; it is not a style slot.
 const double kLegendWrappedContainerMargin = 4;
 
-/// Height of a legend swatch that stands for a line drawn over a bar chart.
+/// Content height of a legend swatch that stands for a line drawn over a bar
+/// chart.
 ///
 /// `Legends.tsx:296` and `:376` both set the swatch height to `4px` when
-/// `isLineLegendInBarChart` is set, against `12px` otherwise — and 12 is the
-/// *content* box, which [kLegendSwatchBoxSize] grows by the border.
+/// `isLineLegendInBarChart` is set, against `12px` otherwise. Both are the
+/// *content* box: the rect's `border: 1px solid`
+/// (`useLegendsStyles.styles.ts:82`) adds a row above and below, so the drawn
+/// bar is 14×6, as Oracle B's `fui-legend__rect` boxes record — the same growth
+/// [kLegendSwatchBoxSize] applies to the 12px square.
 const double kLegendLineInBarHeight = 4;
 
 /// One row of the legend strip: swatch, then title-cased label.
@@ -381,10 +388,17 @@ class FluentChartLegendRow extends StatelessWidget {
     final swatchOpacity = dimmed
         ? style.dimmedSwatchOpacity!.resolve(states)!
         : 1.0;
+    final borderWidth = style.swatchBorderWidth!.resolve(states)!;
+    final shape = shapeOverride ?? item.shape;
+    // shape.tsx:34 — a key of `pointPath` renders the 14×14 `<svg>`; anything
+    // else falls through to the `classNameForNonSvg` div.
+    final isSvg = shape != null && shape != FluentChartLegendShape.defaultShape;
 
-    // Legends.tsx:376 — a line legend inside a bar chart is a 4px bar.
-    final swatchHeight = item.isLineLegendInBarChart
-        ? kLegendLineInBarHeight
+    // Legends.tsx:376 — a line legend inside a bar chart is a 4px content box,
+    // bordered like any other rect. The height reaches only that div: the svg
+    // sizes itself (shape.tsx:39-40).
+    final swatchHeight = item.isLineLegendInBarChart && !isSvg
+        ? kLegendLineInBarHeight + 2 * borderWidth
         : swatchSize;
     final label = capitalizeLegendLabel(item.title);
 
@@ -439,13 +453,29 @@ class FluentChartLegendRow extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  Opacity(
-                    opacity: swatchOpacity,
-                    child: SizedBox(
-                      key: const ValueKey<String>('legend-swatch'),
-                      width: swatchSize,
-                      height: swatchHeight,
-                      child: _buildSwatch(fill: fill),
+                  // Outside the Opacity, which is a repaint boundary: a row
+                  // that moves repaints this box but only re-offsets that
+                  // layer, so a snap taken below it would go stale.
+                  _SnapToDevicePixels(
+                    devicePixelRatio:
+                        MediaQuery.maybeDevicePixelRatioOf(context) ?? 1,
+                    child: Opacity(
+                      opacity: swatchOpacity,
+                      child: SizedBox(
+                        key: const ValueKey<String>('legend-swatch'),
+                        width: swatchSize,
+                        height: swatchHeight,
+                        child: isSvg
+                            ? CustomPaint(
+                                painter: FluentChartLegendShapePainter(
+                                  shape: shape,
+                                  fill: fill,
+                                  // Legends.tsx:366 — never dimmed.
+                                  stroke: item.color,
+                                ),
+                              )
+                            : _buildRect(fill: fill, borderWidth: borderWidth),
+                      ),
                     ),
                   ),
                   SizedBox(width: marginEnd),
@@ -462,42 +492,92 @@ class FluentChartLegendRow extends StatelessWidget {
     );
   }
 
-  Widget _buildSwatch({required Color fill}) {
-    final shape = shapeOverride ?? item.shape;
-    // shape.tsx:34 dispatches on the shape alone, before anything else: a key
-    // of `pointPath` renders the `<svg>` at :37, and only a miss falls through
-    // to the `classNameForNonSvg` div at :35. The stripe pattern is a `content`
-    // declaration on that div (Legends.tsx:379-381), so it is unreachable for
-    // the eight Points shapes — the dispatch has to come first here too.
-    if (shape != null && shape != FluentChartLegendShape.defaultShape) {
-      return CustomPaint(
-        painter: FluentChartLegendShapePainter(
-          shape: shape,
-          fill: fill,
-          // Legends.tsx:366 — never dimmed.
-          stroke: item.color,
+  /// shape.tsx:35 — the fallback rectangle, reached only when the shape misses
+  /// the `pointPath` table (:34). The stripe pattern is a `content` declaration
+  /// on this div (Legends.tsx:379-381), so it is unreachable for the eight
+  /// Points shapes.
+  ///
+  /// It carries `useLegendsStyles.styles.ts:82` `border: 1px solid`
+  /// unconditionally, coloured from `legend.color` (Legends.tsx:378), which is
+  /// never dimmed. Legends.tsx:377 blanks only the *background colour* for a
+  /// stripe pattern, so a striped swatch is this same bordered box with the
+  /// stripes painted into its content box — without the border a dimmed
+  /// striped swatch is filled with the page background and vanishes.
+  Widget _buildRect({required Color fill, required double borderWidth}) =>
+      DecoratedBox(
+        decoration: BoxDecoration(
+          color: item.stripePattern ? null : fill,
+          border: Border.all(color: item.color, width: borderWidth),
         ),
+        child: item.stripePattern
+            ? Padding(
+                padding: EdgeInsets.all(borderWidth),
+                child: CustomPaint(
+                  painter: FluentChartStripePainter(color: fill),
+                ),
+              )
+            : null,
       );
-    }
-    // shape.tsx:35 — the fallback rectangle. It carries
-    // `useLegendsStyles.styles.ts:82` `border: 1px solid` unconditionally,
-    // coloured from `legend.color` (Legends.tsx:378), which is never dimmed.
-    // Legends.tsx:377 blanks only the *background colour* for a stripe
-    // pattern, so a striped swatch is this same bordered box with the stripes
-    // painted into it — without the border a dimmed striped swatch is filled
-    // with the page background and vanishes.
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: item.stripePattern ? null : fill,
-        border: Border.all(
-          color: item.color,
-          width: style.swatchBorderWidth!.resolve(<WidgetState>{})!,
-        ),
-      ),
-      child: item.stripePattern
-          ? CustomPaint(painter: FluentChartStripePainter(color: fill))
-          : null,
+}
+
+/// Paints its child moved onto the nearest whole device pixel, leaving its
+/// layout where it is.
+///
+/// Chromium paints a box's background and border, and a replaced `<svg>`'s
+/// content, from its pixel-snapped origin — `round(x)`, `round(y)` in device
+/// space — while text keeps its fractional pen position. Both swatch kinds are
+/// such boxes (`shape.tsx:35`, `:38`), so upstream draws every swatch on whole
+/// pixels even when the labels before it have left it at a fraction. Measured
+/// in Chrome, a rect, a line bar, a stripe and five of the svg shapes placed
+/// at x .19, .33, .5, .625 and .75 each ink exactly the columns of the rounded
+/// x — and at `--force-device-scale-factor=2`, the columns of `round(2x)`: the
+/// device grid, not the CSS one. The label and every later row stay put,
+/// keeping Chromium's fractional pitch.
+///
+/// ponytail: the offset is taken at paint time, so a move that does not
+/// repaint this box — an ancestor repaint boundary shifted as a layer, such as
+/// a fractional scroll — keeps the previous snap until the next paint, a
+/// sub-pixel shift. Upgrade path, if that ever shows: snap in a layer that
+/// re-reads its global offset on composite.
+class _SnapToDevicePixels extends SingleChildRenderObjectWidget {
+  const _SnapToDevicePixels({required this.devicePixelRatio, super.child});
+
+  final double devicePixelRatio;
+
+  @override
+  _RenderSnapToDevicePixels createRenderObject(BuildContext context) =>
+      _RenderSnapToDevicePixels(devicePixelRatio);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderSnapToDevicePixels renderObject,
+  ) => renderObject.devicePixelRatio = devicePixelRatio;
+}
+
+class _RenderSnapToDevicePixels extends RenderProxyBox {
+  _RenderSnapToDevicePixels(this._devicePixelRatio);
+
+  double _devicePixelRatio;
+  set devicePixelRatio(double value) {
+    if (value == _devicePixelRatio) return;
+    _devicePixelRatio = value;
+    markNeedsPaint();
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final child = this.child;
+    if (child == null) return;
+    final device = localToGlobal(Offset.zero) * _devicePixelRatio;
+    // Mapped back through this box's transform rather than added as a global
+    // delta, so the origin still lands on the device grid under an ancestor
+    // scale. A singular transform maps it to the origin: no snap.
+    final snapped = globalToLocal(
+      Offset(device.dx.roundToDouble(), device.dy.roundToDouble()) /
+          _devicePixelRatio,
     );
+    context.paintChild(child, offset + snapped);
   }
 }
 

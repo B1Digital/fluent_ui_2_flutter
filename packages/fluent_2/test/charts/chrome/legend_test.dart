@@ -7,6 +7,7 @@ import 'package:fluent_2/src/charts/internal/chart_text_measurer.dart';
 import 'package:fluent_2/src/charts/internal/chart_utils.dart';
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -383,13 +384,22 @@ void main() {
             'legend.color (Legends.tsx:378), which is never dimmed. '
             'Legends.tsx:377 blanks only the background-color.',
       );
+      final stripes = find.byWidgetPredicate(
+        (widget) =>
+            widget is CustomPaint && widget.painter is FluentChartStripePainter,
+      );
       expect(
-        tester
-            .widgetList<CustomPaint>(find.byType(CustomPaint))
-            .map((paint) => paint.painter)
-            .whereType<FluentChartStripePainter>(),
-        hasLength(1),
+        stripes,
+        findsOneWidget,
         reason: 'The stripes are still painted inside that border.',
+      );
+      expect(
+        tester.getSize(stripes),
+        const Size(12, 12),
+        reason:
+            'The stripes are the div\'s `content` (Legends.tsx:379-381), which '
+            'Chrome draws in the 12x12 content box inside the 1px border — '
+            'phase zero is that box\'s corner, not the border\'s.',
       );
     });
 
@@ -463,7 +473,7 @@ void main() {
       );
     });
 
-    testWidgets('a line-in-bar legend renders a 4px bar, not a 12px square', (
+    testWidgets('a line-in-bar legend renders a 14x6 bar, not a 14px square', (
       tester,
     ) async {
       final node = FocusNode();
@@ -486,13 +496,47 @@ void main() {
         ),
       );
       expect(
-        tester
-            .getSize(find.byKey(const ValueKey<String>('legend-swatch')))
-            .height,
-        4,
+        tester.getSize(find.byKey(const ValueKey<String>('legend-swatch'))),
+        const Size(kLegendSwatchBoxSize, 6),
         reason:
-            'Legends.tsx:376 sets the shape height to 4px for a line legend in '
-            'a bar chart and 12px otherwise.',
+            'Legends.tsx:376 sets the content height to 4px for a line legend '
+            'in a bar chart, and useLegendsStyles.styles.ts:82 borders it 1px '
+            'on every side, so the drawn bar is 14x6 — the box Oracle B '
+            'records for fui-legend__rect in '
+            'charts-verticalbarchart--vertical-bar-default.',
+      );
+    });
+
+    testWidgets('a line-in-bar legend with an svg shape keeps its 14px box', (
+      tester,
+    ) async {
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        FluentChartLegendRow(
+          item: const FluentChartLegendItem(
+            title: 'trend',
+            color: seriesColour,
+            shape: FluentChartLegendShape.dottedLine,
+            isLineLegendInBarChart: true,
+          ),
+          shapeOverride: null,
+          dimmed: false,
+          selected: false,
+          indexInList: 0,
+          style: resolveFluentChartLegendStyle(theme),
+          focusNode: node,
+          skipTraversal: false,
+        ),
+      );
+      expect(
+        tester.getSize(find.byKey(const ValueKey<String>('legend-swatch'))),
+        const Size(kLegendShapeViewportSize, kLegendShapeViewportSize),
+        reason:
+            "Legends.tsx:376's 4px height is a style on the non-svg div "
+            '(shape.tsx:35); the svg sizes itself 14x14 (shape.tsx:39-40), '
+            'so a squashed box would paint the marker off-centre.',
       );
     });
 
@@ -1719,5 +1763,183 @@ void main() {
             'the left.',
       );
     });
+  });
+
+  group('swatch pixel snapping', () {
+    // Chromium paints a swatch div's background and border, and a swatch svg,
+    // from its origin rounded to a whole device pixel. Measured in Chrome: each
+    // of these placed at x .19, .33, .5, .625 and .75 inks exactly the pixels
+    // it inks at the rounded x. So a row at a fractional offset must paint its
+    // swatch pixel for pixel as it does at the offset that rounds to.
+    const cases = <(String, FluentChartLegendItem, bool)>[
+      ('rect', FluentChartLegendItem(title: 'a', color: seriesColour), false),
+      (
+        'dimmed rect',
+        FluentChartLegendItem(title: 'a', color: seriesColour),
+        true,
+      ),
+      (
+        'stripe',
+        FluentChartLegendItem(
+          title: 'a',
+          color: seriesColour,
+          stripePattern: true,
+        ),
+        false,
+      ),
+      (
+        'line in bar',
+        FluentChartLegendItem(
+          title: 'a',
+          color: seriesColour,
+          isLineLegendInBarChart: true,
+        ),
+        false,
+      ),
+      (
+        'circle',
+        FluentChartLegendItem(
+          title: 'a',
+          color: seriesColour,
+          shape: FluentChartLegendShape.circle,
+        ),
+        false,
+      ),
+      (
+        'hollow diamond',
+        FluentChartLegendItem(
+          title: 'a',
+          color: seriesColour,
+          shape: FluentChartLegendShape.diamond,
+        ),
+        true,
+      ),
+    ];
+
+    // The row's swatch starts 8 in (its padding) and its label 30 in, so with
+    // every row below placed at x 2.3 to 3 the first 32 logical columns hold
+    // the swatch and never the label.
+    const swatchColumns = 32;
+
+    /// The swatch columns of one row placed at [at], as RGBA bytes rendered at
+    /// [ratio] device pixels per logical pixel, under an ancestor [scale].
+    Future<List<int>> render(
+      WidgetTester tester,
+      (String, FluentChartLegendItem, bool) sample,
+      Offset at,
+      double ratio, {
+      double scale = 1,
+    }) async {
+      tester.view.physicalSize = Size(200 * ratio, 100 * ratio);
+      tester.view.devicePixelRatio = ratio;
+      addTearDown(tester.view.reset);
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      const boundaryKey = Key('snap-boundary');
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: RepaintBoundary(
+              key: boundaryKey,
+              child: SizedBox(
+                width: 64 * scale,
+                height: 40 * scale,
+                child: Transform.scale(
+                  scale: scale,
+                  alignment: Alignment.topLeft,
+                  child: Stack(
+                    children: <Widget>[
+                      Positioned(
+                        left: at.dx,
+                        top: at.dy,
+                        child: FluentChartLegendRow(
+                          item: sample.$2,
+                          shapeOverride: null,
+                          dimmed: sample.$3,
+                          selected: false,
+                          indexInList: 0,
+                          style: resolveFluentChartLegendStyle(theme),
+                          focusNode: node,
+                          skipTraversal: false,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final boundary = tester.renderObject<RenderRepaintBoundary>(
+        find.byKey(boundaryKey),
+      );
+      final bytes = await tester.runAsync(() async {
+        final image = await boundary.toImage(pixelRatio: ratio);
+        final data = await image.toByteData();
+        final width = image.width;
+        image.dispose();
+        final all = data!.buffer.asUint8List();
+        final columns = (swatchColumns * ratio * scale).round();
+        return <int>[
+          for (var y = 0; y < image.height; y++)
+            ...all.sublist(y * width * 4, (y * width + columns) * 4),
+        ];
+      });
+      return bytes!;
+    }
+
+    for (final sample in cases) {
+      testWidgets('a ${sample.$1} swatch paints on whole pixels at 1x', (
+        tester,
+      ) async {
+        final snapped = await render(tester, sample, const Offset(3, 7), 1);
+        expect(
+          await render(tester, sample, const Offset(2.6, 7.4), 1),
+          snapped,
+          reason:
+              'At (2.6, 7.4) the swatch lies at (10.6, 16.4), which Chromium '
+              'paints at (11, 16) — exactly as a row placed at (3, 7).',
+        );
+      });
+
+      testWidgets('a ${sample.$1} swatch snaps to device pixels at 2x', (
+        tester,
+      ) async {
+        final snapped = await render(tester, sample, const Offset(2.5, 7), 2);
+        expect(
+          await render(tester, sample, const Offset(2.3, 7.2), 2),
+          snapped,
+          reason:
+              'At 2x, (2.3, 7.2) puts the swatch at device (20.6, 32.4), which '
+              'rounds to (21, 32) — logical (10.5, 16): the device grid, not '
+              'the logical one.',
+        );
+      });
+
+      testWidgets('a ${sample.$1} swatch snaps under an ancestor scale', (
+        tester,
+      ) async {
+        final snapped = await render(
+          tester,
+          sample,
+          const Offset(2.5, 7.5),
+          1,
+          scale: 2,
+        );
+        expect(
+          await render(tester, sample, const Offset(2.6, 7.4), 1, scale: 2),
+          snapped,
+          reason:
+              'Scaled by 2, (2.6, 7.4) puts the swatch at device (21.2, 32.8), '
+              'which rounds to (21, 33) — local (10.5, 16.5), as a row placed '
+              'at (2.5, 7.5). The snap has to be mapped back through the '
+              'scale: added as a local offset it moves the swatch twice as '
+              'far, to (20.8, 33.2).',
+        );
+      });
+    }
   });
 }
