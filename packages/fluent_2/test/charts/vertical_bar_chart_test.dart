@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:fluent_2/src/charts/axis/axis_types.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_chart.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_chart_props.dart';
@@ -2301,6 +2303,42 @@ void main() {
         reason: 'toLocaleDateString() (:485), not DateTime.toString()',
       );
     });
+
+    test('the hit regions read the points a linear number of times', () {
+      // The shell rebuilds every region on each hover change, so a walk of
+      // the points per bar makes a 2000-bar hover quadratic.
+      const count = 400;
+      final categories = <String>[for (var i = 0; i < count; i++) 'x$i'];
+      for (final withLine in <bool>[true, false]) {
+        final points = _CountingList<FluentVerticalBarChartDataPoint>(
+          <FluentVerticalBarChartDataPoint>[
+            for (final x in categories)
+              FluentVerticalBarChartDataPoint(
+                x: x,
+                y: 10,
+                lineData: withLine ? const FluentBarLineDatum(y: 5) : null,
+              ),
+          ],
+        );
+        final regions = _delegateOver(points).buildHitRegions(
+          _bandContext(categories, width: 800),
+          _layout(width: 800, height: 350),
+        );
+        expect(regions.length, count, reason: 'a count guard');
+        expect(
+          regions.first.popoverData.isCalloutForStack,
+          withLine,
+          reason: 'a guard: the stack is what a line brings',
+        );
+        expect(
+          points.reads,
+          lessThan(20 * count),
+          reason:
+              'line: $withLine — _isHavingLine and the first point at each x '
+              'are resolved once per build, not once per bar',
+        );
+      }
+    });
   });
 
   group('FluentVerticalBarChart colours', () {
@@ -2731,3 +2769,26 @@ FluentCartesianLayout _layout({
   isRtl: false,
   startFromX: 0,
 );
+
+/// A read-only list that counts its element reads.
+class _CountingList<E> extends ListBase<E> {
+  _CountingList(this._inner);
+
+  final List<E> _inner;
+  int reads = 0;
+
+  @override
+  int get length => _inner.length;
+
+  @override
+  set length(int value) => throw UnsupportedError('read-only');
+
+  @override
+  E operator [](int index) {
+    reads++;
+    return _inner[index];
+  }
+
+  @override
+  void operator []=(int index, E value) => throw UnsupportedError('read-only');
+}

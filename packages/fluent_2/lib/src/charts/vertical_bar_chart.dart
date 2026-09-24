@@ -248,13 +248,17 @@ class _FluentVerticalBarChartState extends State<FluentVerticalBarChart> {
       // that lets every event through to the plot below resolves the bar
       // itself, from the scales and layout the shell built the regions with.
       overlayBuilder: _hasLine
-          ? (context, childContext, layout) => MouseRegion(
-              opaque: false,
-              onHover: (event) => _onPlotHover(
-                delegate.barsFor(childContext, layout),
-                event.localPosition,
-              ),
-            )
+          ? (context, childContext, layout) {
+              // Resolved on the first move after each build, not on every one.
+              List<FluentVerticalBarRect>? bars;
+              return MouseRegion(
+                opaque: false,
+                onHover: (event) => _onPlotHover(
+                  bars ??= delegate.barsFor(childContext, layout),
+                  event.localPosition,
+                ),
+              );
+            }
           : null,
       onChartMouseLeave: () => setState(() => _activeXDataPoint = null),
     );
@@ -1353,13 +1357,21 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
     FluentCartesianLayout layout,
   ) {
     final yMax = barDomainFor(context).endValue;
+    // It walks every point, so once per build rather than once per bar: the
+    // shell rebuilds these regions on every hover change, and a walk per bar
+    // made that quadratic.
+    final firstPointAtX = _firstPointAtX;
     return <FluentChartHitRegion>[
       for (final bar in barsFor(context, layout))
         FluentChartHitRegion(
           bounds: bar.rect,
           index: bar.index,
           legend: points[bar.index].legend ?? '',
-          popoverData: popoverDataFor(points[bar.index], yMax: yMax),
+          popoverData: popoverDataFor(
+            points[bar.index],
+            yMax: yMax,
+            firstPointAtX: firstPointAtX,
+          ),
           semanticsLabel: semanticsLabelFor(points[bar.index]),
           // `onClick={point.onClick}` on every bar (`VerticalBarChart.tsx:674`,
           // `:740`, `:797`).
@@ -1371,16 +1383,25 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
   /// What hovering [point]'s bar shows: the state `_onBarHover` writes
   /// (`VerticalBarChart.tsx:465-494`), read back through `calloutProps`
   /// (`:1127-1149`). [yMax] tops the colour ramp, as in [barDomainFor].
+  ///
+  /// [firstPointAtX] is what [buildHitRegions] resolves once for every bar;
+  /// left out, it is resolved here.
   FluentChartPopoverData popoverDataFor(
     FluentVerticalBarChartDataPoint point, {
     required double yMax,
+    Map<Object, FluentVerticalBarChartDataPoint>? firstPointAtX,
   }) {
+    final firstAtX = firstPointAtX ?? _firstPointAtX;
     // `isCalloutForStack: _isHavingLine && (_noLegendHighlighted() ||
     // _getHighlightedLegend().length > 1)` (`:1140`); only a selection can
     // highlight more than one legend.
-    if (points.any((p) => p.lineData != null) &&
+    if (firstAtX.isNotEmpty &&
         (_noLegendHighlighted || selectedLegends.length > 1)) {
-      return _stackPopoverData(point, yMax: yMax);
+      return _stackPopoverData(
+        point,
+        yMax: yMax,
+        selected: firstAtX[point.x] ?? point,
+      );
     }
     return FluentChartPopoverData(
       // `setXCalloutValue` (`:484-486`), which the single-value body prints
@@ -1401,13 +1422,26 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
     );
   }
 
+  /// The first point at each x, which answers for its whole x in the stack
+  /// callout (`VerticalBarChart.tsx:426`), or nothing when no point carries
+  /// `lineData`, so that its emptiness is `!_isHavingLine` (`:294-297`).
+  /// Walked backwards so the first point is the last written and wins.
+  Map<Object, FluentVerticalBarChartDataPoint> get _firstPointAtX =>
+      points.any((p) => p.lineData != null)
+      ? <Object, FluentVerticalBarChartDataPoint>{
+          for (final p in points.reversed) p.x: p,
+        }
+      : const <Object, FluentVerticalBarChartDataPoint>{};
+
   /// `_getCalloutContentForLineAndBar` (`VerticalBarChart.tsx:419-463`).
+  ///
+  /// [selected] is the first point at [point]'s x, which answers for it rather
+  /// than the hovered one (`:426`).
   FluentChartPopoverData _stackPopoverData(
     FluentVerticalBarChartDataPoint point, {
     required double yMax,
+    required FluentVerticalBarChartDataPoint selected,
   }) {
-    // `:426` — the first point at this x answers for it, not the hovered one.
-    final selected = points.firstWhere((p) => p.x == point.x);
     final lineData = selected.lineData;
     return FluentChartPopoverData(
       // `point.xAxisCalloutData || hoverXValue` (`:458-461`), which the
