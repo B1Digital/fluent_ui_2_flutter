@@ -1489,10 +1489,6 @@
     "kind": "composed",
     "why": "Upstream's three panels are raw `<table>` markup; rendered with Flutter's `Table` and `IntrinsicColumnWidth`, which reproduces the same column alignment, plus a `_Panel` helper for the header-bold and label-column-bold variants."
   },
-  "components-tag-interactiontag--appearance": {
-    "kind": "reduced",
-    "why": "Upstream bundleIcon swaps the calendar glyph filled-on-hover; the media slot exposes no hover hook, so the regular glyph is used alone."
-  },
   "components-tag-interactiontag--default": {
     "kind": "composed",
     "why": "Upstream's InteractionTag + InteractionTagPrimary pair is one widget here: FluentInteractionTag is the primary half, and a non-null onPressed is what makes it interactive rather than an inert FluentTag."
@@ -1508,10 +1504,6 @@
   "components-tag-interactiontag--has-primary-action": {
     "kind": "local-state",
     "why": "FluentPopover is controlled, so the tag's onPressed toggles local open state; the whole tag is the trigger (upstream wraps only the primary half) and the Tooltip on the secondary half becomes dismissSemanticLabel: 'dismiss'. The <ul>/<li> list is a Column of bullet Rows."
-  },
-  "components-tag-interactiontag--selected": {
-    "kind": "reduced",
-    "why": "Same bundleIcon hover-swap gap as Appearance."
   },
   "components-tag-interactiontag--shape": {
     "kind": "composed",

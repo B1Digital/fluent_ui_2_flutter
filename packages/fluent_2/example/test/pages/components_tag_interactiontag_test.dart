@@ -312,6 +312,34 @@ void main() {
       );
       expect(_borderColor(brandBox), theme.colors.transparentStrokeInteractive);
     });
+
+    testWidgets('only the outline tag fills its glyph under a real mouse', (
+      WidgetTester tester,
+    ) async {
+      // Upstream's story passes bundleIcon(CalendarMonthFilled, ...Regular),
+      // and useInteractionTagPrimaryStyles shows `.fui-Icon-filled` on a
+      // hovered outline tag only.
+      await pumpSection(
+        tester,
+        sectionOf('components-tag-interactiontag--appearance'),
+      );
+
+      for (final String name in <String>['filled', 'outline', 'brand']) {
+        final Finder tag = find.widgetWithText(FluentInteractionTag, name);
+        final bool filledGlyph = await whileHovering(
+          tester,
+          find.text(name),
+          () => find
+              .descendant(
+                of: tag,
+                matching: find.byIcon(FluentIcons.calendar_month_20_filled),
+              )
+              .evaluate()
+              .isNotEmpty,
+        );
+        expect(filledGlyph, name == 'outline', reason: name);
+      }
+    });
   });
 
   group('disabled', () {
@@ -419,6 +447,34 @@ void main() {
           in paintersOf<FluentTagDismissPainter>(tester)) {
         expect(glyph.color, theme.colors.neutralForegroundOnBrand);
       }
+    });
+
+    testWidgets('the selected outline tag still fills its glyph when hovered', (
+      WidgetTester tester,
+    ) async {
+      // The story's bundleIcon swaps on the selected outline tag too.
+      await pumpSection(
+        tester,
+        sectionOf('components-tag-interactiontag--selected'),
+      );
+
+      final Finder tag = find.widgetWithText(
+        FluentInteractionTag,
+        'appearance=outline',
+      );
+      final Finder filled = find.descendant(
+        of: tag,
+        matching: find.byIcon(FluentIcons.calendar_month_20_filled),
+      );
+      expect(filled, findsNothing);
+      expect(
+        await whileHovering(
+          tester,
+          find.text('appearance=outline'),
+          () => filled.evaluate().length,
+        ),
+        1,
+      );
     });
   });
 
