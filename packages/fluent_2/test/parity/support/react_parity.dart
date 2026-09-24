@@ -150,15 +150,18 @@ final Map<String, ui.Image> _referenceCache = <String, ui.Image>{};
 /// pixels. Call from `setUpAll`.
 ///
 /// Selawik has no U+2212 MINUS SIGN, which d3-format writes on every negative
-/// tick and bar label (`internal/d3/format.dart`). The browser falls through
-/// to Segoe UI's own glyph; `flutter test` fell through to the placeholder's
-/// 1em box, 10px wide at 10px where Segoe's minus is ~5.6, and that box stuck
-/// out of the text mask on every negative label in the corpus. So Roboto — the
-/// only real sans-serif the SDK ships, with a 5.56px minus at 10px — is
-/// registered under the FIRST name of [FluentFontFamily.baseFallback]: that is
-/// where Selawik's missing glyphs are looked up next. Registering it as
-/// 'Roboto' does nothing, because flutter_tester maps that name to the
-/// placeholder itself.
+/// tick and bar label (`internal/d3/format.dart`). The browser draws Segoe
+/// UI's own glyph, 6.84px wide at 10px/400 and 6.95px at 10px/600 (measured
+/// in the live storybook on 2026-09-24; `CSS.getPlatformFontsForNode` names
+/// Segoe UI and Segoe UI Semibold). `flutter test` fell through to the
+/// placeholder's 1em box, 10px wide, and that box stuck out of the text mask
+/// on every negative label in the corpus. So Roboto — the only real
+/// sans-serif the SDK ships, with a 5.56px minus at 10px — is registered under
+/// the FIRST name of [FluentFontFamily.baseFallback]: that is where Selawik's
+/// missing glyphs are looked up next. It is not Segoe's width, only nearer
+/// (1.4px narrow where the box was 3px wide), so a negative label now ends
+/// inside its mask. Registering it as 'Roboto' does nothing, because
+/// flutter_tester maps that name to the placeholder itself.
 Future<void> loadParityFonts() async {
   final loader = FontLoader(FluentFontFamily.base);
   for (final file in <String>[

@@ -16,7 +16,8 @@ void main() {
   test('U+2212 MINUS SIGN lays out as a glyph, not a placeholder box', () {
     // d3-format writes every negative label with U+2212 and Selawik has no
     // glyph for it. Before the fallback was registered this measured 10.0 —
-    // the placeholder's 1em box — against Segoe UI's ~5.6.
+    // the placeholder's 1em box — against the storybook's Segoe UI Semibold
+    // 6.95. Roboto's 5.56 is the nearest glyph the SDK ships.
     final style = FluentThemeData.light(
       fontPlatform: FluentFontPlatform.web,
     ).typography.caption2Strong.copyWith(fontSize: 10);
