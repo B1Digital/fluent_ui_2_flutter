@@ -1,5 +1,6 @@
 import 'package:fluent_2/fluent_2.dart';
 import 'package:fluent_2_example/shell/catalog.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -461,6 +462,22 @@ void main() {
       expect(find.text('Person 1'), findsNothing);
       expect(_glyphs(tester).first, FluentIcons.cursor_click_20_filled);
       await expectCleanTeardown(tester, section.id);
+    });
+
+    testWidgets('the annotation toggle shows the pointer cursor', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(tester, section);
+      // The story's <button> is `cursor: pointer`.
+      final TestGesture mouse = await mouseHover(
+        tester,
+        find.byIcon(FluentIcons.cursor_click_20_filled).first,
+      );
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+        SystemMouseCursors.click,
+      );
+      await mouseAway(tester, mouse);
     });
 
     testWidgets('the legend survives a single-point row and the value column '

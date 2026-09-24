@@ -1088,13 +1088,17 @@ class _AnnotationPopoverState extends State<_AnnotationPopover> {
       Semantics(
         button: true,
         label: 'Show annotation',
-        child: GestureDetector(
-          onTap: () => setState(() => _isExpanded = !_isExpanded),
-          child: Icon(
-            _isExpanded
-                ? FluentIcons.cursor_click_20_regular
-                : FluentIcons.cursor_click_20_filled,
-            size: 16,
+        // The story's <button> sets `cursor: pointer`.
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: () => setState(() => _isExpanded = !_isExpanded),
+            child: Icon(
+              _isExpanded
+                  ? FluentIcons.cursor_click_20_regular
+                  : FluentIcons.cursor_click_20_filled,
+              size: 16,
+            ),
           ),
         ),
       ),
