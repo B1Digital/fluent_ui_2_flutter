@@ -1,5 +1,6 @@
 import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -670,6 +671,58 @@ void main() {
         .text
         .style
         ?.color;
+
+    testWidgets('a mouse press dragged off falls back to rest; a finger holds', (
+      tester,
+    ) async {
+      // `useButtonStyles.styles.ts` paints pressed under `:hover:active`: in
+      // Chrome a held button dragged off shows #FFFFFF again, and #E0E0E0 once
+      // the pointer is back over it. A touch press has no hover to lose.
+      final c = theme.colors;
+      await pump(
+        tester,
+        FluentButton(key: key, onPressed: () {}, child: const Text('B')),
+      );
+      final mouse = await hover(tester);
+      await mouse.down(tester.getCenter(find.byKey(key)));
+      await tester.pumpAndSettle();
+      expect(decorationOf(tester).color, c.neutralBackground1Pressed);
+
+      await mouse.moveTo(Offset.zero);
+      await tester.pumpAndSettle();
+      expect(decorationOf(tester).color, c.neutralBackground1);
+
+      await mouse.moveTo(tester.getCenter(find.byKey(key)));
+      await tester.pumpAndSettle();
+      expect(decorationOf(tester).color, c.neutralBackground1Pressed);
+      await mouse.up();
+      await tester.pumpAndSettle();
+
+      final finger = await tester.startGesture(
+        tester.getCenter(find.byKey(key)),
+      );
+      await finger.moveTo(Offset.zero);
+      await tester.pumpAndSettle();
+      expect(decorationOf(tester).color, c.neutralBackground1Pressed);
+      await finger.up();
+    });
+
+    testWidgets('a disabled button shows not-allowed', (tester) async {
+      // `useButtonStyles.styles.ts`: `disabled: { cursor: 'not-allowed' }`.
+      await pump(tester, const FluentButton(key: key, child: Text('B')));
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        pointer: 1,
+      );
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(find.byKey(key)));
+      await tester.pump();
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+        SystemMouseCursors.forbidden,
+      );
+    });
 
     testWidgets('a menu icon sits 4 after the label, 12 or 16 square, and '
         'keeps the label colour', (tester) async {

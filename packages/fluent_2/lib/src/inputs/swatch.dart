@@ -746,6 +746,8 @@ class FluentSwatch extends StatelessWidget {
         mouseCursor:
             resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
             SystemMouseCursors.click,
+        // `useColorSwatchStyles.styles.ts` presses under `:hover:active`.
+        pressedRequiresHover: true,
         builder: (context, states, _) => buildFluentSwatch(
           state,
           resolved,

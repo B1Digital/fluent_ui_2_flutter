@@ -792,6 +792,9 @@ class FluentButton extends StatelessWidget {
       enabled: onPressed != null,
       focusNode: focusNode,
       autofocus: autofocus,
+      // `useButtonStyles.styles.ts` presses under `:hover:active`, so a mouse
+      // dragged off a held button shows it at rest.
+      pressedRequiresHover: true,
       builder: (context, states, _) =>
           buildFluentButton(state, resolved, states),
     );

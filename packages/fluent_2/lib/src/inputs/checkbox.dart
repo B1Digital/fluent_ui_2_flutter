@@ -629,6 +629,8 @@ class FluentCheckbox extends StatelessWidget {
       mouseCursor:
           resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
           SystemMouseCursors.click,
+      // `useCheckboxStyles.styles.ts`: disabled is `cursor: 'default'`.
+      disabledMouseCursor: SystemMouseCursors.basic,
       builder: (context, states, _) =>
           buildFluentCheckbox(state, resolved, states),
     );

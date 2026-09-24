@@ -496,6 +496,8 @@ class FluentCompoundButton extends StatelessWidget {
         enabled: onPressed != null,
         focusNode: focusNode,
         autofocus: autofocus,
+        // `:hover:active`, as `useCompoundButtonStyles.styles.ts` writes it.
+        pressedRequiresHover: true,
         builder: (context, states, _) =>
             buildFluentCompoundButton(state, resolved, states),
       ),

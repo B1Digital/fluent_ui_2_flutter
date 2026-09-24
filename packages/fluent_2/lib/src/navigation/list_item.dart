@@ -707,6 +707,8 @@ class FluentListItem<T extends Object> extends StatelessWidget {
         mouseCursor:
             resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
             SystemMouseCursors.click,
+        // `useListItemStyles.styles.ts`: disabled is `cursor: 'default'`.
+        disabledMouseCursor: SystemMouseCursors.basic,
         builder: (context, states, _) {
           // A row in a read-only list is not *disabled*, it is merely not a
           // control: `enabled` is the item's own flag and it alone selects

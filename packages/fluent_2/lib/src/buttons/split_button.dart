@@ -724,6 +724,8 @@ class FluentSplitButton extends StatelessWidget {
           enabled: onSide != null,
           focusNode: isMenu ? menuFocusNode : focusNode,
           autofocus: autofocus && !isMenu,
+          // Both halves are Buttons, pressed under `:hover:active`.
+          pressedRequiresHover: true,
           // An open menu is the chevron half's `Selected` step, below hover
           // and press exactly as upstream's `aria-expanded` rule sits below
           // `:hover` — so pointing at an open menu's chevron still lights it.

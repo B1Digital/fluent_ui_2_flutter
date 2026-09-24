@@ -548,6 +548,10 @@ class FluentSwitch extends StatelessWidget {
           mouseCursor:
               resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
               SystemMouseCursors.click,
+          // `useSwitchStyles.styles.ts`: disabled is `cursor: 'default'`, and
+          // pressed is `:hover:active`.
+          disabledMouseCursor: SystemMouseCursors.basic,
+          pressedRequiresHover: true,
           builder: (context, states, _) =>
               buildFluentSwitch(state, resolved, states),
         ),

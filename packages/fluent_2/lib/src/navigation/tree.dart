@@ -1352,6 +1352,8 @@ class _FluentTreeRow extends StatelessWidget {
         mouseCursor:
             resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
             SystemMouseCursors.click,
+        // Upstream's TreeItem has no disabled state, so no disabled cursor.
+        disabledMouseCursor: SystemMouseCursors.basic,
         builder: (context, states, _) => buildFluentTreeItem(
           state,
           resolved,

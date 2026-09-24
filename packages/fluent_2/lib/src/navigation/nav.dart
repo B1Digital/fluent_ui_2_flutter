@@ -1365,6 +1365,8 @@ class _FluentNavRowState extends State<_FluentNavRow> {
           mouseCursor:
               resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
               SystemMouseCursors.click,
+          // Upstream's Nav has no disabled item, so no disabled cursor.
+          disabledMouseCursor: SystemMouseCursors.basic,
           builder: (context, states, _) => buildFluentNavItem(
             state,
             resolved,

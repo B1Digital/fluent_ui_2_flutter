@@ -608,6 +608,10 @@ class _FluentRadioState<T> extends State<FluentRadio<T>> with RadioClient<T> {
         mouseCursor:
             resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
             SystemMouseCursors.click,
+        // `useRadioStyles.styles.ts`: disabled is `cursor: 'default'`, and
+        // pressed is `:hover:active`.
+        disabledMouseCursor: SystemMouseCursors.basic,
+        pressedRequiresHover: true,
         builder: (context, states, _) =>
             buildFluentRadio(state, resolved, states),
       ),

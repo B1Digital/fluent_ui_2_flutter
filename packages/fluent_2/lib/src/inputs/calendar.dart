@@ -1621,6 +1621,10 @@ class _CalendarCaption extends StatelessWidget {
   Widget build(BuildContext context) => FluentInteractive(
     enabled: enabled && panel.onCaptionPressed != null,
     onPressed: panel.onCaptionPressed,
+    // `headerIsClickable`: `&:hover:active` (useCalendarDayStyles.styles.ts).
+    // An inert caption is plain text, with the browser's `default` cursor.
+    disabledMouseCursor: SystemMouseCursors.basic,
+    pressedRequiresHover: true,
     builder: (context, interactionStates, child) {
       // A caption with nothing to drill to is inert, not disabled: with the
       // month picker beside it the coarser view is already on screen, and
@@ -1686,6 +1690,9 @@ class _CalendarNavButton extends StatelessWidget {
   Widget build(BuildContext context) => FluentInteractive(
     enabled: onPressed != null,
     onPressed: onPressed,
+    // `&:hover:active`; a disabled `<button>` keeps the `default` cursor.
+    disabledMouseCursor: SystemMouseCursors.basic,
+    pressedRequiresHover: true,
     builder: (context, states, child) {
       final size =
           style.navButtonSize?.resolve(states) ??
@@ -1735,6 +1742,9 @@ class _CalendarGoToToday extends StatelessWidget {
   Widget build(BuildContext context) => FluentInteractive(
     enabled: state.enabled && state.onGoToToday != null,
     onPressed: state.onGoToToday,
+    // `goTodayButton`: `&:hover:active` (useCalendarStyles.styles.ts).
+    disabledMouseCursor: SystemMouseCursors.basic,
+    pressedRequiresHover: true,
     builder: (context, states, child) => Semantics(
       button: true,
       // The link stays in place and greys out once the calendar is already on
@@ -1812,6 +1822,11 @@ class _CalendarCellWidget extends StatelessWidget {
       mouseCursor:
           style.mouseCursor?.resolve(const <WidgetState>{}) ??
           SystemMouseCursors.click,
+      disabledMouseCursor: SystemMouseCursors.basic,
+      // Month and year cells press under `&:hover:active`
+      // (useCalendarPickerStyles.styles.ts); a day's button under a plain
+      // `:active` (useCalendarDayGridStyles.styles.ts).
+      pressedRequiresHover: view != FluentCalendarView.month,
       builder: (context, states, child) => Semantics(
         role: SemanticsRole.cell,
         button: true,

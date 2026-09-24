@@ -2378,6 +2378,8 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
       child: FluentInteractive(
         enabled: option.enabled,
         onPressed: option.enabled ? () => _select(option) : null,
+        // `useOptionStyles.styles.ts`: a disabled option is `cursor: 'default'`.
+        disabledMouseCursor: SystemMouseCursors.basic,
         builder: (context, states, _) => ValueListenableBuilder<bool>(
           valueListenable: FluentInputModality.keyboard,
           builder: (context, keyboard, _) =>
