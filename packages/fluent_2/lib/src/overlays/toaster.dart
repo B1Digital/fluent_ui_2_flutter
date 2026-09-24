@@ -792,6 +792,14 @@ class _FluentToastContainerState extends State<_FluentToastContainer>
                   )
                 : (_stage(t, 0, _enterSizeEnd), _stage(t, _enterFadeBegin, 1));
             return ClipRect(
+              // Only while the height moves. Upstream's collapse atoms set
+              // `overflow: hidden` on their keyframes and `unset` on the last
+              // enter one (collapse-atoms.js:13-35), so a toast at rest casts
+              // its whole shadow8 — a permanent clip cut it to a sliver above
+              // the toast and nothing on the other three sides. Switched by
+              // clipBehavior rather than by dropping the widget, so the toast
+              // below keeps its element and state.
+              clipBehavior: _exiting || size < 1 ? Clip.hardEdge : Clip.none,
               child: Align(
                 // Collapse towards the anchored edge, so the stack does not
                 // appear to slide past the corner it is pinned to.
