@@ -503,6 +503,10 @@ Widget buildFluentButton(
     if (menuIcon != null) {
       content = Row(
         mainAxisSize: MainAxisSize.min,
+        // The root's `justify-content: center`: the minimum width (the 64/96
+        // floor, the split chevron half's 24) stretches this row, and the
+        // label and chevron stay centred in it as one group.
+        mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
           content,
           // `useMenuIconStyles.notIconOnly`: `marginLeft:
@@ -720,7 +724,10 @@ class FluentButton extends StatelessWidget {
   /// )
   /// ```
   ///
-  /// Ignored on the other appearances, which never swap upstream.
+  /// Ignored on the other appearances, which do not swap on hover upstream.
+  /// A checked toggle or an open menu button shows the Filled glyph on every
+  /// appearance (`useToggleButtonStyles`, `useMenuButtonStyles`), which a
+  /// caller does by passing the filled glyph as [icon] while in that state.
   final Widget? activeIcon;
 
   /// A menu affordance after the label, which makes this upstream's

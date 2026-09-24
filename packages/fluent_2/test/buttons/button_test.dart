@@ -722,6 +722,36 @@ void main() {
       }
     });
 
+    testWidgets('a short menu button centres its label and chevron together', (
+      tester,
+    ) async {
+      // The root is `justify-content: center`, so a label and chevron
+      // narrower than the 64/96 floor sit in its middle as one group. The
+      // menu icon's row once packed them to the leading edge.
+      const chevron = FluentIcons.chevron_down_20_regular;
+      for (final size in FluentButtonSize.values) {
+        await pump(
+          tester,
+          FluentButton(
+            key: key,
+            size: size,
+            menuIcon: fluentMenuChevron,
+            onPressed: () {},
+            child: const Text('A'),
+          ),
+        );
+        final button = tester.getRect(find.byKey(key));
+        expect(
+          tester.getRect(find.text('A')).left - button.left,
+          closeTo(
+            button.right - tester.getRect(find.byIcon(chevron)).right,
+            0.01,
+          ),
+          reason: size.name,
+        );
+      }
+    });
+
     testWidgets('subtle tints its icon brand while the label stays neutral', (
       tester,
     ) async {

@@ -967,6 +967,28 @@ void main() {
       expect(shift.transform.getTranslation().x, 0);
     });
 
+    testWidgets('the chevron is centred in the 24 minimum width', (
+      tester,
+    ) async {
+      // Small and medium content is narrower than the half's 24 minWidth, and
+      // the root's `justify-content: center` splits the slack: 1 + 4.5 and
+      // 5 + 0.5 from the leading edge, the 1px border staying on the far side.
+      for (final size in <FluentButtonSize>[
+        FluentButtonSize.small,
+        FluentButtonSize.medium,
+      ]) {
+        await pump(tester, splitButton(size: size, onPressed: () {}));
+        expect(
+          tester
+                  .getRect(find.byIcon(FluentIcons.chevron_down_20_regular))
+                  .left -
+              tester.getRect(sideOf(FluentSplitButtonSide.menu)).left,
+          5.5,
+          reason: size.name,
+        );
+      }
+    });
+
     testWidgets('a hovered subtle chevron keeps the label colour', (
       tester,
     ) async {
