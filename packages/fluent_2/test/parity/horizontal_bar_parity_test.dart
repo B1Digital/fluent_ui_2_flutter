@@ -361,8 +361,9 @@ void main() {
       // 10.433% before the chart took `legendProps` (d89c3d2): the port drew
       // its own centred overflow legend, 8px shorter and unannotated. With
       // the icon in neutralForeground1 (#242424) rather than the button's
-      // black it measured 0.158%.
-      maxMismatch: 0.15,
+      // black it measured 0.158%. Linux CI reads 0.152% (172 px): FreeType
+      // antialiases the icon glyph's edges differently from CoreText.
+      maxMismatch: 0.16,
     );
     expect(tester.takeException(), isNull);
   });
