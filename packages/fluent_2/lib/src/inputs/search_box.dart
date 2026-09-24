@@ -503,85 +503,96 @@ Widget buildFluentSearchBox(
     ],
   );
 
-  return ConstrainedBox(
-    constraints: BoxConstraints(maxWidth: maximumSize.width),
-    child: Stack(
-      // Passthrough, so a parent's tight height stretches the box itself, as a
-      // CSS `height` would. A loose Stack laid the box out at its own 24 / 32 /
-      // 40 and pinned the bar to the bottom of the taller Stack, below it.
-      fit: StackFit.passthrough,
-      children: <Widget>[
-        // The minimum sits on the DECORATED box, not the Stack, so the surface
-        // itself is never shorter than the control and the bottom-pinned bar
-        // stays on its bottom edge.
-        ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: minimumSize.height,
-            minWidth: minimumSize.width,
-          ),
-          // Background, then border, then content, then the focus bar below:
-          // CSS's paint order for a root and its positioned `::after`.
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: style.backgroundColor?.resolve(states),
-              borderRadius: radius,
+  // CSS `max-width` beats a stretching parent: under Field's grid the root is
+  // 468 at the start edge, not the grid's width (storybook, 468 of 944). A bare
+  // ConstrainedBox yields to tight constraints, so the minimum width is let go
+  // first; heights pass through, so a fixed-height parent still stretches it.
+  return ConstraintsTransformBox(
+    constraintsTransform: _releaseMinWidth,
+    alignment: AlignmentDirectional.topStart,
+    child: ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maximumSize.width),
+      child: Stack(
+        // Passthrough, so a parent's tight height stretches the box itself, as a
+        // CSS `height` would. A loose Stack laid the box out at its own 24 / 32 /
+        // 40 and pinned the bar to the bottom of the taller Stack, below it.
+        fit: StackFit.passthrough,
+        children: <Widget>[
+          // The minimum sits on the DECORATED box, not the Stack, so the surface
+          // itself is never shorter than the control and the bottom-pinned bar
+          // stays on its bottom edge.
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: minimumSize.height,
+              minWidth: minimumSize.width,
             ),
-            child: CustomPaint(
-              painter: FluentInputBorderPainter(
-                radius: radius,
-                borderColor: borderColor,
-                borderWidth: side,
-                bottomBorderColor: bottomColor,
-                bottomBorderWidth: widths.bottom,
+            // Background, then border, then content, then the focus bar below:
+            // CSS's paint order for a root and its positioned `::after`.
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: style.backgroundColor?.resolve(states),
+                borderRadius: radius,
               ),
-              // Without the clear slot, upstream zeroes the root's
-              // padding-right and gives the `<input>` the same padding
-              // instead, so that strip belongs to the text column: text
-              // cursor, and a click there focuses (storybook, x 195 of 200).
-              child: Builder(
-                builder: (context) {
-                  final dir =
-                      Directionality.maybeOf(context) ?? TextDirection.ltr;
-                  final p = padding.resolve(dir);
-                  final end = state.clear != null
-                      ? 0.0
-                      : dir == TextDirection.ltr
-                      ? p.right
-                      : p.left;
-                  return Padding(
-                    padding:
-                        p +
-                        widths -
-                        EdgeInsetsDirectional.only(end: end).resolve(dir),
-                    child: DefaultTextStyle.merge(
-                      style: textStyle.copyWith(color: foreground),
-                      child: row(end),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ),
-        if (underlineColor != null)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: FluentStroke.thick,
-            child: FluentInputFocusUnderline(
-              focused: state.focused && state.enabled,
-              color: underlineColor,
-              borderRadius: BorderRadius.only(
-                bottomLeft: radius.bottomLeft,
-                bottomRight: radius.bottomRight,
+              child: CustomPaint(
+                painter: FluentInputBorderPainter(
+                  radius: radius,
+                  borderColor: borderColor,
+                  borderWidth: side,
+                  bottomBorderColor: bottomColor,
+                  bottomBorderWidth: widths.bottom,
+                ),
+                // Without the clear slot, upstream zeroes the root's
+                // padding-right and gives the `<input>` the same padding
+                // instead, so that strip belongs to the text column: text
+                // cursor, and a click there focuses (storybook, x 195 of 200).
+                child: Builder(
+                  builder: (context) {
+                    final dir =
+                        Directionality.maybeOf(context) ?? TextDirection.ltr;
+                    final p = padding.resolve(dir);
+                    final end = state.clear != null
+                        ? 0.0
+                        : dir == TextDirection.ltr
+                        ? p.right
+                        : p.left;
+                    return Padding(
+                      padding:
+                          p +
+                          widths -
+                          EdgeInsetsDirectional.only(end: end).resolve(dir),
+                      child: DefaultTextStyle.merge(
+                        style: textStyle.copyWith(color: foreground),
+                        child: row(end),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ),
-      ],
+          if (underlineColor != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: FluentStroke.thick,
+              child: FluentInputFocusUnderline(
+                focused: state.focused && state.enabled,
+                color: underlineColor,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: radius.bottomLeft,
+                  bottomRight: radius.bottomRight,
+                ),
+              ),
+            ),
+        ],
+      ),
     ),
   );
 }
+
+BoxConstraints _releaseMinWidth(BoxConstraints constraints) =>
+    constraints.copyWith(minWidth: 0);
 
 /// Paints [child] at its offset rounded to whole logical pixels.
 ///
