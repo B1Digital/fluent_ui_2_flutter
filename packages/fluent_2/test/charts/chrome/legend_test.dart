@@ -1365,6 +1365,62 @@ void main() {
       );
     });
 
+    testWidgets('wrapped rows start at the leading edge even when centred', (
+      tester,
+    ) async {
+      Future<List<Rect>> rowsFor({required bool centerLegends}) async {
+        await tester.pumpWidget(
+          FluentApp(
+            theme: theme,
+            home: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 400,
+                child: FluentChartLegend(
+                  enabledWrapLines: true,
+                  centerLegends: centerLegends,
+                  legends: const <FluentChartLegendItem>[
+                    FluentChartLegendItem(title: 'a', color: seriesColour),
+                    FluentChartLegendItem(title: 'b', color: seriesColour),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        final rows = find.byType(FluentChartLegendRow);
+        return <Rect>[for (var i = 0; i < 2; i++) tester.getRect(rows.at(i))];
+      }
+
+      // HorizontalBarChart.tsx:138 passes centerLegends, and this story adds
+      // enabledWrapLines through legendProps: upstream's wrapped branch with
+      // centring asked for. A legendContainer's box is the row, inside its
+      // margin.
+      final oracle = loadOracleStory(
+        'charts-horizontalbarchart--horizontal-bar-stacked-annotated-inline-legend',
+      );
+      final area = oracle.boxes('fui-legend__resizableArea').first.rect;
+      final container = oracle.boxes('fui-legend__legendContainer').first.rect;
+      final plain = await rowsFor(centerLegends: false);
+      final centred = await rowsFor(centerLegends: true);
+      expect(
+        centred.first.left -
+            tester.getTopLeft(find.byType(FluentChartLegend)).dx,
+        container.left - area.left,
+        reason:
+            'Legends.tsx:152 puts justifyContent on a root with no display: '
+            'flex (useLegendsStyles.styles.ts:40-47), so it does nothing, and '
+            'the flex-wrap area at :156 starts its items at the leading edge: '
+            'Oracle B has the first container 4 in from the area, its margin, '
+            'not centred in a 600px area.',
+      );
+      expect(
+        centred,
+        plain,
+        reason: 'centerLegends moves no wrapped row at all.',
+      );
+    });
+
     testWidgets('the annotation slot renders only in wrapped mode', (
       tester,
     ) async {

@@ -655,11 +655,17 @@ class FluentChartLegend extends StatefulWidget {
   /// `Legends.tsx:270`.
   final bool allowFocusOnLegends;
 
-  /// Whether each line of legends is centred in the strip. `Legends.tsx:115`.
+  /// Whether the line of legends is centred in the strip. `Legends.tsx:115`.
+  ///
+  /// Overflow mode only: upstream's wrapped branch ignores it, see
+  /// [enabledWrapLines].
   final bool centerLegends;
 
   /// Whether rows wrap onto further lines instead of collapsing into an
   /// overflow menu. `Legends.tsx:109`.
+  ///
+  /// Wrapped lines always start at the leading edge: `Legends.tsx:152` sets
+  /// `justifyContent` on a root that is not a flex container.
   final bool enabledWrapLines;
 
   /// The word in the overflow trigger's `+{n} {overflowText}` label.
@@ -862,10 +868,12 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
   /// Every row, wrapping onto further lines, each beside its annotation.
   ///
   /// `Legends.tsx:142-169` — no overflow menu exists in this branch at all.
+  ///
+  /// Always start-aligned, whatever [FluentChartLegend.centerLegends] says.
+  /// `Legends.tsx:152` puts `justifyContent: center` on the root, which has no
+  /// `display: flex` (`useLegendsStyles.styles.ts:40-47`) and so ignores it;
+  /// the flex-wrap resizable area at `:156` sets no justification of its own.
   Widget _buildWrapped(List<Widget> rows) => Wrap(
-    alignment: widget.centerLegends
-        ? WrapAlignment.center
-        : WrapAlignment.start,
     crossAxisAlignment: WrapCrossAlignment.center,
     children: <Widget>[
       for (var index = 0; index < rows.length; index++)
