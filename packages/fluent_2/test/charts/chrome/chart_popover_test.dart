@@ -1399,13 +1399,20 @@ void main() {
       tester,
     ) async {
       await pump(tester, 'From node0');
-      final padding = resolveFluentChartPopoverStyle(theme).surfacePadding!
+      final resolved = resolveFluentChartPopoverStyle(theme);
+      final padding = resolved.surfacePadding!
           .resolve(const <WidgetState>{})!
           .resolve(TextDirection.ltr);
+      // PopoverSurface's `1px solid transparent` border takes layout space on
+      // both sides (usePopoverSurfaceStyles.styles.raw.js:20).
+      final border = resolved.surfaceBorderWidth!.resolve(
+        const <WidgetState>{},
+      )!;
       // The widest of the two stacked bodies: the bare x reading, or the
       // accent bar plus its gap plus the taller block beside it.
       final content =
           padding.horizontal +
+          2 * border +
           max(
             tester.getSize(find.text('node4')).width,
             kChartPopoverAccentBarWidth +

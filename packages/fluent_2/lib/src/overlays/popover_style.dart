@@ -61,10 +61,13 @@ class FluentPopoverStyle {
   /// tall for a popover above or below its anchor, transposed for one beside it.
   final WidgetStateProperty<Size?>? arrowSize;
 
-  /// How far the arrow sits from the surface's leading or trailing edge when
-  /// the popover is aligned to one end of its anchor rather than centred.
+  /// How close the arrow may come to the surface's corners.
   ///
-  /// Ignored by a centred popover, whose arrow is centred instead.
+  /// `FluentPopover` points the arrow at the centre of its trigger and stops
+  /// it this far short of either end of the edge, which is upstream's
+  /// `arrowPadding`. `buildFluentPopover` has no trigger to point at, so it
+  /// pins an aligned popover's arrow this far from the aligned end and centres
+  /// a centred one.
   final WidgetStateProperty<double?>? arrowInset;
 
   /// Extra separation between the anchor and the surface.
