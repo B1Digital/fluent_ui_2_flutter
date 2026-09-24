@@ -1203,6 +1203,26 @@ void main() {
       );
     });
 
+    test('an axis no series is on spans its bounds, not NaN', () {
+      final axisData = FluentAxisData();
+      createNumericYAxis(
+        yParams(start: double.nan, end: double.nan, yMaxValue: 100),
+        axisData,
+        isRtl: false,
+        isIntegralDataset: true,
+        chartType: FluentChartType.lineChart,
+        useSecondaryYScale: true,
+      );
+      expect(
+        axisData.yAxisDomainValues,
+        <double>[0, 100],
+        reason:
+            'findNumericMinMaxOfY over no series is undefined, which '
+            "utilities.ts:821-823's `|| 0` reads as 0, so the secondary scale "
+            'spans 0 to its yMaxValue',
+      );
+    });
+
     test('spans the full plot width with a negative inner tick size', () {
       final spec = createNumericYAxis(
         yParams(),

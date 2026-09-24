@@ -590,20 +590,24 @@ FluentAxisSpec createNumericYAxis(
   FluentAxisScaleType? scaleType,
 }) {
   final minMax = yAxisParams.yMinMaxValues;
+  // JavaScript truthiness: 0 and the NaN [findNumericMinMaxOfY] stands in for
+  // `undefined` with are both falsy, so an axis no series is on — a secondary
+  // scale every series left — falls through to 0 rather than to NaN.
+  bool truthy(double value) => value != 0 && !value.isNaN;
   // parity: utilities.ts:821 uses || rather than ??, so a legitimate zero in
   // maxOfYVal or endValue is discarded in favour of the next term. 0 is the
   // final fallback that line spells out.
-  final tempVal = yAxisParams.maxOfYVal != 0
+  final tempVal = truthy(yAxisParams.maxOfYVal)
       ? yAxisParams.maxOfYVal
-      : (minMax.endValue != 0 ? minMax.endValue : 0.0);
+      : (truthy(minMax.endValue) ? minMax.endValue : 0.0);
   final finalYmax = tempVal > yAxisParams.yMaxValue
       ? tempVal
       : yAxisParams.yMaxValue;
   // utilities.ts:823 — the same `|| 0` truthiness on both arms, so a floor of
   // exactly 0 and an absent floor are indistinguishable.
   final finalYmin = math.min(
-    minMax.startValue != 0 ? minMax.startValue : 0.0,
-    yAxisParams.yMinValue != 0 ? yAxisParams.yMinValue : 0.0,
+    truthy(minMax.startValue) ? minMax.startValue : 0.0,
+    truthy(yAxisParams.yMinValue) ? yAxisParams.yMinValue : 0.0,
   );
 
   final domainValues = prepareDatapoints(
