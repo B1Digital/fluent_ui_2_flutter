@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../internal/interaction.dart';
@@ -211,16 +214,39 @@ Widget buildFluentLink(
   final padding = style.padding?.resolve(states) ?? EdgeInsets.zero;
   final gap = style.gap?.resolve(states) ?? FluentSpacing.xs;
   final iconSize = style.iconSize?.resolve(states) ?? FluentSize.size200;
+  final decoration = style.decoration?.resolve(states);
+  final decorationStyle = style.decorationStyle?.resolve(states);
+  final decorationColor = style.decorationColor?.resolve(states);
+  final decorationThickness = style.decorationThickness?.resolve(states);
 
-  final label = DefaultTextStyle.merge(
-    style: (textStyle ?? const TextStyle()).copyWith(
-      color: foreground,
-      decoration: style.decoration?.resolve(states),
-      decorationColor: style.decorationColor?.resolve(states),
-      decorationStyle: style.decorationStyle?.resolve(states),
-      decorationThickness: style.decorationThickness?.resolve(states),
+  // A solid or double underline is painted by FluentLinkUnderline rather than
+  // the text engine: `TextStyle.decorationThickness` multiplies the font's own
+  // underline thickness, which is 50/2048 em in Selawik — so Stroke width/Thin
+  // came out a 0.34px smear where Chrome draws upstream's
+  // `text-decoration-thickness: strokeWidthThin` as a crisp 1px line. Any other
+  // decoration is left to the text engine.
+  final painted =
+      decoration == TextDecoration.underline &&
+      (decorationStyle == null ||
+          decorationStyle == TextDecorationStyle.solid ||
+          decorationStyle == TextDecorationStyle.double);
+
+  // Always wrapped, so the label keeps its element when the underline comes
+  // and goes with hover.
+  final label = FluentLinkUnderline(
+    color: painted ? decorationColor ?? foreground : null,
+    thickness: decorationThickness ?? FluentStroke.thin,
+    doubled: decorationStyle == TextDecorationStyle.double,
+    child: DefaultTextStyle.merge(
+      style: (textStyle ?? const TextStyle()).copyWith(
+        color: foreground,
+        decoration: painted ? TextDecoration.none : decoration,
+        decorationColor: decorationColor,
+        decorationStyle: decorationStyle,
+        decorationThickness: decorationThickness,
+      ),
+      child: state.label,
     ),
-    child: state.label,
   );
 
   final icon = state.icon;
@@ -242,6 +268,159 @@ Widget buildFluentLink(
         );
 
   return Padding(padding: padding, child: content);
+}
+
+/// Underlines every line of text in [child] the way Chrome draws CSS
+/// `text-decoration-line: underline` with a pixel `text-decoration-thickness`:
+/// a [thickness]-high bar one pixel below each baseline, on whole device
+/// pixels, in [color].
+///
+/// Measured on components-link--default: the line's top sits one row under
+/// the baseline, a solid 1px rgb(15,84,140) on hover. [doubled] adds the
+/// second line of `text-decoration-style: double`, as Blink spaces it — one
+/// thickness plus a pixel below the first.
+///
+/// Every input is a public field so tests can assert them directly instead of
+/// diffing pixels.
+class FluentLinkUnderline extends SingleChildRenderObjectWidget {
+  /// Underlines [child] in [color], or draws nothing when [color] is null.
+  const FluentLinkUnderline({
+    super.key,
+    required this.color,
+    this.thickness = FluentStroke.thin,
+    this.doubled = false,
+    super.child,
+  });
+
+  /// The underline colour, or null for no underline.
+  final Color? color;
+
+  /// Height of each line, in logical pixels.
+  final double thickness;
+
+  /// Whether to draw two lines, as `text-decoration-style: double` does.
+  final bool doubled;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderLinkUnderline(
+    color,
+    thickness,
+    MediaQuery.maybeDevicePixelRatioOf(context) ?? 1,
+    doubled: doubled,
+  );
+
+  @override
+  void updateRenderObject(BuildContext context, RenderObject renderObject) =>
+      (renderObject as _RenderLinkUnderline)
+        ..color = color
+        ..thickness = thickness
+        ..doubled = doubled
+        ..devicePixelRatio = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1;
+}
+
+class _RenderLinkUnderline extends RenderProxyBox {
+  _RenderLinkUnderline(
+    this._color,
+    this._thickness,
+    this._devicePixelRatio, {
+    required this._doubled,
+  });
+
+  Color? _color;
+  set color(Color? value) {
+    if (value == _color) return;
+    _color = value;
+    markNeedsPaint();
+  }
+
+  double _thickness;
+  set thickness(double value) {
+    if (value == _thickness) return;
+    _thickness = value;
+    markNeedsPaint();
+  }
+
+  bool _doubled;
+  set doubled(bool value) {
+    if (value == _doubled) return;
+    _doubled = value;
+    markNeedsPaint();
+  }
+
+  double _devicePixelRatio;
+  set devicePixelRatio(double value) {
+    if (value == _devicePixelRatio) return;
+    _devicePixelRatio = value;
+    markNeedsPaint();
+  }
+
+  /// The child's first baseline, read while laying it out — the only time a
+  /// parent may ask. The other lines are placed from their own boxes.
+  // ponytail: a label under tight constraints that changes font without a
+  // relayout here keeps the old baseline; read dry baselines if that bites.
+  double? _baseline;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    _baseline = child?.getDistanceToBaseline(
+      TextBaseline.alphabetic,
+      onlyReal: true,
+    );
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    super.paint(context, offset);
+    final color = _color;
+    final baseline = _baseline;
+    final child = this.child;
+    if (color == null || baseline == null || child == null) return;
+
+    final boxes = <Rect>[];
+    void collect(RenderObject node) {
+      if (node is RenderParagraph) {
+        final transform = node.getTransformTo(this);
+        final length = node.text.toPlainText().length;
+        for (final box in node.getBoxesForSelection(
+          TextSelection(baseOffset: 0, extentOffset: length),
+        )) {
+          boxes.add(MatrixUtils.transformRect(transform, box.toRect()));
+        }
+        return;
+      }
+      node.visitChildren(collect);
+    }
+
+    collect(child);
+    if (boxes.isEmpty) return;
+
+    double snap(double y) =>
+        (y * _devicePixelRatio).roundToDouble() / _devicePixelRatio;
+    final firstTop = boxes.map((box) => box.top).reduce(math.min);
+    // One Path, so boxes that overlap on a line are filled once and a
+    // translucent colour does not darken where they meet.
+    final path = Path();
+    for (final box in boxes) {
+      final top = snap(
+        offset.dy + baseline + (box.top - firstTop) + FluentStroke.thin,
+      );
+      path.addRect(
+        Rect.fromLTWH(offset.dx + box.left, top, box.width, _thickness),
+      );
+      if (_doubled) {
+        path.addRect(
+          Rect.fromLTWH(
+            offset.dx + box.left,
+            top + _thickness + FluentStroke.thin,
+            box.width,
+            _thickness,
+          ),
+        );
+      }
+    }
+    context.canvas.drawPath(path, Paint()..color = color);
+  }
 }
 
 /// Overrides the link style for a subtree.

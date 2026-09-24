@@ -187,26 +187,24 @@ FluentTagStyle resolveFluentTagStyle(
   // The one ramped property. A tag is inert, so the Figma `State` axis
   // describes hovering the DISMISS glyph — which is why the fill and the label
   // hold still while this goes brand.
+  //
+  // React wins over Figma here: `useTagStyles.styles.ts` (useDismissIconStyles)
+  // writes `colorCompoundBrandForeground1Hover` / `Pressed` for all three
+  // appearances, and the storybook's tag--dismiss reads #115EA3 / #0F548C.
+  // Figma binds `Neutral/Foreground/2/Brand/Hover` (#0F6CBD / #115EA3).
   final dismissForeground = state.selected
       ? FluentStateColor.tokens(
           rest: c.neutralForegroundOnBrand,
           disabled: c.neutralForegroundDisabled,
         )
-      : switch (state.appearance) {
-          FluentTagAppearance.filled ||
-          FluentTagAppearance.outline => FluentStateColor.tokens(
-            rest: c.neutralForeground2,
-            hover: c.neutralForeground2BrandHover,
-            pressed: c.neutralForeground2BrandPressed,
-            disabled: c.neutralForegroundDisabled,
-          ),
-          FluentTagAppearance.brand => FluentStateColor.tokens(
-            rest: c.brandForeground2,
-            hover: c.brandForeground2Hover,
-            pressed: c.brandForeground2Pressed,
-            disabled: c.neutralForegroundDisabled,
-          ),
-        };
+      : FluentStateColor.tokens(
+          rest: state.appearance == FluentTagAppearance.brand
+              ? c.brandForeground2
+              : c.neutralForeground2,
+          hover: c.compoundBrandForeground1Hover,
+          pressed: c.compoundBrandForeground1Pressed,
+          disabled: c.neutralForegroundDisabled,
+        );
 
   final border =
       state.appearance == FluentTagAppearance.outline && !state.selected
@@ -341,7 +339,10 @@ Widget buildFluentTag(
       children: <Widget>[
         if (state.icon != null)
           IconTheme.merge(
-            data: IconThemeData(color: foreground, size: iconSize),
+            data: IconThemeData(
+              color: style.iconColor?.resolve(states) ?? foreground,
+              size: iconSize,
+            ),
             child: state.icon!,
           ),
         // Upstream pads the text slot `0 XXS XXS`: the bottom 2px lifts a
@@ -663,12 +664,17 @@ class FluentTag extends StatelessWidget {
             ),
     );
 
+    final tag = buildFluentTag(state, resolved, states);
     return Semantics(
       container: true,
       selected: selected,
       enabled: enabled,
       label: semanticLabel,
-      child: buildFluentTag(state, resolved, states),
+      // `useTagStyles.styles.ts` useRootDisabledStyles: the whole disabled tag
+      // is `cursor: 'not-allowed'` (tag--disabled), not only its dismiss glyph.
+      child: enabled
+          ? tag
+          : MouseRegion(cursor: SystemMouseCursors.forbidden, child: tag),
     );
   }
 }

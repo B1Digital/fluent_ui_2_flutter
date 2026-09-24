@@ -78,6 +78,21 @@ void main() {
         tester.widget<FluentAvatar>(avatars.at(4)).color,
         FluentAvatarColor.overflow,
       );
+      // AvatarGroupItem is `color: 'colorful'`: the storybook paints Robert
+      // Tolbert anchor, Kevin Sturgis lavender, Charlotte Waltson pumpkin and
+      // Elliot Woodward seafoam, getHashCode's picks for those names.
+      expect(
+        <FluentAvatarColor?>[
+          for (int i = 0; i < 4; i++)
+            tester.widget<FluentAvatar>(avatars.at(i)).color,
+        ],
+        <FluentAvatarColor>[
+          FluentAvatarColor.anchor,
+          FluentAvatarColor.lavender,
+          FluentAvatarColor.pumpkin,
+          FluentAvatarColor.seafoam,
+        ],
+      );
 
       // Spread is the only layout with a positive gap, and the gap is what
       // separates it from a stack. Measuring the step between neighbours proves

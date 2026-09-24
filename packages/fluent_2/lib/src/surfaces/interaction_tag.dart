@@ -22,6 +22,7 @@ class FluentInteractionTagBaseState extends FluentTagBaseState {
     super.label,
     super.secondaryLabel,
     super.icon,
+    this.activeIcon,
   });
 
   /// Whether a dismiss half follows the primary one.
@@ -29,6 +30,16 @@ class FluentInteractionTagBaseState extends FluentTagBaseState {
   /// The primary half needs to know: it squares off its right corners and
   /// hands its right border over to the divider.
   final bool dismissible;
+
+  /// Shown in place of [icon] while the primary half is hovered or pressed,
+  /// or null to keep [icon] throughout.
+  ///
+  /// Upstream's `bundleIcon(Filled, Regular)`: an outline tag displays the
+  /// Filled glyph under `:hover` and `:active`
+  /// (`useInteractionTagPrimaryStyles.styles.ts`, `iconFilledClassName`).
+  /// [resolveFluentInteractionTagState] keeps it on outline only, as upstream
+  /// does.
+  final Widget? activeIcon;
 }
 
 /// An interaction tag's fully resolved state, including the design axes.
@@ -44,6 +55,7 @@ class FluentInteractionTagState extends FluentInteractionTagBaseState {
     super.label,
     super.secondaryLabel,
     super.icon,
+    super.activeIcon,
   });
 
   /// Fill and outline treatment.
@@ -69,6 +81,7 @@ FluentInteractionTagState resolveFluentInteractionTagState({
   Widget? label,
   Widget? secondaryLabel,
   Widget? icon,
+  Widget? activeIcon,
 }) => FluentInteractionTagState(
   enabled: enabled,
   dismissible: dismissible,
@@ -78,6 +91,9 @@ FluentInteractionTagState resolveFluentInteractionTagState({
   label: label,
   secondaryLabel: secondaryLabel,
   icon: icon,
+  // Only outline shows the Filled glyph: `useInteractionTagPrimaryStyles`
+  // writes the swap in its `outline` rules and nowhere else.
+  activeIcon: appearance == FluentTagAppearance.outline ? activeIcon : null,
 );
 
 /// Resolves the default style for [state] against [theme].
@@ -144,13 +160,33 @@ FluentTagStyle resolveFluentInteractionTagStyle(
             pressed: c.neutralForeground2Pressed,
             disabled: c.neutralForegroundDisabled,
           ),
+          // React wins over Figma's `Brand/Foreground/2/Hover`:
+          // `useInteractionTagPrimaryStyles.styles.ts` writes
+          // `colorCompoundBrandForeground1Hover` / `Pressed`, and the storybook
+          // reads #115EA3 on hover (no change) and #0F548C pressed.
           FluentTagAppearance.brand => FluentStateColor.tokens(
             rest: c.brandForeground2,
-            hover: c.brandForeground2Hover,
-            pressed: c.brandForeground2Pressed,
+            hover: c.compoundBrandForeground1Hover,
+            pressed: c.compoundBrandForeground1Pressed,
             disabled: c.neutralForegroundDisabled,
           ),
         };
+
+  // The Filled glyph an outline tag swaps in goes brand while the label goes
+  // neutral (`.fui-Icon-filled`, #0F6CBD / #115EA3 in the storybook). Selected
+  // leaves it on the label's `colorNeutralForegroundOnBrand`. Null elsewhere,
+  // so the resting Regular glyph keeps following the label's colour.
+  final iconColor = state.activeIcon != null && !state.selected
+      ? WidgetStateProperty.resolveWith<Color?>(
+          (states) => states.contains(WidgetState.disabled)
+              ? null
+              : states.contains(WidgetState.pressed)
+              ? c.neutralForeground2BrandPressed
+              : states.contains(WidgetState.hovered)
+              ? c.neutralForeground2BrandHover
+              : null,
+        )
+      : null;
 
   final border =
       state.appearance == FluentTagAppearance.outline && !state.selected
@@ -207,10 +243,11 @@ FluentTagStyle resolveFluentInteractionTagStyle(
             pressed: c.neutralForeground2BrandPressed,
             disabled: c.neutralForegroundDisabled,
           ),
+          // `useInteractionTagSecondaryStyles.styles.ts`, as the primary half.
           FluentTagAppearance.brand => FluentStateColor.tokens(
             rest: c.brandForeground2,
-            hover: c.brandForeground2Hover,
-            pressed: c.brandForeground2Pressed,
+            hover: c.compoundBrandForeground1Hover,
+            pressed: c.compoundBrandForeground1Pressed,
             disabled: c.neutralForegroundDisabled,
           ),
         };
@@ -235,6 +272,7 @@ FluentTagStyle resolveFluentInteractionTagStyle(
   ).copyWith(
     backgroundColor: background,
     foregroundColor: foreground,
+    iconColor: iconColor,
     dismissForegroundColor: dismissForeground,
     borderColor: border,
     dividerColor: divider,
@@ -267,7 +305,25 @@ Widget buildFluentInteractionTag(
         )
       : radius;
 
-  var primary = buildFluentTag(state, style, states, borderRadius: half);
+  final active =
+      state.activeIcon != null &&
+      (states.contains(WidgetState.hovered) ||
+          states.contains(WidgetState.pressed));
+  var primary = buildFluentTag(
+    active
+        ? FluentTagBaseState(
+            enabled: state.enabled,
+            label: state.label,
+            secondaryLabel: state.secondaryLabel,
+            media: state.media,
+            icon: state.activeIcon,
+            dismiss: state.dismiss,
+          )
+        : state,
+    style,
+    states,
+    borderRadius: half,
+  );
 
   // The seam, drawn over the primary half's right edge — where Figma puts it;
   // React draws the same pixel as the secondary half's left border. A
@@ -405,6 +461,7 @@ class FluentInteractionTag extends StatelessWidget {
     this.onPressed,
     this.secondaryChild,
     this.icon,
+    this.activeIcon,
     this.appearance = FluentTagAppearance.filled,
     this.size = FluentTagSize.medium,
     this.selected = false,
@@ -429,6 +486,24 @@ class FluentInteractionTag extends StatelessWidget {
 
   /// Leading media — an avatar or an icon.
   final Widget? icon;
+
+  /// Shown in place of [icon] while an outline tag's primary half is hovered
+  /// or pressed — upstream's `bundleIcon`, which swaps the Regular glyph for
+  /// its Filled one there and tints it brand. Pass the filled counterpart of
+  /// [icon]:
+  ///
+  /// ```dart
+  /// FluentInteractionTag(
+  ///   appearance: FluentTagAppearance.outline,
+  ///   icon: const Icon(FluentIcons.calendar_month_20_regular),
+  ///   activeIcon: const Icon(FluentIcons.calendar_month_20_filled),
+  ///   onPressed: () {},
+  ///   child: const Text('Schedule'),
+  /// )
+  /// ```
+  ///
+  /// Ignored on filled and brand, which do not swap upstream.
+  final Widget? activeIcon;
 
   /// Fill and outline treatment.
   final FluentTagAppearance appearance;
@@ -479,6 +554,7 @@ class FluentInteractionTag extends StatelessWidget {
       label: child,
       secondaryLabel: secondaryChild,
       icon: icon,
+      activeIcon: activeIcon,
     );
 
     // Lowest to highest: defaults, subtree theme, then the caller's own style.

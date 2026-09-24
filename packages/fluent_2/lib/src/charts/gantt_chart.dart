@@ -720,6 +720,8 @@ class FluentGanttChartDelegate extends FluentCartesianSeriesDelegate {
             yValue: xValue,
             legend: point.legend,
             color: bar.startColour,
+            // `:572-580` pass no isCartesian.
+            isCartesian: false,
             // parity: `_getCustomizedCallout` (`:226-245`) is handed to
             // `CartesianChart` as a top-level `customizedCallout` prop
             // (`:604`), and `CartesianChart.tsx:444-445` renders `calloutProps`

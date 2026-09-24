@@ -11,9 +11,9 @@ import 'harness.dart';
 /// thing this component adds to a button: a second line. Two claims run through
 /// every test below, because they are the two a screenshot cannot check — that
 /// the second line is *quieter* than the first rather than merely present, and
-/// that compound geometry is its own (a uniform inset that doubles as the icon
-/// gap, a 40px glyph, a content-driven height) rather than the button's ramp
-/// with a subtitle glued on.
+/// that compound geometry is its own (upstream's `14px 12px 16px`-style inset,
+/// a 40px glyph, a content-driven height) rather than the button's ramp with a
+/// subtitle glued on.
 void main() {
   const String page = 'components-button-compoundbutton';
 
@@ -194,20 +194,21 @@ void main() {
       }
     });
 
-    testWidgets('the first line stays loud on subtle, where a plain button '
-        'would go quiet', (WidgetTester tester) async {
+    testWidgets('the first line rests quiet on subtle, as a plain button '
+        'label does', (WidgetTester tester) async {
       await pumpSection(tester, section);
       final FluentColors colors = themeColors(tester);
 
-      // The one place the compound button genuinely parts company with the
-      // button: its louder line holds neutralForeground1 on every appearance,
-      // while a FluentButton's label drops to neutralForeground2 on subtle and
-      // transparent. Reusing the button's table would be invisible except here.
+      // Figma's Compound set holds the first line on neutralForeground1 on
+      // every appearance. The storybook renders Subtle and Transparent at
+      // rgb(66,66,66) — neutralForeground2, a plain button's label — and
+      // darkens them on hover (getComputedStyle on
+      // compoundbutton--appearance). React wins.
       for (final String label in <String>['Subtle', 'Transparent']) {
         expect(
           textStyleOf(tester, find.text(label))?.color,
-          colors.neutralForeground1,
-          reason: '$label: the first line must not drop a step',
+          colors.neutralForeground2,
+          reason: '$label: the first line is the button label colour',
         );
         expect(
           textStyleOf(tester, secondLineOf(label))?.color,
@@ -234,6 +235,41 @@ void main() {
         textStyleOf(tester, secondLineOf('Primary'))?.color,
         colors.neutralForegroundOnBrand,
       );
+    });
+
+    testWidgets('subtle and transparent fill their glyph under the mouse', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(tester, section);
+      // Upstream's `bundleIcon(CalendarMonthFilled, CalendarMonthRegular)` on
+      // outline, subtle and transparent; only the last two swap on :hover
+      // (useButtonStyles.styles.ts iconFilledClassName).
+      Finder glyph(String label, IconData icon) =>
+          find.descendant(of: buttonWith(label), matching: find.byIcon(icon));
+      for (final (String label, bool swaps) in <(String, bool)>[
+        ('Outline', false),
+        ('Subtle', true),
+        ('Transparent', true),
+      ]) {
+        expect(
+          glyph(label, FluentIcons.calendar_month_20_filled),
+          findsNothing,
+        );
+        final TestGesture mouse = await mouseHover(tester, buttonWith(label));
+        // A one-pixel drift, as a real pointer delivers, must keep the swap.
+        await mouse.moveBy(const Offset(1, 0));
+        await tester.pump();
+        expect(
+          glyph(label, FluentIcons.calendar_month_20_filled),
+          swaps ? findsOneWidget : findsNothing,
+          reason: '$label ${swaps ? 'must' : 'must not'} fill under the mouse',
+        );
+        await mouseAway(tester, mouse);
+        expect(
+          glyph(label, FluentIcons.calendar_month_20_regular),
+          findsOneWidget,
+        );
+      }
     });
 
     testWidgets('subtle and transparent are only told apart under a pointer', (
@@ -273,7 +309,7 @@ void main() {
       await mouseAway(tester, mouse);
       expect(
         textStyleOf(tester, find.text('Transparent'))?.color,
-        colors.neutralForeground1,
+        colors.neutralForeground2,
       );
     });
   });
@@ -332,28 +368,26 @@ void main() {
       'components-button-compoundbutton--size',
     );
 
-    testWidgets('the size axis moves the inset, which is all it moves', (
+    testWidgets('the size axis lands on the storybook heights', (
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
 
-      final double small = tester.getSize(buttonWith('Size: small')).height;
-      final double medium = tester.getSize(buttonWith('Size: medium')).height;
-      final double large = tester.getSize(buttonWith('Size: large')).height;
-
       // Compound geometry is deliberately not the button's 24/32/40 ramp: the
-      // height is content-driven and the size knob only opens up the uniform
-      // inset, 8 then 12 then 16, on both edges. So the steps are exactly twice
-      // the spacing step, and a knob wired to the button ramp instead would
-      // give three heights that are not.
-      expect(
-        medium - small,
-        closeTo((FluentSpacing.m - FluentSpacing.s) * 2, 0.01),
-      );
-      expect(
-        large - medium,
-        closeTo((FluentSpacing.l - FluentSpacing.m) * 2, 0.01),
-      );
+      // height is content-driven, and round the 40px glyph Chrome renders
+      // compoundbutton--size 60, 72 and 80 high — `8px 8px 10px`,
+      // `14px 12px 16px` and `18px 16px 20px` inside a 1px border.
+      for (final (String label, double height) in <(String, double)>[
+        ('Size: small', 60),
+        ('Size: medium', 72),
+        ('Size: large', 80),
+      ]) {
+        expect(
+          tester.getSize(buttonWith(label)).height,
+          closeTo(height, 0.01),
+          reason: label,
+        );
+      }
     });
 
     testWidgets('the glyph stays 40 at every size', (
@@ -374,28 +408,31 @@ void main() {
       }
     });
 
-    testWidgets('both lines keep their type ramp at every size', (
+    testWidgets('the type ramp steps with the size', (
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
-      // The type ramp is NOT part of this axis upstream — both lines hold
-      // body1Strong over caption1 at all three sizes — so a size knob that also
-      // scaled the text would be the button's ramp leaking in.
-      final double? primary = textStyleOf(
-        tester,
-        find.text('Size: small'),
-      )?.fontSize;
-      expect(primary, isNotNull);
-      for (final String label in <String>['Size: medium', 'Size: large']) {
-        expect(
-          textStyleOf(tester, find.text(label))?.fontSize,
-          primary,
-          reason: label,
-        );
+      // compoundbutton--size in Chrome: 14/20 regular over 12 at small, 14/20
+      // semibold over 12 at medium, 16/22 semibold over 14 at large — the
+      // button's small weight, then body1Strong and subtitle2 over caption1
+      // and body1. Figma holds body1Strong over caption1 at every size; React
+      // wins.
+      final FluentTypography type = FluentTheme.of(
+        tester.element(find.byType(DecoratedBox).first),
+      ).typography;
+      for (final (String label, TextStyle first, TextStyle second)
+          in <(String, TextStyle, TextStyle)>[
+            ('Size: small', type.body1, type.caption1),
+            ('Size: medium', type.body1Strong, type.caption1),
+            ('Size: large', type.subtitle2, type.body1),
+          ]) {
+        final TextStyle? line = textStyleOf(tester, find.text(label));
+        expect(line?.fontSize, first.fontSize, reason: label);
+        expect(line?.fontWeight, first.fontWeight, reason: label);
         expect(
           textStyleOf(tester, secondLineOf(label))?.fontSize,
-          lessThan(primary!),
-          reason: '$label: the second line stays a caption',
+          second.fontSize,
+          reason: '$label: the second line',
         );
       }
     });
@@ -486,11 +523,12 @@ void main() {
     ) async {
       await pumpSection(tester, section);
 
-      // 280 exactly: the label is boxed at 280 less the medium inset on either
-      // side, so the button lands on upstream's width rather than merely under
-      // it. A Row hands its children unbounded width, so a label that was not
-      // boxed would overflow instead of wrapping — which pumpSection's
-      // clean-tree check catches from the other side.
+      // 280 exactly: the label is boxed at 280 less the medium inset and the
+      // 1px border on either side (upstream's `border-box`), so the button
+      // lands on upstream's width rather than merely under it. A Row hands its
+      // children unbounded width, so a label that was not boxed would
+      // overflow instead of wrapping — which pumpSection's clean-tree check
+      // catches from the other side.
       final Size wrapped = tester.getSize(buttonWith(long));
       expect(wrapped.width, closeTo(280, 0.01));
       expect(
@@ -499,7 +537,7 @@ void main() {
       );
       expect(
         tester.getSize(find.text(long)).width,
-        closeTo(280 - FluentSpacing.m * 2, 0.01),
+        closeTo(280 - (FluentSpacing.m + FluentStroke.thin) * 2, 0.01),
       );
     });
 

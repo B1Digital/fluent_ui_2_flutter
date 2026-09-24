@@ -6,6 +6,7 @@ import 'package:fluent_2/src/charts/model/bar_data.dart';
 import 'package:fluent_2/src/charts/model/cartesian_series.dart';
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -69,8 +70,8 @@ void main() {
   ///
   /// Filtered on the painter type rather than taken from the first
   /// [CustomPaint]: a row with a benchmark mounts
-  /// [FluentBenchmarkTrianglePainter] ahead of the strip, so an unfiltered
-  /// `.first` would silently assert against the triangle.
+  /// [FluentBenchmarkTrianglePainter] beside the strip, so an unfiltered
+  /// `.first` or `.last` could silently assert against the triangle.
   FluentHorizontalBarStripPainter painterOf(
     WidgetTester tester, {
     int row = 0,
@@ -214,8 +215,8 @@ void main() {
     );
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     addTearDown(gesture.removePointer);
-    // Added away from the chart and then moved onto it: only a move emits the
-    // PointerHoverEvent the bar listens for.
+    // Added away from the chart and then moved onto it, so the pointer
+    // enters the bar the way a mouse does.
     await gesture.addPointer(location: Offset.zero);
     await tester.pump();
     // 20 into the first bar, which spans 0..120 of the 400-wide row, and half
@@ -236,18 +237,6 @@ void main() {
           'HorizontalBarChart.tsx:472 passes YValue, which is the hovered '
           "point's x.",
     );
-    final anchor = tester.widget<FluentChartPopover>(
-      find.byType(FluentChartPopover),
-    );
-    await gesture.moveTo(strip.topLeft + const Offset(20.5, 6));
-    await tester.pump();
-    expect(
-      tester.widget<FluentChartPopover>(find.byType(FluentChartPopover)).anchor,
-      anchor.anchor,
-      reason:
-          'HorizontalBarChart.tsx:349-359 — updatePosition only commits a new '
-          'position once the pointer has travelled more than one pixel.',
-    );
     await gesture.moveTo(Offset.zero);
     await tester.pump();
     expect(
@@ -256,6 +245,383 @@ void main() {
       reason:
           'HorizontalBarChart.tsx:95-103, wired at :393 — only leaving the '
           'whole chart closes the popover.',
+    );
+  });
+
+  group('the hover popover', () {
+    final strip = find.byWidgetPredicate(
+      (w) => w is CustomPaint && w.painter is FluentHorizontalBarStripPainter,
+    );
+
+    /// A mouse that enters at [at] from outside the chart.
+    Future<TestGesture> hover(WidgetTester tester, Offset at) async {
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(gesture.removePointer);
+      await gesture.addPointer(location: Offset.zero);
+      await tester.pump();
+      await gesture.moveTo(at);
+      await tester.pump();
+      return gesture;
+    }
+
+    Rect surface(WidgetTester tester) {
+      final child = tester
+          .renderObject<RenderFluentChartPopoverLayout>(
+            find.byType(FluentChartPopoverLayout),
+          )
+          .child!;
+      return child.localToGlobal(Offset.zero) & child.size;
+    }
+
+    Offset floored(Offset o) =>
+        Offset(o.dx.floorToDouble(), o.dy.floorToDouble());
+
+    FluentChartPopover popover(WidgetTester tester) =>
+        tester.widget<FluentChartPopover>(find.byType(FluentChartPopover));
+
+    testWidgets('stays where the pointer entered the bar', (tester) async {
+      await pump(
+        tester,
+        FluentHorizontalBarChart(key: key, data: threeLegends),
+      );
+      final row = tester.getRect(strip);
+      // Bar A spans 0..118 of the 400px row, bar B 121..279.
+      final gesture = await hover(tester, row.topLeft + const Offset(20.6, 6));
+      final entered = popover(tester).anchor;
+      await gesture.moveTo(row.topLeft + const Offset(100, 6));
+      await tester.pump();
+      expect(
+        popover(tester).anchor,
+        entered,
+        reason:
+            'HorizontalBarChart.tsx:318 opens the popover onMouseOver, which '
+            'fires as the pointer enters the rect and not as it moves inside, '
+            'so the popover does not chase the cursor along the bar.',
+      );
+      expect(
+        entered,
+        floored(row.topLeft + const Offset(20.6, 6)),
+        reason:
+            'HorizontalBarChart.tsx:69-72 anchors at clientX/clientY, whole '
+            'pixels, and the app overlay the popover floats in is the screen.',
+      );
+      await gesture.moveTo(row.topLeft + const Offset(200, 6));
+      await tester.pump();
+      expect(
+        popover(tester).anchor,
+        floored(row.topLeft + const Offset(200, 6)),
+        reason: 'Entering bar B, another legend, re-anchors (:60-61).',
+      );
+      expect(find.text('40'), findsOneWidget);
+    });
+
+    testWidgets('reopens at the pixel it last opened at', (tester) async {
+      await pump(
+        tester,
+        FluentHorizontalBarChart(key: key, data: threeLegends),
+      );
+      final at = tester.getRect(strip).topLeft + const Offset(20, 6);
+      final gesture = await hover(tester, at);
+      await gesture.moveTo(Offset.zero);
+      await tester.pump();
+      expect(find.byType(FluentChartPopover), findsNothing);
+      await gesture.moveTo(at);
+      await tester.pump();
+      expect(
+        find.byType(FluentChartPopover),
+        findsOneWidget,
+        reason:
+            'Upstream keeps clickPosition across a close, so updatePosition '
+            '(HorizontalBarChart.tsx:356) would refuse a return within a '
+            'pixel and open nothing; the port forgets the anchor on close.',
+      );
+    });
+
+    testWidgets('opens on no bar a legend selection has dimmed', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentHorizontalBarChart(key: key, data: threeLegends),
+      );
+      await tester.tap(find.text('A'));
+      await tester.pump();
+      final row = tester.getRect(strip);
+      final gesture = await hover(tester, row.topLeft + const Offset(200, 6));
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason:
+            'HorizontalBarChart.tsx:63 — _hoverOn needs the bar highlighted, '
+            'or no legend highlighted at all.',
+      );
+      await gesture.moveTo(row.topLeft + const Offset(20, 6));
+      await tester.pump();
+      expect(find.byType(FluentChartPopover), findsOneWidget);
+    });
+
+    testWidgets('reads non-cartesian and may hang past the chart', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentHorizontalBarChart(key: key, data: threeLegends),
+      );
+      final chart = tester.getRect(find.byKey(key));
+      await hover(tester, tester.getRect(strip).topLeft + const Offset(4, 6));
+      expect(
+        surface(tester).left,
+        lessThan(chart.left),
+        reason:
+            'ChartPopover.tsx:47-51 positions an inline Popover against its '
+            'clipping ancestors, and fui-hbc__root clips nothing, so the '
+            "surface centred on a bar's first pixels overhangs the chart: the "
+            'basic story opens it at x 11 for a chart at x 40.',
+      );
+      expect(
+        popover(tester).data.isCartesian,
+        isFalse,
+        reason:
+            'HorizontalBarChart.tsx:483 — the value is title2, 600 28/36, '
+            'not the cartesian subtitle2Stronger.',
+      );
+    });
+
+    testWidgets('calloutPropsPerDataPoint spreads over the reading', (
+      tester,
+    ) async {
+      const red = Color(0xFFFF0000);
+      await pump(
+        tester,
+        FluentHorizontalBarChart(
+          key: key,
+          data: const <FluentChartData>[
+            FluentChartData(
+              chartTitle: 'one',
+              chartData: <FluentChartDataPoint>[
+                FluentChartDataPoint(
+                  legend: 'one',
+                  horizontalBarChartData: FluentHorizontalDataPoint(
+                    x: 1543,
+                    total: 15000,
+                  ),
+                  xAxisCalloutData: '2020/04/30',
+                  yAxisCalloutData: '1.5K',
+                ),
+              ],
+            ),
+          ],
+          // The story's customPopoverProps.
+          calloutPropsPerDataPoint: (point) => FluentChartPopoverData(
+            xValue: 'Custom XVal',
+            legend: 'Custom Legend',
+            yValue: '${point.yAxisCalloutData} h',
+            color: red,
+          ),
+        ),
+      );
+      await hover(tester, tester.getRect(strip).topLeft + const Offset(20, 6));
+      final texts = tester
+          .widgetList<Text>(
+            find.descendant(
+              of: find.byType(FluentChartPopover),
+              matching: find.byType(Text),
+            ),
+          )
+          .map((text) => text.data)
+          .toList();
+      expect(
+        texts,
+        <String>['Custom XVal', '2020/04/30', '1.5K'],
+        reason:
+            'ChartPopover.tsx:41 spreads the custom props over its own, so '
+            'XValue heads the popover, but :43-44 still prefer the point\'s '
+            'xCalloutValue and yCalloutValue for the legend and the value — '
+            'the custom-callout story shows exactly these three lines.',
+      );
+      expect(popover(tester).data.color, red);
+    });
+
+    testWidgets('focus opens it at the centre of the bar', (tester) async {
+      await pump(
+        tester,
+        FluentHorizontalBarChart(key: key, data: threeLegends),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      // Bar A spans 0..118.2 of the row.
+      expect(
+        popover(tester).anchor,
+        tester.getRect(strip).topLeft + const Offset(59.1, 6),
+        reason:
+            'HorizontalBarChart.tsx:321 runs _hoverOn on focus too, and '
+            ':73-77 anchor it at the centre of the bar, in the screen space '
+            'the overlay shares.',
+      );
+    });
+
+    testWidgets('hovering a legend closes it', (tester) async {
+      await pump(
+        tester,
+        FluentHorizontalBarChart(key: key, data: threeLegends),
+      );
+      final gesture = await hover(
+        tester,
+        tester.getRect(strip).topLeft + const Offset(20, 6),
+      );
+      await gesture.moveTo(tester.getCenter(find.text('B')));
+      await tester.pump();
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason:
+            "HorizontalBarChart.tsx:128-131 — a legend's hoverAction runs "
+            '_handleChartMouseLeave before it records the active legend.',
+      );
+    });
+
+    testWidgets('turning hideTooltip on empties an open popover', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentHorizontalBarChart(key: key, data: threeLegends),
+      );
+      await hover(tester, tester.getRect(strip).topLeft + const Offset(20, 6));
+      expect(find.byType(FluentChartPopover), findsOneWidget);
+      await pump(
+        tester,
+        FluentHorizontalBarChart(
+          key: key,
+          data: threeLegends,
+          hideTooltip: true,
+        ),
+      );
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason:
+            'Upstream only unwires the bar handlers (HorizontalBarChart.tsx:37, '
+            ':318-321) and leaves the ungated ChartPopover (:465) open until '
+            'the pointer leaves; a tooltip the caller has just hidden should '
+            'not stay on screen.',
+      );
+    });
+  });
+
+  testWidgets('the benchmark triangle sits 6 above its bar, painted over it', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const FluentHorizontalBarChart(
+        key: key,
+        data: <FluentChartData>[
+          FluentChartData(
+            chartTitle: 'Quota',
+            chartData: <FluentChartDataPoint>[
+              FluentChartDataPoint(
+                legend: 'Used',
+                data: 60,
+                horizontalBarChartData: FluentHorizontalDataPoint(
+                  x: 45,
+                  total: 100,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    final strip = find.byWidgetPredicate(
+      (w) => w is CustomPaint && w.painter is FluentHorizontalBarStripPainter,
+    );
+    final triangle = find.byWidgetPredicate(
+      (w) => w is CustomPaint && w.painter is FluentBenchmarkTrianglePainter,
+    );
+    expect(
+      tester.getRect(strip).top - tester.getRect(triangle).top,
+      6,
+      reason:
+          'useHorizontalBarChartStyles.styles.ts:80-82 — the 7px container '
+          'takes 3 of flow above the svg and starts 3 higher still (marginTop '
+          '-3), so the triangle spans 6 above the bar to 1 into it.',
+    );
+    final stack = find.ancestor(of: strip, matching: find.byType(Stack)).first;
+    final children = tester.widget<Stack>(stack).children;
+    expect(
+      children.last,
+      isA<Positioned>().having(
+        (p) => find
+            .descendant(of: find.byWidget(p), matching: triangle)
+            .evaluate()
+            .length,
+        'triangles',
+        1,
+      ),
+      reason:
+          '`.triangle` is position: absolute (:92), so it paints above the '
+          'svg that follows it — the 0.4-alpha placeholder bar no longer '
+          'darkens its tip.',
+    );
+  });
+
+  testWidgets('legends and enabledWrapLines replace the derived legend', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      FluentHorizontalBarChart(
+        key: key,
+        chartDataMode: FluentChartDataMode.hidden,
+        showLegendForSinglePointBar: true,
+        data: <FluentChartData>[
+          FluentChartData(
+            chartTitle: 'one',
+            chartData: <FluentChartDataPoint>[bar('One.One', 100)],
+          ),
+        ],
+        // The annotated-inline-legend story's legendProps.
+        enabledWrapLines: true,
+        legends: <FluentChartLegendItem>[
+          FluentChartLegendItem(
+            title: 'Override',
+            color: const Color(0xFF0000FF),
+            annotationBuilder: (_) => const Text('100%'),
+          ),
+        ],
+      ),
+      width: 600,
+    );
+    final legend = tester.widget<FluentChartLegend>(
+      find.byType(FluentChartLegend),
+    );
+    expect(
+      legend.enabledWrapLines,
+      isTrue,
+      reason:
+          'HorizontalBarChart.tsx:138 spreads props.legendProps after its own '
+          'props.',
+    );
+    expect(find.text('Override'), findsOneWidget);
+    expect(
+      find.text('One.One'),
+      findsNothing,
+      reason: 'legendProps.legends replaces the derived rows outright.',
+    );
+    expect(
+      find.text('100%'),
+      findsOneWidget,
+      reason: 'Legends.tsx:163 renders legendAnnotation in the wrapped branch.',
+    );
+    expect(
+      tester.getTopLeft(find.byType(FluentChartLegendRow)).dx -
+          tester.getTopLeft(find.byKey(key)).dx,
+      4,
+      reason:
+          'The wrapped branch ignores centerLegends (Legends.tsx:152 sets '
+          'justifyContent on a root that is not a flex container), so the '
+          "first row starts at its legendContainer's 4px margin.",
     );
   });
 

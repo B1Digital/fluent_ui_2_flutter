@@ -1,5 +1,6 @@
 import 'package:fluent_2/src/charts/axis/tick_format.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 
 import '../../support/oracle_fixture.dart';
 
@@ -249,6 +250,22 @@ void main() {
       );
     });
 
+    test('follows the default locale from one call to the next', () {
+      final previous = Intl.defaultLocale;
+      addTearDown(() => Intl.defaultLocale = previous);
+      Intl.defaultLocale = 'en_US';
+      expect(formatToLocaleString(12345.5), '12,345.5');
+      Intl.defaultLocale = 'de_DE';
+      expect(
+        formatToLocaleString(12345.5),
+        '12.345,5',
+        reason:
+            'an undefined culture is the runtime locale (formatter.ts:38), '
+            'whichever format the last call built',
+      );
+      expect(formatToLocaleString(12345.5, culture: 'en_US'), '12,345.5');
+    });
+
     test('formats a numeric string like a number', () {
       expect(
         formatToLocaleString('12345', culture: 'en_US'),
@@ -268,6 +285,28 @@ void main() {
         formatToLocaleString(double.nan),
         'NaN',
         reason: 'formatter.ts:35 returns NaN unchanged.',
+      );
+    });
+
+    test('falls back to the default locale for a culture intl lacks', () {
+      expect(
+        formatToLocaleString(12345, culture: 'rs-ss'),
+        '12,345',
+        reason:
+            'formatter.ts:41 calls toLocaleString(culture), and ECMA-402 '
+            'lookup falls back to the default locale for a well-formed tag '
+            'it has no data for; intl would throw ArgumentError.',
+      );
+      expect(
+        formatToLocaleString(
+          DateTime.utc(2020, 3, 4, 5, 6, 7),
+          culture: 'rs-ss',
+          useUtc: true,
+        ),
+        '03/04/2020, 05:06:07 AM UTC',
+        reason:
+            'formatter.ts:95, the same lookup for a Date; intl would throw '
+            'LocaleDataException (date data uninitialised) or ArgumentError.',
       );
     });
 

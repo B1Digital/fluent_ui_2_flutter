@@ -187,12 +187,12 @@ void main() {
         chartTitle: 'Grouped Vertical Bar chart basic example',
         culture: 'en-US',
       ),
-      // Measured 0.026% — 56 pixels of 214,457, best shift (0,0). Every one of
-      // them is a 1px column on the left and right edge of two legend
-      // swatches: upstream paints the swatch on integer boundaries (156..169),
-      // this paints the same 14px swatch half a pixel left, so both edges
-      // antialias. The bars, gridlines and axes are pixel-identical.
-      maxMismatch: 0.05,
+      // Measured 0.000% — not one of 214,457 unmasked pixels differs. Was
+      // 0.026% (56 px) while two legend swatches were painted half a pixel
+      // left of the whole-pixel boxes Chromium snaps them to (156..169), so
+      // both edges antialiased. Pinned at 0: the floor check admits nothing
+      // else.
+      maxMismatch: 0,
     );
   });
 
@@ -246,12 +246,13 @@ void main() {
         chartTitle: 'Horizontal bar chart basic example ',
         culture: 'en-US',
       ),
-      // Measured 0.034% — 73 pixels of 216,701, best shift (0,0). Same
-      // residual as the grouped chart above: 1px fringe columns either side of
-      // three legend swatches, plus a single pixel at the tip of the 40k bar
-      // where it meets the plot's right edge. The bars themselves, the value
-      // axis and the category gridlines are pixel-identical.
-      maxMismatch: 0.06,
+      // Measured 0.00046% (printed 0.000%) — 1 pixel of 216,701, best shift
+      // (0,0): the "k" of the Oranges bar's "10k" label, 12px/600 and wide in
+      // Selawik Semibold, antialiasing one column past its mask. Bars, both
+      // axes, gridlines and swatches are pixel-identical. Was 0.034% while
+      // three legend swatches sat at fractional x, as the grouped chart above
+      // did.
+      maxMismatch: 0.0005,
     );
   });
 }

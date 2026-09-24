@@ -44,7 +44,7 @@ const FluentDialog({
     this.title,
     this.actions = const <Widget>[],
     this.secondaryActions = const <Widget>[],
-    this.showCloseButton = true,
+    this.showCloseButton,
     this.modalType = FluentDialogModalType.modal,
     this.size = FluentDialogSize.medium,
     this.style,
@@ -63,7 +63,7 @@ const FluentDialog({
 | `title` | `Widget?` | No | `null` | The heading. Rendered in `subtitle1`. |
 | `actions` | `List<Widget>` | No | `const <Widget>[]` | The primary actions, at the end of the footer row. |
 | `secondaryActions` | `List<Widget>` | No | `const <Widget>[]` | The secondary actions, at the start of the footer row. |
-| `showCloseButton` | `bool` | No | `true` | Whether the header carries a close button. |
+| `showCloseButton` | `bool?` | No | `null` | Whether the header carries a close button. |
 | `modalType` | `FluentDialogModalType` | No | `FluentDialogModalType.modal` | Whether the dialog blocks the page, and how it may be dismissed. |
 | `size` | `FluentDialogSize` | No | `FluentDialogSize.medium` | Width and action layout. |
 | `style` | `FluentDialogStyle?` | No | `null` | Overrides layered over the theme defaults. Merged last, so it wins. |

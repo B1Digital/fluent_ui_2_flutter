@@ -177,19 +177,30 @@ void main() {
       await pumpSection(tester, section);
       final Finder line = find.byType(FluentCheckbox).at(0);
       expect(tester.widget<FluentCheckbox>(line).checked, isTrue);
-      expect(_dots(tester), greaterThan(0));
+      // The dots stay hidden until a bar is hovered
+      // (VerticalBarChart.tsx:286-290), so the stroke is what shows the line.
+      expect(_paths(tester), greaterThan(0));
+      expect(_dots(tester), 0);
+      final TestGesture mouse = await mouseHoverAt(
+        tester,
+        tester.getTopLeft(_canvas.first) + _bars(tester).first.center,
+        what: 'the first bar',
+      );
+      expect(
+        _dots(tester),
+        2,
+        reason:
+            'hovering a bar shows the line dot at its x, a fill and a ring '
+            '(VerticalBarChart.tsx:489)',
+      );
+      await mouseAway(tester, mouse);
 
       await mouseClick(tester, line);
       expect(tester.widget<FluentCheckbox>(line).checked, isFalse);
-      expect(
-        _dots(tester),
-        0,
-        reason: 'clearing lineData must remove the dots as well as the stroke',
-      );
-      expect(_paths(tester), 0);
+      expect(_paths(tester), 0, reason: 'clearing lineData removes the stroke');
 
       await mouseClick(tester, line);
-      expect(_dots(tester), greaterThan(0));
+      expect(_paths(tester), greaterThan(0));
     });
 
     testWidgets('the single-colour checkbox restores the custom ramp', (
@@ -210,7 +221,7 @@ void main() {
   });
 
   group('vertical bar date axis', () {
-    testWidgets('the custom formatter labels every tick', (
+    testWidgets('the ticks read as the culture formats them', (
       WidgetTester tester,
     ) async {
       await pumpSection(
@@ -218,21 +229,16 @@ void main() {
         sectionOf('charts-verticalbarchart--vertical-bar-date-axis'),
       );
       expect(_bars(tester), hasLength(5));
-      // The demo hands the shell five explicit tick values and a `%m/%d`
-      // formatter. The formatter lands; the tick values do not — the axis
-      // labels thirteen generated monthly ticks instead of the five dates the
-      // section names. Upstream's own capture of this story
+      // One label per tick value. Upstream's `tickFormat="%m/%d"` loses to
+      // the story's `culture` (utilities.ts:507), so its capture
       // (`test/fixtures/charts/oracle_b/charts-verticalbarchart--vertical-bar-
-      // date-axis.json`) carries exactly five x labels, one per tick value, so
-      // this is the port dropping the prop: `FluentCartesianChartProps
-      // .tickValues` reaches the domain solve and then the three x builders are
-      // handed `delegate.tickParams`, which no delegate ever fills in.
+      // date-axis.json`) reads 'Jan 2018', not '01/01'.
       expect(_painter(tester).xAxis.tickLabels, <String>[
-        '01/01',
-        '03/01',
-        '07/01',
-        '10/01',
-        '01/01',
+        'Jan 2018',
+        'Mar 2018',
+        'Jul 2018',
+        'Oct 2018',
+        'Jan 2019',
       ]);
     });
   });
@@ -402,13 +408,15 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
-      expect(_dots(tester), greaterThan(0));
+      // The dots stay hidden until a bar is hovered
+      // (VerticalBarChart.tsx:286-290), so the stroke is what shows the line.
+      expect(_paths(tester), greaterThan(0));
 
       await mouseClick(tester, find.byType(FluentCheckbox).at(0));
-      expect(_dots(tester), 0);
+      expect(_paths(tester), 0);
 
       await mouseClick(tester, find.byType(FluentCheckbox).at(0));
-      expect(_dots(tester), greaterThan(0));
+      expect(_paths(tester), greaterThan(0));
     });
 
     testWidgets('the single-colour checkbox restores the custom ramp', (

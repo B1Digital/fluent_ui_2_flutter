@@ -366,6 +366,37 @@ void main() {
       );
     });
 
+    testWidgets('the actions are small buttons, as TreeItemLayout sizes them', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(tester, section);
+      // TreeItemLayout's ButtonContext is size small: Chrome measures both
+      // actions at 24x24 with a 20px glyph on a hovered row.
+      final TestGesture mouse = await mouseHover(tester, find.text('item 1'));
+      await mouse.moveBy(const Offset(1, 0));
+      await tester.pump();
+      for (final IconData icon in <IconData>[
+        FluentIcons.edit_20_regular,
+        FluentIcons.more_horizontal_20_regular,
+      ]) {
+        expect(
+          tester.getSize(
+            find
+                .ancestor(
+                  of: find.descendant(
+                    of: treeRow('item 1'),
+                    matching: find.byIcon(icon),
+                  ),
+                  matching: find.byType(FluentButton),
+                )
+                .first,
+          ),
+          const Size.square(24),
+        );
+      }
+      await mouseAway(tester, mouse);
+    });
+
     testWidgets('the row still opens when the click misses the actions', (
       WidgetTester tester,
     ) async {

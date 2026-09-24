@@ -1,4 +1,5 @@
 import 'package:fluent_2/fluent_2.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,7 +29,7 @@ void main() {
     WidgetTester tester, {
     bool open = false,
     bool dismissible = true,
-    bool showCloseButton = true,
+    bool? showCloseButton,
     bool reducedMotion = false,
     FluentDialogModalType modalType = FluentDialogModalType.modal,
     FluentDialogSize size = FluentDialogSize.medium,
@@ -345,17 +346,129 @@ void main() {
       );
     });
 
-    testWidgets('the close button is a subtle icon-only FluentButton', (
+    testWidgets('the close button is a bare 20px glyph, as upstream draws it', (
       tester,
     ) async {
-      await pump(tester, open: true, title: const Text('Title'));
+      // Figma draws a subtle 32-square icon button. The storybook's
+      // `DialogTitle` action is a bare `<button>` — padding 0, no border,
+      // background and colour inherited — round `Dismiss20Regular`
+      // (useDialogTitle.js:36-44, useDialogTitleStyles.styles.raw.js:44-60).
+      // The storybook wins.
+      await pump(
+        tester,
+        open: true,
+        modalType: FluentDialogModalType.nonModal,
+        title: const Text('Title'),
+      );
 
-      final close = tester.widget<FluentButton>(find.byType(FluentButton).last);
-      expect(close.appearance, FluentButtonAppearance.subtle);
-      expect(close.size, FluentButtonSize.medium);
-      expect(close.child, isNull);
-      expect(close.semanticLabel, 'Close');
-      expect((close.icon! as Icon).icon, fluentDialogCloseIcon);
+      final glyph = find.byIcon(fluentDialogCloseIcon);
+      expect(glyph, findsOneWidget);
+      expect(find.byType(FluentButton), findsOneWidget, reason: 'the trigger');
+      expect(
+        tester.getSize(
+          find.ancestor(of: glyph, matching: find.byType(FluentInteractive)),
+        ),
+        const Size.square(20),
+      );
+      expect(IconTheme.of(tester.element(glyph)).size, 20);
+      expect(
+        IconTheme.of(tester.element(glyph)).color,
+        light().colors.neutralForeground1,
+        reason: '`color: inherit` — the surface foreground',
+      );
+      // Pinned to the top of the title row and to the content's end edge.
+      final box = tester.getRect(surface());
+      expect(tester.getRect(glyph).right, box.right - 24);
+      expect(tester.getRect(glyph).top, box.top + 24);
+    });
+
+    testWidgets('a mouse over the close button changes nothing', (
+      tester,
+    ) async {
+      // The storybook's close changes 0px on hover and on press; the port's
+      // subtle button used to paint #F5F5F5 and #E0E0E0 behind it.
+      await pump(
+        tester,
+        open: true,
+        modalType: FluentDialogModalType.nonModal,
+        title: const Text('Title'),
+      );
+      final glyph = find.byIcon(fluentDialogCloseIcon);
+      final fills = find.descendant(
+        of: find.ancestor(of: glyph, matching: find.byType(FluentInteractive)),
+        matching: find.byType(DecoratedBox),
+      );
+      Color? tone() =>
+          tester.widget<Icon>(glyph).color ??
+          IconTheme.of(tester.element(glyph)).color;
+      final rest = tone();
+      expect(fills, findsNothing);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      final at = tester.getCenter(glyph);
+      await mouse.moveTo(at);
+      await mouse.moveTo(at + const Offset(1, 0));
+      await tester.pump();
+      expect(tone(), rest, reason: 'hover');
+      expect(fills, findsNothing, reason: 'hover');
+
+      await mouse.down(at + const Offset(1, 0));
+      await tester.pump();
+      expect(tone(), rest, reason: 'press');
+      expect(fills, findsNothing, reason: 'press');
+
+      await mouse.up();
+      await tester.pumpAndSettle();
+      expect(find.byKey(body), findsNothing, reason: 'the click closes it');
+      await mouse.removePointer();
+    });
+  });
+
+  group('close button default', () {
+    testWidgets('only a nonModal dialog draws one unasked, as upstream', (
+      tester,
+    ) async {
+      // `renderByDefault: modalType === 'non-modal'` (useDialogTitle.js:36).
+      // Figma draws one on every variant; the storybook wins.
+      for (final entry in <FluentDialogModalType, bool>{
+        FluentDialogModalType.modal: false,
+        FluentDialogModalType.alert: false,
+        FluentDialogModalType.nonModal: true,
+      }.entries) {
+        await pump(
+          tester,
+          open: true,
+          modalType: entry.key,
+          title: const Text('Title'),
+        );
+        expect(
+          find.byIcon(fluentDialogCloseIcon),
+          entry.value ? findsOneWidget : findsNothing,
+          reason: entry.key.name,
+        );
+      }
+    });
+
+    testWidgets('showCloseButton overrides the default either way', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        open: true,
+        showCloseButton: true,
+        title: const Text('Title'),
+      );
+      expect(find.byIcon(fluentDialogCloseIcon), findsOneWidget);
+
+      await pump(
+        tester,
+        open: true,
+        showCloseButton: false,
+        modalType: FluentDialogModalType.nonModal,
+        title: const Text('Title'),
+      );
+      expect(find.byIcon(fluentDialogCloseIcon), findsNothing);
     });
   });
 
@@ -792,16 +905,31 @@ void main() {
         tester,
         open: true,
         dismissible: false,
+        showCloseButton: true,
         title: const Text('Title'),
       );
 
-      final close = tester.widget<FluentButton>(find.byType(FluentButton).last);
-      expect(close.onPressed, isNull);
+      final glyph = find.byIcon(fluentDialogCloseIcon);
+      expect(
+        tester
+            .widget<FluentInteractive>(
+              find.ancestor(
+                of: glyph,
+                matching: find.byType(FluentInteractive),
+              ),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(
+        tester.widget<Icon>(glyph).color,
+        light().colors.neutralForegroundDisabled,
+      );
 
       // A real disabled state, not a greyed-out one: no tap action reaches the
       // semantics tree, so a screen reader cannot offer it.
       expect(
-        tester.getSemantics(find.byType(FluentButton).last),
+        tester.getSemantics(glyph),
         matchesSemantics(label: 'Close', isButton: true, hasEnabledState: true),
       );
       handle.dispose();
@@ -830,11 +958,19 @@ void main() {
         tester,
         open: true,
         showCloseButton: false,
+        modalType: FluentDialogModalType.nonModal,
         title: const Text('Title'),
       );
 
       // Only the trigger is left.
-      expect(find.byType(FluentButton), findsOneWidget);
+      expect(find.byIcon(fluentDialogCloseIcon), findsNothing);
+      expect(
+        find.descendant(
+          of: surface(),
+          matching: find.byType(FluentInteractive),
+        ),
+        findsNothing,
+      );
       expect(find.byKey(trigger), findsOneWidget);
     });
   });

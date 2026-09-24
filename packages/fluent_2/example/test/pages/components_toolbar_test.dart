@@ -251,9 +251,13 @@ void main() {
         fillOfButton(tester, FluentIcons.text_italic_24_regular),
         isNot(offFill),
       );
+      // useIconCheckedStyles: the checked subtle icon goes brand, apart from
+      // its neutral label.
       expect(
         glyphColour(tester, FluentIcons.text_italic_24_regular),
-        isNot(offGlyph),
+        FluentTheme.of(
+          tester.element(find.byType(FluentToolbar)),
+        ).colors.neutralForeground2BrandSelected,
       );
       expect(
         fillOfButton(tester, FluentIcons.text_bold_24_regular),
@@ -285,6 +289,27 @@ void main() {
         isNot(offGlyph),
         reason: 'a checked transparent button has to read as checked somehow',
       );
+      // useIconCheckedStyles holds it at BrandSelected even pressed, where the
+      // label alone darkens to BrandPressed.
+      final TestGesture mouse = await mouseHover(
+        tester,
+        buttonFor(FluentIcons.text_italic_24_regular),
+      );
+      await mouse.moveBy(const Offset(1, 0));
+      await mouse.down(
+        tester.getCenter(buttonFor(FluentIcons.text_italic_24_regular)),
+      );
+      await settle(tester);
+      expect(
+        glyphColour(tester, FluentIcons.text_italic_24_regular),
+        FluentTheme.of(
+          tester.element(find.byType(FluentToolbar)),
+        ).colors.neutralForeground2BrandSelected,
+      );
+      // Released off the button, so the toggle keeps its check.
+      await mouse.moveTo(const Offset(-1, -1));
+      await mouse.up();
+      await mouseAway(tester, mouse);
       // And deliberately not on a fill: every stop of Fluent's transparent
       // background family, `colorTransparentBackgroundSelected` included, is
       // literally transparent — upstream too — so demanding a fill here would

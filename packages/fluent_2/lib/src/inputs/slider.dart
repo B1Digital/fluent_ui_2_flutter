@@ -686,6 +686,8 @@ class _FluentSliderState extends State<FluentSlider> {
       mouseCursor:
           resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
           SystemMouseCursors.click,
+      // `useSliderStyles.styles.ts`: disabled is `cursor: 'default'`.
+      disabledMouseCursor: SystemMouseCursors.basic,
       // Claims the pointer at down rather than after the drag slop, so a tap on
       // the rail jumps the thumb there and a drag along it is never handed to
       // an ancestor scrollable.

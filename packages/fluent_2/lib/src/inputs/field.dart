@@ -274,8 +274,17 @@ FluentFieldStyle resolveFluentFieldStyle(
     hintColor: hint,
     validationMessageColor: message,
     validationMessageIconColor: icon,
+    // Figma draws the gap alone; upstream's `useFieldStyles.styles.ts` also
+    // pads a vertical label XXS above and below (`1px` at large), so Chrome's
+    // label box is 24 and the control starts 26 down (field--default). React
+    // wins.
     labelPadding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(
-      EdgeInsets.only(bottom: labelGap),
+      state.size == FluentFieldSize.large
+          ? EdgeInsets.only(top: 1, bottom: 1 + labelGap)
+          : EdgeInsets.only(
+              top: FluentSpacing.xxs,
+              bottom: FluentSpacing.xxs + labelGap,
+            ),
     ),
     secondaryTextPadding: const WidgetStatePropertyAll<EdgeInsetsGeometry?>(
       EdgeInsets.only(top: FluentSpacing.xxs),

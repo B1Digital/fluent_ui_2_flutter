@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -396,6 +398,37 @@ void main() {
       closeTo(0.2, 1e-6),
       reason: 'Sparkline.tsx:101 hard-codes fillOpacity 0.2.',
     );
+  });
+
+  test('the stroke is clipped to the plot, as the svg viewport clips it', () async {
+    final layout = FluentSparklineLayout.compute(
+      points: <FluentLineChartDataPoint>[
+        for (final (x, y) in sample) FluentLineChartDataPoint(x: x, y: y),
+      ],
+      size: const Size(80, 20),
+      topMargin: 2,
+    );
+    final recorder = ui.PictureRecorder();
+    FluentSparklinePainter(
+      layout: layout,
+      colour: const Color(0xFF637CEF),
+      strokeWidth: 2,
+      areaOpacity: 0.2,
+    ).paint(Canvas(recorder), const Size(80, 20));
+    // One column wider than the plot, to see what lands past its edge.
+    final image = await recorder.endRecording().toImage(81, 20);
+    final pixels = (await image.toByteData())!;
+    for (var y = 0; y < 20; y++) {
+      expect(
+        pixels.getUint8((y * 81 + 80) * 4 + 3),
+        0,
+        reason:
+            'row $y, column 80: the last segment climbs steeply to (80, 2), so '
+            'half its 2px stroke spills past x 80. Sparkline.tsx:115-122 draws '
+            'it in an 80-wide <svg>, whose viewport clips it; '
+            'charts-sparkline--sparkline-dimensions shows nothing there.',
+      );
+    }
   });
 
   testWidgets('the plot is suppressed below 50x16 but the label is not', (

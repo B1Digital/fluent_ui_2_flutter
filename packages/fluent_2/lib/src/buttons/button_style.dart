@@ -22,6 +22,7 @@ class FluentButtonStyle {
   const FluentButtonStyle({
     this.backgroundColor,
     this.foregroundColor,
+    this.iconColor,
     this.borderColor,
     this.borderWidth,
     this.borderRadius,
@@ -29,18 +30,26 @@ class FluentButtonStyle {
     this.padding,
     this.gap,
     this.iconSize,
+    this.menuIconSize,
     this.minimumSize,
     this.mouseCursor,
     this.focusRingInsets,
     this.focusRingInnerColor,
     this.shadow,
+    this.animationDuration,
   });
 
   /// Surface fill.
   final WidgetStateProperty<Color?>? backgroundColor;
 
-  /// Label and icon colour.
+  /// Label colour, and the icon's unless [iconColor] says otherwise.
   final WidgetStateProperty<Color?>? foregroundColor;
+
+  /// Icon colour, or null for the icon to follow [foregroundColor].
+  ///
+  /// Separate because upstream's subtle button recolours only its icon on
+  /// hover and press — brand, while the label stays neutral.
+  final WidgetStateProperty<Color?>? iconColor;
 
   /// Border colour. Null and transparent are different: Fluent's
   /// `transparentStroke` becomes opaque in high contrast.
@@ -65,6 +74,10 @@ class FluentButtonStyle {
   /// Icon edge length.
   final WidgetStateProperty<double?>? iconSize;
 
+  /// Edge length of the menu icon after the label, which upstream sizes apart
+  /// from the icon: 12, or 16 at large, beside a 20 or 24 icon.
+  final WidgetStateProperty<double?>? menuIconSize;
+
   /// Minimum tap target.
   final WidgetStateProperty<Size?>? minimumSize;
 
@@ -87,6 +100,14 @@ class FluentButtonStyle {
   /// Drop shadow. Upstream gives a focused primary button `shadow2`.
   final WidgetStateProperty<List<BoxShadow>?>? shadow;
 
+  /// How long the fill, border and label take to reach a new state's colours.
+  ///
+  /// Null is upstream's Button transition, 100ms. [Duration.zero] lands them
+  /// on the frame the state changes, for a control built on a button whose
+  /// upstream counterpart declares no transition — the carousel's step is a
+  /// `CarouselNavButton`, `transition: all` at 0s.
+  final Duration? animationDuration;
+
   /// This style with the non-null properties of [other] layered on top.
   ///
   /// Merging is per-property, not wholesale: overriding only `borderRadius`
@@ -96,6 +117,7 @@ class FluentButtonStyle {
     return FluentButtonStyle(
       backgroundColor: other.backgroundColor ?? backgroundColor,
       foregroundColor: other.foregroundColor ?? foregroundColor,
+      iconColor: other.iconColor ?? iconColor,
       borderColor: other.borderColor ?? borderColor,
       borderWidth: other.borderWidth ?? borderWidth,
       borderRadius: other.borderRadius ?? borderRadius,
@@ -103,11 +125,13 @@ class FluentButtonStyle {
       padding: other.padding ?? padding,
       gap: other.gap ?? gap,
       iconSize: other.iconSize ?? iconSize,
+      menuIconSize: other.menuIconSize ?? menuIconSize,
       minimumSize: other.minimumSize ?? minimumSize,
       mouseCursor: other.mouseCursor ?? mouseCursor,
       focusRingInsets: other.focusRingInsets ?? focusRingInsets,
       focusRingInnerColor: other.focusRingInnerColor ?? focusRingInnerColor,
       shadow: other.shadow ?? shadow,
+      animationDuration: other.animationDuration ?? animationDuration,
     );
   }
 
@@ -115,6 +139,7 @@ class FluentButtonStyle {
   FluentButtonStyle copyWith({
     WidgetStateProperty<Color?>? backgroundColor,
     WidgetStateProperty<Color?>? foregroundColor,
+    WidgetStateProperty<Color?>? iconColor,
     WidgetStateProperty<Color?>? borderColor,
     WidgetStateProperty<double?>? borderWidth,
     WidgetStateProperty<BorderRadius?>? borderRadius,
@@ -122,14 +147,17 @@ class FluentButtonStyle {
     WidgetStateProperty<EdgeInsetsGeometry?>? padding,
     WidgetStateProperty<double?>? gap,
     WidgetStateProperty<double?>? iconSize,
+    WidgetStateProperty<double?>? menuIconSize,
     WidgetStateProperty<Size?>? minimumSize,
     WidgetStateProperty<MouseCursor?>? mouseCursor,
     WidgetStateProperty<EdgeInsetsGeometry?>? focusRingInsets,
     WidgetStateProperty<Color?>? focusRingInnerColor,
     WidgetStateProperty<List<BoxShadow>?>? shadow,
+    Duration? animationDuration,
   }) => FluentButtonStyle(
     backgroundColor: backgroundColor ?? this.backgroundColor,
     foregroundColor: foregroundColor ?? this.foregroundColor,
+    iconColor: iconColor ?? this.iconColor,
     borderColor: borderColor ?? this.borderColor,
     borderWidth: borderWidth ?? this.borderWidth,
     borderRadius: borderRadius ?? this.borderRadius,
@@ -137,11 +165,13 @@ class FluentButtonStyle {
     padding: padding ?? this.padding,
     gap: gap ?? this.gap,
     iconSize: iconSize ?? this.iconSize,
+    menuIconSize: menuIconSize ?? this.menuIconSize,
     minimumSize: minimumSize ?? this.minimumSize,
     mouseCursor: mouseCursor ?? this.mouseCursor,
     focusRingInsets: focusRingInsets ?? this.focusRingInsets,
     focusRingInnerColor: focusRingInnerColor ?? this.focusRingInnerColor,
     shadow: shadow ?? this.shadow,
+    animationDuration: animationDuration ?? this.animationDuration,
   );
 
   /// Convenience for the common case of one value across every state.
@@ -151,6 +181,7 @@ class FluentButtonStyle {
   static FluentButtonStyle from({
     Color? backgroundColor,
     Color? foregroundColor,
+    Color? iconColor,
     Color? borderColor,
     double? borderWidth,
     BorderRadius? borderRadius,
@@ -158,14 +189,17 @@ class FluentButtonStyle {
     EdgeInsetsGeometry? padding,
     double? gap,
     double? iconSize,
+    double? menuIconSize,
     Size? minimumSize,
     MouseCursor? mouseCursor,
     EdgeInsetsGeometry? focusRingInsets,
     Color? focusRingInnerColor,
     List<BoxShadow>? shadow,
+    Duration? animationDuration,
   }) => FluentButtonStyle(
     backgroundColor: _all(backgroundColor),
     foregroundColor: _all(foregroundColor),
+    iconColor: _all(iconColor),
     borderColor: _all(borderColor),
     borderWidth: _all(borderWidth),
     borderRadius: _all(borderRadius),
@@ -173,11 +207,13 @@ class FluentButtonStyle {
     padding: _all(padding),
     gap: _all(gap),
     iconSize: _all(iconSize),
+    menuIconSize: _all(menuIconSize),
     minimumSize: _all(minimumSize),
     mouseCursor: _all(mouseCursor),
     focusRingInsets: _all(focusRingInsets),
     focusRingInnerColor: _all(focusRingInnerColor),
     shadow: _all(shadow),
+    animationDuration: animationDuration,
   );
 
   static WidgetStateProperty<T?>? _all<T>(T? value) =>
@@ -188,6 +224,7 @@ class FluentButtonStyle {
       other is FluentButtonStyle &&
       other.backgroundColor == backgroundColor &&
       other.foregroundColor == foregroundColor &&
+      other.iconColor == iconColor &&
       other.borderColor == borderColor &&
       other.borderWidth == borderWidth &&
       other.borderRadius == borderRadius &&
@@ -195,16 +232,19 @@ class FluentButtonStyle {
       other.padding == padding &&
       other.gap == gap &&
       other.iconSize == iconSize &&
+      other.menuIconSize == menuIconSize &&
       other.minimumSize == minimumSize &&
       other.mouseCursor == mouseCursor &&
       other.focusRingInsets == focusRingInsets &&
       other.focusRingInnerColor == focusRingInnerColor &&
-      other.shadow == shadow;
+      other.shadow == shadow &&
+      other.animationDuration == animationDuration;
 
   @override
   int get hashCode => Object.hash(
     backgroundColor,
     foregroundColor,
+    iconColor,
     borderColor,
     borderWidth,
     borderRadius,
@@ -212,10 +252,12 @@ class FluentButtonStyle {
     padding,
     gap,
     iconSize,
+    menuIconSize,
     minimumSize,
     mouseCursor,
     focusRingInsets,
     focusRingInnerColor,
     shadow,
+    animationDuration,
   );
 }

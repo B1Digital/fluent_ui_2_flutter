@@ -637,6 +637,10 @@ class FluentHeatMapChartDelegate extends FluentCartesianSeriesDelegate {
             yValue: _rectTextOf(placed.cell),
             ratio: placed.cell.ratio,
             descriptionMessage: placed.cell.descriptionMessage ?? '',
+            // `:781-783` puts `calloutContentRoot`'s maxWidth on the body.
+            contentMaxWidth: style.popoverMaxWidth!.resolve(<WidgetState>{}),
+            // `:771-784` pass no isCartesian.
+            isCartesian: false,
           ),
           semanticsLabel:
               placed.cell.semantics?.label ?? _ariaLabelOf(placed.cell),

@@ -487,6 +487,17 @@ String truncateSankeyText(
   return line;
 }
 
+/// [text] as an SVG `<text>` lays it out: tabs and line breaks become spaces,
+/// each run of spaces becomes one, and a space at either end goes.
+///
+/// `truncateText` (`SankeyChart.tsx:389-419`) measures the rendered tspan with
+/// `getComputedTextLength`, so it measures, and the node then draws, the
+/// collapsed name: the inbox story's `' No further action  required'` reads
+/// "No further action requi..." in the storybook. Measured raw, the two extra
+/// spaces cost it two letters.
+String collapseSvgWhiteSpace(String text) =>
+    text.replaceAll(RegExp('[ \t\n\r]+'), ' ').replaceAll(RegExp(r'^ | $'), '');
+
 /// The text a node draws, plus the derived offsets the painter needs.
 @immutable
 class FluentSankeyNodeVisual {
@@ -552,7 +563,7 @@ List<FluentSankeyNodeVisual> computeSankeyNodeVisuals({
     // `:647-649` — 124 - 8 = 116 is the rectangle width the truncation works
     // against, and `truncateText` subtracts the padding from it (`:391`).
     final name = truncateSankeyText(
-      layout.data.nodes[i].name,
+      collapseSvgWhiteSpace(layout.data.nodes[i].name),
       kSankeyNodeWidth - 8 - padding,
       measurer: measurer,
       style: nameStyle,

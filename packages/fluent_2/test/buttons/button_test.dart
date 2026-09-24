@@ -1,5 +1,6 @@
 import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -239,6 +240,26 @@ void main() {
           reason: entry.key.name,
         );
       }
+    });
+
+    test('a selected outline button grows by its thicker border', () {
+      // An open outline MenuButton or a checked outline ToggleButton takes a
+      // 3px border, which takes layout space as the 1px one does: Chrome
+      // renders the checked outline toggle 36 high against 32 unchecked.
+      final style = resolveFluentButtonStyle(
+        resolveFluentButtonState(appearance: FluentButtonAppearance.outline),
+        FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+      );
+      const selected = <WidgetState>{WidgetState.selected};
+      expect(style.borderWidth!.resolve(selected), FluentStroke.thicker);
+      expect(
+        style.padding!.resolve(selected),
+        style.padding!
+            .resolve(const <WidgetState>{})!
+            .add(
+              const EdgeInsets.all(FluentStroke.thicker - FluentStroke.thin),
+            ),
+      );
     });
 
     testWidgets('the Large glyph is 24, not the 20 the other sizes take', (
@@ -509,6 +530,378 @@ void main() {
 
       final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
       expect(decorationOf(tester).color, theme.colors.neutralBackground1Hover);
+    });
+
+    testWidgets('the border and the label tween with the surface', (
+      tester,
+    ) async {
+      // The same declaration moves `border` and `color` too: a Chrome timeline
+      // of button--appearance has the edge still easing at 99ms after
+      // mousedown. They used to snap on the first frame.
+      final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+      Color? labelColor() => tester
+          .widget<RichText>(
+            find.descendant(
+              of: find.text('B'),
+              matching: find.byType(RichText),
+            ),
+          )
+          .text
+          .style
+          ?.color;
+
+      for (final appearance in <FluentButtonAppearance>[
+        FluentButtonAppearance.secondary,
+        FluentButtonAppearance.transparent,
+      ]) {
+        await pump(
+          tester,
+          FluentButton(
+            key: key,
+            appearance: appearance,
+            onPressed: () {},
+            child: const Text('B'),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: Offset.zero);
+        await tester.pump();
+        await mouse.moveTo(tester.getCenter(find.byKey(key)));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+
+        if (appearance == FluentButtonAppearance.secondary) {
+          final edge = decorationOf(tester).border!.top.color;
+          expect(edge, isNot(theme.colors.neutralStroke1));
+          expect(edge, isNot(theme.colors.neutralStroke1Hover));
+        } else {
+          expect(labelColor(), isNot(theme.colors.neutralForeground2));
+          expect(
+            labelColor(),
+            isNot(theme.colors.neutralForeground2BrandHover),
+          );
+        }
+
+        await tester.pumpAndSettle();
+        if (appearance == FluentButtonAppearance.secondary) {
+          expect(
+            decorationOf(tester).border!.top.color,
+            theme.colors.neutralStroke1Hover,
+          );
+        } else {
+          expect(labelColor(), theme.colors.neutralForeground2BrandHover);
+        }
+        await mouse.removePointer();
+      }
+    });
+  });
+
+  group('animationDuration', () {
+    testWidgets('zero lands every colour on the frame the state changes', (
+      tester,
+    ) async {
+      // For a control built on a button whose upstream counterpart declares no
+      // transition, like the carousel's step (`CarouselNavButton`: `all 0s`).
+      final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+      await pump(
+        tester,
+        FluentButton(
+          key: key,
+          style: const FluentButtonStyle(animationDuration: Duration.zero),
+          onPressed: () {},
+          child: const Text('B'),
+        ),
+      );
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await tester.pump();
+      await mouse.moveTo(tester.getCenter(find.byKey(key)));
+      await tester.pump();
+      await mouse.moveTo(
+        tester.getCenter(find.byKey(key)) + const Offset(1, 0),
+      );
+      await tester.pump();
+      expect(decorationOf(tester).color, theme.colors.neutralBackground1Hover);
+      expect(
+        decorationOf(tester).border!.top.color,
+        theme.colors.neutralStroke1Hover,
+      );
+    });
+  });
+
+  group('hover and press, as the storybook renders them', () {
+    final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+
+    Color? iconColorOf(WidgetTester tester) => tester
+        .widget<RichText>(
+          find.descendant(
+            of: find.byType(Icon),
+            matching: find.byType(RichText),
+          ),
+        )
+        .text
+        .style
+        ?.color;
+
+    Future<TestGesture> hover(WidgetTester tester) async {
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await tester.pump();
+      await mouse.moveTo(tester.getCenter(find.byKey(key)));
+      await tester.pump();
+      // Drift a pixel, as a real pointer does after it arrives.
+      await mouse.moveTo(
+        tester.getCenter(find.byKey(key)) + const Offset(1, 0),
+      );
+      await tester.pumpAndSettle();
+      return mouse;
+    }
+
+    Color? glyphColor(WidgetTester tester, IconData icon) => tester
+        .widget<RichText>(
+          find.descendant(
+            of: find.byIcon(icon),
+            matching: find.byType(RichText),
+          ),
+        )
+        .text
+        .style
+        ?.color;
+
+    testWidgets('a mouse press dragged off falls back to rest; a finger holds', (
+      tester,
+    ) async {
+      // `useButtonStyles.styles.ts` paints pressed under `:hover:active`: in
+      // Chrome a held button dragged off shows #FFFFFF again, and #E0E0E0 once
+      // the pointer is back over it. A touch press has no hover to lose.
+      final c = theme.colors;
+      await pump(
+        tester,
+        FluentButton(key: key, onPressed: () {}, child: const Text('B')),
+      );
+      final mouse = await hover(tester);
+      await mouse.down(tester.getCenter(find.byKey(key)));
+      await tester.pumpAndSettle();
+      expect(decorationOf(tester).color, c.neutralBackground1Pressed);
+
+      await mouse.moveTo(Offset.zero);
+      await tester.pumpAndSettle();
+      expect(decorationOf(tester).color, c.neutralBackground1);
+
+      await mouse.moveTo(tester.getCenter(find.byKey(key)));
+      await tester.pumpAndSettle();
+      expect(decorationOf(tester).color, c.neutralBackground1Pressed);
+      await mouse.up();
+      await tester.pumpAndSettle();
+
+      final finger = await tester.startGesture(
+        tester.getCenter(find.byKey(key)),
+      );
+      await finger.moveTo(Offset.zero);
+      await tester.pumpAndSettle();
+      expect(decorationOf(tester).color, c.neutralBackground1Pressed);
+      await finger.up();
+    });
+
+    testWidgets('a disabled button shows not-allowed', (tester) async {
+      // `useButtonStyles.styles.ts`: `disabled: { cursor: 'not-allowed' }`.
+      await pump(tester, const FluentButton(key: key, child: Text('B')));
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        pointer: 1,
+      );
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(find.byKey(key)));
+      await tester.pump();
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+        SystemMouseCursors.forbidden,
+      );
+    });
+
+    testWidgets('a menu icon sits 4 after the label, 12 or 16 square, and '
+        'keeps the label colour', (tester) async {
+      // menubutton--appearance and --size in Chrome: `.fui-MenuButton__menuIcon`
+      // is 12x12 (16x16 at large) with `margin-left: 4px`, and on a hovered
+      // Subtle MenuButton it stays the label's rgb(36,36,36) while the icon
+      // before the label goes brand rgb(15,108,189). It used to be the
+      // button's 20px icon slot, 6 from the label, and brand with the icon.
+      const chevron = FluentIcons.chevron_down_20_regular;
+      for (final size in FluentButtonSize.values) {
+        await pump(
+          tester,
+          FluentButton(
+            key: key,
+            size: size,
+            appearance: FluentButtonAppearance.subtle,
+            icon: const Icon(FluentIcons.calendar_month_20_regular),
+            menuIcon: fluentMenuChevron,
+            onPressed: () {},
+            child: const Text('B'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final edge = size == FluentButtonSize.large ? 16.0 : 12.0;
+        expect(
+          tester.getSize(find.byIcon(chevron)),
+          Size.square(edge),
+          reason: size.name,
+        );
+        expect(
+          tester.getTopLeft(find.byIcon(chevron)).dx -
+              tester.getTopRight(find.text('B')).dx,
+          FluentSpacing.xs,
+          reason: '${size.name}: gap after the label',
+        );
+
+        final mouse = await hover(tester);
+        expect(
+          glyphColor(tester, chevron),
+          theme.colors.neutralForeground1Hover,
+          reason: '${size.name}: the chevron follows the label',
+        );
+        expect(
+          glyphColor(tester, FluentIcons.calendar_month_20_regular),
+          theme.colors.neutralForeground2BrandHover,
+          reason: '${size.name}: the icon goes brand',
+        );
+        await mouse.removePointer();
+        await tester.pumpAndSettle();
+      }
+    });
+
+    testWidgets('a short menu button centres its label and chevron together', (
+      tester,
+    ) async {
+      // The root is `justify-content: center`, so a label and chevron
+      // narrower than the 64/96 floor sit in its middle as one group. The
+      // menu icon's row once packed them to the leading edge.
+      const chevron = FluentIcons.chevron_down_20_regular;
+      for (final size in FluentButtonSize.values) {
+        await pump(
+          tester,
+          FluentButton(
+            key: key,
+            size: size,
+            menuIcon: fluentMenuChevron,
+            onPressed: () {},
+            child: const Text('A'),
+          ),
+        );
+        final button = tester.getRect(find.byKey(key));
+        expect(
+          tester.getRect(find.text('A')).left - button.left,
+          closeTo(
+            button.right - tester.getRect(find.byIcon(chevron)).right,
+            0.01,
+          ),
+          reason: size.name,
+        );
+      }
+    });
+
+    testWidgets('subtle tints its icon brand while the label stays neutral', (
+      tester,
+    ) async {
+      // button--appearance, Subtle: label rgb(36,36,36) with the icon
+      // rgb(15,108,189) on hover and rgb(17,94,163) pressed —
+      // `useButtonStyles.subtle` colours `.fui-Button__icon` on its own.
+      await pump(
+        tester,
+        FluentButton(
+          key: key,
+          appearance: FluentButtonAppearance.subtle,
+          icon: const Icon(FluentIcons.calendar_month_20_regular),
+          onPressed: () {},
+          child: const Text('B'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(iconColorOf(tester), theme.colors.neutralForeground2);
+
+      final mouse = await hover(tester);
+      expect(iconColorOf(tester), theme.colors.neutralForeground2BrandHover);
+      expect(
+        tester
+            .widget<RichText>(
+              find.descendant(
+                of: find.text('B'),
+                matching: find.byType(RichText),
+              ),
+            )
+            .text
+            .style
+            ?.color,
+        theme.colors.neutralForeground1Hover,
+      );
+
+      await mouse.down(tester.getCenter(find.byKey(key)));
+      await tester.pumpAndSettle();
+      expect(iconColorOf(tester), theme.colors.neutralForeground2BrandPressed);
+      await mouse.up();
+    });
+
+    testWidgets('a resting subtle icon still follows a foreground override', (
+      tester,
+    ) async {
+      // At rest upstream's icon inherits the label colour, so a caller's
+      // foreground reaches it; only hover and press recolour it on their own.
+      const ink = Color(0xFFAA0000);
+      await pump(
+        tester,
+        FluentButton(
+          key: key,
+          appearance: FluentButtonAppearance.subtle,
+          icon: const Icon(FluentIcons.calendar_month_20_regular),
+          style: FluentButtonStyle.from(foregroundColor: ink),
+          onPressed: () {},
+          child: const Text('B'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(iconColorOf(tester), ink);
+    });
+
+    testWidgets('subtle and transparent swap in the active icon on hover', (
+      tester,
+    ) async {
+      // bundleIcon: the Filled glyph shows under `:hover` on subtle and
+      // transparent, and never on the other three appearances.
+      const regular = Icon(FluentIcons.calendar_month_20_regular);
+      const filled = Icon(FluentIcons.calendar_month_20_filled);
+      for (final appearance in FluentButtonAppearance.values) {
+        await pump(
+          tester,
+          FluentButton(
+            key: key,
+            appearance: appearance,
+            icon: regular,
+            activeIcon: filled,
+            onPressed: () {},
+            child: const Text('B'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byWidget(regular), findsOneWidget, reason: 'at rest');
+
+        final mouse = await hover(tester);
+        final swaps =
+            appearance == FluentButtonAppearance.subtle ||
+            appearance == FluentButtonAppearance.transparent;
+        expect(
+          find.byWidget(swaps ? filled : regular),
+          findsOneWidget,
+          reason: '${appearance.name}: hovered',
+        );
+        await mouse.removePointer();
+        await tester.pumpAndSettle();
+        expect(find.byWidget(regular), findsOneWidget, reason: 'after leave');
+      }
     });
   });
 

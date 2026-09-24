@@ -1421,6 +1421,44 @@ void main() {
     expect(tester.getRect(painted).height, 60);
     expect(tester.getRect(bar).bottom, tester.getRect(painted).bottom);
   });
+  testWidgets('a stretching parent still caps the box at 468, start edge', (
+    tester,
+  ) async {
+    // components-searchbox--default in Chrome: under Field's grid (944 wide)
+    // the root is 468 at x 40, the grid's start, because CSS `max-width` beats
+    // the stretch. A narrower parent still wins.
+    final painted = find.descendant(
+      of: find.byKey(key),
+      matching: find.byWidgetPredicate(
+        (w) => w is CustomPaint && w.painter is FluentInputBorderPainter,
+      ),
+    );
+    for (final (dir, width, expected) in <(TextDirection, double, double)>[
+      (TextDirection.ltr, 700, 468),
+      (TextDirection.rtl, 700, 468),
+      (TextDirection.ltr, 300, 300),
+    ]) {
+      await pump(
+        tester,
+        Directionality(
+          textDirection: dir,
+          child: const FluentField(
+            label: Text('Search'),
+            child: FluentSearchBox(key: key),
+          ),
+        ),
+        width: width,
+      );
+      final field = tester.getRect(find.byType(FluentField));
+      final box = tester.getRect(painted);
+      expect(box.width, expected, reason: '$dir in $width');
+      expect(
+        dir == TextDirection.ltr ? box.left : box.right,
+        dir == TextDirection.ltr ? field.left : field.right,
+        reason: '$dir: the start edge',
+      );
+    }
+  });
   // One shape, one implementation: the focus bar is `FluentInputFocusUnderline`
   // (input.dart), which is where the `max(thickness, radius)` + clip trick that
   // keeps a 4px corner on a 2px bar lives.

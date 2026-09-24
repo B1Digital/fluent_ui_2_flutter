@@ -87,6 +87,7 @@ class FluentYValueHover {
     this.yAxisCalloutBreakdown,
     this.index,
     this.shape,
+    this.shouldDrawBorderBottom = false,
   });
 
   /// The series name.
@@ -110,4 +111,12 @@ class FluentYValueHover {
   /// The swatch shape, when the chart names one rather than deriving it from
   /// [index].
   final FluentChartLegendShape? shape;
+
+  /// Whether the multi-value popover rules this row off from the next one.
+  ///
+  /// `YValueHover.shouldDrawBorderBottom` (`CartesianChart.types.ts`), which
+  /// VerticalStackedBarChart sets on every line reading of a stack callout
+  /// (`VerticalStackedBarChart.tsx:273-278`). `ChartPopover.tsx:135` ignores it
+  /// on the last row.
+  final bool shouldDrawBorderBottom;
 }

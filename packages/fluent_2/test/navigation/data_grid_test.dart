@@ -16,7 +16,8 @@ import '../support/spec_fixture.dart';
 /// These tests cover every axis in the five fixtures, the composition (the grid
 /// must *use* `FluentCheckbox`, `FluentRadio`, `FluentButton` and `FluentLink`,
 /// not redraw them), and the three things a Figma pass cannot see: keyboard
-/// navigation, semantics, and high contrast.
+/// navigation, semantics, and high contrast. Where the live storybook and
+/// Figma disagree, the storybook wins and the test says so.
 void main() {
   const gridKey = Key('grid');
 
@@ -387,25 +388,10 @@ void main() {
       expect(padding.right, container.padding!.right);
     });
 
-    testWidgets('the header label and its sort mark are XXS apart', (
-      tester,
-    ) async {
-      final sorting = headerSpec.variant({
-        'Layout': 'Content',
-        'Style': 'Semibold',
-        'Sorting': 'True',
-      });
-      await pump(tester, grid(sortable: true, onSort: (_) {}));
-      final row = tester.widget<Row>(
-        find
-            .descendant(of: find.byKey(gridKey), matching: find.byType(Row))
-            .at(1),
-      );
-      expect(row.spacing, sorting.part('Content container').gap);
-      expect(row.spacing, FluentSpacing.xxs);
-    });
-
-    testWidgets('the sort mark is a square-padded transparent icon button', (
+    // The storybook, not Figma: `.Content header`'s `Content container` gap
+    // is XXS, but `useTableHeaderCellStyles.styles.ts` `button` sets `gap:
+    // spacingHorizontalXS` between the label and the sort icon.
+    testWidgets('the header label and its sort mark are XS apart', (
       tester,
     ) async {
       final sorting = headerSpec.variant({
@@ -422,21 +408,54 @@ void main() {
           sortDirection: FluentDataGridSortDirection.ascending,
         ),
       );
-      final button = sorting.part('Button');
-      final buttons = tester.widgetList<FluentButton>(
-        find.byType(FluentButton),
+      final row = tester.widget<Row>(
+        find
+            .ancestor(
+              of: find.byIcon(FluentIcons.arrow_up_20_regular),
+              matching: find.byType(Row),
+            )
+            .first,
       );
-      expect(buttons.length, 2, reason: 'one sort control per sortable column');
-      final first = buttons.first;
-      expect(first.appearance, FluentButtonAppearance.transparent);
-      expect(first.size, FluentButtonSize.small);
-      expect(
-        first.style!.padding!.resolve(const <WidgetState>{}),
-        EdgeInsets.all(button.padding!.left),
-      );
-      expect(button.padding!.left, FluentSpacing.xxs);
-      expect(button.radius, FluentRadius.allMedium);
+      expect(sorting.part('Content container').gap, FluentSpacing.xxs);
+      expect(row.spacing, FluentSpacing.xs);
     });
+
+    // The storybook, not Figma: Figma draws a square-padded transparent icon
+    // button on every sortable header. `useTableHeaderCell.tsx` renders the
+    // `sortIcon` slot only when `sortDirection` is set — `<ArrowUpRegular
+    // fontSize={12} />` with `paddingTop: spacingVerticalXXS` — and the live
+    // `components-datagrid--default` story shows no arrow until a column is
+    // sorted.
+    testWidgets(
+      'the sort mark is a bare 12px arrow on the sorted column only',
+      (tester) async {
+        await pump(tester, grid(sortable: true, onSort: (_) {}));
+        expect(find.byIcon(FluentIcons.arrow_up_20_regular), findsNothing);
+        expect(find.byIcon(FluentIcons.arrow_down_20_regular), findsNothing);
+
+        await pump(
+          tester,
+          grid(
+            sortable: true,
+            onSort: (_) {},
+            sortColumn: 0,
+            sortDirection: FluentDataGridSortDirection.descending,
+          ),
+        );
+        final arrow = find.byIcon(FluentIcons.arrow_down_20_regular);
+        expect(arrow, findsOneWidget, reason: 'only the sorted column');
+        expect(tester.getSize(arrow), const Size.square(12));
+        expect(
+          tester
+              .widget<Padding>(
+                find.ancestor(of: arrow, matching: find.byType(Padding)).first,
+              )
+              .padding,
+          const EdgeInsets.only(top: FluentSpacing.xxs),
+        );
+        expect(find.byType(FluentButton), findsNothing);
+      },
+    );
   });
 
   group('composition — the grid uses the real components', () {
@@ -469,9 +488,26 @@ void main() {
       expect(find.byType(FluentCheckbox), findsNothing);
     });
 
-    testWidgets('the sort control composes FluentButton', (tester) async {
+    // Not a FluentButton: upstream's sortable header is one ARIA button over
+    // the whole cell (`useARIAButtonProps` on the `button` slot), not a
+    // Button component beside the label.
+    testWidgets('a sortable header is one button over the whole cell', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
       await pump(tester, grid(sortable: true, onSort: (_) {}));
-      expect(find.byType(FluentButton), findsNWidgets(2));
+      expect(find.byType(FluentButton), findsNothing);
+      expect(
+        tester.getSemantics(find.text('File')),
+        isSemantics(
+          isButton: true,
+          isHeader: true,
+          hasTapAction: true,
+          label: 'File',
+          value: 'Sort',
+        ),
+      );
+      handle.dispose();
     });
 
     testWidgets('only the sorted column draws an arrow', (tester) async {
@@ -484,8 +520,10 @@ void main() {
       expect(find.byIcon(FluentIcons.arrow_down_20_regular), findsNothing);
       expect(
         find.byType(FluentButton),
-        findsNWidgets(2),
-        reason: 'an unsorted column keeps its sort control',
+        findsNothing,
+        reason:
+            'the whole header cell is the sort control, as upstream renders '
+            'it one ARIA button (useTableHeaderCell.tsx), not an arrow button',
       );
 
       await pump(
@@ -843,6 +881,248 @@ void main() {
     });
   });
 
+  group('hover and press, as the storybook draws them', () {
+    Future<TestGesture> mouseAt(WidgetTester tester, Offset at) async {
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(at);
+      await mouse.moveTo(at + const Offset(1, 0));
+      await tester.pump();
+      return mouse;
+    }
+
+    /// The hover fill of the sortable header cell holding [label].
+    Color? headerFill(WidgetTester tester, String label) => tester
+        .widgetList<ColoredBox>(
+          find.descendant(
+            of: find.ancestor(
+              of: find.text(label),
+              matching: find.byType(FluentInteractive),
+            ),
+            matching: find.byType(ColoredBox),
+          ),
+        )
+        .first
+        .color;
+
+    // `useTableHeaderCellStyles.styles.ts` `rootInteractive`: a sortable cell
+    // fills `colorSubtleBackgroundHover` on hover and `...Pressed` on press;
+    // the live `components-datagrid--default` header goes transparent -> 245
+    // -> 224 per cell, where the port's header never changed.
+    testWidgets('a sortable header cell fills on hover and press, alone', (
+      tester,
+    ) async {
+      final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+      await pump(tester, grid(sortable: true, onSort: (_) {}));
+      expect(headerFill(tester, 'File')!.a, 0);
+
+      final at = tester.getCenter(find.text('File'));
+      final mouse = await mouseAt(tester, at);
+      expect(headerFill(tester, 'File'), theme.colors.subtleBackgroundHover);
+      expect(
+        headerFill(tester, 'Author')!.a,
+        0,
+        reason: 'the hover belongs to one cell, not the header row',
+      );
+
+      await mouse.down(at);
+      await tester.pump();
+      expect(headerFill(tester, 'File'), theme.colors.subtleBackgroundPressed);
+      await mouse.up();
+      await tester.pump();
+
+      // Upstream's `border-bottom` sits outside the cell boxes: the fill must
+      // stop short of the header row's rule rather than paint over it.
+      final fill = tester.getRect(
+        find
+            .descendant(
+              of: find.ancestor(
+                of: find.text('File'),
+                matching: find.byType(FluentInteractive),
+              ),
+              matching: find.byType(ColoredBox),
+            )
+            .first,
+      );
+      final cell = tester.getRect(
+        find.ancestor(
+          of: find.text('File'),
+          matching: find.byType(FluentInteractive),
+        ),
+      );
+      expect(cell.bottom - fill.bottom, FluentStroke.thin);
+    });
+
+    testWidgets('a sortable header points; a body row keeps the arrow', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        grid(
+          sortable: true,
+          onSort: (_) {},
+          selectionMode: FluentDataGridSelectionMode.multiple,
+          onSelectionChanged: (_) {},
+        ),
+      );
+      MouseCursor cursorOf(String text) => tester
+          .widget<FluentInteractive>(
+            find
+                .ancestor(
+                  of: find.text(text),
+                  matching: find.byType(FluentInteractive),
+                )
+                .first,
+          )
+          .mouseCursor;
+      expect(cursorOf('File'), SystemMouseCursors.click);
+      expect(
+        cursorOf('Name 0'),
+        SystemMouseCursors.basic,
+        reason: 'useTableRowStyles sets no cursor: the storybook reports auto',
+      );
+    });
+
+    testWidgets('header labels are regular weight by default', (tester) async {
+      await pump(
+        tester,
+        const FluentDataGrid(
+          columns: <FluentDataGridColumn>[
+            FluentDataGridColumn(header: Text('File')),
+          ],
+          rows: <FluentDataGridRow>[],
+        ),
+      );
+      expect(
+        textStyleOf(tester, 'File').fontWeight,
+        FontWeight.w400,
+        reason: 'useTableHeaderCellStyles: fontWeight: fontWeightRegular',
+      );
+    });
+
+    // `useTableRowStyles.styles.ts` `rootInteractive` `:active`:
+    // `colorSubtleBackgroundPressed`; both selection appearances override
+    // `:active` back to their selected fill.
+    testWidgets('a pressed body row fills subtleBackgroundPressed', (
+      tester,
+    ) async {
+      final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+      await pump(
+        tester,
+        grid(
+          showHeader: false,
+          selectionMode: FluentDataGridSelectionMode.multiple,
+          selected: const <int>{1},
+          onSelectionChanged: (_) {},
+        ),
+      );
+      final at = tester.getCenter(find.text('Name 0'));
+      final mouse = await mouseAt(tester, at);
+      await mouse.down(at);
+      await tester.pump();
+      expect(
+        surfaces(tester).first.color,
+        theme.colors.subtleBackgroundPressed,
+      );
+      await mouse.up();
+      await tester.pump();
+
+      final selectedAt = tester.getCenter(find.text('Name 1'));
+      await mouse.moveTo(selectedAt);
+      await tester.pump();
+      await mouse.down(selectedAt);
+      await tester.pump();
+      expect(
+        surfaces(tester)[1].color,
+        theme.colors.subtleBackgroundSelected,
+        reason: 'a selected row holds its selected fill while pressed',
+      );
+      await mouse.up();
+      await tester.pump();
+    });
+
+    // The live `components-datagrid--default` story drew a black 2px ring
+    // round 'Meeting notes' on a mouse press, and kept it after release.
+    testWidgets('a cell ring is keyboard-only, and leaves with the keyboard', (
+      tester,
+    ) async {
+      final outside = FocusNode();
+      addTearDown(outside.dispose);
+      await tester.pumpWidget(
+        FluentApp(
+          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+          home: Column(
+            children: <Widget>[
+              SizedBox(width: 600, child: grid()),
+              Focus(focusNode: outside, child: const SizedBox(height: 10)),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      int rings() => tester
+          .widgetList<FluentFocusRing>(find.byType(FluentFocusRing))
+          .where((r) => r.visible)
+          .length;
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(rings(), 1, reason: 'Tab lands on the first cell and rings it');
+
+      // A pointer press anywhere is pointer modality: the cell keeps focus,
+      // but no ring is drawn for it.
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: const Offset(700, 500));
+      addTearDown(mouse.removePointer);
+      await mouse.down(const Offset(700, 500));
+      await mouse.up();
+      await tester.pumpAndSettle();
+      expect(rings(), 0, reason: 'no ring once the pointer is in charge');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(rings(), 1);
+      outside.requestFocus();
+      await tester.pumpAndSettle();
+      expect(rings(), 0, reason: 'the ring leaves with the focus');
+    });
+
+    // The live `components-datagrid--default` repro: mouse-down on 'Meeting
+    // notes' drew the ring and it stayed after release-away. On the web the
+    // browser focuses the clicked cell's semantics node, which the engine
+    // forwards as a focus request; the request below stands in for that.
+    testWidgets('a cell focused by a mouse press draws no ring', (
+      tester,
+    ) async {
+      await pump(tester, grid());
+      int rings() => tester
+          .widgetList<FluentFocusRing>(find.byType(FluentFocusRing))
+          .where((r) => r.visible)
+          .length;
+
+      final at = tester.getCenter(find.text('Name 0'));
+      final mouse = await mouseAt(tester, at);
+      await mouse.down(at);
+      tester
+          .widgetList<Focus>(
+            find.ancestor(
+              of: find.text('Name 0'),
+              matching: find.byType(Focus),
+            ),
+          )
+          .firstWhere((f) => f.canRequestFocus)
+          .focusNode!
+          .requestFocus();
+      await tester.pumpAndSettle();
+      expect(rings(), 0, reason: 'pressed');
+      await mouse.moveTo(const Offset(5, 590));
+      await mouse.up();
+      await tester.pumpAndSettle();
+      expect(rings(), 0, reason: 'released away');
+    });
+  });
+
   group('motion', () {
     testWidgets('the hover fill lands on the very next frame', (tester) async {
       final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
@@ -1090,7 +1370,16 @@ void main() {
 
     testWidgets('a disabled grid has no sort control', (tester) async {
       await pump(tester, grid(sortable: true, onSort: (_) {}, enabled: false));
-      expect(find.byType(FluentButton), findsNothing);
+      expect(
+        find.descendant(
+          of: find.ancestor(
+            of: find.text('File'),
+            matching: find.byType(Semantics),
+          ),
+          matching: find.byType(FluentInteractive),
+        ),
+        findsNothing,
+      );
     });
   });
 
@@ -1401,7 +1690,11 @@ void main() {
         state.selectionAppearance,
         FluentDataGridSelectionAppearance.neutral,
       );
-      expect(state.headerWeight, FluentDataGridHeaderWeight.semibold);
+      expect(
+        state.headerWeight,
+        FluentDataGridHeaderWeight.regular,
+        reason: 'useTableHeaderCellStyles sets fontWeightRegular',
+      );
       expect(state.enabled, isTrue);
     });
   });

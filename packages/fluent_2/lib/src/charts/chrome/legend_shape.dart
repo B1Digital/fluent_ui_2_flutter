@@ -213,9 +213,10 @@ Path fluentChartLegendShapePath(FluentChartLegendShape shape) {
 ///
 /// `shape.tsx:43-45` puts `transform="rotate(θ, 0, 0)"` on the `<svg>` element,
 /// not on the `<path>`, with θ = 45 for a diamond, 180 for a pyramid and 0
-/// otherwise. The centre of rotation is the viewBox corner rather than the
-/// shape's centre, so both are a translation as well as a spin — that is
-/// upstream behaviour, not a transcription slip.
+/// otherwise. The `0, 0` is relative to the element's `transform-origin`, which
+/// for an outermost `<svg>` in HTML flow is the CSS initial `50% 50%` — so the
+/// spin is about the box centre and neither shape moves off its box.
+/// `FluentChartLegendShapePainter` applies it there.
 double fluentChartLegendShapeRotation(FluentChartLegendShape shape) =>
     switch (shape) {
       // shape.tsx:44 — 45 degrees.
@@ -238,24 +239,15 @@ double fluentChartLegendShapeRotation(FluentChartLegendShape shape) =>
 /// a legend is filtered out, and it is the only visual difference between a
 /// dimmed swatch and an absent one.
 ///
-/// **The rotation origin is unverified against a live render.**
-/// `shape.tsx:43-45` sets the SVG `transform` attribute on an outermost `<svg>`
-/// in HTML flow. SVG 2 says the rotation origin is user-space (0, 0); a CSS
-/// `transform` on the same element would use `transform-origin: 50% 50%`.
-/// Browsers have historically differed. This painter follows the source, so a
-/// [FluentChartLegendShape.pyramid] swatch lands entirely outside the viewport
-/// and paints nothing.
-///
-/// The Oracle B probe the plan nominated to settle this —
-/// `charts-legends--legends-basic`, whose two svg swatches are a diamond and a
-/// triangle — **is** in the corpus and cannot settle it. It proves the
-/// transform is applied at all: that story's diamond swatch measures
-/// 19.799011 × 19.798988, which is 14 × √2, against 14 × 14 for the triangle.
-/// But a rotation's bounding-box *size* is independent of its origin, and
-/// `crawlers/storybooks-fluentui/capture_oracle.mjs:205-213` records only an
-/// svg's `width` and `height`, never its position, so the two candidate origins
-/// are indistinguishable in the capture. Settling it needs a re-capture that
-/// also stores `getBoundingClientRect().x`/`.y` for every swatch svg.
+/// The rotation is about the box centre. `shape.tsx:43-45` sets the SVG
+/// `transform` attribute on an outermost `<svg>` in HTML flow, which Chromium
+/// maps onto the CSS `transform` property and so rotates about
+/// `transform-origin: 50% 50%`. Measured in Chrome: a diamond and a pyramid
+/// swatch each ink the same 14 columns as an unrotated one, the diamond
+/// centred on the box and the pyramid an upward-pointing triangle. The
+/// `charts-legends--legends-basic` capture agrees: a diamond turned about the
+/// box corner put its centroid (-7.22, +2.93) from the capture's, where turning
+/// the centre (7, 7) about the corner predicts (-7, +2.9).
 class FluentChartLegendShapePainter extends CustomPainter {
   /// Creates a painter for one marker.
   const FluentChartLegendShapePainter({
@@ -286,8 +278,13 @@ class FluentChartLegendShapePainter extends CustomPainter {
     if (path.computeMetrics().isEmpty) return;
 
     canvas.save();
-    // The element transform, about the rendered box's own (0, 0).
-    canvas.rotate(fluentChartLegendShapeRotation(shape));
+    // The element transform, about the rendered box's centre
+    // (`transform-origin: 50% 50%`; see the class docs).
+    final centre = size.center(Offset.zero);
+    canvas
+      ..translate(centre.dx, centre.dy)
+      ..rotate(fluentChartLegendShapeRotation(shape))
+      ..translate(-centre.dx, -centre.dy);
     // The viewBox mapping (`shape.tsx:39-41`): a viewBox
     // [kLegendShapeViewportSize] units wide is scaled onto the rendered box and
     // its origin then shifted by [kLegendShapeViewBoxOrigin]. Upstream sizes
@@ -299,9 +296,8 @@ class FluentChartLegendShapePainter extends CustomPainter {
     //
     // The width alone, because the svg attribute and the viewBox are both
     // square (`shape.tsx:39-41`), so upstream's two scales are equal by
-    // construction. The port's one non-square box is the 4px line-in-bar
-    // swatch (`legend.dart:356-358`), and upstream keeps its svg square through
-    // that case too: `Legends.tsx:376`'s height reaches only the non-svg div
+    // construction. The legend keeps the box square even for a line-in-bar
+    // legend: `Legends.tsx:376`'s 4px height reaches only the non-svg div
     // (`shape.tsx:35`).
     canvas.scale(size.width / kLegendShapeViewportSize);
     canvas.translate(kLegendShapeViewBoxOrigin, kLegendShapeViewBoxOrigin);
@@ -361,7 +357,10 @@ double fluentChartStripePhase(Offset point) =>
 /// Paints the legend's diagonal stripe pattern.
 ///
 /// Used when `Legend.stripePattern` is set, which suppresses the flat
-/// background fill (`Legends.tsx:297`, `:377`) and substitutes this.
+/// background fill (`Legends.tsx:297`, `:377`) and substitutes this. The
+/// gradient is the swatch div's `content` (`Legends.tsx:379-381`), which
+/// Chromium draws in the div's *content* box, inside its 1px border — so the
+/// legend hands this painter that box and phase zero is its top-left corner.
 ///
 /// Antialiasing is off deliberately: the CSS stop at 3px is a hard edge
 /// because the preceding stop was clamped onto it, so there is no gradient to
@@ -379,14 +378,14 @@ class FluentChartStripePainter extends CustomPainter {
     canvas.save();
     canvas.clipRect(Offset.zero & size);
     // A raster with antialiasing off keeps a pixel when its *centre* falls
-    // inside the band, but [fluentChartStripePhase] is defined at a pixel's
-    // *origin* — the top-left corner the CSS gradient line starts from. Half a
-    // logical pixel on each axis is the offset between the two, so shifting by
-    // it makes the painted grid and the phase function agree exactly: the pixel
-    // at (x, y) is coloured iff `fluentChartStripePhase(Offset(x, y))` lands in
-    // a coloured band. Visually this is a sub-pixel phase shift of the infinite
-    // pattern, which upstream leaves to the browser's own device grid anyway.
-    canvas.translate(0.5, 0.5);
+    // inside the band, and a centre is also where Chromium evaluates a CSS
+    // gradient: the pixel at (x, y) is coloured iff
+    // `fluentChartStripePhase(Offset(x + 0.5, y + 0.5))` lands in a coloured
+    // band. Measured in Chrome on the 12×12 content box `Legends.tsx:379-381`
+    // lays the gradient in: coloured exactly where x + y is 4, 9, 10, 15 or 21.
+    // So no half-pixel shift here — an earlier one sampled at pixel corners
+    // and put every stripe a diagonal step off.
+    //
     // Rotating by +45 degrees makes the gradient axis the canvas x axis, so one
     // band is a rectangle rather than a sheared quadrilateral — and it makes a
     // band's local x its own phase, because the local point (u, 0) is the
@@ -403,12 +402,8 @@ class FluentChartStripePainter extends CustomPainter {
     // A loop anchored on anything else moves every band. The previous bound ran
     // from `-(width + height)` in steps of [kStripePeriod], so the bands landed
     // at phases congruent to `-(width + height)` and were correct only when
-    // that sum was a multiple of 4: right for the 14×14 swatch, and two pixels
-    // out along the gradient for the 14×4 line-in-bar swatch
-    // (`legend.dart:356-358`). It also emitted the band below zero, whose
-    // closed upper edge painted the box's own corner pixel — the one point of
-    // phase exactly 0, which the clamped `3..4` band of `Legends.tsx:300`
-    // leaves transparent.
+    // that sum was a multiple of 4 — not for the 12×4 content box of a
+    // line-in-bar swatch.
     final nearPhase = fluentChartStripePhase(Offset.zero);
     final farPhase = fluentChartStripePhase(Offset(size.width, size.height));
     for (var phase = nearPhase; phase <= farPhase; phase += kStripePeriod) {

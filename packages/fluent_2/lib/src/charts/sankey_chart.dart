@@ -715,6 +715,9 @@ class FluentSankeyChartState extends State<FluentSankeyChart> {
   Offset _popoverAnchor = Offset.zero;
   String? _tooltipName;
 
+  /// The node or stream under the pointer, as an index into [_order], or -1.
+  int _hovered = -1;
+
   /// The layout the chart last painted.
   FluentSankeyLayoutResult get layout => _layout!;
 
@@ -749,70 +752,99 @@ class FluentSankeyChartState extends State<FluentSankeyChart> {
     _updateAnchor(Offset.zero);
   }
 
-  void _onHover(Offset local) {
+  /// Hover at [local], chart coordinates, which is [global] on screen.
+  void _onHover(Offset local, Offset global) {
     final l = _layout;
     if (l == null) {
       return;
     }
     // Reverse paint order: whatever was drawn last is on top.
-    for (final item in _order.reversed) {
-      if (item.isNode) {
-        final node = l.nodes[item.index];
-        final rect = Rect.fromLTRB(node.x0, node.y0, node.x1, node.y1);
-        if (!rect.contains(local)) {
-          continue;
-        }
-        setState(() {
-          _closeCallout();
-          _selection = FluentSankeySelection.forNode(node);
-          _updateAnchor(local);
-          // `:885` — only a node shorter than MIN_HEIGHT_FOR_TYPE gets a
-          // callout.
-          if (node.y1 - node.y0 < kSankeyMinHeightForType) {
-            _popover = FluentChartPopoverData(
-              xValue: l.data.nodes[item.index].name,
-              color: l.nodeColors[item.index],
-              yValue: _formatNumber(l.nodeActualValues[item.index]),
-            );
-          }
-          _tooltipName = _visuals[item.index].trimmed
-              ? l.data.nodes[item.index].name
-              : null;
-        });
-        return;
+    final hit = _order.lastIndexWhere((item) {
+      if (!item.isNode) {
+        return sankeyLinkPath(l.links[item.index]).contains(local);
       }
-      final link = l.links[item.index];
-      if (!sankeyLinkPath(link).contains(local)) {
-        continue;
-      }
+      final node = l.nodes[item.index];
+      return Rect.fromLTRB(node.x0, node.y0, node.x1, node.y1).contains(local);
+    });
+    // Nodes and streams listen for `onMouseOver` alone (`:766`, `:813`), which
+    // fires on entering one: moving on inside it changes nothing, so the
+    // callout stays where the pointer came in.
+    if (hit == _hovered) {
+      return;
+    }
+    _hovered = hit;
+    if (hit == -1) {
+      // `_onLeave` and `_onStreamLeave` (`:865-872`, `:902-908`) drop the
+      // highlight and leave the callout up; only the root's mouseleave closes
+      // it (`:1143`).
       setState(() {
-        _closeCallout();
-        _selection = FluentSankeySelection.forLink(link);
-        _updateAnchor(local);
-        // `:667-673` — target name on top, unnormalised weight below, source in
-        // the description line.
-        _popover = FluentChartPopoverData(
-          xValue: l.data.nodes[link.target.index].name,
-          color: l.nodeColors[link.source.index],
-          yValue: _formatNumber(l.linkUnnormalisedValues[item.index]),
-          descriptionMessage: formatSankeyTemplate(
-            widget.linkFromLabel ?? fluentL10n(context).sankeyLinkFrom('{0}'),
-            <Object?>[l.data.nodes[link.source.index].name],
-          ),
-        );
+        _selection = FluentSankeySelection.none;
         _tooltipName = null;
       });
       return;
     }
-    if (_selection.active || _popover != null || _tooltipName != null) {
-      setState(_clearHover);
+    // `updatePosition(mouseEvent.clientX, mouseEvent.clientY)` (`:884`, `:898`)
+    // takes whole pixels, so the anchor is floored on the screen and carried
+    // back into the chart.
+    final anchor =
+        Offset(global.dx.floorToDouble(), global.dy.floorToDouble()) -
+        global +
+        local;
+    final item = _order[hit];
+    if (item.isNode) {
+      final node = l.nodes[item.index];
+      setState(() {
+        _closeCallout();
+        _selection = FluentSankeySelection.forNode(node);
+        _updateAnchor(anchor);
+        // `:885` — only a node shorter than MIN_HEIGHT_FOR_TYPE gets a
+        // callout.
+        if (node.y1 - node.y0 < kSankeyMinHeightForType) {
+          _popover = FluentChartPopoverData(
+            xValue: l.data.nodes[item.index].name,
+            color: l.nodeColors[item.index],
+            yValue: _formatNumber(l.nodeActualValues[item.index]),
+            // `:1133-1141` pass no isCartesian.
+            isCartesian: false,
+          );
+        }
+        // The name is a `<text>` only a node taller than MIN_HEIGHT_FOR_TYPE
+        // draws (`:823`), and its tooltip needs that text trimmed (`:837`).
+        // ponytail: shown over the whole node rather than over the name.
+        _tooltipName =
+            node.y1 - node.y0 > kSankeyMinHeightForType &&
+                _visuals[item.index].trimmed
+            ? l.data.nodes[item.index].name
+            : null;
+      });
+      return;
     }
+    final link = l.links[item.index];
+    setState(() {
+      _closeCallout();
+      _selection = FluentSankeySelection.forLink(link);
+      _updateAnchor(anchor);
+      // `:667-673` — target name on top, unnormalised weight below, source in
+      // the description line.
+      _popover = FluentChartPopoverData(
+        xValue: l.data.nodes[link.target.index].name,
+        color: l.nodeColors[link.source.index],
+        yValue: _formatNumber(l.linkUnnormalisedValues[item.index]),
+        descriptionMessage: formatSankeyTemplate(
+          widget.linkFromLabel ?? fluentL10n(context).sankeyLinkFrom('{0}'),
+          <Object?>[l.data.nodes[link.source.index].name],
+        ),
+        isCartesian: false,
+      );
+      _tooltipName = null;
+    });
   }
 
   void _clearHover() {
     _selection = FluentSankeySelection.none;
     _closeCallout();
     _tooltipName = null;
+    _hovered = -1;
   }
 
   /// The stream's screen-reader label (`SankeyChart.tsx:1048-1053`).
@@ -928,7 +960,7 @@ class FluentSankeyChartState extends State<FluentSankeyChart> {
               _linkSemanticLabel(solved, i),
           ].join('. '),
           child: MouseRegion(
-            onHover: (event) => _onHover(event.localPosition),
+            onHover: (event) => _onHover(event.localPosition, event.position),
             onExit: (_) => setState(_clearHover),
             child: Stack(
               children: <Widget>[
@@ -958,10 +990,11 @@ class FluentSankeyChartState extends State<FluentSankeyChart> {
                     // 28 lifts the tooltip clear of the pointer, the same gap
                     // `useSankeyChartStyles.styles.ts:47` gives the label div.
                     top: _popoverAnchor.dy - 28,
-                    child: FluentAxisLabelTooltip(
-                      fullText: _tooltipName!,
-                      renderedText: '',
-                      child: const SizedBox.shrink(),
+                    // `getTooltipStyle` (`Common.styles.ts:36-49`): a bare box
+                    // at opacity 0.9, no arrow, no delay, `pointerEvents:
+                    // 'none'`.
+                    child: IgnorePointer(
+                      child: FluentChartTooltipBox(text: _tooltipName!),
                     ),
                   ),
               ],

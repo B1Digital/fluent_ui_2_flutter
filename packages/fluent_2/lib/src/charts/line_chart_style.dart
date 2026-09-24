@@ -97,8 +97,10 @@ class FluentLineChartStyle {
   /// (`LineChart.tsx:1943`).
   final WidgetStateProperty<List<double>?>? hoverLineDashPattern;
 
-  /// Distance the vertical hover line stops short of the plot's bottom edge
-  /// (`LineChart.tsx:1674`, `y2 = lineHeight - 5 - yScale(y)`).
+  /// Distance the vertical hover line stops short of `lineHeight`, which is
+  /// `containerHeight - margins.bottom + 6` (`LineChart.tsx:542`), so that the
+  /// default 5 ends it one pixel below the x axis (`:1674`,
+  /// `y2 = lineHeight - 5 - yScale(y)`).
   final WidgetStateProperty<double?>? hoverLineTailOffset;
 
   /// Vertical inset of a colour fill bar from the y extent of the data

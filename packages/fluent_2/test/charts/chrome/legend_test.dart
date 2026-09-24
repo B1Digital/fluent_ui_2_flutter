@@ -1,5 +1,6 @@
 import 'dart:ui' show Tristate;
 
+import 'package:fluent_2/src/buttons/button.dart' show FluentButton;
 import 'package:fluent_2/src/charts/chrome/legend.dart';
 import 'package:fluent_2/src/charts/chrome/legend_shape.dart';
 import 'package:fluent_2/src/charts/chrome/legend_style.dart';
@@ -7,6 +8,7 @@ import 'package:fluent_2/src/charts/internal/chart_text_measurer.dart';
 import 'package:fluent_2/src/charts/internal/chart_utils.dart';
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -383,13 +385,22 @@ void main() {
             'legend.color (Legends.tsx:378), which is never dimmed. '
             'Legends.tsx:377 blanks only the background-color.',
       );
+      final stripes = find.byWidgetPredicate(
+        (widget) =>
+            widget is CustomPaint && widget.painter is FluentChartStripePainter,
+      );
       expect(
-        tester
-            .widgetList<CustomPaint>(find.byType(CustomPaint))
-            .map((paint) => paint.painter)
-            .whereType<FluentChartStripePainter>(),
-        hasLength(1),
+        stripes,
+        findsOneWidget,
         reason: 'The stripes are still painted inside that border.',
+      );
+      expect(
+        tester.getSize(stripes),
+        const Size(12, 12),
+        reason:
+            'The stripes are the div\'s `content` (Legends.tsx:379-381), which '
+            'Chrome draws in the 12x12 content box inside the 1px border — '
+            'phase zero is that box\'s corner, not the border\'s.',
       );
     });
 
@@ -463,7 +474,7 @@ void main() {
       );
     });
 
-    testWidgets('a line-in-bar legend renders a 4px bar, not a 12px square', (
+    testWidgets('a line-in-bar legend renders a 14x6 bar, not a 14px square', (
       tester,
     ) async {
       final node = FocusNode();
@@ -486,13 +497,47 @@ void main() {
         ),
       );
       expect(
-        tester
-            .getSize(find.byKey(const ValueKey<String>('legend-swatch')))
-            .height,
-        4,
+        tester.getSize(find.byKey(const ValueKey<String>('legend-swatch'))),
+        const Size(kLegendSwatchBoxSize, 6),
         reason:
-            'Legends.tsx:376 sets the shape height to 4px for a line legend in '
-            'a bar chart and 12px otherwise.',
+            'Legends.tsx:376 sets the content height to 4px for a line legend '
+            'in a bar chart, and useLegendsStyles.styles.ts:82 borders it 1px '
+            'on every side, so the drawn bar is 14x6 — the box Oracle B '
+            'records for fui-legend__rect in '
+            'charts-verticalbarchart--vertical-bar-default.',
+      );
+    });
+
+    testWidgets('a line-in-bar legend with an svg shape keeps its 14px box', (
+      tester,
+    ) async {
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        FluentChartLegendRow(
+          item: const FluentChartLegendItem(
+            title: 'trend',
+            color: seriesColour,
+            shape: FluentChartLegendShape.dottedLine,
+            isLineLegendInBarChart: true,
+          ),
+          shapeOverride: null,
+          dimmed: false,
+          selected: false,
+          indexInList: 0,
+          style: resolveFluentChartLegendStyle(theme),
+          focusNode: node,
+          skipTraversal: false,
+        ),
+      );
+      expect(
+        tester.getSize(find.byKey(const ValueKey<String>('legend-swatch'))),
+        const Size(kLegendShapeViewportSize, kLegendShapeViewportSize),
+        reason:
+            "Legends.tsx:376's 4px height is a style on the non-svg div "
+            '(shape.tsx:35); the svg sizes itself 14x14 (shape.tsx:39-40), '
+            'so a squashed box would paint the marker off-centre.',
       );
     });
 
@@ -1321,6 +1366,209 @@ void main() {
       );
     });
 
+    testWidgets('wrapped rows start at the leading edge even when centred', (
+      tester,
+    ) async {
+      Future<List<Rect>> rowsFor({required bool centerLegends}) async {
+        await tester.pumpWidget(
+          FluentApp(
+            theme: theme,
+            home: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 400,
+                child: FluentChartLegend(
+                  enabledWrapLines: true,
+                  centerLegends: centerLegends,
+                  legends: const <FluentChartLegendItem>[
+                    FluentChartLegendItem(title: 'a', color: seriesColour),
+                    FluentChartLegendItem(title: 'b', color: seriesColour),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        final rows = find.byType(FluentChartLegendRow);
+        return <Rect>[for (var i = 0; i < 2; i++) tester.getRect(rows.at(i))];
+      }
+
+      // HorizontalBarChart.tsx:138 passes centerLegends, and this story adds
+      // enabledWrapLines through legendProps: upstream's wrapped branch with
+      // centring asked for. A legendContainer's box is the row, inside its
+      // margin.
+      final oracle = loadOracleStory(
+        'charts-horizontalbarchart--horizontal-bar-stacked-annotated-inline-legend',
+      );
+      final area = oracle.boxes('fui-legend__resizableArea').first.rect;
+      final container = oracle.boxes('fui-legend__legendContainer').first.rect;
+      final plain = await rowsFor(centerLegends: false);
+      final centred = await rowsFor(centerLegends: true);
+      expect(
+        centred.first.left -
+            tester.getTopLeft(find.byType(FluentChartLegend)).dx,
+        container.left - area.left,
+        reason:
+            'Legends.tsx:152 puts justifyContent on a root with no display: '
+            'flex (useLegendsStyles.styles.ts:40-47), so it does nothing, and '
+            'the flex-wrap area at :156 starts its items at the leading edge: '
+            'Oracle B has the first container 4 in from the area, its margin, '
+            'not centred in a 600px area.',
+      );
+      expect(
+        centred,
+        plain,
+        reason: 'centerLegends moves no wrapped row at all.',
+      );
+    });
+
+    testWidgets('the overflow chevron sits 4px after the trigger label', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 160,
+              child: FluentChartLegend(
+                legends: List<FluentChartLegendItem>.generate(
+                  6,
+                  (i) => FluentChartLegendItem(
+                    title: 'series number $i',
+                    color: seriesColour,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final label = find.textContaining('more');
+      final chevron = find.byIcon(FluentIcons.chevron_down_20_regular);
+      expect(label, findsOneWidget, reason: 'Guard: the trigger rendered.');
+      expect(
+        tester.getTopLeft(chevron).dx - tester.getTopRight(label).dx,
+        FluentSpacing.xs,
+        reason:
+            'OverflowMenu.tsx:60 is a MenuButton, whose menu icon takes '
+            'marginLeft: spacingHorizontalXS (useMenuButtonStyles.styles.raw.js'
+            ':93) — 4, not the 6 a plain medium button spaces its icon by.',
+      );
+    });
+
+    testWidgets('the overflow trigger is a MenuButton, chevron in menuIcon', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 160,
+              child: FluentChartLegend(
+                legends: List<FluentChartLegendItem>.generate(
+                  6,
+                  (i) => FluentChartLegendItem(
+                    title: 'series number $i',
+                    color: seriesColour,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final label = find.textContaining('more');
+      final trigger = tester.widget<FluentButton>(
+        find.ancestor(of: label, matching: find.byType(FluentButton)),
+      );
+      expect(
+        trigger.menuIcon,
+        isNotNull,
+        reason:
+            'OverflowMenu.tsx:59 renders a MenuButton, whose chevron is the '
+            'menuIcon slot, not an icon placed after the label',
+      );
+      expect(trigger.icon, isNull);
+      final chevron = find.byIcon(FluentIcons.chevron_down_20_regular);
+      expect(tester.getSize(chevron), const Size.square(12));
+      expect(
+        tester.getCenter(chevron).dy - tester.getCenter(label).dy,
+        1,
+        reason:
+            'the menu icon span sits on the label baseline, a pixel low: the '
+            'charts-legends--legends-overflow capture inks the chevron on '
+            'rows 15-19, and the label box is rows 6-25',
+      );
+    });
+
+    testWidgets('a short overflow trigger budgets its 96px floor', (
+      tester,
+    ) async {
+      // `+3 more` already clears 96 in Selawik, so a shorter overflowText.
+      const titles = <String>['alpha', 'beta', 'a much longer third series'];
+      final measurer = FluentChartTextMeasurer();
+      final labelStyle = resolveFluentChartLegendStyle(
+        theme,
+      ).labelTextStyle!.resolve(<WidgetState>{})!;
+      final rows = <double>[
+        for (final title in titles)
+          fluentChartLegendRowWidth(title, labelStyle, measurer),
+      ];
+      // Label, 13 of inset each side, the 4px gap and the 12px chevron.
+      final content =
+          measurer.width('+3 etc', theme.typography.body1Strong) + 26 + 16;
+      expect(
+        content,
+        lessThan(96),
+        reason: 'Guard: the trigger content has to fall short of the floor.',
+      );
+      // Two rows fit beside a trigger as wide as its content, not beside one
+      // at the 96 floor.
+      final width =
+          rows[0] + rows[1] + kLegendOverflowPadding + (content + 96) / 2;
+      expect(
+        rows.reduce((a, b) => a + b),
+        greaterThan(width),
+        reason: 'Guard: the three rows overflow.',
+      );
+
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: width,
+              child: FluentChartLegend(
+                overflowText: 'etc',
+                legends: <FluentChartLegendItem>[
+                  for (final title in titles)
+                    FluentChartLegendItem(title: title, color: seriesColour),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(
+        tester.getSize(find.byType(FluentButton)).width,
+        96,
+        reason: 'Guard: the trigger renders at the floor.',
+      );
+      expect(
+        find.text('+2 etc'),
+        findsOneWidget,
+        reason:
+            'The trigger is a MenuButton (OverflowMenu.tsx:60) with the Button '
+            "root's minWidth: 96px (useButtonStyles.styles.raw.js:47), so "
+            'the strip keeps 96 for it and only one row fits beside it.',
+      );
+    });
+
     testWidgets('the annotation slot renders only in wrapped mode', (
       tester,
     ) async {
@@ -1719,5 +1967,183 @@ void main() {
             'the left.',
       );
     });
+  });
+
+  group('swatch pixel snapping', () {
+    // Chromium paints a swatch div's background and border, and a swatch svg,
+    // from its origin rounded to a whole device pixel. Measured in Chrome: each
+    // of these placed at x .19, .33, .5, .625 and .75 inks exactly the pixels
+    // it inks at the rounded x. So a row at a fractional offset must paint its
+    // swatch pixel for pixel as it does at the offset that rounds to.
+    const cases = <(String, FluentChartLegendItem, bool)>[
+      ('rect', FluentChartLegendItem(title: 'a', color: seriesColour), false),
+      (
+        'dimmed rect',
+        FluentChartLegendItem(title: 'a', color: seriesColour),
+        true,
+      ),
+      (
+        'stripe',
+        FluentChartLegendItem(
+          title: 'a',
+          color: seriesColour,
+          stripePattern: true,
+        ),
+        false,
+      ),
+      (
+        'line in bar',
+        FluentChartLegendItem(
+          title: 'a',
+          color: seriesColour,
+          isLineLegendInBarChart: true,
+        ),
+        false,
+      ),
+      (
+        'circle',
+        FluentChartLegendItem(
+          title: 'a',
+          color: seriesColour,
+          shape: FluentChartLegendShape.circle,
+        ),
+        false,
+      ),
+      (
+        'hollow diamond',
+        FluentChartLegendItem(
+          title: 'a',
+          color: seriesColour,
+          shape: FluentChartLegendShape.diamond,
+        ),
+        true,
+      ),
+    ];
+
+    // The row's swatch starts 8 in (its padding) and its label 30 in, so with
+    // every row below placed at x 2.3 to 3 the first 32 logical columns hold
+    // the swatch and never the label.
+    const swatchColumns = 32;
+
+    /// The swatch columns of one row placed at [at], as RGBA bytes rendered at
+    /// [ratio] device pixels per logical pixel, under an ancestor [scale].
+    Future<List<int>> render(
+      WidgetTester tester,
+      (String, FluentChartLegendItem, bool) sample,
+      Offset at,
+      double ratio, {
+      double scale = 1,
+    }) async {
+      tester.view.physicalSize = Size(200 * ratio, 100 * ratio);
+      tester.view.devicePixelRatio = ratio;
+      addTearDown(tester.view.reset);
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      const boundaryKey = Key('snap-boundary');
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: RepaintBoundary(
+              key: boundaryKey,
+              child: SizedBox(
+                width: 64 * scale,
+                height: 40 * scale,
+                child: Transform.scale(
+                  scale: scale,
+                  alignment: Alignment.topLeft,
+                  child: Stack(
+                    children: <Widget>[
+                      Positioned(
+                        left: at.dx,
+                        top: at.dy,
+                        child: FluentChartLegendRow(
+                          item: sample.$2,
+                          shapeOverride: null,
+                          dimmed: sample.$3,
+                          selected: false,
+                          indexInList: 0,
+                          style: resolveFluentChartLegendStyle(theme),
+                          focusNode: node,
+                          skipTraversal: false,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final boundary = tester.renderObject<RenderRepaintBoundary>(
+        find.byKey(boundaryKey),
+      );
+      final bytes = await tester.runAsync(() async {
+        final image = await boundary.toImage(pixelRatio: ratio);
+        final data = await image.toByteData();
+        final width = image.width;
+        image.dispose();
+        final all = data!.buffer.asUint8List();
+        final columns = (swatchColumns * ratio * scale).round();
+        return <int>[
+          for (var y = 0; y < image.height; y++)
+            ...all.sublist(y * width * 4, (y * width + columns) * 4),
+        ];
+      });
+      return bytes!;
+    }
+
+    for (final sample in cases) {
+      testWidgets('a ${sample.$1} swatch paints on whole pixels at 1x', (
+        tester,
+      ) async {
+        final snapped = await render(tester, sample, const Offset(3, 7), 1);
+        expect(
+          await render(tester, sample, const Offset(2.6, 7.4), 1),
+          snapped,
+          reason:
+              'At (2.6, 7.4) the swatch lies at (10.6, 16.4), which Chromium '
+              'paints at (11, 16) — exactly as a row placed at (3, 7).',
+        );
+      });
+
+      testWidgets('a ${sample.$1} swatch snaps to device pixels at 2x', (
+        tester,
+      ) async {
+        final snapped = await render(tester, sample, const Offset(2.5, 7), 2);
+        expect(
+          await render(tester, sample, const Offset(2.3, 7.2), 2),
+          snapped,
+          reason:
+              'At 2x, (2.3, 7.2) puts the swatch at device (20.6, 32.4), which '
+              'rounds to (21, 32) — logical (10.5, 16): the device grid, not '
+              'the logical one.',
+        );
+      });
+
+      testWidgets('a ${sample.$1} swatch snaps under an ancestor scale', (
+        tester,
+      ) async {
+        final snapped = await render(
+          tester,
+          sample,
+          const Offset(2.5, 7.5),
+          1,
+          scale: 2,
+        );
+        expect(
+          await render(tester, sample, const Offset(2.6, 7.4), 1, scale: 2),
+          snapped,
+          reason:
+              'Scaled by 2, (2.6, 7.4) puts the swatch at device (21.2, 32.8), '
+              'which rounds to (21, 33) — local (10.5, 16.5), as a row placed '
+              'at (2.5, 7.5). The snap has to be mapped back through the '
+              'scale: added as a local offset it moves the swatch twice as '
+              'far, to (20.8, 33.2).',
+        );
+      });
+    }
   });
 }

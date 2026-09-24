@@ -129,6 +129,14 @@ const DocsPage interactionTagPage = DocsPage(
       description: 'Leading media — an avatar or an icon.',
     ),
     PropRow(
+      name: 'activeIcon',
+      type: 'Widget?',
+      defaultValue: 'null',
+      description:
+          "Replaces icon while an outline tag is hovered or pressed — the "
+          "filled half of upstream's bundleIcon. Ignored on filled and brand.",
+    ),
+    PropRow(
       name: 'appearance',
       type: 'FluentTagAppearance',
       defaultValue: 'FluentTagAppearance.filled',
@@ -503,9 +511,9 @@ Widget _size(BuildContext context) => Column(
 // #enddocregion components-tag-interactiontag--size
 
 // #docregion components-tag-interactiontag--appearance
-// Upstream bundles the filled and regular calendar glyphs so the media swaps
-// on hover. Our tag exposes no hover hook for its media slot, so the regular
-// glyph stands on its own.
+// Upstream bundles the filled and regular calendar glyphs (bundleIcon); the
+// filled half is activeIcon, which an outline tag shows while hovered or
+// pressed. Filled and brand never swap, as upstream's.
 Widget _appearance(BuildContext context) => Wrap(
   spacing: 10,
   runSpacing: 10,
@@ -515,6 +523,7 @@ Widget _appearance(BuildContext context) => Wrap(
       onDismiss: () {},
       dismissSemanticLabel: 'remove',
       icon: const Icon(FluentIcons.calendar_month_20_regular),
+      activeIcon: const Icon(FluentIcons.calendar_month_20_filled),
       child: const Text('filled'),
     ),
     FluentInteractionTag(
@@ -523,6 +532,7 @@ Widget _appearance(BuildContext context) => Wrap(
       onDismiss: () {},
       dismissSemanticLabel: 'remove',
       icon: const Icon(FluentIcons.calendar_month_20_regular),
+      activeIcon: const Icon(FluentIcons.calendar_month_20_filled),
       child: const Text('outline'),
     ),
     FluentInteractionTag(
@@ -531,6 +541,7 @@ Widget _appearance(BuildContext context) => Wrap(
       onDismiss: () {},
       dismissSemanticLabel: 'remove',
       icon: const Icon(FluentIcons.calendar_month_20_regular),
+      activeIcon: const Icon(FluentIcons.calendar_month_20_filled),
       child: const Text('brand'),
     ),
   ],
@@ -649,9 +660,9 @@ class _Bullet extends StatelessWidget {
 // #enddocregion components-tag-interactiontag--has-primary-action
 
 // #docregion components-tag-interactiontag--selected
-// Upstream bundles the filled and regular calendar glyphs so the media swaps
-// on hover. Our tag exposes no hover hook for its media slot, so the regular
-// glyph stands on its own.
+// Upstream bundles the filled and regular calendar glyphs (bundleIcon); the
+// filled half is activeIcon, which an outline tag shows while hovered or
+// pressed. Filled and brand never swap, as upstream's.
 Widget _selected(BuildContext context) => Wrap(
   spacing: 10,
   runSpacing: 10,
@@ -663,6 +674,7 @@ Widget _selected(BuildContext context) => Wrap(
       dismissSemanticLabel: 'remove',
       secondaryChild: const Text('appearance=filled'),
       icon: const Icon(FluentIcons.calendar_month_20_regular),
+      activeIcon: const Icon(FluentIcons.calendar_month_20_filled),
       child: const Text('Selected'),
     ),
     FluentInteractionTag(
@@ -673,6 +685,7 @@ Widget _selected(BuildContext context) => Wrap(
       dismissSemanticLabel: 'remove',
       secondaryChild: const Text('appearance=outline'),
       icon: const Icon(FluentIcons.calendar_month_20_regular),
+      activeIcon: const Icon(FluentIcons.calendar_month_20_filled),
       child: const Text('Selected'),
     ),
     FluentInteractionTag(
@@ -683,6 +696,7 @@ Widget _selected(BuildContext context) => Wrap(
       dismissSemanticLabel: 'remove',
       secondaryChild: const Text('appearance=brand'),
       icon: const Icon(FluentIcons.calendar_month_20_regular),
+      activeIcon: const Icon(FluentIcons.calendar_month_20_filled),
       child: const Text('Selected'),
     ),
   ],

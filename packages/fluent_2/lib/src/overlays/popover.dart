@@ -1,7 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
+import '../internal/anchor_metrics.dart';
 import '../internal/animated_style.dart';
 import '../internal/defer.dart';
 import '../internal/interaction.dart';
@@ -174,8 +177,9 @@ FluentPopoverState resolveFluentPopoverState({
 ///
 /// Token sources are the Figma `Popover` component set, extracted into
 /// `test/fixtures/popover.json` and asserted variant-by-variant in the tests.
-/// Three values diverge from `usePopoverSurfaceStyles.styles.ts`, and Figma
-/// wins in all three; each is noted at the branch it affects.
+/// Two values diverge from `usePopoverSurfaceStyles.styles.ts`, and Figma wins
+/// in both; each is noted at the branch it affects. The arrow inset follows
+/// React.
 FluentPopoverStyle resolveFluentPopoverStyle(
   FluentPopoverState state,
   FluentThemeData theme,
@@ -229,11 +233,12 @@ FluentPopoverStyle resolveFluentPopoverStyle(
     textStyle: WidgetStatePropertyAll<TextStyle?>(theme.typography.body1),
     padding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(EdgeInsets.all(inset)),
     arrowSize: WidgetStatePropertyAll<Size?>(_arrowSizes[state.size]),
-    // Figma pins `Top edge - left` at x = 16 on a 282-wide medium surface, and
-    // `Top edge - right` at 250 — the same 16 in from either edge, which is the
-    // surface's own horizontal inset. React instead uses `arrowPadding: 2 *
-    // popoverSurfaceBorderRadius`, which is 8. Figma wins.
-    arrowInset: WidgetStatePropertyAll<double?>(inset),
+    // React's `arrowPadding: 2 * popoverSurfaceBorderRadius` (usePopover.js:
+    // 243, constants.js:9), which is 8. Figma pins `Top edge - left` at x = 16,
+    // the surface inset, but upstream's arrow is never pinned: it points at the
+    // trigger and only stops this far short of a corner, and the storybook
+    // wins where the two disagree.
+    arrowInset: WidgetStatePropertyAll<double?>(2 * FluentRadius.medium.x),
     // Zero in both directions. With an arrow, the arrow itself fills the gap,
     // which is exactly how Figma draws it — the arrow sits flush against the
     // surface at y = -8. Without one, upstream leaves the positioning offset
@@ -280,22 +285,29 @@ Widget buildFluentPopover(
     );
   }
 
+  final decoration = BoxDecoration(
+    color: background,
+    borderRadius: radius,
+    border: borderWidth > 0 && borderColor != null
+        ? Border.all(color: borderColor, width: borderWidth)
+        : null,
+    boxShadow: style.shadow?.resolve(states),
+  );
   final surface = DecoratedBox(
-    decoration: BoxDecoration(
-      color: background,
-      borderRadius: radius,
-      border: borderWidth > 0 && borderColor != null
-          ? Border.all(color: borderColor, width: borderWidth)
-          : null,
-      boxShadow: style.shadow?.resolve(states),
+    decoration: decoration,
+    // A CSS border takes layout space. `PopoverSurface`'s `1px solid
+    // colorTransparentStroke` (usePopoverSurfaceStyles.styles.raw.js:20) sits
+    // outside its padding, so content starts 17px in and the surface is 2px
+    // wider and taller than content plus padding. `decoration.padding` is the
+    // border's own dimensions, the inset `Container` adds for the same reason.
+    child: Padding(
+      padding: decoration.padding,
+      child: Padding(padding: padding, child: content),
     ),
-    child: Padding(padding: padding, child: content),
   );
 
   if (!state.withArrow) return surface;
 
-  // Figma leaves the arrow unstroked and unshadowed even where the surface has
-  // both, so it is a bare filled triangle.
   final vertical =
       state.position == FluentPopoverPosition.above ||
       state.position == FluentPopoverPosition.below;
@@ -316,24 +328,7 @@ Widget buildFluentPopover(
       (false, FluentPopoverAlign.start) => EdgeInsets.only(top: arrowInset),
       (false, FluentPopoverAlign.end) => EdgeInsets.only(bottom: arrowInset),
     },
-    // A [Builder] only so the painter can be handed a direction: this function
-    // takes no `BuildContext` — teaching_popover.dart and chart_popover.dart
-    // both call it — and the [Row] below already mirrors the arrow to the
-    // correct *side*, leaving only the apex to be mirrored by hand.
-    child: Builder(
-      builder: (context) => CustomPaint(
-        size: vertical ? arrowSize : Size(arrowSize.height, arrowSize.width),
-        painter: FluentPopoverArrowPainter(
-          color: background ?? const Color(0x00000000),
-          position: state.position,
-          // maybeOf: a centred `above`/`below` surface is a plain [Column] and
-          // imposes no direction requirement of its own, so refusing to build
-          // one outside a [Directionality] would be a new constraint on a
-          // public function. LTR is what such a tree renders as anyway.
-          textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
-        ),
-      ),
-    ),
+    child: _buildArrow(state.position, background, arrowSize),
   );
 
   final cross = switch (state.align) {
@@ -364,6 +359,36 @@ Widget buildFluentPopover(
       children: <Widget>[arrow, surface],
     ),
   };
+}
+
+/// The pointing arrow for a surface on [side] of its anchor, filled [color].
+///
+/// Shared by [buildFluentPopover], which stacks it against the surface in a Row
+/// or Column, and by [FluentPopover], which places it against the trigger.
+/// Figma leaves the arrow unstroked and unshadowed even where the surface has
+/// both, so it is a bare filled triangle.
+Widget _buildArrow(FluentPopoverPosition side, Color? color, Size size) {
+  final vertical =
+      side == FluentPopoverPosition.above ||
+      side == FluentPopoverPosition.below;
+  // A [Builder] only so the painter can be handed a direction: whatever places
+  // the arrow is direction-aware and a Path is not, and [buildFluentPopover]
+  // takes no `BuildContext` (teaching_popover.dart and chart_popover.dart both
+  // call it), so the apex is mirrored by hand here.
+  return Builder(
+    builder: (context) => CustomPaint(
+      size: vertical ? size : size.flipped,
+      painter: FluentPopoverArrowPainter(
+        color: color ?? const Color(0x00000000),
+        position: side,
+        // maybeOf: a centred `above`/`below` surface is a plain [Column] and
+        // imposes no direction requirement of its own, so refusing to build
+        // one outside a [Directionality] would be a new constraint on a
+        // public function. LTR is what such a tree renders as anyway.
+        textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
+      ),
+    ),
+  );
 }
 
 /// Paints the popover's pointing arrow.
@@ -774,7 +799,9 @@ class _FluentPopoverState extends State<FluentPopover> {
     // FluentTheme is an InheritedTheme, so this carries it — and any other
     // InheritedTheme between here and the overlay — across the boundary.
     final captured = InheritedTheme.capture(from: context, to: overlay.context);
-    _entry = OverlayEntry(builder: (_) => captured.wrap(_buildSurface()));
+    _entry = OverlayEntry(
+      builder: (_) => captured.wrap(_buildSurface(overlay)),
+    );
     overlay.insert(_entry!);
 
     // Focus moves into the surface, which is upstream's `findFirstFocusable` +
@@ -817,7 +844,7 @@ class _FluentPopoverState extends State<FluentPopover> {
 
   void _close() => widget.onOpenChanged?.call(false);
 
-  Widget _buildSurface() {
+  Widget _buildSurface(OverlayState overlay) {
     final state = resolveFluentPopoverState(
       appearance: widget.appearance,
       size: widget.size,
@@ -834,57 +861,61 @@ class _FluentPopoverState extends State<FluentPopover> {
 
     const states = <WidgetState>{};
     final offset = style.offset?.resolve(states) ?? FluentSpacing.none;
-    final edge = switch (widget.align) {
-      FluentPopoverAlign.start => -1.0,
-      FluentPopoverAlign.center => 0.0,
-      FluentPopoverAlign.end => 1.0,
-    };
-    // [position] and [align] are both reading order, so every x here is a
-    // *start* coordinate until it is resolved. `CompositedTransformFollower`
-    // types its two anchors as [Alignment], which does not resolve on its own
-    // (`basic.dart:2054, 2062`), so the resolve happens at this call site —
-    // `overlays/menu.dart:731-751` does the identical pair of moves. `edge` is
-    // the y coordinate for `before`/`after`, and the vertical axis never
-    // mirrors.
-    final beside = _direction == TextDirection.rtl ? -offset : offset;
-    final (target, follower, shift) = switch (widget.position) {
-      FluentPopoverPosition.above => (
-        AlignmentDirectional(edge, -1).resolve(_direction),
-        AlignmentDirectional(edge, 1).resolve(_direction),
-        Offset(0, -offset),
-      ),
-      FluentPopoverPosition.below => (
-        AlignmentDirectional(edge, 1).resolve(_direction),
-        AlignmentDirectional(edge, -1).resolve(_direction),
-        Offset(0, offset),
-      ),
-      FluentPopoverPosition.before => (
-        AlignmentDirectional(-1, edge).resolve(_direction),
-        AlignmentDirectional(1, edge).resolve(_direction),
-        Offset(-beside, 0),
-      ),
-      FluentPopoverPosition.after => (
-        AlignmentDirectional(1, edge).resolve(_direction),
-        AlignmentDirectional(-1, edge).resolve(_direction),
-        Offset(beside, 0),
-      ),
-    };
+
+    // The trigger in the overlay's coordinates, from its last layout — the
+    // entry is only ever built after the trigger has been laid out, because
+    // `_sync` runs deferred. Screen rects on both sides because a LeaderLayer
+    // offset is layer-local (see [fluentAnchorRect]).
+    // ponytail: measured as the entry builds, like FluentTooltip's. The
+    // follower keeps the surface glued to a trigger that moves afterwards, but
+    // flip and shift are only re-decided when the entry rebuilds, so a popover
+    // left open while its trigger scrolls to an edge is not pushed back in, and
+    // a scaled ancestor leaves the edge clamp off. Upgrade path: measure in the
+    // trigger's local space during layout rather than here at build time.
+    final anchor = fluentAnchorRect(context);
+    final origin = fluentAnchorRect(overlay.context)?.topLeft;
+    // No geometry means an unpainted trigger, and `showWhenUnlinked: false`
+    // hides the surface of an unpainted leader anyway.
+    final target = anchor == null || origin == null
+        ? Rect.zero
+        : anchor.shift(-origin);
+
+    // The arrow is laid out as the surface's sibling rather than inside
+    // `buildFluentPopover`'s Row/Column, because where it goes is only known
+    // once the surface has been measured.
+    final surface = FluentPopoverBaseState(
+      position: state.position,
+      align: state.align,
+      withArrow: false,
+      content: state.content,
+    );
+    final background = style.backgroundColor?.resolve(states);
+    final arrowSize =
+        style.arrowSize?.resolve(states) ??
+        _arrowSizes[FluentPopoverSize.medium]!;
+    final arrowPadding =
+        style.arrowInset?.resolve(states) ?? 2 * FluentRadius.medium.x;
 
     // Re-established rather than inherited: the entry builds under the
     // Navigator's Overlay, so the trigger's own [Directionality] never reaches
-    // it. Everything below it — the surface's [Row], the arrow's inset and
+    // it. Everything below it — the layout's `before`/`after`, the arrow's
     // apex, the entrance slide, and the caller's own content — reads it.
     return Directionality(
       textDirection: _direction,
-      child: Positioned(
-        left: 0,
-        top: 0,
+      // Filling the overlay hands the layout the overlay's size on every pass.
+      // The follower's default top-left anchors put its origin on the trigger's
+      // top-left, and the offset takes it back to the overlay's, so the layout
+      // box lies over the overlay and places in overlay coordinates. It has to
+      // cover the surface rather than hang off the trigger: a RenderBox only
+      // hit-tests children inside its own bounds, and a surface above or
+      // before its trigger would otherwise sit at a negative offset, where
+      // every tap on it read as an outside tap. The box still moves with the
+      // trigger, so a scrolled surface stays inside it.
+      child: Positioned.fill(
         child: CompositedTransformFollower(
           link: _link,
           showWhenUnlinked: false,
-          targetAnchor: target,
-          followerAnchor: follower,
-          offset: shift,
+          offset: -target.topLeft,
           // Same group as the trigger, so a pointer landing on the surface — or
           // back on the trigger — is "inside" and does not dismiss.
           //
@@ -895,7 +926,9 @@ class _FluentPopoverState extends State<FluentPopover> {
           // `RenderDecoratedBox.hitTestSelf` defers to `BoxDecoration.hitTest`,
           // so the whole rounded rect answers, padding included. The clipped
           // corners fall outside it and dismiss, which is what a browser does
-          // with a border-radius too.
+          // with a border-radius too. The layout box itself fills the overlay
+          // but hit-tests only its children, so the empty rest of it is
+          // outside.
           child: TapRegion(
             groupId: _tapGroup,
             // Published to everything inside the surface, so a popover opened
@@ -923,18 +956,52 @@ class _FluentPopoverState extends State<FluentPopover> {
                 },
                 child: FocusScope(
                   node: _scope,
+                  // ponytail: the slide comes from the preferred side, not the
+                  // one the layout lands on — the side is only known in layout,
+                  // after this is built. A flipped popover therefore settles
+                  // its 10px from the far side. Upgrade path: hand the landed
+                  // side to the entrance through the layout, as the arrow gets
+                  // it.
                   child: FluentPopoverEntrance(
                     position: widget.position,
                     reducedMotion: _reducedMotion,
-                    // container, so the surface lands on a node of its own
-                    // rather than merging into the overlay; explicitChildNodes,
-                    // so a labelled popover still exposes its content separately
-                    // instead of flattening it into the label.
-                    child: Semantics(
-                      container: true,
-                      explicitChildNodes: true,
-                      label: widget.semanticLabel,
-                      child: buildFluentPopover(state, style, states),
+                    child: CustomMultiChildLayout(
+                      delegate: _FluentPopoverLayout(
+                        target: target,
+                        position: widget.position,
+                        align: widget.align,
+                        direction: _direction,
+                        offset: offset,
+                        arrowSize: arrowSize,
+                        arrowPadding: arrowPadding,
+                      ),
+                      children: <Widget>[
+                        LayoutId(
+                          id: _PopoverSlot.surface,
+                          // container, so the surface lands on a node of its
+                          // own rather than merging into the overlay;
+                          // explicitChildNodes, so a labelled popover still
+                          // exposes its content separately instead of
+                          // flattening it into the label.
+                          child: Semantics(
+                            container: true,
+                            explicitChildNodes: true,
+                            label: widget.semanticLabel,
+                            child: buildFluentPopover(surface, style, states),
+                          ),
+                        ),
+                        if (widget.withArrow)
+                          LayoutId(
+                            id: _PopoverSlot.arrow,
+                            child: LayoutBuilder(
+                              builder: (context, constraints) => _buildArrow(
+                                (constraints as _SideConstraints).side,
+                                background,
+                                arrowSize,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
@@ -968,4 +1035,218 @@ class _FluentPopoverState extends State<FluentPopover> {
     onTapOutside: _shouldShow ? (_) => _close() : null,
     child: CompositedTransformTarget(link: _link, child: widget.child),
   );
+}
+
+/// The two things [_FluentPopoverLayout] places.
+enum _PopoverSlot { surface, arrow }
+
+/// Tight constraints that also name the side the surface landed on.
+///
+/// That side is only known in layout — flipping needs the surface's measured
+/// size — but [FluentPopoverArrowPainter] takes it at build time. A
+/// [LayoutBuilder] is the framework's sanctioned way to build during layout,
+/// and it rebuilds exactly when its constraints stop comparing equal, so the
+/// side rides on them: the same side costs nothing, a flip rebuilds the arrow
+/// once, inside the same pass. `FluentTooltip` carries its side the same way.
+class _SideConstraints extends BoxConstraints {
+  _SideConstraints(this.side, Size size) : super.tight(size);
+
+  final FluentPopoverPosition side;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _SideConstraints && other.side == side && super == other;
+
+  @override
+  int get hashCode => Object.hash(super.hashCode, side);
+}
+
+/// Places the surface on its preferred side of the trigger, flipping and
+/// shifting it to stay inside the overlay, with the arrow between the two.
+///
+/// Upstream's `usePopover.js:240-255` hands react-positioning a placement and
+/// `arrowPadding: 2 * popoverSurfaceBorderRadius`, adds the arrow's height to
+/// the offset, and never pins, so floating-ui runs `flip` then `shift`
+/// (`usePositioningOptions.js:79-122`) against the clipping ancestors with no
+/// padding. The same rules `FluentTooltip` follows:
+///
+/// - **Flip.** `fallbackStrategy: 'bestFit'` (`middleware/flip.js:21`): a side
+///   that cannot hold the surface plus its offset gives way to the opposite
+///   side when that side has more room, and otherwise stays put.
+/// - **Shift.** Along the trigger's edge only, until the surface is inside,
+///   flush with the boundary; one too big for the overlay starts at 0.
+/// - **Arrow.** Centred on the *trigger* (floating-ui `arrow.ts`), kept
+///   [arrowPadding] from the surface's corners, and drawn for the side the
+///   surface landed on.
+///
+/// The box fills the overlay and the follower lays it over the overlay, so every
+/// position is in overlay coordinates.
+///
+/// ponytail: an aligned placement flips its side but never its alignment,
+/// where floating-ui's `flipAlignment` would also try `bottom-end` for a
+/// `bottom-start` that overflows; the shift already keeps it inside.
+class _FluentPopoverLayout extends MultiChildLayoutDelegate {
+  _FluentPopoverLayout({
+    required this.target,
+    required this.position,
+    required this.align,
+    required this.direction,
+    required this.offset,
+    required this.arrowSize,
+    required this.arrowPadding,
+  });
+
+  /// The trigger, in overlay coordinates, as of the last build.
+  final Rect target;
+
+  /// The preferred side.
+  final FluentPopoverPosition position;
+
+  /// Where along the trigger's edge the surface lines up before any shift.
+  final FluentPopoverAlign align;
+
+  /// What `before`/`after` and `start`/`end` resolve against.
+  final TextDirection direction;
+
+  /// The gap between the trigger and the arrow's tip — or the surface, without
+  /// an arrow.
+  final double offset;
+
+  /// The arrow's box pointing up or down; transposed for a side one.
+  final Size arrowSize;
+
+  /// How close the arrow may come to the surface's corners.
+  final double arrowPadding;
+
+  AxisDirection _physical(FluentPopoverPosition side) => switch (side) {
+    FluentPopoverPosition.above => AxisDirection.up,
+    FluentPopoverPosition.below => AxisDirection.down,
+    FluentPopoverPosition.before =>
+      direction == TextDirection.rtl ? AxisDirection.right : AxisDirection.left,
+    FluentPopoverPosition.after =>
+      direction == TextDirection.rtl ? AxisDirection.left : AxisDirection.right,
+  };
+
+  @override
+  void performLayout(Size size) {
+    // Width only. The surface is absolutely positioned at `left: 0` upstream,
+    // so CSS shrink-to-fit caps it at the containing block's width, but
+    // nothing caps its height: a tall surface runs off the viewport rather
+    // than squeezing its content into a RenderFlex overflow.
+    final surface = layoutChild(
+      _PopoverSlot.surface,
+      BoxConstraints(maxWidth: size.width),
+    );
+    final hasArrow = hasChild(_PopoverSlot.arrow);
+    final vertical =
+        position == FluentPopoverPosition.above ||
+        position == FluentPopoverPosition.below;
+    final arrow = !hasArrow
+        ? Size.zero
+        : vertical
+        ? arrowSize
+        : arrowSize.flipped;
+
+    // Flip: the room between the trigger and the overlay edge on each side,
+    // against what the placement needs there. The need is the same on either
+    // side, so `bestFit`'s least overflow is simply the most room.
+    double room(AxisDirection side) => switch (side) {
+      AxisDirection.up => target.top,
+      AxisDirection.down => size.height - target.bottom,
+      AxisDirection.left => target.left,
+      AxisDirection.right => size.width - target.right,
+    };
+    final need =
+        offset +
+        (vertical
+            ? surface.height + arrow.height
+            : surface.width + arrow.width);
+    final opposite = switch (position) {
+      FluentPopoverPosition.above => FluentPopoverPosition.below,
+      FluentPopoverPosition.below => FluentPopoverPosition.above,
+      FluentPopoverPosition.before => FluentPopoverPosition.after,
+      FluentPopoverPosition.after => FluentPopoverPosition.before,
+    };
+    final preferredRoom = room(_physical(position));
+    final side =
+        preferredRoom < need && room(_physical(opposite)) > preferredRoom
+        ? opposite
+        : position;
+
+    // Main axis: the arrow's tip `offset` off the trigger, the surface behind.
+    final (arrowMain, surfaceMain) = switch (_physical(side)) {
+      AxisDirection.up => (
+        target.top - offset - arrow.height,
+        target.top - offset - arrow.height - surface.height,
+      ),
+      AxisDirection.down => (
+        target.bottom + offset,
+        target.bottom + offset + arrow.height,
+      ),
+      AxisDirection.left => (
+        target.left - offset - arrow.width,
+        target.left - offset - arrow.width - surface.width,
+      ),
+      AxisDirection.right => (
+        target.right + offset,
+        target.right + offset + arrow.width,
+      ),
+    };
+
+    // Cross axis: aligned in reading order along a horizontal edge, never
+    // mirrored along a vertical one, then shifted inside the overlay with no
+    // padding — floating-ui's `clamp(min, v, max)` is `max(min, min(v, max))`,
+    // so a surface bigger than the overlay starts at 0.
+    final rtl = direction == TextDirection.rtl;
+    final (lead, length, trail, extent) = vertical
+        ? (target.left, surface.width, target.right, size.width)
+        : (target.top, surface.height, target.bottom, size.height);
+    final aligned = switch (align) {
+      FluentPopoverAlign.center => (lead + trail) / 2 - length / 2,
+      FluentPopoverAlign.start when vertical && rtl => trail - length,
+      FluentPopoverAlign.start => lead,
+      FluentPopoverAlign.end when vertical && rtl => lead,
+      FluentPopoverAlign.end => trail - length,
+    };
+    final cross = math.max(0.0, math.min(aligned, extent - length));
+
+    // Arrow: centred on the trigger, kept inside the surface — floating-ui
+    // `arrow.ts`, down to trimming the padding on a surface too small to
+    // honour it.
+    final tip = vertical ? arrow.width : arrow.height;
+    final padding = math.min(arrowPadding, length / 2 - tip / 2 - 1);
+    final arrowCross =
+        cross +
+        math.max(
+          padding,
+          math.min(
+            (lead + trail) / 2 - cross - tip / 2,
+            length - tip - padding,
+          ),
+        );
+
+    positionChild(
+      _PopoverSlot.surface,
+      vertical ? Offset(cross, surfaceMain) : Offset(surfaceMain, cross),
+    );
+    if (hasArrow) {
+      layoutChild(_PopoverSlot.arrow, _SideConstraints(side, arrow));
+      positionChild(
+        _PopoverSlot.arrow,
+        vertical
+            ? Offset(arrowCross, arrowMain)
+            : Offset(arrowMain, arrowCross),
+      );
+    }
+  }
+
+  @override
+  bool shouldRelayout(_FluentPopoverLayout oldDelegate) =>
+      oldDelegate.target != target ||
+      oldDelegate.position != position ||
+      oldDelegate.align != align ||
+      oldDelegate.direction != direction ||
+      oldDelegate.offset != offset ||
+      oldDelegate.arrowSize != arrowSize ||
+      oldDelegate.arrowPadding != arrowPadding;
 }

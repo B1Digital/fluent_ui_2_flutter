@@ -38,7 +38,10 @@ class FluentCarouselStyle {
     this.iconSize,
   });
 
-  /// The dot or pill mark itself. Ramped rest/hover/pressed/disabled.
+  /// The dot or pill mark itself. Ramped rest/hover/pressed/disabled, and
+  /// resolved with [WidgetState.selected] for the current step's pill, whose
+  /// ramp upstream runs the other way: the dot darkens under the pointer, the
+  /// pill lightens.
   final WidgetStateProperty<Color?>? stepColor;
 
   /// The step's 24x24 hit target. Fluent's transparent ramp, which is

@@ -242,6 +242,59 @@ List<FluentDataSeries> _gvbcV2WithLine() => <FluentDataSeries>[
   ),
 ];
 
+/// The mounted chart's delegate.
+FluentGroupedVerticalBarChartDelegate _mountedGvbc(WidgetTester tester) =>
+    tester
+            .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+            .delegate
+        as FluentGroupedVerticalBarChartDelegate;
+
+/// The mounted plot: its screen origin, the scales it painted with and the
+/// bars those scales resolve to, in plot coordinates.
+({
+  Offset origin,
+  FluentCartesianChildContext context,
+  List<FluentGroupedBarRect> bars,
+})
+_plotOf(WidgetTester tester) {
+  final plot = find.byWidgetPredicate(
+    (widget) =>
+        widget is CustomPaint && widget.painter is FluentCartesianChartPainter,
+  );
+  final painter =
+      tester.widget<CustomPaint>(plot).painter! as FluentCartesianChartPainter;
+  final context = FluentCartesianChildContext(
+    xScale: painter.xAxis.scale,
+    yScalePrimary: painter.yAxisPrimary.scale,
+    containerWidth: painter.layout.size.width,
+    containerHeight: painter.layout.size.height,
+  );
+  return (
+    origin: tester.getTopLeft(plot),
+    context: context,
+    bars: (painter.delegate as FluentGroupedVerticalBarChartDelegate).barsFor(
+      context,
+      painter.layout,
+    ),
+  );
+}
+
+/// A mouse, parked at the top-left corner of the screen.
+Future<TestGesture> _mouse(WidgetTester tester) async {
+  final g = await tester.createGesture(kind: ui.PointerDeviceKind.mouse);
+  await g.addPointer(location: Offset.zero);
+  addTearDown(g.removePointer);
+  return g;
+}
+
+/// Moves [g] onto [at] and drifts it a pixel, as a hand does.
+Future<void> _hoverAt(WidgetTester tester, TestGesture g, Offset at) async {
+  await g.moveTo(at);
+  await tester.pump();
+  await g.moveTo(at + const Offset(1, 1));
+  await tester.pumpAndSettle();
+}
+
 /// The y a captured axis tick sits at, with the crispness offset removed.
 double _yOfTick(OracleStory story, String label) {
   final text = story.soleElement(
@@ -1255,25 +1308,98 @@ void main() {
       );
     });
 
-    test('a dimmed bar is not an interactive region', () {
+    test('a dimmed bar is a region with no callout and no stop', () {
       final delegate = _gvbcDelegate(
         values: <double>[5, 7],
         selectedLegends: <String>['L0'],
       );
       final regions = delegate.buildHitRegions(_gvbcContext(), _layout());
       expect(
-        regions.map((region) => region.legend).toList(),
-        <String>['L0'],
+        <(String, bool, bool)>[
+          for (final region in regions)
+            (region.legend, region.focusable, region.popoverData != null),
+        ],
+        <(String, bool, bool)>[('L0', true, true), ('L1', false, false)],
         reason:
             'a bar dimmed by another legend gets no tab index at '
-            'GroupedVerticalBarChart.tsx:596',
+            'GroupedVerticalBarChart.tsx:596 and its hover closes the callout '
+            '(:971), while onClick={pointData.onClick} (:594) stays on it',
       );
       expect(
-        regions.single.semanticsLabel,
+        regions.first.semanticsLabel,
         'Category. L0, 5.',
         reason:
             '`${r'$'}{xValue}. ${r'$'}{legend}, ${r'$'}{yValue}.`, '
             'GroupedVerticalBarChart.tsx:728',
+      );
+    });
+
+    test('a stack callout reads the category as groupSeries lists it', () {
+      final delegate = FluentGroupedVerticalBarChartDelegate(
+        data: const <FluentGroupedVerticalBarChartData>[
+          FluentGroupedVerticalBarChartData(
+            name: 'Category',
+            series: <FluentGroupedBarSeriesPoint>[
+              FluentGroupedBarSeriesPoint(key: 'a', data: 10, legend: 'Sales'),
+              FluentGroupedBarSeriesPoint(key: 'b', data: 5, legend: '2022'),
+              FluentGroupedBarSeriesPoint(key: 'c', data: 7, legend: '2021'),
+              FluentGroupedBarSeriesPoint(key: 'd', data: 3, legend: '2022'),
+            ],
+          ),
+        ],
+        lineSeries: const <FluentLineSeries>[
+          FluentLineSeries(
+            legend: 'Trend',
+            data: <FluentDataPointV2>[
+              FluentDataPointV2(x: 'Elsewhere', y: 1),
+              FluentDataPointV2(x: 'Category', y: 12),
+            ],
+          ),
+        ],
+        style: _style,
+        colors: _colours(),
+        measurer: _measurer,
+        textStyles: _textStyles,
+        selectedLegends: const <String>[],
+        legendColours: const <String, Color>{},
+        isCalloutForStack: true,
+      );
+      final readings = delegate
+          .buildHitRegions(_gvbcContext(), _layout())
+          .first
+          .popoverData!
+          .yValues!
+          .map((reading) => (reading.legend, reading.y))
+          .toList();
+      expect(
+        readings,
+        <(String, double)>[
+          ('2021', 7),
+          ('2022', 8),
+          ('Sales', 10),
+          ('Trend', 12),
+        ],
+        reason:
+            'groupSeries is Object.values(legendToBarPoint) followed by the '
+            'line points at that x (GroupedVerticalBarChart.tsx:178-181): a '
+            "legend's stacked points sum into one reading (:166-174), and an "
+            'object lists integer-like keys first, ascending',
+      );
+    });
+
+    test('a reading with no culture is formatted like toLocaleString', () {
+      final readings = _gvbcDelegate(values: <double>[5000, 12345, 0.1234])
+          .buildHitRegions(_gvbcContext(), _layout())
+          .map((region) => region.popoverData!.yValue)
+          .toList();
+      expect(
+        readings,
+        <String>['5000', '12,345', '0.123'],
+        reason:
+            'ChartPopover.tsx:89 runs YValue through formatToLocaleString in '
+            'the default locale when the chart has no culture: grouping from '
+            '10000 up, three fraction digits (formatter.ts:38-40). The SI '
+            "scientific formatter of the bar labels reads '5k' and '12.3k'",
       );
     });
   });
@@ -1760,7 +1886,7 @@ void main() {
         reason: 'the region names the line series',
       );
       expect(
-        regions.first.popoverData.xValue,
+        regions.first.popoverData!.xValue,
         categories.first,
         reason:
             'XValue = xAxisCalloutData ?? groupData.xAxisPoint, '
@@ -1768,10 +1894,19 @@ void main() {
       );
       expect(
         regions.first.semanticsLabel,
-        // The reading is the chart's own scientific format, as the bar regions
-        // above it are; U+2212 is the minus that formatter emits.
-        '${categories.first}. Line 1, \u221221.6k.',
+        // getAriaLabel interpolates `point.yAxisCalloutData || point.data`
+        // into a template literal, so the number reads as JavaScript prints
+        // it: no grouping, an ASCII minus, no SI prefix.
+        '${categories.first}. Line 1, -21600.',
         reason: 'getAriaLabel, GroupedVerticalBarChart.tsx:724-729',
+      );
+      expect(
+        regions.first.popoverData!.yValue,
+        '-21,600',
+        reason:
+            'while the popover formats the same reading with '
+            'formatToLocaleString (ChartPopover.tsx:89), which groups from '
+            '10000 up (formatter.ts:38-40)',
       );
       expect(
         regions.first.bounds.width,
@@ -1874,6 +2009,46 @@ void main() {
       ], reason: 'and the bar legends follow in first-appearance order');
     });
 
+    testWidgets('a line legend is a line-in-bar swatch with no shape', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentGroupedVerticalBarChart(
+          dataV2: <FluentDataSeries>[
+            ..._gvbcV2Series(),
+            const FluentLineSeries(
+              legend: 'Trend',
+              legendShape: FluentChartLegendShape.diamond,
+              data: <FluentDataPointV2>[FluentDataPointV2(x: 'Q1', y: 15)],
+            ),
+          ],
+        ),
+      );
+      final legends = tester
+          .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+          .legends;
+      expect(
+        legends.first.isLineLegendInBarChart,
+        isTrue,
+        reason:
+            '`addLegendButton(legendTitle, true)` for every line legend, '
+            'GroupedVerticalBarChart.tsx:252; Legends.tsx:376 draws it 14x6',
+      );
+      expect(
+        legends.first.shape,
+        isNull,
+        reason:
+            'addLegendButton sets no shape (GroupedVerticalBarChart.tsx:'
+            '235-247), so the series legendShape never reaches the legend',
+      );
+      expect(
+        legends.skip(1).map((legend) => legend.isLineLegendInBarChart),
+        everyElement(isFalse),
+        reason: 'the bar legends are added without the flag, `.tsx:253`',
+      );
+    });
+
     testWidgets('the colour walk counts every point, then the lines', (
       tester,
     ) async {
@@ -1971,6 +2146,141 @@ void main() {
             .popoverAnchorsToRegion,
         isTrue,
         reason: 'and the anchor is the hovered bar, not the pointer',
+      );
+    });
+
+    testWidgets('a stack callout anchors to the hovered bar, not its group', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentGroupedVerticalBarChart(
+          dataV2: _gvbcV2Series(),
+          isCalloutForStack: true,
+        ),
+      );
+      final plot = _plotOf(tester);
+      expect(plot.bars, hasLength(2), reason: 'one bar per legend in Q1');
+      final g = await _mouse(tester);
+      FluentChartPopover popover() =>
+          tester.widget<FluentChartPopover>(find.byType(FluentChartPopover));
+
+      for (final bar in plot.bars) {
+        await _hoverAt(tester, g, plot.origin + bar.rect.center);
+        expect(
+          popover().anchorRect,
+          bar.rect,
+          reason:
+              'every bar keeps its own onMouseOver under isCalloutForStack and '
+              'hands itself to setPopoverTarget '
+              '(GroupedVerticalBarChart.tsx:589-590, :499, :970), so the '
+              'callout sits over ${bar.legend}, not over the group around it',
+        );
+        expect(
+          popover().data.yValues,
+          hasLength(2),
+          reason: 'while the body still lists the whole category, `.tsx:980`',
+        );
+      }
+    });
+
+    testWidgets('a stack callout grows every line dot at the category', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentGroupedVerticalBarChart(
+          dataV2: <FluentDataSeries>[
+            ..._gvbcV2WithLine(),
+            const FluentLineSeries(
+              legend: 'Target',
+              data: <FluentDataPointV2>[FluentDataPointV2(x: 'Q1', y: 5)],
+            ),
+          ],
+          isCalloutForStack: true,
+        ),
+      );
+      final plot = _plotOf(tester);
+      final g = await _mouse(tester);
+      await _hoverAt(tester, g, plot.origin + plot.bars.first.rect.center);
+      final delegate = _mountedGvbc(tester);
+      expect(
+        delegate.activeLinePoint,
+        'Q1',
+        reason:
+            '_showCallout sets activeLinePoint to the category under '
+            'isCalloutForStack (GroupedVerticalBarChart.tsx:984), even for a '
+            'bar; the storybook grows both lines\' dots at Jan - Mar',
+      );
+      expect(
+        fluentGroupedLineDots(
+          delegate.lineSeries,
+          plot.context,
+        ).map(delegate.isLinePointActive),
+        everyElement(isTrue),
+        reason: '`activeLinePoint === point.x`, `.tsx:863`',
+      );
+      expect(
+        tester
+            .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+            .data
+            .yValues!
+            .map((reading) => reading.legend),
+        <String>['v2a', 'v2b', 'Trend', 'Target'],
+        reason:
+            'groupSeries lists the line points at that x after the bars '
+            '(`.tsx:178-181`), so the stack callout reads them too',
+      );
+    });
+
+    testWidgets('a grown dot stays grown until another mark is hovered', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentGroupedVerticalBarChart(dataV2: _gvbcV2WithLine()),
+      );
+      final plot = _plotOf(tester);
+      final dot = fluentGroupedLineDots(
+        _mountedGvbc(tester).lineSeries,
+        plot.context,
+      ).single;
+      final g = await _mouse(tester);
+      await _hoverAt(tester, g, plot.origin + dot.centre);
+      expect(_mountedGvbc(tester).activeLinePoint, '0-0');
+
+      // Above the plot area, clear of every bar and dot.
+      await _hoverAt(tester, g, plot.origin + Offset(dot.centre.dx, 2));
+      expect(
+        _mountedGvbc(tester).activeLinePoint,
+        '0-0',
+        reason:
+            'the dot and bar leave handlers are empty '
+            '(GroupedVerticalBarChart.tsx:503-505, :857, :876): the storybook '
+            'keeps the dot grown with the pointer in an empty part of the plot',
+      );
+      await _hoverAt(
+        tester,
+        g,
+        tester.getTopLeft(find.byType(FluentGroupedVerticalBarChart)) -
+            const Offset(10, 10),
+      );
+      expect(
+        _mountedGvbc(tester).activeLinePoint,
+        '0-0',
+        reason:
+            '_handleChartMouseLeave (`.tsx:507-510`) closes the popover and '
+            'leaves activeLinePoint alone, so the dot stays grown outside the '
+            'chart too',
+      );
+
+      await _hoverAt(tester, g, plot.origin + plot.bars.first.rect.center);
+      expect(
+        _mountedGvbc(tester).activeLinePoint,
+        isNull,
+        reason:
+            'hovering a bar calls _showCallout with no dot id, which clears '
+            'it (`.tsx:968`, `:984`)',
       );
     });
 

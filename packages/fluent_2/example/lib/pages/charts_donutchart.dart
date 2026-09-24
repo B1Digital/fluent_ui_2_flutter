@@ -177,6 +177,12 @@ const DocsPage donutChartPage = DocsPage(
       description: 'Whether the hover popover is suppressed.',
     ),
     PropRow(
+      name: 'calloutPropsPerDataPoint',
+      type: 'FluentChartPopoverData? Function(FluentChartDataPoint)?',
+      defaultValue: 'null',
+      description: "Overrides spread over one arc's built-in popover reading.",
+    ),
+    PropRow(
       name: 'culture',
       type: 'String?',
       defaultValue: 'null',
@@ -518,10 +524,20 @@ class _DonutChartCustomCallout extends StatefulWidget {
 class _DonutChartCustomCalloutState extends State<_DonutChartCustomCallout> {
   bool _useCustomPopover = false;
 
+  // Upstream's `customPopoverProps`, spread over the built-in reading. The
+  // datum's own `xAxisCalloutData` still takes the legend line
+  // (ChartPopover.tsx:43), so that body reads 'Custom XVal', '2020/04/30' and
+  // '20000 h' in the warning colour.
+  FluentChartPopoverData _customPopoverProps(FluentChartDataPoint point) =>
+      FluentChartPopoverData(
+        xValue: 'Custom XVal',
+        legend: 'Custom Legend',
+        yValue: '${point.yAxisCalloutData ?? point.data?.round()} h',
+        color: FluentDataVizPalette.resolve(FluentDataVizToken.warning),
+      );
+
   // Upstream's `customPopover`: the x value, the legend and the value with an
   // ' h' suffix, or null for the built-in body while the switch is off.
-  // FluentDonutChart takes no `calloutPropsPerDataPoint`, so that built-in
-  // body shows the datum's own reading rather than upstream's 'Custom XVal'.
   // ponytail: upstream's border is `1.5px dotted`, and Flutter's BorderStyle
   // has no dotted style, so this one is solid.
   Widget? _customPopover(BuildContext context, FluentChartDataPoint point) {
@@ -608,6 +624,7 @@ class _DonutChartCustomCalloutState extends State<_DonutChartCustomCallout> {
             hideLegend: false,
             height: 220,
             valueInsideDonut: 39000,
+            calloutPropsPerDataPoint: _customPopoverProps,
             popoverBuilder: _customPopover,
           ),
         ),

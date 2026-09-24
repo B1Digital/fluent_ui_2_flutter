@@ -5,6 +5,7 @@ import 'package:fluent_2/src/charts/chrome/chart_popover_style.dart';
 import 'package:fluent_2/src/charts/chrome/legend_shape.dart';
 import 'package:fluent_2/src/charts/model/callout_data.dart';
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -151,19 +152,22 @@ void main() {
   group('the single-value popover body', () {
     const seriesColour = Color(0xFF0078D4);
 
-    Future<void> pump(WidgetTester tester, FluentChartPopoverData data) =>
-        tester.pumpWidget(
-          FluentApp(
-            theme: theme,
-            home: Center(
-              child: buildFluentChartPopoverSingleValue(
-                data,
-                resolveFluentChartPopoverStyle(theme),
-                theme.colors.neutralForeground1,
-              ),
-            ),
+    Future<void> pump(
+      WidgetTester tester,
+      FluentChartPopoverData data, {
+      bool isCartesian = true,
+    }) => tester.pumpWidget(
+      FluentApp(
+        theme: theme,
+        home: Center(
+          child: buildFluentChartPopoverSingleValue(
+            data,
+            resolveFluentChartPopoverStyle(theme, isCartesian: isCartesian),
+            theme.colors.neutralForeground1,
           ),
-        );
+        ),
+      ),
+    );
 
     TextStyle styleOfText(WidgetTester tester, String data) =>
         tester.widget<Text>(find.text(data)).style!;
@@ -277,10 +281,122 @@ void main() {
       expect(
         barHeight,
         tester.getSize(find.text('42')).height +
+            FluentSpacing.xs +
             tester.getSize(find.text('alpha')).height,
         reason:
-            'The container is exactly the legend plus the y reading tall '
+            'The container is exactly the legend, its 4px marginBottom '
+            '(useChartPopoverStyles.styles.ts:74) and the y reading tall '
             '(ChartPopover.tsx:78-91), with no other flex child taller.',
+      );
+    });
+
+    testWidgets('the 28px y reading keeps its class line height', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const FluentChartPopoverData(
+          xValue: 'Jan',
+          legend: 'alpha',
+          yValue: '42',
+        ),
+      );
+      expect(
+        tester.getSize(find.text('42')).height,
+        moreOrLessEquals(22, epsilon: 0.01),
+        reason:
+            'ChartPopover.tsx:86 sets only an inline fontSize; the cartesian '
+            'class keeps subtitle2Stronger\'s 22px line-height '
+            '(useChartPopoverStyles.styles.ts:79-81), which does not scale '
+            'with the font the way a 1.375 multiplier does (38.5px).',
+      );
+      expect(
+        styleOfText(tester, '42').fontWeight,
+        theme.typography.subtitle2Stronger.fontWeight,
+        reason: 'subtitle2Stronger is weight 700.',
+      );
+    });
+
+    testWidgets('a non-cartesian y reading is title2 on its 36px line', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const FluentChartPopoverData(
+          xValue: 'Jan',
+          legend: 'alpha',
+          yValue: '42',
+          isCartesian: false,
+        ),
+        isCartesian: false,
+      );
+      expect(
+        styleOfText(tester, '42').fontWeight,
+        theme.typography.title2.fontWeight,
+        reason:
+            'HorizontalBarChart, DonutChart and FunnelChart pass '
+            'isCartesian={false} (HorizontalBarChart.tsx:483, '
+            'DonutChart.tsx:413, FunnelChart.tsx:525), so calloutContentY is '
+            'title2 at weight 600 (useChartPopoverStyles.styles.ts:82-84).',
+      );
+      expect(
+        tester.getSize(find.text('42')).height,
+        moreOrLessEquals(36, epsilon: 0.01),
+        reason:
+            'title2 is 28px on a 36px line; the inline 28px changes '
+            'nothing.',
+      );
+    });
+
+    testWidgets('the legend sits 4px above the y reading', (tester) async {
+      await pump(
+        tester,
+        const FluentChartPopoverData(
+          xValue: 'Jan',
+          legend: 'alpha',
+          yValue: '42',
+        ),
+      );
+      expect(
+        tester.getTopLeft(find.text('42')).dy -
+            tester.getBottomLeft(find.text('alpha')).dy,
+        moreOrLessEquals(FluentSpacing.xs, epsilon: 0.01),
+        reason:
+            'calloutLegendText carries marginBottom spacingVerticalXS '
+            '(useChartPopoverStyles.styles.ts:70-75).',
+      );
+    });
+
+    testWidgets('an absent x reading and legend take no line', (tester) async {
+      await pump(tester, const FluentChartPopoverData(yValue: '42'));
+      expect(
+        find.text(''),
+        findsNothing,
+        reason:
+            'ChartPopover.tsx:63 renders `{props.XValue} ` and :79-81 an empty '
+            'legend; a div of collapsible whitespace lays out no line box.',
+      );
+      final bar = find.byKey(const ValueKey<String>('popover-accent-bar'));
+      expect(
+        tester.getSize(bar).height,
+        moreOrLessEquals(
+          FluentSpacing.xs + tester.getSize(find.text('42')).height,
+          epsilon: 0.01,
+        ),
+        reason:
+            'Only the empty legend\'s 4px margin is left above the reading: '
+            'upstream measures the calloutInfoContainer at 26px '
+            '(VerticalBarChart axis-tooltip story).',
+      );
+      final body = find.byWidgetPredicate(
+        (widget) => widget is Column && widget.mainAxisSize == MainAxisSize.min,
+      );
+      expect(
+        tester.getTopLeft(bar).dy - tester.getTopLeft(body.first).dy,
+        moreOrLessEquals(kChartPopoverAccentBarMarginTop, epsilon: 0.01),
+        reason:
+            'With no x row the accent bar\'s 11px marginTop is all that sits '
+            'above it (ChartPopover.tsx:75).',
       );
     });
 
@@ -398,6 +514,85 @@ void main() {
           ),
         ),
       );
+
+  group('row shape pixel snapping', () {
+    // The row's marker is the legend's `<Shape>` svg (ChartPopover.tsx:211-217),
+    // which Chromium paints from its origin rounded to a whole device pixel,
+    // as it paints the legend's swatches.
+    const boundaryKey = Key('snap-boundary');
+
+    /// The first 20 columns of a one-row stacked body placed at [at]: the
+    /// 14px marker and none of the label 8px after it.
+    Future<List<int>> render(WidgetTester tester, Offset at) async {
+      tester.view.physicalSize = const Size(200, 100);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: RepaintBoundary(
+              key: boundaryKey,
+              child: SizedBox(
+                width: 120,
+                height: 60,
+                child: Stack(
+                  children: <Widget>[
+                    Positioned(
+                      left: at.dx,
+                      top: at.dy,
+                      child: buildFluentChartPopoverMultiValue(
+                        const FluentChartPopoverData(
+                          isCalloutForStack: true,
+                          yValues: <FluentYValueHover>[
+                            FluentYValueHover(
+                              legend: 'a',
+                              y: 1,
+                              color: Color(0xFF637CEF),
+                              index: 3,
+                            ),
+                          ],
+                        ),
+                        resolveFluentChartPopoverStyle(theme),
+                        theme.colors.neutralForeground1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final boundary = tester.renderObject<RenderRepaintBoundary>(
+        find.byKey(boundaryKey),
+      );
+      final bytes = await tester.runAsync(() async {
+        final image = await boundary.toImage();
+        final data = await image.toByteData();
+        final width = image.width;
+        image.dispose();
+        final all = data!.buffer.asUint8List();
+        return <int>[
+          for (var y = 0; y < 60; y++)
+            ...all.sublist(y * width * 4, (y * width + 20) * 4),
+        ];
+      });
+      return bytes!;
+    }
+
+    testWidgets('a row marker paints on whole pixels', (tester) async {
+      final snapped = await render(tester, const Offset(3, 7));
+      expect(
+        await render(tester, const Offset(2.6, 7.4)),
+        snapped,
+        reason:
+            'At (2.6, 7.4) the marker is painted as Chromium paints it: from '
+            '(3, 7), exactly as a body placed there.',
+      );
+    });
+  });
 
   group('fluentChartPopoverShapeForIndex', () {
     test('the modulus is 8, so dottedLine is unreachable', () {
@@ -548,19 +743,170 @@ void main() {
           isCalloutForStack: true,
           xValue: 'Jan',
           yValues: <FluentYValueHover>[
-            FluentYValueHover(legend: 'a', y: 1, index: 0),
-            FluentYValueHover(legend: 'b', y: 2, index: 1),
+            FluentYValueHover(
+              legend: 'a',
+              y: 1,
+              index: 0,
+              shouldDrawBorderBottom: true,
+            ),
+            FluentYValueHover(
+              legend: 'b',
+              y: 2,
+              index: 1,
+              shouldDrawBorderBottom: true,
+            ),
           ],
         ),
       );
       expect(
-        find.byKey(const ValueKey<String>('popover-row-rule')),
-        findsNothing,
+        find.byKey(kChartPopoverRowRuleKey),
+        findsOneWidget,
         reason:
             'ChartPopover.tsx:135 forces shouldDrawBorderBottom to false on the '
-            'last row, and the contract carries no per-row flag, so no row in '
-            'a two-row popover draws one.',
+            'last row, so of two flagged rows only the first draws one.',
       );
+    });
+
+    testWidgets('two ruled line rows mount side by side', (tester) async {
+      // A VerticalStackedBarChart stack with two lines rules both line rows
+      // (_onStackHoverFocus sets shouldDrawBorderBottom on every line), so
+      // the ruled wrappers are siblings in one Column.
+      await pumpMulti(
+        tester,
+        const FluentChartPopoverData(
+          isCalloutForStack: true,
+          xValue: 'Jan',
+          yValues: <FluentYValueHover>[
+            FluentYValueHover(legend: 'l1', y: 1, shouldDrawBorderBottom: true),
+            FluentYValueHover(legend: 'l2', y: 2, shouldDrawBorderBottom: true),
+            FluentYValueHover(legend: 'bar', y: 3),
+          ],
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(kChartPopoverRowRuleKey), findsNWidgets(2));
+    });
+
+    testWidgets('a flagged row is ruled off 10px below its bar', (
+      tester,
+    ) async {
+      await pumpMulti(
+        tester,
+        const FluentChartPopoverData(
+          isCalloutForStack: true,
+          xValue: 'Jan',
+          yValues: <FluentYValueHover>[
+            FluentYValueHover(
+              legend: 'line',
+              y: 1,
+              color: Color(0xFF0078D4),
+              shouldDrawBorderBottom: true,
+            ),
+            FluentYValueHover(legend: 'bar', y: 2, color: Color(0xFF0078D4)),
+          ],
+        ),
+      );
+      final rule = tester.widget<Container>(
+        find
+            .ancestor(
+              of: find.byKey(kChartPopoverRowRuleKey),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      final side =
+          ((rule.decoration! as BoxDecoration).border! as Border).bottom;
+      expect(
+        side.color.toARGB32(),
+        theme.colors.neutralStroke2.toARGB32(),
+        reason:
+            'ChartPopover.tsx:151 — `borderBottom: 1px solid '
+            'colorNeutralStroke2`.',
+      );
+      final bars = find.byKey(const ValueKey<String>('popover-row-accent-bar'));
+      expect(
+        tester.getTopLeft(bars.at(1)).dy - tester.getBottomLeft(bars.at(0)).dy,
+        moreOrLessEquals(
+          kChartPopoverRowPaddingBottom +
+              FluentStroke.thin +
+              kChartPopoverRowMarginTop,
+          epsilon: 0.01,
+        ),
+        reason:
+            'ChartPopover.tsx:152 pads the ruled row 10px, the rule is 1px, '
+            'and the next row\'s 13px marginTop follows (:226): a 66px row '
+            'pitch upstream in the VerticalStackedBarChart callout story.',
+      );
+      expect(
+        tester
+            .getSize(
+              find
+                  .ancestor(
+                    of: find.byKey(kChartPopoverRowRuleKey),
+                    matching: find.byType(Container),
+                  )
+                  .first,
+            )
+            .width,
+        moreOrLessEquals(
+          tester.getSize(find.byType(IntrinsicWidth)).width,
+          epsilon: 0.01,
+        ),
+        reason:
+            'calloutContentRoot is a grid (useChartPopoverStyles.styles.ts:34), '
+            'so the row wrapper, and its rule, span the whole body.',
+      );
+    });
+
+    testWidgets('the x reading is shown as the chart formatted it', (
+      tester,
+    ) async {
+      await pumpMulti(
+        tester,
+        const FluentChartPopoverData(
+          isCalloutForStack: true,
+          xValue: '15.000',
+          culture: 'de-DE',
+          yValues: <FluentYValueHover>[FluentYValueHover(legend: 'a', y: 1)],
+        ),
+      );
+      expect(
+        find.text('15.000'),
+        findsOneWidget,
+        reason:
+            'ChartPopover.tsx:128 formats hoverXValue once, and the chart has '
+            'already done that; a second pass reads de-DE 15.000 back as 15.',
+      );
+    });
+
+    testWidgets('a row formats its callout text as it formats a number', (
+      tester,
+    ) async {
+      await pumpMulti(
+        tester,
+        const FluentChartPopoverData(
+          isCalloutForStack: true,
+          xValue: 'Jan',
+          yValues: <FluentYValueHover>[
+            FluentYValueHover(legend: 'a', y: 1, yAxisCalloutText: '12345'),
+            FluentYValueHover(legend: 'b', y: 7, yAxisCalloutText: ''),
+            FluentYValueHover(legend: 'c', y: 2, yAxisCalloutText: '44%'),
+          ],
+        ),
+      );
+      expect(
+        find.text('12,345'),
+        findsOneWidget,
+        reason:
+            'ChartPopover.tsx:230-235 runs yAxisCalloutData through '
+            'formatToLocaleString, which groups a numeric string from 10000 up',
+      );
+      expect(
+        find.text('7'),
+        findsOneWidget,
+        reason: 'an empty callout text is falsy, so the row reads its y',
+      );
+      expect(find.text('44%'), findsOneWidget);
     });
 
     testWidgets('a subcount group gets a 16px header', (tester) async {
@@ -615,13 +961,68 @@ void main() {
       expect(
         tester.getSize(bar).height,
         tester.getSize(find.text('a')).height +
-            tester.getSize(find.text('1')).height +
-            kChartPopoverRowMarginTop,
+            FluentSpacing.xs +
+            tester.getSize(find.text('1')).height,
         reason:
             'ChartPopover.tsx:205 puts the border on the outer '
-            'calloutBlockContainer, so it spans the inner block — the legend '
-            'plus the reading, offset by the 13px marginTop at :226 — and '
-            'nothing taller.',
+            'calloutBlockContainer, so it spans the inner block — the legend, '
+            'its 4px marginBottom and the reading, 42px upstream — and nothing '
+            'taller: the 13px marginTop at :226 collapses through the outer '
+            'block, which has no top border or padding, and sits above the '
+            'bar.',
+      );
+      expect(
+        tester.getTopLeft(bar).dy,
+        moreOrLessEquals(tester.getTopLeft(find.text('a')).dy, epsilon: 0.01),
+        reason: 'The bar starts at the legend, not 13px above it.',
+      );
+    });
+
+    testWidgets('consecutive bars are 13px apart, not touching', (
+      tester,
+    ) async {
+      await pumpMulti(
+        tester,
+        const FluentChartPopoverData(
+          isCalloutForStack: true,
+          xValue: 'Jan',
+          yValues: <FluentYValueHover>[
+            FluentYValueHover(legend: 'a', y: 1, color: Color(0xFF0078D4)),
+            FluentYValueHover(legend: 'b', y: 2, color: Color(0xFFD13438)),
+          ],
+        ),
+      );
+      final bars = find.byKey(const ValueKey<String>('popover-row-accent-bar'));
+      expect(
+        tester.getTopLeft(bars.at(1)).dy - tester.getBottomLeft(bars.at(0)).dy,
+        moreOrLessEquals(kChartPopoverRowMarginTop, epsilon: 0.01),
+        reason:
+            'Each row\'s 13px marginTop (ChartPopover.tsx:226) lands outside '
+            'its bar, so the VerticalStackedBarChart callout shows separate '
+            '42px bars 13px apart rather than one multicolour stripe.',
+      );
+    });
+
+    testWidgets('an empty legend leaves a barred row nothing', (tester) async {
+      await pumpMulti(
+        tester,
+        const FluentChartPopoverData(
+          isCalloutForStack: true,
+          xValue: 'Jan',
+          yValues: <FluentYValueHover>[FluentYValueHover(y: 7)],
+        ),
+      );
+      expect(
+        tester
+            .getSize(
+              find.byKey(const ValueKey<String>('popover-row-accent-bar')),
+            )
+            .height,
+        moreOrLessEquals(tester.getSize(find.text('7')).height, epsilon: 0.01),
+        reason:
+            'ChartPopover.tsx:228 renders ` {legend}`; with no legend the div '
+            'is empty, so its 4px margin collapses through it into the 13px '
+            'row margin. Chrome measures the bar at 22px, the reading alone.',
       );
     });
 
@@ -707,89 +1108,288 @@ void main() {
     });
   });
 
-  group('FluentChartPopoverLayoutDelegate', () {
-    const size = Size(400, 300);
-    const child = Size(120, 80);
+  group('placement', () {
+    // The positioning boundary: the chart root upstream.
+    const box = Size(400, 300);
+    const reading = FluentChartPopoverData(
+      xValue: 'Jan',
+      legend: 'alpha',
+      yValue: '42',
+    );
 
-    test('sits below the cursor at the 20px offset', () {
-      const delegate = FluentChartPopoverLayoutDelegate(
-        anchor: Offset(100, 50),
-        offset: kChartPopoverAnchorOffset,
-      );
-      expect(
-        delegate.getPositionForChild(size, child).dy,
-        50 + kChartPopoverAnchorOffset,
-        reason:
-            'ChartPopover.tsx:48 sets `coverTarget: false` with `offset: 20`, '
-            'so the surface clears the zero-size virtual target by 20.',
-      );
-      expect(
-        delegate.getPositionForChild(size, child).dx,
-        100,
-        reason:
-            'The virtual element is zero-width (ChartPopover.tsx:31-32), so the '
-            'surface starts at the cursor.',
-      );
-    });
+    Finder surface() => find.descendant(
+      of: find.byType(FluentChartPopover),
+      matching: find.byType(ExcludeFocus),
+    );
 
-    test('flips above when there is no room below', () {
-      const delegate = FluentChartPopoverLayoutDelegate(
-        anchor: Offset(100, 280),
-        offset: kChartPopoverAnchorOffset,
-      );
-      expect(
-        delegate.getPositionForChild(size, child).dy,
-        280 - kChartPopoverAnchorOffset - 80,
-        reason:
-            'Below the cursor there are only 20 pixels, so the surface flips '
-            'above and keeps the same 20px clearance.',
-      );
-    });
-
-    test('shifts inside the box rather than overflowing it', () {
-      const delegate = FluentChartPopoverLayoutDelegate(
-        anchor: Offset(390, 50),
-        offset: kChartPopoverAnchorOffset,
-      );
-      expect(
-        delegate.getPositionForChild(size, child).dx,
-        400 - 120,
-        reason:
-            'A surface that would leave the plot is shifted back to its edge, '
-            'never clipped.',
-      );
-    });
-
-    test('autoSize always caps the surface at the available box', () {
-      const delegate = FluentChartPopoverLayoutDelegate(
-        anchor: Offset(10, 10),
-        offset: kChartPopoverAnchorOffset,
-      );
-      expect(
-        delegate.getConstraintsForChild(BoxConstraints.tight(size)).maxWidth,
-        size.width,
-        reason:
-            "ChartPopover.tsx:48 passes `autoSize: 'always'`, which caps the "
-            'surface at the viewport rather than letting it overflow.',
-      );
-    });
-
-    test('relayouts when the cursor moves', () {
-      const a = FluentChartPopoverLayoutDelegate(
-        anchor: Offset(10, 10),
-        offset: kChartPopoverAnchorOffset,
-      );
-      expect(
-        a.shouldRelayout(
-          const FluentChartPopoverLayoutDelegate(
-            anchor: Offset(11, 10),
-            offset: kChartPopoverAnchorOffset,
+    /// The surface's rect inside a [size] box pinned to the screen origin.
+    Future<Rect> place(
+      WidgetTester tester, {
+      Offset anchor = Offset.zero,
+      Rect? anchorRect,
+      FluentChartPopoverData data = reading,
+      Size size = box,
+      TextDirection direction = TextDirection.ltr,
+    }) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Directionality(
+            textDirection: direction,
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox.fromSize(
+                size: size,
+                child: FluentChartPopover(
+                  anchor: anchor,
+                  anchorRect: anchorRect,
+                  data: data,
+                ),
+              ),
+            ),
           ),
         ),
-        isTrue,
+      );
+      return tester.getRect(surface());
+    }
+
+    testWidgets('sits above the cursor, centred on it, 20px clear', (
+      tester,
+    ) async {
+      // Mid-box, where the surface fits on either side.
+      final rect = await place(tester, anchor: const Offset(200, 150));
+      expect(
+        rect.bottom,
+        moreOrLessEquals(150 - kChartPopoverAnchorOffset, epsilon: 0.5),
         reason:
-            'The popover follows the hovered datum, so a moved anchor must '
-            'relayout.',
+            'ChartPopover.tsx:48 passes no position, so Popover\'s default '
+            '`above` applies (usePopover.js:240-245) with `offset: 20`.',
+      );
+      expect(
+        rect.center.dx,
+        moreOrLessEquals(200, epsilon: 0.5),
+        reason:
+            'and its default `align: center` centres the surface on the '
+            'zero-width virtual element (ChartPopover.tsx:23-34).',
+      );
+    });
+
+    testWidgets('flips below when there is no room above', (tester) async {
+      final rect = await place(tester, anchor: const Offset(200, 30));
+      expect(
+        rect.top,
+        moreOrLessEquals(30 + kChartPopoverAnchorOffset, epsilon: 0.5),
+        reason:
+            'flip.js tries the opposite side when the surface overflows the '
+            'top of the boundary.',
+      );
+      expect(rect.center.dx, moreOrLessEquals(200, epsilon: 0.5));
+    });
+
+    testWidgets('takes the roomier side, capped, when neither fits', (
+      tester,
+    ) async {
+      final natural = (await place(
+        tester,
+        anchor: const Offset(200, 200),
+      )).height;
+      // A box too short for the surface on either side of the cursor.
+      final short = Size(400, natural + 2 * kChartPopoverAnchorOffset);
+      final below = await place(
+        tester,
+        anchor: Offset(200, short.height * 0.4),
+        size: short,
+      );
+      final roomBelow =
+          short.height - short.height * 0.4 - kChartPopoverAnchorOffset;
+      expect(
+        below.top,
+        moreOrLessEquals(
+          short.height * 0.4 + kChartPopoverAnchorOffset,
+          epsilon: 0.5,
+        ),
+        reason:
+            "fallbackStrategy 'bestFit' (flip.js:21) keeps the side that "
+            'overflows less, here below.',
+      );
+      expect(
+        below.height,
+        moreOrLessEquals(roomBelow, epsilon: 0.5),
+        reason:
+            "autoSize: 'always' caps max-height at the room on that side "
+            '(maxSize.js:46-63), so the surface ends at the boundary instead '
+            'of sliding over its own target.',
+      );
+      expect(tester.takeException(), isNull);
+
+      final above = await place(
+        tester,
+        anchor: Offset(200, short.height * 0.6),
+        size: short,
+      );
+      expect(
+        above.top,
+        moreOrLessEquals(0, epsilon: 0.5),
+        reason: 'The mirror case keeps the top and caps it there.',
+      );
+      expect(
+        above.bottom,
+        moreOrLessEquals(
+          short.height * 0.6 - kChartPopoverAnchorOffset,
+          epsilon: 0.5,
+        ),
+      );
+
+      final tie = await place(
+        tester,
+        anchor: Offset(200, short.height / 2),
+        size: short,
+      );
+      expect(
+        tie.bottom,
+        moreOrLessEquals(
+          short.height / 2 - kChartPopoverAnchorOffset,
+          epsilon: 0.5,
+        ),
+        reason:
+            'On a tie the stable sort in flip.js keeps the initial `top` '
+            'placement.',
+      );
+    });
+
+    testWidgets('shifts inside the box at both edges', (tester) async {
+      final left = await place(tester, anchor: const Offset(5, 200));
+      expect(
+        left.left,
+        moreOrLessEquals(0, epsilon: 0.01),
+        reason:
+            'shift() clamps the centred surface into the boundary rather than '
+            'letting it leave the chart root.',
+      );
+      final right = await place(tester, anchor: const Offset(395, 200));
+      expect(
+        right.right,
+        moreOrLessEquals(box.width, epsilon: 0.5),
+        reason:
+            'The clamped offset is still rounded to the device pixel grid '
+            '(writeContainerupdates.js:28-29), so a fractional width leaves '
+            'the right edge within a pixel of the boundary.',
+      );
+    });
+
+    testWidgets('places the same under RTL', (tester) async {
+      final ltr = await place(tester, anchor: const Offset(5, 200));
+      final rtl = await place(
+        tester,
+        anchor: const Offset(5, 200),
+        direction: TextDirection.rtl,
+      );
+      expect(
+        rtl.topLeft,
+        ltr.topLeft,
+        reason:
+            "toFloatingUIPlacement('center', 'above', isRtl) is `top` either "
+            'way, and floating-ui clamps in physical coordinates.',
+      );
+    });
+
+    testWidgets('centres on a mark and clears its edge', (tester) async {
+      const bar = Rect.fromLTWH(100, 150, 20, 100);
+      final above = await place(tester, anchorRect: bar);
+      expect(
+        above.center.dx,
+        moreOrLessEquals(bar.center.dx, epsilon: 0.5),
+        reason:
+            'GroupedVerticalBarChart hands the bar element to '
+            '`positioning.target` (GroupedVerticalBarChart.tsx:437).',
+      );
+      expect(
+        above.bottom,
+        moreOrLessEquals(bar.top - kChartPopoverAnchorOffset, epsilon: 0.5),
+        reason: 'An element target is cleared from its top edge above it …',
+      );
+      const low = Rect.fromLTWH(100, 20, 20, 60);
+      final below = await place(tester, anchorRect: low);
+      expect(
+        below.top,
+        moreOrLessEquals(low.bottom + kChartPopoverAnchorOffset, epsilon: 0.5),
+        reason: '… and from its bottom edge below it.',
+      );
+    });
+
+    testWidgets('a callout taller than the box never overflows', (
+      tester,
+    ) async {
+      await place(
+        tester,
+        anchor: const Offset(200, 150),
+        size: const Size(700, 300),
+        data: FluentChartPopoverData(
+          isCalloutForStack: true,
+          xValue: 'Jan',
+          yValues: <FluentYValueHover>[
+            for (var i = 0; i < 14; i++)
+              FluentYValueHover(
+                legend: 'series $i',
+                y: i.toDouble(),
+                color: const Color(0xFF0078D4),
+              ),
+          ],
+        ),
+      );
+      expect(
+        tester.takeException(),
+        isNull,
+        reason:
+            'The 14-row line-chart-multiple callout threw "A RenderFlex '
+            'overflowed by 454 pixels"; upstream caps the surface and scrolls '
+            "it (autoSize: 'always', maxSize.js:53-58).",
+      );
+      final rect = tester.getRect(surface());
+      expect(
+        const Rect.fromLTWH(0, 0, 700, 300).intersect(rect),
+        rect,
+        reason: 'The capped surface stays inside the boundary.',
+      );
+    });
+
+    testWidgets('contentMaxWidth caps the body inside the padding', (
+      tester,
+    ) async {
+      final rect = await place(
+        tester,
+        anchor: const Offset(200, 290),
+        data: const FluentChartPopoverData(
+          legend:
+              'A description long enough to need far more than two hundred '
+              'and thirty-eight pixels on one line',
+          yValue: '433',
+          contentMaxWidth: 238,
+        ),
+      );
+      final style = resolveFluentChartPopoverStyle(theme);
+      final padding = style.surfacePadding!
+          .resolve(const <WidgetState>{})!
+          .resolve(TextDirection.ltr);
+      final border = style.surfaceBorderWidth!.resolve(const <WidgetState>{})!;
+      expect(
+        rect.width,
+        moreOrLessEquals(238 + padding.horizontal + 2 * border, epsilon: 0.01),
+        reason:
+            'HeatMapChart puts maxWidth 238 on calloutContentRoot '
+            '(useHeatMapChartStyles.styles.ts:35-37), inside the 16px surface '
+            "padding and PopoverSurface's 1px transparent border: 272 in "
+            'Chrome.',
+      );
+    });
+
+    testWidgets('re-lays out when the anchor moves', (tester) async {
+      final a = await place(tester, anchor: const Offset(200, 200));
+      final b = await place(tester, anchor: const Offset(220, 200));
+      expect(
+        b.left - a.left,
+        moreOrLessEquals(20, epsilon: 0.5),
+        reason: 'A new anchor must reach the render object.',
       );
     });
   });
@@ -848,7 +1448,7 @@ void main() {
       );
     });
 
-    testWidgets('anchors the surface below the cursor', (tester) async {
+    testWidgets('flips below a cursor too near the top', (tester) async {
       await tester.pumpWidget(
         FluentApp(
           theme: theme,
@@ -869,8 +1469,8 @@ void main() {
             .dy,
         moreOrLessEquals(10 + kChartPopoverAnchorOffset, epsilon: 0.01),
         reason:
-            'The surface is laid out by the delegate against the anchor, so the '
-            'widget carries the same 20px clearance the delegate computes.',
+            'Ten pixels leave no room above, so the surface flips below and '
+            'keeps the same 20px clearance.',
       );
     });
 
@@ -944,13 +1544,20 @@ void main() {
       tester,
     ) async {
       await pump(tester, 'From node0');
-      final padding = resolveFluentChartPopoverStyle(theme).surfacePadding!
+      final resolved = resolveFluentChartPopoverStyle(theme);
+      final padding = resolved.surfacePadding!
           .resolve(const <WidgetState>{})!
           .resolve(TextDirection.ltr);
+      // PopoverSurface's `1px solid transparent` border takes layout space on
+      // both sides (usePopoverSurfaceStyles.styles.raw.js:20).
+      final border = resolved.surfaceBorderWidth!.resolve(
+        const <WidgetState>{},
+      )!;
       // The widest of the two stacked bodies: the bare x reading, or the
       // accent bar plus its gap plus the taller block beside it.
       final content =
           padding.horizontal +
+          2 * border +
           max(
             tester.getSize(find.text('node4')).width,
             kChartPopoverAccentBarWidth +

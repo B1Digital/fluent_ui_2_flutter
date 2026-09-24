@@ -23,9 +23,16 @@ class FluentChartHitRegion {
     required this.popoverData,
     this.semanticsLabel,
     this.onActivate,
+    this.popoverAnchor,
+    this.hitTest,
+    this.focusable = true,
+    this.followsPointer,
   });
 
   /// The area, in plot coordinates.
+  ///
+  /// Also where a keyboard stop centres its popover, so a region with a
+  /// [hitTest] keeps the mark's own box here.
   final Rect bounds;
 
   /// The region's position in the chart's own ordering, used by the roving
@@ -36,8 +43,15 @@ class FluentChartHitRegion {
   /// dim it.
   final String legend;
 
-  /// What the popover shows when this region is hovered or focused.
-  final FluentChartPopoverData popoverData;
+  /// What the popover shows when this region is hovered or focused, or null
+  /// for a mark that opens none.
+  ///
+  /// A hover on such a mark still closes whatever popover is open: upstream's
+  /// bar handlers run `setPopoverOpen(_noLegendHighlighted() ||
+  /// _legendHighlighted(point.legend))` on entering a bar
+  /// (`VerticalBarChart.tsx:479`, `GroupedVerticalBarChart.tsx:971`), so a bar
+  /// another legend has dimmed shuts the callout rather than being a gap.
+  final FluentChartPopoverData? popoverData;
 
   /// The narration for this region. Canvas-drawn text produces no semantics
   /// node at all, so a chart that wants narration must supply it here.
@@ -54,21 +68,70 @@ class FluentChartHitRegion {
   /// [FluentCartesianSeriesDelegate.activationAt] instead.
   final VoidCallback? onActivate;
 
-  /// [popoverData] and [onActivate] are deliberately excluded: both carry
-  /// closures — [FluentChartPopoverData.customContentBuilder] and the handler
-  /// itself — minted afresh on every build, so folding them in would make every
-  /// region unequal to its own rebuild and defeat the point of comparing
-  /// regions at all.
+  /// The mark the popover positions against, in plot coordinates, when it is
+  /// not [bounds] — LineChart's 11px active marker inside its wider latch
+  /// (`LineChart.tsx:1674-1676`, `:1888-1892`).
+  ///
+  /// Null anchors the popover to the pointer, or to [bounds] under
+  /// `FluentCartesianChartProps.popoverAnchorsToRegion`.
+  final Rect? popoverAnchor;
+
+  /// Whether a pointer at a position in plot coordinates is on the mark, when
+  /// the mark is not the whole of [bounds]; null hit-tests [bounds].
+  ///
+  /// SVG hit-tests the painted shape, so a `<circle>` is hovered and clicked
+  /// as a circle and not as the square around it (`ScatterChart.tsx:445-466`),
+  /// and a line point's target can take in the stroke leaving it.
+  final bool Function(Offset position)? hitTest;
+
+  /// Whether the roving keyboard index stops on this region.
+  ///
+  /// A mark another legend has dimmed takes no tab stop upstream
+  /// (`tabIndex={shouldHighlight ? 0 : undefined}`, `VerticalBarChart.tsx:682`,
+  /// `LineChart.tsx:592`), while its `onClick` stays on it, so a pointer can
+  /// still click what the keyboard skips.
+  final bool focusable;
+
+  /// Whether the popover's anchor follows the pointer as it moves inside this
+  /// region, or null to take the chart's
+  /// `FluentCartesianChartProps.popoverFollowsPointer`.
+  ///
+  /// VerticalStackedBarChart's stacks and segments listen to `onMouseMove`
+  /// while its line points only listen to `onMouseOver`
+  /// (`VerticalStackedBarChart.tsx:622`, `:644`), so a callout opened on a dot
+  /// stays where the pointer came in.
+  final bool? followsPointer;
+
+  /// Whether a pointer at [position], in plot coordinates, is on this region.
+  bool contains(Offset position) =>
+      hitTest?.call(position) ?? bounds.contains(position);
+
+  /// [popoverData], [onActivate] and [hitTest] are deliberately excluded: all
+  /// three carry closures — [FluentChartPopoverData.customContentBuilder] and
+  /// the two callbacks themselves — minted afresh on every build, so folding
+  /// them in would make every region unequal to its own rebuild and defeat the
+  /// point of comparing regions at all.
   @override
   bool operator ==(Object other) =>
       other is FluentChartHitRegion &&
       other.bounds == bounds &&
       other.index == index &&
       other.legend == legend &&
-      other.semanticsLabel == semanticsLabel;
+      other.semanticsLabel == semanticsLabel &&
+      other.popoverAnchor == popoverAnchor &&
+      other.focusable == focusable &&
+      other.followsPointer == followsPointer;
 
   @override
-  int get hashCode => Object.hash(bounds, index, legend, semanticsLabel);
+  int get hashCode => Object.hash(
+    bounds,
+    index,
+    legend,
+    semanticsLabel,
+    popoverAnchor,
+    focusable,
+    followsPointer,
+  );
 }
 
 /// The five values upstream's render prop hands each chart
@@ -266,6 +329,26 @@ abstract class FluentCartesianSeriesDelegate {
     FluentCartesianChildContext context,
     FluentCartesianLayout layout,
   );
+
+  /// The position in [regions] of the region a pointer hovering [position],
+  /// in plot coordinates, shows the popover of, -1 over none, or null to
+  /// hover the topmost region that [FluentChartHitRegion.contains] it.
+  ///
+  /// [regions] is what [buildHitRegions] last returned for [context], merged
+  /// under `FluentChartHitGranularity.group`.
+  ///
+  /// A chart overrides this when what a hover shows is not what lies under
+  /// the pointer. LineChart's segments hover their start point
+  /// (`LineChart.tsx:1251-1278`), which no region can say without being a
+  /// keyboard stop and a click target as well. The shell asks this on the
+  /// same event it reports through `FluentCartesianChart.onPointerMoveInPlot`,
+  /// of the delegate that built [regions], so the popover and the chart's own
+  /// hover state move together.
+  int? hoveredRegionAt(
+    FluentCartesianChildContext context,
+    List<FluentChartHitRegion> regions,
+    Offset position,
+  ) => null;
 
   /// What a click at [position], in plot coordinates, runs when it lands in
   /// none of the [buildHitRegions]; null runs nothing.

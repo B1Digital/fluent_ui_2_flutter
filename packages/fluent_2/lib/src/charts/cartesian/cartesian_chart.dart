@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -7,7 +10,9 @@ import '../axis/axis_builders.dart';
 import '../axis/axis_label_layout.dart';
 import '../axis/axis_types.dart';
 import '../chrome/annotation_layer.dart';
+import '../chrome/axis_label_tooltip.dart';
 import '../chrome/chart_popover.dart';
+import '../chrome/chart_popover_style.dart';
 import '../chrome/legend.dart';
 import '../internal/chart_colors.dart';
 import '../internal/chart_semantics.dart';
@@ -153,8 +158,9 @@ class FluentCartesianChart extends StatefulWidget {
   /// the pointer's x through the scale and bisects its first series to find the
   /// nearest x (`AreaChart.tsx:185-192`), which no region can express, so the
   /// shell reports the raw position and leaves the resolution to the chart.
-  /// Bound to pointer movement only, like upstream's `onMouseMove` and
-  /// `onMouseOver` pair (`:703-705`).
+  /// Bound to pointer movement, like upstream's `onMouseMove` and
+  /// `onMouseOver` pair (`:703-705`), and to a touch tap, which Chrome follows
+  /// with the same two events.
   final void Function(Offset local, FluentCartesianChildContext childContext)?
   onPointerMoveInPlot;
 
@@ -213,8 +219,9 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
   /// is what a press activates.
   ///
   /// A merged stop stands for several marks with a handler each, and a click
-  /// still lands on one of them: GroupedVerticalBarChart keeps `onClick` on
-  /// every rect under `isCalloutForStack` (`GroupedVerticalBarChart.tsx:594`).
+  /// still lands on one of them: AreaChart's stop at an x merges the band
+  /// hovering it with the circles there, each clicking its own point
+  /// (`AreaChart.tsx:846-853`).
   List<FluentChartHitRegion> _marks = const <FluentChartHitRegion>[];
   int _focusedIndex = -1;
   int _hoveredIndex = -1;
@@ -234,7 +241,28 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
   /// What the press landed on when it missed every region, picked at the press
   /// for the same reason [_pressedIndex] is.
   VoidCallback? _pressedOffRegion;
+
+  /// The popover's anchor, in plot coordinates.
   Offset _pointer = Offset.zero;
+
+  /// The region under the pointer right now, -1 in a gap, which is what tells
+  /// entering a mark apart from moving inside it.
+  int _pointerRegion = -1;
+
+  /// Whether a touch or pen tap has hovered the plot, which only a tap
+  /// outside the chart undoes.
+  bool _touchHovered = false;
+
+  /// The min-width reflow's horizontal scroller, read to place the popover in
+  /// the chart root rather than the scrolled plot.
+  final ScrollController _plotScroll = ScrollController();
+
+  /// The cut-short tick labels the last solve painted, in plot coordinates.
+  List<({Rect bounds, String fullText})> _axisLabels =
+      const <({Rect bounds, String fullText})>[];
+
+  /// The one of [_axisLabels] under the pointer, whose whole text shows.
+  ({Rect bounds, String fullText})? _hoveredAxisLabel;
 
   FocusNode get _focusNode =>
       widget.focusNode ?? (_internalFocusNode ??= FocusNode());
@@ -251,16 +279,27 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       widget.selectedLegends ?? _selectedLegends;
 
   @override
-  void didUpdateWidget(FluentCartesianChart oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // The measurer's cache key includes the resolved style, so a theme swap
-    // does not poison it; a font-scale change still can.
+  void initState() {
+    super.initState();
+    PaintingBinding.instance.systemFonts.addListener(_onSystemFontsChange);
+  }
+
+  /// The measurer's cache is keyed on the text and the resolved style, and it
+  /// measures unscaled, so no widget input can make an entry wrong: a theme
+  /// swap or a text-scale change arrives as a different key. What can is a
+  /// font that finishes loading under a key already measured with its
+  /// fallback, which is what this hears. Clearing it on every rebuild instead
+  /// re-measured every tick label on every hover move.
+  void _onSystemFontsChange() {
     _measurer.invalidate();
+    setState(() {});
   }
 
   @override
   void dispose() {
+    PaintingBinding.instance.systemFonts.removeListener(_onSystemFontsChange);
     _internalFocusNode?.dispose();
+    _plotScroll.dispose();
     super.dispose();
   }
 
@@ -295,11 +334,19 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       return KeyEventResult.ignored;
     }
     final count = _regions.length;
-    setState(() {
-      _focusedIndex = _focusedIndex < 0
+    // A mark with no tab stop is stepped over (`tabIndex={shouldHighlight ? 0
+    // : undefined}`, `VerticalBarChart.tsx:682`).
+    var next = _focusedIndex;
+    for (var i = 0; i < count; i++) {
+      next = next < 0
           ? (step > 0 ? 0 : count - 1)
-          : (_focusedIndex + step + count) % count;
-    });
+          : (next + step + count) % count;
+      if (_regions[next].focusable) break;
+    }
+    if (!_regions[next].focusable) {
+      return KeyEventResult.ignored;
+    }
+    setState(() => _focusedIndex = next);
     widget.onFocusedRegionChange?.call(_focusedIndex, _childContext);
     return KeyEventResult.handled;
   }
@@ -310,7 +357,7 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
   /// SVG hit-testing upstream relies on.
   static int _regionAt(List<FluentChartHitRegion> regions, Offset position) {
     for (var i = regions.length - 1; i >= 0; i--) {
-      if (regions[i].bounds.contains(position)) return i;
+      if (regions[i].contains(position)) return i;
     }
     return -1;
   }
@@ -329,8 +376,29 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
     return onActivate != null;
   }
 
-  void _onPointer(Offset position) {
-    final index = _regionAt(_regions, position);
+  /// A pointer moving, or a tap landing, at [local], plot coordinates, which is
+  /// [global] on screen: everything an `onMouseMove` or `onMouseOver` there
+  /// runs upstream.
+  void _hover(Offset local, Offset global) {
+    widget.onPointerMoveInPlot?.call(local, _childContext);
+    _hoverAxisLabel(local);
+    _onPointer(local, global);
+  }
+
+  /// Hover or press at [local], plot coordinates, which is [global] on screen.
+  void _onPointer(Offset local, Offset global) {
+    // Asked of the delegate that built [_regions], on the same event
+    // [FluentCartesianChart.onPointerMoveInPlot] has just reported, so the
+    // callout moves with the chart's own hover state rather than a move
+    // behind it.
+    final index =
+        widget.delegate.hoveredRegionAt(_childContext, _regions, local) ??
+        _regionAt(_regions, local);
+    // A mark re-anchors the callout from `onMouseOver`, which fires on entering
+    // it (`VerticalBarChart.tsx:475-478`); moving on inside leaves the anchor
+    // where the pointer came in, unless the chart follows the pointer.
+    final entered = index != _pointerRegion;
+    _pointerRegion = index;
     // Only HorizontalBarChartWithAxis closes the callout when the pointer
     // leaves a mark (`HorizontalBarChartWithAxis.tsx:266-268`). Every other
     // per-mark leave handler is an empty stub — `VerticalBarChart.tsx:496-498`,
@@ -340,10 +408,26 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
     if (index == -1 && !widget.props.closePopoverOnRegionExit) {
       return;
     }
-    if (index == _hoveredIndex && position == _pointer) return;
+    // `clientX` and `clientY` are whole pixels, so the anchor is floored on
+    // the screen and carried back into the plot.
+    final floored =
+        Offset(global.dx.floorToDouble(), global.dy.floorToDouble()) -
+        global +
+        local;
+    // Every chart's `updatePosition` moves the callout only once the pointer
+    // is more than a pixel from where it last put it (`const threshold = 1`,
+    // `ScatterChart.tsx:168-178`, `VerticalBarChart.tsx:1111`,
+    // `LineChart.tsx:292`, `AreaChart.tsx:268`).
+    final follows = index == -1
+        ? widget.props.popoverFollowsPointer
+        : _regions[index].followsPointer ?? widget.props.popoverFollowsPointer;
+    final anchor = (entered || follows) && (floored - _pointer).distance > 1
+        ? floored
+        : _pointer;
+    if (index == _hoveredIndex && anchor == _pointer) return;
     setState(() {
       _hoveredIndex = index;
-      _pointer = position;
+      _pointer = anchor;
     });
   }
 
@@ -360,7 +444,8 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
   /// each bring their own, so Enter on the stop has no one handler to run,
   /// while a click reaches the mark it lands on through [_marks]. A chart whose
   /// group has one handler of its own merges its regions itself, as
-  /// VerticalStackedBarChart does for `onBarClick`.
+  /// VerticalStackedBarChart does for `onBarClick`. It is hovered over its
+  /// marks and is a stop when any of them is.
   static List<FluentChartHitRegion> _coalesceRegionsByIndex(
     List<FluentChartHitRegion> regions,
   ) {
@@ -375,39 +460,164 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
               legend: existing.legend,
               popoverData: existing.popoverData,
               semanticsLabel: existing.semanticsLabel,
+              popoverAnchor: existing.popoverAnchor,
+              hitTest: (position) =>
+                  existing.contains(position) || region.contains(position),
+              focusable: existing.focusable || region.focusable,
+              followsPointer: existing.followsPointer,
             );
     }
     return merged.values.toList(growable: false);
   }
 
-  /// The popover layer: the built-in body, or the caller's.
-  Widget _popoverLayer(FluentChartHitRegion active, Offset anchor) {
-    final builder = widget.props.popoverBuilder;
-    if (builder == null) {
-      return FluentChartPopover(data: active.popoverData, anchor: anchor);
+  /// Where the plot's origin sits in the chart root.
+  ///
+  /// The plot is the root's first child, flush with its top-left corner,
+  /// unless the min-width reflow scrolls it sideways.
+  Offset get _plotOrigin {
+    if (!_plotScroll.hasClients || !_plotScroll.position.hasContentDimensions) {
+      return Offset.zero;
     }
-    // `ChartPopover.tsx:54` renders `customizedCallout` in place of both
-    // default bodies, inside a `PopoverSurface` that also supplies the 20px
-    // offset at `:48`.
-    // ponytail: the offset is reproduced but the surface's edge flipping is
-    // not, because `FluentChartPopover`'s constructor is `{data, anchor, style}`
-    // with no content slot to hand a custom body to. If a caller's body
-    // overflows the right edge, replace this `Positioned` with a
-    // `CustomSingleChildLayout` that measures the child first.
-    return Stack(
-      children: <Widget>[
-        Positioned(
-          left: anchor.dx + 20,
-          top: anchor.dy + 20,
-          child: builder(context),
-        ),
-      ],
+    final position = _plotScroll.position;
+    // An RTL horizontal scroller starts at its right-hand end.
+    return Offset(
+      position.axisDirection == AxisDirection.left
+          ? position.pixels - position.maxScrollExtent
+          : -position.pixels,
+      0,
     );
   }
 
+  /// The popover for the focused or hovered region, laid out over the whole
+  /// chart root.
+  ///
+  /// Built from inside the root's layout, after the plot's, so it reads the
+  /// regions the plot has just solved.
+  Widget _popover() {
+    bool within(int index) => index >= 0 && index < _regions.length;
+    final focused = within(_focusedIndex) ? _regions[_focusedIndex] : null;
+    // Keyboard focus and pointer hover feed the same popover; focus wins,
+    // because a keyboard user cannot also be hovering.
+    final active =
+        focused ?? (within(_hoveredIndex) ? _regions[_hoveredIndex] : null);
+    // A mark with no reading closes the callout, a custom body included
+    // (`setPopoverOpen(false)`, `VerticalBarChart.tsx:479`).
+    final data = active?.popoverData;
+    if (active == null || data == null) return const SizedBox.shrink();
+    // GroupedVerticalBarChart hands `Popover` the hovered bar element itself
+    // (`.tsx:437`, `:970`) where every other chart builds a zero-size virtual
+    // element at the cursor (`ChartPopover.tsx:23-40`). A keyboard stop has
+    // no cursor, so it takes the mark's centre, as `_onBarFocus` does
+    // (`VerticalBarChart.tsx:517-519`).
+    final element =
+        active.popoverAnchor ??
+        (widget.props.popoverAnchorsToRegion ? active.bounds : null);
+    final point = focused != null ? active.bounds.center : _pointer;
+    final target = (element ?? Rect.fromLTWH(point.dx, point.dy, 0, 0)).shift(
+      _plotOrigin,
+    );
+
+    final builder = widget.props.popoverBuilder;
+    final Widget layer;
+    if (builder == null) {
+      layer = FluentChartPopover(
+        data: data,
+        anchor: target.center,
+        anchorRect: target,
+      );
+    } else {
+      // `ChartPopover.tsx:54` renders `customizedCallout` in place of both
+      // default bodies, positioned exactly as they are.
+      // ponytail: the body is placed but not wrapped in the surface that
+      // `:52` also gives it, and the showroom's custom callouts are built and
+      // tested bare. Hand the builder to
+      // `FluentChartPopoverData.customContentBuilder` to give it one.
+      layer = FluentChartPopoverLayout(
+        target: target,
+        offset: kChartPopoverAnchorOffset,
+        child: builder(context),
+      );
+    }
+    return IgnorePointer(
+      // The plot's Semantics container narrates the focused mark through the
+      // hit region's `semanticsLabel`; the popover's text would repeat it.
+      child: ExcludeSemantics(
+        // `fui-cart__root` clips with `overflow: hidden`
+        // (`useCartesianChartStyles.styles.ts:44`).
+        child: ClipRect(child: layer),
+      ),
+    );
+  }
+
+  /// The whole text of the hovered cut-short tick label, over the chart root.
+  ///
+  /// `tooltipOfAxislabels` appends its div to the root (`utilities.ts:1293`)
+  /// and, on `mouseover`, sets `bottom` 4px above the tick text's top, `left`
+  /// at its centre and `translateX(-50%)` (`:1310-1317`). Absolutely placed
+  /// from `left` with no width, the div shrinks to fit the room right of that
+  /// line, and the root's `overflow: hidden` clips it.
+  Widget _axisLabelTooltip(
+    BuildContext context,
+    FluentCartesianChartStyle style,
+    TextStyle textStyle,
+  ) {
+    final label = _hoveredAxisLabel;
+    if (label == null) return const SizedBox.shrink();
+    const states = <WidgetState>{};
+    // The longest word, split as `autoLayoutXAxisLabels` splits one
+    // (`utilities.ts:2614`), in the style and scale the box's Text lays out.
+    final merged = DefaultTextStyle.of(context).style.merge(textStyle);
+    final minContent = _measurer
+        .longestWidth(
+          label.fullText.split(RegExp(r'\s+')),
+          merged.copyWith(
+            fontSize: MediaQuery.textScalerOf(
+              context,
+            ).scale(merged.fontSize ?? 14),
+          ),
+        )
+        .ceilToDouble();
+    return IgnorePointer(
+      // The box repeats a label the axis already names.
+      child: ExcludeSemantics(
+        child: ClipRect(
+          child: CustomSingleChildLayout(
+            delegate: _AxisLabelTooltipLayout(
+              label.bounds.shift(_plotOrigin),
+              minWidth: minContent + 2 * FluentSpacing.s,
+            ),
+            child: FluentChartTooltipBox(
+              text: label.fullText,
+              textStyle: textStyle,
+              backgroundColor: style.tooltipBackgroundColor?.resolve(states),
+              borderRadius: style.tooltipBorderRadius?.resolve(states),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Shows the whole text of the cut-short tick label at [local], plot
+  /// coordinates, or hides it off every label.
+  ///
+  /// `mouseover` and `mouseout` on the tick text, with no delay either way
+  /// (`utilities.ts:1308-1322`).
+  void _hoverAxisLabel(Offset local) {
+    final label = _axisLabels
+        .where((label) => label.bounds.contains(local))
+        .firstOrNull;
+    if (label == _hoveredAxisLabel) return;
+    setState(() => _hoveredAxisLabel = label);
+  }
+
   void _clearHover() {
-    if (_hoveredIndex == -1) return;
-    setState(() => _hoveredIndex = -1);
+    _pointerRegion = -1;
+    if (_hoveredIndex == -1 && _hoveredAxisLabel == null) return;
+    setState(() {
+      _hoveredIndex = -1;
+      _hoveredAxisLabel = null;
+    });
   }
 
   void _onFocusChange({required bool hasFocus}) {
@@ -436,52 +646,96 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
     // and collapses to no height, while a Flutter `Padding` would not.
     final showLegend = !widget.props.hideLegend && widget.legends.isNotEmpty;
 
-    return MouseRegion(
-      onExit: (_) => widget.onChartMouseLeave?.call(),
-      child: LayoutBuilder(
-        builder: (context, constraints) => SizedBox(
-          height: constraints.hasBoundedHeight
-              ? null
-              : kFluentCartesianChartFallbackHeight,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Expanded(
-                child: _buildPlot(
-                  style: style,
-                  colors: colors,
-                  textStyles: textStyles,
-                  isRtl: isRtl,
-                  crispOffset: crispOffset,
+    return TapRegion(
+      // A touch never leaves: Chrome runs the compatibility `mouseout` and
+      // `mouseleave` of a tapped chart when the next tap lands somewhere else,
+      // which is what closes the callout, the rule and the axis tooltip a tap
+      // opened (`CartesianChart.tsx:749`).
+      onTapOutside: (_) {
+        if (!_touchHovered) return;
+        _touchHovered = false;
+        _clearHover();
+        widget.onChartMouseLeave?.call();
+      },
+      child: MouseRegion(
+        onExit: (_) => widget.onChartMouseLeave?.call(),
+        child: LayoutBuilder(
+          builder: (context, constraints) => SizedBox(
+            height: constraints.hasBoundedHeight
+                ? null
+                : kFluentCartesianChartFallbackHeight,
+            // The chart root. `fui-cart__root` holds the legend as well as the
+            // plot and is the popover's positioned, clipping ancestor
+            // (`useCartesianChartStyles.styles.ts:38-46`,
+            // `CartesianChart.tsx:923`), so the callout places itself against
+            // the whole of it.
+            child: Stack(
+              fit: StackFit.passthrough,
+              children: <Widget>[
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Expanded(
+                      child: _buildPlot(
+                        style: style,
+                        colors: colors,
+                        textStyles: textStyles,
+                        isRtl: isRtl,
+                        crispOffset: crispOffset,
+                      ),
+                    ),
+                    if (showLegend)
+                      Padding(
+                        padding:
+                            style.legendRowPadding?.resolve(
+                              const <WidgetState>{},
+                            ) ??
+                            EdgeInsets.zero,
+                        // The shell's gap is `legendRowPadding` above —
+                        // upstream's `legendContainer` rule, `marginTop:
+                        // spacingVerticalS` and `marginLeft:
+                        // spacingHorizontalXL`
+                        // (`useCartesianChartStyles.styles.ts:103-104`). The
+                        // legend itself contributes none, so the strip
+                        // reserves 8 + 32 = 40 exactly as
+                        // `CartesianChart.tsx:505-508` computes it.
+                        child: FluentChartLegend(
+                          legends: widget.legends,
+                          selectionMode: widget.legendSelectionMode,
+                          selectedLegends: _effectiveSelectedLegends,
+                          onChange: (selected, _) {
+                            // `Legends.tsx:248-249` — the internal store only
+                            // moves in uncontrolled mode …
+                            if (widget.selectedLegends == null) {
+                              setState(() => _selectedLegends = selected);
+                            }
+                            // … but `:250` reports either way.
+                            widget.onLegendChange?.call(selected);
+                          },
+                        ),
+                      ),
+                  ],
                 ),
-              ),
-              if (showLegend)
-                Padding(
-                  padding:
-                      style.legendRowPadding?.resolve(const <WidgetState>{}) ??
-                      EdgeInsets.zero,
-                  // The shell's gap is `legendRowPadding` above — upstream's
-                  // `legendContainer` rule, `marginTop: spacingVerticalS` and
-                  // `marginLeft: spacingHorizontalXL`
-                  // (`useCartesianChartStyles.styles.ts:103-104`). The legend
-                  // itself contributes none, so the strip reserves 8 + 32 = 40
-                  // exactly as `CartesianChart.tsx:505-508` computes it.
-                  child: FluentChartLegend(
-                    legends: widget.legends,
-                    selectionMode: widget.legendSelectionMode,
-                    selectedLegends: _effectiveSelectedLegends,
-                    onChange: (selected, _) {
-                      // `Legends.tsx:248-249` — the internal store only moves
-                      // in uncontrolled mode …
-                      if (widget.selectedLegends == null) {
-                        setState(() => _selectedLegends = selected);
-                      }
-                      // … but `:250` reports either way.
-                      widget.onLegendChange?.call(selected);
-                    },
+                // `!hideTooltip` gates the whole callout, a custom body
+                // included (`CartesianChart.tsx:444`).
+                if (!widget.props.hideTooltip)
+                  Positioned.fill(
+                    // A later sibling than the Column, so it is laid out, and
+                    // its builder run, once the plot has solved its regions.
+                    child: LayoutBuilder(builder: (context, _) => _popover()),
                   ),
-                ),
-            ],
+                // Appended to the root after the chart has rendered
+                // (`CartesianChart.tsx:384-416`), so over everything in it, and
+                // shown whatever `hideTooltip` says.
+                if (_hoveredAxisLabel != null)
+                  Positioned.fill(
+                    child: LayoutBuilder(
+                      builder: (context, _) =>
+                          _axisLabelTooltip(context, style, textStyles.tooltip),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -515,6 +769,7 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
         if (minWidth > size.width) {
           final wide = Size(minWidth, size.height);
           return SingleChildScrollView(
+            controller: _plotScroll,
             scrollDirection: Axis.horizontal,
             child: SizedBox.fromSize(
               size: wide,
@@ -587,18 +842,29 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
     final focused = _focusedIndex >= 0 && _focusedIndex < _regions.length
         ? _regions[_focusedIndex]
         : null;
-    // Keyboard focus and pointer hover feed the same popover; focus wins,
-    // because a keyboard user cannot also be hovering.
-    final hovered = _hoveredIndex >= 0 && _hoveredIndex < _regions.length
-        ? _regions[_hoveredIndex]
-        : null;
-    final active = focused ?? hovered;
-    // A keyboard stop has no pointer, and GroupedVerticalBarChart hands
-    // `Popover` the hovered bar element itself (`.tsx:437`, `:970`) where every
-    // other chart builds a virtual element at the cursor
-    // (`ChartPopover.tsx:23-40`).
-    final anchorsToRegion =
-        focused != null || widget.props.popoverAnchorsToRegion;
+
+    final painter = FluentCartesianChartPainter(
+      layout: geometry.layout,
+      delegate: widget.delegate,
+      xAxis: geometry.xAxis,
+      yAxisPrimary: geometry.yAxisPrimary,
+      yAxisSecondary: geometry.yAxisSecondary,
+      xLabelLayout: geometry.xLabelLayout,
+      style: style,
+      colors: colors,
+      textStyles: textStyles,
+      measurer: _measurer,
+      crispOffset: crispOffset,
+      props: widget.props,
+    );
+    _axisLabels = painter.axisLabelTooltipTargets;
+    // Upstream re-creates the div hidden on every render
+    // (`CartesianChart.tsx:378-383`), which blanks it under a pointer that has
+    // not moved off the label. Only a re-solve that moved or dropped the label
+    // hides it here.
+    if (!_axisLabels.contains(_hoveredAxisLabel)) {
+      _hoveredAxisLabel = null;
+    }
 
     return Focus(
       focusNode: _focusNode,
@@ -610,20 +876,12 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
         child: Stack(
           children: <Widget>[
             MouseRegion(
-              onHover: (event) {
-                widget.onPointerMoveInPlot?.call(
-                  event.localPosition,
-                  childContext,
-                );
-                _onPointer(event.localPosition);
-              },
+              onHover: (event) => _hover(event.localPosition, event.position),
               onExit: (_) => _clearHover(),
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTapDown: (details) {
                   // The press picks the mark; the release only confirms it.
-                  // `_onPointer` alongside is the hover half of what a mark
-                  // does — it opens the callout and nothing more.
                   _pressedIndex = _regionAt(_marks, details.localPosition);
                   // A region wins, as upstream's marker circle sits above the
                   // line it would otherwise hand the click to.
@@ -633,7 +891,14 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
                           details.localPosition,
                         )
                       : null;
-                  _onPointer(details.localPosition);
+                  // Chrome follows a touch tap with the compatibility mouse
+                  // events, so a tap hovers what it lands on — the callout,
+                  // the chart's marker and rule, a cut-short label (measured
+                  // on vertical-bar-axis-tooltip) — until a tap lands
+                  // elsewhere. A mouse press is a no-op here: its hover has
+                  // already run.
+                  _touchHovered = details.kind != PointerDeviceKind.mouse;
+                  _hover(details.localPosition, details.globalPosition);
                 },
                 // The click itself, on the pressed mark: re-hit-testing the
                 // release would drop a thin mark's click entirely and, on a
@@ -646,27 +911,12 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
                     _activate(_marks, _pressedIndex);
                   }
                 },
-                child: CustomPaint(
-                  size: size,
-                  painter: FluentCartesianChartPainter(
-                    layout: geometry.layout,
-                    delegate: widget.delegate,
-                    xAxis: geometry.xAxis,
-                    yAxisPrimary: geometry.yAxisPrimary,
-                    yAxisSecondary: geometry.yAxisSecondary,
-                    xLabelLayout: geometry.xLabelLayout,
-                    style: style,
-                    colors: colors,
-                    textStyles: textStyles,
-                    measurer: _measurer,
-                    crispOffset: crispOffset,
-                    props: widget.props,
-                  ),
-                ),
+                child: CustomPaint(size: size, painter: painter),
               ),
             ),
             // Inside the series `<g>` upstream (`LineChart.tsx:1954`), so above
-            // the marks and below both the annotation layer and the callout.
+            // the marks and below both the annotation layer and the callout,
+            // which the root lays over all of this.
             if (widget.overlayBuilder != null)
               Positioned.fill(
                 child: widget.overlayBuilder!(
@@ -688,25 +938,6 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
                     xScale: geometry.xAxis.scale,
                     yScalePrimary: geometry.yAxisPrimary.scale,
                     yScaleSecondary: geometry.yAxisSecondary?.scale,
-                  ),
-                ),
-              ),
-            if (active != null && !widget.props.hideTooltip)
-              // The popover anchors to a zero-size virtual point at the cursor,
-              // exactly as `ChartPopover.tsx:23-40` builds a
-              // `PositioningVirtualElement` from `props.clickPosition`. It is
-              // given the whole plot to place itself in.
-              Positioned.fill(
-                child: IgnorePointer(
-                  // The container Semantics above has no explicit child nodes,
-                  // so the popover's own text would be absorbed into its label
-                  // and narrate the focused mark's values a second time. The
-                  // hit region's `semanticsLabel` is the one narration.
-                  child: ExcludeSemantics(
-                    child: _popoverLayer(
-                      active,
-                      anchorsToRegion ? active.bounds.center : _pointer,
-                    ),
                   ),
                 ),
               ),
@@ -1007,4 +1238,41 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       axisData: axisData,
     );
   }
+}
+
+/// Places the axis-label tooltip as `tooltipOfAxislabels` styles its div
+/// (`utilities.ts:1310-1317`): centred on the tick text, its bottom edge 4px
+/// above the text's top.
+///
+/// The div is absolutely positioned by `left` with no `width` or `right`, so
+/// CSS shrinks it to fit between that line and the root's right edge before
+/// `translateX(-50%)` moves it back by half. Shrink-to-fit never goes below
+/// the div's min-content width, though: a word wider than the room overflows
+/// the edge instead of breaking. Measured in Chrome 20px from the right edge,
+/// 'Supercalifragilisticexpialidocious' stays one 215px line, and a sentence
+/// wraps at its longest word.
+class _AxisLabelTooltipLayout extends SingleChildLayoutDelegate {
+  const _AxisLabelTooltipLayout(this.tick, {required this.minWidth});
+
+  /// The tick text's box, in the root's coordinates.
+  final Rect tick;
+
+  /// The box's min-content width: its longest word and its padding.
+  final double minWidth;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      BoxConstraints(
+        maxWidth: math.max(minWidth, constraints.maxWidth - tick.center.dx),
+      );
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) => Offset(
+    tick.center.dx - childSize.width / 2,
+    tick.top - 4 - childSize.height,
+  );
+
+  @override
+  bool shouldRelayout(_AxisLabelTooltipLayout oldDelegate) =>
+      oldDelegate.tick != tick || oldDelegate.minWidth != minWidth;
 }

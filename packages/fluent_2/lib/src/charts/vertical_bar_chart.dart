@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
+import 'package:intl/intl.dart';
 
 import '../l10n/l10n.dart';
 import 'axis/axis_builders.dart' as builders;
@@ -18,11 +19,14 @@ import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
 import 'internal/chart_text_styles.dart';
 import 'internal/chart_utils.dart';
+import 'internal/d3/js_math.dart' as d3;
 import 'internal/d3/path_sink.dart' as d3;
 import 'internal/d3/scale.dart';
 import 'internal/d3/scale_linear.dart';
+import 'internal/d3/scale_time.dart' as d3;
 import 'internal/d3/shape_line_area.dart' as d3;
 import 'model/bar_data.dart';
+import 'model/callout_data.dart';
 import 'model/chart_common.dart';
 import 'model/chart_value.dart';
 import 'model/line_options.dart';
@@ -106,9 +110,10 @@ class FluentVerticalBarChart extends StatefulWidget {
   /// BCP-47 locale for popover formatting.
   ///
   /// It formats the popover's y reading (`ChartPopover.tsx:89`) and, through
-  /// the delegate, the x-axis tick labels. The x reading is not localized:
-  /// upstream prints it with `toString` or `toLocaleDateString`, neither of
-  /// which is handed the culture (`VerticalBarChart.tsx:485`).
+  /// the delegate, the x-axis tick labels. The single-value x reading is not
+  /// localized: upstream prints it with `toString` or `toLocaleDateString`,
+  /// neither of which is handed the culture (`VerticalBarChart.tsx:485`). The
+  /// line-and-bar stack's header is (`ChartPopover.tsx:128`).
   final String? culture;
 
   /// Legacy shorthand feeding both band paddings.
@@ -182,6 +187,34 @@ class _FluentVerticalBarChartState extends State<FluentVerticalBarChart> {
     final style = resolveFluentVerticalBarChartStyle(
       theme,
     ).merge(FluentVerticalBarChartTheme.maybeOf(context)).merge(widget.style);
+    final delegate = FluentVerticalBarChartDelegate(
+      points: widget.data,
+      style: style,
+      colors: FluentChartColors.of(theme),
+      measurer: _measurer,
+      textStyles: FluentChartTextStyles.of(theme),
+      selectedLegends: _selectedLegends,
+      activeLegend: _activeLegend,
+      activeXDataPoint: _activeXDataPoint,
+      barWidthProp: widget.barWidth,
+      maxBarWidth: widget.maxBarWidth,
+      useSingleColor: widget.useSingleColor,
+      hideLabels: widget.hideLabels,
+      roundCorners: widget.roundCorners,
+      mode: widget.mode,
+      colorsOverride: widget.colors,
+      lineLegendText: widget.lineLegendText,
+      lineLegendFallback: fluentL10n(context).chartLineLegendFallback,
+      lineLegendColor: widget.lineLegendColor,
+      lineOptions: widget.lineOptions,
+      xAxisInnerPadding: widget.xAxisInnerPadding,
+      xAxisOuterPadding: widget.xAxisOuterPadding,
+      xAxisPadding: widget.xAxisPadding,
+      xAxisCategoryOrder: widget.xAxisCategoryOrder,
+      culture: widget.culture,
+      yMinValue: widget.props.yMinValue,
+      yMaxValue: widget.props.yMaxValue,
+    );
     return FluentCartesianChart(
       focusNode: widget.focusNode,
       legendSelectionMode: widget.legendSelectionMode,
@@ -208,34 +241,33 @@ class _FluentVerticalBarChartState extends State<FluentVerticalBarChart> {
             widget.mode != 'histogram',
       ),
       legends: _legends(style),
-      delegate: FluentVerticalBarChartDelegate(
-        points: widget.data,
-        style: style,
-        colors: FluentChartColors.of(theme),
-        measurer: _measurer,
-        textStyles: FluentChartTextStyles.of(theme),
-        selectedLegends: _selectedLegends,
-        activeLegend: _activeLegend,
-        activeXDataPoint: _activeXDataPoint,
-        barWidthProp: widget.barWidth,
-        maxBarWidth: widget.maxBarWidth,
-        useSingleColor: widget.useSingleColor,
-        hideLabels: widget.hideLabels,
-        roundCorners: widget.roundCorners,
-        mode: widget.mode,
-        colorsOverride: widget.colors,
-        lineLegendText: widget.lineLegendText,
-        lineLegendFallback: fluentL10n(context).chartLineLegendFallback,
-        lineLegendColor: widget.lineLegendColor,
-        lineOptions: widget.lineOptions,
-        xAxisInnerPadding: widget.xAxisInnerPadding,
-        xAxisOuterPadding: widget.xAxisOuterPadding,
-        xAxisPadding: widget.xAxisPadding,
-        xAxisCategoryOrder: widget.xAxisCategoryOrder,
-        culture: widget.culture,
-      ),
+      delegate: delegate,
+      // A bar's `onMouseOver` enlarges the line dot at its x
+      // (`VerticalBarChart.tsx:489`), which only a chart with a line can show.
+      // A touch tap runs it too, through Chrome's compatibility mouseover.
+      onPointerMoveInPlot: _hasLine
+          ? (local, childContext) =>
+                _onPlotHover(delegate.barAt(childContext, local))
+          : null,
       onChartMouseLeave: () => setState(() => _activeXDataPoint = null),
     );
+  }
+
+  /// `_noLegendHighlighted` (`VerticalBarChart.tsx:915-917`).
+  bool get _noLegendHighlighted =>
+      _selectedLegends.isEmpty && (_activeLegend?.isEmpty ?? true);
+
+  /// `setActiveXDatapoint(_noLegendHighlighted() ? point.x : null)` in
+  /// `_onBarHover` (`VerticalBarChart.tsx:489`), run on entering [bar]. The
+  /// gaps change nothing: `_onBarLeave` is empty (`:496-498`).
+  void _onPlotHover(FluentVerticalBarRect? bar) {
+    if (bar == null) {
+      return;
+    }
+    final next = _noLegendHighlighted ? widget.data[bar.index].x : null;
+    if (next != _activeXDataPoint) {
+      setState(() => _activeXDataPoint = next);
+    }
   }
 
   /// `_getChartTitle` (`VerticalBarChart.tsx:1066-1074`).
@@ -250,27 +282,42 @@ class _FluentVerticalBarChartState extends State<FluentVerticalBarChart> {
 
   /// `_getLegendData` (`VerticalBarChart.tsx:824-863`).
   List<FluentChartLegendItem> _legends(FluentVerticalBarChartStyle style) {
+    // `_yMax` as `:1124` sets it, before `_getAxisData` has run.
+    final yMax = math.max(
+      widget.data
+          .map((FluentVerticalBarChartDataPoint p) => p.y)
+          .reduce(math.max),
+      widget.props.yMaxValue,
+    );
+    // `mapLegendToColor[point.legend!] = color` (`:829-833`) overwrites, so a
+    // repeated legend takes its last point's colour; a Dart map, like the JS
+    // object, keeps the key where it was first inserted.
+    final colours = <String, Color>{
+      for (final point in widget.data)
+        if (point.legend != null)
+          point.legend!: widget.useSingleColor
+              // `_createColors()(1)` (`:831`), a constant under useSingleColor
+              // (`:401-405`).
+              ? (widget.colors?.firstOrNull ??
+                    style.singleColor!.resolve(<WidgetState>{})!)
+              // ponytail: upstream hands an uncoloured point's legend
+              // `undefined`, a hollow swatch (`Legends.tsx:297-298`) that
+              // FluentChartLegendItem.color cannot express; the ramp stands in.
+              : point.color ??
+                    FluentVerticalBarChartGeometry.colourFor(
+                      point.y,
+                      palette:
+                          widget.colors ??
+                          style.palette!.resolve(<WidgetState>{})!,
+                      yMax: yMax,
+                    ),
+    };
     final bars = <FluentChartLegendItem>[];
-    final seen = <String>{};
-    final yMax = widget.data
-        .map((FluentVerticalBarChartDataPoint p) => p.y)
-        .reduce(math.max);
-    for (var i = 0; i < widget.data.length; i++) {
-      final legend = widget.data[i].legend;
-      if (legend == null || !seen.add(legend)) {
-        continue;
-      }
+    for (final MapEntry(key: legend, value: colour) in colours.entries) {
       bars.add(
         FluentChartLegendItem(
           title: legend,
-          color:
-              widget.data[i].color ??
-              FluentVerticalBarChartGeometry.colourFor(
-                widget.data[i].y,
-                palette:
-                    widget.colors ?? style.palette!.resolve(<WidgetState>{})!,
-                yMax: yMax,
-              ),
+          color: colour,
           // `hoverAction` runs `_handleChartMouseLeave()` before
           // `_onLegendHover` (`VerticalBarChart.tsx:838-841`), which is what
           // drops the active x point.
@@ -351,7 +398,7 @@ abstract final class FluentVerticalBarChartGeometry {
   /// against the plot height, so it scales with the y range.
   ///
   /// [yBarScale] is the scale `_getScales` builds at
-  /// `VerticalBarChart.tsx:584-586` — the data domain onto `[0, plotHeight]`,
+  /// `VerticalBarChart.tsx:584-586` — the bar domain onto `[0, plotHeight]`,
   /// so it answers in pixels. Upstream feeds it a *magnitude* rather than a
   /// domain value, which for a domain that does not start at 0 extrapolates;
   /// that is reproduced, not corrected.
@@ -597,6 +644,8 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
     this.xAxisCategoryOrder = FluentAxisCategoryOrder.defaultOrder,
     this.yAxisTickFormat,
     this.culture,
+    this.yMinValue = 0,
+    this.yMaxValue = 0,
     // ignore: prefer_initializing_formals
   }) : _xAxisInnerPadding = xAxisInnerPadding,
        // ignore: prefer_initializing_formals
@@ -717,6 +766,12 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
   @override
   final String? culture;
 
+  /// `props.yMinValue || 0` (`VerticalBarChart.tsx:898`); 0 means unset.
+  final double yMinValue;
+
+  /// `props.yMaxValue || 0` (`VerticalBarChart.tsx:897`); 0 means unset.
+  final double yMaxValue;
+
   @override
   FluentChartType get chartType => FluentChartType.verticalBarChart;
 
@@ -746,23 +801,58 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
   List<Color> get _palette =>
       colorsOverride ?? style.palette!.resolve(<WidgetState>{})!;
 
-  /// The domain the **bars** are measured against.
+  /// `_createColors()(y)` (`VerticalBarChart.tsx:398-413`) over a ramp that
+  /// tops out at [yMax].
+  Color _colourScale(double y, double yMax) => useSingleColor
+      // `:401-405`.
+      ? (colorsOverride?.firstOrNull ??
+            style.singleColor!.resolve(<WidgetState>{})!)
+      : FluentVerticalBarChartGeometry.colourFor(
+          y,
+          palette: _palette,
+          yMax: yMax,
+        );
+
+  /// `_noLegendHighlighted` (`VerticalBarChart.tsx:915-917`), whose
+  /// activeLegend arm is an emptiness test rather than a null test.
+  bool get _noLegendHighlighted =>
+      selectedLegends.isEmpty &&
+      (activeLegend == null || activeLegend!.isEmpty);
+
+  /// `shouldHighlight` (`VerticalBarChart.tsx:640`, `:698`, `:763`).
+  bool _highlighted(FluentVerticalBarChartDataPoint point) =>
+      isLegendHighlightedMulti(
+        point.legend ?? '',
+        selectedLegends: selectedLegends,
+        activeLegend: activeLegend,
+      ) ||
+      _noLegendHighlighted;
+
+  /// `_legendHighlighted(lineLegendText!)` (`VerticalBarChart.tsx:908-910`):
+  /// an absent title is never in the highlighted list.
+  bool get _lineLegendHighlighted =>
+      lineLegendText != null &&
+      isLegendHighlightedMulti(
+        lineLegendText!,
+        selectedLegends: selectedLegends,
+        activeLegend: activeLegend,
+      );
+
+  /// The domain the bars and the colour ramp are measured against.
   ///
-  /// `_yMax = Math.max(d3Max(...), props.yMaxValue || 0)` and the mirroring
-  /// `_yMin` (`VerticalBarChart.tsx:1124-1125`): both ends are clamped through
-  /// zero, so an all-positive series still measures from a zero baseline. This
-  /// is **not** [resolveYMinMax], which feeds the y axis and stays the raw data
-  /// extent (`utilities.ts:1633-1654`).
-  ///
-  /// Pinned by Oracle B: `charts-verticalbarchart--vertical-bar-default` has a
-  /// data minimum of 10000, and its bars are only reproducible from a domain
-  /// starting at 0.
-  FluentChartMinMax get barDomain {
-    final raw = resolveYMinMax();
-    // The 0 is upstream's own `props.yMinValue || 0` / `yMaxValue || 0`.
+  /// Not the data extent `:1124-1125` start from: `_getAxisData`
+  /// (`VerticalBarChart.tsx:894-900`) overwrites `_yMin` and `_yMax` with the
+  /// ends of the y axis domain — `yAxisDomainValues` is `yAxisScale.domain()`
+  /// (`utilities.ts:889`) — before a single bar is built
+  /// (`CartesianChart.tsx:376`, then `:421`). This reads the same ends off the
+  /// scale the shell built. The negative story's axis runs to [-69.75k, 46.5k]
+  /// against data of [-50k, 43k], so the data extent hangs every bar off a
+  /// baseline 14px below the zero gridline.
+  FluentChartMinMax barDomainFor(FluentCartesianChildContext context) {
+    final domain = context.yScalePrimary.domain;
     return FluentChartMinMax(
-      startValue: math.min(raw.startValue, 0),
-      endValue: math.max(raw.endValue, 0),
+      startValue: math.min((domain.first as num).toDouble(), yMinValue),
+      endValue: math.max((domain.last as num).toDouble(), yMaxValue),
     );
   }
 
@@ -943,7 +1033,7 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
     if (points.isEmpty) {
       return const <FluentVerticalBarRect>[];
     }
-    final minMax = barDomain;
+    final minMax = barDomainFor(context);
     final yBarScale = _magnitudeScale(layout, minMax);
     // `_yMax < 0 ? _yMax : 0` (VerticalBarChart.tsx:638).
     final yReference = minMax.endValue < 0 ? minMax.endValue : 0.0;
@@ -953,8 +1043,11 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
       yReferencePoint: yReference,
       yBarScale: yBarScale,
     );
+    // `getGraphData` is handed `containerHeight - _removalValueForTextTuncate`
+    // (`CartesianChart.tsx:421-428`), so the bars stand on the axis above the
+    // x tick labels' reserve, not on the bottom margin below it.
     final baseline =
-        layout.size.height -
+        layout.plotContentHeight -
         (layout.margins.bottom ?? 0) -
         yBarScale(yReference)!;
     final isBand = xAxisType == FluentChartAxisType.category;
@@ -963,14 +1056,20 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
     // `:1045-1053`, which is the only place `calculateAppropriateBarWidth`
     // runs. [layout] carries the shell's own margins, so the solve here sees
     // exactly what the shell handed `domainMargins`.
-    final barWidth = isBand
-        ? getBarWidth(
-            barWidthProp,
-            maxBarWidth,
-            adjustedValue: context.xScale.bandwidth,
-            mode: mode,
-          )
-        : solveDomainMargin(layout.size.width, layout.margins).barWidth;
+    final solved = isBand
+        ? null
+        : solveDomainMargin(layout.size.width, layout.margins);
+    final barWidth =
+        solved?.barWidth ??
+        getBarWidth(
+          barWidthProp,
+          maxBarWidth,
+          adjustedValue: context.xScale.bandwidth,
+          mode: mode,
+        );
+    final xBarScale = xAxisType == FluentChartAxisType.date
+        ? _dateBarScale(layout, solved!.domainMargin)
+        : context.xScale;
     final dim = style.barOpacity!.resolve(<WidgetState>{WidgetState.disabled})!;
     final full = style.barOpacity!.resolve(<WidgetState>{})!;
     final gapAbove = style.barLabelGapAbove!.resolve(<WidgetState>{})!;
@@ -990,33 +1089,20 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
       final adjusted = height <= floor ? floor : height;
       final top = isNegative ? baseline : baseline - adjusted;
       final left = isBand
-          ? context.xScale(point.x)! +
-                0.5 * (context.xScale.bandwidth - barWidth)
-          : context.xScale(point.x)! - barWidth / 2;
-      final highlighted =
-          isLegendHighlightedMulti(
-            point.legend ?? '',
-            selectedLegends: selectedLegends,
-            activeLegend: activeLegend,
-          ) ||
-          // `_noLegendHighlighted` (`VerticalBarChart.tsx:915-917`), whose
-          // activeLegend arm is an emptiness test rather than a null test.
-          (selectedLegends.isEmpty &&
-              (activeLegend == null || activeLegend!.isEmpty));
+          ? xBarScale(point.x)! + 0.5 * (xBarScale.bandwidth - barWidth)
+          : xBarScale(point.x)! - barWidth / 2;
+      final highlighted = _highlighted(point);
       out.add(
         FluentVerticalBarRect(
           rect: Rect.fromLTWH(left, top, barWidth, adjusted),
           colour: colors.flattenMark(
-            point.color != null && !useSingleColor
+            // `point.color && !useSingleColor ? point.color : colorScale(y)`
+            // on the numeric and date bars (`:681`, `:804`); the string bars
+            // test `point.color` alone (`:745`), so there a coloured bar keeps
+            // its colour under useSingleColor.
+            point.color != null && (isBand || !useSingleColor)
                 ? point.color!
-                : useSingleColor
-                ? (colorsOverride?.firstOrNull ??
-                      style.singleColor!.resolve(<WidgetState>{})!)
-                : FluentVerticalBarChartGeometry.colourFor(
-                    point.y,
-                    palette: _palette,
-                    yMax: minMax.endValue,
-                  ),
+                : _colourScale(point.y, minMax.endValue),
           ),
           opacity: highlighted ? full : dim,
           index: i,
@@ -1033,6 +1119,23 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
       );
     }
     return out;
+  }
+
+  /// The private `xBarScale` a date axis's bars sit on
+  /// (`VerticalBarChart.tsx:598-607`): the raw extent of the dates, never
+  /// `.nice()`d, where the axis the shell draws — and the line reads — always
+  /// is (`utilities.ts:468`). The two agree only when the dates already end on
+  /// round boundaries, as the date-axis story's do.
+  Scale _dateBarScale(FluentCartesianLayout layout, double domainMargin) {
+    final dates = points.map((point) => point.x).whereType<DateTime>();
+    final start = (layout.margins.left ?? 0) + domainMargin;
+    final end = layout.size.width - (layout.margins.right ?? 0) - domainMargin;
+    return d3.scaleUtc()
+      ..domainOfDates(<DateTime>[
+        dates.reduce((a, b) => a.isBefore(b) ? a : b),
+        dates.reduce((a, b) => a.isAfter(b) ? a : b),
+      ])
+      ..rangeOf(layout.isRtl ? <double>[end, start] : <double>[start, end]);
   }
 
   /// Whether [bar]'s label is painted.
@@ -1097,9 +1200,11 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
     FluentChartMinMax minMax,
   ) => scaleLinear()
     ..domainOf(<double>[minMax.startValue, minMax.endValue])
+    // `_getScales` runs on the reduced `containerHeight` too
+    // (`VerticalBarChart.tsx:585-587`, `CartesianChart.tsx:425`).
     ..rangeOf(<double>[
       0,
-      layout.size.height -
+      layout.plotContentHeight -
           (layout.margins.bottom ?? 0) -
           (layout.margins.top ?? 0),
     ]);
@@ -1150,15 +1255,10 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
     if (path == null) {
       return;
     }
-    final lineHighlighted =
-        lineLegendText == null ||
-        isLegendHighlightedMulti(
-          lineLegendText!,
-          selectedLegends: selectedLegends,
-          activeLegend: activeLegend,
-        ) ||
-        (selectedLegends.isEmpty &&
-            (activeLegend == null || activeLegend!.isEmpty));
+    // `_legendHighlighted(lineLegendText!) || _noLegendHighlighted()`
+    // (`VerticalBarChart.tsx:186`), so a line with no legend of its own dims
+    // with everything else once a bar legend is highlighted.
+    final lineHighlighted = _lineLegendHighlighted || _noLegendHighlighted;
     final opacity = lineHighlighted
         ? style.barOpacity!.resolve(<WidgetState>{})!
         : style.barOpacity!.resolve(<WidgetState>{WidgetState.disabled})!;
@@ -1213,10 +1313,17 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
     final dots = lineDotsFor(context);
     for (var i = 0; i < dots.length; i++) {
       final active = activeXDataPoint == withLine[i].x;
+      // `_getCircleVisibilityAndRadius` (`VerticalBarChart.tsx:272-292`): with
+      // no legend highlighted only the active dot shows; otherwise the dots
+      // show only while the line's own legend is highlighted, the inactive
+      // ones at 0.3 so they stay focusable.
+      if (_noLegendHighlighted ? !active : !_lineLegendHighlighted) {
+        continue;
+      }
       final r = style.lineDotRadius!.resolve(
         active ? <WidgetState>{WidgetState.hovered} : <WidgetState>{},
       )!;
-      // 0 is `_getCircleVisibilityAndRadius`'s hidden radius (`:296`).
+      // SVG renders no part of a circle whose r is 0, ring included.
       if (r == 0) {
         continue;
       }
@@ -1233,33 +1340,168 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
     }
   }
 
+  /// The bars [buildHitRegions] last placed with each child context.
+  ///
+  /// The shell hands a pointer move the child context alone, and mints one
+  /// per solve, so it is the key; the table is weak and forgets a solve with
+  /// it, as VerticalStackedBarChart's does.
+  static final Expando<List<FluentVerticalBarRect>> _placed =
+      Expando<List<FluentVerticalBarRect>>();
+
+  /// The bar under [position], among those [buildHitRegions] placed with
+  /// [context]; the last wins an overlap, as in the shell's own hit test.
+  FluentVerticalBarRect? barAt(
+    FluentCartesianChildContext context,
+    Offset position,
+  ) => _placed[context]?.where((bar) => bar.rect.contains(position)).lastOrNull;
+
   @override
   List<FluentChartHitRegion> buildHitRegions(
     FluentCartesianChildContext context,
     FluentCartesianLayout layout,
-  ) => <FluentChartHitRegion>[
-    for (final bar in barsFor(context, layout))
-      FluentChartHitRegion(
-        bounds: bar.rect,
-        index: bar.index,
-        legend: points[bar.index].legend ?? '',
-        popoverData: FluentChartPopoverData(
-          xValue:
-              points[bar.index].xAxisCalloutData ?? '${points[bar.index].x}',
-          legend: points[bar.index].legend,
-          color: bar.colour,
-          // `YValue={_props.yAxisCalloutData || _props.y}` (`:363`), formatted
-          // the way `ChartPopover.tsx:89` formats it.
-          yValue:
-              points[bar.index].yAxisCalloutData ??
-              formatToLocaleString(points[bar.index].y, culture: culture),
+  ) {
+    final yMax = barDomainFor(context).endValue;
+    // It walks every point, so once per build rather than once per bar: the
+    // shell rebuilds these regions on every hover change, and a walk per bar
+    // made that quadratic.
+    final firstPointAtX = _firstPointAtX;
+    return <FluentChartHitRegion>[
+      for (final bar in _placed[context] = barsFor(context, layout))
+        FluentChartHitRegion(
+          bounds: bar.rect,
+          index: bar.index,
+          legend: points[bar.index].legend ?? '',
+          // A dimmed bar's hover closes the callout
+          // (`setPopoverOpen(_noLegendHighlighted() ||
+          // _legendHighlighted(point.legend))`, `:479`) and it takes no tab
+          // stop (`:682`), while its click stays.
+          popoverData: _highlighted(points[bar.index])
+              ? popoverDataFor(
+                  points[bar.index],
+                  yMax: yMax,
+                  firstPointAtX: firstPointAtX,
+                )
+              : null,
+          focusable: _highlighted(points[bar.index]),
+          semanticsLabel: semanticsLabelFor(points[bar.index]),
+          // `onClick={point.onClick}` on every bar (`VerticalBarChart.tsx:674`,
+          // `:740`, `:797`).
+          onActivate: points[bar.index].onClick,
         ),
-        semanticsLabel: semanticsLabelFor(points[bar.index]),
-        // `onClick={point.onClick}` on every bar (`VerticalBarChart.tsx:674`,
-        // `:740`, `:797`).
-        onActivate: points[bar.index].onClick,
+    ];
+  }
+
+  /// What hovering [point]'s bar shows: the state `_onBarHover` writes
+  /// (`VerticalBarChart.tsx:465-494`), read back through `calloutProps`
+  /// (`:1127-1149`). [yMax] tops the colour ramp, as in [barDomainFor].
+  ///
+  /// [firstPointAtX] is what [buildHitRegions] resolves once for every bar;
+  /// left out, it is resolved here.
+  FluentChartPopoverData popoverDataFor(
+    FluentVerticalBarChartDataPoint point, {
+    required double yMax,
+    Map<Object, FluentVerticalBarChartDataPoint>? firstPointAtX,
+  }) {
+    final firstAtX = firstPointAtX ?? _firstPointAtX;
+    // `isCalloutForStack: _isHavingLine && (_noLegendHighlighted() ||
+    // _getHighlightedLegend().length > 1)` (`:1140`); only a selection can
+    // highlight more than one legend.
+    if (firstAtX.isNotEmpty &&
+        (_noLegendHighlighted || selectedLegends.length > 1)) {
+      return _stackPopoverData(
+        point,
+        yMax: yMax,
+        selected: firstAtX[point.x] ?? point,
+      );
+    }
+    return FluentChartPopoverData(
+      // `setXCalloutValue` (`:484-486`), which the single-value body prints
+      // as it is (`ChartPopover.tsx:63`).
+      xValue: point.xAxisCalloutData ?? _xText(point.x),
+      legend: point.legend,
+      // `setColor(point.color || color)` (`:482`), `color` being the bar's
+      // `colorScale(point.y)` (`:675`) — so a point's own colour wins even
+      // under useSingleColor, which the bar itself does not show.
+      color: colors.flattenMark(point.color ?? _colourScale(point.y, yMax)),
+      // `YValue: yCalloutValue ? yCalloutValue : dataForHoverCard` (`:1135`).
+      // `_onBarHover` never writes `yCalloutValue` — only `_onBarFocus` and
+      // the line hover do (`:534`, `:572`) — so a hovered bar reads its raw y
+      // (`:480`) even when it carries `yAxisCalloutData`: the storybook's
+      // Monkeys bar reads "45,000", not "19%", once its legend is selected.
+      // Formatted as `ChartPopover.tsx:89` formats it.
+      yValue: formatToLocaleString(point.y, culture: culture),
+    );
+  }
+
+  /// The first point at each x, which answers for its whole x in the stack
+  /// callout (`VerticalBarChart.tsx:426`), or nothing when no point carries
+  /// `lineData`, so that its emptiness is `!_isHavingLine` (`:294-297`).
+  /// Walked backwards so the first point is the last written and wins.
+  Map<Object, FluentVerticalBarChartDataPoint> get _firstPointAtX =>
+      points.any((p) => p.lineData != null)
+      ? <Object, FluentVerticalBarChartDataPoint>{
+          for (final p in points.reversed) p.x: p,
+        }
+      : const <Object, FluentVerticalBarChartDataPoint>{};
+
+  /// `_getCalloutContentForLineAndBar` (`VerticalBarChart.tsx:419-463`).
+  ///
+  /// [selected] is the first point at [point]'s x, which answers for it rather
+  /// than the hovered one (`:426`).
+  FluentChartPopoverData _stackPopoverData(
+    FluentVerticalBarChartDataPoint point, {
+    required double yMax,
+    required FluentVerticalBarChartDataPoint selected,
+  }) {
+    final lineData = selected.lineData;
+    return FluentChartPopoverData(
+      // `point.xAxisCalloutData || hoverXValue` (`:458-461`), which the
+      // stacked body runs through `formatToLocaleString` (`ChartPopover.tsx:128`).
+      xValue: formatToLocaleString(
+        point.xAxisCalloutData ?? _xText(point.x, withTime: true),
+        culture: culture,
       ),
-  ];
+      isCalloutForStack: true,
+      culture: culture,
+      yValues: <FluentYValueHover>[
+        // `:428-441`.
+        if (lineData != null &&
+            (_lineLegendHighlighted || _noLegendHighlighted))
+          FluentYValueHover(
+            legend: lineLegendText,
+            color: colors.flattenMark(
+              lineLegendColor ?? style.lineColor!.resolve(<WidgetState>{})!,
+            ),
+            y: lineData.y,
+            yAxisCalloutText: lineData.yAxisCalloutData,
+          ),
+        // `:443-456`: the bar row tests the selection, not the hover.
+        if (_noLegendHighlighted || selectedLegends.contains(selected.legend))
+          FluentYValueHover(
+            legend: selected.legend,
+            y: selected.y,
+            color: colors.flattenMark(
+              useSingleColor
+                  ? _colourScale(1, yMax)
+                  : selected.color ?? _colourScale(selected.y, yMax),
+            ),
+            yAxisCalloutText: selected.yAxisCalloutData,
+          ),
+      ],
+    );
+  }
+
+  /// `x.toString()`, or for a date `toLocaleDateString()` — `toLocaleString()`
+  /// [withTime] — which upstream calls with no locale, so the runtime's own
+  /// (`VerticalBarChart.tsx:458`, `:485`).
+  static String _xText(Object x, {bool withTime = false}) => switch (x) {
+    num() => d3.jsNumberToString(x.toDouble()),
+    DateTime() when withTime =>
+      '${DateFormat.yMd().format(x.toLocal())}, '
+          '${DateFormat.jms().format(x.toLocal())}',
+    DateTime() => DateFormat.yMd().format(x.toLocal()),
+    _ => '$x',
+  };
 
   /// `_getAriaLabel` (`VerticalBarChart.tsx:922-940`).
   String semanticsLabelFor(FluentVerticalBarChartDataPoint p) {

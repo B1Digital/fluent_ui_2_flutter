@@ -42,6 +42,7 @@ void main() {
     bool reducedMotion = false,
     TextDirection? textDirection,
     Widget? behind,
+    Alignment triggerAlignment = Alignment.center,
   }) {
     changes = <bool>[];
     return tester.pumpWidget(
@@ -80,7 +81,10 @@ void main() {
               // owns the Overlay: the entry therefore does not inherit this, and
               // an RTL run only passes if the widget carries the direction
               // across the boundary itself.
-              Widget centred = Center(child: popover);
+              Widget centred = Align(
+                alignment: triggerAlignment,
+                child: popover,
+              );
               if (behind != null) {
                 // Pinned to the top-left corner, well clear of the centred
                 // trigger and of the surface above it, so `tapAt(5, 5)` is
@@ -136,6 +140,19 @@ void main() {
       .map((d) => d.decoration)
       .whereType<BoxDecoration>()
       .firstWhere((d) => d.borderRadius != null);
+
+  /// The surface's own decorated box — the one carrying the radius.
+  final surfaceFinder = find
+      .ancestor(
+        of: find.byKey(body),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is DecoratedBox &&
+              w.decoration is BoxDecoration &&
+              (w.decoration as BoxDecoration).borderRadius != null,
+        ),
+      )
+      .first;
 
   EdgeInsets paddingOf(WidgetTester tester) => tester
       .widget<Padding>(
@@ -339,36 +356,91 @@ void main() {
       expect(tester.getSize(arrowFinder), const Size(12, 6));
     });
 
-    testWidgets('an aligned arrow is inset by the surface padding', (
+    testWidgets('an open arrow points at the centre of its trigger', (
       tester,
     ) async {
-      // Figma pins `Top edge - left` at x = 16 on a 282-wide medium surface and
-      // `Top edge - right` at 250 — the same 16 in from either edge. React's
-      // arrowPadding is 2 * borderRadius = 8; Figma wins.
-      for (final align in <FluentPopoverAlign, double>{
-        FluentPopoverAlign.start: 1,
-        FluentPopoverAlign.end: -1,
-      }.entries) {
+      // Upstream's arrow is never pinned to an end: floating-ui's `arrow`
+      // middleware centres it on the reference whatever the alignment, so an
+      // aligned surface still points at the middle of its trigger. Figma's
+      // `Top edge - left` layer at x = 16 is a drawing of one case, not a rule.
+      for (final align in FluentPopoverAlign.values) {
         await pump(
           tester,
-          align: align.key,
+          align: align,
           withArrow: true,
           content: const SizedBox(key: body, width: 200, height: 20),
+          child: const SizedBox(key: trigger, width: 100, height: 20),
         );
         await open(tester);
         await tester.pumpAndSettle();
 
-        final surface = tester.getRect(find.byKey(body));
-        final arrow = tester.getRect(arrowFinder);
-        final gap = align.value > 0
-            ? arrow.left - (surface.left - FluentSpacing.l)
-            : (surface.right + FluentSpacing.l) - arrow.right;
         expect(
-          gap,
-          FluentSpacing.l,
+          tester.getRect(arrowFinder).center.dx,
+          tester.getRect(find.byKey(trigger)).center.dx,
+          reason: '${align.name}: the apex is over the trigger',
+        );
+      }
+    });
+
+    testWidgets('a rendered aligned arrow keeps upstream\'s arrow padding', (
+      tester,
+    ) async {
+      // buildFluentPopover has no trigger to point at, so an aligned arrow is
+      // pinned to its end at `arrowInset`. That is React's `arrowPadding: 2 *
+      // popoverSurfaceBorderRadius` = 8 (usePopover.js:243). Figma pins
+      // `Top edge - left` at 16, the surface inset; the storybook wins.
+      final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+      for (final align in <FluentPopoverAlign, double>{
+        FluentPopoverAlign.start: 1,
+        FluentPopoverAlign.end: -1,
+      }.entries) {
+        final state = resolveFluentPopoverState(
+          align: align.key,
+          withArrow: true,
+          content: const SizedBox(key: body, width: 200, height: 20),
+        );
+        final style = resolveFluentPopoverStyle(state, theme);
+        expect(style.arrowInset!.resolve(const <WidgetState>{}), 8);
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Center(
+              child: buildFluentPopover(state, style, const <WidgetState>{}),
+            ),
+          ),
+        );
+
+        final surface = tester.getRect(surfaceFinder);
+        final arrow = tester.getRect(arrowFinder);
+        expect(
+          align.value > 0
+              ? arrow.left - surface.left
+              : surface.right - arrow.right,
+          8,
           reason: '${align.key.name}: arrow inset from the surface edge',
         );
       }
+    });
+
+    testWidgets('the border takes layout space, as a CSS border does', (
+      tester,
+    ) async {
+      // PopoverSurface is `border: 1px solid transparent` plus 16px of padding
+      // (usePopoverSurfaceStyles.styles.raw.js:20, :42), so content starts 17px
+      // in and the surface is 2px larger than content plus padding. Painting
+      // the border as decoration only made every surface — and every chart
+      // callout — 2px small with its content 1px up and left.
+      await pump(
+        tester,
+        content: const SizedBox(key: body, width: 100, height: 20),
+      );
+      await open(tester);
+      await tester.pumpAndSettle();
+
+      final content = tester.getRect(find.byKey(body));
+      final surface = tester.getRect(surfaceFinder);
+      expect(surface.size, const Size(100 + 34, 20 + 34));
+      expect(content.topLeft - surface.topLeft, const Offset(17, 17));
     });
   });
 
@@ -682,8 +754,8 @@ void main() {
     ) async {
       // A surface wider than its anchor hangs off the end, so flush `start`
       // means the left edges line up in LTR and the right edges in RTL. What is
-      // measured is the content's edge, one surface padding inside the
-      // surface's own.
+      // measured is the content's edge, one border and one surface padding
+      // inside the surface's own — the border takes layout space upstream.
       for (final direction in TextDirection.values) {
         await pump(
           tester,
@@ -701,9 +773,171 @@ void main() {
           direction == TextDirection.rtl
               ? anchor.right - surface.right
               : surface.left - anchor.left,
-          moreOrLessEquals(FluentSpacing.l),
+          moreOrLessEquals(FluentStroke.thin + FluentSpacing.l),
           reason: '$direction: the start edges are flush',
         );
+      }
+    });
+  });
+
+  group('viewport', () {
+    // Upstream never pins a popover, so floating-ui flips it to the opposite
+    // side when its own lacks room (`fallbackStrategy: 'bestFit'`) and shifts
+    // it along the trigger's edge until it is inside
+    // (usePositioningOptions.js:79-122). A TeachingPopover by the left edge
+    // used to open 37px off-screen, cutting off its header and title.
+    testWidgets('a surface by an edge shifts inside and still points home', (
+      tester,
+    ) async {
+      for (final direction in TextDirection.values) {
+        for (final edge in <Alignment>[
+          Alignment.centerLeft,
+          Alignment.centerRight,
+        ]) {
+          await pump(
+            tester,
+            textDirection: direction,
+            triggerAlignment: edge,
+            position: FluentPopoverPosition.below,
+            withArrow: true,
+            content: const SizedBox(key: body, width: 300, height: 20),
+            child: const SizedBox(key: trigger, width: 40, height: 20),
+          );
+          await open(tester);
+          await tester.pumpAndSettle();
+
+          final surface = tester.getRect(surfaceFinder);
+          final anchor = tester.getRect(find.byKey(trigger));
+          if (edge == Alignment.centerLeft) {
+            expect(surface.left, 0, reason: '$direction $edge: flush left');
+          } else {
+            expect(surface.right, 800, reason: '$direction $edge: flush right');
+          }
+          expect(
+            tester.getRect(arrowFinder).center.dx,
+            anchor.center.dx,
+            reason: '$direction $edge: the arrow re-offsets onto the trigger',
+          );
+          expect(surface.top, anchor.bottom + 8, reason: 'still below');
+        }
+      }
+    });
+
+    testWidgets('a side without room flips, arrow and all', (tester) async {
+      for (final entry
+          in <
+                FluentPopoverPosition,
+                (Alignment, FluentPopoverPosition, TextDirection)
+              >{
+                FluentPopoverPosition.above: (
+                  Alignment.topCenter,
+                  FluentPopoverPosition.below,
+                  TextDirection.ltr,
+                ),
+                FluentPopoverPosition.below: (
+                  Alignment.bottomCenter,
+                  FluentPopoverPosition.above,
+                  TextDirection.ltr,
+                ),
+                // Reading order: `before` is the right side in RTL, so a trigger
+                // against the right edge has no room there.
+                FluentPopoverPosition.before: (
+                  Alignment.centerRight,
+                  FluentPopoverPosition.after,
+                  TextDirection.rtl,
+                ),
+              }
+              .entries) {
+        final (edge, landed, direction) = entry.value;
+        await pump(
+          tester,
+          textDirection: direction,
+          triggerAlignment: edge,
+          position: entry.key,
+          withArrow: true,
+          content: const SizedBox(key: body, width: 60, height: 20),
+          child: const SizedBox(key: trigger, width: 40, height: 20),
+        );
+        await open(tester);
+        await tester.pumpAndSettle();
+
+        final surface = tester.getRect(surfaceFinder);
+        final anchor = tester.getRect(find.byKey(trigger));
+        final arrow = tester.getRect(arrowFinder);
+        expect(arrowOf(tester).position, landed, reason: entry.key.name);
+        switch (landed) {
+          case FluentPopoverPosition.above:
+            expect(arrow.bottom, anchor.top);
+            expect(surface.bottom, arrow.top);
+          case FluentPopoverPosition.below:
+            expect(arrow.top, anchor.bottom);
+            expect(surface.top, arrow.bottom);
+          case FluentPopoverPosition.before || FluentPopoverPosition.after:
+            // `after` in RTL is the physical left.
+            expect(surface.right, arrow.left);
+            expect(arrow.right, anchor.left);
+        }
+      }
+    });
+
+    testWidgets('with no room either side, the preferred side stays', (
+      tester,
+    ) async {
+      // bestFit takes the placement that overflows least, and a tie goes to
+      // the first — the preferred one.
+      await pump(
+        tester,
+        withArrow: true,
+        content: const SizedBox(key: body, width: 60, height: 400),
+      );
+      await open(tester);
+      await tester.pumpAndSettle();
+      expect(arrowOf(tester).position, FluentPopoverPosition.above);
+    });
+
+    testWidgets('content taller than the overlay keeps its height', (
+      tester,
+    ) async {
+      // CSS caps an absolutely positioned surface's width at its containing
+      // block and never its height, so a tall one runs off the viewport. Laid
+      // out against the overlay's height, a Column in it overflowed instead.
+      await pump(
+        tester,
+        content: const SizedBox(key: body, width: 60, height: 900),
+      );
+      await open(tester);
+      await tester.pumpAndSettle();
+      expect(tester.getSize(find.byKey(body)).height, 900);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a mouse click on the placed surface stays inside it', (
+      tester,
+    ) async {
+      // The layout box spans the overlay rather than hanging off the trigger:
+      // a surface above or before its trigger would otherwise sit outside the
+      // box's bounds, where hit testing never reaches it, and every click on
+      // it would read as an outside tap.
+      for (final position in FluentPopoverPosition.values) {
+        await pump(
+          tester,
+          position: position,
+          content: const SizedBox(key: body, width: 60, height: 20),
+        );
+        await open(tester);
+        await tester.pumpAndSettle();
+
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: Offset.zero);
+        final at = tester.getCenter(find.byKey(body));
+        await mouse.moveTo(at);
+        await mouse.moveTo(at + const Offset(1, 0));
+        await mouse.down(at + const Offset(1, 0));
+        await mouse.up();
+        await tester.pump();
+        expect(changes, isEmpty, reason: '${position.name}: not dismissed');
+        expect(find.byKey(body), findsOneWidget);
+        await mouse.removePointer();
       }
     });
   });

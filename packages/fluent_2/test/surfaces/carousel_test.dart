@@ -193,14 +193,27 @@ void main() {
           );
 
           // The mark's colour comes off the resolved style, which is what the
-          // composed button hands down through IconTheme.
+          // composed button hands down through IconTheme. It is React's, not
+          // Figma's Neutral/Foreground/2 ramp: useCarouselNavButtonStyles
+          // paints colorNeutralForeground1 under opacity 0.6 / 0.75 / 1 while
+          // unselected and 1 / 0.75 / 0.65 on the selected pill.
           final resolved = resolveFluentCarouselStyle(
             resolveFluentCarouselState(),
             light,
           );
+          final opacity = switch ((type, stateName)) {
+            ('Active', 'Rest') => 1.0,
+            ('Active', 'Pressed') => 0.65,
+            ('Inactive', 'Rest') => 0.6,
+            ('Inactive', 'Pressed') => 1.0,
+            _ => 0.75,
+          };
           expectColor(
-            resolved.stepColor!.resolve(states[stateName]!)!,
-            part.fill!,
+            resolved.stepColor!.resolve(<WidgetState>{
+              ...states[stateName]!,
+              if (type == 'Active') WidgetState.selected,
+            })!,
+            light.colors.neutralForeground1.withValues(alpha: opacity),
             '${variant.name} mark fill',
           );
           expect(part.token('fills'), stateName);
@@ -235,13 +248,139 @@ void main() {
                   as BoxDecoration)
               .color!;
 
-      expect(markColor(), light.colors.neutralForeground2);
-      await hover(tester, step);
+      final mark = light.colors.neutralForeground1;
+      expect(markColor(), mark);
+      final mouse = await hover(tester, step);
+      await mouse.moveBy(const Offset(1, 0));
+      await tester.pump();
       expect(
         markColor(),
-        light.colors.neutralForeground2Hover,
+        mark.withValues(alpha: 0.75),
         reason: 'the mark reads the colour the button resolved, via IconTheme',
       );
+      await mouse.down(tester.getCenter(step));
+      await tester.pump();
+      expect(markColor(), mark.withValues(alpha: 0.65), reason: 'pressed');
+      await mouse.up();
+    });
+
+    Color markOf(WidgetTester tester, Finder step) =>
+        (tester
+                    .widget<DecoratedBox>(
+                      find
+                          .descendant(
+                            of: step,
+                            matching: find.byType(DecoratedBox),
+                          )
+                          .last,
+                    )
+                    .decoration
+                as BoxDecoration)
+            .color!;
+
+    testWidgets('an unselected dot darkens under the mouse', (tester) async {
+      // Chrome, carousel--default: #7B7B7B, #5A5A5A, #242424.
+      await pump(
+        tester,
+        Center(
+          child: FluentCarouselStep(
+            selected: false,
+            semanticLabel: 'Slide 2 of 5',
+            onPressed: () {},
+          ),
+        ),
+      );
+      final step = find.byType(FluentCarouselStep);
+      final mark = light.colors.neutralForeground1;
+      expect(markOf(tester, step), mark.withValues(alpha: 0.6));
+      final mouse = await hover(tester, step);
+      await mouse.moveBy(const Offset(1, 0));
+      await tester.pump();
+      expect(markOf(tester, step), mark.withValues(alpha: 0.75));
+      await mouse.down(tester.getCenter(step));
+      await tester.pump();
+      expect(markOf(tester, step), mark);
+      await mouse.up();
+    });
+
+    testWidgets('the brand appearance ramps both marks through brand', (
+      tester,
+    ) async {
+      // Chrome, carouselnav--default (appearance="brand"): the pill
+      // #0F6CBD / #115EA3 / #0F548C, a dot #7B7B7B / #4C86B9 / #0F548C.
+      final c = light.colors;
+      for (final selected in <bool>[true, false]) {
+        await pump(
+          tester,
+          Center(
+            child: FluentCarouselStep(
+              selected: selected,
+              appearance: FluentCarouselNavAppearance.brand,
+              semanticLabel: 'Slide 1 of 5',
+              onPressed: () {},
+            ),
+          ),
+        );
+        final step = find.byType(FluentCarouselStep);
+        expect(
+          markOf(tester, step),
+          selected
+              ? c.compoundBrandBackground
+              : c.neutralForeground1.withValues(alpha: 0.6),
+          reason: 'selected: $selected, rest',
+        );
+        final mouse = await hover(tester, step);
+        await mouse.moveBy(const Offset(1, 0));
+        await tester.pump();
+        expect(
+          markOf(tester, step),
+          selected
+              ? c.compoundBrandBackgroundHover
+              : c.compoundBrandBackgroundHover.withValues(alpha: 0.75),
+          reason: 'selected: $selected, hover',
+        );
+        await mouse.down(tester.getCenter(step));
+        await tester.pump();
+        expect(
+          markOf(tester, step),
+          c.compoundBrandBackgroundPressed,
+          reason: 'selected: $selected, pressed',
+        );
+        await mouse.up();
+        await mouse.removePointer();
+      }
+    });
+
+    testWidgets('a stepColor override on the selected step reaches its pill', (
+      tester,
+    ) async {
+      // The CarouselNav demo tints only its selected step this way. The pill
+      // and the dots share `stepColor`, told apart by WidgetState.selected.
+      final c = light.colors;
+      await pump(
+        tester,
+        Center(
+          child: FluentCarouselStep(
+            selected: true,
+            semanticLabel: 'Slide 1 of 5',
+            onPressed: () {},
+            style: FluentCarouselStyle(
+              stepColor: WidgetStateProperty<Color?>.fromMap(
+                <WidgetStatesConstraint, Color?>{
+                  WidgetState.hovered: c.compoundBrandBackgroundHover,
+                  WidgetState.any: c.compoundBrandBackground,
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      final step = find.byType(FluentCarouselStep);
+      expect(markOf(tester, step), c.compoundBrandBackground);
+      final mouse = await hover(tester, step);
+      await mouse.moveBy(const Offset(1, 0));
+      await tester.pump();
+      expect(markOf(tester, step), c.compoundBrandBackgroundHover);
     });
   });
 
@@ -290,11 +429,17 @@ void main() {
           ),
         );
 
+        // Figma pins each nav control at 24; Chrome renders upstream's
+        // CarouselButton and CarouselAutoplayButton at 32, and the storybook
+        // wins — so the strip is Figma's plus 8 per control.
         final rect = navRect(tester);
         expect(
           rect.width,
-          moreOrLessEquals(variant.size.width, epsilon: 0.01),
-          reason: 'nav width: 24 + 12 + indicator + 12 + 24',
+          moreOrLessEquals(
+            variant.size.width + 8 * (config.autoplay ? 3 : 2),
+            epsilon: 0.01,
+          ),
+          reason: 'nav width: 32 + 12 + indicator + 12 + 32',
         );
         expect(
           rect.height,
@@ -344,7 +489,11 @@ void main() {
       final control = tester.getRect(buttons.at(0));
       final previous = tester.getRect(buttons.at(1));
       expect(previous.left - control.right, FluentSpacing.s);
-      expect(control.size, const Size(24, 24));
+      expect(
+        control.size,
+        const Size(32, 32),
+        reason: "upstream's CarouselAutoplayButton; Figma pins 24",
+      );
     });
   });
 
@@ -437,7 +586,8 @@ void main() {
       await pump(tester, carousel());
 
       final slideRect = tester.getRect(find.byType(PageView));
-      final strip = tester.getRect(find.byType(FluentCarouselStep).first);
+      // The chevron is the strip's tallest control, so its top is the strip's.
+      final strip = tester.getRect(find.byType(FluentButton).first);
       expect(strip.top - slideRect.bottom, FluentSpacing.m);
       expect(
         tester
@@ -513,22 +663,99 @@ void main() {
       );
     });
 
-    testWidgets('the chevrons use the subtle appearance and Figma\'s '
-        'icon-only inset', (tester) async {
+    testWidgets('the chevrons are subtle medium icon buttons, 32 square', (
+      tester,
+    ) async {
+      // Chrome renders upstream's CarouselButton 32x32 around a 20 glyph;
+      // Figma's `.CarouselNav` pins 24. The storybook wins.
       await pump(tester, carousel());
 
       final previous = tester.widget<FluentButton>(
         find.byType(FluentButton).first,
       );
       expect(previous.appearance, FluentButtonAppearance.subtle);
-      expect(previous.size, FluentButtonSize.small);
-      expect(
-        previous.style!.padding!.resolve(<WidgetState>{}),
-        const EdgeInsets.all(FluentSpacing.xxs),
-      );
+      expect(previous.size, FluentButtonSize.medium);
       expect(
         tester.getSize(find.byType(FluentButton).first),
-        const Size(24, 24),
+        const Size(32, 32),
+      );
+    });
+
+    testWidgets('the autoplay toggle is a secondary toggle, checked while it '
+        'plays', (tester) async {
+      // Chrome, carousel--default Autoplay: playing (aria-pressed) it rests
+      // #EBEBEB over #D1D1D1 with a #242424 glyph; paused, rgba(255,255,255,.5)
+      // over a transparent border with a #424242 one. Either way hover is
+      // #F5F5F5 over #C7C7C7 and press #E0E0E0 over #B3B3B3 — the secondary
+      // button's own ramp.
+      final c = light.colors;
+      await pump(
+        tester,
+        carousel(autoplay: true, pauseButton: FluentCarouselPauseButton.inNav),
+      );
+      final control = find.byType(FluentButton).first;
+      final surface = find
+          .descendant(of: control, matching: find.byType(DecoratedBox))
+          .first;
+      BoxDecoration decoration() =>
+          tester.widget<DecoratedBox>(surface).decoration as BoxDecoration;
+      Color? glyph() => IconTheme.of(
+        tester.element(
+          find.descendant(of: control, matching: find.byType(Icon)),
+        ),
+      ).color;
+
+      expect(decoration().color, c.neutralBackground1Selected);
+      expect((decoration().border! as Border).top.color, c.neutralStroke1);
+      expect(glyph(), c.neutralForeground1Selected);
+
+      final mouse = await hover(tester, control);
+      await mouse.moveBy(const Offset(1, 0));
+      await tester.pumpAndSettle();
+      expect(decoration().color, c.neutralBackground1Hover);
+      expect((decoration().border! as Border).top.color, c.neutralStroke1Hover);
+
+      await mouse.down(tester.getCenter(control));
+      await tester.pumpAndSettle();
+      expect(decoration().color, c.neutralBackground1Pressed);
+      expect(
+        (decoration().border! as Border).top.color,
+        c.neutralStroke1Pressed,
+      );
+      // The click pauses it, and the unchecked toggle rests translucent.
+      await mouse.up();
+      await mouse.moveTo(Offset.zero);
+      await tester.pumpAndSettle();
+      expect(decoration().color, c.neutralBackgroundAlpha);
+      expect((decoration().border! as Border).top.color, c.transparentStroke);
+      expect(glyph(), c.neutralForeground2);
+    });
+
+    testWidgets('the autoplay toggle keeps the secondary focus border', (
+      tester,
+    ) async {
+      // useRootFocusStyles turns a keyboard-focused button's border
+      // colorStrokeFocus2, over the autoplay button's transparent stroke.
+      await pump(
+        tester,
+        carousel(autoplay: true, pauseButton: FluentCarouselPauseButton.inNav),
+      );
+      final surface = find
+          .descendant(
+            of: find.byType(FluentButton).first,
+            matching: find.byType(DecoratedBox),
+          )
+          .first;
+      Focus.of(tester.element(surface), scopeOk: true).requestFocus();
+      await tester.pump();
+      // Escape moves no focus; it flips the modality to keyboard.
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      final decoration =
+          tester.widget<DecoratedBox>(surface).decoration as BoxDecoration;
+      expect(
+        (decoration.border! as Border).top.color,
+        light.colors.strokeFocus2,
       );
     });
 
@@ -782,10 +1009,15 @@ void main() {
         resolveFluentCarouselState(),
         light,
       );
-      expect(
-        style.stepColor!.resolve(<WidgetState>{WidgetState.disabled}),
-        light.colors.neutralForegroundDisabled,
-      );
+      for (final selected in <bool>[false, true]) {
+        expect(
+          style.stepColor!.resolve(<WidgetState>{
+            WidgetState.disabled,
+            if (selected) WidgetState.selected,
+          }),
+          light.colors.neutralForegroundDisabled,
+        );
+      }
     });
   });
 
@@ -964,7 +1196,7 @@ void main() {
           theme: light,
           home: FluentThemeOverride(
             colors: const <FluentColorToken, Color>{
-              FluentColorToken.neutralForeground2: override,
+              FluentColorToken.neutralForeground1: override,
             },
             child: Center(
               child: FluentCarouselStep(
@@ -1033,49 +1265,71 @@ void main() {
     /// border still drew and the layout still measured right. Nothing about
     /// this component may repeat it.
     test('no foreground matches the surface it paints on', () {
-      final style = resolveFluentCarouselStyle(
-        resolveFluentCarouselState(layout: FluentCarouselLayout.overContent),
-        highContrast,
-      );
       final c = highContrast.colors;
 
-      for (final states in const <Set<WidgetState>>[
-        <WidgetState>{},
-        <WidgetState>{WidgetState.hovered},
-        <WidgetState>{WidgetState.pressed},
-        <WidgetState>{WidgetState.disabled},
-      ]) {
-        final mark = style.stepColor!.resolve(states)!;
-        final hitTarget = style.stepBackgroundColor!.resolve(states)!;
-        final wash = style.indicatorBackgroundColor!.resolve(states)!;
+      // The mark is translucent (upstream's opacity ramp), so "not equal" is
+      // no test at all: it has to stand out once composited. 3:1 is WCAG's
+      // non-text contrast floor.
+      double contrast(Color a, Color b) {
+        final (la, lb) = (a.computeLuminance(), b.computeLuminance());
+        return la > lb ? (la + 0.05) / (lb + 0.05) : (lb + 0.05) / (la + 0.05);
+      }
 
-        // What the mark actually paints on: its own hit target once that is
-        // opaque, otherwise the wash showing through it. Getting this wrong is
-        // how an invisible foreground ships — the border still draws and the
-        // layout still measures right.
-        final beneath = hitTarget.a == 1.0 ? hitTarget : wash;
-        expect(
-          mark,
-          isNot(beneath),
-          reason:
-              'the step mark would vanish into the surface under it '
-              'for $states',
+      for (final appearance in FluentCarouselNavAppearance.values) {
+        final style = resolveFluentCarouselStyle(
+          resolveFluentCarouselState(
+            layout: FluentCarouselLayout.overContent,
+            navAppearance: appearance,
+          ),
+          highContrast,
         );
-        expect(beneath.a, 1.0, reason: 'the surface under the mark is opaque');
-        // Only the *interactive* transparent tokens gain a high-contrast
-        // override — Hover, Pressed and Selected resolve to the system
-        // Highlight, while Rest stays genuinely see-through in every theme. A
-        // hardcoded Colors.transparent would stay invisible on hover too, and
-        // a hovered step would then have no surface at all here.
-        if (states.contains(WidgetState.hovered) ||
-            states.contains(WidgetState.pressed)) {
+        for (final states in const <Set<WidgetState>>[
+          <WidgetState>{},
+          <WidgetState>{WidgetState.hovered},
+          <WidgetState>{WidgetState.pressed},
+          <WidgetState>{WidgetState.disabled},
+        ]) {
+          final hitTarget = style.stepBackgroundColor!.resolve(states)!;
+          final wash = style.indicatorBackgroundColor!.resolve(states)!;
+
+          // What the mark actually paints on: its own hit target once that is
+          // opaque, otherwise the wash showing through it. Getting this wrong
+          // is how an invisible foreground ships — the border still draws and
+          // the layout still measures right.
+          final beneath = hitTarget.a == 1.0 ? hitTarget : wash;
+          for (final selected in <bool>[false, true]) {
+            final mark = style.stepColor!.resolve(<WidgetState>{
+              ...states,
+              if (selected) WidgetState.selected,
+            })!;
+            expect(
+              contrast(Color.alphaBlend(mark, beneath), beneath),
+              greaterThanOrEqualTo(3),
+              reason:
+                  'the $appearance step mark (selected: $selected) would '
+                  'vanish into the surface under it for $states',
+            );
+          }
           expect(
-            hitTarget.a,
+            beneath.a,
             1.0,
-            reason:
-                'the transparent token is opaque in high contrast for '
-                '$states',
+            reason: 'the surface under the mark is opaque',
           );
+          // Only the *interactive* transparent tokens gain a high-contrast
+          // override — Hover, Pressed and Selected resolve to the system
+          // Highlight, while Rest stays genuinely see-through in every theme. A
+          // hardcoded Colors.transparent would stay invisible on hover too, and
+          // a hovered step would then have no surface at all here.
+          if (states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.pressed)) {
+            expect(
+              hitTarget.a,
+              1.0,
+              reason:
+                  'the transparent token is opaque in high contrast for '
+                  '$states',
+            );
+          }
         }
       }
 

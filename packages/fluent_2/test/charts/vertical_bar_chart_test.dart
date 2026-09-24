@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:fluent_2/src/charts/axis/axis_types.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_chart.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_chart_props.dart';
@@ -5,6 +7,7 @@ import 'package:fluent_2/src/charts/cartesian/cartesian_layout.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_painter.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_series_delegate.dart';
 import 'package:fluent_2/src/charts/chrome/chart_popover.dart';
+import 'package:fluent_2/src/charts/chrome/legend.dart';
 import 'package:fluent_2/src/charts/internal/chart_colors.dart';
 import 'package:fluent_2/src/charts/internal/chart_text_measurer.dart';
 import 'package:fluent_2/src/charts/internal/chart_text_styles.dart';
@@ -12,6 +15,7 @@ import 'package:fluent_2/src/charts/internal/chart_utils.dart';
 import 'package:fluent_2/src/charts/internal/d3/scale.dart';
 import 'package:fluent_2/src/charts/internal/d3/scale_band.dart';
 import 'package:fluent_2/src/charts/internal/d3/scale_linear.dart';
+import 'package:fluent_2/src/charts/internal/d3/scale_time.dart';
 import 'package:fluent_2/src/charts/model/bar_data.dart';
 import 'package:fluent_2/src/charts/model/chart_common.dart';
 import 'package:fluent_2/src/charts/model/chart_value.dart';
@@ -20,6 +24,7 @@ import 'package:fluent_2/src/charts/vertical_bar_chart.dart';
 import 'package:fluent_2/src/charts/vertical_bar_chart_style.dart';
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -910,6 +915,9 @@ void main() {
         lineYs: <double>[5, 15],
         lineLegendColor: lineLegendColor,
         lineOptions: lineOptions,
+        // With no legend highlighted only the hovered x shows its dot
+        // (VerticalBarChart.tsx:286-290).
+        activeXDataPoint: 'a',
       );
       final canvas = _RecordingCanvas();
       delegate.paintSeries(
@@ -992,6 +1000,7 @@ void main() {
         categories: <String>['a', 'b'],
         ys: <double>[10, 20],
         lineYs: <double>[5, 15],
+        activeXDataPoint: 'a',
         isHighContrast: isHighContrast,
       );
       final canvas = _RecordingCanvas();
@@ -1019,7 +1028,9 @@ void main() {
           FluentVerticalBarChartGeometry.colourFor(
             10,
             palette: style.palette!.resolve(<WidgetState>{})!,
-            yMax: 20,
+            // The ramp tops out at the y axis domain's end, 100 in
+            // _positionScale, not at the data's 20 (VerticalBarChart.tsx:897).
+            yMax: 100,
           ),
         ),
         reason: 'flattenMark is the identity outside high contrast',
@@ -1137,7 +1148,12 @@ void main() {
             _margins.left! + kMinDomainMargin + kDefaultBarWidth,
             story.width - _margins.right! - kMinDomainMargin - kDefaultBarWidth,
           ]),
-        yScalePrimary: _positionScale(containerHeight: story.height),
+        // The y axis domain the capture's ticks run over, 0..50000, which is
+        // what `_getAxisData` hands the bars (VerticalBarChart.tsx:894-899).
+        yScalePrimary: _positionScale(
+          containerHeight: story.height,
+          yMax: 50000,
+        ),
         containerWidth: story.width,
         containerHeight: story.height,
       );
@@ -1880,6 +1896,772 @@ void main() {
       );
     });
   });
+
+  // `_getAxisData` (`VerticalBarChart.tsx:894-900`) rewrites `_yMin`/`_yMax`
+  // from the y AXIS domain before `getGraphData` builds a bar, and
+  // `getGraphData` is handed the height above the x label reserve
+  // (`CartesianChart.tsx:421-428`). The port measured both off the raw data
+  // and the full box: vertical-bar-negative and vertical-bar-dynamic lost 2-4%
+  // of their pixels to it, vertical-bar-rotate-labels 1%.
+  group('FluentVerticalBarChartDelegate bar domain and height', () {
+    // 350 - 35 - 20, the plot [_layout] leaves at no label reserve.
+    const plotHeight = 295.0;
+
+    FluentCartesianChildContext context({
+      required double yMin,
+      required double yMax,
+    }) => FluentCartesianChildContext(
+      xScale: _linearContext(width: 800).xScale,
+      yScalePrimary: ScaleLinear()
+        ..domainOf(<double>[yMin, yMax])
+        ..rangeOf(<double>[350 - _margins.bottom!, _margins.top!]),
+      containerWidth: 800,
+      containerHeight: 350,
+    );
+
+    test('bars and their baseline follow the y axis domain', () {
+      final delegate = _numericDelegate(
+        xs: <double>[1, 2],
+        ys: <double>[50, -25],
+      );
+      final bars = delegate.barsFor(
+        context(yMin: -50, yMax: 100),
+        _layout(width: 800, height: 350),
+      );
+      expect(bars.length, 2, reason: 'a count guard');
+      expect(
+        bars[0].rect.height,
+        closeTo(plotHeight * 50 / 150, 1e-9),
+        reason:
+            'yBarScale spans the axis domain [-50, 100] '
+            '(VerticalBarChart.tsx:585-587, :897-898), not the data [-25, 50]',
+      );
+      expect(
+        bars[0].rect.bottom,
+        closeTo(350 - _margins.bottom! - plotHeight * 50 / 150, 1e-9),
+        reason: 'the baseline sits on the axis zero, :662',
+      );
+    });
+
+    test('yMaxValue past the axis domain still tops the bar domain', () {
+      final delegate = FluentVerticalBarChartDelegate(
+        points: const <FluentVerticalBarChartDataPoint>[
+          FluentVerticalBarChartDataPoint(x: 1, y: 50),
+        ],
+        style: resolveFluentVerticalBarChartStyle(_delegateTheme),
+        colors: _colours(),
+        measurer: _measurer,
+        textStyles: FluentChartTextStyles.of(_delegateTheme),
+        selectedLegends: const <String>[],
+        yMaxValue: 200,
+      );
+      final bars = delegate.barsFor(
+        context(yMin: 0, yMax: 100),
+        _layout(width: 800, height: 350),
+      );
+      expect(
+        bars.single.rect.height,
+        closeTo(plotHeight / 4, 1e-9),
+        reason: 'Math.max(domain.last, props.yMaxValue || 0), :897',
+      );
+    });
+
+    test('the colour ramp tops out at the axis domain too', () {
+      final delegate = _numericDelegate(xs: <double>[1], ys: <double>[89]);
+      final palette = resolveFluentVerticalBarChartStyle(
+        _delegateTheme,
+      ).palette!.resolve(<WidgetState>{})!;
+      expect(
+        _argb(
+          delegate
+              .barsFor(
+                context(yMin: 0, yMax: 100),
+                _layout(width: 800, height: 350),
+              )
+              .single
+              .colour,
+        ),
+        _argb(
+          FluentVerticalBarChartGeometry.colourFor(
+            89,
+            palette: palette,
+            yMax: 100,
+          ),
+        ),
+        reason:
+            '_createColors spreads the stops over i * increment * _yMax '
+            '(:407-410), and _yMax is the axis end: vertical-bar-dynamic '
+            'paints its 89 bar rgb(83,125,159), which only yMax 100 gives',
+      );
+    });
+
+    test('the bars stand above the x label reserve', () {
+      final delegate = _numericDelegate(xs: <double>[1], ys: <double>[100]);
+      final bars = delegate.barsFor(
+        context(yMin: 0, yMax: 100),
+        FluentCartesianLayout.resolve(
+          size: const Size(800, 350),
+          margins: _margins,
+          xAxisLabelReserve: 100,
+          isRtl: false,
+          startFromX: 0,
+        ),
+      );
+      expect(
+        bars.single.rect.bottom,
+        closeTo(350 - 100 - _margins.bottom!, 1e-9),
+        reason:
+            'getGraphData gets containerHeight - _removalValueForTextTuncate '
+            '(CartesianChart.tsx:425)',
+      );
+      expect(
+        bars.single.rect.top,
+        closeTo(_margins.top!, 1e-9),
+        reason: 'and so does yBarScale, whose top is the axis top',
+      );
+    });
+  });
+
+  group('FluentVerticalBarChartDelegate date bars', () {
+    test('sit on an un-niced scale over the dates themselves', () {
+      final dates = <DateTime>[
+        // Off-midnight ends, which nice() rounds out to whole days.
+        DateTime.utc(2024, 1, 10, 7),
+        DateTime.utc(2024, 1, 20),
+        DateTime.utc(2024, 1, 25, 17),
+      ];
+      final delegate = _delegateOver(<FluentVerticalBarChartDataPoint>[
+        for (final date in dates)
+          FluentVerticalBarChartDataPoint(x: date, y: 10),
+      ]);
+      final layout = _layout(width: 800, height: 350);
+      final solved = delegate.solveDomainMargin(800, _margins);
+      final start = _margins.left! + solved.domainMargin;
+      final end = 800 - _margins.right! - solved.domainMargin;
+      // What the shell hands the delegate: the axis scale, niced
+      // unconditionally (utilities.ts:468).
+      final axis = scaleUtc()
+        ..domainOfDates(<DateTime>[dates.first, dates.last])
+        ..rangeOf(<double>[start, end])
+        ..nice();
+      expect(
+        axis(dates.first),
+        isNot(closeTo(start, 1)),
+        reason: 'a guard: the niced axis must move the first date',
+      );
+      final bars = delegate.barsFor(
+        FluentCartesianChildContext(
+          xScale: axis,
+          yScalePrimary: _positionScale(containerHeight: 350),
+          containerWidth: 800,
+          containerHeight: 350,
+        ),
+        layout,
+      );
+      expect(bars.length, 3, reason: 'a count guard');
+      expect(
+        bars.first.rect.center.dx,
+        closeTo(start, 1e-9),
+        reason:
+            'xBarScale is scaleUtc().domain([sDate, lDate]) with no nice() '
+            '(VerticalBarChart.tsx:598-607)',
+      );
+      expect(bars.last.rect.center.dx, closeTo(end, 1e-9));
+    });
+  });
+
+  group('FluentVerticalBarChartDelegate line dots', () {
+    _RecordingCanvas paint({
+      Object? activeXDataPoint,
+      List<String> selectedLegends = const <String>[],
+      String? activeLegend,
+      String? lineLegendText = 'Line',
+    }) {
+      final delegate = _delegateOver(
+        const <FluentVerticalBarChartDataPoint>[
+          FluentVerticalBarChartDataPoint(
+            x: 'a',
+            y: 10,
+            legend: 'A',
+            lineData: FluentBarLineDatum(y: 5),
+          ),
+          FluentVerticalBarChartDataPoint(
+            x: 'b',
+            y: 20,
+            legend: 'B',
+            lineData: FluentBarLineDatum(y: 15),
+          ),
+        ],
+        activeXDataPoint: activeXDataPoint,
+        selectedLegends: selectedLegends,
+        activeLegend: activeLegend,
+        lineLegendText: lineLegendText,
+      );
+      final canvas = _RecordingCanvas();
+      delegate.paintSeries(
+        canvas,
+        _bandContext(<String>['a', 'b'], width: 800),
+        _layout(width: 800, height: 350),
+        delegate.colors,
+      );
+      return canvas;
+    }
+
+    test('no dot shows at rest', () {
+      expect(
+        paint().circleRadii,
+        isEmpty,
+        reason:
+            'with no legend highlighted every dot is visibility hidden until '
+            'its x is active (VerticalBarChart.tsx:286-290); the storybook '
+            'renders all seven hidden',
+      );
+    });
+
+    test('the active x shows its dot at r 8', () {
+      expect(paint(activeXDataPoint: 'b').circleRadii, <double>[
+        8,
+        8,
+      ], reason: 'one dot, its fill and its 3px ring, :288-289');
+    });
+
+    test('a highlighted line legend shows every dot, 0.3 when inactive', () {
+      expect(
+        paint(activeLegend: 'Line', activeXDataPoint: 'a').circleRadii,
+        <double>[8, 8, 0.3, 0.3],
+        reason: ':277-282 keeps the inactive dots at 0.3, still focusable',
+      );
+    });
+
+    test('another highlighted legend hides every dot and dims the line', () {
+      final canvas = paint(
+        selectedLegends: <String>['A'],
+        lineLegendText: null,
+      );
+      expect(canvas.circleRadii, isEmpty, reason: ':283-284');
+      expect(
+        canvas.pathStrokes.single.a,
+        closeTo(0.1, 1e-3),
+        reason:
+            '_legendHighlighted(undefined) is false (:186, :908-910), so a '
+            'line with no legend of its own dims with the other bars',
+      );
+    });
+  });
+
+  group('FluentVerticalBarChartDelegate popover', () {
+    const brown = Color(0xFFA52A2A);
+    const steelBlue = Color(0xFF4682B4);
+    const points = <FluentVerticalBarChartDataPoint>[
+      FluentVerticalBarChartDataPoint(
+        x: 92000,
+        y: 45000,
+        legend: 'Monkeys',
+        color: steelBlue,
+        xAxisCalloutData: '2020/04/30',
+        yAxisCalloutData: '19%',
+        lineData: FluentBarLineDatum(y: 40000, yAxisCalloutData: '16%'),
+      ),
+      FluentVerticalBarChartDataPoint(
+        x: 40000,
+        y: 13000,
+        legend: 'Bananas',
+        color: Color(0xFF0000FF),
+        yAxisCalloutData: '5%',
+      ),
+    ];
+
+    FluentVerticalBarChartDelegate delegate({
+      List<String> selectedLegends = const <String>[],
+      bool useSingleColor = false,
+      List<FluentVerticalBarChartDataPoint> data = points,
+    }) => FluentVerticalBarChartDelegate(
+      points: data,
+      style: resolveFluentVerticalBarChartStyle(_delegateTheme),
+      colors: _colours(),
+      measurer: _measurer,
+      textStyles: FluentChartTextStyles.of(_delegateTheme),
+      selectedLegends: selectedLegends,
+      lineLegendText: 'just line',
+      lineLegendColor: brown,
+      useSingleColor: useSingleColor,
+      colorsOverride: const <Color>[Color(0xFF90EE90)],
+      culture: 'en-US',
+    );
+
+    test('a chart with a line reads the stack callout', () {
+      final data = delegate().popoverDataFor(points.first, yMax: 50000);
+      expect(
+        data.isCalloutForStack,
+        isTrue,
+        reason: '_isHavingLine && _noLegendHighlighted(), :1140',
+      );
+      expect(data.xValue, '2020/04/30');
+      expect(
+        <String?>[for (final row in data.yValues!) row.legend],
+        <String>['just line', 'Monkeys'],
+        reason:
+            'the line row leads (:428-441), then the bar (:443-456); the '
+            'storybook reads "just line 16%" over "Monkeys 19%"',
+      );
+      expect(
+        <String?>[for (final row in data.yValues!) row.yAxisCalloutText],
+        <String>['16%', '19%'],
+      );
+      expect(
+        <int>[for (final row in data.yValues!) _argb(row.color!)],
+        <int>[_argb(brown), _argb(steelBlue)],
+      );
+    });
+
+    test('a bar with no lineData reads its bar row alone', () {
+      final data = delegate().popoverDataFor(points.last, yMax: 50000);
+      expect(data.isCalloutForStack, isTrue);
+      expect(
+        <String?>[for (final row in data.yValues!) row.legend],
+        <String>['Bananas'],
+        reason: 'the line row needs lineData.y (:430)',
+      );
+    });
+
+    test('one selected legend reads the single value, its raw y', () {
+      final data = delegate(
+        selectedLegends: <String>['Monkeys'],
+      ).popoverDataFor(points.first, yMax: 50000);
+      expect(data.isCalloutForStack, isFalse);
+      expect(data.xValue, '2020/04/30');
+      expect(
+        data.yValue,
+        '45,000',
+        reason:
+            '_onBarHover never sets yCalloutValue, so YValue falls to '
+            'dataForHoverCard (:480, :1135) — measured in the storybook',
+      );
+      expect(_argb(data.color!), _argb(steelBlue));
+    });
+
+    test('two selected legends keep the stack, filtered to the selection', () {
+      final data = delegate(
+        selectedLegends: <String>['Monkeys', 'Bananas'],
+      ).popoverDataFor(points.first, yMax: 50000);
+      expect(
+        data.isCalloutForStack,
+        isTrue,
+        reason: '_getHighlightedLegend().length > 1, :1140',
+      );
+      expect(
+        <String?>[for (final row in data.yValues!) row.legend],
+        <String>['Monkeys'],
+        reason: 'the line legend is not among the selection (:431)',
+      );
+    });
+
+    test('useSingleColor paints the stacked bar row the single colour', () {
+      final data = delegate(
+        useSingleColor: true,
+      ).popoverDataFor(points.first, yMax: 50000);
+      expect(
+        _argb(data.yValues!.last.color!),
+        _argb(const Color(0xFF90EE90)),
+        reason: '_createColors()(1) under useSingleColor, :448-452',
+      );
+    });
+
+    test('the x fallback prints numbers the way JS does', () {
+      const bare = FluentVerticalBarChartDataPoint(x: 10000.0, y: 5000);
+      final single = delegate(
+        data: const <FluentVerticalBarChartDataPoint>[bare],
+      ).popoverDataFor(bare, yMax: 5000);
+      expect(
+        single.xValue,
+        '10000',
+        reason: 'point.x.toString() (:485), not Dart\'s "10000.0"',
+      );
+      expect(single.yValue, '5000');
+      const lined = FluentVerticalBarChartDataPoint(
+        x: 10000.0,
+        y: 5000,
+        lineData: FluentBarLineDatum(y: 1),
+      );
+      expect(
+        delegate(
+          data: const <FluentVerticalBarChartDataPoint>[lined],
+        ).popoverDataFor(lined, yMax: 5000).xValue,
+        '10,000',
+        reason:
+            'the stacked body runs hoverXValue through formatToLocaleString '
+            '(ChartPopover.tsx:128), which groups from 10000',
+      );
+      final dated = FluentVerticalBarChartDataPoint(
+        x: DateTime(2018, 3, 5),
+        y: 1,
+      );
+      expect(
+        delegate(
+          data: <FluentVerticalBarChartDataPoint>[dated],
+        ).popoverDataFor(dated, yMax: 1).xValue,
+        '3/5/2018',
+        reason: 'toLocaleDateString() (:485), not DateTime.toString()',
+      );
+    });
+
+    test('the hit regions read the points a linear number of times', () {
+      // The shell rebuilds every region on each hover change, so a walk of
+      // the points per bar makes a 2000-bar hover quadratic.
+      const count = 400;
+      final categories = <String>[for (var i = 0; i < count; i++) 'x$i'];
+      for (final withLine in <bool>[true, false]) {
+        final points = _CountingList<FluentVerticalBarChartDataPoint>(
+          <FluentVerticalBarChartDataPoint>[
+            for (final x in categories)
+              FluentVerticalBarChartDataPoint(
+                x: x,
+                y: 10,
+                lineData: withLine ? const FluentBarLineDatum(y: 5) : null,
+              ),
+          ],
+        );
+        final regions = _delegateOver(points).buildHitRegions(
+          _bandContext(categories, width: 800),
+          _layout(width: 800, height: 350),
+        );
+        expect(regions.length, count, reason: 'a count guard');
+        expect(
+          regions.first.popoverData!.isCalloutForStack,
+          withLine,
+          reason: 'a guard: the stack is what a line brings',
+        );
+        expect(
+          points.reads,
+          lessThan(20 * count),
+          reason:
+              'line: $withLine — _isHavingLine and the first point at each x '
+              'are resolved once per build, not once per bar',
+        );
+      }
+    });
+  });
+
+  group('FluentVerticalBarChart colours', () {
+    test('a coloured category bar keeps its colour under useSingleColor', () {
+      FluentVerticalBarChartDelegate over(Object x) =>
+          FluentVerticalBarChartDelegate(
+            points: <FluentVerticalBarChartDataPoint>[
+              FluentVerticalBarChartDataPoint(
+                x: x,
+                y: 10,
+                color: const Color(0xFFFF0000),
+              ),
+            ],
+            style: resolveFluentVerticalBarChartStyle(_delegateTheme),
+            colors: _colours(),
+            measurer: _measurer,
+            textStyles: FluentChartTextStyles.of(_delegateTheme),
+            selectedLegends: const <String>[],
+            useSingleColor: true,
+            colorsOverride: const <Color>[Color(0xFF90EE90)],
+          );
+      final layout = _layout(width: 800, height: 350);
+      expect(
+        _argb(
+          over('a')
+              .barsFor(_bandContext(<String>['a'], width: 800), layout)
+              .single
+              .colour,
+        ),
+        _argb(const Color(0xFFFF0000)),
+        reason:
+            '_createStringBars fills `point.color ? point.color : …` (:745)',
+      );
+      expect(
+        _argb(
+          over(1).barsFor(_linearContext(width: 800), layout).single.colour,
+        ),
+        _argb(const Color(0xFF90EE90)),
+        reason: 'the numeric bars test !useSingleColor too (:681)',
+      );
+    });
+
+    Future<List<FluentChartLegendItem>> legendsOf(
+      WidgetTester tester,
+      FluentVerticalBarChart chart,
+    ) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+          home: Center(child: SizedBox(width: 800, height: 350, child: chart)),
+        ),
+      );
+      return tester
+          .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+          .legends;
+    }
+
+    testWidgets('useSingleColor paints every legend swatch one colour', (
+      tester,
+    ) async {
+      final legends = await legendsOf(
+        tester,
+        const FluentVerticalBarChart(
+          data: <FluentVerticalBarChartDataPoint>[
+            FluentVerticalBarChartDataPoint(
+              x: 'a',
+              y: 10,
+              legend: 'A',
+              color: Color(0xFFFF0000),
+            ),
+            FluentVerticalBarChartDataPoint(x: 'b', y: 20, legend: 'B'),
+          ],
+          useSingleColor: true,
+          colors: <Color>[Color(0xFF90EE90)],
+        ),
+      );
+      expect(
+        <int>[for (final legend in legends) _argb(legend.color)],
+        <int>[_argb(const Color(0xFF90EE90)), _argb(const Color(0xFF90EE90))],
+        reason: '`!useSingleColor ? point.color! : _createColors()(1)`, :831',
+      );
+    });
+
+    testWidgets('a repeated legend takes its last point\'s colour', (
+      tester,
+    ) async {
+      final legends = await legendsOf(
+        tester,
+        const FluentVerticalBarChart(
+          data: <FluentVerticalBarChartDataPoint>[
+            FluentVerticalBarChartDataPoint(
+              x: 'a',
+              y: 10,
+              legend: 'A',
+              color: Color(0xFFFF0000),
+            ),
+            FluentVerticalBarChartDataPoint(
+              x: 'b',
+              y: 20,
+              legend: 'B',
+              color: Color(0xFF00FF00),
+            ),
+            FluentVerticalBarChartDataPoint(
+              x: 'c',
+              y: 30,
+              legend: 'A',
+              color: Color(0xFF0000FF),
+            ),
+          ],
+        ),
+      );
+      expect(
+        <String>[for (final legend in legends) legend.title],
+        <String>['A', 'B'],
+      );
+      expect(
+        _argb(legends.first.color),
+        _argb(const Color(0xFF0000FF)),
+        reason:
+            'mapLegendToColor[point.legend] = color overwrites as it walks '
+            '(:829-833), keeping the key where it was first inserted',
+      );
+    });
+  });
+
+  group('FluentVerticalBarChart hover', () {
+    testWidgets('hovering a bar with a real mouse shows the line dot at its '
+        'x, and leaving the chart hides it', (tester) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+          home: Center(
+            child: SizedBox(
+              width: 800,
+              height: 350,
+              child: FluentVerticalBarChart(
+                data: _pointsWithLine(),
+                barWidth: 60,
+                lineLegendText: 'Trend',
+              ),
+            ),
+          ),
+        ),
+      );
+      Object? activeX() =>
+          (tester
+                      .widget<FluentCartesianChart>(
+                        find.byType(FluentCartesianChart),
+                      )
+                      .delegate
+                  as FluentVerticalBarChartDelegate)
+              .activeXDataPoint;
+      expect(activeX(), isNull, reason: 'a guard: nothing is hovered yet');
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      final centre = tester.getCenter(find.byType(FluentCartesianChart));
+      await mouse.moveTo(centre);
+      await tester.pump();
+      // A pixel of drift, as a hand gives: the dot must not flicker.
+      await mouse.moveTo(centre + const Offset(1, 1));
+      await tester.pumpAndSettle();
+      expect(
+        activeX(),
+        'b',
+        reason:
+            'the centre lands on the tallest, middle bar, and its '
+            'onMouseOver sets activeXdataPoint (VerticalBarChart.tsx:489)',
+      );
+      final popover = tester.widget<FluentChartPopover>(
+        find.byType(FluentChartPopover),
+      );
+      expect(
+        popover.data.isCalloutForStack,
+        isTrue,
+        reason: 'and the callout is the line-and-bar stack, :1140',
+      );
+      await mouse.moveTo(const Offset(-1, -1));
+      await tester.pumpAndSettle();
+      expect(
+        activeX(),
+        isNull,
+        reason: '_handleChartMouseLeave nulls it (:500-506)',
+      );
+    });
+
+    Future<void> pumpWithLine(
+      WidgetTester tester, {
+      List<FluentVerticalBarChartDataPoint>? data,
+      FocusNode? focusNode,
+    }) => tester.pumpWidget(
+      FluentApp(
+        theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+        home: Center(
+          child: SizedBox(
+            width: 800,
+            height: 350,
+            child: FluentVerticalBarChart(
+              data: data ?? _pointsWithLine(),
+              barWidth: 60,
+              lineLegendText: 'Trend',
+              focusNode: focusNode,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    FluentVerticalBarChartDelegate delegateOf(WidgetTester tester) =>
+        tester
+                .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+                .delegate
+            as FluentVerticalBarChartDelegate;
+
+    /// The middle of the bar at [index], on screen, from the mounted painter.
+    Offset barCentre(WidgetTester tester, int index) {
+      final plot = find.descendant(
+        of: find.byType(FluentCartesianChart),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is CustomPaint &&
+              widget.painter is FluentCartesianChartPainter,
+        ),
+      );
+      final painter =
+          tester.widget<CustomPaint>(plot).painter!
+              as FluentCartesianChartPainter;
+      final context = FluentCartesianChildContext(
+        xScale: painter.xAxis.scale,
+        yScalePrimary: painter.yAxisPrimary.scale,
+        containerWidth: painter.layout.size.width,
+        containerHeight: painter.layout.size.height,
+      );
+      return tester.getTopLeft(plot) +
+          delegateOf(
+            tester,
+          ).barsFor(context, painter.layout)[index].rect.center;
+    }
+
+    testWidgets('a touch tap shows the line dot until a tap lands elsewhere', (
+      tester,
+    ) async {
+      await pumpWithLine(tester);
+      await tester.tapAt(barCentre(tester, 1));
+      await tester.pump();
+      expect(
+        delegateOf(tester).activeXDataPoint,
+        'b',
+        reason:
+            "Chrome follows a tap with the compatibility mouseover, the bar's "
+            'onMouseOver (VerticalBarChart.tsx:489)',
+      );
+      await tester.tapAt(const Offset(2, 2));
+      await tester.pump();
+      expect(
+        delegateOf(tester).activeXDataPoint,
+        isNull,
+        reason: 'and a tap elsewhere its mouseleave (:500-506)',
+      );
+    });
+
+    testWidgets('a dimmed bar opens no callout and takes no tab stop, but '
+        'still clicks', (tester) async {
+      final clicks = <String>[];
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pumpWithLine(
+        tester,
+        focusNode: node,
+        data: <FluentVerticalBarChartDataPoint>[
+          for (final point in _pointsWithLine())
+            FluentVerticalBarChartDataPoint(
+              x: point.x,
+              y: point.y,
+              legend: point.legend,
+              lineData: point.lineData,
+              onClick: () => clicks.add('${point.x}'),
+            ),
+        ],
+      );
+      await tester.tap(find.text('Beta'));
+      await tester.pumpAndSettle();
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(barCentre(tester, 1));
+      await tester.pump();
+      expect(find.byType(FluentChartPopover), findsOneWidget);
+      await mouse.moveTo(barCentre(tester, 0));
+      await tester.pump();
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason:
+            'setPopoverOpen(_noLegendHighlighted() || '
+            '_legendHighlighted(point.legend)) (VerticalBarChart.tsx:479)',
+      );
+      await mouse.down(barCentre(tester, 0));
+      await mouse.up();
+      await tester.pump();
+      expect(clicks, <String>[
+        'a',
+      ], reason: 'onClick={point.onClick} sits on every bar (:674)');
+
+      await mouse.moveTo(const Offset(-1, -1));
+      await tester.pump();
+      node.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(
+        tester
+            .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+            .data
+            .legend,
+        'Beta',
+        reason:
+            'tabIndex={... shouldHighlight ? 0 : undefined} (:682): the first '
+            'stop is the one lit bar',
+      );
+    });
+  });
 }
 
 /// Three bars, one legend each, no overlaid line.
@@ -2049,6 +2831,7 @@ FluentVerticalBarChartDelegate _stringDelegateWithLine({
   String? lineLegendText,
   Color? lineLegendColor,
   FluentLineOptions? lineOptions,
+  Object? activeXDataPoint,
   bool isHighContrast = false,
 }) => _delegateOver(
   <FluentVerticalBarChartDataPoint>[
@@ -2062,6 +2845,7 @@ FluentVerticalBarChartDelegate _stringDelegateWithLine({
   lineLegendText: lineLegendText,
   lineLegendColor: lineLegendColor,
   lineOptions: lineOptions,
+  activeXDataPoint: activeXDataPoint,
   isHighContrast: isHighContrast,
 );
 
@@ -2122,3 +2906,26 @@ FluentCartesianLayout _layout({
   isRtl: false,
   startFromX: 0,
 );
+
+/// A read-only list that counts its element reads.
+class _CountingList<E> extends ListBase<E> {
+  _CountingList(this._inner);
+
+  final List<E> _inner;
+  int reads = 0;
+
+  @override
+  int get length => _inner.length;
+
+  @override
+  set length(int value) => throw UnsupportedError('read-only');
+
+  @override
+  E operator [](int index) {
+    reads++;
+    return _inner[index];
+  }
+
+  @override
+  void operator []=(int index, E value) => throw UnsupportedError('read-only');
+}

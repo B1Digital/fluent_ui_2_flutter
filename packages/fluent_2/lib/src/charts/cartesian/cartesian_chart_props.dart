@@ -56,7 +56,7 @@ enum FluentChartHitGranularity {
   mark,
 
   /// Regions that share a `FluentChartHitRegion.index` are merged into one
-  /// target whose bounds are their union.
+  /// target, hovered over any of their areas, whose bounds are their union.
   ///
   /// The **first** region of each index supplies the merged target's popover
   /// data and narration, which is where a group-mode chart puts its stack-wide
@@ -144,6 +144,7 @@ class FluentCartesianChartProps {
     this.hitRegionGranularity = FluentChartHitGranularity.mark,
     this.closePopoverOnRegionExit = false,
     this.popoverAnchorsToRegion = false,
+    this.popoverFollowsPointer = false,
   }) : xAxisTickSize = xAxistickSize ?? xAxisTickSize,
        showXAxisLabelsTooltip =
            showXAxisLabelsTooltip || showXAxisLablesTooltip,
@@ -428,6 +429,23 @@ class FluentCartesianChartProps {
   /// keyboard stop has no pointer, so it anchors to the region either way.
   final bool popoverAnchorsToRegion;
 
+  /// Whether the popover's anchor follows every pointer move inside a mark.
+  ///
+  /// A mark re-anchors its callout from `onMouseOver`, which fires as the
+  /// pointer enters it and not as it moves on inside
+  /// (`VerticalBarChart.tsx:475-478`, `HorizontalBarChartWithAxis.tsx:251-254`,
+  /// `HeatMapChart.tsx:148-152`, `GanttChart.tsx:285-293`), so by default the
+  /// anchor stays where the pointer came in. True reproduces a chart that
+  /// listens to `onMouseMove` as well: VerticalStackedBarChart's stacks and
+  /// segments alike (`VerticalStackedBarChart.tsx:1147-1148`, `:1044-1045`),
+  /// ScatterChart's circles (`ScatterChart.tsx:578-580`) and AreaChart's plot
+  /// (`AreaChart.tsx:703-705`).
+  ///
+  /// Either way the anchor moves only once the pointer is more than a pixel
+  /// from it, the threshold of every chart's `updatePosition`
+  /// (`ScatterChart.tsx:168-178`).
+  final bool popoverFollowsPointer;
+
   /// The gap between an x tick line and its label: [tickPadding] when set,
   /// otherwise 5 with [showXAxisLabelsTooltip] and 10 without.
   ///
@@ -457,25 +475,28 @@ class FluentCartesianChartProps {
 
   /// A copy of this bag with the listed fields replaced.
   ///
-  /// // ponytail: only the twelve fields a chart actually rebrands are
+  /// // ponytail: only the fourteen fields a chart actually rebrands are
   /// parameters. Every shell chart wraps its caller's bag to add its own
   /// narration (`LineChart.tsx:1843-1846`), its band height (`:165`), its
   /// popover body (`GanttChart.tsx:604`), its `useUTC` default
   /// (`GanttChart.tsx:45`, `:608`), its focus granularity
-  /// (`VerticalStackedBarChart.tsx:486-489`), the scatterpolar y bounds at
+  /// (`VerticalStackedBarChart.tsx:486-489`) and popover anchoring
+  /// (`:1147-1148`), the scatterpolar y bounds at
   /// `LineChart.tsx:1922` and `ScatterChart.tsx:742`, and the hard-coded tick
   /// values at `HeatMapChart.tsx:805-807` and
-  /// `GroupedVerticalBarChart.tsx:1006`; the other 37 fields belong to the
-  /// caller. Add a parameter when a caller needs one. An omitted parameter
-  /// keeps the current value, so a null can never be written over a field that
-  /// was set.
+  /// `GroupedVerticalBarChart.tsx:1006`, and AreaChart's callout gate
+  /// (`AreaChart.tsx:1093`); the other 36 fields belong to the caller. Add a
+  /// parameter when a caller needs one. An omitted parameter keeps the current
+  /// value, so a null can never be written over a field that was set.
   FluentCartesianChartProps copyWith({
+    bool? hideTooltip,
     String? chartTitleForSemantics,
     double? eventLabelHeight,
     WidgetBuilder? popoverBuilder,
     FluentChartHitGranularity? hitRegionGranularity,
     bool? closePopoverOnRegionExit,
     bool? popoverAnchorsToRegion,
+    bool? popoverFollowsPointer,
     double? tickPadding,
     double? xAxisTickSize,
     @Deprecated('Use xAxisTickSize.') double? xAxistickSize,
@@ -486,7 +507,7 @@ class FluentCartesianChartProps {
   }) => FluentCartesianChartProps(
     margins: margins,
     hideLegend: hideLegend,
-    hideTooltip: hideTooltip,
+    hideTooltip: hideTooltip ?? this.hideTooltip,
     tickValues: tickValues,
     yAxisTickFormat: yAxisTickFormat,
     secondaryYScaleOptions: secondaryYScaleOptions,
@@ -537,5 +558,6 @@ class FluentCartesianChartProps {
         closePopoverOnRegionExit ?? this.closePopoverOnRegionExit,
     popoverAnchorsToRegion:
         popoverAnchorsToRegion ?? this.popoverAnchorsToRegion,
+    popoverFollowsPointer: popoverFollowsPointer ?? this.popoverFollowsPointer,
   );
 }

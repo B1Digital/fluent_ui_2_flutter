@@ -19,30 +19,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/oracle_fixture.dart';
 
-/// Reason for a story a loop over `oracleStoryIds(component:)` asserts per
-/// story, so the id is genuinely covered and simply never written down.
-const String _assertedByComponentLoop =
-    'Asserted per story by the loop over '
-    "oracleStoryIds(component: 'LineChart') at "
-    'test/charts/line_chart_test.dart:1057, which reproduces every captured '
-    'marker. The loop enumerates the id instead of writing it down, so this is '
-    'coverage without a mention rather than a gap.';
-
-/// Reason for a story whose only contribution is the box it was captured at.
-const String _onlySizeArm =
-    'The sole story at its captured size, so it contributes an arm to '
-    'test/charts/shell_chart_size_sweep_test.dart, which mounts the chart at '
-    'that box and asserts the plot fills it. Nothing reads the geometry this '
-    'story itself recorded.';
-
-/// Reason for a story nothing asserts at all.
-const String _nothingAssertsIt =
-    'Nothing asserts this story. Three files sweep the whole corpus for one '
-    'property each — a text line box, an SI tick label, a legend swatch path — '
-    'and where a shell size sweep also reads it, its box duplicates a '
-    "sibling's and adds no arm. This is a real gap: the capture is the only "
-    'oracle this story will ever have.';
-
 /// Story ids that no test names, each paired with why the fixture is still
 /// committed.
 ///
@@ -72,50 +48,16 @@ const String _nothingAssertsIt =
 /// its id, which is what makes this list's own count true; the swatch-count
 /// assertion it lives in is unchanged.
 ///
+/// It reads zero since `test/parity/` gained a pixel comparison for every one of
+/// the ninety captured stories (2026-09-24). The map and both tests stay: a
+/// capture added without a comparison of its own has to be excused here, with
+/// a reason, before the suite goes green again.
+///
 /// The Plotly adapter's only capture,
 /// `charts-declarativechart--declarative-chart-basic-example`, is on this list
 /// too. Twenty-seven tasks of declarative-adapter work landed without either
 /// declarative story acquiring an assertion of its own geometry.
-const Map<String, String> kOracleStoriesNoTestNames = <String, String>{
-  'charts-areachart--area-chart-all-negative': _nothingAssertsIt,
-  'charts-areachart--area-chart-custom-accessibility': _nothingAssertsIt,
-  'charts-areachart--area-chart-large-data': _nothingAssertsIt,
-  'charts-areachart--area-chart-negative': _nothingAssertsIt,
-  'charts-donutchart--donut-chart-custom-accessibility': _nothingAssertsIt,
-  'charts-donutchart--donut-chart-custom-callout': _nothingAssertsIt,
-  'charts-donutchart--donut-chart-responsive': _nothingAssertsIt,
-  'charts-donutchart--donut-chart-styled': _nothingAssertsIt,
-  'charts-groupedverticalbarchart--grouped-vertical-bar-secondary-y-axis':
-      _onlySizeArm,
-  'charts-heatmapchart--heat-map-chart-custom-accessibility': _nothingAssertsIt,
-  'charts-horizontalbarchart--horizontal-bar-custom-accessibility':
-      _nothingAssertsIt,
-  'charts-horizontalbarchart--horizontal-bar-custom-callout': _nothingAssertsIt,
-  'charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-category-order':
-      _nothingAssertsIt,
-  'charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-dynamic':
-      _nothingAssertsIt,
-  'charts-legends--legends-controlled': _nothingAssertsIt,
-  'charts-legends--legends-styled': _nothingAssertsIt,
-  'charts-linechart--line-chart-all-negative': _assertedByComponentLoop,
-  'charts-linechart--line-chart-custom-locale-date-axis':
-      _assertedByComponentLoop,
-  'charts-linechart--line-chart-log-axis-example': _assertedByComponentLoop,
-  'charts-linechart--line-chart-negative': _assertedByComponentLoop,
-  'charts-linechart--line-chart-styled': _assertedByComponentLoop,
-  'charts-verticalbarchart--vertical-bar-chart-responsive': _onlySizeArm,
-  'charts-verticalbarchart--vertical-bar-date-axis': _nothingAssertsIt,
-  'charts-verticalstackedbarchart--vertical-stacked-bar-axis-category-order':
-      _onlySizeArm,
-  'charts-verticalstackedbarchart--vertical-stacked-bar-axis-tooltip':
-      _nothingAssertsIt,
-  'charts-verticalstackedbarchart--vertical-stacked-bar-callout':
-      _nothingAssertsIt,
-  'charts-verticalstackedbarchart--vertical-stacked-bar-custom-accessibility':
-      _nothingAssertsIt,
-  'charts-verticalstackedbarchart--vertical-stacked-bar-date-axis':
-      _nothingAssertsIt,
-};
+const Map<String, String> kOracleStoriesNoTestNames = <String, String>{};
 
 /// The package root, found by walking up from [Directory.current] until the
 /// Oracle B loader appears, so this passes whether `flutter test` started at the

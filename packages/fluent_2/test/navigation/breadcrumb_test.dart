@@ -130,6 +130,53 @@ void main() {
     return gesture;
   }
 
+  /// Upstream presses a crumb (a subtle Button) and an overflow row (a
+  /// MenuItem) under `:hover:active`: a mouse press dragged off [target] falls
+  /// back to rest and comes back when the pointer does. A finger has no hover
+  /// to lose, so it holds pressed.
+  Future<void> expectPressedNeedsHover(
+    WidgetTester tester,
+    Finder target,
+    FluentThemeData theme,
+  ) async {
+    final c = theme.colors;
+    Color? fill() => tester
+        .widgetList<DecoratedBox>(
+          find.ancestor(of: target, matching: find.byType(DecoratedBox)),
+        )
+        .map((d) => d.decoration)
+        .whereType<BoxDecoration>()
+        .first
+        .color;
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(target));
+    await tester.pumpAndSettle();
+    await mouse.down(tester.getCenter(target));
+    await tester.pumpAndSettle();
+    expect(fill(), c.subtleBackgroundPressed, reason: 'a held mouse press');
+
+    await mouse.moveTo(Offset.zero);
+    await tester.pumpAndSettle();
+    expect(fill(), c.subtleBackground, reason: 'dragged off');
+
+    await mouse.moveTo(tester.getCenter(target));
+    await tester.pumpAndSettle();
+    expect(fill(), c.subtleBackgroundPressed, reason: 'dragged back');
+    await mouse.moveTo(Offset.zero);
+    await mouse.up();
+    await mouse.removePointer();
+    await tester.pumpAndSettle();
+
+    final finger = await tester.startGesture(tester.getCenter(target));
+    await finger.moveTo(Offset.zero);
+    await tester.pumpAndSettle();
+    expect(fill(), c.subtleBackgroundPressed, reason: 'a finger dragged off');
+    await finger.up();
+    await tester.pumpAndSettle();
+    expect(fill(), c.subtleBackground, reason: 'released');
+  }
+
   group('the fixture', () {
     test('covers the whole component set', () {
       expect(spec.variants.length, 51);
@@ -369,8 +416,15 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('the label holds at Foreground/2 on hover and only moves on '
-        'press', (tester) async {
+    // The storybook, not Figma: all 51 Figma variants hold
+    // Neutral/Foreground/2/Rest on hover, but the crumb renders through the
+    // subtle Button (`useBreadcrumbButton` -> `appearance: 'subtle'`), whose
+    // `:hover` is colorNeutralForeground2Hover and `:hover:active`
+    // colorNeutralForeground2Pressed. `components-breadcrumb--default`
+    // measures #424242 at rest and #242424 on hover.
+    testWidgets('the label darkens on hover and press under a real mouse', (
+      tester,
+    ) async {
       final theme = light();
       await pump(tester, trail(), theme: theme);
       expect(textOf(tester, 'Reports').color, theme.colors.neutralForeground2);
@@ -378,18 +432,25 @@ void main() {
       final gesture = await hover(tester, find.text('Reports'));
       expect(
         textOf(tester, 'Reports').color,
-        theme.colors.neutralForeground2,
-        reason: 'all 51 variants bind Neutral/Foreground/2/Rest on hover',
+        theme.colors.neutralForeground2Hover,
+        reason: 'subtle Button :hover is colorNeutralForeground2Hover',
       );
 
       await gesture.down(tester.getCenter(find.text('Reports')));
       await tester.pumpAndSettle();
       expect(
         textOf(tester, 'Reports').color,
-        theme.colors.neutralForeground1Pressed,
+        theme.colors.neutralForeground2Pressed,
       );
       await gesture.up();
       await tester.pumpAndSettle();
+    });
+
+    testWidgets('a mouse press dragged off a crumb falls back to rest; a '
+        'finger holds', (tester) async {
+      final theme = light();
+      await pump(tester, trail(), theme: theme);
+      await expectPressedNeedsHover(tester, find.text('Reports'), theme);
     });
 
     testWidgets('the leading icon takes a brand ramp the label does not', (
@@ -407,8 +468,8 @@ void main() {
       );
       expect(
         textOf(tester, 'Home').color,
-        theme.colors.neutralForeground2,
-        reason: 'the icon goes brand, the label does not — two ramps',
+        theme.colors.neutralForeground2Hover,
+        reason: 'the icon goes brand, the label only darkens — two ramps',
       );
 
       await gesture.down(tester.getCenter(find.text('Home')));
@@ -637,6 +698,23 @@ void main() {
       await tester.tap(find.text('Two'));
       await tester.pumpAndSettle();
       expect(find.text('Two'), findsNothing, reason: 'the popup closed');
+    });
+
+    testWidgets('the trigger and a row drop pressed when a mouse drags off', (
+      tester,
+    ) async {
+      final theme = light();
+      await pump(tester, longTrail(), theme: theme);
+      final trigger = find.byIcon(
+        fluentBreadcrumbOverflowIcon(FluentBreadcrumbSize.medium),
+      );
+      await expectPressedNeedsHover(tester, trigger, theme);
+      expect(find.text('Two'), findsNothing, reason: 'no drag opened it');
+
+      await tester.tap(trigger);
+      await tester.pumpAndSettle();
+      await expectPressedNeedsHover(tester, find.text('Two'), theme);
+      expect(find.text('Two'), findsOneWidget, reason: 'no drag followed it');
     });
 
     testWidgets('a tap outside dismisses without following anything', (

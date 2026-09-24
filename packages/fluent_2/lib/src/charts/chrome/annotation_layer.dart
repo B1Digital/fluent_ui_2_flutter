@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../internal/focus_ring.dart';
+import '../../surfaces/box_decoration.dart';
 import '../internal/chart_text_measurer.dart';
 import '../internal/d3/scale.dart';
 import '../model/chart_annotation.dart';
@@ -883,6 +884,162 @@ class FluentChartAnnotationConnectorPainter extends CustomPainter {
       !listEquals(oldDelegate.connectors, connectors);
 }
 
+/// An annotation box, painted the way Chromium paints the CSS container at
+/// `ChartAnnotationLayer.tsx:489-510`.
+///
+/// A [FluentBoxDecoration], so its shadows paint as CSS's do: outside the
+/// border box only, blurred with sigma = blur / 2, first shadow on top. Under a
+/// plain [BoxDecoration] the corpus's stretch-goal box, `rgba(216, 59, 1,
+/// 0.08)` over shadow16, turns brown. On top of that it paints on the
+/// device-pixel-snapped border box, and strokes a dashed or dotted border
+/// (`:507` passes `borderStyle` through).
+///
+/// Every value is still carried by the [BoxDecoration] fields, so the box reads
+/// as one; only the painting differs.
+class _AnnotationBoxDecoration extends FluentBoxDecoration {
+  const _AnnotationBoxDecoration({
+    super.color,
+    super.border,
+    required BorderRadius super.borderRadius,
+    super.boxShadow,
+    required this.borderStyle,
+  });
+
+  /// How [border] is stroked. [FluentChartAnnotationBorderStyle.none] never
+  /// reaches here: the layer drops the border for it.
+  final FluentChartAnnotationBorderStyle borderStyle;
+
+  @override
+  BoxPainter createBoxPainter([VoidCallback? onChanged]) =>
+      _AnnotationBoxPainter(this, onChanged);
+
+  @override
+  bool operator ==(Object other) =>
+      super == other &&
+      other is _AnnotationBoxDecoration &&
+      other.borderStyle == borderStyle;
+
+  @override
+  int get hashCode => Object.hash(super.hashCode, borderStyle);
+}
+
+class _AnnotationBoxPainter extends BoxPainter {
+  _AnnotationBoxPainter(this._decoration, VoidCallback? onChanged)
+    : _body = FluentBoxDecoration(
+        color: _decoration.color,
+        // A dashed or dotted border is stroked by [paint] instead.
+        border:
+            _decoration.borderStyle == FluentChartAnnotationBorderStyle.solid
+            ? _decoration.border
+            : null,
+        borderRadius: _decoration.borderRadius,
+        boxShadow: _decoration.boxShadow,
+      ).createBoxPainter(onChanged),
+      super(onChanged);
+
+  final _AnnotationBoxDecoration _decoration;
+
+  /// Paints the shadows, the fill and a solid border.
+  final BoxPainter _body;
+
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
+    // Chromium paints a border and background on the pixel-snapped border box,
+    // each edge rounded to the nearest device pixel, so the corpus's
+    // launch-html box at y = 90.5 draws its 1px top border crisply on row 91
+    // rather than half on 90 and half on 91. Only the painting snaps: the text
+    // is laid out in, and the connector leaves, the unsnapped box.
+    final ratio = configuration.devicePixelRatio ?? 1;
+    double snap(double value) => (value * ratio).roundToDouble() / ratio;
+    final rect = offset & configuration.size!;
+    final snapped = Rect.fromLTRB(
+      snap(rect.left),
+      snap(rect.top),
+      snap(rect.right),
+      snap(rect.bottom),
+    );
+    _body.paint(
+      canvas,
+      snapped.topLeft,
+      configuration.copyWith(size: snapped.size),
+    );
+
+    final side = (_decoration.border as Border?)?.top;
+    if (_decoration.borderStyle == FluentChartAnnotationBorderStyle.solid ||
+        side == null ||
+        side.width <= 0) {
+      return;
+    }
+    final width = side.width;
+    final box = _decoration.borderRadius!
+        .resolve(configuration.textDirection)
+        .toRRect(snapped);
+
+    // Measured off Chromium's render of the corpus's 1px dashed stretch-goal
+    // box: 3px dashes and 2px gaps, laid along the OUTER edge of the border,
+    // from the end of the top-left corner, clockwise, unadjusted to the
+    // perimeter (StrokeData::DashLengthRatio / DashGapRatio are 3 and 2 below
+    // a 3px border, 2 and 1 from it; a thin dotted border is dashes of its
+    // width). Stroking the outer edge twice as wide as the border and clipping
+    // to the box leaves exactly the border ring.
+    // ponytail: a dotted border over 3px wide is square dots here, where
+    // Chromium draws round ones; round-cap zero-length dashes if one appears.
+    final dotted =
+        _decoration.borderStyle == FluentChartAnnotationBorderStyle.dotted;
+    final dash = dotted ? width : width * (width < 3 ? 3 : 2);
+    final gap = dotted ? width : width * (width < 3 ? 2 : 1);
+    final dashes = Path();
+    for (final metric in _outlineFromTopLeft(box).computeMetrics()) {
+      for (var at = 0.0; at < metric.length; at += dash + gap) {
+        dashes.addPath(metric.extractPath(at, at + dash), Offset.zero);
+      }
+    }
+    canvas
+      ..save()
+      ..clipRRect(box)
+      ..drawPath(
+        dashes,
+        Paint()
+          ..color = side.color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = width * 2,
+      )
+      ..restore();
+  }
+
+  @override
+  void dispose() {
+    _body.dispose();
+    super.dispose();
+  }
+
+  /// [box]'s outline starting where Chromium's does, at the end of the
+  /// top-left corner, and running clockwise. [Path.addRRect] starts at the
+  /// bottom of the left edge, and a dash pattern is phased from the start.
+  static Path _outlineFromTopLeft(RRect box) => Path()
+    ..moveTo(box.left + box.tlRadiusX, box.top)
+    ..lineTo(box.right - box.trRadiusX, box.top)
+    ..arcToPoint(
+      Offset(box.right, box.top + box.trRadiusY),
+      radius: box.trRadius,
+    )
+    ..lineTo(box.right, box.bottom - box.brRadiusY)
+    ..arcToPoint(
+      Offset(box.right - box.brRadiusX, box.bottom),
+      radius: box.brRadius,
+    )
+    ..lineTo(box.left + box.blRadiusX, box.bottom)
+    ..arcToPoint(
+      Offset(box.left, box.bottom - box.blRadiusY),
+      radius: box.blRadius,
+    )
+    ..lineTo(box.left, box.top + box.tlRadiusY)
+    ..arcToPoint(
+      Offset(box.left + box.tlRadiusX, box.top),
+      radius: box.tlRadius,
+    );
+}
+
 /// Applies a [FluentChartAnnotationLayerStyle] to every layer below it.
 class FluentChartAnnotationLayerTheme extends InheritedTheme {
   /// Applies [style] to every annotation layer in [child].
@@ -989,10 +1146,34 @@ class FluentChartAnnotationLayer extends StatelessWidget {
           fontWeight: annotation.style?.fontWeight,
         ),
       );
-      final boxPadding = annotation.style?.padding ?? layerPadding;
+      final annotationStyle = annotation.style;
+      final boxPadding = annotationStyle?.padding ?? layerPadding;
+
+      // ChartAnnotationLayer.tsx:505-507, against
+      // useChartAnnotationLayer.styles.ts:127 — the 1px neutralStroke1 border
+      // lives on the `annotation` class, which annotationNoDefaults drops, and
+      // an inline `border-style: none` removes it along with its width.
+      final borderStyle =
+          annotationStyle?.borderStyle ??
+          FluentChartAnnotationBorderStyle.solid;
+      final borderColour = borderStyle == FluentChartAnnotationBorderStyle.none
+          ? null
+          : annotationStyle?.borderColor ??
+                (hideDefaultStyles
+                    ? null
+                    : resolved.borderColor!.resolve(states));
+      final borderWidth = borderColour == null
+          ? 0.0
+          : annotationStyle?.borderWidth ??
+                resolved.borderWidth!.resolve(states)!;
+      // The container is `box-sizing: content-box`, so its padding and border
+      // sit outside the text — and outside `max-width` too. Oracle B's
+      // launch-html box is 254 wide for `maxWidth: 220`: 220 + 2 × 16 + 2 × 1.
+      final inset = boxPadding + EdgeInsets.all(borderWidth);
+
       final span = TextSpan(children: spans);
-      // ChartAnnotationLayer.tsx:492 — `maxWidth` is a container rule, so the
-      // text wraps at the width left inside the padding.
+      // ChartAnnotationLayer.tsx:493 — `maxWidth` is the container's
+      // `max-width`, which bounds its content box: the text wraps at it.
       final painter = measurer.layoutPainter('', baseTextStyle)
         ..text = span
         // useChartAnnotationLayer.styles.ts:98 — `text-align: center`.
@@ -1000,14 +1181,14 @@ class FluentChartAnnotationLayer extends StatelessWidget {
         // The factory is a single-line one; an annotation wraps and honours
         // `<br />` (`:230-232`).
         ..maxLines = null
-        ..layout(
-          maxWidth:
-              (annotation.layout?.maxWidth ?? double.infinity) -
-              boxPadding.horizontal,
-        );
+        // The factory also trims the first and last line's half-leading,
+        // because SVG `<text>` has no line box. This is HTML, whose every line
+        // is caption1's full 16px (`useChartAnnotationLayer.styles.ts:94`).
+        ..textHeightBehavior = const TextHeightBehavior()
+        ..layout(maxWidth: annotation.layout?.maxWidth ?? double.infinity);
       final measured = Size(
-        painter.width + boxPadding.horizontal,
-        painter.height + boxPadding.vertical,
+        painter.width + inset.horizontal,
+        painter.height + inset.vertical,
       );
       // Read off the painter rather than restated, so the box is painted at
       // exactly the size it was measured at. Restating them is how the box ends
@@ -1048,7 +1229,6 @@ class FluentChartAnnotationLayer extends StatelessWidget {
       // differing from the default is read as the author's, which parts from
       // upstream only for an author who passes exactly 0.8 and no colour: there
       // the fill survives here and is dropped upstream.
-      final annotationStyle = annotation.style;
       final hasExplicitOpacity =
           annotationStyle != null &&
           annotationStyle.opacity != kAnnotationBackgroundOpacity;
@@ -1069,36 +1249,25 @@ class FluentChartAnnotationLayer extends StatelessWidget {
         background = resolved.backgroundColor!.resolve(states);
       }
 
-      // ChartAnnotationLayer.tsx:504-505, against
-      // useChartAnnotationLayer.styles.ts:127 — the 1px neutralStroke1 border
-      // lives on the `annotation` class, which annotationNoDefaults drops.
-      final borderColour =
-          annotationStyle?.borderColor ??
-          (hideDefaultStyles ? null : resolved.borderColor!.resolve(states));
-
       Widget content = DecoratedBox(
-        decoration: BoxDecoration(
+        decoration: _AnnotationBoxDecoration(
           color: background,
           // useChartAnnotationLayer.styles.ts:105 — borderRadiusMedium, in the
           // base rule, so annotationNoDefaults keeps it. :507 overrides it with
           // a single radius in pixels.
           borderRadius: annotationStyle?.borderRadius == null
-              ? resolved.borderRadius!.resolve(states)
+              ? resolved.borderRadius!.resolve(states)!
               : BorderRadius.circular(annotationStyle!.borderRadius!),
           border: borderColour == null
               ? null
-              : Border.all(
-                  color: borderColour,
-                  width:
-                      annotationStyle?.borderWidth ??
-                      resolved.borderWidth!.resolve(states)!,
-                ),
+              : Border.all(color: borderColour, width: borderWidth),
+          borderStyle: borderStyle,
           boxShadow:
               annotationStyle?.boxShadow ??
               (hideDefaultStyles ? null : resolved.boxShadow!.resolve(states)),
         ),
         child: Padding(
-          padding: boxPadding,
+          padding: inset,
           // useChartAnnotationLayer.styles.ts:96-97 — `align-items: center` and
           // `justify-content: center` on the flex container.
           child: Center(

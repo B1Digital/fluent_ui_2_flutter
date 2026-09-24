@@ -257,7 +257,7 @@ const FluentPopoverStyle({
 | `textStyle` | `WidgetStateProperty<TextStyle?>?` | No | `null` | Content text style. Its colour is overridden by [foregroundColor]. |
 | `padding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Padding inside the border. |
 | `arrowSize` | `WidgetStateProperty<Size?>?` | No | `null` | Arrow base and height, in the orientation Figma draws it — 16 wide by 8 tall for a popover above or below its anchor, transposed for one beside it. |
-| `arrowInset` | `WidgetStateProperty<double?>?` | No | `null` | How far the arrow sits from the surface's leading or trailing edge when the popover is aligned to one end of its anchor rather than centred. |
+| `arrowInset` | `WidgetStateProperty<double?>?` | No | `null` | How close the arrow may come to the surface's corners. |
 | `offset` | `WidgetStateProperty<double?>?` | No | `null` | Extra separation between the anchor and the surface. |
 | `shadow` | `WidgetStateProperty<List<BoxShadow>?>?` | No | `null` | Elevation shadow cast by the surface. |
 

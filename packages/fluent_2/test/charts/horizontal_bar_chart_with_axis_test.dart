@@ -1,6 +1,7 @@
 import 'package:fluent_2/src/charts/axis/axis_types.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_chart.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_layout.dart';
+import 'package:fluent_2/src/charts/cartesian/cartesian_painter.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_series_delegate.dart';
 import 'package:fluent_2/src/charts/chrome/chart_popover.dart';
 import 'package:fluent_2/src/charts/horizontal_bar_chart_with_axis.dart';
@@ -1118,6 +1119,157 @@ void main() {
           rect.y! + (rect.translate?.dy ?? 0) + rect.height! / 2,
         );
       }
+    });
+  });
+
+  group('HBWA legend highlight and readings', () {
+    const points = <FluentHorizontalBarChartWithAxisDataPoint>[
+      FluentHorizontalBarChartWithAxisDataPoint(
+        x: 100,
+        y: 5000.0,
+        legend: 'Apples',
+      ),
+      FluentHorizontalBarChartWithAxisDataPoint(
+        x: 50,
+        y: 13000.0,
+        legend: 'Bananas',
+      ),
+    ];
+
+    FluentHorizontalBarChartWithAxisDelegate delegateWith({
+      List<String> selectedLegends = const <String>[],
+    }) {
+      final theme = FluentThemeData.light();
+      return FluentHorizontalBarChartWithAxisDelegate(
+        points: points,
+        style: resolveFluentHorizontalBarChartWithAxisStyle(theme),
+        colors: FluentChartColors.of(theme),
+        measurer: FluentChartTextMeasurer(),
+        textStyles: FluentChartTextStyles.of(theme),
+        selectedLegends: selectedLegends,
+      );
+    }
+
+    /// Paints the mounted chart's series and returns each bar's opacity by
+    /// legend. The Apples bar is the longer of the two.
+    Map<String, double> mountedOpacities(WidgetTester tester) {
+      final painter = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((widget) => widget.painter)
+          .whereType<FluentCartesianChartPainter>()
+          .single;
+      final canvas = _RecordingCanvas();
+      painter.delegate.paintSeries(
+        canvas,
+        FluentCartesianChildContext(
+          xScale: painter.xAxis.scale,
+          yScalePrimary: painter.yAxisPrimary.scale,
+          containerWidth: painter.layout.size.width,
+          containerHeight: painter.layout.size.height,
+        ),
+        painter.layout,
+        painter.colors,
+      );
+      expect(canvas.rects, hasLength(2), reason: 'one bar per point');
+      final applesFirst = canvas.rects[0].width > canvas.rects[1].width;
+      return <String, double>{
+        'Apples': canvas.fills[applesFirst ? 0 : 1].a,
+        'Bananas': canvas.fills[applesFirst ? 1 : 0].a,
+      };
+    }
+
+    testWidgets('hovering a legend dims every other bar to 0.1', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+          home: const Center(
+            child: SizedBox(
+              width: 800,
+              height: 350,
+              child: FluentHorizontalBarChartWithAxis(data: points),
+            ),
+          ),
+        ),
+      );
+      final g = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await g.addPointer(location: Offset.zero);
+      addTearDown(g.removePointer);
+      final legend = tester.getCenter(find.text('Apples'));
+      await g.moveTo(legend);
+      await tester.pump();
+      // A pixel of drift, as a hand gives.
+      await g.moveTo(legend + const Offset(1, 0));
+      await tester.pump();
+
+      final hovered = mountedOpacities(tester);
+      expect(hovered['Apples'], 1, reason: 'the hovered legend stays lit');
+      expect(
+        hovered['Bananas'],
+        // 255 is the 8-bit alpha channel a Color quantises to.
+        closeTo(0.1, 1 / 255),
+        reason:
+            'a legend hover sets isLegendHovered and selectedLegendTitle '
+            '(HorizontalBarChartWithAxis.tsx:678-683), and shouldHighlight is '
+            'then _isLegendHighlighted (:404-407, :743-749), so the other bar '
+            'drops to opacity 0.1 with nothing selected',
+      );
+
+      await g.moveTo(Offset.zero);
+      await tester.pump();
+      expect(
+        mountedOpacities(tester).values,
+        everyElement(1),
+        reason: 'leaving the legend lights every bar again, `.tsx:685-690`',
+      );
+    });
+
+    test('a bar dimmed by a selected legend has no callout and no stop', () {
+      final regions = delegateWith(
+        selectedLegends: <String>['Apples'],
+      ).buildHitRegions(_hbwaContext(delegateWith()), _layout(height: 350));
+      expect(
+        <(String, bool, bool)>[
+          for (final region in regions)
+            (region.legend, region.focusable, region.popoverData != null),
+        ],
+        <(String, bool, bool)>[
+          ('Apples', true, true),
+          ('Bananas', false, false),
+        ],
+        reason:
+            'a dimmed bar has no tab index (HorizontalBarChartWithAxis.tsx:490) '
+            'and its onMouseOver opens nothing while another legend is '
+            'selected (:251), but it keeps onClick={point.onClick} (:480), so '
+            'it stays a region the shell can click',
+      );
+    });
+
+    test('readings print a whole number the way JavaScript does', () {
+      final region = delegateWith()
+          .buildHitRegions(_hbwaContext(delegateWith()), _layout(height: 350))
+          .firstWhere((region) => region.legend == 'Apples');
+      expect(
+        region.popoverData!.xValue,
+        '5000',
+        reason:
+            'XValue is point.y.toString() (HorizontalBarChartWithAxis.tsx:'
+            '259) and ChartPopover.tsx:63 renders it as is, so a double 5000 '
+            "reads '5000', not Dart's '5000.0'",
+      );
+      expect(
+        region.popoverData!.yValue,
+        '100',
+        reason: 'formatToLocaleString(point.x.toString()), ChartPopover.tsx:89',
+      );
+      expect(
+        region.semanticsLabel,
+        '5000. Apples, 100.',
+        reason:
+            '_getAriaLabel interpolates the raw numbers into a template '
+            'literal, HorizontalBarChartWithAxis.tsx:776-781',
+      );
     });
   });
 }

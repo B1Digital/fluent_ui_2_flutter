@@ -115,22 +115,20 @@ typedef _DefaultPerson = ({
 
 // `FluentAvatar` derives neither initials nor a colour from `name` — upstream's
 // `getInitials` is a locale-sensitive parser — so `AvatarGroupItem name={name}`
-// is spelled out per person here.
+// is spelled out per person here. Each colour is what AvatarGroupItem's
+// `color: 'colorful'` picks: useAvatar.js's getHashCode(name) over its 30
+// avatarColors.
 const List<_DefaultPerson> _defaultPeople = <_DefaultPerson>[
-  (name: 'Johnie McConnell', initials: 'JM', color: FluentAvatarColor.platinum),
-  (name: 'Allan Munger', initials: 'AM', color: FluentAvatarColor.lavender),
-  (name: 'Erik Nason', initials: 'EN', color: FluentAvatarColor.steel),
-  (name: 'Kristin Patterson', initials: 'KP', color: FluentAvatarColor.teal),
-  (name: 'Daisy Phillips', initials: 'DP', color: FluentAvatarColor.seafoam),
-  (name: 'Carole Poland', initials: 'CP', color: FluentAvatarColor.marigold),
-  (
-    name: 'Carlos Slattery',
-    initials: 'CS',
-    color: FluentAvatarColor.cornflower,
-  ),
-  (name: 'Robert Tolbert', initials: 'RT', color: FluentAvatarColor.platinum),
+  (name: 'Johnie McConnell', initials: 'JM', color: FluentAvatarColor.beige),
+  (name: 'Allan Munger', initials: 'AM', color: FluentAvatarColor.purple),
+  (name: 'Erik Nason', initials: 'EN', color: FluentAvatarColor.platinum),
+  (name: 'Kristin Patterson', initials: 'KP', color: FluentAvatarColor.plum),
+  (name: 'Daisy Phillips', initials: 'DP', color: FluentAvatarColor.pink),
+  (name: 'Carole Poland', initials: 'CP', color: FluentAvatarColor.purple),
+  (name: 'Carlos Slattery', initials: 'CS', color: FluentAvatarColor.peach),
+  (name: 'Robert Tolbert', initials: 'RT', color: FluentAvatarColor.anchor),
   (name: 'Kevin Sturgis', initials: 'KS', color: FluentAvatarColor.lavender),
-  (name: 'Charlotte Waltson', initials: 'CW', color: FluentAvatarColor.peach),
+  (name: 'Charlotte Waltson', initials: 'CW', color: FluentAvatarColor.pumpkin),
   (name: 'Elliot Woodward', initials: 'EW', color: FluentAvatarColor.seafoam),
 ];
 
@@ -202,20 +200,16 @@ typedef _LayoutPerson = ({
 });
 
 const List<_LayoutPerson> _layoutPeople = <_LayoutPerson>[
-  (name: 'Johnie McConnell', initials: 'JM', color: FluentAvatarColor.platinum),
-  (name: 'Allan Munger', initials: 'AM', color: FluentAvatarColor.lavender),
-  (name: 'Erik Nason', initials: 'EN', color: FluentAvatarColor.steel),
-  (name: 'Kristin Patterson', initials: 'KP', color: FluentAvatarColor.teal),
-  (name: 'Daisy Phillips', initials: 'DP', color: FluentAvatarColor.seafoam),
-  (name: 'Carole Poland', initials: 'CP', color: FluentAvatarColor.marigold),
-  (
-    name: 'Carlos Slattery',
-    initials: 'CS',
-    color: FluentAvatarColor.cornflower,
-  ),
-  (name: 'Robert Tolbert', initials: 'RT', color: FluentAvatarColor.platinum),
+  (name: 'Johnie McConnell', initials: 'JM', color: FluentAvatarColor.beige),
+  (name: 'Allan Munger', initials: 'AM', color: FluentAvatarColor.purple),
+  (name: 'Erik Nason', initials: 'EN', color: FluentAvatarColor.platinum),
+  (name: 'Kristin Patterson', initials: 'KP', color: FluentAvatarColor.plum),
+  (name: 'Daisy Phillips', initials: 'DP', color: FluentAvatarColor.pink),
+  (name: 'Carole Poland', initials: 'CP', color: FluentAvatarColor.purple),
+  (name: 'Carlos Slattery', initials: 'CS', color: FluentAvatarColor.peach),
+  (name: 'Robert Tolbert', initials: 'RT', color: FluentAvatarColor.anchor),
   (name: 'Kevin Sturgis', initials: 'KS', color: FluentAvatarColor.lavender),
-  (name: 'Charlotte Waltson', initials: 'CW', color: FluentAvatarColor.peach),
+  (name: 'Charlotte Waltson', initials: 'CW', color: FluentAvatarColor.pumpkin),
   (name: 'Elliot Woodward', initials: 'EW', color: FluentAvatarColor.seafoam),
 ];
 
@@ -311,20 +305,16 @@ typedef _IndicatorPerson = ({
 });
 
 const List<_IndicatorPerson> _indicatorPeople = <_IndicatorPerson>[
-  (name: 'Johnie McConnell', initials: 'JM', color: FluentAvatarColor.platinum),
-  (name: 'Allan Munger', initials: 'AM', color: FluentAvatarColor.lavender),
-  (name: 'Erik Nason', initials: 'EN', color: FluentAvatarColor.steel),
-  (name: 'Kristin Patterson', initials: 'KP', color: FluentAvatarColor.teal),
-  (name: 'Daisy Phillips', initials: 'DP', color: FluentAvatarColor.seafoam),
-  (name: 'Carole Poland', initials: 'CP', color: FluentAvatarColor.marigold),
-  (
-    name: 'Carlos Slattery',
-    initials: 'CS',
-    color: FluentAvatarColor.cornflower,
-  ),
-  (name: 'Robert Tolbert', initials: 'RT', color: FluentAvatarColor.platinum),
+  (name: 'Johnie McConnell', initials: 'JM', color: FluentAvatarColor.beige),
+  (name: 'Allan Munger', initials: 'AM', color: FluentAvatarColor.purple),
+  (name: 'Erik Nason', initials: 'EN', color: FluentAvatarColor.platinum),
+  (name: 'Kristin Patterson', initials: 'KP', color: FluentAvatarColor.plum),
+  (name: 'Daisy Phillips', initials: 'DP', color: FluentAvatarColor.pink),
+  (name: 'Carole Poland', initials: 'CP', color: FluentAvatarColor.purple),
+  (name: 'Carlos Slattery', initials: 'CS', color: FluentAvatarColor.peach),
+  (name: 'Robert Tolbert', initials: 'RT', color: FluentAvatarColor.anchor),
   (name: 'Kevin Sturgis', initials: 'KS', color: FluentAvatarColor.lavender),
-  (name: 'Charlotte Waltson', initials: 'CW', color: FluentAvatarColor.peach),
+  (name: 'Charlotte Waltson', initials: 'CW', color: FluentAvatarColor.pumpkin),
   (name: 'Elliot Woodward', initials: 'EW', color: FluentAvatarColor.seafoam),
 ];
 
@@ -408,20 +398,16 @@ typedef _SizeSpreadPerson = ({
 });
 
 const List<_SizeSpreadPerson> _sizeSpreadPeople = <_SizeSpreadPerson>[
-  (name: 'Johnie McConnell', initials: 'JM', color: FluentAvatarColor.platinum),
-  (name: 'Allan Munger', initials: 'AM', color: FluentAvatarColor.lavender),
-  (name: 'Erik Nason', initials: 'EN', color: FluentAvatarColor.steel),
-  (name: 'Kristin Patterson', initials: 'KP', color: FluentAvatarColor.teal),
-  (name: 'Daisy Phillips', initials: 'DP', color: FluentAvatarColor.seafoam),
-  (name: 'Carole Poland', initials: 'CP', color: FluentAvatarColor.marigold),
-  (
-    name: 'Carlos Slattery',
-    initials: 'CS',
-    color: FluentAvatarColor.cornflower,
-  ),
-  (name: 'Robert Tolbert', initials: 'RT', color: FluentAvatarColor.platinum),
+  (name: 'Johnie McConnell', initials: 'JM', color: FluentAvatarColor.beige),
+  (name: 'Allan Munger', initials: 'AM', color: FluentAvatarColor.purple),
+  (name: 'Erik Nason', initials: 'EN', color: FluentAvatarColor.platinum),
+  (name: 'Kristin Patterson', initials: 'KP', color: FluentAvatarColor.plum),
+  (name: 'Daisy Phillips', initials: 'DP', color: FluentAvatarColor.pink),
+  (name: 'Carole Poland', initials: 'CP', color: FluentAvatarColor.purple),
+  (name: 'Carlos Slattery', initials: 'CS', color: FluentAvatarColor.peach),
+  (name: 'Robert Tolbert', initials: 'RT', color: FluentAvatarColor.anchor),
   (name: 'Kevin Sturgis', initials: 'KS', color: FluentAvatarColor.lavender),
-  (name: 'Charlotte Waltson', initials: 'CW', color: FluentAvatarColor.peach),
+  (name: 'Charlotte Waltson', initials: 'CW', color: FluentAvatarColor.pumpkin),
   (name: 'Elliot Woodward', initials: 'EW', color: FluentAvatarColor.seafoam),
 ];
 
@@ -521,20 +507,16 @@ typedef _SizeStackPerson = ({
 });
 
 const List<_SizeStackPerson> _sizeStackPeople = <_SizeStackPerson>[
-  (name: 'Johnie McConnell', initials: 'JM', color: FluentAvatarColor.platinum),
-  (name: 'Allan Munger', initials: 'AM', color: FluentAvatarColor.lavender),
-  (name: 'Erik Nason', initials: 'EN', color: FluentAvatarColor.steel),
-  (name: 'Kristin Patterson', initials: 'KP', color: FluentAvatarColor.teal),
-  (name: 'Daisy Phillips', initials: 'DP', color: FluentAvatarColor.seafoam),
-  (name: 'Carole Poland', initials: 'CP', color: FluentAvatarColor.marigold),
-  (
-    name: 'Carlos Slattery',
-    initials: 'CS',
-    color: FluentAvatarColor.cornflower,
-  ),
-  (name: 'Robert Tolbert', initials: 'RT', color: FluentAvatarColor.platinum),
+  (name: 'Johnie McConnell', initials: 'JM', color: FluentAvatarColor.beige),
+  (name: 'Allan Munger', initials: 'AM', color: FluentAvatarColor.purple),
+  (name: 'Erik Nason', initials: 'EN', color: FluentAvatarColor.platinum),
+  (name: 'Kristin Patterson', initials: 'KP', color: FluentAvatarColor.plum),
+  (name: 'Daisy Phillips', initials: 'DP', color: FluentAvatarColor.pink),
+  (name: 'Carole Poland', initials: 'CP', color: FluentAvatarColor.purple),
+  (name: 'Carlos Slattery', initials: 'CS', color: FluentAvatarColor.peach),
+  (name: 'Robert Tolbert', initials: 'RT', color: FluentAvatarColor.anchor),
   (name: 'Kevin Sturgis', initials: 'KS', color: FluentAvatarColor.lavender),
-  (name: 'Charlotte Waltson', initials: 'CW', color: FluentAvatarColor.peach),
+  (name: 'Charlotte Waltson', initials: 'CW', color: FluentAvatarColor.pumpkin),
   (name: 'Elliot Woodward', initials: 'EW', color: FluentAvatarColor.seafoam),
 ];
 
@@ -635,20 +617,16 @@ typedef _SizePiePerson = ({
 });
 
 const List<_SizePiePerson> _sizePiePeople = <_SizePiePerson>[
-  (name: 'Johnie McConnell', initials: 'JM', color: FluentAvatarColor.platinum),
-  (name: 'Allan Munger', initials: 'AM', color: FluentAvatarColor.lavender),
-  (name: 'Erik Nason', initials: 'EN', color: FluentAvatarColor.steel),
-  (name: 'Kristin Patterson', initials: 'KP', color: FluentAvatarColor.teal),
-  (name: 'Daisy Phillips', initials: 'DP', color: FluentAvatarColor.seafoam),
-  (name: 'Carole Poland', initials: 'CP', color: FluentAvatarColor.marigold),
-  (
-    name: 'Carlos Slattery',
-    initials: 'CS',
-    color: FluentAvatarColor.cornflower,
-  ),
-  (name: 'Robert Tolbert', initials: 'RT', color: FluentAvatarColor.platinum),
+  (name: 'Johnie McConnell', initials: 'JM', color: FluentAvatarColor.beige),
+  (name: 'Allan Munger', initials: 'AM', color: FluentAvatarColor.purple),
+  (name: 'Erik Nason', initials: 'EN', color: FluentAvatarColor.platinum),
+  (name: 'Kristin Patterson', initials: 'KP', color: FluentAvatarColor.plum),
+  (name: 'Daisy Phillips', initials: 'DP', color: FluentAvatarColor.pink),
+  (name: 'Carole Poland', initials: 'CP', color: FluentAvatarColor.purple),
+  (name: 'Carlos Slattery', initials: 'CS', color: FluentAvatarColor.peach),
+  (name: 'Robert Tolbert', initials: 'RT', color: FluentAvatarColor.anchor),
   (name: 'Kevin Sturgis', initials: 'KS', color: FluentAvatarColor.lavender),
-  (name: 'Charlotte Waltson', initials: 'CW', color: FluentAvatarColor.peach),
+  (name: 'Charlotte Waltson', initials: 'CW', color: FluentAvatarColor.pumpkin),
   (name: 'Elliot Woodward', initials: 'EW', color: FluentAvatarColor.seafoam),
 ];
 
@@ -694,20 +672,16 @@ typedef _TooltipPerson = ({
 });
 
 const List<_TooltipPerson> _tooltipPeople = <_TooltipPerson>[
-  (name: 'Johnie McConnell', initials: 'JM', color: FluentAvatarColor.platinum),
-  (name: 'Allan Munger', initials: 'AM', color: FluentAvatarColor.lavender),
-  (name: 'Erik Nason', initials: 'EN', color: FluentAvatarColor.steel),
-  (name: 'Kristin Patterson', initials: 'KP', color: FluentAvatarColor.teal),
-  (name: 'Daisy Phillips', initials: 'DP', color: FluentAvatarColor.seafoam),
-  (name: 'Carole Poland', initials: 'CP', color: FluentAvatarColor.marigold),
-  (
-    name: 'Carlos Slattery',
-    initials: 'CS',
-    color: FluentAvatarColor.cornflower,
-  ),
-  (name: 'Robert Tolbert', initials: 'RT', color: FluentAvatarColor.platinum),
+  (name: 'Johnie McConnell', initials: 'JM', color: FluentAvatarColor.beige),
+  (name: 'Allan Munger', initials: 'AM', color: FluentAvatarColor.purple),
+  (name: 'Erik Nason', initials: 'EN', color: FluentAvatarColor.platinum),
+  (name: 'Kristin Patterson', initials: 'KP', color: FluentAvatarColor.plum),
+  (name: 'Daisy Phillips', initials: 'DP', color: FluentAvatarColor.pink),
+  (name: 'Carole Poland', initials: 'CP', color: FluentAvatarColor.purple),
+  (name: 'Carlos Slattery', initials: 'CS', color: FluentAvatarColor.peach),
+  (name: 'Robert Tolbert', initials: 'RT', color: FluentAvatarColor.anchor),
   (name: 'Kevin Sturgis', initials: 'KS', color: FluentAvatarColor.lavender),
-  (name: 'Charlotte Waltson', initials: 'CW', color: FluentAvatarColor.peach),
+  (name: 'Charlotte Waltson', initials: 'CW', color: FluentAvatarColor.pumpkin),
   (name: 'Elliot Woodward', initials: 'EW', color: FluentAvatarColor.seafoam),
 ];
 

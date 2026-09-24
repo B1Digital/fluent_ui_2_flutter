@@ -39,7 +39,7 @@ work around it by inventing an API.
 - `FluentNavItemTheme` carries a catch-all `style` plus per-kind slots `appItemStyle`, `categoryStyle`, `itemStyle` and `subItemStyle`. Resolution is per-property: defaults, then `style`, then the kind slot, then the widget's own `style`. `maybeOf` returns the catch-all unchanged; `maybeOfKind` resolves the full chain.
 - `FluentNavSectionHeader` is the only nav part usable outside a `FluentNav` - it reads no scope and does not throw. It reports `Semantics(headingLevel: 3)` in place of upstream's `<h3>`, because Flutter has no heading `SemanticsRole`.
 - `FluentNavDrawer` defaults to 260 wide (`fluentNavDrawerWidth`) on `neutralBackground4` with 10/4 inline body gutters. Passing `size` hands width and duration back to `FluentDrawer`'s own table, matching upstream's `!size && styles.defaultWidth`. No `Body` or `Footer` sub-widgets ship: `FluentNav` already emits the 2px row gap, and upstream's footer padding is invalid CSS with no observable effect. `role="navigation"` has no Flutter equivalent.
-- `FluentHamburger` reproduces upstream's overridden fill - `neutralBackground4`/`Hover`/`Pressed` - rather than `FluentButtonAppearance.transparent`, which in this package means no fill at all plus a brand-tinted hover. It therefore reads as a filled chip on any non-nav surface. `expanded` is nullable and opt-in: upstream's Hamburger sets no ARIA, and `NavAccessibility.md` scopes `aria-expanded` to inline navs only.
+- `FluentHamburger` is a `FluentButtonAppearance.transparent` button with no fill of its own, as upstream renders it: `useHamburgerStyles` merges the nav fill before the transparent Button's classes, so the live storybook paints no fill at rest, on hover or on press, and only the glyph goes brand. `expanded` is nullable and opt-in: upstream's Hamburger sets no ARIA, and `NavAccessibility.md` scopes `aria-expanded` to inline navs only.
 
 ## Widget constructors and fields
 
@@ -71,7 +71,7 @@ const FluentHamburger({
 | `semanticLabel` | `String` | Yes | — | Announced by assistive technology. |
 | `expanded` | `bool?` | No | `null` | Reported as `Semantics(expanded:)`, and only when non-null. |
 | `size` | `FluentButtonSize?` | No | `null` | Height and glyph ramp. Null takes [FluentButton]'s own default. |
-| `style` | `FluentButtonStyle?` | No | `null` | Overrides layered over the nav fill. Merged last, so it wins. |
+| `style` | `FluentButtonStyle?` | No | `null` | Overrides layered over the transparent button. Merged last, so it wins. |
 | `focusNode` | `FocusNode?` | No | `null` | Focus node to use. One is created internally when omitted. |
 | `autofocus` | `bool` | No | `false` | Whether to take focus on mount. |
 
@@ -401,6 +401,7 @@ Source: `packages/fluent_2/lib/src/buttons/button_style.dart`
 const FluentButtonStyle({
     this.backgroundColor,
     this.foregroundColor,
+    this.iconColor,
     this.borderColor,
     this.borderWidth,
     this.borderRadius,
@@ -408,18 +409,21 @@ const FluentButtonStyle({
     this.padding,
     this.gap,
     this.iconSize,
+    this.menuIconSize,
     this.minimumSize,
     this.mouseCursor,
     this.focusRingInsets,
     this.focusRingInnerColor,
     this.shadow,
+    this.animationDuration,
   });
 ```
 
 | Field | Type | Required | Default | Purpose |
 | --- | --- | --- | --- | --- |
 | `backgroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Surface fill. |
-| `foregroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Label and icon colour. |
+| `foregroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Label colour, and the icon's unless [iconColor] says otherwise. |
+| `iconColor` | `WidgetStateProperty<Color?>?` | No | `null` | Icon colour, or null for the icon to follow [foregroundColor]. |
 | `borderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Border colour. Null and transparent are different: Fluent's `transparentStroke` becomes opaque in high contrast. |
 | `borderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Border width. Zero means no border, which is not the same as a transparent one — a zero-width border cannot become visible in high contrast. |
 | `borderRadius` | `WidgetStateProperty<BorderRadius?>?` | No | `null` | Corner radius. |
@@ -427,11 +431,13 @@ const FluentButtonStyle({
 | `padding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Padding inside the border. |
 | `gap` | `WidgetStateProperty<double?>?` | No | `null` | Space between icon and label. |
 | `iconSize` | `WidgetStateProperty<double?>?` | No | `null` | Icon edge length. |
+| `menuIconSize` | `WidgetStateProperty<double?>?` | No | `null` | Edge length of the menu icon after the label, which upstream sizes apart from the icon: 12, or 16 at large, beside a 20 or 24 icon. |
 | `minimumSize` | `WidgetStateProperty<Size?>?` | No | `null` | Minimum tap target. |
 | `mouseCursor` | `WidgetStateProperty<MouseCursor?>?` | No | `null` | Cursor while hovering. |
 | `focusRingInsets` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | How deep the keyboard focus ring reaches in from each edge. |
 | `focusRingInnerColor` | `WidgetStateProperty<Color?>?` | No | `null` | A second, 1px ring just inside the focus ring, or null for none. |
 | `shadow` | `WidgetStateProperty<List<BoxShadow>?>?` | No | `null` | Drop shadow. Upstream gives a focused primary button `shadow2`. |
+| `animationDuration` | `Duration?` | No | `null` | How long the fill, border and label take to reach a new state's colours. |
 
 ### `FluentDividerAppearance`
 

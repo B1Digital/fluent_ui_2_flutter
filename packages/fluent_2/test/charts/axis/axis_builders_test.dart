@@ -1203,6 +1203,26 @@ void main() {
       );
     });
 
+    test('an axis no series is on spans its bounds, not NaN', () {
+      final axisData = FluentAxisData();
+      createNumericYAxis(
+        yParams(start: double.nan, end: double.nan, yMaxValue: 100),
+        axisData,
+        isRtl: false,
+        isIntegralDataset: true,
+        chartType: FluentChartType.lineChart,
+        useSecondaryYScale: true,
+      );
+      expect(
+        axisData.yAxisDomainValues,
+        <double>[0, 100],
+        reason:
+            'findNumericMinMaxOfY over no series is undefined, which '
+            "utilities.ts:821-823's `|| 0` reads as 0, so the secondary scale "
+            'spans 0 to its yMaxValue',
+      );
+    });
+
     test('spans the full plot width with a negative inner tick size', () {
       final spec = createNumericYAxis(
         yParams(),
@@ -1343,6 +1363,39 @@ void main() {
         reason:
             'utilities.ts:834-844 replaces the prepared domain with the raw '
             'extent when the scale is logarithmic.',
+      );
+    });
+
+    test('draws the default log ticks, labelling only the decades', () {
+      final axisData = FluentAxisData();
+      final spec = createNumericYAxis(
+        yParams(start: 1, end: 100000),
+        axisData,
+        isRtl: false,
+        isIntegralDataset: true,
+        chartType: FluentChartType.scatterChart,
+        scaleType: FluentAxisScaleType.log,
+      );
+      expect(
+        spec.tickValues,
+        hasLength(46),
+        reason:
+            'utilities.ts:858-862 sets no tickValues on a log scale, so '
+            "d3-axis draws the scale's default ticks(): five decades is under "
+            'ten, so every 1-9 mantissa is a tick (9 x 5 + 100000).',
+      );
+      expect(spec.tickValues.take(3), <double>[1, 2, 3]);
+      expect(
+        spec.tickLabels.where((l) => l.isNotEmpty),
+        hasLength(6),
+        reason: 'tickFormat(yAxisTickCount) blanks every non-decade label.',
+      );
+      expect(
+        axisData.yAxisTickText,
+        hasLength(6),
+        reason:
+            'utilities.ts:890 reports the text of ticks(yAxisTickCount), the '
+            'six decades, for the margin measurement.',
       );
     });
   });

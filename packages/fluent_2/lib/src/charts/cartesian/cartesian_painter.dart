@@ -10,6 +10,7 @@ import '../internal/chart_colors.dart';
 import '../internal/chart_text_measurer.dart';
 import '../internal/chart_text_styles.dart';
 import '../internal/d3/axis_geometry.dart' as d3;
+import '../model/chart_common.dart';
 import 'cartesian_chart_props.dart';
 import 'cartesian_chart_style.dart';
 import 'cartesian_layout.dart';
@@ -233,6 +234,85 @@ class FluentCartesianChartPainter extends CustomPainter {
     rotationRadians: 0,
   );
 
+  /// The tick labels drawn cut short, each with the box its text paints in,
+  /// in plot coordinates: what a pointer hovers to read the whole label.
+  ///
+  /// `CartesianChart.tsx:384-416` runs `tooltipOfAxislabels` over the x axis
+  /// under `showXAxisLablesTooltip` or `tickLayout: 'auto'`, and over the
+  /// primary y axis under `showYAxisLablesTooltip`. It listens on each
+  /// `.tick text` whose text is not its `data-full` (`utilities.ts:1300-1304`),
+  /// which is [FluentAxisTickLabel.truncated], and places the tooltip off that
+  /// `<text>` element's box (`:1310`), the union of its lines.
+  List<({Rect bounds, String fullText})> get axisLabelTooltipTargets =>
+      <({Rect bounds, String fullText})>[
+        if (props.showXAxisLabelsTooltip ||
+            (props.xAxis?.tickLayout ?? delegate.xAxisTickLayout) ==
+                FluentTickLayout.auto)
+          ..._labelTargets(
+            xAxis,
+            Offset(0, layout.xAxisTranslateY),
+            xLabelLayout,
+          ),
+        if (props.showYAxisLabelsTooltip)
+          ..._labelTargets(
+            yAxisPrimary,
+            Offset(layout.yAxisTranslateX, 0),
+            _yLabelLayout,
+          ),
+      ];
+
+  Iterable<({Rect bounds, String fullText})> _labelTargets(
+    FluentAxisSpec spec,
+    Offset translate,
+    FluentXAxisLabelLayout? labelLayout,
+  ) sync* {
+    // A rotated label is never truncated (`rotateXAxisLabels` keeps the whole
+    // text), so every label with a target lies flat.
+    if (labelLayout == null || labelLayout.rotationRadians != 0) return;
+    final style = textStyles.axisTick;
+    final fontSize = style.fontSize ?? 10;
+    for (final (index, tick) in _geometry(spec).ticks.indexed) {
+      if (index >= labelLayout.labels.length) break;
+      final label = labelLayout.labels[index];
+      if (!label.truncated) continue;
+      Rect? bounds;
+      // Where FluentAxisPainter paints each line.
+      for (final line in label.lines) {
+        final metrics = measurer.measure(line.text, style);
+        final baseline = tick.labelAnchor.dy + line.dyEm * fontSize;
+        final left = switch (tick.textAlign) {
+          d3.FluentAxisTextAnchor.start => tick.labelAnchor.dx,
+          d3.FluentAxisTextAnchor.middle =>
+            tick.labelAnchor.dx - metrics.width / 2,
+          d3.FluentAxisTextAnchor.end => tick.labelAnchor.dx - metrics.width,
+        };
+        // Chromium boxes SVG text on the font's ascent and descent rounded to
+        // whole pixels: the captured 10px Segoe UI ticks are 14 tall and
+        // start 11 above the baseline, not 10.79.
+        final box = Rect.fromLTRB(
+          left,
+          baseline - metrics.ascent.roundToDouble(),
+          left + metrics.width,
+          baseline + metrics.descent.roundToDouble(),
+        );
+        bounds = bounds?.expandToInclude(box) ?? box;
+      }
+      if (bounds == null) continue;
+      yield (bounds: bounds.shift(translate), fullText: label.fullText);
+    }
+  }
+
+  d3.FluentAxisGeometry _geometry(FluentAxisSpec spec) => d3.FluentAxisGeometry(
+    orientation: spec.orientation,
+    scale: spec.scale,
+    tickValues: spec.tickValues,
+    tickLabels: spec.tickLabels,
+    offset: crispOffset,
+    tickSizeInner: spec.tickSizeInner,
+    tickSizeOuter: spec.tickSizeOuter,
+    tickPadding: spec.tickPadding,
+  );
+
   void _paintAxis(
     Canvas canvas,
     Size size,
@@ -244,16 +324,7 @@ class FluentCartesianChartPainter extends CustomPainter {
       ..save()
       ..translate(translate.dx, translate.dy);
     FluentAxisPainter(
-      geometry: d3.FluentAxisGeometry(
-        orientation: spec.orientation,
-        scale: spec.scale,
-        tickValues: spec.tickValues,
-        tickLabels: spec.tickLabels,
-        offset: crispOffset,
-        tickSizeInner: spec.tickSizeInner,
-        tickSizeOuter: spec.tickSizeOuter,
-        tickPadding: spec.tickPadding,
-      ),
+      geometry: _geometry(spec),
       labelLayout: labelLayout,
       textStyles: textStyles,
       colors: colors,

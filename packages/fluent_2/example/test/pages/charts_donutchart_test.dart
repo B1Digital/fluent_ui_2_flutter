@@ -63,16 +63,22 @@ void main() {
         arcPoint(tester, 0),
         what: 'the first arc',
       );
-      expect(find.byType(FluentChartPopover), findsOneWidget);
+      final Finder popover = find.byType(FluentChartPopover);
+      expect(popover, findsOneWidget);
       // The callout overrides win over the legend and the raw datum, which is
-      // the whole reason this section sets `xAxisCalloutData`.
+      // the whole reason this section sets `xAxisCalloutData`. The reading is
+      // grouped, as ChartPopover.tsx:89 formats it: the storybook shows
+      // '20,000'.
       expect(find.text('2020/04/30'), findsOneWidget);
-      expect(find.text('20000'), findsOneWidget);
+      expect(
+        find.descendant(of: popover, matching: find.text('20,000')),
+        findsOneWidget,
+      );
       await mouseAway(tester, mouse);
       expect(
         find.byType(FluentChartPopover),
         findsNothing,
-        reason: 'leaving the plot must close the popover',
+        reason: 'leaving the chart must close the popover',
       );
 
       mouse = await hoverAt(
@@ -81,7 +87,11 @@ void main() {
         what: 'the second arc',
       );
       expect(find.text('2020/04/20'), findsOneWidget);
-      expect(find.text('35000'), findsOneWidget);
+      // The hole reads 35,000 too, so the popover's copy is looked for there.
+      expect(
+        find.descendant(of: popover, matching: find.text('35,000')),
+        findsOneWidget,
+      );
       await mouseAway(tester, mouse);
     });
   });
@@ -230,17 +240,40 @@ void main() {
       final Finder popover = find.byType(FluentChartPopover);
 
       // Off: `popoverBuilder` returns null, so the built-in body shows the
-      // datum's own reading.
+      // story's `calloutPropsPerDataPoint` spread over the datum's reading:
+      // its heading and ' h' value, with the datum's `xAxisCalloutData` still
+      // winning the legend line (ChartPopover.tsx:41-44).
       TestGesture mouse = await hoverAt(
         tester,
         arcPoint(tester, 0),
         what: 'the first arc',
       );
+      for (final String line in <String>[
+        'Custom XVal',
+        '2020/04/30',
+        '20000 h',
+      ]) {
+        expect(
+          find.descendant(of: popover, matching: find.text(line)),
+          findsOneWidget,
+          reason: 'the overridden built-in body must show "$line"',
+        );
+      }
       expect(
-        find.descendant(of: popover, matching: find.text('2020/04/30')),
-        findsOneWidget,
+        find.descendant(of: popover, matching: find.text('Custom Legend')),
+        findsNothing,
+        reason: "the datum's xAxisCalloutData outranks the custom legend",
       );
-      expect(find.text('20000 h'), findsNothing);
+      expect(
+        tester
+            .widget<Text>(
+              find.descendant(of: popover, matching: find.text('20000 h')),
+            )
+            .style
+            ?.color,
+        FluentDataVizPalette.resolve(FluentDataVizToken.warning),
+        reason: 'the custom colour paints the reading',
+      );
       await mouseAway(tester, mouse);
 
       await mouseClick(tester, toggle);
@@ -257,7 +290,7 @@ void main() {
         );
       }
       expect(
-        find.descendant(of: popover, matching: find.text('20000')),
+        find.descendant(of: popover, matching: find.text('20,000')),
         findsNothing,
         reason: 'the built-in value line must be gone',
       );

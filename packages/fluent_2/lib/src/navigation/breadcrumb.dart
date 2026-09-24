@@ -193,17 +193,16 @@ FluentBreadcrumbState resolveFluentBreadcrumbState({
 ///
 /// A crumb *is* a subtle button in both Figma and upstream
 /// (`useBreadcrumbButton` returns `appearance: 'subtle', shape: 'rounded'`),
-/// but five of its six styled properties diverge from
-/// `resolveFluentButtonStyle`, so composing the button would mean overriding
-/// almost all of it:
+/// but its geometry and type diverge from `resolveFluentButtonStyle`, so
+/// composing the button would mean overriding almost all of it:
 ///
 /// * the **icon** takes a brand ramp on hover and press while the **label**
-///   holds at `Neutral/Foreground/2/Rest` — two ramps where a button has one;
+///   only darkens to `Neutral/Foreground/2/Hover` — two ramps where a button
+///   has one;
 /// * the leading inset shrinks when an icon is present (4 / 2 / 0 rather than
 ///   the trailing 8 / 6 / 6), so the horizontal padding is asymmetric;
 /// * the type ramp is regular at every size and only the current crumb is
 ///   semibold, where a button is semibold throughout;
-/// * `Neutral/Foreground/1/Pressed` is the pressed label, with no hover step;
 /// * the horizontal padding ramp is 8 / 6 / 6, not the button's 16 / 12 / 8.
 ///
 /// It is also not a `FluentLink`: Figma gives it a filled surface, a corner
@@ -301,12 +300,16 @@ FluentBreadcrumbStyle resolveFluentBreadcrumbStyle(
       pressed: c.subtleBackgroundPressed,
       disabled: c.subtleBackground,
     ),
-    // No hover step, and that is Figma's reading rather than an omission: all
-    // 51 variants bind `Neutral/Foreground/2/Rest` on the label in Rest, Hover
-    // and Focused alike. Only press moves it.
+    // The subtle Button's label ramp, which `useBreadcrumbButton` renders the
+    // crumb through: `neutralForeground2` -> `2Hover` -> `2Pressed`. Figma
+    // binds `Neutral/Foreground/2/Rest` on hover in all 51 variants and
+    // `Neutral/Foreground/1/Pressed` on press, but the live
+    // `components-breadcrumb--default` page darkens the label from #424242 to
+    // #242424 under the pointer, so the storybook wins.
     foregroundColor: FluentStateColor.tokens(
       rest: c.neutralForeground2,
-      pressed: c.neutralForeground1Pressed,
+      hover: c.neutralForeground2Hover,
+      pressed: c.neutralForeground2Pressed,
       disabled: c.neutralForegroundDisabled,
     ),
     iconColor: FluentStateColor.tokens(
@@ -928,6 +931,9 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
       child: FluentInteractive(
         enabled: state.enabled,
         onPressed: state.enabled ? item.onPressed : null,
+        // A crumb is a subtle Button upstream, pressed under `:hover:active`:
+        // a mouse press dragged off falls back to rest.
+        pressedRequiresHover: true,
         mouseCursor:
             style.mouseCursor?.resolve(const <WidgetState>{}) ??
             SystemMouseCursors.click,
@@ -944,6 +950,8 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
     final trigger = FluentInteractive(
       onPressed: _toggle,
       focusNode: _overflowFocus,
+      // A Button upstream, as the crumbs are.
+      pressedRequiresHover: true,
       mouseCursor:
           style.mouseCursor?.resolve(const <WidgetState>{}) ??
           SystemMouseCursors.click,
@@ -1115,6 +1123,9 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
       child: FluentInteractive(
         enabled: state.enabled,
         onPressed: state.enabled ? () => _select(item) : null,
+        // The popup's rows are MenuItems upstream, pressed under
+        // `:hover:active` (useMenuItemStyles).
+        pressedRequiresHover: true,
         mouseCursor:
             style.mouseCursor?.resolve(const <WidgetState>{}) ??
             SystemMouseCursors.click,

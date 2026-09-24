@@ -1272,6 +1272,8 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
       mouseCursor:
           style.mouseCursor?.resolve(const <WidgetState>{}) ??
           SystemMouseCursors.click,
+      // `useOptionStyles.styles.ts`: a disabled option is `cursor: 'default'`.
+      disabledMouseCursor: SystemMouseCursors.basic,
       builder: (context, states, _) => ValueListenableBuilder<bool>(
         valueListenable: FluentInputModality.keyboard,
         builder: (context, keyboard, _) =>

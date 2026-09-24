@@ -145,16 +145,9 @@ class _ColorTableState extends State<_ColorTable> {
                     FluentButton(
                       onPressed: toggle,
                       appearance: FluentButtonAppearance.transparent,
-                      icon: fluentMenuChevron,
-                      iconPosition: FluentButtonIconPosition.after,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          const Icon(FluentIcons.filter_20_regular, size: 16),
-                          const SizedBox(width: 6),
-                          Text(_familyFilter ?? 'Filter'),
-                        ],
-                      ),
+                      icon: const Icon(FluentIcons.filter_20_regular, size: 16),
+                      menuIcon: fluentMenuChevron,
+                      child: Text(_familyFilter ?? 'Filter'),
                     ),
               ),
               const SizedBox(width: 12),

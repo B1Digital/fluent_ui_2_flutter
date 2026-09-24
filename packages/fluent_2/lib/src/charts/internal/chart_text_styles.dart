@@ -8,7 +8,7 @@ const double kChartTitlePadding = 20;
 
 /// Every text style a chart needs, resolved once from a theme.
 ///
-/// Fourteen slots, each transcribed from the upstream rule named on its field.
+/// Fifteen slots, each transcribed from the upstream rule named on its field.
 @immutable
 class FluentChartTextStyles {
   /// Creates a resolved slot set.
@@ -23,6 +23,7 @@ class FluentChartTextStyles {
     required this.legendLabel,
     required this.popoverX,
     required this.popoverY,
+    required this.popoverYNonCartesian,
     required this.popoverLegend,
     required this.popoverRatioNumerator,
     required this.popoverRatioDenominator,
@@ -62,10 +63,12 @@ class FluentChartTextStyles {
       popoverX: type.caption1.copyWith(
         color: foreground2.withValues(alpha: 0.8),
       ),
-      // useChartPopoverStyles.styles.ts:79-81, the cartesian arm. The
-      // non-cartesian arm at :82-84 is title2 and the popover picks it itself.
-      // The colour is inherited from calloutBlockContainer at :50.
+      // useChartPopoverStyles.styles.ts:79-81, the cartesian arm, picked by
+      // `isCartesian` at :150. The colour is inherited from
+      // calloutBlockContainer at :50.
       popoverY: type.subtitle2Stronger.copyWith(color: foreground2),
+      // useChartPopoverStyles.styles.ts:82-84, the non-cartesian arm.
+      popoverYNonCartesian: type.title2.copyWith(color: foreground2),
       // useChartPopoverStyles.styles.ts:70-75.
       popoverLegend: type.caption1.copyWith(color: foreground2),
       // useChartPopoverStyles.styles.ts:97-99, inheriting the colour of the
@@ -105,8 +108,11 @@ class FluentChartTextStyles {
   /// The x value at the top of a popover.
   final TextStyle popoverX;
 
-  /// A y value in a popover.
+  /// A y value in a cartesian chart's popover.
   final TextStyle popoverY;
+
+  /// A y value in a non-cartesian chart's popover.
+  final TextStyle popoverYNonCartesian;
 
   /// A series name in a popover.
   final TextStyle popoverLegend;

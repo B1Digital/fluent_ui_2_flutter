@@ -195,6 +195,14 @@ const DocsPage carouselPage = DocsPage(
       description: 'Where the chevrons sit.',
     ),
     PropRow(
+      name: 'navAppearance',
+      type: 'FluentCarouselNavAppearance',
+      defaultValue: 'FluentCarouselNavAppearance.neutral',
+      description:
+          "How the step marks are tinted. Upstream CarouselNav's appearance: "
+          'brand fills the selected pill with the compound brand colour.',
+    ),
+    PropRow(
       name: 'pauseButton',
       type: 'FluentCarouselPauseButton',
       defaultValue: 'FluentCarouselPauseButton.onContentClick',
@@ -1713,6 +1721,8 @@ class _FirstRunExperienceState extends State<_FirstRunExperience> {
             initialIndex: _activeIndex,
             onIndexChanged: (int index) => setState(() => _activeIndex = index),
             chevronPlacement: FluentCarouselChevronPlacement.groupedToSteps,
+            // Upstream's `<CarouselNav appearance="brand">`.
+            navAppearance: FluentCarouselNavAppearance.brand,
             stepLabel: (int index, int count) => 'Carousel Nav Button $index',
             slides: <Widget>[
               for (final _FirstRunPage page in _firstRunPages)

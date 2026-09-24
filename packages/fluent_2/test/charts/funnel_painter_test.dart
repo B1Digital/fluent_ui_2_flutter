@@ -30,22 +30,14 @@ class _RecordingCanvas implements Canvas {
       paragraphs.add(offset);
 
   @override
-  void saveLayer(Rect? bounds, Paint paint) {}
-
-  @override
-  void restore() {}
-
-  @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
 /// Adjacent trapezia share an exact edge with no stroke and no overlap
-/// (`FunnelChart.tsx:229-273`). SVG composites them without a seam; Flutter's
-/// antialiasing blends two half-covered edge pixels and leaves a visible
-/// hairline. The painter therefore adds every fill into one `saveLayer`, and
-/// the two hairline tests below are what prove the seam is gone — the second
-/// one especially, because a shared edge that lands on the pixel grid never had
-/// a seam to begin with.
+/// (`FunnelChart.tsx:229-273`), and each is its own source-over `<path>`
+/// (`:256-263`). The two seam tests below pin that compositing: a shared edge on
+/// the pixel grid leaves nothing, and one off it lets the ground through, as the
+/// stacked story's capture does.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -115,20 +107,19 @@ void main() {
           0x0F6CBDFF,
           reason:
               'The pixel row on the shared edge must be the fill colour '
-              'exactly. Painting the two paths separately blends the edge and '
-              'leaves a lighter line; a single saveLayer does not.',
+              'exactly: an edge on the pixel grid gives each row wholly to one '
+              'segment, so source-over leaves no seam there.',
         );
       }
     },
   );
 
-  test('a shared edge off the pixel grid leaves no hairline either', () async {
-    // 20.4 puts the shared edge inside pixel row 20, which is where a plain
-    // source-over pair blends: the first path covers 40 per cent of the row
-    // over the transparent ground, the second covers the remaining 60 per cent
-    // over that, and 21 per cent of the ground survives as a lighter line. A
-    // funnel's edges are almost never integral, so this is the case that
-    // matters.
+  test('a shared edge off the pixel grid lets the ground through', () async {
+    // 20.4 puts the shared edge inside pixel row 20: the first path covers 40
+    // per cent of the row over the transparent ground, the second covers the
+    // remaining 60 per cent over that, and 0.6 * 0.4 = 24 per cent of the
+    // ground survives as a lighter line. A funnel's edges are almost never
+    // integral, so this is the case that matters.
     final image = await raster(
       painterOf(<FluentFunnelSegment>[
         segment(const Rect.fromLTWH(0, 0, 40, 20.4)),
@@ -138,25 +129,17 @@ void main() {
     );
     final data = await image.toByteData();
     for (var x = 0; x < 40; x++) {
-      final pixel = data!.getUint32((20 * 40 + x) * 4);
       expect(
-        pixel & 0xFF,
-        0xFF,
+        data!.getUint32((20 * 40 + x) * 4) & 0xFF,
+        closeTo(194, 1),
         reason:
-            'Pixel row 20 straddles the shared edge, so the two segments must '
-            'cover it between them. Source-over leaves this at 194 — a quarter '
-            'of the transparent ground survives as the hairline.',
+            'FunnelChart.tsx:256-263 draws every segment as its own '
+            'source-over <path>, so row 20 is 1 - 0.6 * 0.4 = 0.76 covered. '
+            'The browser shows that seam: the stacked story reads '
+            '(97,176,186) on the Visit A|B edge at x 240, y 217 '
+            '(charts-funnelchart--funnel-chart-stacked), where adding the '
+            'coverages in one layer painted the fill, (41,156,128).',
       );
-      for (final shift in <int>[24, 16, 8]) {
-        expect(
-          (pixel >> shift) & 0xFF,
-          closeTo((0x0F6CBDFF >> shift) & 0xFF, 1),
-          reason:
-              'Channel at bit $shift of the seam pixel. Adding two coverages '
-              'that sum to one reproduces the fill to within the one unit in '
-              '255 that the premultiplied round trip costs.',
-        );
-      }
     }
   });
 

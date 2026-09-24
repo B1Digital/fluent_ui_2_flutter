@@ -180,6 +180,41 @@ void main() {
     });
   });
 
+  group('first run experience', () {
+    testWidgets('the nav takes the brand appearance', (
+      WidgetTester tester,
+    ) async {
+      // The slide copy sits in a fixed 520px frame, and FlutterTest's square
+      // glyphs, about twice Selawik's advance, wrap it past the bottom. Half
+      // scale lays it out about as a real face does.
+      tester.platformDispatcher.textScaleFactorTestValue = 0.5;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await pumpSection(
+        tester,
+        sectionOf('components-carousel-carousel--first-run-experience'),
+      );
+      await mouseClick(tester, find.text('Open Dialog'));
+      await settle(tester, frames: 10);
+
+      // Upstream's `<CarouselNav appearance="brand">`: the selected pill is
+      // compoundBrandBackground, where the neutral nav's is Foreground1.
+      final Finder selected = find.byType(FluentCarouselStep).first;
+      final Iterable<Color?> fills = tester
+          .widgetList<DecoratedBox>(
+            find.descendant(of: selected, matching: find.byType(DecoratedBox)),
+          )
+          .map((DecoratedBox box) => box.decoration)
+          .whereType<BoxDecoration>()
+          .where(
+            (BoxDecoration d) => d.borderRadius == FluentRadius.allCircular,
+          )
+          .map((BoxDecoration d) => d.color);
+      expect(fills, <Color?>[
+        FluentTheme.of(tester.element(selected)).colors.compoundBrandBackground,
+      ]);
+    });
+  });
+
   group('lifecycle', () {
     testWidgets('every section unmounts without throwing', (
       WidgetTester tester,

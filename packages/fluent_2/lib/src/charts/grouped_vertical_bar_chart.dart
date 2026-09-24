@@ -22,6 +22,7 @@ import 'internal/chart_utils.dart';
 import 'internal/d3/scale.dart' as d3;
 import 'internal/d3/scale_band.dart' as d3;
 import 'internal/data_viz_palette.dart';
+import 'internal/vega/js_value.dart' show jsObjectKeys, jsToString;
 import 'model/bar_data.dart';
 import 'model/callout_data.dart';
 import 'model/chart_common.dart';
@@ -602,7 +603,14 @@ class FluentGroupedVerticalBarChartDelegate
   List<FluentGroupedBarRect> barsFor(
     FluentCartesianChildContext context,
     FluentCartesianLayout layout,
-  ) {
+  ) => _barsFor(context, isRtl: layout.isRtl);
+
+  /// [barsFor] for a caller that has the direction but no layout: the chart's
+  /// own pointer handler.
+  List<FluentGroupedBarRect> _barsFor(
+    FluentCartesianChildContext context, {
+    required bool isRtl,
+  }) {
     final legends = barLegends;
     final barWidth = barWidthFor(context.xScale);
     final dim = style.barOpacity!.resolve(<WidgetState>{WidgetState.disabled})!;
@@ -626,7 +634,7 @@ class FluentGroupedVerticalBarChartDelegate
         presentLegends: present,
         xScale0: context.xScale,
         barWidth: barWidth,
-        isRtl: layout.isRtl,
+        isRtl: isRtl,
       );
       for (final legend in present) {
         final column = byLegend[legend]!;
@@ -833,35 +841,39 @@ class FluentGroupedVerticalBarChartDelegate
     final regions = <FluentChartHitRegion>[];
     for (final bar in barsFor(context, layout)) {
       final point = _pointFor(bar);
-      // `.tsx:596` gives a bar dimmed by another legend no tab index at all,
-      // so it is not an interactive area.
-      if (!_isLegendActive(bar.legend)) {
-        continue;
-      }
-      // `getAriaLabel` (`.tsx:724-729`) and `_getCalloutContent` read the same
-      // two overrides.
+      // A bar another legend has dimmed keeps its `onClick` (`.tsx:594`) but
+      // takes no tab index (`:596`), and hovering it closes the callout
+      // (`setPopoverOpen(_noLegendHighlighted() ||
+      // _legendHighlighted(pointData.legend))`, `:971`).
+      final lit = _isLegendActive(bar.legend);
+      // `getAriaLabel` (`.tsx:724-729`) and `_showCallout` (`:975-976`) read
+      // the same two overrides.
       final xValue = point.xAxisCalloutData ?? bar.category;
-      final yValue = point.yAxisCalloutData ?? formatY(point.data);
       regions.add(
         FluentChartHitRegion(
           bounds: bar.rect,
-          // The category, so a stack callout merges one group into one target
-          // (`.tsx:447` sets `isCalloutForStack` on the popover, and the shell
-          // coalesces on this index).
+          // The category the bar belongs to, which is what upstream narrates
+          // the bar's listbox by (`.tsx:640-642`).
           index: _categoryIndex(bar.category),
           legend: bar.legend,
-          popoverData: FluentChartPopoverData(
-            xValue: xValue,
-            yValue: yValue,
-            legend: bar.legend,
-            color: bar.colour,
-            isCalloutForStack: isCalloutForStack,
-            yValues: isCalloutForStack ? _yValuesOf(bar.category) : null,
-            culture: culture,
-          ),
+          focusable: lit,
+          popoverData: !lit
+              ? null
+              : FluentChartPopoverData(
+                  xValue: xValue,
+                  yValue: point.yAxisCalloutData ?? formatY(point.data),
+                  legend: bar.legend,
+                  color: bar.colour,
+                  isCalloutForStack: isCalloutForStack,
+                  yValues: isCalloutForStack ? _yValuesOf(bar.category) : null,
+                  culture: culture,
+                ),
+          // The aria label interpolates the raw number (`.tsx:727-728`),
+          // unformatted, where the popover formats it.
           semanticsLabel:
               point.callOutSemantics?.label ??
-              '$xValue. ${bar.legend}, $yValue.',
+              '$xValue. ${bar.legend}, '
+                  '${point.yAxisCalloutData ?? jsToString(point.data)}.',
           // `onClick={pointData.onClick}` (`.tsx:594`), on the rect in either
           // callout mode. The line-dot regions below take none: upstream's dot
           // circle has no `onClick` (`.tsx:865-892`).
@@ -879,19 +891,20 @@ class FluentGroupedVerticalBarChartDelegate
       }
       final point = series.data[dot.pointIndex];
       final xValue = point.xAxisCalloutData ?? dot.category;
-      final yValue =
-          point.yAxisCalloutData ??
-          (point.y is num
-              ? formatY((point.y as num).toDouble())
-              : '${point.y}');
       regions.add(
         FluentChartHitRegion(
           bounds: lineDotBounds(dot),
+          // A `<circle>`, hit as one (`.tsx:865-892`).
+          hitTest: (position) =>
+              (position - dot.centre).distance <= lineDotBounds(dot).width / 2,
           index: _categoryIndex(dot.category),
           legend: series.legend,
           popoverData: FluentChartPopoverData(
             xValue: xValue,
-            yValue: yValue,
+            // `data: point.y` (`.tsx:955`), formatted by `ChartPopover.tsx:89`.
+            yValue:
+                point.yAxisCalloutData ??
+                formatToLocaleString(point.y, culture: culture),
             legend: series.legend,
             color: colors.flattenMark(
               series.color ?? legendColour(series.legend),
@@ -903,7 +916,8 @@ class FluentGroupedVerticalBarChartDelegate
           // `getAriaLabel` again, called on the line point at `.tsx:881-891`.
           semanticsLabel:
               point.callOutSemantics?.label ??
-              '$xValue. ${series.legend}, $yValue.',
+              '$xValue. ${series.legend}, '
+                  '${point.yAxisCalloutData ?? jsToString(point.y)}.',
         ),
       );
     }
@@ -919,28 +933,54 @@ class FluentGroupedVerticalBarChartDelegate
 
   /// The stack-wide readings of [category], filtered the way
   /// `setYValueHover` filters them (`GroupedVerticalBarChart.tsx:980-982`).
-  List<FluentYValueHover> _yValuesOf(String category) => <FluentYValueHover>[
-    for (final group in data)
-      if (group.name == category)
-        for (final point in group.series)
-          if (_isLegendActive(point.legend))
+  ///
+  /// Ports the category's `groupSeries` (`.tsx:161-181`): one reading per bar
+  /// legend, the points a legend stacks summed into its first (`:166-174`),
+  /// then every line's point at that x (`:146-158`, `:180`). The bar readings
+  /// come out of `Object.values(legendToBarPoint)`, which lists integer-like
+  /// keys first, ascending, so legends 2022, 2023, 2024, 2021 read 2021 first.
+  List<FluentYValueHover> _yValuesOf(String category) {
+    final firsts = <String, FluentGroupedBarSeriesPoint>{};
+    final sums = <String, double>{};
+    for (final group in data) {
+      if (group.name != category) {
+        continue;
+      }
+      for (final point in group.series) {
+        firsts.putIfAbsent(point.legend, () => point);
+        sums[point.legend] = (sums[point.legend] ?? 0) + point.data;
+      }
+    }
+    return <FluentYValueHover>[
+      for (final legend in jsObjectKeys(firsts.keys))
+        FluentYValueHover(
+          legend: legend,
+          y: sums[legend],
+          color: colors.flattenMark(
+            firsts[legend]!.color ?? legendColour(legend),
+          ),
+          yAxisCalloutText: firsts[legend]!.yAxisCalloutData,
+        ),
+      for (final series in lineSeries)
+        for (final point in series.data)
+          if ('${point.x}' == category)
             FluentYValueHover(
-              legend: point.legend,
-              y: point.data,
+              legend: series.legend,
+              y: point.y is num ? (point.y as num).toDouble() : null,
               color: colors.flattenMark(
-                point.color ?? legendColour(point.legend),
+                series.color ?? legendColour(series.legend),
               ),
               yAxisCalloutText: point.yAxisCalloutData,
             ),
-  ];
+    ].where((reading) => _isLegendActive(reading.legend!)).toList();
+  }
 
-  /// A popover reading, in [culture] when the caller named one.
+  /// A popover reading.
   ///
-  /// `formatToLocaleString` is what `ChartPopover.tsx:80` calls; the scientific
-  /// fallback is the chart's own default when there is no locale to format in.
-  String formatY(double value) => culture == null
-      ? formatScientificLimitWidth(value)
-      : formatToLocaleString(value, culture: culture);
+  /// `ChartPopover.tsx:89` runs the reading through `formatToLocaleString`
+  /// whether or not the chart has a culture; without one it formats in the
+  /// default locale, so 5000 reads `5000` and 12345 `12,345`.
+  String formatY(double value) => formatToLocaleString(value, culture: culture);
 
   /// `_legendHighlighted(legend) || _noLegendHighlighted()`
   /// (`GroupedVerticalBarChart.tsx:552`).
@@ -1152,6 +1192,10 @@ class FluentGroupedVerticalBarChartState
   String? _activeLinePoint;
   final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
 
+  /// The delegate the last build handed the shell, which the pointer handler
+  /// hit-tests bars against.
+  FluentGroupedVerticalBarChartDelegate? _delegate;
+
   List<FluentGroupedVerticalBarChartData> get _categories =>
       widget.dataV2 != null && widget.dataV2!.isNotEmpty
       ? _fromV2(widget.dataV2!)
@@ -1250,25 +1294,35 @@ class FluentGroupedVerticalBarChartState
           .merge(FluentGroupedVerticalBarChartTheme.maybeOf(context))
           .merge(widget.style);
 
-  /// Ports `_onLineHover` (`GroupedVerticalBarChart.tsx:916-933`).
+  /// Sets the enlarged line dot the way `_showCallout` sets `activeLinePoint`
+  /// (`GroupedVerticalBarChart.tsx:984`) for the mark the pointer is on.
   ///
-  /// Upstream's target is the hovered `<line>` or `<circle>`, which fixes the
-  /// series and one endpoint before the tie-break runs; here the pointer is
-  /// tested against every series' dots, and the tie-break picks the endpoint of
-  /// the segment it landed on exactly as upstream does.
+  /// A dot (`_onLineHover`, `:916-937`) names itself and a bar (`onBarHover`,
+  /// `:490-500`) names no dot; under `isCalloutForStack` either names its
+  /// whole category, which grows every line's dot there. Nothing else resets
+  /// it: the leave handlers are empty (`:503-505`), and neither
+  /// `_handleChartMouseLeave` (`:507-510`) nor a legend hover (`:240-243`)
+  /// touches it, so the storybook keeps a dot grown after the pointer moves off
+  /// it, even out of the chart.
+  ///
+  /// Upstream's dot target is the hovered `<line>` or `<circle>`, which fixes
+  /// the series and one endpoint before the tie-break runs; here the pointer
+  /// is tested against every series' dots, and the tie-break picks the endpoint
+  /// of the segment it landed on exactly as upstream does.
   void _handlePointerMove(
     Offset position,
     FluentCartesianChildContext context,
   ) {
-    if (_lineSeries.isEmpty) {
+    final delegate = _delegate;
+    if (_lineSeries.isEmpty || delegate == null) {
       return;
     }
     final dots = fluentGroupedLineDots(_lineSeries, context);
     final radius = _resolveStyle().lineDotRadius!.resolve(<WidgetState>{
       WidgetState.selected,
     })!;
-    String? active;
-    for (var s = 0; s < _lineSeries.length && active == null; s++) {
+    FluentGroupedLineDot? hit;
+    for (var s = 0; s < _lineSeries.length && hit == null; s++) {
       final points = dots
           .where((dot) => dot.seriesIndex == s)
           .toList(growable: false);
@@ -1280,8 +1334,24 @@ class FluentGroupedVerticalBarChartState
       index = index < 0 ? xs.length - 1 : index;
       final dot = points[nearestLinePointIndex(xs, index, position.dx)];
       if ((dot.centre - position).distance <= radius) {
-        active = dot.dotId;
+        hit = dot;
       }
+    }
+    final String? active;
+    if (hit != null) {
+      active = widget.isCalloutForStack ? hit.category : hit.dotId;
+    } else {
+      final bar = delegate
+          ._barsFor(
+            context,
+            isRtl: Directionality.of(this.context) == TextDirection.rtl,
+          )
+          .where((bar) => bar.rect.contains(position))
+          .firstOrNull;
+      if (bar == null) {
+        return;
+      }
+      active = widget.isCalloutForStack ? bar.category : null;
     }
     if (active != _activeLinePoint) {
       setState(() => _activeLinePoint = active);
@@ -1330,26 +1400,26 @@ class FluentGroupedVerticalBarChartState
             '${widget.chartTitle == null ? '' : '${widget.chartTitle}. '}'
             '${lines.isEmpty ? fluentL10n(context).groupedVerticalBarChartDescription(barLegends.length) : fluentL10n(context).groupedVerticalBarChartWithLinesDescription(barLegends.length, lines.length)}',
         // GVBC anchors the popover to the hovered element's rect, not to a
-        // virtual element at the pointer (`.tsx:437`, `:970`).
+        // virtual element at the pointer (`.tsx:437`, `:970`). Every bar keeps
+        // its own handlers and tab stop under `isCalloutForStack` too
+        // (`.tsx:589-596`); the flag only changes the popover body (`:447`),
+        // so the hit granularity stays per mark and the anchor is the bar the
+        // pointer entered, never the group around it.
         popoverAnchorsToRegion: true,
-        // `isCalloutForStack` moves the callout onto the whole group
-        // (`.tsx:447`, `:984`), which is the shell's group granularity.
-        hitRegionGranularity: widget.isCalloutForStack
-            ? FluentChartHitGranularity.group
-            : FluentChartHitGranularity.mark,
       ),
       legends: <FluentChartLegendItem>[
-        // Line legends first (`.tsx:252-253`) — the reverse of VSBC.
+        // Line legends first (`.tsx:252-253`) — the reverse of VSBC. They are
+        // the 14x6 line-in-bar swatch and take no shape: `addLegendButton`
+        // passes `isLineLegendInBarChart` and nothing else (`.tsx:235-252`).
         for (final series in lines)
           FluentChartLegendItem(
             title: series.legend,
             color: colours[series.legend]!,
-            shape: series.legendShape,
-            onHoverAction: () => setState(() {
-              // `hoverAction` clears the line hover first (`.tsx:240-243`).
-              _activeLinePoint = null;
-              _activeLegend = series.legend;
-            }),
+            isLineLegendInBarChart: true,
+            // `hoverAction` runs `_handleChartMouseLeave` first
+            // (`.tsx:240-243`), which closes the popover — the shell's job
+            // here — and leaves `activeLinePoint` alone.
+            onHoverAction: () => setState(() => _activeLegend = series.legend),
             onMouseOutAction: ({required bool isLegendFocused}) =>
                 setState(() => _activeLegend = null),
           ),
@@ -1357,15 +1427,12 @@ class FluentGroupedVerticalBarChartState
           FluentChartLegendItem(
             title: legend,
             color: colours[legend]!,
-            onHoverAction: () => setState(() {
-              _activeLinePoint = null;
-              _activeLegend = legend;
-            }),
+            onHoverAction: () => setState(() => _activeLegend = legend),
             onMouseOutAction: ({required bool isLegendFocused}) =>
                 setState(() => _activeLegend = null),
           ),
       ],
-      delegate: FluentGroupedVerticalBarChartDelegate(
+      delegate: _delegate = FluentGroupedVerticalBarChartDelegate(
         data: categories,
         lineSeries: lines,
         style: style,
@@ -1390,10 +1457,6 @@ class FluentGroupedVerticalBarChartState
         isCalloutForStack: widget.isCalloutForStack,
       ),
       onPointerMoveInPlot: _handlePointerMove,
-      onChartMouseLeave: () => setState(() {
-        // `_handleChartMouseLeave` (`.tsx:507-517`).
-        _activeLinePoint = null;
-      }),
     );
   }
 }

@@ -54,10 +54,10 @@ class FluentBreadcrumbStyle {
 
   /// Leading icon colour.
   ///
-  /// Deliberately **not** [foregroundColor]. Figma takes the icon to
-  /// `Neutral/Foreground/2/Brand/Hover` on hover while leaving the label on
-  /// `Neutral/Foreground/2/Rest`, so a breadcrumb crumb needs two independent
-  /// ramps where a button needs one.
+  /// Deliberately **not** [foregroundColor]. The icon goes to
+  /// `Neutral/Foreground/2/Brand/Hover` on hover while the label only darkens
+  /// to `Neutral/Foreground/2/Hover`, so a breadcrumb crumb needs two
+  /// independent ramps where a button needs one.
   final WidgetStateProperty<Color?>? iconColor;
 
   /// Separator chevron colour.

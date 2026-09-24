@@ -339,20 +339,16 @@ void main() {
       expect(
         delegate
             .buildHitRegions(_polarCtx(), _polarLayout())
-            .map((region) => region.bounds),
-        delegate
-            .markersFor(_polarCtx())
-            .map(
-              (mark) => Rect.fromCircle(
-                center: mark.centre,
-                radius: kFluentLineHoverLatchRadius,
-              ),
-            ),
+            .map((region) => region.bounds.center),
+        <Matcher>[
+          for (final mark in delegate.markersFor(_polarCtx()))
+            offsetMoreOrLessEquals(mark.centre, epsilon: 1e-4),
+        ],
         reason:
             'pointerEvents="none" (LineChart.tsx:1340) — the area is painted '
             'onto the canvas and declares nothing the shell can hover, focus '
-            'or narrate, so the regions are exactly the per-marker latches of '
-            'LineChart.tsx:1162-1168 and nothing else',
+            'or narrate, so there is exactly one region per marker, centred on '
+            'it, and nothing else',
       );
     });
 

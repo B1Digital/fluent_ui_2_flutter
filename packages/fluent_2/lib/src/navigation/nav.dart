@@ -98,6 +98,14 @@ class FluentNavMoveIntent extends Intent {
   final int delta;
 }
 
+/// The secondary actions fading in when their row is hovered or focused.
+///
+/// `useSplitNavItemStyles.styles.ts` `hoverAction`: `transition: opacity
+/// ${durationFast}ms ${curveEasyEase}`. The same pair as
+/// [fluentNavExpandIconMotion], named separately because it moves something
+/// else.
+const FluentMotionSpec _navHoverActionMotion = fluentNavExpandIconMotion;
+
 /// Requests that focus move to the first or last row of the nav.
 ///
 /// Bound to `Home` and `End`. Absolute, never wrapping — tabster does not
@@ -154,6 +162,10 @@ class FluentNavItemBaseState {
 
   /// Trailing controls. Figma's `Secondary actions` axis; each is expected to
   /// be a 24-high icon button.
+  ///
+  /// Upstream's `SplitNavItem` buttons: invisible until the row is hovered,
+  /// pressed or holds keyboard focus, and overlaid on the row's end so the
+  /// label keeps its full width.
   final List<Widget> secondaryActions;
 }
 
@@ -227,16 +239,19 @@ FluentNavItemState resolveFluentNavItemState({
 /// * outer frame `Spacing/Horizontal/XS` (4) each side, indicator column 4 wide
 ///   with a `Spacing/Horizontal/XXS` (2) gap — reserved on every row so the
 ///   label does not shift when selection moves
-/// * `Button` fill `Neutral/Background/4/{Rest,Hover,Pressed}`, radius
+/// * `Button` fill `Neutral/Background/4/{Rest,Hover}`, held at Hover while
+///   pressed (the storybook's reading; Figma has a Pressed step) except on a
+///   row with secondary actions, which presses to `4/Pressed`, radius
 ///   `Corner radius/Medium` (4), gap `Spacing/Horizontal/L` (16)
-/// * label `Neutral/Foreground/1/*` semibold when selected,
-///   `Neutral/Foreground/2/*` regular otherwise, both on the `body1` ramp
-///   (14/20); the app item is `subtitle2` (16/22 semibold) in every state
+/// * label `Neutral/Foreground/2/Rest` in every state (the storybook's reading;
+///   Figma ramps it), semibold when selected, on the `body1` ramp (14/20); the
+///   app item is `subtitle2` (16/22 semibold) in every state
 /// * selection indicator `Brand/Foreground/Compound/Rest`, 4x20, radius 2
 ///
-/// Where `microsoft/fluentui@master` disagrees, Figma wins and both readings
-/// are called out in the comment at the disagreement — see the surface motion
-/// curve, the small-density padding and the leaf's trailing inset.
+/// Where `microsoft/fluentui@master` disagrees, both readings are called out in
+/// the comment at the disagreement. The live storybook wins the label colour
+/// and the pressed fill; see also the surface motion curve, the small-density
+/// padding and the leaf's trailing inset.
 FluentNavItemStyle resolveFluentNavItemStyle(
   FluentNavItemState state,
   FluentThemeData theme,
@@ -247,34 +262,35 @@ FluentNavItemStyle resolveFluentNavItemStyle(
   // carries the same `Neutral/Background/4/*` token as its Selected=False
   // sibling — so `selected` is spelled out as equal to `rest` rather than
   // omitted, which would read as "not looked at".
+  //
+  // Pressed holds the hover fill. Figma binds `Neutral/Background/4/Pressed`,
+  // but `useRootDefaultClassName` in `sharedNavStyles.styles.ts` declares a
+  // `:hover` and no `:active` at all, and the live `components-nav--basic`
+  // page stays at rgb(250, 250, 250) while a row is held. The storybook wins.
+  // A row with secondary actions is upstream's `SplitNavItem`, whose root
+  // does add `':active': navItemTokens.backgroundColorPressed`
+  // (`useSplitNavItemStyles.styles.ts` `baseRoot`).
   final background = FluentStateColor.tokens(
     rest: c.neutralBackground4,
     hover: c.neutralBackground4Hover,
-    pressed: c.neutralBackground4Pressed,
+    pressed: state.secondaryActions.isEmpty
+        ? c.neutralBackground4Hover
+        : c.neutralBackground4Pressed,
     selected: c.neutralBackground4,
     disabled: c.neutralBackgroundDisabled,
   );
 
-  // Selection swaps the whole token FAMILY rather than picking the Selected
-  // member of one, which is why this branches on `state.selected` instead of
-  // passing a `selected:` token. Figma models Selected as a variant axis for
-  // exactly that reason.
-  // The app item is on the strong family too — Figma binds
-  // `Neutral/Foreground/1/*` on all three of its variants — even though it is
-  // never "selected".
-  final foreground = state.selected || state.kind == FluentNavItemKind.appItem
-      ? FluentStateColor.tokens(
-          rest: c.neutralForeground1,
-          hover: c.neutralForeground1Hover,
-          pressed: c.neutralForeground1Pressed,
-          disabled: c.neutralForegroundDisabled,
-        )
-      : FluentStateColor.tokens(
-          rest: c.neutralForeground2,
-          hover: c.neutralForeground2Hover,
-          pressed: c.neutralForeground2Pressed,
-          disabled: c.neutralForegroundDisabled,
-        );
+  // One colour in every interaction state, selected and app item included.
+  // Figma steps the label through `Neutral/Foreground/2/*` — and onto the
+  // `Foreground/1` family when selected or on the app item — but
+  // `useRootDefaultClassName` sets `color: colorNeutralForeground2` with no
+  // state rule, `useContentStyles.selected` is `body1Strong` typography only,
+  // and the live storybook measures rgb(66, 66, 66) at rest, on hover and on
+  // press, on the selected row and on the app item alike. The storybook wins.
+  final foreground = FluentStateColor.tokens(
+    rest: c.neutralForeground2,
+    disabled: c.neutralForegroundDisabled,
+  );
 
   // A selected row paints its icon with the compound brand token while its
   // label stays neutral — Figma binds `Brand/Foreground/Compound/Rest` on the
@@ -401,9 +417,10 @@ FluentNavItemStyle resolveFluentNavItemStyle(
 /// use Fluent's rendering, focus ring and transitions.
 ///
 /// [states] is the live interaction set from [FluentInteractive]. The surface
-/// fill animates on [fluentNavSurfaceMotion] and the chevron rotates on
-/// [fluentNavExpandIconMotion]; nothing else here transitions, because upstream
-/// declares nothing else.
+/// fill animates on [fluentNavSurfaceMotion], the chevron rotates on
+/// [fluentNavExpandIconMotion] and the secondary actions fade on
+/// `_navHoverActionMotion`; nothing else here transitions, because
+/// upstream declares nothing else.
 Widget buildFluentNavItem(
   FluentNavItemBaseState state,
   FluentNavItemStyle style,
@@ -432,17 +449,34 @@ Widget buildFluentNavItem(
         size: iconSize,
         color: iconColor,
       ),
-    if (state.secondaryActions.isNotEmpty)
-      IconTheme.merge(
-        data: IconThemeData(color: foreground),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: state.secondaryActions,
-        ),
-      ),
   ];
 
   Widget content = Row(spacing: gap, children: children);
+
+  if (state.secondaryActions.isNotEmpty) {
+    // Overlaid on the row's end rather than laid out beside the label, so a
+    // hidden button never costs the label width and a revealed one never
+    // shifts it.
+    content = Stack(
+      fit: StackFit.passthrough,
+      alignment: AlignmentDirectional.centerEnd,
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        content,
+        PositionedDirectional(
+          end: 0,
+          child: _FluentNavSecondaryActions(
+            rowActive:
+                states.contains(WidgetState.hovered) ||
+                states.contains(WidgetState.pressed) ||
+                states.contains(WidgetState.focused),
+            color: foreground,
+            children: state.secondaryActions,
+          ),
+        ),
+      ],
+    );
+  }
 
   if (textStyle != null || foreground != null) {
     content = DefaultTextStyle.merge(
@@ -543,6 +577,61 @@ Widget buildFluentNavItem(
   }
 
   return Padding(padding: outerPadding, child: surface);
+}
+
+/// A split row's secondary actions, invisible until the row is in use.
+///
+/// `useSplitNavItemStyles.styles.ts`: `hoverAction` rests the buttons at
+/// `opacity: 0` and the root's `:hover` and `:focus-within` lift it to 1,
+/// fading on `durationFast` / `curveEasyEase`. [rowActive] is the row's own
+/// hover, press or keyboard focus; focus on one of the buttons themselves is
+/// the rest of `:focus-within`, tracked here so a Tab onto the pin never lands
+/// on an invisible control. Opacity keeps them in the semantics tree, as CSS
+/// opacity does.
+///
+/// ponytail: upstream also sets `pointerEvents: none` at rest. Not copied: a
+/// mouse always hovers the row, revealing the buttons, before it can click
+/// one, so the rule only ever bites touch, where there is no hover and it
+/// would leave the buttons unreachable.
+class _FluentNavSecondaryActions extends StatefulWidget {
+  const _FluentNavSecondaryActions({
+    required this.rowActive,
+    required this.color,
+    required this.children,
+  });
+
+  final bool rowActive;
+  final Color? color;
+  final List<Widget> children;
+
+  @override
+  State<_FluentNavSecondaryActions> createState() =>
+      _FluentNavSecondaryActionsState();
+}
+
+class _FluentNavSecondaryActionsState
+    extends State<_FluentNavSecondaryActions> {
+  bool _focusWithin = false;
+
+  @override
+  Widget build(BuildContext context) => Focus(
+    canRequestFocus: false,
+    skipTraversal: true,
+    onFocusChange: (value) => setState(() => _focusWithin = value),
+    child: FluentAnimatedStyle<double>(
+      value: widget.rowActive || _focusWithin ? 1 : 0,
+      spec: _navHoverActionMotion,
+      lerp: lerpDouble,
+      builder: (context, opacity) => Opacity(
+        opacity: opacity.clamp(0, 1),
+        alwaysIncludeSemantics: true,
+        child: IconTheme.merge(
+          data: IconThemeData(color: widget.color),
+          child: Row(mainAxisSize: MainAxisSize.min, children: widget.children),
+        ),
+      ),
+    ),
+  );
 }
 
 /// The rotating category chevron.
@@ -1276,6 +1365,8 @@ class _FluentNavRowState extends State<_FluentNavRow> {
           mouseCursor:
               resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
               SystemMouseCursors.click,
+          // Upstream's Nav has no disabled item, so no disabled cursor.
+          disabledMouseCursor: SystemMouseCursors.basic,
           builder: (context, states, _) => buildFluentNavItem(
             state,
             resolved,

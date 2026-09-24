@@ -46,23 +46,26 @@ void main() {
       expect(decorationUnder(tester, button).color, colors.neutralBackground1);
     });
 
-    testWidgets('the checked border is the selected token, not the resting '
-        'one', (WidgetTester tester) async {
+    testWidgets('the checked border keeps the resting neutralStroke1', (
+      WidgetTester tester,
+    ) async {
+      // Checked, the storybook's Default toggle paints its border
+      // rgb(209,209,209) — neutralStroke1, then its Hover and Pressed steps —
+      // not neutralStroke1Selected (#bdbdbd), which Figma's `State=Selected`
+      // binds: getComputedStyle on togglebutton--appearance. React wins.
       await pumpSection(tester, section);
       final FluentColors colors = themeColors(tester);
       final Finder button = find.byType(FluentButton);
 
+      await tapAndSettle(tester, button, what: 'the toggle button');
+      expect(
+        decorationUnder(tester, button).color,
+        colors.neutralBackground1Selected,
+        reason: 'the fill still says checked',
+      );
       expect(
         decorationUnder(tester, button).border?.top.color,
         colors.neutralStroke1,
-      );
-      await tapAndSettle(tester, button, what: 'the toggle button');
-      // Folding `selected` into the live state set has to reach every colour
-      // the style carries. A checked button that kept its resting border is the
-      // signature of a style that was pinned rather than re-resolved.
-      expect(
-        decorationUnder(tester, button).border?.top.color,
-        colors.neutralStroke1Selected,
       );
     });
 
@@ -160,6 +163,94 @@ void main() {
           reason: '$label must give the regular glyph back',
         );
       }
+    });
+
+    testWidgets('an unchecked subtle or transparent toggle fills its glyph '
+        'under the mouse', (WidgetTester tester) async {
+      // bundleIcon on togglebutton--appearance: `useButtonStyles` shows the
+      // Filled glyph under subtle's and transparent's `:hover`, and on no
+      // other appearance until it is checked.
+      await pumpSection(tester, section);
+      for (final String label in appearances) {
+        final TestGesture mouse = await mouseHover(tester, buttonWith(label));
+        await mouse.moveTo(
+          tester.getCenter(buttonWith(label)) + const Offset(1, 0),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          glyphOf(tester, buttonWith(label)),
+          label == 'Subtle' || label == 'Transparent'
+              ? FluentIcons.calendar_month_20_filled
+              : FluentIcons.calendar_month_20_regular,
+          reason: '$label hovered',
+        );
+        await mouseAway(tester, mouse);
+        expect(
+          glyphOf(tester, buttonWith(label)),
+          FluentIcons.calendar_month_20_regular,
+          reason: '$label after the mouse leaves',
+        );
+      }
+    });
+
+    testWidgets('a checked outline toggle takes a 3px border and grows by it', (
+      WidgetTester tester,
+    ) async {
+      // togglebutton--appearance, Outline checked: `border: 3px` in
+      // neutralStroke1 and 102.7x36 against 98.7x32 unchecked — the thicker
+      // border takes layout space, so the content keeps its inset.
+      await pumpSection(tester, section);
+      final FluentColors colors = themeColors(tester);
+      final Finder outline = buttonWith('Outline');
+      final Size before = tester.getSize(outline);
+
+      await tapAndSettle(tester, outline);
+      final BorderSide edge = decorationUnder(tester, outline).border!.top;
+      expect(edge.width, FluentStroke.thicker);
+      expect(edge.color, colors.neutralStroke1);
+      expect(tester.getSize(outline), before + const Offset(4, 4));
+
+      // Under a real pointer the 3px edge walks upstream's ramp:
+      // rgb(199,199,199) hovered, rgb(179,179,179) pressed.
+      final TestGesture mouse = await mouseHover(tester, outline);
+      await mouse.moveTo(tester.getCenter(outline) + const Offset(1, 0));
+      await tester.pumpAndSettle();
+      BorderSide hovered() => decorationUnder(tester, outline).border!.top;
+      expect(hovered().color, colors.neutralStroke1Hover);
+      expect(hovered().width, FluentStroke.thicker);
+      await mouse.down(tester.getCenter(outline));
+      await tester.pumpAndSettle();
+      expect(hovered().color, colors.neutralStroke1Pressed);
+      await mouse.up();
+      await mouseAway(tester, mouse);
+    });
+
+    testWidgets('a checked subtle toggle paints its icon brand', (
+      WidgetTester tester,
+    ) async {
+      // togglebutton--appearance, Subtle checked: label rgb(36,36,36) with the
+      // icon rgb(15,108,189) — `useToggleButtonStyles`'s
+      // `useIconCheckedStyles.subtleOrTransparent` colours the icon on its own.
+      await pumpSection(tester, section);
+      final FluentColors colors = themeColors(tester);
+      final Finder subtle = buttonWith('Subtle');
+
+      await tapAndSettle(tester, subtle);
+      final Color? icon = tester
+          .widget<RichText>(
+            find.descendant(
+              of: find.descendant(of: subtle, matching: find.byType(Icon)),
+              matching: find.byType(RichText),
+            ),
+          )
+          .text
+          .style
+          ?.color;
+      expect(icon, colors.neutralForeground2BrandSelected);
+      expect(
+        textStyleOf(tester, find.text('Subtle'))?.color,
+        colors.neutralForeground2Selected,
+      );
     });
 
     testWidgets('a real mouse drives the primary toggle too', (

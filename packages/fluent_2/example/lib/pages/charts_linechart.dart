@@ -1318,12 +1318,12 @@ class _LineChartCustomLocaleDateAxisState
         child: SizedBox(
           width: _width,
           height: _height,
-          // Upstream also passes `culture="rs-ss"`, a placeholder locale. Our
-          // popover formats dates through package:intl, which throws for a
-          // locale whose data was never initialised, so the culture is left at
-          // the default and the Italian axis comes from the formatter below.
+          // `culture="rs-ss"` is a locale no runtime has data for, so the
+          // popover falls back to the default locale, as `toLocaleString` does.
+          // The Italian axis comes from the formatter below.
           child: FluentLineChart(
             data: _data,
+            culture: 'rs-ss',
             allowMultipleShapesForPoints: _allowMultipleShapes,
             props: const FluentCartesianChartProps(
               yMinValue: 200,
@@ -2530,6 +2530,7 @@ class _LineChartLogAxisExampleState extends State<_LineChartLogAxisExample> {
           child: FluentLineChart(
             data: _data,
             props: FluentCartesianChartProps(
+              hideTickOverlap: true,
               xScaleType: _scale(_xScaleType),
               yScaleType: _scale(_yScaleType),
             ),
@@ -2585,13 +2586,17 @@ class _LineChartAnnotationsExampleState
     ],
   );
 
-  // Upstream writes each annotation as an HTML fragment. Our annotation layer
-  // understands only <b>, <i> and <br />, so <div>, <strong>, <span> and the
-  // <ul>/<li> list become emphasis and line breaks; the words are unchanged.
+  // The text is upstream's, verbatim. Its annotation layer honours only <b>,
+  // <i> and <br /> (ChartAnnotationLayer.tsx parseSimpleMarkup) and prints any
+  // other tag as literal text, so the storybook shows the <div>, <strong>,
+  // <span> and <ul> markup as written, and so does this layer.
   List<FluentChartAnnotation> get _annotations => <FluentChartAnnotation>[
     FluentChartAnnotation(
       id: 'launch-html',
-      text: '<b>Launch day</b><br />+18% conversions',
+      // `${primaryColor}` is getColorFromToken(DataVizPalette.color3).
+      text:
+          '<div><strong>Launch day</strong><br /><span '
+          'style="color:#2aa0a4">+18% conversions</span></div>',
       coordinates: const FluentDataCoordinate(x: 1, y: 26),
       layout: const FluentChartAnnotationLayout(
         align: FluentChartAnnotationAlign.start,
@@ -2626,8 +2631,9 @@ class _LineChartAnnotationsExampleState
     FluentChartAnnotation(
       id: 'experiment',
       text:
-          '<b>Pricing experiment</b><br /><i>A/B test running</i><br />'
-          'Variant B at 52%<br />Average order ↑',
+          '<div><strong>Pricing experiment</strong><br />'
+          '<em>A/B test running</em><ul><li>Variant B at 52%</li>\n'
+          '        <li>Average order ↑</li></ul></div>',
       coordinates: const FluentDataCoordinate(x: 3, y: 37),
       layout: const FluentChartAnnotationLayout(
         offsetX: 132,
@@ -2659,7 +2665,7 @@ class _LineChartAnnotationsExampleState
     ),
     const FluentChartAnnotation(
       id: 'stretch-goal',
-      text: 'Stretch goal<br /><b>5k signups</b>',
+      text: '<span>Stretch goal<br /><strong>5k signups</strong></span>',
       coordinates: FluentRelativeCoordinate(x: 0.84, y: 0.34),
       layout: FluentChartAnnotationLayout(clipToBounds: false),
       style: FluentChartAnnotationStyle(
@@ -2675,7 +2681,9 @@ class _LineChartAnnotationsExampleState
     ),
     const FluentChartAnnotation(
       id: 'offset-info',
-      text: '<b>Note:</b> Values rounded to nearest whole signup.',
+      text:
+          '<div><strong>Note:</strong> '
+          'Values rounded to nearest whole signup.</div>',
       coordinates: FluentPixelCoordinate(x: 24, y: 24),
       layout: FluentChartAnnotationLayout(
         align: FluentChartAnnotationAlign.start,

@@ -40,8 +40,8 @@ class FluentListItemStyle {
     this.mouseCursor,
   });
 
-  /// Row fill. `Neutral/Background/Subtle/*`, or
-  /// `Neutral/Background/Disabled/Rest` while disabled.
+  /// Row fill. `Neutral/Background/Subtle/Rest` (transparent) in every state
+  /// by default: upstream's `useListItemStyles.styles.ts` paints none.
   final WidgetStateProperty<Color?>? backgroundColor;
 
   /// Title colour.

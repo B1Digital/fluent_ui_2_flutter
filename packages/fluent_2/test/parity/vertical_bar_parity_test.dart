@@ -140,45 +140,18 @@ void main() {
         // the 7px halo under the 3px line.
         lineOptions: FluentLineOptions(lineBorderWidth: 2),
       ),
-      // Measured 0.580% — 1,229 pixels of 211,831, down from 2.413% (5,111).
-      // Two defects closed, both in `vertical_bar_chart.dart`:
-      //
-      //   * `lineLegendColor` reached only the legend swatch. `_createLine`
-      //     destructures it once (`VerticalBarChart.tsx:165`) and strokes both
-      //     the polyline (`:214`) and every dot ring (`:244`) with it, so the
-      //     delegate now carries it and falls back to `style.lineColor`
-      //     (colorPaletteYellowBackground1) only when the caller says nothing.
-      //     The story asks for brown and the capture strokes rgb(165, 42, 42);
-      //     the port was painting #FFFEF5, invisible except where it crossed a
-      //     dark bar.
-      //   * There was no `lineOptions` prop, so the 7px `colorNeutralBackground1`
-      //     halo `3 + lineBorderWidth * 2` runs under the line (`:199`) was
-      //     absent. `FluentLineOptions` now reaches the delegate the same way
-      //     VerticalStackedBarChart takes it.
-      //
-      // A third closed since, in `chrome/legend.dart` rather than here, taking
-      // 0.580% (1,229 px) to 0.245%: the strip used to render SEVEN legends and
-      // `+2 more` where the capture renders six and `+3 more`. Two causes, both
-      // in the width the overflow budget reserves.
-      //
-      //   * `OverflowMenu.tsx:59` is a MenuButton — a Button carrying
-      //     `<ChevronDownRegular />` after its label — and the port built a bare
-      //     `FluentButton`. The chevron is 12, not the button ramp's 20
-      //     (`useMenuButtonStyles.styles.ts`), so the trigger was short by that
-      //     plus its `sNudge` gap.
-      //   * `Legends.tsx:137` wraps the strip in a bare `<Overflow>`, whose
-      //     `padding` defaults to 10 in BOTH `useOverflowContainer` and
-      //     `@fluentui/priority-overflow`'s `overflowManager`. Nothing overrides
-      //     it, and the port reserved none of it. With rows measuring
-      //     [83.1, 82.5, 65.6, 74.1, 81.9, 78.3, 60.7, …] against an available
-      //     630 and a 99.4 trigger, a seventh row needs 526.3 and the budget is
-      //     520.6 — the ten pixels ARE the seventh row.
-      //
-      // Six swatches now land on the reference's to the pixel (28, 111, 194,
-      // 259, 333, 415 in both) and the trigger box lands within one
-      // (485..582 against 486..581). What is left is that subpixel trigger
-      // edge, antialiasing on the dot rings, and the documented font residual.
-      maxMismatch: 0.30,
+      // Measured 0.042% — 89 pixels of 210,613, best shift (0,0). Was 2.413%
+      // while the line ignored `lineLegendColor` and `lineOptions` and the
+      // legend strip fit seven rows and `+2 more` where the capture fits six
+      // and `+3 more`; swatch snapping, the masked `+N more` label and the bar
+      // domain fix took the rest. Bars, gridlines, axes and all six swatches
+      // are pixel-identical. What is left:
+      //   * 79 px on the `+3 more` trigger. Its (masked) label is 14px/600,
+      //     where Selawik Semibold runs wide of the capture's Segoe UI
+      //     Semibold, so the button spans 485.5..582 against 486..581: 54 px of
+      //     right border a column off, 25 px of chevron a pixel right.
+      //   * 10 px of Skia-vs-Chromium antialiasing along the brown line.
+      maxMismatch: 0.05,
     );
   });
 
@@ -440,35 +413,17 @@ void main() {
           roundedTicks: true,
         ),
       ),
-      // Measured 0.149% — 316 pixels of 212,435, down from 11.640% (24,727).
-      // Three defects closed, all in `vertical_stacked_bar_chart.dart`:
-      //
-      //   * `_getDomainMargins` (`VerticalStackedBarChart.tsx:913-965`) had no
-      //     port at all, so the x scale ran the whole plot, 60..610, where
-      //     upstream insets it by `MIN_DOMAIN_MARGIN + _barWidth / 2` = 16 to
-      //     76..594 — the exact range Oracle B records for the axis domain
-      //     path (`M76.5,6V0.5H594.5V6`). Every stack sat at the wrong x: the
-      //     port's centres were 60/170/…/610 against the capture's
-      //     76/179.6/…/594.
-      //   * The stacks' own y scale was solved from the raw data extent
-      //     instead of the resolved axis domain. `_getAxisData` (`:400-406`)
-      //     reads `yAxisDomainValues`, which is assigned `yAxisScale.domain()`
-      //     (`utilities.ts:889`), so the two differ by whatever
-      //     `prepareDatapoints` rounds outward — 140 against 150 here, making
-      //     every segment 7% too tall. The delegate now reads the shell's own
-      //     `yScalePrimary.domain`.
-      //   * `hideLabels` and `yAxisTickFormat` were stored and never read:
-      //     `paintSeries` had no label pass, so none of the six stack totals
-      //     (100/90/102/100/140/100) was drawn.
-      //
-      // Bar widths were measured, not assumed: the capture's rects are 16 wide
-      // and so are the port's, before and after. Only their x moved.
-      //
-      // 0.149% since: the trigger defect the VerticalBarChart story above
-      // documents — no chevron glyph and no reserved `<Overflow>` padding — was
-      // closed in `chrome/legend.dart`. What is left is antialiasing on the two
-      // overlay lines and the subpixel trigger edge.
-      maxMismatch: 0.18,
+      // Measured 0.048% — 101 pixels of 211,238, best shift (0,0). Was 11.640%
+      // before the stacks took `_getDomainMargins`' inset, the axis's y domain
+      // and their total labels, then 0.149% before the legend trigger and
+      // swatch fixes. Every stack, gridline, axis and swatch is
+      // pixel-identical. What is left:
+      //   * 42 px on the `+N more` trigger, for the reason the story above
+      //     gives: its 14px/600 Selawik label runs wide, so the right border
+      //     straddles 591..592 where the capture's is crisp at 591 (24 px)
+      //     and the chevron sits half a pixel right (18 px).
+      //   * 59 px of Skia-vs-Chromium antialiasing along the two lines.
+      maxMismatch: 0.05,
     );
   });
 }

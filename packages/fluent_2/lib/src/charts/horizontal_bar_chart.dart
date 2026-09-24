@@ -11,6 +11,7 @@ import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
 import 'internal/chart_utils.dart';
 import 'internal/d3/js_math.dart' as d3;
+import 'internal/overlay_chart_popover.dart';
 import 'model/bar_data.dart';
 import 'model/cartesian_series.dart';
 
@@ -497,6 +498,9 @@ class FluentHorizontalBarChart extends StatefulWidget {
     this.showLegendForSinglePointBar = false,
     this.culture,
     this.legendsOverflowText,
+    this.legends,
+    this.enabledWrapLines = false,
+    this.calloutPropsPerDataPoint,
     this.style,
   });
 
@@ -536,6 +540,33 @@ class FluentHorizontalBarChart extends StatefulWidget {
   /// which falls back to English when no delegate is installed.
   final String? legendsOverflowText;
 
+  /// The legend rows, in place of the ones the chart derives from [data] —
+  /// `legendProps.legends`.
+  ///
+  /// `HorizontalBarChart.tsx:138` spreads `props.legendProps` after its own
+  /// props, so these replace the derived rows outright, select-and-dim wiring
+  /// included: a row here only dims the bars if it carries its own
+  /// [FluentChartLegendItem.onAction]. Null keeps the derived rows.
+  final List<FluentChartLegendItem>? legends;
+
+  /// Whether the legend wraps onto further lines instead of collapsing into an
+  /// overflow menu — `legendProps.enabledWrapLines`, spread the same way as
+  /// [legends]. Only a wrapped legend renders a row's
+  /// [FluentChartLegendItem.annotationBuilder] (`Legends.tsx:163`).
+  final bool enabledWrapLines;
+
+  /// Overrides for the hover popover of one bar — `calloutPropsPerDataPoint`
+  /// (`HorizontalBarChart.tsx:479-481`).
+  ///
+  /// `ChartPopover.tsx:41` spreads the result over the chart's own props, so
+  /// every non-null field of the returned data wins, except that the point's
+  /// `xAxisCalloutData` and `yAxisCalloutData` still take the legend and value
+  /// lines (`:43-44`). A [FluentChartPopoverData.customContentBuilder] replaces
+  /// the body, which is what `onRenderCalloutPerHorizontalBar` does upstream
+  /// (`:54`). Returning null keeps the default popover for that bar.
+  final FluentChartPopoverData? Function(FluentChartDataPoint point)?
+  calloutPropsPerDataPoint;
+
   /// Style layered over the derived defaults and the nearest
   /// [FluentHorizontalBarChartTheme].
   final FluentHorizontalBarChartStyle? style;
@@ -546,20 +577,39 @@ class FluentHorizontalBarChart extends StatefulWidget {
 }
 
 class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
+  /// The benchmark container is 7 tall with a -3 top and a -1 bottom margin
+  /// (useHorizontalBarChartStyles.styles.ts:80-82): 3 of vertical flow, and a
+  /// box that starts 3 above it.
+  static const double _benchmarkFlow = 3;
+  static const double _benchmarkMarginTop = 3;
+
   /// Single-select, toggling (`HorizontalBarChart.tsx:127`). Upstream models
   /// "nothing selected" as the empty string, and the predicate compares
   /// against it literally, so the empty string is kept rather than null.
   String _selectedLegend = '';
   String _activeLegend = '';
+
+  /// The point the popover reads from, `barCalloutProps`
+  /// (`HorizontalBarChart.tsx:44`).
   FluentChartDataPoint? _hovered;
+
+  /// `clickPosition` (`HorizontalBarChart.tsx:47`), in global coordinates like
+  /// the `clientX`/`clientY` it is set from, or null once the popover closes.
+  ///
+  /// Upstream keeps it across a close, so a pointer or a focus that comes back
+  /// within a pixel of it fails updatePosition's threshold (:356) and opens
+  /// nothing at all: a bar focused, left and focused again stays silent. The
+  /// port forgets it instead.
   Offset? _anchor;
 
-  /// The chart's own box, so a hover reported in a bar's coordinate space can
-  /// be re-expressed in the space the popover is laid out in. Upstream reads
-  /// `event.pageX/pageY` (`HorizontalBarChart.tsx:71-72`), which is already
-  /// one shared space; Flutter reports per-listener local offsets, so the
-  /// conversion is explicit.
-  final GlobalKey _plotKey = GlobalKey();
+  /// `isPopoverOpen` (`HorizontalBarChart.tsx:46`).
+  ///
+  /// The popover floats in the app's [Overlay]. `ChartPopover.tsx:47-51` is an
+  /// inline Popover positioned against its clipping ancestors, and nothing in
+  /// `fui-hbc__root` clips (`useHorizontalBarChartStyles.styles.ts:33-38`), so
+  /// its boundary is the viewport: over the basic story's first bar the
+  /// surface opens at x 11, 29px left of the chart.
+  final OverlayPortalController _popover = OverlayPortalController();
 
   bool _highlighted(String? legend) => isLegendHighlightedSingleGuarded(
     legend,
@@ -569,9 +619,91 @@ class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
 
   bool get _noneHighlighted => _selectedLegend.isEmpty && _activeLegend.isEmpty;
 
-  Offset _toPlot(Offset global) {
-    final box = _plotKey.currentContext?.findRenderObject() as RenderBox?;
-    return box == null ? global : box.globalToLocal(global);
+  /// `_hoverOn` (`HorizontalBarChart.tsx:55-89`), which a bar runs when the
+  /// pointer enters it (`onMouseOver`) and when it takes focus, at [position].
+  void _hoverOn(FluentChartDataPoint point, Offset position) {
+    // :60-64. Upstream also skips the point `_calloutAnchorPoint` holds, but
+    // that is a plain `let` every render declares afresh, so the test never
+    // holds by the time an event reads it.
+    if ((_popover.isShowing && _hovered?.legend == point.legend) ||
+        !(_highlighted(point.legend) || _noneHighlighted)) {
+      return;
+    }
+    setState(() {
+      _hovered = point;
+      // updatePosition (:349-360): the anchor moves, and the popover opens,
+      // only once the position is more than a pixel from the last one.
+      final anchor = _anchor;
+      if (anchor == null || (position - anchor).distance > 1) {
+        _anchor = position;
+        _popover.show();
+      }
+    });
+  }
+
+  /// `_handleChartMouseLeave` (`HorizontalBarChart.tsx:95-103`).
+  void _closePopover() {
+    _anchor = null;
+    if (_popover.isShowing) _popover.hide();
+  }
+
+  /// The popover's reading for [point], with [FluentHorizontalBarChart
+  /// .calloutPropsPerDataPoint] spread over it (`ChartPopover.tsx:41`).
+  FluentChartPopoverData _popoverData(FluentChartDataPoint point) {
+    final custom = widget.calloutPropsPerDataPoint?.call(point);
+    // JavaScript truthiness: `ChartPopover.tsx:43-44` skip an empty string.
+    String? truthy(String? value) =>
+        value == null || value.isEmpty ? null : value;
+    final culture = custom?.culture ?? widget.culture;
+    return FluentChartPopoverData(
+      // HorizontalBarChart.tsx:465-484 passes no XValue, so only a custom one
+      // shows a heading.
+      xValue: custom?.xValue,
+      yValues: custom?.yValues,
+      // :43, formatted at :80.
+      legend: formatToLocaleString(
+        truthy(point.xAxisCalloutData) ?? custom?.legend ?? point.legend,
+        culture: culture,
+      ),
+      // :44, formatted at :89. YValue is the bar's x (:319, :81).
+      yValue: formatToLocaleString(
+        truthy(point.yAxisCalloutData) ??
+            custom?.yValue ??
+            point.horizontalBarChartData?.x ??
+            0,
+        culture: culture,
+      ),
+      color: custom?.color ?? point.color,
+      ratio: custom?.ratio,
+      descriptionMessage: custom?.descriptionMessage,
+      isCalloutForStack: custom?.isCalloutForStack ?? false,
+      customContentBuilder: custom?.customContentBuilder,
+      culture: culture,
+      // :483. Kept even under custom data, whose own default is the cartesian
+      // `true` rather than a value the caller chose.
+      isCartesian: false,
+      contentMaxWidth: custom?.contentMaxWidth,
+    );
+  }
+
+  Widget _buildPopover(BuildContext context) {
+    final point = _hovered;
+    final anchor = _anchor;
+    // Upstream's ChartPopover (HorizontalBarChart.tsx:465) is not gated on
+    // hideTooltip, so turning it on leaves an open popover up until the
+    // pointer leaves. Read here, it empties at once. The controller cannot be
+    // hidden from didUpdateWidget instead, which runs during build.
+    if (widget.hideTooltip || point == null || anchor == null) {
+      return const SizedBox.shrink();
+    }
+    // The anchor is the pointer on the screen. Transparent to the pointer, so
+    // a surface laid over the bars neither swallows their hover nor reads as
+    // the pointer leaving the chart.
+    return buildFluentOverlayChartPopover(
+      context,
+      anchorRect: Rect.fromLTWH(anchor.dx, anchor.dy, 0, 0),
+      data: _popoverData(point),
+    );
   }
 
   /// `HorizontalBarChart.tsx:400-413`. Upstream mutates `props.chartData[1]`
@@ -789,8 +921,7 @@ class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
             onHoverAction: () => setState(() {
               // HorizontalBarChart.tsx:128-131 — the hover action closes the
               // popover first, then records the active legend.
-              _hovered = null;
-              _anchor = null;
+              _closePopover();
               _activeLegend = point.legend ?? '';
             }),
             onMouseOutAction: ({required bool isLegendFocused}) =>
@@ -806,69 +937,49 @@ class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
         // another does nothing, because _hoverOff at :91-93 is an empty
         // function marked "ToDo. To fix".
         // parity: HorizontalBarChart.tsx:91-93.
-        onExit: (_) => setState(() {
-          _hovered = null;
-          _anchor = null;
-        }),
-        child: Stack(
-          key: _plotKey,
-          children: <Widget>[
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              // `items` carries the gap as a margin-BOTTOM
-              // (useHorizontalBarChartStyles.styles.ts:39-44, selected at
-              // :119-125 off two chart-level props), so upstream's gap sits
-              // between rows and once more between the last row and the legend
-              // container's own 16px padding-top. A `spacing` on the Column
-              // reproduces both and, unlike a per-row Padding, leaves no
-              // trailing margin below the last row — which is exactly the box
-              // the reference is captured at: 8 x 33 + 7 x 10 = 334, seven gaps
-              // for eight rows.
-              spacing:
-                  widget.showTriangle ||
-                      widget.variant ==
-                          FluentHorizontalBarChartVariant.absoluteScale
-                  ? resolved.rowSpacingWithTriangle!.resolve(states)!
-                  : resolved.rowSpacing!.resolve(states)!,
-              children: <Widget>[
-                ...rows,
-                if (!lastRowWasSingleBar)
-                  // HorizontalBarChart.tsx:485 — the legend strip is gated on
-                  // the value isSingleBar holds AFTER the last row was mapped,
-                  // so a mixed data set is decided by its final row.
-                  // parity: HorizontalBarChart.tsx:485.
-                  Padding(
-                    padding: EdgeInsets.only(
-                      top: resolved.legendTopPadding!.resolve(states)!,
-                    ),
-                    child: FluentChartLegend(
-                      legends: legendItems,
-                      centerLegends: true,
-                      overflowText: widget.legendsOverflowText,
-                    ),
+        onExit: (_) => _closePopover(),
+        child: OverlayPortal(
+          controller: _popover,
+          overlayChildBuilder: _buildPopover,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            // `items` carries the gap as a margin-BOTTOM
+            // (useHorizontalBarChartStyles.styles.ts:39-44, selected at
+            // :119-125 off two chart-level props), so upstream's gap sits
+            // between rows and once more between the last row and the legend
+            // container's own 16px padding-top. A `spacing` on the Column
+            // reproduces both and, unlike a per-row Padding, leaves no
+            // trailing margin below the last row — which is exactly the box
+            // the reference is captured at: 8 x 33 + 7 x 10 = 334, seven gaps
+            // for eight rows.
+            spacing:
+                widget.showTriangle ||
+                    widget.variant ==
+                        FluentHorizontalBarChartVariant.absoluteScale
+                ? resolved.rowSpacingWithTriangle!.resolve(states)!
+                : resolved.rowSpacing!.resolve(states)!,
+            children: <Widget>[
+              ...rows,
+              if (!lastRowWasSingleBar)
+                // HorizontalBarChart.tsx:485 — the legend strip is gated on
+                // the value isSingleBar holds AFTER the last row was mapped,
+                // so a mixed data set is decided by its final row.
+                // parity: HorizontalBarChart.tsx:485.
+                Padding(
+                  padding: EdgeInsets.only(
+                    top: resolved.legendTopPadding!.resolve(states)!,
                   ),
-              ],
-            ),
-            if (!widget.hideTooltip && _hovered != null && _anchor != null)
-              Positioned.fill(
-                child: FluentChartPopover(
-                  data: FluentChartPopoverData(
-                    // HorizontalBarChart.tsx:465-484 never passes XValue, so
-                    // the popover's top row is empty upstream too.
-                    // parity: HorizontalBarChart.tsx:465-484.
-                    legend: _hovered!.xAxisCalloutData ?? _hovered!.legend,
-                    yValue:
-                        _hovered!.yAxisCalloutData ??
-                        formatToLocaleString(
-                          _hovered!.horizontalBarChartData?.x ?? 0,
-                          culture: widget.culture,
-                        ),
-                    color: _hovered!.color,
+                  // HorizontalBarChart.tsx:138 — `legendProps` is spread
+                  // last, so its rows and wrapping win.
+                  child: FluentChartLegend(
+                    legends: widget.legends ?? legendItems,
+                    centerLegends: true,
+                    enabledWrapLines: widget.enabledWrapLines,
+                    overflowText: widget.legendsOverflowText,
                   ),
-                  anchor: _anchor!,
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -891,6 +1002,7 @@ class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
     final total = points.isEmpty
         ? null
         : points.first.horizontalBarChartData?.total;
+    final showBenchmark = benchmark != null && benchmark > 0 && total != null;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -957,32 +1069,12 @@ class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
                   const SizedBox.shrink(),
               ],
             ),
-            if (benchmark != null && benchmark > 0 && total != null)
-              SizedBox(
-                // useHorizontalBarChartStyles.styles.ts:78-83 — the
-                // container is 7 tall with -3 top and -1 bottom margins, so
-                // it consumes 3 of vertical flow and overlaps its
-                // neighbours.
-                // parity: useHorizontalBarChartStyles.styles.ts:80-82.
-                height: 3,
-                child: OverflowBox(
-                  maxHeight: resolved.benchmarkHeight!.resolve(states),
-                  alignment: Alignment.topCenter,
-                  child: CustomPaint(
-                    painter: FluentBenchmarkTrianglePainter(
-                      ratio: FluentBenchmarkTrianglePainter.ratioFor(
-                        benchmark: benchmark,
-                        total: total,
-                      ),
-                      colour: resolved.benchmarkColor!.resolve(states)!,
-                      triangleWidth: resolved.benchmarkWidth!.resolve(states)!,
-                      triangleHeight: resolved.benchmarkHeight!.resolve(
-                        states,
-                      )!,
-                    ),
-                  ),
-                ),
-              ),
+            if (showBenchmark)
+              // useHorizontalBarChartStyles.styles.ts:78-83 — the container
+              // is 7 tall with -3 top and -1 bottom margins, so it consumes 3
+              // of vertical flow. The triangle is painted with the bar below.
+              // parity: useHorizontalBarChartStyles.styles.ts:80-82.
+              const SizedBox(height: _benchmarkFlow),
             SizedBox(
               height: barHeight,
               child: Stack(
@@ -1048,7 +1140,8 @@ class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
                                 _noneHighlighted,
                             onFocusChange: (hasFocus) {
                               // HorizontalBarChart.tsx:321 — onFocus is the
-                              // same handler as onMouseOver.
+                              // same handler as onMouseOver, anchored at the
+                              // bar's centre (:73-77).
                               if (!hasFocus ||
                                   widget.hideTooltip ||
                                   points[i].legend == '') {
@@ -1057,37 +1150,31 @@ class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
                               final box =
                                   barContext.findRenderObject() as RenderBox?;
                               if (box == null) return;
-                              setState(() {
-                                _hovered = points[i];
-                                _anchor = _toPlot(
-                                  box.localToGlobal(
-                                    box.size.center(Offset.zero),
-                                  ),
-                                );
-                              });
+                              _hoverOn(
+                                points[i],
+                                box.localToGlobal(box.size.center(Offset.zero)),
+                              );
                             },
                             child: MouseRegion(
-                              onHover: (event) {
-                                // HorizontalBarChart.tsx:318-320 — a bar
-                                // whose legend is the empty string, which is
-                                // every synthesised placeholder, has no
-                                // handler at all.
+                              // HorizontalBarChart.tsx:318-320 — onMouseOver,
+                              // which fires as the pointer enters the bar and
+                              // not as it moves on inside, so the popover
+                              // stays where it opened. A bar whose legend is
+                              // the empty string, which is every synthesised
+                              // placeholder, has no handler at all.
+                              onEnter: (event) {
                                 if (widget.hideTooltip ||
                                     points[i].legend == '') {
                                   return;
                                 }
-                                // HorizontalBarChart.tsx:349-360 — the
-                                // popover only moves when the pointer
-                                // travels more than one pixel.
-                                final next = _toPlot(event.position);
-                                if (_anchor != null &&
-                                    (_anchor! - next).distance <= 1) {
-                                  return;
-                                }
-                                setState(() {
-                                  _hovered = points[i];
-                                  _anchor = next;
-                                });
+                                // :69-72 — `clientX`/`clientY`, whole pixels.
+                                _hoverOn(
+                                  points[i],
+                                  Offset(
+                                    event.position.dx.floorToDouble(),
+                                    event.position.dy.floorToDouble(),
+                                  ),
+                                );
                               },
                               child: Semantics(
                                 label: _ariaLabel(points[i]),
@@ -1099,6 +1186,36 @@ class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
                           ),
                         ),
                       ),
+                  if (showBenchmark)
+                    // `.triangle` is `position: absolute`
+                    // (useHorizontalBarChartStyles.styles.ts:92), so it paints
+                    // over the svg after it, placeholder bar included. It sits
+                    // at the top of its container, whose -3 top margin puts
+                    // it 3 above the flow slot: 6 above the bar, its tip 1px
+                    // into it.
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: -(_benchmarkFlow + _benchmarkMarginTop),
+                      height: resolved.benchmarkHeight!.resolve(states),
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: FluentBenchmarkTrianglePainter(
+                            ratio: FluentBenchmarkTrianglePainter.ratioFor(
+                              benchmark: benchmark,
+                              total: total,
+                            ),
+                            colour: resolved.benchmarkColor!.resolve(states)!,
+                            triangleWidth: resolved.benchmarkWidth!.resolve(
+                              states,
+                            )!,
+                            triangleHeight: resolved.benchmarkHeight!.resolve(
+                              states,
+                            )!,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),

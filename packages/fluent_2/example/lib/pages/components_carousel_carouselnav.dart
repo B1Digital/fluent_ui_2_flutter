@@ -68,6 +68,14 @@ const DocsPage carouselNavPage = DocsPage(
           'pill.',
     ),
     PropRow(
+      name: 'appearance',
+      type: 'FluentCarouselNavAppearance',
+      defaultValue: 'neutral',
+      description:
+          "How the mark is tinted. Upstream CarouselNav's appearance: brand "
+          'draws a brand pill, and brand under the pointer on every other dot.',
+    ),
+    PropRow(
       name: 'style',
       type: 'FluentCarouselStyle?',
       defaultValue: 'null',
@@ -82,9 +90,8 @@ const DocsPage carouselNavPage = DocsPage(
 // render function over `totalSlides`. Our equivalent button is public as
 // [FluentCarouselStep]; the strip that holds them is private to
 // [FluentCarousel], so the row below is built by hand, on the translucent pill
-// upstream's nav draws. `appearance="brand"` has no Dart axis either — the
-// Figma `Brand` mode of the step colour collection is unexposed — so the
-// selected step's mark is tinted with `compoundBrandBackground`.
+// upstream's nav draws. Upstream's `appearance="brand"` is each step's
+// [FluentCarouselNavAppearance.brand].
 Widget _default(BuildContext context) => const _Default();
 
 class _Default extends StatefulWidget {
@@ -110,16 +117,6 @@ class _DefaultState extends State<_Default> {
       color: theme.colors.neutralForeground3,
       width: FluentStroke.thicker,
     );
-    // `appearance="brand"`: the selected pill and its hover and press ramp.
-    final FluentCarouselStyle brand = FluentCarouselStyle(
-      stepColor:
-          WidgetStateProperty<Color?>.fromMap(<WidgetStatesConstraint, Color?>{
-            WidgetState.pressed: theme.colors.compoundBrandBackgroundPressed,
-            WidgetState.hovered: theme.colors.compoundBrandBackgroundHover,
-            WidgetState.any: theme.colors.compoundBrandBackground,
-          }),
-    );
-
     // The container has a shadow and no background. FluentBoxDecoration keeps
     // the shadow outside the box, as CSS does; a BoxDecoration would paint it
     // under the box and wash the whole card grey.
@@ -217,7 +214,7 @@ class _DefaultState extends State<_Default> {
                                     fit: BoxFit.cover,
                                   )
                                 : null,
-                            style: index == _index ? brand : null,
+                            appearance: FluentCarouselNavAppearance.brand,
                             onPressed: () => setState(() => _index = index),
                           ),
                         ),

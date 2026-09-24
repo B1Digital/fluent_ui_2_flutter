@@ -4,13 +4,12 @@ import 'package:flutter/semantics.dart' show SemanticsRole;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-import '../buttons/button.dart';
-import '../buttons/button_style.dart';
 import '../inputs/checkbox.dart';
 import '../inputs/checkbox_style.dart';
 import '../inputs/radio.dart';
 import '../inputs/radio_style.dart';
 import '../internal/focus_ring.dart';
+import '../internal/input_modality.dart';
 import '../internal/interaction.dart';
 import '../l10n/l10n.dart';
 import 'data_grid_style.dart';
@@ -54,10 +53,10 @@ enum FluentDataGridSelectionMode {
 
 /// Which way a sorted column is ordered.
 enum FluentDataGridSortDirection {
-  /// Smallest first. Draws `arrow_up_20_regular`.
+  /// Smallest first. Draws `arrow_up_20_regular` at 12.
   ascending,
 
-  /// Largest first. Draws `arrow_down_20_regular`.
+  /// Largest first. Draws `arrow_down_20_regular` at 12.
   descending,
 }
 
@@ -76,10 +75,13 @@ enum FluentDataGridSelectionAppearance {
 
 /// Header label weight. Figma's `Style` axis on `.Content header`.
 enum FluentDataGridHeaderWeight {
-  /// `body1`. Figma `Style=Regular`.
+  /// `body1`. Figma `Style=Regular`. The default: upstream's
+  /// `useTableHeaderCellStyles.styles.ts` sets `fontWeight: fontWeightRegular`
+  /// on every header cell, and the live `components-datagrid--*` stories
+  /// measure 400.
   regular,
 
-  /// `body1Strong`. Figma `Style=Semibold`. The default.
+  /// `body1Strong`. Figma `Style=Semibold`, which Figma draws by default.
   semibold,
 }
 
@@ -256,7 +258,7 @@ FluentDataGridState resolveFluentDataGridState({
   FluentDataGridSize size = FluentDataGridSize.medium,
   FluentDataGridSelectionAppearance selectionAppearance =
       FluentDataGridSelectionAppearance.neutral,
-  FluentDataGridHeaderWeight headerWeight = FluentDataGridHeaderWeight.semibold,
+  FluentDataGridHeaderWeight headerWeight = FluentDataGridHeaderWeight.regular,
   List<Widget>? headerCells,
   double? selectionColumnWidth,
 }) => FluentDataGridState(
@@ -280,17 +282,25 @@ FluentDataGridState resolveFluentDataGridState({
 ///
 /// Nothing is computed — every branch returns a token that was read off the
 /// collection.
+///
+/// Pressed has no Figma mode either; it is upstream's. `useTableRowStyles`
+/// gives an interactive row `:active` `colorSubtleBackgroundPressed`, and both
+/// selection appearances override `:active` straight back to their selected
+/// fill — so a pressed selected row shows [selected], not [pressed].
 WidgetStateProperty<Color> _rowToken({
   required Color rest,
   required Color hover,
+  required Color pressed,
   required Color selected,
   required Color selectedHover,
   required Color disabled,
 }) => WidgetStateProperty.resolveWith((states) {
   if (states.contains(WidgetState.disabled)) return disabled;
   if (states.contains(WidgetState.selected)) {
+    if (states.contains(WidgetState.pressed)) return selected;
     return states.contains(WidgetState.hovered) ? selectedHover : selected;
   }
+  if (states.contains(WidgetState.pressed)) return pressed;
   if (states.contains(WidgetState.hovered)) return hover;
   return rest;
 });
@@ -414,6 +424,7 @@ FluentDataGridStyle resolveFluentDataGridStyle(
     backgroundColor: _rowToken(
       rest: c.subtleBackground,
       hover: c.subtleBackgroundHover,
+      pressed: c.subtleBackgroundPressed,
       selected: selected,
       selectedHover: selectedHover,
       // No Figma mode; the resting surface is held rather than dimmed, because
@@ -429,6 +440,7 @@ FluentDataGridStyle resolveFluentDataGridStyle(
     dividerColor: _rowToken(
       rest: c.neutralStroke2,
       hover: c.neutralStroke2,
+      pressed: c.neutralStroke2,
       selected: c.neutralStrokeOnBrand2,
       selectedHover: c.neutralStrokeOnBrand2,
       disabled: c.neutralStroke2,
@@ -437,6 +449,7 @@ FluentDataGridStyle resolveFluentDataGridStyle(
     primaryForegroundColor: _rowToken(
       rest: c.neutralForeground1,
       hover: c.neutralForeground1Hover,
+      pressed: c.neutralForeground1Pressed,
       selected: brandSelected
           ? c.neutralForeground1
           : c.neutralForeground1Selected,
@@ -448,6 +461,7 @@ FluentDataGridStyle resolveFluentDataGridStyle(
     secondaryForegroundColor: _rowToken(
       rest: c.neutralForeground2,
       hover: c.neutralForeground2Hover,
+      pressed: c.neutralForeground2Pressed,
       selected: brandSelected
           ? c.neutralForeground2
           : c.neutralForeground2Selected,
@@ -482,17 +496,23 @@ FluentDataGridStyle resolveFluentDataGridStyle(
       EdgeInsets.symmetric(horizontal: FluentSpacing.s),
     ),
     gap: const WidgetStatePropertyAll<double?>(FluentSpacing.s),
-    headerGap: const WidgetStatePropertyAll<double?>(FluentSpacing.xxs),
+    // `useTableHeaderCellStyles.styles.ts` `button`: `gap: spacingHorizontalXS`
+    // between the label and the sort icon. Figma's `Content container` says
+    // XXS; the storybook wins.
+    headerGap: const WidgetStatePropertyAll<double?>(FluentSpacing.xs),
     rowHeight: WidgetStatePropertyAll<double?>(height),
     iconSize: WidgetStatePropertyAll<double?>(iconSize),
-    // Figma squares the sort button off at 2 on all four sides around a 20
-    // glyph; `resolveFluentButtonStyle` would draw the small size's horizontal
-    // ramp and come out 36 wide. See doc/token-divergences.md.
+    // `sortIcon`: `paddingTop: spacingVerticalXXS` and nothing else. Figma
+    // draws a square-padded transparent icon button here; upstream draws the
+    // bare glyph, so the storybook wins.
     sortButtonPadding: const WidgetStatePropertyAll<EdgeInsetsGeometry?>(
-      EdgeInsets.all(FluentSpacing.xxs),
+      EdgeInsets.only(top: FluentSpacing.xxs),
     ),
+    // The arrow, not the hand: `useTableRowStyles.styles.ts` gives a row no
+    // `cursor`, and the live `components-datagrid--default` story reports
+    // `auto` over every body cell. Only a sortable header points.
     mouseCursor: const WidgetStatePropertyAll<MouseCursor?>(
-      SystemMouseCursors.click,
+      SystemMouseCursors.basic,
     ),
   );
 }
@@ -1022,7 +1042,7 @@ class FluentDataGrid extends StatefulWidget {
     this.size = FluentDataGridSize.medium,
     this.selectionMode = FluentDataGridSelectionMode.none,
     this.selectionAppearance = FluentDataGridSelectionAppearance.neutral,
-    this.headerWeight = FluentDataGridHeaderWeight.semibold,
+    this.headerWeight = FluentDataGridHeaderWeight.regular,
     this.selectedRows = const <int>{},
     this.onSelectionChanged,
     this.sortColumn,
@@ -1224,7 +1244,7 @@ class _FluentDataGridState extends State<FluentDataGrid> {
   /// The node arrow navigation should land on for cell `[r][c]`.
   ///
   /// The cell's own focusable descendant when it has one — so a checkbox, link
-  /// or sort button keeps its ring and its key handling — and the fallback
+  /// or sortable header keeps its ring and its key handling — and the fallback
   /// otherwise, so a column of plain text is still reachable.
   FocusNode? _stop(int r, int c) {
     if (r < 0 || r >= _wrappers.length) return null;
@@ -1292,9 +1312,19 @@ class _FluentDataGridState extends State<FluentDataGrid> {
       // of the traversal.
       canRequestFocus: _needsFallback[r][c],
       skipTraversal: !_needsFallback[r][c],
-      child: Builder(
-        builder: (context) => FluentFocusRing(
-          visible: _fallbacks[r][c].hasPrimaryFocus,
+      // Keyboard-visible focus only, as everywhere else: a pointer press that
+      // lands focus on a text cell raised a ring upstream never draws, and it
+      // stayed after the pointer left. Listens to the node as well, because
+      // the grid rebuilds when a cell gains focus but not when it loses it.
+      child: ListenableBuilder(
+        listenable: Listenable.merge(<Listenable>[
+          FluentInputModality.keyboard,
+          _fallbacks[r][c],
+        ]),
+        builder: (context, _) => FluentFocusRing(
+          visible:
+              FluentInputModality.keyboard.value &&
+              _fallbacks[r][c].hasPrimaryFocus,
           borderRadius: BorderRadius.zero,
           child: cell,
         ),
@@ -1352,22 +1382,28 @@ class _FluentDataGridState extends State<FluentDataGrid> {
     child: Align(alignment: AlignmentDirectional.topStart, child: control),
   );
 
+  /// One header cell. A sortable one is a single interactive surface — upstream
+  /// renders the whole `DataGridHeaderCell` content as one ARIA button whose
+  /// cell fills `colorSubtleBackgroundHover` on hover and `...Pressed` on
+  /// press (`useTableHeaderCellStyles.styles.ts` `rootInteractive`) — and it
+  /// draws its arrow only while it holds the sort.
   Widget _headerCell(
     FluentDataGridStyle style,
     int index,
     FluentDataGridColumn column,
   ) {
-    final states = <WidgetState>{if (!widget.enabled) WidgetState.disabled};
-    final padding = style.headerPadding?.resolve(states) ?? EdgeInsets.zero;
-    final gap = style.headerGap?.resolve(states) ?? FluentSpacing.xxs;
-    final textStyle = style.headerTextStyle?.resolve(states);
-    final foreground = style.headerForegroundColor?.resolve(states);
     final sortable = column.sortable && widget.onSort != null && widget.enabled;
     final direction = widget.sortColumn == index ? widget.sortDirection : null;
 
-    return Semantics(
-      header: true,
-      child: Padding(
+    Widget paint(Set<WidgetState> states) {
+      final padding = style.headerPadding?.resolve(states) ?? EdgeInsets.zero;
+      final gap = style.headerGap?.resolve(states) ?? FluentSpacing.xs;
+      final textStyle = style.headerTextStyle?.resolve(states);
+      final foreground = style.headerForegroundColor?.resolve(states);
+      final fill = sortable
+          ? style.headerBackgroundColor?.resolve(states)
+          : null;
+      final content = Padding(
         padding: padding,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -1381,44 +1417,66 @@ class _FluentDataGridState extends State<FluentDataGrid> {
                 child: column.header,
               ),
             ),
-            if (sortable)
-              FluentButton.icon(
-                appearance: FluentButtonAppearance.transparent,
-                size: FluentButtonSize.small,
-                // Figma's own sort affordance is a Transparent / Small /
-                // Icon-only Button instance holding a 20px arrow, squared off
-                // at 2 rather than taking the button's horizontal ramp.
-                style: FluentButtonStyle(
-                  padding: style.sortButtonPadding,
-                  minimumSize: const WidgetStatePropertyAll<Size?>(Size.zero),
+            // An unsorted column draws no arrow: `useTableHeaderCell.tsx`
+            // renders `sortIcon` only once `sortDirection` is set, as
+            // `<ArrowUpRegular fontSize={12} />` — the unsized icon, which is
+            // the 20px design, drawn at 12. It follows the label, so the label
+            // never shifts when the sort moves.
+            if (direction != null)
+              Padding(
+                padding:
+                    style.sortButtonPadding?.resolve(states) ?? EdgeInsets.zero,
+                child: Icon(
+                  direction == FluentDataGridSortDirection.descending
+                      ? FluentIcons.arrow_down_20_regular
+                      : FluentIcons.arrow_up_20_regular,
+                  size: FluentSize.size120,
+                  color: foreground,
                 ),
-                semanticLabel: switch (direction) {
-                  null => fluentL10n(context).sort,
-                  FluentDataGridSortDirection.ascending => fluentL10n(
-                    context,
-                  ).sortedAscending,
-                  FluentDataGridSortDirection.descending => fluentL10n(
-                    context,
-                  ).sortedDescending,
-                },
-                // An unsorted column keeps its button but draws no arrow, as
-                // upstream's TableHeaderCell only shows a sort icon once
-                // sortDirection is set (components-table.md:35). The empty
-                // 20px slot stops the header shifting when the sort moves.
-                icon: switch (direction) {
-                  null => const SizedBox.square(dimension: FluentSize.size200),
-                  FluentDataGridSortDirection.ascending => const Icon(
-                    FluentIcons.arrow_up_20_regular,
-                    size: FluentSize.size200,
-                  ),
-                  FluentDataGridSortDirection.descending => const Icon(
-                    FluentIcons.arrow_down_20_regular,
-                    size: FluentSize.size200,
-                  ),
-                },
-                onPressed: () => widget.onSort!(index),
               ),
           ],
+        ),
+      );
+      if (fill == null) return content;
+      // Stops short of the row's rule, which the header row paints beneath its
+      // cells: upstream's `border-bottom` sits outside the cell boxes, so a
+      // hovered header never covers it.
+      final rule = style.dividerWidth?.resolve(states) ?? FluentStroke.none;
+      return Stack(
+        fit: StackFit.passthrough,
+        children: <Widget>[
+          Positioned.fill(
+            bottom: rule,
+            child: ColoredBox(color: fill),
+          ),
+          content,
+        ],
+      );
+    }
+
+    final rest = <WidgetState>{if (!widget.enabled) WidgetState.disabled};
+    if (!sortable) return Semantics(header: true, child: paint(rest));
+
+    return Semantics(
+      header: true,
+      button: true,
+      // Upstream's `aria-sort`, which Flutter's semantics has no field for.
+      value: switch (direction) {
+        null => fluentL10n(context).sort,
+        FluentDataGridSortDirection.ascending => fluentL10n(
+          context,
+        ).sortedAscending,
+        FluentDataGridSortDirection.descending => fluentL10n(
+          context,
+        ).sortedDescending,
+      },
+      child: FluentInteractive(
+        onPressed: () => widget.onSort!(index),
+        // `sortable: { cursor: 'pointer' }`.
+        mouseCursor: SystemMouseCursors.click,
+        builder: (context, states, _) => FluentFocusRing(
+          visible: states.contains(WidgetState.focused),
+          child: paint(<WidgetState>{...rest, ...states}),
         ),
       ),
     );

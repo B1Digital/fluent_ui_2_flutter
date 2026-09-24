@@ -3,7 +3,6 @@ import 'package:flutter/widgets.dart';
 
 import '../buttons/button.dart';
 import '../buttons/button_style.dart';
-import '../internal/interaction.dart';
 
 /// The button that opens and closes a nav.
 ///
@@ -14,18 +13,17 @@ import '../internal/interaction.dart';
 /// twice, once inside the drawer header to close and once in page content to
 /// open.
 ///
-/// ## Why the fill is restated rather than inherited
+/// ## Why there is no nav fill
 ///
-/// `useHamburgerStyles.styles.ts` sets `appearance: 'transparent'` and then
-/// overrides the background straight back to `colorNeutralBackground4` /
-/// `4Hover` / `4Pressed`, so the button vanishes into the nav surface. This
-/// package's [FluentButtonAppearance.transparent] means something else — no
-/// fill in any state, and a brand-tinted label on hover — so reproducing
-/// upstream's end state means naming those three tokens here.
-///
-/// The consequence is worth knowing: this button reads as a filled chip on any
-/// surface that is not the nav. Override [style] when placing one in page
-/// content.
+/// `useHamburgerStyles.styles.ts` writes `navItemTokens.backgroundColor` /
+/// `Hover` / `Pressed` onto the root, but merges them *before*
+/// `state.root.className`, which already holds the transparent Button's own
+/// classes — so in the rendered storybook the Button's `transparent` wins and
+/// the fill never shows. The live `components-nav--basic` page measures
+/// `rgba(0, 0, 0, 0)` at rest, on hover and on press; only the glyph moves,
+/// `neutralForeground2` -> `neutralForeground2BrandHover` ->
+/// `neutralForeground2BrandPressed`. That is exactly
+/// [FluentButtonAppearance.transparent], so nothing is restated here.
 ///
 /// ```dart
 /// FluentHamburger(
@@ -68,7 +66,7 @@ class FluentHamburger extends StatelessWidget {
   /// Height and glyph ramp. Null takes [FluentButton]'s own default.
   final FluentButtonSize? size;
 
-  /// Overrides layered over the nav fill. Merged last, so it wins.
+  /// Overrides layered over the transparent button. Merged last, so it wins.
   final FluentButtonStyle? style;
 
   /// Focus node to use. One is created internally when omitted.
@@ -79,27 +77,13 @@ class FluentHamburger extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = FluentTheme.of(context).colors;
-
-    // `navItemTokens` in `useHamburgerStyles.styles.ts`. Spelled out per state
-    // rather than passed as a single colour, because the hover and pressed
-    // members are what make the button track the nav rows beside it.
-    final fill = FluentButtonStyle(
-      backgroundColor: FluentStateColor.tokens(
-        rest: c.neutralBackground4,
-        hover: c.neutralBackground4Hover,
-        pressed: c.neutralBackground4Pressed,
-        disabled: c.neutralBackgroundDisabled,
-      ),
-    );
-
     final button = FluentButton.icon(
       icon: const Icon(FluentIcons.navigation_20_filled),
       semanticLabel: semanticLabel,
       onPressed: onPressed,
       appearance: FluentButtonAppearance.transparent,
       size: size ?? FluentButtonSize.medium,
-      style: fill.merge(style),
+      style: style,
       focusNode: focusNode,
       autofocus: autofocus,
     );

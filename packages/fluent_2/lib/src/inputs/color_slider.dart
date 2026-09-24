@@ -858,6 +858,8 @@ class _FluentColorSliderState extends State<FluentColorSlider> {
       mouseCursor:
           resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
           SystemMouseCursors.click,
+      // A disabled range `<input>`: the browser's `default`.
+      disabledMouseCursor: SystemMouseCursors.basic,
       builder: (context, states, _) => FluentPointerCapture(
         enabled: _enabled,
         onPointer: _reportAt,

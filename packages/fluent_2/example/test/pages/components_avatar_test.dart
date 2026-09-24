@@ -329,6 +329,22 @@ void main() {
       final Finder avatars = find.byType(FluentAvatar);
       expect(avatars, findsNWidgets(14));
 
+      // useAvatar.js's getHashCode over its 30 avatarColors: the storybook's
+      // first five tiles, Katri Athokas to Mona Kane.
+      expect(
+        <FluentAvatarColor?>[
+          for (int i = 0; i < 5; i++)
+            tester.widget<FluentAvatar>(avatars.at(i)).color,
+        ],
+        <FluentAvatarColor>[
+          FluentAvatarColor.lilac,
+          FluentAvatarColor.gold,
+          FluentAvatarColor.darkRed,
+          FluentAvatarColor.blue,
+          FluentAvatarColor.lightTeal,
+        ],
+      );
+
       final List<Color?> fills = <Color?>[
         for (int i = 0; i < 14; i++) fillOf(tester, avatars.at(i))?.color,
       ];

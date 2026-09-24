@@ -1,4 +1,5 @@
-import 'package:flutter/gestures.dart' show kSecondaryMouseButton;
+import 'package:flutter/gestures.dart'
+    show PointerDeviceKind, kSecondaryMouseButton;
 import 'package:flutter/widgets.dart';
 
 import 'input_modality.dart';
@@ -74,7 +75,9 @@ class FluentInteractive extends StatefulWidget {
     this.focusNode,
     this.autofocus = false,
     this.mouseCursor = SystemMouseCursors.click,
+    this.disabledMouseCursor = SystemMouseCursors.forbidden,
     this.pressedOnSecondary = true,
+    this.pressedRequiresHover = false,
     this.child,
   });
 
@@ -104,6 +107,14 @@ class FluentInteractive extends StatefulWidget {
   /// Cursor shown while hovering an enabled surface.
   final MouseCursor mouseCursor;
 
+  /// Cursor shown while hovering a disabled surface.
+  ///
+  /// Upstream's disabled buttons, links, menu items, tabs, tags, swatches and
+  /// accordion headers all write `cursor: 'not-allowed'`. Checkbox, Radio,
+  /// Switch, Slider, ListItem and listbox options write `cursor: 'default'`
+  /// instead, so pass [SystemMouseCursors.basic] there.
+  final MouseCursor disabledMouseCursor;
+
   /// Whether a held right mouse press reports [WidgetState.pressed].
   ///
   /// Chrome sets `:active` under whichever button is held, and upstream's
@@ -112,6 +123,17 @@ class FluentInteractive extends StatefulWidget {
   /// not — they lose `:active` a task after the press's `contextmenu` — so
   /// pass false there. A middle press is pressed either way.
   final bool pressedOnSecondary;
+
+  /// Whether a mouse press reports [WidgetState.pressed] only while the
+  /// pointer is over the control.
+  ///
+  /// Upstream's Button family, Switch, Radio, ColorSwatch, InfoButton and
+  /// Calendar cells style pressed as `:hover:active`, so a held press dragged
+  /// off falls back to rest, and dragged back presses again. Controls styled
+  /// with a plain `:active` (tabs, tree items, tags, sliders, text fields)
+  /// keep pressed until release, which is the default. A touch press has no
+  /// hover to lose and stays pressed either way.
+  final bool pressedRequiresHover;
 
   /// Passed through to [builder] unchanged, for subtrees that do not depend on
   /// state and should not rebuild with it.
@@ -124,6 +146,12 @@ class FluentInteractive extends StatefulWidget {
 class _FluentInteractiveState extends State<FluentInteractive> {
   final WidgetStatesController _controller = WidgetStatesController();
   FocusNode? _internalNode;
+
+  /// A press is held on the surface, and whether a mouse holds it. With
+  /// [FluentInteractive.pressedRequiresHover], [_syncPressed] turns these and
+  /// the hover into [WidgetState.pressed].
+  bool _held = false;
+  bool _heldByMouse = false;
 
   /// The framework's own answer to "should a focus highlight be drawn", which
   /// is only half of focus-visible — see [_syncFocusVisible].
@@ -148,6 +176,7 @@ class _FluentInteractiveState extends State<FluentInteractive> {
     // re-enable under the same press does not bring it back. Only on that
     // edge: a press that lands while disabled is `:active` once enabled.
     if (oldWidget.enabled && oldWidget.onPressed != null && !_enabled) {
+      _held = false;
       _controller.update(WidgetState.pressed, false);
     }
   }
@@ -172,6 +201,17 @@ class _FluentInteractiveState extends State<FluentInteractive> {
     if (mounted) _controller.update(state, value);
   }
 
+  /// Pressed is the held press, except that a mouse dragged off a
+  /// [FluentInteractive.pressedRequiresHover] surface is not `:hover:active`.
+  void _syncPressed() => _set(
+    WidgetState.pressed,
+    value:
+        _held &&
+        (!widget.pressedRequiresHover ||
+            !_heldByMouse ||
+            _controller.value.contains(WidgetState.hovered)),
+  );
+
   /// `focused` is the AND of "the framework wants a highlight" and "the last
   /// input was a key". Re-run on either changing: the modality can flip while
   /// focus stands still, and upstream repaints when it does.
@@ -179,6 +219,11 @@ class _FluentInteractiveState extends State<FluentInteractive> {
     WidgetState.focused,
     value: _highlight && FluentInputModality.keyboard.value,
   );
+
+  void _release() {
+    _held = false;
+    _syncPressed();
+  }
 
   void _handleTap() {
     if (!_enabled) return;
@@ -191,7 +236,7 @@ class _FluentInteractiveState extends State<FluentInteractive> {
       enabled: _enabled,
       focusNode: _focusNode,
       autofocus: widget.autofocus,
-      mouseCursor: _enabled ? widget.mouseCursor : SystemMouseCursors.basic,
+      mouseCursor: _enabled ? widget.mouseCursor : widget.disabledMouseCursor,
       // Deliberately wired from onShowFocusHighlight, not onFocusChange — but
       // that alone is NOT enough. Flutter's highlight mode only distinguishes
       // touch from not-touch, so on desktop and web it reads `traditional`
@@ -220,20 +265,27 @@ class _FluentInteractiveState extends State<FluentInteractive> {
       // pointer affordance: if a mouse is over the control, Fluent shows the
       // hover token regardless of how focus is being visualised.
       child: MouseRegion(
-        onEnter: (_) => _set(WidgetState.hovered, value: true),
-        onExit: (_) => _set(WidgetState.hovered, value: false),
+        onEnter: (_) {
+          _set(WidgetState.hovered, value: true);
+          _syncPressed();
+        },
+        onExit: (_) {
+          _set(WidgetState.hovered, value: false);
+          _syncPressed();
+        },
         child: Listener(
           // Any button, as Chrome's `:active`; only the tap below is
           // primary-only, so a middle or right click never activates. The
           // release comes through here whatever the gesture arena decides.
-          onPointerDown: (event) => _set(
-            WidgetState.pressed,
-            value:
+          onPointerDown: (event) {
+            _held =
                 widget.pressedOnSecondary ||
-                event.buttons != kSecondaryMouseButton,
-          ),
-          onPointerUp: (_) => _set(WidgetState.pressed, value: false),
-          onPointerCancel: (_) => _set(WidgetState.pressed, value: false),
+                event.buttons != kSecondaryMouseButton;
+            _heldByMouse = event.kind == PointerDeviceKind.mouse;
+            _syncPressed();
+          },
+          onPointerUp: (_) => _release(),
+          onPointerCancel: (_) => _release(),
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             // Null, not a no-op handler, when disabled: an attached onTap puts a

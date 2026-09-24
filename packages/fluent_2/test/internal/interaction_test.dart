@@ -1,7 +1,7 @@
 import 'package:fluent_2/fluent_2.dart';
 import 'package:fluent_2/src/internal/input_modality.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/semantics.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +19,8 @@ void main() {
     VoidCallback? onPressed,
     FocusNode? focusNode,
     bool pressedOnSecondary = true,
+    bool pressedRequiresHover = false,
+    MouseCursor disabledMouseCursor = SystemMouseCursors.forbidden,
   }) async {
     var latest = <WidgetState>{};
     await tester.pumpWidget(
@@ -30,6 +32,8 @@ void main() {
             onPressed: onPressed ?? () {},
             focusNode: focusNode,
             pressedOnSecondary: pressedOnSecondary,
+            pressedRequiresHover: pressedRequiresHover,
+            disabledMouseCursor: disabledMouseCursor,
             builder: (context, states, child) {
               latest = states;
               return const SizedBox(key: target, width: 60, height: 30);
@@ -143,7 +147,123 @@ void main() {
     });
   });
 
+  group('drag-off', () {
+    // Chrome moves `:hover` with a held mouse, but `:active` stays where the
+    // press landed. Upstream's Button family, Switch, Radio and ColorSwatch
+    // paint pressed under `:hover:active`, the rest under a plain `:active`.
+    Future<TestGesture> pressAndLeave(
+      WidgetTester tester, {
+      PointerDeviceKind kind = PointerDeviceKind.mouse,
+    }) async {
+      final pointer = await tester.createGesture(kind: kind);
+      if (kind == PointerDeviceKind.mouse) {
+        await pointer.addPointer(location: Offset.zero);
+        await pointer.moveTo(tester.getCenter(find.byKey(target)));
+      }
+      await pointer.down(tester.getCenter(find.byKey(target)));
+      await tester.pump();
+      await pointer.moveBy(const Offset(1, 0));
+      await pointer.moveTo(const Offset(5, 5));
+      await tester.pump();
+      return pointer;
+    }
+
+    testWidgets('pressedRequiresHover: a mouse dragged off is not pressed', (
+      tester,
+    ) async {
+      final states = await pumpInteractive(tester, pressedRequiresHover: true);
+      final mouse = await pressAndLeave(tester);
+      expect(states().contains(WidgetState.pressed), isFalse);
+
+      await mouse.moveTo(tester.getCenter(find.byKey(target)));
+      await tester.pump();
+      expect(
+        states().contains(WidgetState.pressed),
+        isTrue,
+        reason: 'dragged back over the control, it is :hover:active again',
+      );
+
+      await mouse.up();
+      await tester.pump();
+      expect(states().contains(WidgetState.pressed), isFalse);
+      await mouse.removePointer();
+    });
+
+    testWidgets('pressedRequiresHover: a finger dragged off stays pressed', (
+      tester,
+    ) async {
+      final states = await pumpInteractive(tester, pressedRequiresHover: true);
+      final finger = await pressAndLeave(tester, kind: PointerDeviceKind.touch);
+      expect(states().contains(WidgetState.pressed), isTrue);
+      await finger.up();
+      await tester.pump();
+      expect(states().contains(WidgetState.pressed), isFalse);
+    });
+
+    testWidgets('by default a mouse dragged off stays pressed', (tester) async {
+      final states = await pumpInteractive(tester);
+      final mouse = await pressAndLeave(tester);
+      expect(states().contains(WidgetState.pressed), isTrue);
+      await mouse.up();
+      await mouse.removePointer();
+    });
+
+    testWidgets('pressedRequiresHover keeps a right press out if asked', (
+      tester,
+    ) async {
+      final states = await pumpInteractive(
+        tester,
+        pressedRequiresHover: true,
+        pressedOnSecondary: false,
+      );
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryMouseButton,
+      );
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(tester.getCenter(find.byKey(target)));
+      await mouse.down(tester.getCenter(find.byKey(target)));
+      await mouse.moveBy(const Offset(1, 0));
+      await tester.pump();
+      expect(states().contains(WidgetState.pressed), isFalse);
+      await mouse.up();
+      await mouse.removePointer();
+    });
+  });
+
   group('disabled', () {
+    testWidgets('shows not-allowed, or the cursor it is given', (tester) async {
+      // Upstream's disabled Button, Link, MenuItem, Tab, Tag and ColorSwatch
+      // are `not-allowed`; Checkbox, Radio, Switch and Slider are `default`.
+      MouseCursor? cursor() =>
+          RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1);
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        pointer: 1,
+      );
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+
+      await pumpInteractive(tester);
+      await mouse.moveTo(tester.getCenter(find.byKey(target)));
+      await tester.pump();
+      expect(cursor(), SystemMouseCursors.click);
+
+      await pumpInteractive(tester, enabled: false);
+      await mouse.moveBy(const Offset(1, 0));
+      await tester.pump();
+      expect(cursor(), SystemMouseCursors.forbidden);
+
+      await pumpInteractive(
+        tester,
+        enabled: false,
+        disabledMouseCursor: SystemMouseCursors.basic,
+      );
+      await mouse.moveBy(const Offset(1, 0));
+      await tester.pump();
+      expect(cursor(), SystemMouseCursors.basic);
+    });
+
     testWidgets('is a real state, not a visual-only grey-out', (tester) async {
       var fired = 0;
       final states = await pumpInteractive(

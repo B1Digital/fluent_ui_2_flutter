@@ -527,6 +527,92 @@ void main() {
       );
     });
 
+    testWidgets('a trimmed node name shows whole beside the pointer', (
+      tester,
+    ) async {
+      const name =
+          'An inbox whose name runs far past the room a sankey node label has';
+      await pump(
+        tester,
+        const FluentSankeyChart(
+          data: FluentSankeyChartData(
+            nodes: <FluentSankeyNode>[
+              FluentSankeyNode(nodeId: 0, name: name),
+              FluentSankeyNode(nodeId: 1, name: 'Archive'),
+              FluentSankeyNode(nodeId: 2, name: 'Deleted'),
+            ],
+            links: <FluentSankeyLink>[
+              FluentSankeyLink(source: 0, target: 1, value: 70),
+              FluentSankeyLink(source: 0, target: 2, value: 30),
+            ],
+          ),
+        ),
+      );
+      final state = tester.state<FluentSankeyChartState>(
+        find.byType(FluentSankeyChart),
+      );
+      final node = state.layout.nodes[0];
+      final origin = tester.getTopLeft(find.byType(FluentSankeyChart));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer();
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(
+        origin + Offset((node.x0 + node.x1) / 2, (node.y0 + node.y1) / 2),
+      );
+      await tester.pump();
+      expect(
+        find.widgetWithText(FluentChartTooltipBox, name),
+        findsOneWidget,
+        reason:
+            '_showTooltip fills fui-sc__toolTip with the whole name at once '
+            '(SankeyChart.tsx:994-1004), the getTooltipStyle box with no arrow '
+            'and no delay',
+      );
+    });
+
+    testWidgets('a node too short to draw its name shows no name tooltip', (
+      tester,
+    ) async {
+      const name = 'A tiny source whose name runs far past a sankey node label';
+      await pump(
+        tester,
+        const FluentSankeyChart(
+          data: FluentSankeyChartData(
+            nodes: <FluentSankeyNode>[
+              FluentSankeyNode(nodeId: 0, name: 'Large'),
+              FluentSankeyNode(nodeId: 1, name: name),
+              FluentSankeyNode(nodeId: 2, name: 'Target'),
+            ],
+            links: <FluentSankeyLink>[
+              FluentSankeyLink(source: 0, target: 2, value: 10001),
+              FluentSankeyLink(source: 1, target: 2, value: 2),
+            ],
+          ),
+        ),
+      );
+      final state = tester.state<FluentSankeyChartState>(
+        find.byType(FluentSankeyChart),
+      );
+      final node = state.layout.nodes[1];
+      expect(node.y1 - node.y0, lessThan(kSankeyMinHeightForType));
+      final origin = tester.getTopLeft(find.byType(FluentSankeyChart));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer();
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(
+        origin + Offset((node.x0 + node.x1) / 2, (node.y0 + node.y1) / 2),
+      );
+      await tester.pump();
+      expect(find.byType(FluentChartPopover), findsOneWidget);
+      expect(
+        find.byType(FluentChartTooltipBox),
+        findsNothing,
+        reason:
+            'the name <text> and its tooltip only exist above '
+            'MIN_HEIGHT_FOR_TYPE (SankeyChart.tsx:823); the callout names it',
+      );
+    });
+
     testWidgets('hovering a stream opens the popover with the From message', (
       tester,
     ) async {
@@ -594,6 +680,89 @@ void main() {
         find.byType(FluentChartPopover),
         findsNothing,
         reason: 'SankeyChart.tsx:1143 closes the callout on the root leave',
+      );
+    });
+
+    testWidgets('the stream callout stays where the pointer came in', (
+      tester,
+    ) async {
+      await pump(tester, const FluentSankeyChart(data: graph));
+      final state = tester.state<FluentSankeyChartState>(
+        find.byType(FluentSankeyChart),
+      );
+      final link = state.layout.links[0];
+      final origin = tester.getTopLeft(find.byType(FluentSankeyChart));
+      final entry =
+          origin +
+          Offset(
+            (link.source.x1 + link.target.x0) / 2,
+            (link.y0 + link.y1) / 2,
+          );
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(entry);
+      await tester.pump();
+      Offset anchor() => tester
+          .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+          .anchor;
+      final entered = anchor();
+      await gesture.moveTo(entry.translate(12, 1));
+      await tester.pump();
+      expect(
+        anchor(),
+        entered,
+        reason:
+            'a stream listens for onMouseOver alone (SankeyChart.tsx:766), so '
+            'the storybook keeps its surface at [297,166] after the pointer '
+            'moves 12px along the ribbon',
+      );
+      expect(
+        tester
+            .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+            .data
+            .isCartesian,
+        isFalse,
+        reason: 'SankeyChart.tsx:1133-1141 pass no isCartesian',
+      );
+    });
+
+    testWidgets('the ground drops the highlight and keeps the callout', (
+      tester,
+    ) async {
+      await pump(tester, const FluentSankeyChart(data: graph));
+      final state = tester.state<FluentSankeyChartState>(
+        find.byType(FluentSankeyChart),
+      );
+      final link = state.layout.links[0];
+      final origin = tester.getTopLeft(find.byType(FluentSankeyChart));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(
+        origin +
+            Offset(
+              (link.source.x1 + link.target.x0) / 2,
+              (link.y0 + link.y1) / 2,
+            ),
+      );
+      await tester.pump();
+      // The top-left corner of the diagram: inside the chart, over no node
+      // and no stream.
+      await gesture.moveTo(origin + const Offset(4, 4));
+      await tester.pump();
+      expect(
+        state.selection.active,
+        isFalse,
+        reason: '_onStreamLeave (SankeyChart.tsx:902-908) clears the highlight',
+      );
+      expect(
+        find.byType(FluentChartPopover),
+        findsOneWidget,
+        reason:
+            'and nothing else closes the callout until the root mouseleave '
+            '(:1143): the storybook keeps it up with the pointer on the svg '
+            'ground at (45, 491)',
       );
     });
 

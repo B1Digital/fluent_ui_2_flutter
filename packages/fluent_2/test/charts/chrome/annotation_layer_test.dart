@@ -7,6 +7,7 @@ import 'package:fluent_2/src/charts/internal/d3/scale_band.dart';
 import 'package:fluent_2/src/charts/internal/d3/scale_linear.dart';
 import 'package:fluent_2/src/charts/model/chart_annotation.dart';
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -1706,11 +1707,13 @@ void mainLayerWidget() {
     ]);
     expect(
       boxWidth(tester),
-      lessThanOrEqualTo(180),
+      180 + 2 * 8 + 2 * 1,
       reason:
           'ChartAnnotationLayer.tsx:493 — a named maxWidth is a container '
-          'max-width, so the text wraps inside it and :535 measures the '
-          'narrower box.',
+          'max-width, which in the content-box model bounds the CONTENT: the '
+          'text wraps at 180 and the 8px padding (styles.ts:104-105) and 1px '
+          'border (:127) sit outside it. Oracle B measures the corpus '
+          'launch-html box, `maxWidth: 220` with 16px padding, at 254.',
     );
     expect(
       boxWidth(tester),
@@ -1725,6 +1728,273 @@ void mainLayerWidget() {
       reason:
           'useChartAnnotationLayer.styles.ts:107 is `white-space: pre-wrap`, '
           'so the width the box loses comes back as wrapped lines.',
+    );
+  });
+
+  testWidgets('a box is its lines, its padding and its border', (tester) async {
+    Rect boxRect() => tester.getRect(
+      find.descendant(
+        of: find.byType(FluentChartAnnotationLayer),
+        matching: find.byType(Positioned),
+      ),
+    );
+    await pump(tester, const <FluentChartAnnotation>[
+      FluentChartAnnotation(
+        text: 'Peak',
+        coordinates: FluentPixelCoordinate(x: 100, y: 100),
+      ),
+    ]);
+    expect(
+      boxHeight(tester),
+      16 + 2 * 4 + 2 * 1,
+      reason:
+          "One line is caption1's full 16px line box "
+          '(useChartAnnotationLayer.styles.ts:94), half-leading included, '
+          'inside 4px of padding (:102-103) and the 1px border (:127). '
+          "Oracle B's one-line corpus note box, 8px padding, is 34 tall.",
+    );
+    expect(
+      tester.getTopLeft(find.byType(RichText)).dy - boxRect().top,
+      1 + 4,
+      reason: 'The text starts inside the border as well as the padding.',
+    );
+
+    await pump(tester, const <FluentChartAnnotation>[
+      FluentChartAnnotation(
+        text: 'Peak',
+        coordinates: FluentPixelCoordinate(x: 100, y: 100),
+        style: FluentChartAnnotationStyle(
+          borderStyle: FluentChartAnnotationBorderStyle.none,
+        ),
+      ),
+    ]);
+    expect(
+      boxHeight(tester),
+      16 + 2 * 4,
+      reason:
+          'ChartAnnotationLayer.tsx:507 writes `border-style: none` inline, '
+          "which takes the class's 1px border and its width with it.",
+    );
+  });
+
+  // Paints [annotation] over white at a ratio of one and returns a reader for
+  // its 0xAARRGGBB pixels.
+  Future<int Function(int x, int y)> paintOverWhite(
+    WidgetTester tester,
+    FluentChartAnnotation annotation,
+  ) async {
+    const key = ValueKey<String>('layer');
+    await tester.pumpWidget(
+      FluentApp(
+        theme: theme,
+        home: Align(
+          alignment: Alignment.topLeft,
+          child: RepaintBoundary(
+            key: key,
+            child: ColoredBox(
+              color: const Color(0xFFFFFFFF),
+              child: SizedBox(
+                width: 300,
+                height: 200,
+                child: FluentChartAnnotationLayer(
+                  annotations: <FluentChartAnnotation>[annotation],
+                  context: context,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final boundary = tester.renderObject<RenderRepaintBoundary>(
+      find.byKey(key),
+    );
+    // `toImage` is completed by the engine, and the binding's fake async never
+    // pumps that completion, so it must run for real.
+    final bytes = (await tester.runAsync(() async {
+      final image = await boundary.toImage();
+      final data = await image.toByteData();
+      image.dispose();
+      return data!;
+    }))!;
+    // `toByteData` defaults to `rawRgba`; the alpha byte moves to the top.
+    return (int x, int y) {
+      final at = (y * 300 + x) * 4;
+      return bytes.getUint8(at + 3) << 24 |
+          bytes.getUint8(at) << 16 |
+          bytes.getUint8(at + 1) << 8 |
+          bytes.getUint8(at + 2);
+    };
+  }
+
+  // The box's top-left corner lands on (20, 20).
+  const corner = FluentPixelCoordinate(x: 20, y: 20);
+  const cornerLayout = FluentChartAnnotationLayout(
+    align: FluentChartAnnotationAlign.start,
+    verticalAlign: FluentChartAnnotationVerticalAlign.top,
+    clipToBounds: false,
+  );
+
+  testWidgets('a shadow is painted outside the box only', (tester) async {
+    final pixelAt = await paintOverWhite(
+      tester,
+      const FluentChartAnnotation(
+        text: 'Peak',
+        coordinates: corner,
+        layout: cornerLayout,
+        style: FluentChartAnnotationStyle(
+          backgroundColor: Color(0x00000000),
+          boxShadow: <BoxShadow>[
+            BoxShadow(color: Color(0xFF000000), offset: Offset(0, 6)),
+          ],
+        ),
+      ),
+    );
+    // Inside the 26px-tall box, below the top 6 rows the shifted shadow leaves
+    // uncovered, and in the left padding, clear of the border and the text.
+    expect(
+      pixelAt(24, 36),
+      0xFFFFFFFF,
+      reason:
+          'CSS paints an outer box-shadow only outside the border box, so a '
+          'translucent fill shows what is behind the box, not its shadow — the '
+          'corpus stretch-goal box, rgba(216, 59, 1, 0.08), stays pale.',
+    );
+    expect(
+      pixelAt(30, 20 + 26 + 3),
+      0xFF000000,
+      reason: 'Below the box the shadow is still painted.',
+    );
+  });
+
+  testWidgets('the first shadow is painted on top', (tester) async {
+    final pixelAt = await paintOverWhite(
+      tester,
+      const FluentChartAnnotation(
+        text: 'Peak',
+        coordinates: corner,
+        layout: cornerLayout,
+        style: FluentChartAnnotationStyle(
+          boxShadow: <BoxShadow>[
+            BoxShadow(color: Color(0xFFFF0000), offset: Offset(0, 6)),
+            BoxShadow(color: Color(0xFF0000FF), offset: Offset(0, 6)),
+          ],
+        ),
+      ),
+    );
+    expect(
+      pixelAt(30, 20 + 26 + 3),
+      0xFFFF0000,
+      reason:
+          'CSS Backgrounds 3 §7.1: "The first shadow is on top", where a '
+          'BoxDecoration paints its list in order, last on top.',
+    );
+  });
+
+  testWidgets("a shadow's blur is CSS's, half the blur radius", (tester) async {
+    // The test binding paints BoxShadows unblurred; restored in the body,
+    // because the binding checks it before any tearDown runs.
+    debugDisableShadows = false;
+    try {
+      final pixelAt = await paintOverWhite(
+        tester,
+        const FluentChartAnnotation(
+          text: 'Peak',
+          coordinates: corner,
+          layout: cornerLayout,
+          style: FluentChartAnnotationStyle(
+            backgroundColor: Color(0xFFFFFFFF),
+            // A box far wider and taller than the blur, so its bottom edge
+            // shades like a half-plane.
+            padding: EdgeInsets.symmetric(horizontal: 100, vertical: 40),
+            boxShadow: <BoxShadow>[
+              BoxShadow(color: Color(0xFF000000), blurRadius: 20),
+            ],
+          ),
+        ),
+      );
+      // The box is 16 + 2 × 40 + 2 = 98 tall. Ten rows below its bottom edge,
+      // at a pixel centre 10.5 away, a half-plane's Gaussian shadow covers
+      // 1 - Φ(10.5 / σ): 0.147 for CSS's σ = 10, 0.192 for Flutter's
+      // σ = 20 × 0.57735 + 0.5 = 12.05.
+      final grey = pixelAt(20 + 110, 20 + 98 + 10) & 0xFF;
+      expect(
+        grey,
+        closeTo(255 * (1 - 0.147), 5),
+        reason:
+            'CSS Backgrounds 3 §7.1: the blur is a Gaussian whose standard '
+            'deviation is half the blur radius.',
+      );
+    } finally {
+      debugDisableShadows = true;
+    }
+  });
+
+  testWidgets('a box is painted on its pixel-snapped border box', (
+    tester,
+  ) async {
+    // The capture is at a ratio of one, so the snap must be too.
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    const red = 0xFFFF0000;
+    final pixelAt = await paintOverWhite(
+      tester,
+      const FluentChartAnnotation(
+        text: 'Peak',
+        coordinates: FluentPixelCoordinate(x: 20, y: 20.4),
+        layout: cornerLayout,
+        style: FluentChartAnnotationStyle(
+          backgroundColor: Color(0xFFFFFFFF),
+          borderColor: Color(red),
+        ),
+      ),
+    );
+    expect(
+      (pixelAt(40, 20), pixelAt(40, 21)),
+      (red, 0xFFFFFFFF),
+      reason:
+          'Chromium paints a border box with each edge rounded to the nearest '
+          'device pixel: the corpus launch-html box at y = 90.5 draws its 1px '
+          'top border on row 91 alone.',
+    );
+    expect(
+      tester.getTopLeft(find.byType(RichText)).dy,
+      closeTo(20.4 + 1 + 4, 1e-9),
+      reason:
+          'Only the painting snaps. Snapping the layout box would shave up to '
+          'a pixel off the width its text was measured at, and re-wrap it.',
+    );
+  });
+
+  testWidgets('a dashed border is dashed as Chromium dashes it', (
+    tester,
+  ) async {
+    const red = 0xFFFF0000;
+    const white = 0xFFFFFFFF;
+    final pixelAt = await paintOverWhite(
+      tester,
+      const FluentChartAnnotation(
+        text: 'Peak',
+        coordinates: corner,
+        layout: cornerLayout,
+        style: FluentChartAnnotationStyle(
+          backgroundColor: Color(0xFFFFFFFF),
+          borderColor: Color(red),
+          borderStyle: FluentChartAnnotationBorderStyle.dashed,
+          borderWidth: 1,
+          borderRadius: 8,
+        ),
+      ),
+    );
+    // The top border is row 20. The dashes start where the top-left corner
+    // ends, x = 20 + 8, and run 3px on, 2px off.
+    expect(
+      <int>[for (var x = 28; x < 38; x++) pixelAt(x, 20)],
+      <int>[red, red, red, white, white, red, red, red, white, white],
+      reason:
+          "ChartAnnotationLayer.tsx:507 passes borderStyle through. Chromium's "
+          'render of the corpus stretch-goal box dashes its 1px border 3 on, 2 '
+          'off, from the end of the top-left corner.',
     );
   });
 

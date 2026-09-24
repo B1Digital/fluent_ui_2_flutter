@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -38,18 +41,64 @@ void main() {
     ),
   );
 
+  /// The [CustomPaint] carrying a painter of type [P] inside the gauge. A
+  /// titled gauge paints its title on a [CustomPaint] of its own.
+  Finder paintOf<P extends CustomPainter>() => find.descendant(
+    of: find.byKey(key),
+    matching: find.byWidgetPredicate(
+      (widget) => widget is CustomPaint && widget.painter is P,
+    ),
+  );
+
   FluentGaugeChartPainter painterOf(WidgetTester tester) =>
-      tester
-              .widget<CustomPaint>(
-                find
-                    .descendant(
-                      of: find.byKey(key),
-                      matching: find.byType(CustomPaint),
-                    )
-                    .first,
-              )
-              .painter!
+      tester.widget<CustomPaint>(paintOf<FluentGaugeChartPainter>()).painter!
           as FluentGaugeChartPainter;
+
+  /// [local], a point in the gauge painter's own box, on the screen.
+  Offset onScreen(WidgetTester tester, Offset local) =>
+      tester.getTopLeft(paintOf<FluentGaugeChartPainter>()) + local;
+
+  /// The box of segment [index], as upstream's `getBoundingClientRect`
+  /// reports it: the arc path's bounds.
+  Rect bandBounds(WidgetTester tester, int index) {
+    final painter = painterOf(tester);
+    final arc = painter.arcs.firstWhere((arc) => arc.segmentIndex == index);
+    return arc.path.getBounds().shift(onScreen(tester, painter.layout.origin));
+  }
+
+  /// A screen point in the middle of segment [index]'s band. d3 measures the
+  /// angle clockwise from twelve o'clock.
+  Offset bandPoint(WidgetTester tester, int index) {
+    final painter = painterOf(tester);
+    final layout = painter.layout;
+    final arc = painter.arcs.firstWhere((arc) => arc.segmentIndex == index);
+    final mid = (arc.startAngle + arc.endAngle) / 2;
+    final radius = (layout.innerRadius + layout.outerRadius) / 2;
+    return onScreen(
+      tester,
+      layout.origin + Offset(math.sin(mid) * radius, -math.cos(mid) * radius),
+    );
+  }
+
+  /// The popover surface's rect on the screen.
+  Rect surfaceRect(WidgetTester tester) => tester.getRect(
+    find.descendant(
+      of: find.byType(FluentChartPopover),
+      matching: find.byType(ExcludeFocus),
+    ),
+  );
+
+  Future<TestGesture> mouseAt(WidgetTester tester, Offset position) async {
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(position);
+    await tester.pump();
+    // A real pointer drifts; a second move must not change the answer.
+    await mouse.moveTo(position + const Offset(1, 0));
+    await tester.pump();
+    return mouse;
+  }
 
   group('segment labels', () {
     const segment = FluentGaugeSegment(
@@ -398,6 +447,277 @@ void main() {
     );
   });
 
+  group('hover', () {
+    const chart = FluentGaugeChart(
+      key: key,
+      chartValue: 50,
+      segments: segments,
+    );
+
+    testWidgets('a hovered segment is never stroked, during or after', (
+      tester,
+    ) async {
+      await pump(tester, chart);
+      final mouse = await mouseAt(tester, bandPoint(tester, 0));
+      expect(find.text('Current value is 50/100'), findsOneWidget);
+      expect(
+        painterOf(tester).focusedIndex,
+        isNull,
+        reason:
+            'GaugeChart.tsx:405-407 sets focusedElement on focus events only, '
+            'so the 2px ARC_PADDING outline (:653) is a keyboard indicator; '
+            'upstream draws no stroke on hover.',
+      );
+
+      await mouse.moveTo(Offset.zero);
+      await tester.pump();
+      expect(find.text('Current value is 50/100'), findsNothing);
+      expect(
+        painterOf(tester).focusedIndex,
+        isNull,
+        reason: 'Nor may an outline be left behind once the pointer leaves.',
+      );
+    });
+
+    testWidgets('keyboard focus strokes the segment and blur clears it', (
+      tester,
+    ) async {
+      await pump(tester, chart);
+      final node = Focus.of(
+        tester.element(find.bySemanticsLabel('Low, 0 to 30')),
+      )..requestFocus();
+      await tester.pump();
+      expect(painterOf(tester).focusedIndex, 0);
+      expect(
+        find.text('Current value is 50/100'),
+        findsOneWidget,
+        reason: 'GaugeChart.tsx:354-356 — focus opens the callout too.',
+      );
+
+      node.unfocus();
+      // The focus manager applies the change in a microtask after the first
+      // frame, so the rebuild it asks for lands on the second.
+      await tester.pump();
+      await tester.pump();
+      expect(painterOf(tester).focusedIndex, isNull);
+      expect(
+        find.text('Current value is 50/100'),
+        findsNothing,
+        reason: 'GaugeChart.tsx:358-360 — blur hides it and clears the ring.',
+      );
+    });
+
+    testWidgets('the hollow of an arc\'s bounding box is empty plot', (
+      tester,
+    ) async {
+      await pump(tester, chart);
+      // Low spans nine o'clock to 54 degrees above it, so its box's inner
+      // corner is inside the hole, off the needle and off the value.
+      final bounds = bandBounds(tester, 0);
+      await mouseAt(tester, bounds.bottomRight - const Offset(3, 3));
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason:
+            'GaugeChart.tsx:655-659 put the handlers on the <path>, so only '
+            'the painted band opens the callout.',
+      );
+    });
+
+    testWidgets('leaving a segment closes the callout; the needle keeps it', (
+      tester,
+    ) async {
+      await pump(tester, chart);
+      final hollow = bandBounds(tester, 0).bottomRight - const Offset(3, 3);
+      final mouse = await mouseAt(tester, bandPoint(tester, 0));
+      expect(find.byType(FluentChartPopover), findsOneWidget);
+
+      await mouse.moveTo(hollow);
+      await tester.pump();
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason:
+            "GaugeChart.tsx:658 — a segment's onMouseLeave dismisses the "
+            'callout even though the pointer is still over the svg.',
+      );
+
+      await mouse.moveTo(
+        tester.getCenter(find.bySemanticsLabel('Current value: 50%')),
+      );
+      await tester.pump();
+      expect(find.byType(FluentChartPopover), findsOneWidget);
+      await mouse.moveTo(hollow);
+      await tester.pump();
+      expect(
+        find.byType(FluentChartPopover),
+        findsOneWidget,
+        reason:
+            'GaugeChart.tsx:268-273 give the needle no leave handler, so its '
+            'callout stays up until the pointer leaves the svg (:597).',
+      );
+      await mouse.moveTo(Offset.zero);
+      await tester.pump();
+      expect(find.byType(FluentChartPopover), findsNothing);
+    });
+
+    testWidgets('the callout hangs off the hovered segment, not the pointer', (
+      tester,
+    ) async {
+      await pump(tester, chart);
+      final mouse = await mouseAt(tester, bandPoint(tester, 0));
+      final bounds = bandBounds(tester, 0);
+      final surface = surfaceRect(tester);
+      expect(
+        surface.center.dx,
+        moreOrLessEquals(bounds.center.dx, epsilon: 0.5),
+        reason:
+            'GaugeChart.tsx:402 targets the segment element, so the surface '
+            "centres on its box (Popover's default align: center).",
+      );
+      expect(
+        surface.bottom,
+        moreOrLessEquals(bounds.top - 20, epsilon: 0.5),
+        reason:
+            'Above the segment box and 20px clear of it (ChartPopover.tsx:48). '
+            'Measured upstream: Low Risk 450..486 x 199..251 put a 156x203 '
+            'surface at x 390 — centred on 468.',
+      );
+
+      await mouse.moveTo(bandPoint(tester, 0) + const Offset(0, -6));
+      await tester.pump();
+      expect(
+        surfaceRect(tester),
+        surface,
+        reason: 'The target is the element, so moving over it moves nothing.',
+      );
+    });
+
+    testWidgets('the needle and the value anchor on their own boxes', (
+      tester,
+    ) async {
+      await pump(tester, chart);
+      final needle = tester.getRect(
+        find.bySemanticsLabel('Current value: 50%'),
+      );
+      final origin = onScreen(tester, painterOf(tester).layout.origin);
+      expect(
+        needle.center.dx,
+        moreOrLessEquals(origin.dx, epsilon: 0.01),
+        reason:
+            'At 50% the needle stands straight up (GaugeChart.tsx:265), and '
+            'its box is the rotated one — upstream 508,186 8x22 on the basic '
+            'story — not the unrotated shape lying along nine o\'clock.',
+      );
+      expect(needle.height, greaterThan(needle.width));
+
+      final mouse = await mouseAt(tester, needle.center);
+      expect(
+        surfaceRect(tester).bottom,
+        moreOrLessEquals(needle.top - 20, epsilon: 0.5),
+      );
+      await mouse.moveTo(Offset.zero);
+      await tester.pump();
+
+      final value = tester.getRect(find.text('50%'));
+      await mouse.moveTo(value.center);
+      await tester.pump();
+      expect(
+        find.text('Current value is 50/100'),
+        findsOneWidget,
+        reason: 'GaugeChart.tsx:667-669 — the chart value opens it as well.',
+      );
+      expect(
+        surfaceRect(tester).bottom,
+        moreOrLessEquals(value.top - 20, epsilon: 0.5),
+        reason:
+            'Measured upstream on the basic story: the value box 492.49,230 '
+            '39.02x27 put the surface at 434,7 — centred on it, 20px above.',
+      );
+      expect(
+        surfaceRect(tester).center.dx,
+        moreOrLessEquals(value.center.dx, epsilon: 0.5),
+      );
+    });
+
+    testWidgets('the callout still opens once hideTooltip is lifted', (
+      tester,
+    ) async {
+      // Mounts, unmounts and remounts the OverlayPortal the callout floats
+      // in; a remounted portal starts hidden.
+      await pump(tester, chart);
+      await pump(
+        tester,
+        const FluentGaugeChart(
+          key: key,
+          chartValue: 50,
+          hideTooltip: true,
+          segments: segments,
+        ),
+      );
+      await pump(tester, chart);
+      await mouseAt(tester, bandPoint(tester, 0));
+      expect(find.text('Current value is 50/100'), findsOneWidget);
+    });
+
+    testWidgets('the callout body is useGaugeChartStyles, not ChartPopover', (
+      tester,
+    ) async {
+      await pump(tester, chart);
+      await mouseAt(tester, bandPoint(tester, 0));
+      final colors = theme.colors;
+
+      final header = tester.renderObject<RenderParagraph>(
+        find.text('Current value is 50/100'),
+      );
+      expect(
+        header.text.style!.color,
+        colors.neutralForeground1.withValues(alpha: 0.85),
+        reason:
+            'useGaugeChartStyles.styles.ts:92-96 — calloutContentX at opacity '
+            '0.85 over the surface colour, colorNeutralForeground1.',
+      );
+
+      final reading = tester.renderObject<RenderParagraph>(find.text('0 - 30'));
+      expect(reading.text.style!.fontSize, 14);
+      expect(reading.text.style!.fontWeight, FluentFontWeight.semibold);
+      expect(
+        reading.size.height,
+        22,
+        reason:
+            ':114-118 — calloutContentY is body1Strong on a 22px line; the '
+            "generic popover's reading is 16px bold.",
+      );
+
+      final bars = <Rect>[
+        for (final colour in <Color>[
+          FluentDataVizPalette.next(0),
+          FluentDataVizPalette.next(1),
+        ])
+          tester.getRect(
+            find.descendant(
+              of: find.byType(FluentChartPopover),
+              matching: find.byWidgetPredicate(
+                (widget) => widget is ColoredBox && widget.color == colour,
+              ),
+            ),
+          ),
+      ];
+      expect(
+        bars.map((bar) => bar.size),
+        everyElement(const Size(4, 38)),
+        reason:
+            ':97-104 put the 13px margin on the bordered block itself, so each '
+            'bar spans only its 16px legend and 22px reading.',
+      );
+      expect(
+        bars[1].top - bars[0].bottom,
+        13,
+        reason: 'The margins sit between the bars instead.',
+      );
+    });
+  });
+
   group('high contrast', () {
     testWidgets('every segment fill flattens to the system foreground', (
       tester,
@@ -641,15 +961,39 @@ void main() {
             'The fraction arm of getChartValueLabel (`GaugeChart.tsx:95`) is '
             'what this story exercises.',
       );
-      for (final expected in <String>['Storage capacity', 'used']) {
-        expect(
-          find.text(expected),
-          findsOneWidget,
-          reason:
-              'GaugeChart.tsx:601 and :687 render the title and the sublabel; '
-              'the capture records both.',
-        );
-      }
+      expect(
+        find.text('used'),
+        findsOneWidget,
+        reason: 'GaugeChart.tsx:687 renders the sublabel; the capture has it.',
+      );
+      final title =
+          tester
+                  .widget<CustomPaint>(paintOf<FluentChartTitlePainter>())
+                  .painter!
+              as FluentChartTitlePainter;
+      final layout = painterOf(tester).layout;
+      final captured = story.soleElement(
+        'text',
+        where: (element) => element.text == 'Storage capacity',
+      );
+      expect(
+        title.text,
+        captured.text,
+        reason: 'GaugeChart.tsx:601 renders the title; the capture has it.',
+      );
+      expect(
+        title.baseline,
+        FluentChartTitleBaseline.alphabetic,
+        reason:
+            'ChartTitle.tsx:67-74 — no titleYAnchor, so `dominant-baseline: '
+            'auto`: the y places the alphabetic baseline.',
+      );
+      expectOracleNumber(
+        'title baseline above the origin',
+        captured.y!,
+        title.anchor.dy - layout.origin.dy,
+      );
+      expectOracleNumber('title anchor x', layout.origin.dx, title.anchor.dx);
       expect(
         find.bySemanticsLabel('Current value: 50/100'),
         findsOneWidget,

@@ -99,6 +99,18 @@ void main() {
       )
       .heightFactor!;
 
+  /// How the collapsing box clips the toast right now.
+  Clip clipOf(WidgetTester tester) => tester
+      .widget<ClipRect>(
+        find
+            .ancestor(
+              of: find.byType(FluentToast),
+              matching: find.byType(ClipRect),
+            )
+            .first,
+      )
+      .clipBehavior;
+
   double opacityOf(WidgetTester tester, {int at = 0}) => tester
       .widget<Opacity>(
         find
@@ -304,6 +316,27 @@ void main() {
       expect(find.byType(FluentToast), findsNothing);
     });
 
+    testWidgets('the height clip is up only while the height moves', (
+      tester,
+    ) async {
+      // Upstream's collapse atoms hold `overflow: hidden` for the size
+      // keyframes and `unset` it on the last enter one
+      // (collapse-atoms.js:13-35). A clip left on at rest cut the toast's
+      // shadow8 down to a sliver above it and nothing below or beside it.
+      await pump(tester);
+      final id = show();
+      await tester.pump();
+      expect(clipOf(tester), Clip.hardEdge, reason: 'expanding');
+
+      await tester.pumpAndSettle();
+      expect(clipOf(tester), Clip.none, reason: 'at rest, shadow and all');
+
+      controller.dismiss(id);
+      await tester.pump();
+      expect(clipOf(tester), Clip.hardEdge, reason: 'leaving');
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('a toast is still on screen 599ms into its exit', (
       tester,
     ) async {
@@ -329,6 +362,7 @@ void main() {
       // No 600ms ramp: full height and full opacity on the very first frame.
       expect(sizeFactorOf(tester), 1);
       expect(opacityOf(tester), 1);
+      expect(clipOf(tester), Clip.none, reason: 'at rest from the first frame');
       // And nothing is left scheduled — pump() would throw on a pending frame
       // if a ticker were still running.
       expect(tester.hasRunningAnimations, isFalse);

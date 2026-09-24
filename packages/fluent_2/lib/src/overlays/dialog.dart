@@ -2,9 +2,9 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
-import '../buttons/button.dart';
 import '../internal/animated_style.dart';
 import '../internal/defer.dart';
+import '../internal/focus_ring.dart';
 import '../internal/interaction.dart';
 import '../l10n/l10n.dart';
 import 'dialog_style.dart';
@@ -307,9 +307,9 @@ Widget buildFluentDialog(
   final rows = <Widget>[
     if (state.title != null || state.closeButton != null)
       Row(
-        // The close button is 32 tall against a 28 title line, and Figma lets
-        // it overhang rather than centring it. Starting both keeps the glyph
-        // level with the first line of a title that wraps.
+        // Upstream's action slot is `alignSelf: 'start'`
+        // (useDialogTitleStyles.styles.raw.js:33-39), so the close sits at the
+        // top of a title that wraps rather than centred against it.
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Expanded(
@@ -322,7 +322,15 @@ Widget buildFluentDialog(
           ),
           if (state.closeButton != null) ...<Widget>[
             SizedBox(width: headerGap),
-            Padding(padding: closePadding, child: state.closeButton!),
+            Padding(
+              padding: closePadding,
+              // Upstream's close is `color: inherit`, so the surface's
+              // foreground reaches a glyph that names no colour of its own.
+              child: IconTheme.merge(
+                data: IconThemeData(color: foreground),
+                child: state.closeButton!,
+              ),
+            ),
           ],
         ],
       ),
@@ -462,8 +470,8 @@ class FluentDialogTheme extends InheritedTheme {
 /// [onOpenChange] with false and waits to be told.
 ///
 /// Pass `onOpenChange: null` to make the dialog non-dismissible. That is a real
-/// state, not a visual treatment: the close button becomes a genuinely disabled
-/// [FluentButton], Escape does nothing, and a click on the scrim does nothing.
+/// state, not a visual treatment: the close button becomes genuinely disabled,
+/// Escape does nothing, and a click on the scrim does nothing.
 ///
 /// ## Positioning, and why there is no [CompositedTransformFollower]
 ///
@@ -513,7 +521,7 @@ class FluentDialog extends StatefulWidget {
     this.title,
     this.actions = const <Widget>[],
     this.secondaryActions = const <Widget>[],
-    this.showCloseButton = true,
+    this.showCloseButton,
     this.modalType = FluentDialogModalType.modal,
     this.size = FluentDialogSize.medium,
     this.style,
@@ -552,10 +560,13 @@ class FluentDialog extends StatefulWidget {
 
   /// Whether the header carries a close button.
   ///
-  /// True by default, which is Figma: all four variants draw a subtle icon
-  /// button in the header. Upstream renders one by default only for
-  /// `non-modal`, and this is the divergence Figma wins.
-  final bool showCloseButton;
+  /// Null follows upstream: `DialogTitle`'s action renders by default only
+  /// when `modalType === 'non-modal'` (useDialogTitle.js:36), so a
+  /// [FluentDialogModalType.nonModal] dialog gets one and the other two do not
+  /// — they close on Escape, and a modal one on its scrim. Figma draws a close
+  /// button on all four variants; the storybook wins. Pass true or false to
+  /// decide either way.
+  final bool? showCloseButton;
 
   /// Whether the dialog blocks the page, and how it may be dismissed.
   final FluentDialogModalType modalType;
@@ -768,15 +779,43 @@ class _FluentDialogState extends State<FluentDialog>
     actions: widget.actions,
     secondaryActions: widget.secondaryActions,
     title: widget.title,
-    closeButton: widget.showCloseButton
-        ? FluentButton.icon(
-            icon: const Icon(fluentDialogCloseIcon),
-            semanticLabel:
-                widget.closeButtonSemanticLabel ?? fluentL10n(context).close,
-            appearance: FluentButtonAppearance.subtle,
-            onPressed: _dismissible ? _requestClose : null,
-          )
+    closeButton:
+        widget.showCloseButton ??
+            widget.modalType == FluentDialogModalType.nonModal
+        ? _buildCloseButton()
         : null,
+  );
+
+  /// The header's close button, as upstream's `DialogTitle` draws it.
+  ///
+  /// A bare `<button>`: no padding, no border, `backgroundColor` and `color`
+  /// inherited, round a `Dismiss20Regular`, with a focus outline and nothing
+  /// else (useDialogTitle.js:36-44, useDialogTitleStyles.styles.raw.js:44-60).
+  /// The storybook's close changes 0px on hover and on press, so it is built
+  /// here rather than from a `FluentButton`, whose subtle ramp paints #F5F5F5
+  /// and #E0E0E0 round a 32-square target.
+  Widget _buildCloseButton() => Semantics(
+    button: true,
+    enabled: _dismissible,
+    label: widget.closeButtonSemanticLabel ?? fluentL10n(context).close,
+    child: FluentInteractive(
+      onPressed: _dismissible ? _requestClose : null,
+      builder: (context, states, _) => FluentFocusRing(
+        visible: states.contains(WidgetState.focused),
+        borderRadius: FluentRadius.allMedium,
+        // `color: inherit`: the surface's foreground, which buildFluentDialog
+        // hands the header's close slot. Disabled only here, where
+        // `onOpenChange: null` makes the dialog undismissable; upstream has no
+        // such state to draw.
+        child: Icon(
+          fluentDialogCloseIcon,
+          size: FluentSize.size200,
+          color: states.contains(WidgetState.disabled)
+              ? _theme.colors.neutralForegroundDisabled
+              : null,
+        ),
+      ),
+    ),
   );
 
   Widget _buildOverlay() {
@@ -789,7 +828,7 @@ class _FluentDialogState extends State<FluentDialog>
 
     // A dialog surface has no interaction states of its own. `disabled` is
     // carried so a consumer's style can react to a non-dismissible dialog; the
-    // close button reaches its own disabled tokens through FluentButton.
+    // close button resolves its own through FluentInteractive.
     final states = <WidgetState>{if (!_dismissible) WidgetState.disabled};
 
     final scrim = style.scrimColor?.resolve(states);

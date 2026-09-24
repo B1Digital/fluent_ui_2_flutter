@@ -651,6 +651,10 @@ class _FluentInfoButtonState extends State<FluentInfoButton> {
       mouseCursor:
           resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
           SystemMouseCursors.click,
+      // Upstream's InfoButton has no disabled state, so no disabled cursor;
+      // it presses under `:hover:active` (useInfoButtonStyles.styles.ts).
+      disabledMouseCursor: SystemMouseCursors.basic,
+      pressedRequiresHover: true,
       builder: (context, states, _) => buildFluentInfoButton(state, resolved, {
         ...states,
         if (_open) WidgetState.selected,

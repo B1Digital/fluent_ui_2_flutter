@@ -560,7 +560,8 @@ String _formatYTick(
 /// * the floor is `min(startValue || 0, yMinValue || 0)` (`:823`), so a series
 ///   of entirely positive values still anchors at zero;
 /// * `prepareDatapoints`'s output becomes the literal tick set unless the scale
-///   is logarithmic (`:862`), in which case d3's own log ticks apply;
+///   is logarithmic (`:862`), in which case d3-axis draws the scale's default
+///   `ticks()` — not `ticks(yAxisTickCount)`;
 /// * the inner tick size is negative, spanning the plot as a gridline (`:851`),
 ///   while the outer size stays at d3's default 6.
 ///
@@ -589,20 +590,24 @@ FluentAxisSpec createNumericYAxis(
   FluentAxisScaleType? scaleType,
 }) {
   final minMax = yAxisParams.yMinMaxValues;
+  // JavaScript truthiness: 0 and the NaN [findNumericMinMaxOfY] stands in for
+  // `undefined` with are both falsy, so an axis no series is on — a secondary
+  // scale every series left — falls through to 0 rather than to NaN.
+  bool truthy(double value) => value != 0 && !value.isNaN;
   // parity: utilities.ts:821 uses || rather than ??, so a legitimate zero in
   // maxOfYVal or endValue is discarded in favour of the next term. 0 is the
   // final fallback that line spells out.
-  final tempVal = yAxisParams.maxOfYVal != 0
+  final tempVal = truthy(yAxisParams.maxOfYVal)
       ? yAxisParams.maxOfYVal
-      : (minMax.endValue != 0 ? minMax.endValue : 0.0);
+      : (truthy(minMax.endValue) ? minMax.endValue : 0.0);
   final finalYmax = tempVal > yAxisParams.yMaxValue
       ? tempVal
       : yAxisParams.yMaxValue;
   // utilities.ts:823 — the same `|| 0` truthiness on both arms, so a floor of
   // exactly 0 and an absent floor are indistinguishable.
   final finalYmin = math.min(
-    minMax.startValue != 0 ? minMax.startValue : 0.0,
-    yAxisParams.yMinValue != 0 ? yAxisParams.yMinValue : 0.0,
+    truthy(minMax.startValue) ? minMax.startValue : 0.0,
+    truthy(yAxisParams.yMinValue) ? yAxisParams.yMinValue : 0.0,
   );
 
   final domainValues = prepareDatapoints(
@@ -663,15 +668,22 @@ FluentAxisSpec createNumericYAxis(
 
   // utilities.ts:860 assigns axisData.yAxisDomainValues here and :889 overwrites
   // it unconditionally, so that assignment is dead and is not ported.
+  //
+  // A log scale gets no tickValues (`:861-862`) and the axis never calls
+  // `.ticks(count)`, so d3-axis draws the scale's DEFAULT ticks
+  // (`d3-axis/src/axis.js:44`, empty tickArguments): every 1-9 mantissa when
+  // the domain spans under ten decades, each a full-width gridline whose label
+  // `tickFormat(yAxisTickCount)` blanks. `:890` still reports the text of
+  // `ticks(yAxisTickCount)`, which is what the shell measures for the margin.
   final tickValues =
       customTickValues ??
       (scaleType != FluentAxisScaleType.log
           ? domainValues.cast<Object>()
-          : scale.ticks(yAxisParams.yAxisTickCount));
+          : scale.ticks());
 
   final defaultFormat = scale.tickFormat(yAxisParams.yAxisTickCount);
-  final tickLabels = <String>[
-    for (final (i, value) in tickValues.indexed)
+  List<String> labelsFor(List<Object> values) => <String>[
+    for (final (i, value) in values.indexed)
       _formatYTick(
         value,
         i,
@@ -681,12 +693,16 @@ FluentAxisSpec createNumericYAxis(
         defaultFormat: defaultFormat,
       ),
   ];
+  final tickLabels = labelsFor(tickValues);
 
   axisData
     ..yAxisDomainValues = scale.domain
         .map((d) => (d as num).toDouble())
         .toList()
-    ..yAxisTickText = tickLabels;
+    ..yAxisTickText =
+        customTickValues == null && scaleType == FluentAxisScaleType.log
+        ? labelsFor(scale.ticks(yAxisParams.yAxisTickCount))
+        : tickLabels;
 
   return FluentAxisSpec(
     scale: scale,

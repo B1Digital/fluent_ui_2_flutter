@@ -4,7 +4,6 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
 import '../l10n/l10n.dart';
-import 'axis/axis_types.dart';
 import 'axis/tick_format.dart';
 import 'chrome/chart_popover.dart';
 import 'chrome/chart_title.dart';
@@ -14,6 +13,7 @@ import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
 import 'internal/chart_text_styles.dart';
 import 'internal/data_viz_palette.dart';
+import 'internal/overlay_chart_popover.dart';
 
 /// The direction a funnel's stages run in.
 ///
@@ -536,21 +536,15 @@ class FluentFunnelSegment {
   final String? label;
 }
 
-/// Paints a funnel: every fill inside one layer, then every label.
+/// Paints a funnel: every fill, one path at a time, then every label.
 ///
-/// The single `saveLayer` is not decoration. Adjacent trapezia share an exact
-/// edge with no stroke and no overlap (`FunnelChart.tsx:229-273`); painting
-/// them one at a time blends two half-covered edge pixels against the ground
-/// and leaves a visible hairline that SVG's compositing does not produce. The
-/// fills are therefore added into a transparent layer with [BlendMode.plus] and
-/// the layer composited once, so two coverages either side of a shared edge sum
-/// to one instead of the 0.76 source-over leaves behind. The layer is what
-/// makes that safe: `plus` against the real ground would blow out every colour
-/// beneath the chart.
-///
-/// Adding coverage is sound only because funnel segments abut and never
-/// overlap — every generator on [FluentFunnelSegmentGeometry] emits edge-shared
-/// trapezia. Overlapping paths would saturate towards white instead.
+/// Each segment is its own source-over fill, in stage-major, sub-value-minor
+/// order, as each is its own `<path>` upstream (`FunnelChart.tsx:256-263`). Two
+/// segments that share an edge off the pixel grid therefore let a little of the
+/// ground through between them, and so does the browser: the stacked story's
+/// capture reads (97,176,186) on the Visit A|B seam at x 240, y 217
+/// (`charts-funnelchart--funnel-chart-stacked`), which only per-path
+/// compositing produces.
 class FluentFunnelChartPainter extends CustomPainter {
   /// Creates a funnel painter.
   FluentFunnelChartPainter({
@@ -619,20 +613,13 @@ class FluentFunnelChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.saveLayer(Offset.zero & size, Paint());
     for (final segment in segments) {
       final path = segment.geometry.path;
       if (path == null) {
         continue;
       }
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = fillColorFor(segment)
-          ..blendMode = BlendMode.plus,
-      );
+      canvas.drawPath(path, Paint()..color = fillColorFor(segment));
     }
-    canvas.restore();
 
     for (final segment in segments) {
       final label = segment.label;
@@ -755,8 +742,31 @@ class FluentFunnelChart extends StatefulWidget {
 class _FluentFunnelChartState extends State<FluentFunnelChart> {
   String? _hoveredStage;
   List<String> _selectedLegends = const <String>[];
-  FluentFunnelDataPoint? _callout;
-  Offset? _anchor;
+
+  /// The segment whose callout is open, or null.
+  int? _callout;
+
+  /// The funnel's own box, which the segment paths are in.
+  final GlobalKey _plotKey = GlobalKey();
+
+  /// Floats the callout in the app's [Overlay]. `ChartPopover` is an inline
+  /// `<Popover>` (`ChartPopover.tsx:47-51`), and the funnel root clips nothing
+  /// (`useFunnelChartStyles.styles.ts:26-34`), so its boundary is the viewport:
+  /// over the Visitors stage the surface sits in the page above the chart.
+  final OverlayPortalController _portal = OverlayPortalController();
+
+  /// Carries the callout with the funnel when the page scrolls under a resting
+  /// pointer, which moves the stage but sends no hover.
+  final LayerLink _link = LayerLink();
+
+  /// Opens the callout on segment [index], or closes it for null.
+  void _showCallout(int? index) {
+    if (index == _callout) {
+      return;
+    }
+    setState(() => _callout = index);
+    index == null ? _portal.hide() : _portal.show();
+  }
 
   List<String> get _highlighted => _selectedLegends.isNotEmpty
       ? _selectedLegends
@@ -842,7 +852,20 @@ class _FluentFunnelChartState extends State<FluentFunnelChart> {
 
         final segments = <FluentFunnelSegment>[];
         final ariaLabels = <String>[];
-        final stageOf = <FluentFunnelDataPoint>[];
+        final callouts = <FluentChartPopoverData>[];
+
+        // FunnelChart.tsx:514-527 — the stage over the value, in the colour it
+        // was given, and NO legend, which is why upstream's legend row renders
+        // empty. A stacked segment reports its own sub-value
+        // (`_handleStackedHover`, :68-84). parity: FunnelChart.tsx:520-521.
+        FluentChartPopoverData callout(Object? stage, double value, Color? c) =>
+            FluentChartPopoverData(
+              xValue: '$stage',
+              yValue: formatToLocaleString(value, culture: widget.culture),
+              color: c,
+              // FunnelChart.tsx:525.
+              isCartesian: false,
+            );
 
         FluentFunnelSegmentGeometry oriented(FluentFunnelSegmentGeometry raw) =>
             isRtl
@@ -914,7 +937,13 @@ class _FluentFunnelChartState extends State<FluentFunnelChart> {
                 '${widget.data[i].stage}, ${subValues[k].category}, '
                 '${formatToLocaleString(subValues[k].value, culture: widget.culture)}.',
               );
-              stageOf.add(widget.data[i]);
+              callouts.add(
+                callout(
+                  widget.data[i].stage,
+                  subValues[k].value,
+                  subValues[k].color,
+                ),
+              );
             }
           }
         } else {
@@ -957,7 +986,7 @@ class _FluentFunnelChartState extends State<FluentFunnelChart> {
               '${point.stage}, '
               '${formatToLocaleString(point.value ?? 0, culture: widget.culture)}.',
             );
-            stageOf.add(point);
+            callouts.add(callout(point.stage, point.value ?? 0, point.color));
           }
         }
 
@@ -990,6 +1019,93 @@ class _FluentFunnelChartState extends State<FluentFunnelChart> {
           funnelWidth: funnelWidth,
         );
 
+        final plot = SizedBox(
+          height: math.max(height - titleHeight, 0),
+          child: MouseRegion(
+            // FunnelChart.tsx:163-186 — a segment opens its callout on
+            // mouseover and mousemove, but only at full opacity, and every
+            // segment closes it on mouseout, onto a dimmed segment or the
+            // ground alike. The callout targets the segment's own path (:56,
+            // :158), so moving inside it leaves the surface where it is.
+            onHover: (event) {
+              final hit = painter.segmentAt(
+                event.localPosition.translate(-funnelOffsetX, 0),
+              );
+              _showCallout(
+                hit != null && hit.opacity == 1 ? segments.indexOf(hit) : null,
+              );
+            },
+            onExit: (_) => _showCallout(null),
+            child: OverlayPortal(
+              controller: _portal,
+              overlayChildBuilder: (context) {
+                final index = _callout;
+                final plot = _plotKey.currentContext;
+                if (index == null || index >= segments.length || plot == null) {
+                  return const SizedBox.shrink();
+                }
+                return buildFluentOverlayChartPopover(
+                  context,
+                  anchorContext: plot,
+                  link: _link,
+                  anchorRect: segments[index].geometry.path!.getBounds(),
+                  data: callouts[index],
+                );
+              },
+              child: Stack(
+                children: <Widget>[
+                  Positioned(
+                    left: funnelOffsetX,
+                    width: funnelWidth,
+                    top: 0,
+                    bottom: 0,
+                    child: CompositedTransformTarget(
+                      link: _link,
+                      child: Stack(
+                        key: _plotKey,
+                        children: <Widget>[
+                          Positioned.fill(child: CustomPaint(painter: painter)),
+                          // One Focus per segment, not a roving index — design
+                          // spec §5.7 bounded-cardinality exemption, bound
+                          // asserted above at 32 marks.
+                          for (var i = 0; i < segments.length; i++)
+                            Positioned.fromRect(
+                              rect: segments[i].geometry.path!.getBounds(),
+                              child: Focus(
+                                key: ValueKey<String>(
+                                  'funnel-segment-${segments[i].key}',
+                                ),
+                                // FunnelChart.tsx:305 — a dimmed segment leaves
+                                // the tab order, but :233 keeps its focus
+                                // handler live.
+                                canRequestFocus: segments[i].opacity == 1,
+                                // :233-234 — focus opens the callout on the
+                                // segment, blur closes it. Only this segment's
+                                // own callout, whichever of a move's two focus
+                                // notifications lands first.
+                                onFocusChange: (hasFocus) {
+                                  if (hasFocus) {
+                                    _showCallout(i);
+                                  } else if (_callout == i) {
+                                    _showCallout(null);
+                                  }
+                                },
+                                child: Semantics(
+                                  label: ariaLabels[i],
+                                  child: const SizedBox.expand(),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
         return Semantics(
           container: true,
           // FunnelChart.tsx:476-478 and :512 — the count sums the sub-values
@@ -1017,128 +1133,22 @@ class _FluentFunnelChartState extends State<FluentFunnelChart> {
                         ),
                       ),
               ),
-              Expanded(
-                child: MouseRegion(
-                  onExit: (_) => setState(() {
-                    _anchor = null;
-                    _callout = null;
-                  }),
-                  child: Stack(
-                    children: <Widget>[
-                      Positioned(
-                        left: funnelOffsetX,
-                        width: funnelWidth,
-                        top: 0,
-                        bottom: 0,
-                        child: Listener(
-                          // The plot's own paths are the only opaque things in
-                          // this box, and a `CustomPaint` without a hit-testing
-                          // painter reports nothing, so the listener has to
-                          // claim the box itself.
-                          behavior: HitTestBehavior.translucent,
-                          onPointerHover: (event) {
-                            final hit = painter.segmentAt(event.localPosition);
-                            if (hit == null) {
-                              return;
-                            }
-                            final index = segments.indexOf(hit);
-                            setState(() {
-                              // FunnelChart.tsx:163-170 — the hover handlers
-                              // are attached only at full opacity.
-                              if (hit.opacity == 1) {
-                                _callout = stageOf[index];
-                                _anchor = event.localPosition.translate(
-                                  funnelOffsetX,
-                                  0,
-                                );
-                              }
-                            });
-                          },
-                          child: Stack(
-                            children: <Widget>[
-                              Positioned.fill(
-                                child: CustomPaint(painter: painter),
-                              ),
-                              // One Focus per segment, not a roving index —
-                              // design spec §5.7 bounded-cardinality
-                              // exemption, bound asserted above at 32 marks.
-                              for (var i = 0; i < segments.length; i++)
-                                Positioned.fromRect(
-                                  rect: segments[i].geometry.path!.getBounds(),
-                                  child: Focus(
-                                    key: ValueKey<String>(
-                                      'funnel-segment-${segments[i].key}',
-                                    ),
-                                    // FunnelChart.tsx:305 — a dimmed segment
-                                    // leaves the tab order, but :233 keeps
-                                    // its focus handler live.
-                                    canRequestFocus: segments[i].opacity == 1,
-                                    onFocusChange: (hasFocus) => setState(() {
-                                      _callout = hasFocus ? stageOf[i] : null;
-                                      _anchor = hasFocus
-                                          ? segments[i].geometry.path!
-                                                .getBounds()
-                                                .center
-                                                .translate(funnelOffsetX, 0)
-                                          : null;
-                                    }),
-                                    child: Semantics(
-                                      label: ariaLabels[i],
-                                      child: const SizedBox.expand(),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      if (_anchor != null && _callout != null)
-                        // Fills the stack rather than sitting at `_anchor`:
-                        // `FluentChartPopover` is a `CustomSingleChildLayout`,
-                        // which sizes to `constraints.biggest` and so needs a
-                        // bounded box — and its delegate does the anchoring
-                        // itself, flipping the surface when it would fall off
-                        // the plot. Positioning it here would double the
-                        // offset and lose that flip.
-                        Positioned.fill(
-                          // The popover follows the cursor, so letting it take
-                          // the pointer would pull the pointer off the segment
-                          // that opened it.
-                          child: IgnorePointer(
-                            child: FluentChartPopover(
-                              anchor: _anchor!,
-                              // FunnelChart.tsx:514-527 — the popover carries
-                              // the stage and the value and NO legend, which is
-                              // why upstream's legend row renders empty.
-                              // parity: FunnelChart.tsx:520-521.
-                              data: FluentChartPopoverData(
-                                xValue: '${_callout!.stage}',
-                                yValue: formatToLocaleString(
-                                  _callout!.value ?? 0,
-                                  culture: widget.culture,
-                                ),
-                                color: _callout!.color,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
+              // FunnelChart.tsx:481-486 — the svg is exactly `height` tall,
+              // title band included, and the legend div after it (:528) keeps
+              // its own height, so the legend starts at `height`. Flexible only
+              // when the height came from the box, so a funnel that fills it
+              // still leaves the legend room inside it.
+              if (constraints.hasBoundedHeight) Flexible(child: plot) else plot,
               if (!widget.hideLegend)
-                SizedBox(
-                  height: kMinLegendContainerHeight,
-                  child: FluentChartLegend(
-                    centerLegends: true,
-                    selectionMode: widget.canSelectMultipleLegends
-                        ? FluentChartLegendSelectionMode.multiple
-                        : FluentChartLegendSelectionMode.single,
-                    selectedLegends: _selectedLegends,
-                    legends: _legendItems(isStacked: isStacked, isDark: isDark),
-                    onChange: (selected, current) =>
-                        setState(() => _selectedLegends = selected),
-                  ),
+                FluentChartLegend(
+                  centerLegends: true,
+                  selectionMode: widget.canSelectMultipleLegends
+                      ? FluentChartLegendSelectionMode.multiple
+                      : FluentChartLegendSelectionMode.single,
+                  selectedLegends: _selectedLegends,
+                  legends: _legendItems(isStacked: isStacked, isDark: isDark),
+                  onChange: (selected, current) =>
+                      setState(() => _selectedLegends = selected),
                 ),
             ],
           ),

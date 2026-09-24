@@ -11,8 +11,11 @@ import 'package:fluent_2/src/charts/cartesian/cartesian_layout.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_painter.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_series_delegate.dart';
 import 'package:fluent_2/src/charts/chrome/annotation_layer.dart';
+import 'package:fluent_2/src/charts/chrome/axis_label_tooltip.dart';
 import 'package:fluent_2/src/charts/chrome/chart_popover.dart';
+import 'package:fluent_2/src/charts/chrome/chart_popover_style.dart';
 import 'package:fluent_2/src/charts/chrome/legend.dart';
+import 'package:fluent_2/src/charts/model/callout_data.dart';
 import 'package:fluent_2/src/charts/model/chart_annotation.dart';
 import 'package:fluent_2/src/charts/model/chart_common.dart';
 import 'package:fluent_2/src/charts/model/chart_value.dart';
@@ -81,7 +84,10 @@ void main() {
     ),
   );
 
-  Widget anchored({required bool anchorsToRegion}) => SizedBox(
+  Widget anchored({
+    required bool anchorsToRegion,
+    bool followsPointer = false,
+  }) => SizedBox(
     width: 400,
     height: 260,
     child: FluentCartesianChart(
@@ -89,10 +95,14 @@ void main() {
       props: FluentCartesianChartProps(
         hideLegend: true,
         popoverAnchorsToRegion: anchorsToRegion,
+        popoverFollowsPointer: followsPointer,
       ),
       legends: const <FluentChartLegendItem>[],
     ),
   );
+
+  Offset popoverAnchor(WidgetTester tester) =>
+      tester.widget<FluentChartPopover>(find.byType(FluentChartPopover)).anchor;
 
   /// Hovers the centre-left of the stub's first region: 50 across and 100 down
   /// from the chart's top-left corner, which the default margins put inside
@@ -959,6 +969,221 @@ void main() {
     });
   });
 
+  group('axis-label tooltip', () {
+    const long = 'Large data, showing all text by tooltip';
+
+    /// A chart whose second band, near the right edge, carries [long].
+    Widget labelled(
+      FluentCartesianChartProps props, {
+      List<String> categories = const <String>['Data', long],
+    }) => chart(
+      delegate: StubCartesianDelegate(
+        xAxisType: FluentChartAxisType.category,
+        categories: categories,
+      ),
+      props: props,
+    );
+
+    Future<TestGesture> hover(WidgetTester tester, Offset local) async {
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      final origin = tester.getTopLeft(find.byType(FluentCartesianChart));
+      await gesture.moveTo(origin + local - const Offset(1, 1));
+      await gesture.moveTo(origin + local);
+      // No pump beyond the one frame: upstream shows it on `mouseover`.
+      await tester.pump();
+      return gesture;
+    }
+
+    testWidgets('hovering a cut-short x label shows its whole text', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        labelled(
+          const FluentCartesianChartProps(
+            hideLegend: true,
+            showXAxisLabelsTooltip: true,
+          ),
+          // First, so the box has the room to lie on one line.
+          categories: const <String>[long, 'Data'],
+        ),
+      );
+      final targets = painterOf(tester).axisLabelTooltipTargets;
+      expect(
+        targets.map((target) => target.fullText),
+        <String>[long],
+        reason:
+            'utilities.ts:1300-1304 skips a tick whose text is its data-full: '
+            '"Data" is four characters and stays whole',
+      );
+      final tick = targets.single.bounds;
+      final gesture = await hover(tester, tick.center);
+
+      final box = find.byType(FluentChartTooltipBox);
+      expect(tester.widget<FluentChartTooltipBox>(box).text, long);
+      final origin = tester.getTopLeft(find.byType(FluentCartesianChart));
+      final rect = tester.getRect(box).shift(-origin);
+      expect(
+        rect.center.dx,
+        moreOrLessEquals(tick.center.dx),
+        reason: '`left` at the tick centre and translateX(-50%) (:1312-1316)',
+      );
+      expect(
+        rect.bottom,
+        moreOrLessEquals(tick.top - 4),
+        reason: '`bottom` 4px above the tick top (:1311)',
+      );
+      expect(
+        rect.height,
+        36,
+        reason: 'body1 20px line and 8px padding (Common.styles.ts:36-49)',
+      );
+
+      await gesture.moveTo(
+        tester.getTopLeft(find.byType(FluentCartesianChart)) +
+            const Offset(200, 100),
+      );
+      await tester.pump();
+      expect(box, findsNothing, reason: '`mouseout` hides it (:1320-1322)');
+    });
+
+    testWidgets('an untruncated label shows nothing', (tester) async {
+      await pump(
+        tester,
+        labelled(const FluentCartesianChartProps(hideLegend: true)),
+      );
+      expect(
+        painterOf(tester).axisLabelTooltipTargets,
+        isEmpty,
+        reason:
+            'without showXAxisLablesTooltip or tickLayout auto no tooltip is '
+            'attached (CartesianChart.tsx:385)',
+      );
+    });
+
+    testWidgets('hovering a cut-short y label shows its whole text', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        chart(
+          props: const FluentCartesianChartProps(
+            hideLegend: true,
+            showYAxisLabelsTooltip: true,
+            noOfCharsToTruncate: 1,
+          ),
+        ),
+      );
+      final targets = painterOf(tester).axisLabelTooltipTargets;
+      expect(targets.map((target) => target.fullText), <String>['50', '100']);
+      await hover(tester, targets.first.bounds.center);
+      expect(
+        tester
+            .widget<FluentChartTooltipBox>(find.byType(FluentChartTooltipBox))
+            .text,
+        '50',
+        reason: 'CartesianChart.tsx:396-416 runs the same helper on y',
+      );
+    });
+
+    testWidgets('near the right edge it shrinks to the room left', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        labelled(
+          const FluentCartesianChartProps(
+            hideLegend: true,
+            showXAxisLabelsTooltip: true,
+          ),
+        ),
+      );
+      final tick = painterOf(tester).axisLabelTooltipTargets.single.bounds;
+      await hover(tester, tick.center);
+      final origin = tester.getTopLeft(find.byType(FluentCartesianChart));
+      final rect = tester
+          .getRect(find.byType(FluentChartTooltipBox))
+          .shift(-origin);
+      expect(
+        rect.width,
+        lessThanOrEqualTo(400 - tick.center.dx),
+        reason:
+            'an absolutely placed div with only `left` fits between that line '
+            'and the root edge before translateX(-50%) moves it',
+      );
+      expect(rect.height, greaterThan(36), reason: 'so the label wraps');
+    });
+
+    testWidgets('a word wider than the room stays whole', (tester) async {
+      await pump(
+        tester,
+        labelled(
+          const FluentCartesianChartProps(
+            hideLegend: true,
+            showXAxisLabelsTooltip: true,
+          ),
+          categories: const <String>[
+            'Data',
+            'Supercalifragilisticexpialidocious',
+          ],
+        ),
+      );
+      final tick = painterOf(tester).axisLabelTooltipTargets.single.bounds;
+      await hover(tester, tick.center);
+      final origin = tester.getTopLeft(find.byType(FluentCartesianChart));
+      final rect = tester
+          .getRect(find.byType(FluentChartTooltipBox))
+          .shift(-origin);
+      expect(
+        rect.width,
+        greaterThan(400 - tick.center.dx),
+        reason: 'the word is wider than the room right of the tick',
+      );
+      expect(
+        rect.height,
+        36,
+        reason:
+            'shrink-to-fit stops at min-content, so the word overflows on one '
+            'line rather than breaking, as Chrome lays it out',
+      );
+      expect(rect.center.dx, moreOrLessEquals(tick.center.dx));
+    });
+
+    testWidgets('a touch tap shows it and a tap elsewhere hides it', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        labelled(
+          const FluentCartesianChartProps(
+            hideLegend: true,
+            showXAxisLabelsTooltip: true,
+          ),
+          categories: const <String>[long, 'Data'],
+        ),
+      );
+      final tick = painterOf(tester).axisLabelTooltipTargets.single.bounds;
+      final origin = tester.getTopLeft(find.byType(FluentCartesianChart));
+      final box = find.byType(FluentChartTooltipBox);
+
+      await tester.tapAt(origin + tick.center);
+      await tester.pump();
+      expect(
+        box,
+        findsOneWidget,
+        reason:
+            "Chrome's compatibility mouseover follows the tap onto the label, "
+            'on vertical-bar-axis-tooltip',
+      );
+
+      await tester.tapAt(origin + const Offset(200, 100));
+      await tester.pump();
+      expect(box, findsNothing, reason: 'and its mouseout the next tap');
+    });
+  });
+
   group('annotation layer', () {
     Widget plot(List<FluentChartAnnotation> annotations) => SizedBox(
       width: 400,
@@ -1265,23 +1490,264 @@ void main() {
       );
     });
 
-    testWidgets('popoverAnchorsToRegion anchors to the region centre', (
+    testWidgets('popoverAnchorsToRegion anchors to the region itself', (
       tester,
     ) async {
       await pump(tester, anchored(anchorsToRegion: true));
       await hoverFirstStubRegion(tester);
+      final popover = tester.widget<FluentChartPopover>(
+        find.byType(FluentChartPopover),
+      );
+      // The first stub region is 20 logical pixels wide at the plot's left
+      // edge and as tall as the plot: LTWH(40, 20, 20, 205).
       expect(
-        tester
-            .widget<FluentChartPopover>(find.byType(FluentChartPopover))
-            .anchor,
-        // The first stub region is 20 logical pixels wide at the plot's left
-        // edge and as tall as the plot: LTWH(40, 20, 20, 205), so its centre is
-        // (50, 122.5).
-        const Offset(50, 122.5),
+        popover.anchorRect,
+        const Rect.fromLTWH(40, 20, 20, 205),
         reason:
             'GroupedVerticalBarChart hands Popover the bar element itself, '
-            '.tsx:437 and :970',
+            '.tsx:437 and :970, so the surface centres on the bar and clears '
+            'its top edge rather than its centre',
       );
+      expect(popover.anchor, const Offset(50, 122.5));
+    });
+
+    testWidgets('moving inside a mark leaves the anchor where it came in', (
+      tester,
+    ) async {
+      await pump(tester, anchored(anchorsToRegion: false));
+      final gesture = await hoverFirstStubRegion(tester);
+      await gesture.moveTo(
+        tester.getTopLeft(find.byType(FluentCartesianChart)) +
+            const Offset(55, 130),
+      );
+      await tester.pump();
+      expect(
+        popoverAnchor(tester),
+        const Offset(50, 100),
+        reason:
+            'a mark re-anchors the callout from onMouseOver, which fires on '
+            'entering it and not on moving inside '
+            '(VerticalBarChart.tsx:475-478)',
+      );
+    });
+
+    testWidgets('popoverFollowsPointer re-anchors on every move', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        anchored(anchorsToRegion: false, followsPointer: true),
+      );
+      final gesture = await hoverFirstStubRegion(tester);
+      await gesture.moveTo(
+        tester.getTopLeft(find.byType(FluentCartesianChart)) +
+            const Offset(55, 130),
+      );
+      await tester.pump();
+      expect(
+        popoverAnchor(tester),
+        const Offset(55, 130),
+        reason:
+            "VerticalStackedBarChart's stack callout listens to onMouseMove "
+            '(VerticalStackedBarChart.tsx:1147-1148)',
+      );
+    });
+
+    testWidgets('re-entering a mark re-anchors it', (tester) async {
+      await pump(tester, anchored(anchorsToRegion: false));
+      final gesture = await hoverFirstStubRegion(tester);
+      final origin = tester.getTopLeft(find.byType(FluentCartesianChart));
+      // Out into the gap past the three 20px stub regions, then back in.
+      await gesture.moveTo(origin + const Offset(350, 100));
+      await tester.pump();
+      await gesture.moveTo(origin + const Offset(45, 150));
+      await tester.pump();
+      expect(
+        popoverAnchor(tester),
+        const Offset(45, 150),
+        reason: 'onMouseOver fires again as the pointer comes back in',
+      );
+    });
+
+    testWidgets('the anchor is floored to whole pixels', (tester) async {
+      await pump(tester, anchored(anchorsToRegion: false));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(
+        tester.getTopLeft(find.byType(FluentCartesianChart)) +
+            const Offset(50.8, 100.6),
+      );
+      await tester.pump();
+      expect(
+        popoverAnchor(tester),
+        const Offset(50, 100),
+        reason:
+            'upstream anchors to MouseEvent clientX and clientY, which are '
+            'whole pixels',
+      );
+    });
+
+    testWidgets('the popover lays out against the root, legend included', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        chart(
+          legends: const <FluentChartLegendItem>[
+            FluentChartLegendItem(title: 'A', color: Color(0xFF0078D4)),
+          ],
+        ),
+      );
+      await hoverFirstStubRegion(tester);
+      final root = tester.getRect(find.byType(FluentCartesianChart));
+      expect(
+        painterOf(tester).layout.size.height,
+        lessThan(root.height),
+        reason: 'the legend strip takes its height out of the plot',
+      );
+      expect(
+        tester.getRect(find.byType(FluentChartPopoverLayout)),
+        root,
+        reason:
+            'fui-cart__root holds the legend and is the callout\'s clipping '
+            'ancestor (useCartesianChartStyles.styles.ts:38-46), so the '
+            'callout positions against all of it, not the plot alone',
+      );
+    });
+
+    testWidgets('a 14-row stacked callout never overflows the chart', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        SizedBox(
+          width: 700,
+          height: 300,
+          child: FluentCartesianChart(
+            delegate: _TallCalloutStubDelegate(),
+            props: const FluentCartesianChartProps(),
+            legends: const <FluentChartLegendItem>[
+              FluentChartLegendItem(title: 'A', color: Color(0xFF0078D4)),
+            ],
+          ),
+        ),
+      );
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      final root = tester.getRect(find.byType(FluentCartesianChart));
+      final plot = painterOf(tester).layout.plotRect.shift(root.topLeft);
+      for (final point in <Offset>[
+        plot.topCenter + const Offset(0, 2),
+        plot.center,
+        plot.bottomCenter - const Offset(0, 2),
+        plot.topLeft + const Offset(2, 2),
+        plot.bottomRight - const Offset(2, 2),
+        plot.centerLeft + const Offset(2, 0),
+        plot.centerRight - const Offset(2, 0),
+      ]) {
+        await gesture.moveTo(point);
+        await tester.pump();
+        expect(
+          tester.takeException(),
+          isNull,
+          reason:
+              'charts-linechart--line-chart-multiple threw "A RenderFlex '
+              'overflowed by 454 pixels on the bottom" here; upstream caps the '
+              "surface at the room left (autoSize: 'always', maxSize.js:46-63) "
+              'and scrolls it',
+        );
+        final surface = tester.getRect(
+          find.descendant(
+            of: find.byType(FluentChartPopover),
+            matching: find.byType(ExcludeFocus),
+          ),
+        );
+        expect(
+          surface.top >= root.top - 0.5 &&
+              surface.bottom <= root.bottom + 0.5 &&
+              surface.left >= root.left - 0.5 &&
+              surface.right <= root.right + 0.5,
+          isTrue,
+          reason: 'the surface $surface stays inside the chart root $root',
+        );
+        final anchor = popoverAnchor(tester) + root.topLeft;
+        expect(
+          surface.bottom <= anchor.dy - kChartPopoverAnchorOffset + 0.5 ||
+              surface.top >= anchor.dy + kChartPopoverAnchorOffset - 0.5,
+          isTrue,
+          reason:
+              '`coverTarget: false` (ChartPopover.tsx:48): the surface never '
+              'slides over the pointer it belongs to',
+        );
+      }
+    });
+
+    testWidgets('the anchor stays under the pointer in a scrolled plot', (
+      tester,
+    ) async {
+      for (final direction in TextDirection.values) {
+        await pump(
+          tester,
+          SizedBox(
+            width: 200,
+            height: 260,
+            child: FluentCartesianChart(
+              delegate: _TallCalloutStubDelegate(
+                xAxisType: FluentChartAxisType.category,
+                categories: const <String>[
+                  'January',
+                  'February',
+                  'March',
+                  'April',
+                  'May',
+                  'June',
+                  'July',
+                ],
+              ),
+              props: const FluentCartesianChartProps(
+                hideLegend: true,
+                hideTickOverlap: false,
+                reflowMode: FluentChartReflowMode.minWidth,
+              ),
+              legends: const <FluentChartLegendItem>[],
+            ),
+          ),
+          direction: direction,
+        );
+        final position = tester
+            .state<ScrollableState>(
+              find.descendant(
+                of: find.byType(FluentCartesianChart),
+                matching: find.byType(Scrollable),
+              ),
+            )
+            .position;
+        expect(position.maxScrollExtent, greaterThan(60));
+        position.jumpTo(30);
+        await tester.pump();
+        final gesture = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        await gesture.addPointer(location: Offset.zero);
+        await gesture.moveTo(
+          tester.getTopLeft(find.byType(FluentCartesianChart)) +
+              const Offset(100, 100),
+        );
+        await tester.pump();
+        expect(
+          popoverAnchor(tester),
+          const Offset(100, 100),
+          reason:
+              'the callout sits in fui-cart__root, outside the overflow: auto '
+              'chartWrapperMinWidth (CartesianChart.tsx:923, '
+              'useCartesianChartStyles.styles.ts:51-52), and anchors to the '
+              'client position, so the scroll offset never moves it off the '
+              'pointer (${direction.name})',
+        );
+        await gesture.removePointer();
+      }
     });
 
     testWidgets('popoverBuilder replaces the popover body', (tester) async {
@@ -1313,6 +1779,16 @@ void main() {
         findsNothing,
         reason:
             'and the two default bodies are both suppressed by it (:56, :60)',
+      );
+      // Positioned exactly as the default bodies are (ChartPopover.tsx:48):
+      // above the pointer at (50, 100), centred on it, 20px clear.
+      final body = tester
+          .getRect(find.text('custom'))
+          .shift(-tester.getTopLeft(find.byType(FluentCartesianChart)));
+      expect(body.center.dx, moreOrLessEquals(50, epsilon: 0.5));
+      expect(
+        body.bottom,
+        moreOrLessEquals(100 - kChartPopoverAnchorOffset, epsilon: 0.5),
       );
     });
 
@@ -1506,4 +1982,46 @@ class _StackedStubDelegate extends StubCartesianDelegate {
               : 'Segment $segment of stack $stack',
         ),
   ];
+}
+
+/// A stub whose plot is tiled edge to edge with ten columns, each carrying the
+/// fourteen-row stacked callout `charts-linechart--line-chart-multiple` shows —
+/// far taller than any 300px chart.
+class _TallCalloutStubDelegate extends StubCartesianDelegate {
+  _TallCalloutStubDelegate({super.categories, super.xAxisType})
+    : super(hitRegionCount: 0);
+
+  @override
+  List<FluentChartHitRegion> buildHitRegions(
+    FluentCartesianChildContext context,
+    FluentCartesianLayout layout,
+  ) {
+    final plot = layout.plotRect;
+    final width = plot.width / 10;
+    return <FluentChartHitRegion>[
+      for (var column = 0; column < 10; column++)
+        FluentChartHitRegion(
+          bounds: Rect.fromLTWH(
+            plot.left + column * width,
+            plot.top,
+            width,
+            plot.height,
+          ),
+          index: column,
+          legend: 'Series 0',
+          popoverData: FluentChartPopoverData(
+            isCalloutForStack: true,
+            xValue: 'Column $column',
+            yValues: <FluentYValueHover>[
+              for (var row = 0; row < 14; row++)
+                FluentYValueHover(
+                  legend: 'Series $row',
+                  y: row * 10.0,
+                  color: const Color(0xFF0078D4),
+                ),
+            ],
+          ),
+        ),
+    ];
+  }
 }

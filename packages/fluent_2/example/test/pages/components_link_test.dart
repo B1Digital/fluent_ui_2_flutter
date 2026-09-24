@@ -281,8 +281,21 @@ Color? inkOf(WidgetTester tester, Finder text) =>
     textStyleOf(tester, text)?.color;
 
 /// The underline the label matched by [text] actually rendered with.
-TextDecoration? decorationOf(WidgetTester tester, Finder text) =>
-    textStyleOf(tester, text)?.decoration;
+///
+/// A link paints its own solid and double underline — [FluentLinkUnderline],
+/// a crisp 1px rule where the text engine's font-relative one came out a
+/// fraction of that — so the text style's decoration is only the fallback.
+TextDecoration? decorationOf(WidgetTester tester, Finder text) {
+  final Finder painted = find.ancestor(
+    of: text,
+    matching: find.byType(FluentLinkUnderline),
+  );
+  if (painted.evaluate().isNotEmpty &&
+      tester.widget<FluentLinkUnderline>(painted.first).color != null) {
+    return TextDecoration.underline;
+  }
+  return textStyleOf(tester, text)?.decoration;
+}
 
 /// The palette the mounted section resolved against.
 FluentColors colorsOf(WidgetTester tester) =>

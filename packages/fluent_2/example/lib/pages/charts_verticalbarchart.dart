@@ -692,21 +692,18 @@ Widget _verticalBarDateAxis(BuildContext context) {
       chartTitle: 'Vertical bar chart Date axis example ',
       culture: 'en-us',
       data: points,
+      // Upstream also passes `tickFormat="%m/%d"`, which createDateXAxis reads
+      // only when `culture` is undefined (utilities.ts:507). The story always
+      // passes a culture, so its ticks read 'Jan 2018' and the format is not
+      // transcribed.
       props: FluentCartesianChartProps(
         tickValues: tickValues,
-        // Upstream passes the d3-time-format string "%m/%d"; our shell takes a
-        // formatter rather than a format string.
-        customDateTimeFormatter: _monthDay,
         useUTC: false,
         hideLegend: true,
       ),
     ),
   );
 }
-
-String _monthDay(DateTime date) =>
-    '${date.month.toString().padLeft(2, '0')}/'
-    '${date.day.toString().padLeft(2, '0')}';
 // #enddocregion charts-verticalbarchart--vertical-bar-date-axis
 
 // #docregion charts-verticalbarchart--vertical-bar-axis-tooltip

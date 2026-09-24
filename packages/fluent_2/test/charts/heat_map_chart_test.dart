@@ -769,6 +769,38 @@ void main() {
       );
     });
 
+    testWidgets('the callout caps its body at 238 and reads as title2', (
+      tester,
+    ) async {
+      await pump(tester, _heatMapWidget(twoLegends: true));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(
+        tester.getTopLeft(find.byType(FluentCartesianChart)) +
+            const Offset(560, 100),
+      );
+      await tester.pumpAndSettle();
+      final data = tester
+          .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+          .data;
+      expect(
+        data.contentMaxWidth,
+        238,
+        reason:
+            'HeatMapChart.tsx:781-783 hands calloutContentRoot its maxWidth '
+            '(useHeatMapChartStyles.styles.ts:35-37): the storybook callout is '
+            '272 wide with the description wrapped, where the port grew to 450',
+      );
+      expect(
+        data.isCartesian,
+        isFalse,
+        reason:
+            'HeatMapChart.tsx:771-784 pass no isCartesian, so the reading is '
+            'title2, 600 at 28/36',
+      );
+    });
+
     testWidgets('the semantic title counts data points', (tester) async {
       await pump(tester, _heatMapWidget(chartTitle: 'Occupancy'));
       expect(

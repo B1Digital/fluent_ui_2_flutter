@@ -156,9 +156,11 @@ void main() {
     testWidgets('the ring width ramp is Figma\'s, per size and state', (
       tester,
     ) async {
-      // Figma paints the ring INSIDE the frame, so the swatch never grows.
-      // ExtraSmall carries every band one step thinner than its siblings, and
-      // Small pressed is 3 — not the 2 `useColorSwatchStyles` gives it.
+      // Figma paints the ring INSIDE the frame, so the swatch never grows, and
+      // ExtraSmall carries every band one step thinner than its siblings. The
+      // one place the storybook disagrees is Small pressed: Figma draws 3, and
+      // `useColorSwatchStyles` draws `inset 0 0 0 2px` there (read in Chrome on
+      // swatchpicker--size). React wins, so that cell reads 2.
       final theme = lightTheme();
 
       for (final entry in _sizeNames.entries) {
@@ -190,15 +192,20 @@ void main() {
           );
 
           final border = decorationOf(tester).border!.top;
+          final smallPressed =
+              entry.key == FluentSwatchSize.small && stateName == 'Pressed';
           expect(
             border.width,
-            part.strokeWidth,
+            smallPressed ? FluentStroke.thick : part.strokeWidth,
             reason: '${variant.name}: ring width',
           );
+          // Figma binds Compound Brand/Stroke/Rest on hover; the storybook's
+          // `:hover` rule reads `colorBrandStroke1`, and React wins. The two
+          // are the same brand step in the web light and dark themes.
           expect(
             border.color,
             stateName == 'Hover'
-                ? theme.colors.compoundBrandStroke
+                ? theme.colors.brandStroke1
                 : theme.colors.compoundBrandStrokePressed,
             reason:
                 '${variant.name}: ring token '
@@ -517,6 +524,129 @@ void main() {
     });
   });
 
+  group('hover and press, as the storybook draws them', () {
+    // Box shadows read with getComputedStyle while hovering and pressing each
+    // size on swatchpicker--size and --default, selected and not: every ring
+    // is a brand band over a 1px or wider `strokeFocus1` hairline. Figma's
+    // Swatch set draws hover and pressed as the band alone; React wins.
+    //
+    // (band, band token, hairline) per size, in the order
+    // extraSmall, small, medium, large.
+    List<(double, Color, double)> rings(
+      FluentThemeData theme,
+      Set<WidgetState> states,
+    ) {
+      final c = theme.colors;
+      final selected = states.contains(WidgetState.selected);
+      if (states.contains(WidgetState.pressed)) {
+        final t = c.compoundBrandStrokePressed;
+        return selected
+            ? [(3, t, 1), (3, t, 1), (4, t, 3), (4, t, 3)]
+            : [(2, t, 1), (2, t, 1), (3, t, 1), (3, t, 1)];
+      }
+      if (selected) {
+        final t = c.compoundBrandStrokeHover;
+        return [(2, t, 1), (2, t, 1), (4, t, 2), (4, t, 2)];
+      }
+      final t = c.brandStroke1;
+      return [(1, t, 1), (2, t, 1), (2, t, 1), (2, t, 1)];
+    }
+
+    for (final states in <Set<WidgetState>>[
+      {WidgetState.hovered},
+      {WidgetState.hovered, WidgetState.pressed},
+      {WidgetState.hovered, WidgetState.selected},
+      {WidgetState.hovered, WidgetState.pressed, WidgetState.selected},
+    ]) {
+      testWidgets(
+        '${states.map((s) => s.name).join('+')}: band over hairline',
+        (tester) async {
+          final theme = lightTheme();
+          final expected = rings(theme, states);
+          for (final size in FluentSwatchSize.values) {
+            final state = resolveFluentSwatchState(
+              size: size,
+              color: _hotPink,
+              selected: states.contains(WidgetState.selected),
+            );
+            await pump(
+              tester,
+              KeyedSubtree(
+                key: key,
+                child: buildFluentSwatch(
+                  state,
+                  resolveFluentSwatchStyle(state, theme),
+                  states,
+                ),
+              ),
+            );
+            final (band, token, hairline) = expected[size.index];
+            final boxes = decorationsOf(tester);
+            expect(boxes.length, 2, reason: '${size.name}: two bands');
+            expect(
+              boxes[0].border!.top.width,
+              band,
+              reason: '${size.name} band',
+            );
+            expect(
+              boxes[0].border!.top.color,
+              token,
+              reason: '${size.name} token',
+            );
+            expect(boxes[1].border!.top.color, theme.colors.strokeFocus1);
+            expect(
+              boxes[1].border!.top.width,
+              hairline,
+              reason: '${size.name} hairline',
+            );
+          }
+        },
+      );
+    }
+
+    testWidgets('a real mouse draws the hairline under hover and press', (
+      tester,
+    ) async {
+      // swatchpicker--default, a medium swatch under Chrome's mouse: `inset 0
+      // 0 0 2px` brandStroke1 over a 3px #FFFFFF shadow while hovered, then
+      // 3px compoundBrandStrokePressed over 4px pressed. The port used to draw
+      // the band alone, as Figma does.
+      final theme = lightTheme();
+      await pump(
+        tester,
+        FluentSwatch(
+          key: key,
+          color: _hotPink,
+          semanticLabel: 'Hot pink',
+          onPressed: () {},
+        ),
+      );
+      final mouse = await hover(tester, find.byKey(key));
+      await mouse.moveTo(
+        tester.getCenter(find.byKey(key)) + const Offset(1, 0),
+      );
+      await tester.pump();
+      var boxes = decorationsOf(tester);
+      expect(boxes.length, 2, reason: 'hovered: band and hairline');
+      expect(boxes[0].border!.top.color, theme.colors.brandStroke1);
+      expect(boxes[0].border!.top.width, FluentStroke.thick);
+      expect(boxes[1].border!.top.color, theme.colors.strokeFocus1);
+      expect(boxes[1].border!.top.width, FluentStroke.thin);
+
+      await mouse.down(tester.getCenter(find.byKey(key)));
+      await tester.pump();
+      boxes = decorationsOf(tester);
+      expect(boxes.length, 2, reason: 'pressed: band and hairline');
+      expect(
+        boxes[0].border!.top.color,
+        theme.colors.compoundBrandStrokePressed,
+      );
+      expect(boxes[0].border!.top.width, FluentStroke.thicker);
+      expect(boxes[1].border!.top.width, FluentStroke.thin);
+      await mouse.up();
+    });
+  });
+
   group('focus', () {
     /// `WidgetState.focused` means keyboard-VISIBLE focus, which is the AND of
     /// having focus and `FluentInputModality.keyboard`. Flutter's highlight
@@ -648,7 +778,7 @@ void main() {
       await hover(tester, find.byKey(key));
       expect(
         decorationOf(tester).border!.top.color,
-        theme.colors.compoundBrandStroke,
+        theme.colors.brandStroke1,
         reason: 'no tween: the ring is fully there on the first frame',
       );
       expect(decorationOf(tester).border!.top.width, FluentStroke.thick);
@@ -830,7 +960,7 @@ void main() {
         FluentApp(
           theme: lightTheme(),
           home: FluentThemeOverride(
-            colors: const {FluentColorToken.compoundBrandStroke: magenta},
+            colors: const {FluentColorToken.brandStroke1: magenta},
             child: Center(
               child: FluentSwatch(
                 key: key,

@@ -10,6 +10,38 @@
   else paints as `BoxDecoration`. The CarouselNav and Carousel demos use it,
   which is what stopped the CarouselNav card rendering solid grey.
 
+- **Charts:**
+  - `calloutPropsPerDataPoint` on `FluentHorizontalBarChart` and
+    `FluentDonutChart`, spread over the built-in reading as ChartPopover does,
+    and `legends` / `enabledWrapLines` on `FluentHorizontalBarChart`
+    (upstream's `legendProps`), whose wrapped rows render each legend's
+    `annotationBuilder`.
+  - `FluentChartTooltipBox`, the box a cut-short axis label shows its whole
+    text in on hover or a touch tap.
+  - `FluentChartPopover.anchorRect`, `FluentChartPopoverData.isCartesian` and
+    `contentMaxWidth`, `FluentChartHitRegion.popoverAnchor`,
+    `FluentCartesianChartProps.popoverFollowsPointer` and
+    `FluentYValueHover.shouldDrawBorderBottom`.
+  - `FluentChartHitRegion.hitTest` (a mark hovers and clicks as its painted
+    shape, a circle as a circle), `focusable` and `followsPointer`, and
+    `FluentCartesianSeriesDelegate.hoveredRegionAt`, which names the hovered
+    region on the same pointer event the chart hears.
+- **Components:**
+  - `FluentButton.activeIcon` (upstream's `bundleIcon` filled glyph, shown
+    while a subtle or transparent button is hovered or pressed; also on
+    `FluentCompoundButton`) and `FluentButton.menuIcon` (MenuButton's chevron
+    slot: 12, or 16 at large, 4 after the label, in the label colour).
+  - `FluentButtonStyle.iconColor`, `menuIconSize` and `animationDuration`.
+  - `FluentLinkUnderline`, which paints a link's underline as a crisp 1px
+    line under every line of the label.
+  - `FluentCarouselNavAppearance`, `FluentCarousel.navAppearance` and
+    `FluentCarouselStep.appearance` (upstream's brand CarouselNav).
+  - `FluentTreeItem.aside`, the always-visible trailing slot.
+  - `FluentInteractive.disabledMouseCursor` and `pressedRequiresHover`
+    (upstream's `:hover:active`).
+  - `FluentInteractionTag.activeIcon`, the filled glyph an outline tag shows
+    while hovered or pressed, and `FluentTagStyle.iconColor`.
+
 ### Changed
 
 - **BREAKING (custom styles): `FluentInputStyle.borderWidth`,
@@ -187,6 +219,72 @@
   `FluentTooltip`. `buildFluentTooltip` is unchanged and still stacks the
   arrow on exactly the side its state names.
 
+- **BREAKING (charts):**
+  - `FluentChartPopoverLayoutDelegate` is replaced by `FluentChartPopoverLayout`
+    (and `RenderFluentChartPopoverLayout`), which places the surface as
+    upstream's ChartPopover does: above and centred, flipped, shifted into the
+    chart root and height-capped with its body clipped.
+  - `FluentVerticalBarChartDelegate.barDomain` is now
+    `barDomainFor(FluentCartesianChildContext)`, and
+    `FluentScatterChartDelegate.popoverFor` returns `FluentChartPopoverData?`
+    (null where no point at that x shows a callout).
+  - The HorizontalBar, Donut, Funnel and Polar popovers float in the app's
+    `Overlay`, as upstream's overhang their chart, so hovering one needs an
+    `Overlay` ancestor (`FluentApp` and `WidgetsApp` provide it).
+  - `FluentChartHitRegion.popoverData` is nullable: null opens no callout and
+    closes an open one, as a mark another legend dims does upstream. A custom
+    delegate that reads `region.popoverData` needs a null check.
+- **BREAKING (components), each to match the storybook:**
+  - `FluentDialog.showCloseButton` is nullable; null draws the header close
+    button on a non-modal dialog only, and the close is a bare 20px glyph;
+  - every popover surface lays out its 1px border (2px larger, content 1px
+    further in), flips and shifts to stay in the viewport, and
+    `FluentPopoverStyle.arrowInset` defaults to 8;
+  - tree item actions show only while the row is hovered, pressed or focused,
+    over a 32px row; list items paint no fill; carousel previous, next and
+    autoplay are 32x32;
+  - compound button padding, type and icon gap follow upstream (60/72/80 high
+    with an icon).
+- **Charts match the storybook's hover** (each measured against the live
+  storybook): line, area, scatter, vertical, stacked, grouped and horizontal
+  bar charts, donut, gauge, funnel, heat map, gantt, polar, sankey and
+  sparkline open, place, follow and close their callouts as upstream does, and
+  grow markers and draw hover rules where upstream does.
+- **Components match the storybook's hover and press:** buttons tween border
+  and label colour, subtle icons turn brand on their own, checked toggles
+  draw upstream's border and icon, radio labels ramp, nav, tree, data grid,
+  list item, breadcrumb and carousel dots follow React's ramps where Figma
+  disagreed, and swatch rings keep their white hairline.
+- **Disabled controls show `not-allowed`, and a press dragged off falls back
+  to rest, where upstream writes them:**
+  - `FluentInteractive` shows `not-allowed` over a disabled surface by
+    default, as Button, Link, menu rows, Tab, Tag (the whole tag),
+    InteractionTag, ColorSwatch, AccordionHeader, Card and Breadcrumb do;
+    Checkbox, Radio, Switch, Slider, ListItem, listbox options, Calendar, the
+    colour pickers, InfoButton, Nav and Tree keep the arrow;
+  - Button, CompoundButton, SplitButton, Switch, Radio, ColorSwatch,
+    InfoButton, the Calendar's navigation, caption, today and month/year
+    cells, menu rows and breadcrumbs are pressed only while the mouse is over
+    them, so a press dragged off shows rest and presses again on the way back;
+    a touch press holds.
+- **Charts answer touch and legends as upstream does:** a touch tap hovers
+  what it lands on (markers, hover rules and VerticalBarChart's line dots
+  included) and a tap outside the chart ends it; a mark another legend dims
+  opens no callout and takes no tab stop but still clicks; a LineChart
+  segment opens its start point's callout on the move that reaches it; a
+  following callout moves only once the pointer has moved more than 1px.
+- **More components follow React over Figma:**
+  - the Tag dismiss glyph (every appearance) and brand InteractionTags ramp
+    through `colorCompoundBrandForeground1Hover` / `Pressed`;
+  - `FluentSwatchPicker` pads by 0, so its swatches sit flush with the picker
+    (they were 10px in);
+  - a vertical `FluentField` pads its label 2px above and below (1px at
+    large), so the control starts 26px below the field's top, not 22;
+  - `FluentCalendar` pages with upstream's arrow glyphs instead of chevrons;
+  - the hamburger stays transparent and only its glyph ramps, a disabled
+    unselected subtle-circular tab is unfilled, and an autoplaying carousel's
+    toggle rests checked while it plays.
+
 ### Fixed
 
 - **Turning reduced motion off again left the focus bar snapping.** The bar
@@ -222,6 +320,48 @@
   layout pass — no frame shows the surface on the wrong side, and nothing is
   scheduled while it is open — and the surface still follows a trigger that
   moves.
+
+- **Charts:**
+  - an unknown `culture` (such as `'rs-ss'`) falls back to the default locale
+    instead of throwing during build;
+  - a log y axis draws its default log ticks; mixed number and `Date` x values
+    compare by value, and a `Date` extent on a numeric axis no longer throws;
+  - annotation boxes lay out and paint as the CSS container (max-width,
+    border, outer shadows, dashed and dotted borders);
+  - legend swatches and popover row markers snap to device pixels, swatches
+    rotate about their centre, line swatches in a bar chart are 14x6,
+    wrapped legend rows start at the leading edge, and the overflow chevron
+    sits in the menu icon slot;
+  - VerticalBar and VerticalStackedBar place date bars on upstream's un-niced
+    time scale and stand on the height above the label reserve; the
+    HorizontalBarChart benchmark triangle sits where upstream draws it;
+  - the funnel legend sits right under its `height`-tall plot and each stage
+    paints on its own, so the seam between categories shows; the heat map
+    callout body is capped at upstream's 238px, and heat map and gantt
+    readings take title2 as non-cartesian callouts;
+  - a secondary y axis fills areas to zero; line segments honour
+    `strokeDashoffset`; colour fill bars top out at the data maximum; the
+    sparkline stroke is clipped to its plot; a sankey node name collapses its
+    white space;
+  - a stack callout with two or more line rows no longer throws
+    'Duplicate keys found';
+  - a numeric `yAxisCalloutData` reads as a formatted number (`'12345'` is
+    `12,345`) and an empty one falls back to the y value; a secondary y axis
+    no series is on spans 0 to its `yMaxValue` instead of asserting on NaN;
+  - a sankey node name cut short shows whole in the tooltip box beside the
+    pointer; a dimmed line series draws no white halo across the highlighted
+    one; HorizontalBarChartWithAxis dims its bars on legend hover and prints
+    readings as JS does (`5000`, not `5000.0`);
+  - hovering a large chart costs less: VerticalBarChart's hover is linear in
+    the bar count, stacked bars read their hover targets back instead of
+    re-solving them, and a move no longer rebuilds number formats or
+    re-measures every tick label.
+- **Components:** the toast clips only while its height animates; a popover's
+  surface is capped only in width, so a tall one no longer squeezes its
+  content; the teaching popover dismiss is upstream's bare 12px glyph; a
+  labelled list item announces its label once; `FluentSearchBox` keeps its
+  468px cap inside a stretching parent such as `FluentField`; a hovered
+  carousel step mark stays visible in high contrast.
 
 ## 0.0.5
 

@@ -129,6 +129,12 @@ void main() {
   double labelGapOf(SpecVariant v) =>
       v.props['Size'] == 'Small' ? 2 : labelRowOf(v).padding!.bottom;
 
+  /// The label's own inset, which Figma does not draw: upstream's
+  /// `useFieldStyles.styles.ts` pads a vertical Field's label 2 above and 2
+  /// below (1 and 1 at large) on top of the gap. Chrome, field--default and
+  /// datepicker--default: the label box is 24 and the control starts 26 down.
+  double labelInsetOf(SpecVariant v) => v.props['Size'] == 'Large' ? 1 : 2;
+
   group('pixel fidelity against Figma', () {
     test('the fixture covers the whole component set', () {
       expect(spec.variants.length, 3);
@@ -234,13 +240,14 @@ void main() {
           ),
         );
 
+        final inset = labelInsetOf(variant);
         expect(
           paddingAbove(tester, find.byType(FluentLabel)),
-          EdgeInsets.only(bottom: labelGapOf(variant)),
+          EdgeInsets.only(top: inset, bottom: inset + labelGapOf(variant)),
           reason:
               '${variant.name}: Figma binds paddingBottom and nothing else on '
               'Label + Icon. React additionally pads the label 2 above and 2 '
-              'below (1 and 1 at large); Figma wins.',
+              'below (1 and 1 at large); React wins.',
         );
       }
     });
@@ -399,6 +406,7 @@ void main() {
         expect(
           tester.getSize(find.byKey(key)).height,
           labelSlotOf(variant).size.height +
+              2 * labelInsetOf(variant) +
               labelGapOf(variant) +
               44 +
               validationRowOf(variant).size.height +
@@ -900,7 +908,7 @@ void main() {
       );
       expect(
         paddingAbove(tester, find.byType(FluentLabel)),
-        const EdgeInsets.only(bottom: 4),
+        const EdgeInsets.only(top: 1, bottom: 5),
         reason: 'overriding the gap must not drop the Large label inset',
       );
     });

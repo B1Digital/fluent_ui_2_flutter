@@ -37,9 +37,13 @@ Neither is a wrong number in a formula. Both are a picture that does not match.
 | field | meaning |
 |---|---|
 | `width`, `height` | the chart's own box, in logical px at DPR 1. **Mount the Flutter chart at exactly this size** or the two images are of different layouts. |
-| `textRects` | every `<text>` and HTML label box, relative to the clip. Masked on *both* images before comparing — see below. |
+| `textRects` | the text to mask, relative to the clip, as `[x, y, w, h]`. Masked on *both* images before comparing — see below. |
 | `svgSize` | the chart svg's own box, where there is one. |
 | `sourceFile` | the story's module, upstream. |
+
+and once, at the top level, `textRectsRemeasured` — which stories' `textRects`
+were re-measured after capture, and how (see below). The harness reads only the
+per-story fields, so older readers are unaffected.
 
 Text is excluded from every comparison. The reference's own glyphs are genuine
 Segoe UI, loaded by the page as a webfont from `c.s-microsoft.com`; Flutter
@@ -47,6 +51,70 @@ draws the metric-compatible open-source Selawik, and even at identical metrics
 Skia and Chromium hint glyphs differently. The mask is the **reference's**
 rectangles, so a chart that draws a label upstream does not is still caught —
 those glyphs fall outside the mask.
+
+What `textRects` records, per story, is three passes of `capture_png.mjs`'s
+`MEASURE`:
+
+1. every svg `<text>` and `<tspan>`, by its element box;
+2. every *leaf* `fui-` element outside svg that carries text (legend labels),
+   by its element box;
+3. every other non-blank **text node**, by `Range.getClientRects()` — one rect
+   per rendered line, the glyph run itself — including HTML inside an svg
+   `<foreignObject>`. Each rect is cut to the clip and to every ancestor that
+   clips its overflow (so an ellipsised label masks what paints, not the whole
+   string), and text hidden by `visibility` or `opacity: 0` is skipped, since a
+   mask over nothing only excuses a Flutter chart that paints something there.
+
+Pass 3 was added on 2026-09-24. Passes 1 and 2 missed ChartTable's cells (a
+`<table>` inside a `<foreignObject>`), the legend overflow button's `+N more`
+(a text node beside an icon, so not a leaf), annotation-layer HTML,
+HorizontalBarChart row titles (nested inside `FocusableTooltipText`) and the
+story's own prose where a clip is the union of several chart roots (Sparkline
+basic). All of it was compared glyph for glyph: ChartTable measured 4.07%
+mismatch with nothing wrong in its layout but the text.
+
+### Re-measured without re-capturing (2026-09-24)
+
+The PNGs were **not** re-captured: the live storybook has moved past 9.3.23
+(deployed 2026-09-23 19:03 UTC; the latest `@fluentui/react-charts` on npm is
+then 9.3.27), and a fresh corpus would silently swap the reference under every
+pinned figure. Instead every story was loaded live in Chrome 153.0.8010.53, at
+the capture's viewport, DPR, motion and colour-scheme settings, measured with
+all three passes, and screenshotted at the same clip, and the new rects were
+only adopted where that live render provably is the committed one:
+
+- **Whole image** — the live screenshot is the committed PNG's size and
+  identical to it outside the union of the old and new text rects (each grown
+  by the harness's 1px slop), with at most 2 levels per channel of glyph AA
+  inside. The new rects replace the old: ChartTable basic, Legends wrap lines.
+- **Per rect** — for a story that fails the above only because of renderer
+  drift elsewhere (1-3 levels on faint antialiased pixels across most of the
+  corpus: a different Chrome and a newer build), the old rects are all kept and
+  each new rect is added only if the committed and live pixels inside it (with
+  the slop) agree to within 2 levels per channel — the same glyphs in the same
+  place — and the committed PNG has visible ink there. 19 stories: every
+  HorizontalBarChart story (row titles), heat map basic, both overflowing
+  Legends stories, line chart multiple, the vertical bar and stacked bar
+  stories with a `+N more` button, sparkline basic (3 of its 5 prose runs) and
+  line chart annotations (6 of 13 annotation runs — the rest sit on box fills
+  and connectors that drifted, so they stay unmasked).
+
+The other 69 stories are unchanged: in 64 pass 3 finds no text outside the
+committed mask; in gauge basic it finds only a sliver of story-control text on
+the clip's top edge, with no ink; and in four of the five stories whose data
+is `Math.random` at render time (horizontal-bar-with-axis category order and
+dynamic, vertical-bar dynamic, vertical-stacked-bar category order) the only
+new rects are svg labels at the new random positions, which the check rejects.
+The fifth, area chart secondary y-axis, is one of the 64. None of the five has
+HTML text to recover. The record, with both lists, is `textRectsRemeasured` in
+the manifest.
+
+Two stories changed while the re-measure was in flight, and were checked again
+against their new state. HorizontalBarChart basic's eight row-title rects
+had been added by hand from Oracle B's `fui-hbc__chartTitleLeft` boxes; pass 3
+measures the same eight to the last digit. ScatterChart date's PNG had been
+re-captured in UTC (see Ceilings); measured live in a UTC browser, its 19 text
+rects are exactly the ones in the manifest, and pass 3 finds nothing to add.
 
 ## Regenerating
 
@@ -59,6 +127,15 @@ node crawlers/storybooks-fluentui/capture_png.mjs charts-donutchart   # id-prefi
 out of the tree, so **this README is the only committed record of where these
 came from.** The script also writes each story's own source — the input data a
 Flutter port has to reproduce — to `crawlers/storybooks-fluentui/out/stories/`.
+
+The script launches the installed Chrome (`channel: 'chrome'`); Playwright's
+bundled browsers are not installed on the capture machine. A full run rewrites
+every PNG and its `textRects` together, so it drops `textRectsRemeasured`: the
+new corpus is measured with all three passes from the start.
+
+The browser context is pinned to `timezoneId: 'UTC'`. A story that leaves
+`useUTC` unset draws a local time scale, so an unpinned capture bakes in the
+capture machine's zone, and CI runs in UTC.
 
 Story ids are enumerated from the live `index.json` and never constructed: five
 naming conventions are in use upstream, and a constructed id renders
@@ -77,7 +154,27 @@ be for a consumer who sized the chart that way.
 - **Light theme only.** The capture pins `colorScheme: 'light'`.
 - **Not reproducible without the network.** CI can compare against the
   committed PNGs but cannot regenerate them, exactly as with Oracle B.
-- **Version-locked.** These are 9.3.23. Re-capturing against a different
+- **Captured in +03:00.** Every PNG but ScatterChart date's predates the UTC
+  pin and was captured in Europe/Istanbul (+03:00, no DST since 2016). Five of
+  those stories draw a local time scale over UTC instants, so their PNG holds
+  only in +03:00: line chart events, gaps, large data, styled and custom
+  locale date axis. Live, in Chrome 153, a UTC render of each differs from an
+  Istanbul one by 13896, 10504, 4235, 328 and 182 px over 24 levels (measured
+  2026-09-24). They were **not** re-captured: that Istanbul render is not the
+  committed PNG either (hundreds of px over 24 levels along every antialiased
+  line: a newer Chrome and a newer build), so a UTC capture would swap more
+  than the zone. Their parity tests draw a UTC scale over the Istanbul wall
+  clock instead (`_istanbul` in `test/parity/line_chart_*_parity_test.dart`),
+  which is the PNG's picture in every zone. Line chart multiple, custom
+  accessibility and vertical stacked bar date axis date everything in local
+  time, so UTC and Istanbul (neither has DST) draw them identically, to the
+  pixel; their tests use UTC calendar dates on a UTC scale, so a DST zone
+  cannot bend them. Line chart negative sets `useUTC` and is identical in both.
+  ScatterChart date's was re-captured with the pin; its tick labels, and so
+  its `textRects`, came out identical.
+- **Version-locked.** These PNGs are 9.3.23 (the re-measure above changed
+  rectangles only, never a pixel), except ScatterChart date's, captured later
+  from the live storybook. Re-capturing against a different
   upstream and not bumping `kPinnedUpstreamVersion` will fail Oracle B's corpus
   test, which is the intended tripwire for both corpora.
 - 90 images, ~1.9 MB.

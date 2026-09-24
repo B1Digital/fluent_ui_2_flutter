@@ -145,6 +145,10 @@ class FluentSparklinePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // `Sparkline.tsx:115-122` — an inner <svg> clips to its own viewport, so
+    // the half of the 2px stroke that runs past the last point is cut at the
+    // plot's edge rather than fringing the column beyond it.
+    canvas.clipRect(Offset.zero & size);
     canvas.drawPath(
       layout.linePath,
       Paint()

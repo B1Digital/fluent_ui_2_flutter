@@ -274,7 +274,21 @@ void main() {
                   variant.radius,
                   reason: '$where: radius',
                 );
-                expectFill(surface.color!, variant.fill, '$where: fill');
+                // The one fill where the storybook overrules Figma: Figma
+                // paints the disabled unselected subtle pill `#F0F0F0`, while
+                // `useTabStyles.styles.ts` `subtleDisabled` keeps
+                // `colorSubtleBackground` and the live
+                // `components-tablist--appearance` page measures
+                // `rgba(0, 0, 0, 0)` there.
+                final storybookClear =
+                    appearance == FluentTabAppearance.subtleCircular &&
+                    !selected &&
+                    state == 'Disabled';
+                expectFill(
+                  surface.color!,
+                  storybookClear ? null : variant.fill,
+                  '$where: fill',
+                );
 
                 expect(
                   surface.border?.top.width ?? 0,

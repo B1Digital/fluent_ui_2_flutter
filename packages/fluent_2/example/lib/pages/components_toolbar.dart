@@ -454,9 +454,12 @@ class _WithTooltipState extends State<_WithTooltip> {
           (Set<WidgetState> states) =>
               color?.resolve(<WidgetState>{...states, WidgetState.selected}),
         );
+    // useIconCheckedStyles: a checked subtle icon is
+    // neutralForeground2BrandSelected, apart from its label.
     return FluentButtonStyle(
       backgroundColor: selected(base.backgroundColor),
       foregroundColor: selected(base.foregroundColor),
+      iconColor: selected(base.iconColor),
       borderColor: selected(base.borderColor),
     );
   }
@@ -661,9 +664,12 @@ class _SubtleState extends State<_Subtle> {
           (Set<WidgetState> states) =>
               color?.resolve(<WidgetState>{...states, WidgetState.selected}),
         );
+    // useIconCheckedStyles: a checked subtle icon is
+    // neutralForeground2BrandSelected, apart from its label.
     return FluentButtonStyle(
       backgroundColor: selected(base.backgroundColor),
       foregroundColor: selected(base.foregroundColor),
+      iconColor: selected(base.iconColor),
       borderColor: selected(base.borderColor),
     );
   }
@@ -751,9 +757,15 @@ class _TransparentState extends State<_Transparent> {
           (Set<WidgetState> states) =>
               color?.resolve(<WidgetState>{...states, WidgetState.selected}),
         );
+    // useIconCheckedStyles holds a checked transparent icon at
+    // neutralForeground2BrandSelected, even pressed, where its label darkens.
     return FluentButtonStyle(
       backgroundColor: selected(base.backgroundColor),
       foregroundColor: selected(base.foregroundColor),
+      iconColor: FluentStateColor.tokens(
+        rest: FluentTheme.of(context).colors.neutralForeground2BrandSelected,
+        disabled: FluentTheme.of(context).colors.neutralForegroundDisabled,
+      ),
       borderColor: selected(base.borderColor),
     );
   }
@@ -847,9 +859,12 @@ class _ControlledToggleButtonState extends State<_ControlledToggleButton> {
           (Set<WidgetState> states) =>
               color?.resolve(<WidgetState>{...states, WidgetState.selected}),
         );
+    // useIconCheckedStyles: a checked subtle icon is
+    // neutralForeground2BrandSelected, apart from its label.
     return FluentButtonStyle(
       backgroundColor: selected(base.backgroundColor),
       foregroundColor: selected(base.foregroundColor),
+      iconColor: selected(base.iconColor),
       borderColor: selected(base.borderColor),
     );
   }
@@ -928,9 +943,12 @@ class _RadioState extends State<_Radio> {
           (Set<WidgetState> states) =>
               color?.resolve(<WidgetState>{...states, WidgetState.selected}),
         );
+    // useIconCheckedStyles: a checked subtle icon is
+    // neutralForeground2BrandSelected, apart from its label.
     return FluentButtonStyle(
       backgroundColor: selected(base.backgroundColor),
       foregroundColor: selected(base.foregroundColor),
+      iconColor: selected(base.iconColor),
       borderColor: selected(base.borderColor),
     );
   }
@@ -1010,9 +1028,12 @@ class _ControlledRadioState extends State<_ControlledRadio> {
           (Set<WidgetState> states) =>
               color?.resolve(<WidgetState>{...states, WidgetState.selected}),
         );
+    // useIconCheckedStyles: a checked subtle icon is
+    // neutralForeground2BrandSelected, apart from its label.
     return FluentButtonStyle(
       backgroundColor: selected(base.backgroundColor),
       foregroundColor: selected(base.foregroundColor),
+      iconColor: selected(base.iconColor),
       borderColor: selected(base.borderColor),
     );
   }
@@ -1100,9 +1121,12 @@ class _VerticalState extends State<_Vertical> {
           (Set<WidgetState> states) =>
               color?.resolve(<WidgetState>{...states, WidgetState.selected}),
         );
+    // useIconCheckedStyles: a checked subtle icon is
+    // neutralForeground2BrandSelected, apart from its label.
     return FluentButtonStyle(
       backgroundColor: selected(base.backgroundColor),
       foregroundColor: selected(base.foregroundColor),
+      iconColor: selected(base.iconColor),
       borderColor: selected(base.borderColor),
     );
   }

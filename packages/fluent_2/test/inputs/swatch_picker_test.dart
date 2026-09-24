@@ -125,8 +125,8 @@ void main() {
     test('every variant insets by Spacing/MNudge and gaps by XS or XXS', () {
       // Upstream's root is `padding: 0` with `gap: 4px` / `2px`. Figma binds
       // `Spacing/{Horizontal,Vertical}/MNudge` on all four sides of all 14
-      // variants, so the inset is a divergence resolved toward Figma; the two
-      // gaps agree.
+      // variants, so the inset is a divergence resolved toward React (the
+      // picker pads by zero, below); the two gaps agree.
       for (final variant in spec.variants) {
         expect(
           variant.padding,
@@ -173,13 +173,20 @@ void main() {
             children: swatches(grid ? _columns * _rows : _columns),
           ),
           // A row hugs its content, so its own width is the assertion. A wrap
-          // needs the width Figma gives it before the row count means anything.
-          width: grid ? variant.size.width : null,
+          // needs the width Figma gives its swatches before the row count means
+          // anything.
+          width: grid ? variant.size.width - variant.padding!.horizontal : null,
         );
 
+        // Figma's frame less its MNudge inset: upstream's
+        // useSwatchPickerStyles pads the root by zero, and React wins.
+        final frame = Size(
+          variant.size.width - variant.padding!.horizontal,
+          variant.size.height - variant.padding!.vertical,
+        );
         final measured = tester.getSize(find.byKey(key));
-        expect(measured.width, variant.size.width, reason: variant.name);
-        expect(measured.height, variant.size.height, reason: variant.name);
+        expect(measured.width, frame.width, reason: variant.name);
+        expect(measured.height, frame.height, reason: variant.name);
       }
     });
 

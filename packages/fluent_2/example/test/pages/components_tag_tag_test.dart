@@ -161,10 +161,13 @@ void main() {
       );
       expect(
         hovered.$1,
-        theme.colors.neutralForeground2BrandHover,
+        theme.colors.compoundBrandForeground1Hover,
         reason:
-            "the glyph must take brand on hover — it is the whole of the "
-            "Figma set's State axis",
+            'the glyph must take brand on hover. React wins over Figma: '
+            'useTagStyles useDismissIconStyles writes '
+            'colorCompoundBrandForeground1Hover, and the storybook '
+            'tag--dismiss reads #115EA3 where Figma binds '
+            'Neutral/Foreground/2/Brand/Hover (#0F6CBD)',
       );
       expect(
         hovered.$2,

@@ -679,23 +679,26 @@ const List<String> _declared = <String>[
 
 /// Every sort control on the grid, in column order.
 ///
-/// Matched on the label the grid gives the control rather than on the button
-/// type, so the demos' own Edit, Delete, Open and menu buttons — which live in
-/// the same headers and cells — cannot be mistaken for one.
+/// A sortable header is one button over the whole cell, as upstream's is, and
+/// announces its sort state as its semantics value. Matched on that value
+/// rather than on a widget type, so the demos' own Edit, Delete, Open and menu
+/// buttons — which live in the same headers and cells — cannot be mistaken for
+/// one.
 Finder _sortControls() => find.byWidgetPredicate(
   (Widget widget) =>
-      widget is FluentButton &&
+      widget is Semantics &&
+      (widget.properties.button ?? false) &&
       const <String>{
         'Sort',
         'Sorted ascending',
         'Sorted descending',
-      }.contains(widget.semanticLabel),
+      }.contains(widget.properties.value),
   description: 'sort control',
 );
 
 /// What the [column]-th sort control announces: `Sort` until it holds the sort.
 String? _labelOf(WidgetTester tester, int column) =>
-    tester.widget<FluentButton>(_sortControls().at(column)).semanticLabel;
+    tester.widget<Semantics>(_sortControls().at(column)).properties.value;
 
 /// The grid's selection checkboxes: index 0 is select-all, then one per row.
 Finder _selectionBoxes() => find.descendant(

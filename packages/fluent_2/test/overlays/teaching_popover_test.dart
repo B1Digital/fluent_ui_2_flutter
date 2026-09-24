@@ -1,4 +1,5 @@
 import 'package:fluent_2/fluent_2.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -159,46 +160,46 @@ void main() {
               '(${variant.text!.tokens['fills']})',
         );
 
-        // The dismiss button's fill is the one property Figma states on the
-        // neutral variant and cannot state on brand — see the resolver.
+        // Figma binds the subtle ramp to the dismiss button's fill, and the
+        // storybook paints none: `colorTransparentBackground` with no :hover or
+        // :active rule, 0px of change on hover or press. The storybook wins.
         expect(dismiss.token('fills'), 'Neutral/Background/Subtle/Rest');
-        expect(
-          style.dismissBackgroundColor!.resolve(empty),
-          brand ? c.transparentBackground : c.subtleBackground,
-        );
-        // Whichever of the two it is, it is a *token* and not a hardcoded
-        // transparent. The proof is high contrast: a Fluent transparent fill
-        // stays clear at rest — otherwise every subtle control would become a
-        // filled block — but its interactive states turn opaque highlight,
-        // which `Colors.transparent` never would.
-        final hc = FluentThemeData.highContrast(
-          fontPlatform: FluentFontPlatform.web,
-        );
-        final hcStyle = resolved(appearance, theme: hc);
-        expect(
-          hcStyle.dismissBackgroundColor!.resolve(const <WidgetState>{
-            WidgetState.hovered,
-          })!.a,
-          greaterThan(0),
-          reason: 'the dismiss fill must go opaque in high contrast on hover',
-        );
+        for (final states in <Set<WidgetState>>[
+          empty,
+          {WidgetState.hovered},
+          {WidgetState.pressed},
+        ]) {
+          expect(
+            style.dismissBackgroundColor!.resolve(states),
+            c.transparentBackground,
+            reason: '${variant.name} $states: dismiss fill',
+          );
+          expect(
+            style.dismissColor!.resolve(states),
+            brand ? c.neutralForegroundOnBrand : c.neutralForeground2,
+            reason: '${variant.name} $states: dismiss glyph',
+          );
+        }
       });
 
       test('$name — dismiss button geometry', () {
         final style = resolved(appearance);
         final dismiss = variant.part('Header dismiss');
 
-        final padding = style.dismissPadding!.resolve(empty)! as EdgeInsets;
-        expect(padding, dismiss.padding);
+        final padding = style.dismissPadding!
+            .resolve(empty)!
+            .resolve(TextDirection.ltr);
         expect(style.dismissBorderRadius!.resolve(empty), dismiss.radius);
-        // 2 + 20 + 2 is the 24-square target Figma draws.
+        // Figma draws a 24-square target round a 20 glyph. The storybook's
+        // button is 21 x 22: `Dismiss12Regular` in 4px of padding and a 1px
+        // transparent border on every side but the end
+        // (useTeachingPopoverHeaderStyles.styles.raw.js:26-45). It wins.
+        expect(dismiss.size, const Size(24, 24));
+        expect(style.dismissIconSize!.resolve(empty), 12);
+        expect(padding, const EdgeInsets.fromLTRB(5, 5, 4, 5));
         expect(
-          padding.horizontal + style.dismissIconSize!.resolve(empty)!,
-          dismiss.size.width,
-        );
-        expect(
-          padding.vertical + style.dismissIconSize!.resolve(empty)!,
-          dismiss.size.height,
+          Size(padding.horizontal + 12, padding.vertical + 12),
+          const Size(21, 22),
         );
       });
     }
@@ -397,8 +398,7 @@ void main() {
       final primary = tester.getRect(find.byKey(primaryKey));
 
       // Measured from the header ROW, not from the caption's own glyph box:
-      // the row is as tall as the 24-square dismiss button beside it, which is
-      // exactly what Figma's `Header` frame is.
+      // the row is as tall as the 22-tall dismiss button beside it.
       final headerRow = tester.getRect(
         find
             .ancestor(of: find.byKey(headerKey), matching: find.byType(Row))
@@ -799,6 +799,67 @@ void main() {
       expect(find.byKey(titleKey), findsNothing);
     });
 
+    testWidgets('a mouse over the dismiss changes nothing, as upstream', (
+      tester,
+    ) async {
+      // The storybook's dismiss is a bare transparent button: 21 x 22 round a
+      // 12px `Dismiss12Regular`, and 0px of change on hover or press. The port
+      // used to ramp a 24-square subtle fill through #F5F5F5 and #E0E0E0.
+      for (final appearance in FluentTeachingPopoverAppearance.values) {
+        await pump(tester, appearance: appearance);
+        await show(tester);
+        await tester.pumpAndSettle();
+
+        final theme = light();
+        final glyph = find.byIcon(fluentTeachingPopoverDismissIcon);
+        final box = find
+            .ancestor(of: glyph, matching: find.byType(DecoratedBox))
+            .first;
+        final rest = (
+          (tester.widget<DecoratedBox>(box).decoration as BoxDecoration).color,
+          IconTheme.of(tester.element(glyph)).color,
+        );
+        expect(rest, (
+          theme.colors.transparentBackground,
+          appearance == FluentTeachingPopoverAppearance.brand
+              ? theme.colors.neutralForegroundOnBrand
+              : theme.colors.neutralForeground2,
+        ));
+        expect(tester.getSize(box), const Size(21, 22));
+        expect(IconTheme.of(tester.element(glyph)).size, 12);
+
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: Offset.zero);
+        final at = tester.getCenter(glyph);
+        await mouse.moveTo(at);
+        await mouse.moveTo(at + const Offset(1, 0));
+        await tester.pump();
+        expect(
+          (
+            (tester.widget<DecoratedBox>(box).decoration as BoxDecoration)
+                .color,
+            IconTheme.of(tester.element(glyph)).color,
+          ),
+          rest,
+          reason: '${appearance.name}: hover',
+        );
+
+        await mouse.down(at + const Offset(1, 0));
+        await tester.pump();
+        expect(
+          (
+            (tester.widget<DecoratedBox>(box).decoration as BoxDecoration)
+                .color,
+            IconTheme.of(tester.element(glyph)).color,
+          ),
+          rest,
+          reason: '${appearance.name}: press',
+        );
+        await mouse.cancel();
+        await mouse.removePointer();
+      }
+    });
+
     testWidgets('no dismiss handler draws no dismiss button', (tester) async {
       await pump(tester, withDismiss: false);
       await show(tester);
@@ -951,11 +1012,11 @@ void main() {
 
       // The surface's own border is FluentPopover's; what matters here is that
       // nothing in the content painted a hardcoded transparent that would stay
-      // invisible where the token goes opaque.
+      // invisible where the token goes opaque. The header dismiss is not
+      // listed: upstream gives it no hover fill at all, in any theme.
       final style = resolved(FluentTeachingPopoverAppearance.normal, theme: hc);
       const hovered = <WidgetState>{WidgetState.hovered};
       for (final entry in <String, Color?>{
-        'dismiss fill': style.dismissBackgroundColor!.resolve(hovered),
         'dot target fill': style.dotBackgroundColor!.resolve(hovered),
       }.entries) {
         expect(

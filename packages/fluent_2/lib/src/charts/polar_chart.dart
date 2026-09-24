@@ -21,6 +21,7 @@ import 'internal/d3/shape_radial.dart' as d3;
 import 'internal/d3/stable_sort.dart' as d3;
 import 'internal/data_viz_palette.dart';
 import 'internal/image_export.dart';
+import 'internal/overlay_chart_popover.dart';
 import 'model/chart_common.dart';
 import 'model/chart_value.dart';
 import 'model/line_options.dart';
@@ -1151,6 +1152,17 @@ class FluentPolarChartState extends State<FluentPolarChart> {
   FluentPolarMarker? _popoverMarker;
   FluentPolarLayout? _layout;
 
+  /// Floats the popover in the app's [Overlay]. `ChartPopover` is an inline
+  /// `<Popover>` (`ChartPopover.tsx:47-51`) and the polar root clips nothing
+  /// (`usePolarChartStyles.styles.ts:21-29`), so its boundary is the viewport:
+  /// the storybook keeps the 117px Mike/Chinese surface above its marker,
+  /// where the page leaves 184px and the plot alone 87.
+  final OverlayPortalController _portal = OverlayPortalController();
+
+  /// Carries the popover with the plot when the page scrolls under a resting
+  /// pointer, which moves the marker but sends no hover.
+  final LayerLink _link = LayerLink();
+
   /// The layout the chart last painted. Exposed for tests and for the export
   /// handle.
   FluentPolarLayout get layout => _layout!;
@@ -1184,15 +1196,22 @@ class FluentPolarChartState extends State<FluentPolarChart> {
       : const <String>{};
 
   void _showPopover(FluentPolarMarker marker) {
+    // `:505` — the popover only opens when the marker's legend is
+    // highlighted, which an empty active set satisfies (`:435`).
+    final active = _activeLegends;
+    final popover = active.isEmpty || active.contains(marker.legend)
+        ? marker
+        : null;
+    // `:568` listens for mouseover alone, so moving on inside the marker
+    // changes nothing.
+    if (marker.id == _activePointId && popover?.id == _popoverMarker?.id) {
+      return;
+    }
     setState(() {
       _activePointId = marker.id;
-      // `:505` — the popover only opens when the marker's legend is
-      // highlighted, which an empty active set satisfies (`:435`).
-      final active = _activeLegends;
-      _popoverMarker = active.isEmpty || active.contains(marker.legend)
-          ? marker
-          : null;
+      _popoverMarker = popover;
     });
+    popover == null ? _portal.hide() : _portal.show();
   }
 
   void _hidePopover() {
@@ -1203,6 +1222,7 @@ class FluentPolarChartState extends State<FluentPolarChart> {
       _activePointId = '';
       _popoverMarker = null;
     });
+    _portal.hide();
   }
 
   void _onHover(Offset local) {
@@ -1405,69 +1425,96 @@ class FluentPolarChartState extends State<FluentPolarChart> {
           // would ever be hit.
           onExit: (_) => _hidePopover(),
           onHover: (event) => _onHover(event.localPosition),
-          child: Stack(
-            children: <Widget>[
-              // `:653` — the grid group, under everything.
-              CustomPaint(
-                size: size,
-                painter: FluentPolarGridPainter(
-                  layout: l,
-                  shape: widget.shape,
-                  gridColor: gridColour,
-                  gridWidth: style.gridLineWidth!.resolve(states)!,
-                  innerOpacity: style.gridLineInnerOpacity!.resolve(states)!,
-                  outerOpacity: style.gridLineOuterOpacity!.resolve(states)!,
-                ),
-              ),
-              // Only this layer repaints on a hover or a legend change.
-              RepaintBoundary(
-                child: CustomPaint(
-                  size: size,
-                  painter: FluentPolarSeriesPainter(
-                    layout: l,
-                    activeLegends: _activeLegends,
-                    activePointId: _activePointId,
-                    style: style,
-                    states: states,
-                    colors: chartColors,
-                  ),
-                ),
-              ),
-              // `:671` — the ticks last, over the data.
-              CustomPaint(
-                size: size,
-                painter: FluentPolarTickPainter(
-                  layout: l,
-                  measurer: _measurer,
-                  labelStyle: style.tickLabelStyle!.resolve(states)!,
-                  gridColor: gridColour,
-                  gridWidth: style.gridLineWidth!.resolve(states)!,
-                  outerOpacity: style.gridLineOuterOpacity!.resolve(states)!,
-                  tickSize: style.tickSize!.resolve(states)!,
-                  labelOffset: style.labelOffset!.resolve(states)!,
-                ),
-              ),
-              // `:676` gates the whole popover on `!hideTooltip`.
-              if (!widget.hideTooltip && _popoverMarker != null)
-                Positioned.fill(
-                  // The popover follows the cursor, so letting it take the
-                  // pointer would pull the pointer off the marker that opened
-                  // it.
-                  child: IgnorePointer(
-                    child: FluentChartPopover(
-                      data: FluentChartPopoverData(
-                        xValue: _popoverMarker!.popoverXValue,
-                        legend: _popoverMarker!.legend,
-                        color: _popoverMarker!.color,
-                        yValue: _popoverMarker!.popoverYValue,
-                      ),
-                      anchor: l.centre + _popoverMarker!.position,
+          child: OverlayPortal(
+            controller: _portal,
+            overlayChildBuilder: (context) => _buildPopover(context, l),
+            child: CompositedTransformTarget(
+              link: _link,
+              child: Stack(
+                children: <Widget>[
+                  // `:653` — the grid group, under everything.
+                  CustomPaint(
+                    size: size,
+                    painter: FluentPolarGridPainter(
+                      layout: l,
+                      shape: widget.shape,
+                      gridColor: gridColour,
+                      gridWidth: style.gridLineWidth!.resolve(states)!,
+                      innerOpacity: style.gridLineInnerOpacity!.resolve(
+                        states,
+                      )!,
+                      outerOpacity: style.gridLineOuterOpacity!.resolve(
+                        states,
+                      )!,
                     ),
                   ),
-                ),
-            ],
+                  // Only this layer repaints on a hover or a legend change.
+                  RepaintBoundary(
+                    child: CustomPaint(
+                      size: size,
+                      painter: FluentPolarSeriesPainter(
+                        layout: l,
+                        activeLegends: _activeLegends,
+                        activePointId: _activePointId,
+                        style: style,
+                        states: states,
+                        colors: chartColors,
+                      ),
+                    ),
+                  ),
+                  // `:671` — the ticks last, over the data.
+                  CustomPaint(
+                    size: size,
+                    painter: FluentPolarTickPainter(
+                      layout: l,
+                      measurer: _measurer,
+                      labelStyle: style.tickLabelStyle!.resolve(states)!,
+                      gridColor: gridColour,
+                      gridWidth: style.gridLineWidth!.resolve(states)!,
+                      outerOpacity: style.gridLineOuterOpacity!.resolve(
+                        states,
+                      )!,
+                      tickSize: style.tickSize!.resolve(states)!,
+                      labelOffset: style.labelOffset!.resolve(states)!,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// The popover for the marker under the pointer or the keyboard, in the
+  /// overlay's coordinates.
+  Widget _buildPopover(BuildContext context, FluentPolarLayout l) {
+    final marker = _popoverMarker;
+    final plot = _boundaryKey.currentContext;
+    // `:676` gates the whole popover on `!hideTooltip`.
+    if (widget.hideTooltip || marker == null || plot == null) {
+      return const SizedBox.shrink();
+    }
+    return buildFluentOverlayChartPopover(
+      context,
+      anchorContext: plot,
+      link: _link,
+      data: FluentChartPopoverData(
+        xValue: marker.popoverXValue,
+        legend: marker.legend,
+        color: marker.color,
+        yValue: marker.popoverYValue,
+        // `:677-686` pass no isCartesian.
+        isCartesian: false,
+      ),
+      // `:504` and `:679-681` target the hovered <circle> itself, so the
+      // surface centres on the marker and clears its box, not its centre: the
+      // storybook's Mike/Math surface starts at the circle's bottom, 135.23,
+      // plus 20.
+      anchorRect: Rect.fromCircle(
+        center: l.centre + marker.position,
+        radius: marker.radius,
       ),
     );
   }

@@ -347,7 +347,7 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/navigation/breadcrumb.dart`
-- Tests: `packages/fluent_2/test/goldens/breadcrumb_golden_test.dart`, `packages/fluent_2/test/navigation/breadcrumb_test.dart`, `packages/fluent_2/test/navigation/nav_test.dart`, `packages/fluent_2_core/test/scroll_behavior_test.dart`
+- Tests: `packages/fluent_2/test/goldens/breadcrumb_golden_test.dart`, `packages/fluent_2/test/internal/interaction_wiring_test.dart`, `packages/fluent_2/test/navigation/breadcrumb_test.dart`, `packages/fluent_2/test/navigation/nav_test.dart`, `packages/fluent_2_core/test/scroll_behavior_test.dart`
 - Stories: `packages/fluent_2/example/lib/pages/components_breadcrumb.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/breadcrumb/usage/
 - Design decisions: `references/components-navigation-data.md`

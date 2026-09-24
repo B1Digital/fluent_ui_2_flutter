@@ -111,11 +111,15 @@ class FluentDataGridStyle {
   /// [IconTheme].
   final WidgetStateProperty<double?>? iconSize;
 
-  /// Inset inside the header's sort button, which Figma squares off rather
-  /// than using `FluentButton`'s horizontal ramp.
+  /// Inset around the header's sort arrow.
+  ///
+  /// Named for the square-padded icon button Figma draws there; upstream draws
+  /// the bare glyph with `paddingTop: spacingVerticalXXS`, and so does this
+  /// package.
   final WidgetStateProperty<EdgeInsetsGeometry?>? sortButtonPadding;
 
-  /// Cursor over an interactive row.
+  /// Cursor over an interactive body row. A sortable header cell always shows
+  /// the click cursor, as upstream's does.
   final WidgetStateProperty<MouseCursor?>? mouseCursor;
 
   /// This style with the non-null properties of [other] layered on top.

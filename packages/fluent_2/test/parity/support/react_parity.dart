@@ -32,14 +32,25 @@
 /// are 10px/600, so a chart whose margins are solved from the widest tick label
 /// can sit up to a fraction of a pixel out. That is the residual this harness
 /// cannot remove without shipping a proprietary font, and it is why
-/// [kDefaultMismatchTolerance] is not zero.
+/// [kDefaultMismatchTolerance] is not zero. Selawik's digits are also tabular
+/// where Segoe UI's are proportional, so a right-anchored "111" grows a few
+/// pixels left out of its mask. And Selawik has no U+2212 MINUS SIGN at all;
+/// [loadParityFonts] gives it a real fallback glyph (see there).
 ///
 /// Text pixels are excluded regardless. Even with identical metrics, Skia and
-/// Chromium hint and rasterise glyphs differently, so every `<text>` bbox the
-/// capture recorded is painted out on **both** images before they are compared.
-/// The mask is the reference's own text rectangles, so a Flutter chart that
-/// draws a label somewhere upstream does not is *not* excused by it — the extra
-/// glyphs land outside the mask and count as mismatch.
+/// Chromium hint and rasterise glyphs differently, so every text rectangle the
+/// capture recorded is painted out on **both** images, one pixel of slop on
+/// each side, before they are compared. Those rectangles are the svg `<text>`
+/// and `<tspan>` boxes, the leaf `fui-` HTML labels, and every other rendered
+/// text node's line boxes — ChartTable's cells inside a `<foreignObject>`, the
+/// legend's `+N more` button, annotation HTML, nested bar titles, story prose
+/// inside the clip. The last kind was re-measured on 2026-09-24 without
+/// re-capturing a pixel, and adopted only where the live render provably is
+/// the committed one; `test/fixtures/charts/react_png/README.md` says which
+/// stories and how. The mask is the reference's own text rectangles, so a
+/// Flutter chart that draws a label somewhere upstream does not is *not*
+/// excused by it — the extra glyphs land outside the mask and count as
+/// mismatch.
 ///
 /// ### Cause 2: antialiasing — absorbed by a tolerance, not by equality
 ///
@@ -48,6 +59,13 @@
 /// few levels between the two rasterisers; a mark in the wrong place, the wrong
 /// colour or missing differs by hundreds. The threshold is on the *count* of
 /// such pixels, expressed as a percentage of the unmasked area.
+///
+/// ### What else the render is held to
+///
+/// Shadows are real: the test binding's `debugDisableShadows` paints every
+/// BoxShadow as a hard slab Chromium never draws, so [expectReactParity] turns
+/// it off for the pump and the capture. The surface under the chart is white,
+/// not the capture page's #FAFAFA, on purpose — see `_pumpChart`.
 ///
 /// ## Using it
 ///
@@ -110,6 +128,12 @@ const double _mismatchFloorRatio = 0.5;
 const String _pngDir = 'test/fixtures/charts/react_png';
 const String _outDir = 'test/parity/out';
 
+/// Off only for the harness's own tests, which measure a reference against
+/// itself: their triptych and printed figure would otherwise overwrite the
+/// real story's, and a 0.000% line is exactly what a re-pin must not read.
+@visibleForTesting
+bool debugWriteParityOutput = true;
+
 /// The masked-out text colour. Nothing is compared here, so the value only has
 /// to be visible in the written triptych — a reviewer needs to see *what* was
 /// excluded, or a mask covering the whole chart would read as a pass.
@@ -124,6 +148,20 @@ final Map<String, ui.Image> _referenceCache = <String, ui.Image>{};
 /// the same box: measured, it makes "Mar 03, 12 AM" 130px wide against Segoe
 /// UI's 65.5px, which moves any margin solved from a label width by tens of
 /// pixels. Call from `setUpAll`.
+///
+/// Selawik has no U+2212 MINUS SIGN, which d3-format writes on every negative
+/// tick and bar label (`internal/d3/format.dart`). The browser draws Segoe
+/// UI's own glyph, 6.84px wide at 10px/400 and 6.95px at 10px/600 (measured
+/// in the live storybook on 2026-09-24; `CSS.getPlatformFontsForNode` names
+/// Segoe UI and Segoe UI Semibold). `flutter test` fell through to the
+/// placeholder's 1em box, 10px wide, and that box stuck out of the text mask
+/// on every negative label in the corpus. So Roboto — the only real
+/// sans-serif the SDK ships, with a 5.56px minus at 10px — is registered under
+/// the FIRST name of [FluentFontFamily.baseFallback]: that is where Selawik's
+/// missing glyphs are looked up next. It is not Segoe's width, only nearer
+/// (1.4px narrow where the box was 3px wide), so a negative label now ends
+/// inside its mask. Registering it as 'Roboto' does nothing, because
+/// flutter_tester maps that name to the placeholder itself.
 Future<void> loadParityFonts() async {
   final loader = FontLoader(FluentFontFamily.base);
   for (final file in <String>[
@@ -139,6 +177,33 @@ Future<void> loadParityFonts() async {
     loader.addFont(Future<ByteData>.value(ByteData.sublistView(bytes)));
   }
   await loader.load();
+
+  final fallback = FontLoader(FluentFontFamily.baseFallback.first);
+  final fonts = '${_flutterRoot()}/bin/cache/artifacts/material_fonts';
+  for (final weight in <String>['Regular', 'Medium', 'Bold']) {
+    final bytes = File('$fonts/Roboto-$weight.ttf').readAsBytesSync();
+    fallback.addFont(Future<ByteData>.value(ByteData.sublistView(bytes)));
+  }
+  await fallback.load();
+}
+
+/// The SDK checkout running this test. `flutter test` exports FLUTTER_ROOT to
+/// the tester; when something else launched it, the tester binary itself lives
+/// at `<root>/bin/cache/artifacts/engine/<platform>/flutter_tester`.
+String _flutterRoot() {
+  final env = Platform.environment['FLUTTER_ROOT'];
+  if (env != null && env.isNotEmpty) return env;
+  var dir = File(Platform.resolvedExecutable).parent;
+  while (dir.parent.path != dir.path) {
+    if (Directory('${dir.path}/bin/cache/artifacts').existsSync()) {
+      return dir.path;
+    }
+    dir = dir.parent;
+  }
+  throw StateError(
+    'cannot find the Flutter SDK from ${Platform.resolvedExecutable}; set '
+    'FLUTTER_ROOT.',
+  );
 }
 
 /// One story's entry in the capture manifest.
@@ -159,8 +224,9 @@ class ReactReference {
   /// comparison of two different layouts.
   final Size size;
 
-  /// Every `<text>` and HTML label box, relative to [size]. Masked on both
-  /// images before comparing.
+  /// Every recorded run of text — svg `<text>`, HTML labels, and any other
+  /// text node the capture found inside the clip — relative to [size]. Masked
+  /// on both images before comparing.
   final List<Rect> textRects;
 }
 
@@ -270,30 +336,51 @@ Future<ParityResult> expectReactParity(
   Offset logicalOffset = Offset.zero,
 }) async {
   final reference = loadReactReference(id);
-  await _pumpChart(tester, reference, chart, theme, logicalSize, logicalOffset);
+  // The test binding sets `debugDisableShadows`, which paints every BoxShadow
+  // as a hard unblurred slab — a card's shadow16 becomes a grey bar that
+  // Chromium never draws. Real shadows for the pump and the capture, and the
+  // flag restored in the body rather than in a tearDown: the binding checks
+  // it when the test body ends, before any tearDown runs.
+  final shadowsWereDisabled = debugDisableShadows;
+  debugDisableShadows = false;
+  final ParityResult? result;
+  try {
+    await _pumpChart(
+      tester,
+      reference,
+      chart,
+      theme,
+      logicalSize,
+      logicalOffset,
+    );
 
-  // Everything from here down is engine work — `instantiateImageCodec`,
-  // `RenderRepaintBoundary.toImage`, `decodeImageFromPixels`,
-  // `Picture.toImage` — and every one of them completes on a real task runner
-  // that the fake-async zone a `testWidgets` body runs in never pumps.
-  // Measured: awaiting `instantiateImageCodec` outside `runAsync` hangs the
-  // test until the 10-minute pumpAndSettle-scale timeout, with the process
-  // idle at 0% CPU. It reads exactly like a slow chart and is not one.
-  final result = await tester.runAsync(() async {
-    final referenceImage = await _decodeReference(id);
-    if (referenceImage.width != reference.size.width.round() ||
-        referenceImage.height != reference.size.height.round()) {
-      throw StateError(
-        '$id: manifest says ${reference.size} but the PNG is '
-        '${referenceImage.width}x${referenceImage.height}. The corpus is '
-        'half-regenerated — re-run capture_png.mjs.',
-      );
-    }
-    final object =
-        tester.renderObject(find.byKey(_boundaryKey)) as RenderRepaintBoundary;
-    final actual = await object.toImage();
-    return _compare(reference, referenceImage, actual);
-  });
+    // Everything from here down is engine work — `instantiateImageCodec`,
+    // `RenderRepaintBoundary.toImage`, `decodeImageFromPixels`,
+    // `Picture.toImage` — and every one of them completes on a real task
+    // runner that the fake-async zone a `testWidgets` body runs in never
+    // pumps. Measured: awaiting `instantiateImageCodec` outside `runAsync`
+    // hangs the test until the 10-minute pumpAndSettle-scale timeout, with the
+    // process idle at 0% CPU. It reads exactly like a slow chart and is not
+    // one.
+    result = await tester.runAsync(() async {
+      final referenceImage = await _decodeReference(id);
+      if (referenceImage.width != reference.size.width.round() ||
+          referenceImage.height != reference.size.height.round()) {
+        throw StateError(
+          '$id: manifest says ${reference.size} but the PNG is '
+          '${referenceImage.width}x${referenceImage.height}. The corpus is '
+          'half-regenerated — re-run capture_png.mjs.',
+        );
+      }
+      final object =
+          tester.renderObject(find.byKey(_boundaryKey))
+              as RenderRepaintBoundary;
+      final actual = await object.toImage();
+      return _compare(reference, referenceImage, actual);
+    });
+  } finally {
+    debugDisableShadows = shadowsWereDisabled;
+  }
   if (result == null) {
     throw StateError('$id: runAsync returned before the comparison finished');
   }
@@ -357,10 +444,19 @@ Future<void> _pumpChart(
         // The storybook screenshots the chart over the page background, so an
         // unpainted Flutter surface would differ from it everywhere. The
         // capture surface is #FAFAFA — grey98, i.e. neutralBackground2
-        // (`global_colors.dart:208`, `alias_colors.dart:713-714`) — not the
-        // neutralBackground1 painted here; the 5-per-channel delta is under
-        // `_channelTolerance` (24). A chart that paints its OWN background
-        // must still be compared against neutralBackground1, so keep it.
+        // (`global_colors.dart:208`, `alias_colors.dart:713-714`; the most
+        // common colour of 88 of the 90 PNGs) — not the neutralBackground1
+        // painted here; the 5-per-channel delta is under `_channelTolerance`.
+        //
+        // Deliberately NOT the capture's colour. Measured over the whole
+        // suite on 2026-09-24, #FAFAFA lowers the total by 5.5k px (24
+        // stories better, 30 worse), and 5.3k of that is real defects it
+        // hides: upstream's light gridlines and table rules (#E0E0E0-#E6E6E6)
+        // sit 25-27 levels from white but only 20-22 from #FAFAFA. The
+        // scatter log axis's 38 missing gridlines lose 4.2k px of their
+        // count, ChartTable's misplaced column rules 384, a half-pixel axis
+        // line in vertical-bar-rotate-labels all 526. On white a missing
+        // hairline still counts.
         child: ColoredBox(
           color: data.colors.neutralBackground1,
           // Top-left plus an explicit [logicalOffset], because a capture whose
@@ -454,7 +550,9 @@ Future<ParityResult> _compare(
         ? 0
         : best.mismatched / compared * 100,
   );
-  await _writeTriptych(reference, referenceImage, actualImage, diff, result);
+  if (debugWriteParityOutput) {
+    await _writeTriptych(reference, referenceImage, actualImage, diff, result);
+  }
   return result;
 }
 

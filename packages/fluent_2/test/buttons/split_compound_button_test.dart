@@ -31,8 +31,11 @@ import '../support/spec_fixture.dart';
 /// half's square leading corners and missing leading stroke, so the rule
 /// between the halves is drawn exactly once.
 ///
-/// The **compound** geometry and ramps come from Figma's `Compound button`
-/// (`9026:2278`), pinned here as literals naming the token Figma binds.
+/// The **compound** type ramp comes from Figma's `Compound button`
+/// (`9026:2278`), pinned here as literals naming the token Figma binds. Its
+/// padding and its subtle and transparent first-line colour follow the
+/// storybook instead, where the two disagree: the live React render is the
+/// reference, and each of those tests names the computed style it read.
 ///
 /// Everything else is `FluentButton`'s own table, already pinned variant by
 /// variant against `test/fixtures/button.json` in `button_test.dart`; asserting
@@ -358,9 +361,8 @@ void main() {
           ),
           reason: '${entry.key.name}: chevron padding',
         );
-        expect(style.gap!.resolve(rest), 0, reason: entry.key.name);
         expect(
-          style.iconSize!.resolve(rest),
+          style.menuIconSize!.resolve(rest),
           glyph,
           reason: '${entry.key.name}: chevron glyph',
         );
@@ -965,6 +967,62 @@ void main() {
       expect(shift.transform.getTranslation().x, 0);
     });
 
+    testWidgets('the chevron is centred in the 24 minimum width', (
+      tester,
+    ) async {
+      // Small and medium content is narrower than the half's 24 minWidth, and
+      // the root's `justify-content: center` splits the slack: 1 + 4.5 and
+      // 5 + 0.5 from the leading edge, the 1px border staying on the far side.
+      for (final size in <FluentButtonSize>[
+        FluentButtonSize.small,
+        FluentButtonSize.medium,
+      ]) {
+        await pump(tester, splitButton(size: size, onPressed: () {}));
+        expect(
+          tester
+                  .getRect(find.byIcon(FluentIcons.chevron_down_20_regular))
+                  .left -
+              tester.getRect(sideOf(FluentSplitButtonSide.menu)).left,
+          5.5,
+          reason: size.name,
+        );
+      }
+    });
+
+    testWidgets('a hovered subtle chevron keeps the label colour', (
+      tester,
+    ) async {
+      // splitbutton--appearance, Subtle, hovered in Chrome: the chevron is the
+      // menu button's `menuIcon`, rgb(36,36,36) like the label, not the brand
+      // `.fui-Button__icon` rule subtle applies to a real icon.
+      final theme = light();
+      await pump(
+        tester,
+        splitButton(
+          appearance: FluentButtonAppearance.subtle,
+          onPressed: () {},
+          onMenuPressed: () {},
+        ),
+      );
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await tester.pump();
+      final centre = tester.getCenter(sideOf(FluentSplitButtonSide.menu));
+      await mouse.moveTo(centre);
+      await tester.pump();
+      await mouse.moveTo(centre + const Offset(1, 0));
+      await tester.pumpAndSettle();
+
+      final glyph = tester.widget<RichText>(
+        find.descendant(
+          of: find.byIcon(FluentIcons.chevron_down_20_regular),
+          matching: find.byType(RichText),
+        ),
+      );
+      expect(glyph.text.style?.color, theme.colors.neutralForeground1Hover);
+    });
+
     testWidgets('the seam lands on a whole device pixel', (tester) async {
       // Chrome snaps box edges to device pixels; a label of fractional width
       // must not leave the rule straddling two.
@@ -1177,36 +1235,49 @@ void main() {
       }
     });
 
-    testWidgets('the first line is a step louder than the button label', (
-      tester,
-    ) async {
-      // Compound 9026:2278 binds `Primary text` to Neutral/Foreground/1/Rest on
-      // Subtle and Transparent too, where a plain button's label takes
-      // Neutral/Foreground/2/Rest. The second line is what carries the quieter
-      // step here.
+    testWidgets('subtle and transparent rest their first line on the button '
+        'label colour and darken it on hover', (tester) async {
+      // Figma's Compound 9026:2278 binds `Primary text` to
+      // Neutral/Foreground/1/Rest on Subtle and Transparent. The storybook
+      // renders both at rgb(66,66,66) — neutralForeground2, the plain button's
+      // label — and on hover subtle goes to rgb(36,36,36) and transparent to
+      // brand rgb(15,108,189): getComputedStyle on
+      // components-button-compoundbutton--appearance. React wins.
       final theme = light();
-      for (final appearance in <FluentButtonAppearance>[
-        FluentButtonAppearance.subtle,
-        FluentButtonAppearance.transparent,
-      ]) {
+      final hovered = <FluentButtonAppearance, Color>{
+        FluentButtonAppearance.subtle: theme.colors.neutralForeground1Hover,
+        FluentButtonAppearance.transparent:
+            theme.colors.neutralForeground2BrandHover,
+      };
+      for (final entry in hovered.entries) {
         await pump(
           tester,
-          compoundButton(appearance: appearance, onPressed: () {}),
+          compoundButton(appearance: entry.key, onPressed: () {}),
         );
         await tester.pumpAndSettle();
-        final texts = tester
+        Color? first() => tester
             .widgetList<RichText>(find.byType(RichText))
-            .toList();
+            .first
+            .text
+            .style
+            ?.color;
         expect(
-          texts.first.text.style?.color,
-          theme.colors.neutralForeground1,
-          reason: '${appearance.name}: first line',
-        );
-        expect(
-          texts.last.text.style?.color,
+          first(),
           theme.colors.neutralForeground2,
-          reason: '${appearance.name}: second line',
+          reason: '${entry.key.name}: first line at rest',
         );
+
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: Offset.zero);
+        await tester.pump();
+        await mouse.moveTo(tester.getCenter(find.byKey(compoundKey)));
+        await tester.pumpAndSettle();
+        expect(
+          first(),
+          entry.value,
+          reason: '${entry.key.name}: first line on hover',
+        );
+        await mouse.removePointer();
       }
     });
 
@@ -1233,37 +1304,43 @@ void main() {
       );
     });
 
-    testWidgets('the two lines never share a type ramp step', (tester) async {
-      // Compound button 9026:2278: `Primary text` is 14/20 Semibold and
-      // `Secondary text` 12/16 Regular in ALL 75 variants — the type ramp does
-      // not move with the size axis, only the inset does. Upstream steps Large
-      // up to fontSizeBase400/300 and pins the second line to `lineHeight: 100%`;
-      // Figma does neither.
-      for (final size in FluentButtonSize.values) {
+    testWidgets('the type ramp moves with the size, as the storybook draws '
+        'it', (tester) async {
+      // Compound button 9026:2278 holds 14/20 Semibold over 12/16 Regular in
+      // all 75 variants. The storybook steps it with the size — getComputedStyle
+      // on compoundbutton--size: 14/20 w400 over 12/12 at small, 14/20 w600
+      // over 12/12 at medium, 16/22 w600 over 14/14 at large, the second line
+      // `lineHeight: 100%` — and React wins.
+      const expected = <FluentButtonSize, (double, double, FontWeight, double)>{
+        FluentButtonSize.small: (14, 20, FontWeight.w400, 12),
+        FluentButtonSize.medium: (14, 20, FontWeight.w600, 12),
+        FluentButtonSize.large: (16, 22, FontWeight.w600, 14),
+      };
+      for (final MapEntry(key: size, value: type) in expected.entries) {
+        final (fontSize, lineHeight, weight, secondarySize) = type;
         await pump(tester, compoundButton(size: size, onPressed: () {}));
         await tester.pumpAndSettle();
         final texts = tester
             .widgetList<RichText>(find.byType(RichText))
             .toList();
+        final first = texts.first.text.style!;
+        expect(first.fontSize, fontSize, reason: '${size.name}: primary size');
         expect(
-          texts.first.text.style?.fontSize,
-          14,
-          reason: '${size.name}: primary fontSize',
-        );
-        expect(
-          texts.first.text.style!.height! * 14,
-          20,
+          first.height! * fontSize,
+          closeTo(lineHeight, 1e-9),
           reason: '${size.name}: primary lineHeight',
         );
+        expect(first.fontWeight, weight, reason: '${size.name}: weight');
+        final second = texts.last.text.style!;
         expect(
-          texts.last.text.style?.fontSize,
-          12,
-          reason: '${size.name}: secondary fontSize',
+          second.fontSize,
+          secondarySize,
+          reason: '${size.name}: secondary size',
         );
         expect(
-          texts.last.text.style!.height! * 12,
-          16,
-          reason: '${size.name}: secondary lineHeight',
+          second.height,
+          1,
+          reason: '${size.name}: secondary lineHeight is 100%',
         );
       }
     });
@@ -1272,12 +1349,16 @@ void main() {
       tester,
     ) async {
       // Compound button 9026:2278 insets uniformly — Spacing S, M and L on all
-      // four sides — and reuses the same number as the icon gap. Upstream's
-      // asymmetric top/bottom pair is not what the Figma file draws.
+      // four sides. The storybook pads `8px 8px 10px`, `14px 12px 16px` and
+      // `18px 16px 20px` inside a 1px border (getComputedStyle on
+      // components-button-compoundbutton--size), and React wins; the border
+      // takes layout space, as on FluentButton, so each inset is one more. The
+      // icon sits `spacingHorizontalM` from the text at every size, where
+      // Figma reuses the inset.
       const expected = <FluentButtonSize, EdgeInsets>{
-        FluentButtonSize.small: EdgeInsets.all(FluentSpacing.s),
-        FluentButtonSize.medium: EdgeInsets.all(FluentSpacing.m),
-        FluentButtonSize.large: EdgeInsets.all(FluentSpacing.l),
+        FluentButtonSize.small: EdgeInsets.fromLTRB(9, 9, 9, 11),
+        FluentButtonSize.medium: EdgeInsets.fromLTRB(13, 15, 13, 17),
+        FluentButtonSize.large: EdgeInsets.fromLTRB(17, 19, 17, 21),
       };
 
       for (final entry in expected.entries) {
@@ -1299,8 +1380,8 @@ void main() {
             resolveFluentCompoundButtonState(size: entry.key),
             light(),
           ).button!.gap!.resolve(const <WidgetState>{}),
-          entry.value.top,
-          reason: '${entry.key.name}: the icon gap is the inset',
+          FluentSpacing.m,
+          reason: '${entry.key.name}: the icon gap',
         );
       }
     });
@@ -1308,21 +1389,46 @@ void main() {
     testWidgets('the height is content-driven, not the button ramp', (
       tester,
     ) async {
-      // `height: auto` on the compound root: the inset twice plus the two line
-      // heights (20 + 16, at every size), never the button's 24/32/40.
-      const expected = <FluentButtonSize, double>{
-        FluentButtonSize.small: 8 + 20 + 16 + 8,
-        FluentButtonSize.medium: 12 + 20 + 16 + 12,
-        FluentButtonSize.large: 16 + 20 + 16 + 16,
+      // `height: auto` on the compound root: border, padding and content,
+      // never the button's 24/32/40. Two lines are 20 + 12 (22 + 14 at large);
+      // the 40px icon is taller, which is where the storybook's 60/72/80 come
+      // from. Chrome renders the three 52, 64 and 76 high without it.
+      const lines = <FluentButtonSize, double>{
+        FluentButtonSize.small: 1 + 8 + 20 + 12 + 10 + 1,
+        FluentButtonSize.medium: 1 + 14 + 20 + 12 + 16 + 1,
+        FluentButtonSize.large: 1 + 18 + 22 + 14 + 20 + 1,
+      };
+      const withIcon = <FluentButtonSize, double>{
+        FluentButtonSize.small: 60,
+        FluentButtonSize.medium: 72,
+        FluentButtonSize.large: 80,
       };
 
-      for (final entry in expected.entries) {
-        await pump(tester, compoundButton(size: entry.key, onPressed: () {}));
+      for (final size in FluentButtonSize.values) {
+        await pump(tester, compoundButton(size: size, onPressed: () {}));
         await tester.pumpAndSettle();
         expect(
           tester.getSize(find.byKey(compoundKey)).height,
-          entry.value,
-          reason: '${entry.key.name}: height',
+          lines[size],
+          reason: '${size.name}: height',
+        );
+
+        await pump(
+          tester,
+          FluentCompoundButton(
+            key: compoundKey,
+            size: size,
+            icon: const Icon(FluentIcons.calendar_month_20_regular),
+            secondaryContent: const Text('Secondary'),
+            onPressed: () {},
+            child: const Text('Button'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester.getSize(find.byKey(compoundKey)).height,
+          withIcon[size],
+          reason: '${size.name}: height with the 40px icon',
         );
       }
     });

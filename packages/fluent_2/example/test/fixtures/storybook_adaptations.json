@@ -45,7 +45,7 @@
   },
   "charts-donutchart--donut-chart-custom-callout": {
     "kind": "reduced",
-    "why": "`onRenderCalloutPerDataPoint` becomes `popoverBuilder`, which returns null for the built-in body while the 'User Popover Override' switch is off. `calloutPropsPerDataPoint` has no counterpart on FluentDonutChart, so the built-in body keeps the datum's own reading and colour instead of upstream's 'Custom XVal' heading, '<value> h' value and warning colour. The custom body's `1.5px dotted` border is solid, because Flutter's BorderStyle has no dotted style, and `href` is dropped as in the basic story."
+    "why": "`onRenderCalloutPerDataPoint` becomes `popoverBuilder`, which returns null for the built-in body while the 'User Popover Override' switch is off; `calloutPropsPerDataPoint` passes through as-is. The custom body's `1.5px dotted` border is solid, because Flutter's BorderStyle has no dotted style, and `href` is dropped as in the basic story."
   },
   "charts-donutchart--donut-chart-dynamic": {
     "kind": "reduced",
@@ -105,18 +105,18 @@
   },
   "charts-horizontalbarchart--horizontal-bar-benchmark": {
     "kind": "reduced",
-    "why": "FluentHorizontalBarChart has no hideRatio; showTriangle is a caller-supplied bool here rather than derived from the presence of benchmark data, so it is passed explicitly. The reference PNG renders the fraction on all three rows anyway, so dropping hideRatio changes nothing visible."
+    "why": "FluentHorizontalBarChart has no hideRatio, which HorizontalBarChart.tsx never reads either, and the reference PNG renders the fraction on all three rows. The benchmark marker follows each point's `data` as upstream, so no showTriangle is passed."
   },
   "charts-horizontalbarchart--horizontal-bar-custom-callout": {
     "kind": "reduced",
-    "why": "FluentHorizontalBarChart renders its own popover and takes neither calloutPropsPerDataPoint nor onRenderCalloutPerHorizontalBar. The Switch is live and drives the override through the two per-point fields the popover does read: xAxisCalloutData becomes 'Custom XVal' and yAxisCalloutData gains the ' h' suffix. Upstream's third popover line, 'Custom Legend', has no slot in our one-label/one-value popover. Upstream labels the Switch 'User Popover Override', a typo the showroom corrects to 'Use Popover Override'.",
+    "why": "`calloutPropsPerDataPoint` passes through as-is, and `onRenderCalloutPerHorizontalBar` becomes the returned data's `customContentBuilder`, set only while the Switch is on. The custom body's `1.5px dotted` border is solid, because Flutter's BorderStyle has no dotted style. Upstream labels the Switch 'User Popover Override', a typo the showroom corrects to 'Use Popover Override'.",
     "sampleStringsSkip": [
       "User Popover Override"
     ]
   },
   "charts-horizontalbarchart--horizontal-bar-stacked-annotated-inline-legend": {
-    "kind": "composed",
-    "why": "The chart builds its legend strip from data and takes no legendProps, so legendProps.legends[].legendAnnotation cannot hang off a legend row. Each chart keeps its own legend and the annotations (value badge, cursor-click toggle, Person names) render as their own row beneath it, ported from upstream's AnnotationPopover."
+    "kind": "model",
+    "why": "`legendProps: { enabledWrapLines, legends }` maps to the chart's `enabledWrapLines` and `legends`, and each `legendAnnotation` to FluentChartLegendItem.annotationBuilder. The story's AnnotationPopover button is a 16px cursor-click glyph under a GestureDetector with a 'Show annotation' semantics label."
   },
   "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-basic": {
     "kind": "local-state",
@@ -128,7 +128,7 @@
   },
   "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-dynamic": {
     "kind": "local-state",
-    "why": "dart:math is outside this page's import allowlist, so Math.random() becomes an inline MINSTD generator kept under 2^53 so it stays exact on web; deterministic, and Change data advances the stream as upstream's button does. yAxisPadding is non-nullable here with upstream's own 0.5 default, so the cleared checkbox passes 0.5 rather than undefined \u2014 the same value React resolves to. hideTickOverlap={true} is already the FluentCartesianChartProps default. The visually-hidden aria-live paragraph becomes Semantics(liveRegion: true), and the width slider's 1000 maximum is absorbed by a horizontal SingleChildScrollView."
+    "why": "dart:math is outside this page's import allowlist, so Math.random() becomes an inline MINSTD generator kept under 2^53 so it stays exact on web; deterministic, and Change data advances the stream as upstream's button does. yAxisPadding is non-nullable here with upstream's own 0.5 default, so the cleared checkbox passes 0.5 rather than undefined \u2014 the same value React resolves to. The visually-hidden aria-live paragraph becomes Semantics(liveRegion: true), and the width slider's 1000 maximum is absorbed by a horizontal SingleChildScrollView."
   },
   "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-negative": {
     "kind": "reduced",
@@ -155,8 +155,8 @@
     "why": "Same drops as Basic: legendsOverflowText, enablePerfOptimization, styles.svgTooltip and the window.navigator culture."
   },
   "charts-linechart--line-chart-annotations-example": {
-    "kind": "reduced",
-    "why": "Annotation text is HTML upstream; our annotation layer parses only <b>, <i> and <br />, so <div>, <strong>, <span> and the <ul>/<li> list become emphasis and line breaks with the words unchanged. CSS strings become Flutter types: padding to EdgeInsets, boxShadow to BoxShadow, fontWeight 600 to FontWeight.w600, rgba() to Color.fromRGBO."
+    "kind": "model",
+    "why": "The annotation text is upstream's markup verbatim: like ChartAnnotationLayer.tsx, the layer honours only <b>, <i> and <br /> and prints <div>, <strong>, <span> and the <ul>/<li> list as literal text. CSS strings become Flutter types: padding to EdgeInsets, boxShadow to BoxShadow, fontWeight 600 to FontWeight.w600, rgba() to Color.fromRGBO."
   },
   "charts-linechart--line-chart-basic": {
     "kind": "reduced",
@@ -168,7 +168,7 @@
   },
   "charts-linechart--line-chart-custom-locale-date-axis": {
     "kind": "nearest-widget",
-    "why": "props.timeFormatLocale takes d3.TimeLocaleDefinition, which lives under src/charts/internal/d3/ and is deliberately not exported, so the Italian axis comes from customDateTimeFormatter plus the it-IT abbreviated month names. culture='rs-ss' is also dropped: our popover formats dates through package:intl, which throws LocaleDataException for a locale whose data was never initialised."
+    "why": "props.timeFormatLocale takes d3.TimeLocaleDefinition, which lives under src/charts/internal/d3/ and is deliberately not exported, so the Italian axis comes from customDateTimeFormatter plus the it-IT abbreviated month names. culture='rs-ss' passes through: it is a locale no runtime has data for, and the popover falls back to the default locale as ECMA-402's toLocaleString does."
   },
   "charts-linechart--line-chart-events": {
     "kind": "reduced",
@@ -266,8 +266,8 @@
     ]
   },
   "charts-verticalbarchart--vertical-bar-date-axis": {
-    "kind": "nearest-widget",
-    "why": "Our shell has no d3 tickFormat string prop, so \"%m/%d\" is expressed as FluentCartesianChartProps.customDateTimeFormatter. DateTime has no const constructor, so the five dates are locals shared between the points and tickValues."
+    "kind": "reduced",
+    "why": "tickFormat=\"%m/%d\" is not transcribed: createDateXAxis reads it only when culture is undefined (utilities.ts:507), and the story always passes one, so its ticks read 'Jan 2018'. culture={window.navigator.language} becomes the fixed 'en-us' a test can reproduce, and DateTime has no const constructor, so the five dates are locals shared between the points and tickValues."
   },
   "charts-verticalbarchart--vertical-bar-default": {
     "kind": "local-state",
@@ -400,7 +400,7 @@
   },
   "components-avatar--color-colorful": {
     "kind": "composed",
-    "why": "FluentAvatarColor has no `colorful` mode \u2014 our avatar always takes a concrete colour \u2014 so the name/idForColor hash lives in the docregion as a small _colorful() helper over a const palette list. Same behaviour class, different hash, so individual picks differ from upstream's."
+    "why": "FluentAvatarColor has no `colorful` mode — our avatar always takes a concrete colour — so upstream's name/idForColor hash lives in the docregion as a small _colorful() helper: useAvatar.js's getHashCode over the same 30 avatarColors, so each pick is upstream's."
   },
   "components-avatar--name": {
     "kind": "reduced",
@@ -412,7 +412,7 @@
   },
   "components-avatargroup--default": {
     "kind": "composed",
-    "why": "FluentAvatarGroup takes a flat `children` list and has no AvatarGroupPopover slot, so the overflow indicator is composed as an ordinary member: a FluentAvatarColor.overflow avatar that owns a FluentPopover plus its open bit. partitionAvatarGroupItems is transcribed as sublist(7) / sublist(0, 7) \u2014 the same 4 inline / 7 overflow split upstream renders. FluentAvatar derives neither initials nor colour from `name`, so both are spelled out per person."
+    "why": "FluentAvatarGroup takes a flat `children` list and has no AvatarGroupPopover slot, so the overflow indicator is composed as an ordinary member: a FluentAvatarColor.overflow avatar that owns a FluentPopover plus its open bit. partitionAvatarGroupItems is transcribed as sublist(7) / sublist(0, 7) — the same 4 inline / 7 overflow split upstream renders. FluentAvatar derives neither initials nor colour from `name`, so both are spelled out per person, each colour being AvatarGroupItem's 'colorful' hash of the name."
   },
   "components-avatargroup--indicator": {
     "kind": "composed",
@@ -494,10 +494,6 @@
     "kind": "nearest-widget",
     "why": "Upstream's BreadcrumbButton is an <a href=\"https://www.bing.com/\">; FluentBreadcrumbItem takes onPressed instead of an href, and the trailing chevrons come from the widget rather than explicit BreadcrumbDivider children."
   },
-  "components-button-button--appearance": {
-    "kind": "reduced",
-    "why": "Upstream bundleIcon(CalendarMonthFilled, CalendarMonthRegular) swaps the glyph to filled on hover and when selected. FluentButton takes a plain icon widget with no state-driven swap, so every button keeps the regular glyph \u2014 which is upstream's rest state."
-  },
   "components-button-button--disabled": {
     "kind": "composed",
     "why": "FluentButton has no disabledFocusable: a null onPressed both disables the button and drops it from the tab order. The third button in each row is wrapped in a Focus node to restore the tab stop that flag exists for."
@@ -509,10 +505,6 @@
   "components-button-button--with-long-text": {
     "kind": "composed",
     "why": "FluentButton lays its label out in a Row, and a Row gives non-flexible children unbounded width, so a bounded-width button cannot wrap its label. The label is wrapped in Flexible to reach upstream's wrap-at-280px behaviour. This is a fluent_2 defect, not a porting choice."
-  },
-  "components-button-compoundbutton--appearance": {
-    "kind": "reduced",
-    "why": "Same bundleIcon gap as Button/Appearance: no filled-on-hover glyph swap, so all five buttons show the regular glyph."
   },
   "components-button-compoundbutton--disabled": {
     "kind": "reduced",
@@ -527,32 +519,20 @@
     "why": "Upstream's width:280px on the button wraps its text; a Flutter Row gives non-flex children unbounded width, so the width is applied to the label inset by the medium compound padding to reach the same wrap point."
   },
   "components-button-menubutton--appearance": {
-    "kind": "slot",
-    "why": "FluentButton has one icon slot and the chevron occupies it, so upstream's leading icon renders inside the label. Upstream's bundleIcon hover swap also has no FluentButton hook."
+    "kind": "reduced",
+    "why": "bundleIcon's filled half is activeIcon, which subtle and transparent show under the pointer. Upstream also shows it, and the selected fill, while the menu is open (useMenuButtonStyles expanded); FluentMenu's trigger builder hands the button no open state, so the open trigger keeps its rest glyph and fill."
   },
   "components-button-menubutton--disabled": {
     "kind": "nearest-widget",
     "why": "FluentButton has no disabledFocusable, so the third demo wraps the disabled button in Focus to restore the tab stop."
   },
   "components-button-menubutton--icon": {
-    "kind": "slot",
-    "why": "Upstream's menuIcon maps to FluentButton's single icon slot with iconPosition after, so upstream's separate leading icon slot has no counterpart and rides inside the label."
-  },
-  "components-button-menubutton--size-large": {
-    "kind": "slot",
-    "why": "Same single-icon-slot gap; the label glyph is pinned to 24 to match the large ramp's icon size, which the label does not inherit."
-  },
-  "components-button-menubutton--size-medium": {
-    "kind": "slot",
-    "why": "Same single-icon-slot gap: the calendar glyph rides inside the label while the chevron holds the icon slot."
-  },
-  "components-button-menubutton--size-small": {
-    "kind": "slot",
-    "why": "Same single-icon-slot gap: the calendar glyph rides inside the label while the chevron holds the icon slot."
+    "kind": "nearest-widget",
+    "why": "The icon-only third button is FluentButton.icon, with no chevron: upstream's renderMenuButton skips menuIcon when the button is iconOnly."
   },
   "components-button-menubutton--with-long-text": {
     "kind": "reduced",
-    "why": "Upstream pins the button to 280px; the label is laid out in a Row that hands it unbounded width, so the width is expressed on the label plus the medium ramp's padding, gap and chevron."
+    "why": "Upstream pins the button to 280px; the label is laid out in a Row that hands it unbounded width, so the width is expressed on the label: 280 less the medium ramp's inset and border and the menuIcon's gap and chevron."
   },
   "components-button-splitbutton--default": {
     "kind": "local-state",
@@ -660,7 +640,7 @@
   },
   "components-carousel-carousel--first-run-experience": {
     "kind": "slot",
-    "why": "Upstream keeps the two footer buttons inside the carousel, flanking the nav dots. FluentCarousel owns its strip, so they move to the dialog's `secondaryActions`/`actions` rows. `motion=\"fade\"` has no counterpart \u2014 our slide transition is the transcribed embla slide."
+    "why": "Upstream keeps the two footer buttons inside the carousel, flanking the nav dots. FluentCarousel owns its strip, so they move to the dialog's secondaryActions/actions rows, and CarouselNav's appearance=\"brand\" is the carousel's navAppearance. motion=\"fade\" has no counterpart — our slide transition is the transcribed embla slide."
   },
   "components-carousel-carousel--image-slideshow": {
     "kind": "nearest-widget",
@@ -676,7 +656,7 @@
   },
   "components-carousel-carouselnav--default": {
     "kind": "composed",
-    "why": "Upstream's CarouselNav is a standalone element whose render function emits one CarouselNavButton (or CarouselNavImageButton) per slide. Our nav strip is private to FluentCarousel, but its button is public as FluentCarouselStep, so the demo composes the strip as a Row of FluentCarouselStep over a local index \u2014 the same index-based pagination. appearance=\"brand\" has no Dart axis (the Figma Brand mode of the step colour collection is deliberately unexposed), so the selected step's mark is tinted with compoundBrandBackground (with its hover and pressed ramp) via FluentCarouselStyle.stepColor; the switch's Field wrapper becomes FluentSwitch's own label, padded like the Field's, because FluentField has no horizontal orientation."
+    "why": "Upstream's CarouselNav is a standalone element whose render function emits one CarouselNavButton (or CarouselNavImageButton) per slide. Our nav strip is private to FluentCarousel, but its button is public as FluentCarouselStep, so the demo composes the strip as a Row of FluentCarouselStep over a local index — the same index-based pagination. appearance=\"brand\" is each step's FluentCarouselNavAppearance.brand. The switch's Field wrapper becomes FluentSwitch's own label, padded like the Field's, because FluentField has no horizontal orientation."
   },
   "components-checkbox--checked": {
     "kind": "local-state",
@@ -800,7 +780,7 @@
   },
   "components-dialog--no-focusable-element": {
     "kind": "slot",
-    "why": "FluentDialog draws a header close button by default in every modalType, which would give both dialogs a focusable element and defeat the story. showCloseButton:false on both is upstream's `action={null}` plus modal's no-action default."
+    "why": "A modal FluentDialog draws no header close button by default, as upstream's DialogTitle does, so the modal dialog has nothing focusable. showCloseButton:false on the non-modal one is upstream's `action={null}`."
   },
   "components-dialog--scrolling-long-content": {
     "kind": "nearest-widget",
@@ -808,7 +788,7 @@
   },
   "components-dialog--title-custom-action": {
     "kind": "slot",
-    "why": "There is no `action` slot to replace. FluentDialog's header close button already is a subtle icon FluentButton carrying the dismiss glyph, in every modalType; only its accessible name is the caller's, so aria-label=\"close\" maps to closeButtonSemanticLabel."
+    "why": "FluentDialog has no `action` slot, so the custom action rides at the end of the title: a Row of the title text, the grid's 8px gap and upstream's subtle icon Button with Dismiss24Regular and aria-label=\"close\", closing the dialog as DialogTrigger action=\"close\" does. The modal dialog draws no close of its own."
   },
   "components-dialog--title-no-action": {
     "kind": "slot",
@@ -1509,10 +1489,6 @@
     "kind": "composed",
     "why": "Upstream's three panels are raw `<table>` markup; rendered with Flutter's `Table` and `IntrinsicColumnWidth`, which reproduces the same column alignment, plus a `_Panel` helper for the header-bold and label-column-bold variants."
   },
-  "components-tag-interactiontag--appearance": {
-    "kind": "reduced",
-    "why": "Upstream bundleIcon swaps the calendar glyph filled-on-hover; the media slot exposes no hover hook, so the regular glyph is used alone."
-  },
   "components-tag-interactiontag--default": {
     "kind": "composed",
     "why": "Upstream's InteractionTag + InteractionTagPrimary pair is one widget here: FluentInteractionTag is the primary half, and a non-null onPressed is what makes it interactive rather than an inert FluentTag."
@@ -1528,10 +1504,6 @@
   "components-tag-interactiontag--has-primary-action": {
     "kind": "local-state",
     "why": "FluentPopover is controlled, so the tag's onPressed toggles local open state; the whole tag is the trigger (upstream wraps only the primary half) and the Tooltip on the secondary half becomes dismissSemanticLabel: 'dismiss'. The <ul>/<li> list is a Column of bullet Rows."
-  },
-  "components-tag-interactiontag--selected": {
-    "kind": "reduced",
-    "why": "Same bundleIcon hover-swap gap as Appearance."
   },
   "components-tag-interactiontag--shape": {
     "kind": "composed",

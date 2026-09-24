@@ -9,6 +9,7 @@ import 'package:flutter/services.dart'
 import 'package:flutter/widgets.dart';
 
 import '../../buttons/button.dart';
+import '../../buttons/split_button.dart';
 import '../../internal/focus_ring.dart';
 import '../../internal/interaction.dart';
 import '../../l10n/l10n.dart';
@@ -17,6 +18,7 @@ import '../../overlays/menu_item.dart';
 import '../internal/chart_export_scope.dart';
 import '../internal/chart_text_measurer.dart';
 import '../internal/chart_utils.dart';
+import '../internal/snap_to_device_pixels.dart';
 import 'legend_shape.dart';
 import 'legend_style.dart';
 
@@ -65,12 +67,29 @@ import 'legend_style.dart';
 /// the trigger AND this before it is allowed to stay visible.
 const double kLegendOverflowPadding = 10;
 
-/// Side of the overflow trigger's chevron.
+/// Side of the overflow trigger's chevron, for the strip's width budget.
 ///
 /// `useMenuButtonStyles.styles.ts` sizes the menu icon 12 at small and medium
-/// and 16 at large — NOT the button ramp's own 20, which is why this is stated
-/// rather than inherited. The trigger is a medium button, so 12.
+/// and 16 at large — NOT the button ramp's own 20. The trigger is a medium
+/// button, so 12, which is what `FluentButton.menuIcon` draws it at.
 const double _kOverflowChevronSize = 12;
+
+/// Space between the overflow trigger's label and its chevron, for the same
+/// budget.
+///
+/// `useMenuButtonStyles.styles.raw.js:93` gives a labelled MenuButton's menu
+/// icon `marginLeft: spacingHorizontalXS` — 4, not the 6 a plain medium
+/// `FluentButton` puts between its icon and label.
+const double _kOverflowChevronGap = FluentSpacing.xs;
+
+/// Narrowest the overflow trigger renders.
+///
+/// A MenuButton takes the Button styles
+/// (`useMenuButtonStyles.styles.raw.js:110`), whose medium root sets
+/// `minWidth: '96px'` (`useButtonStyles.styles.raw.js:47`) on the border box,
+/// so a trigger with a short [FluentChartLegend.overflowText] is still 96 wide
+/// — as a medium `FluentButton` is.
+const double _kOverflowTriggerMinWidth = 96;
 
 /// Whether a legend strip allows one selection or several.
 ///
@@ -125,7 +144,9 @@ class FluentChartLegendItem {
   final bool stripePattern;
 
   /// Whether this row represents a line overlaid on a bar chart, which renders
-  /// as a 4px bar rather than a 12px square. `Legends.tsx:296`, `:376`.
+  /// as a 14×6 bar rather than a 14px square: a 4px content box in place of
+  /// 12px (`Legends.tsx:296`, `:376`), inside the same 1px border. A [shape]
+  /// keeps its 14px svg box.
   final bool isLineLegendInBarChart;
 
   /// Fired after the selection has been updated. `Legends.tsx:251`.
@@ -279,11 +300,15 @@ int fluentChartLegendVisibleCount(
 /// layout reads it; it is not a style slot.
 const double kLegendWrappedContainerMargin = 4;
 
-/// Height of a legend swatch that stands for a line drawn over a bar chart.
+/// Content height of a legend swatch that stands for a line drawn over a bar
+/// chart.
 ///
 /// `Legends.tsx:296` and `:376` both set the swatch height to `4px` when
-/// `isLineLegendInBarChart` is set, against `12px` otherwise — and 12 is the
-/// *content* box, which [kLegendSwatchBoxSize] grows by the border.
+/// `isLineLegendInBarChart` is set, against `12px` otherwise. Both are the
+/// *content* box: the rect's `border: 1px solid`
+/// (`useLegendsStyles.styles.ts:82`) adds a row above and below, so the drawn
+/// bar is 14×6, as Oracle B's `fui-legend__rect` boxes record — the same growth
+/// [kLegendSwatchBoxSize] applies to the 12px square.
 const double kLegendLineInBarHeight = 4;
 
 /// One row of the legend strip: swatch, then title-cased label.
@@ -381,10 +406,17 @@ class FluentChartLegendRow extends StatelessWidget {
     final swatchOpacity = dimmed
         ? style.dimmedSwatchOpacity!.resolve(states)!
         : 1.0;
+    final borderWidth = style.swatchBorderWidth!.resolve(states)!;
+    final shape = shapeOverride ?? item.shape;
+    // shape.tsx:34 — a key of `pointPath` renders the 14×14 `<svg>`; anything
+    // else falls through to the `classNameForNonSvg` div.
+    final isSvg = shape != null && shape != FluentChartLegendShape.defaultShape;
 
-    // Legends.tsx:376 — a line legend inside a bar chart is a 4px bar.
-    final swatchHeight = item.isLineLegendInBarChart
-        ? kLegendLineInBarHeight
+    // Legends.tsx:376 — a line legend inside a bar chart is a 4px content box,
+    // bordered like any other rect. The height reaches only that div: the svg
+    // sizes itself (shape.tsx:39-40).
+    final swatchHeight = item.isLineLegendInBarChart && !isSvg
+        ? kLegendLineInBarHeight + 2 * borderWidth
         : swatchSize;
     final label = capitalizeLegendLabel(item.title);
 
@@ -439,13 +471,27 @@ class FluentChartLegendRow extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  Opacity(
-                    opacity: swatchOpacity,
-                    child: SizedBox(
-                      key: const ValueKey<String>('legend-swatch'),
-                      width: swatchSize,
-                      height: swatchHeight,
-                      child: _buildSwatch(fill: fill),
+                  // Outside the Opacity, which is a repaint boundary: a row
+                  // that moves repaints this box but only re-offsets that
+                  // layer, so a snap taken below it would go stale.
+                  SnapToDevicePixels(
+                    child: Opacity(
+                      opacity: swatchOpacity,
+                      child: SizedBox(
+                        key: const ValueKey<String>('legend-swatch'),
+                        width: swatchSize,
+                        height: swatchHeight,
+                        child: isSvg
+                            ? CustomPaint(
+                                painter: FluentChartLegendShapePainter(
+                                  shape: shape,
+                                  fill: fill,
+                                  // Legends.tsx:366 — never dimmed.
+                                  stroke: item.color,
+                                ),
+                              )
+                            : _buildRect(fill: fill, borderWidth: borderWidth),
+                      ),
                     ),
                   ),
                   SizedBox(width: marginEnd),
@@ -462,43 +508,32 @@ class FluentChartLegendRow extends StatelessWidget {
     );
   }
 
-  Widget _buildSwatch({required Color fill}) {
-    final shape = shapeOverride ?? item.shape;
-    // shape.tsx:34 dispatches on the shape alone, before anything else: a key
-    // of `pointPath` renders the `<svg>` at :37, and only a miss falls through
-    // to the `classNameForNonSvg` div at :35. The stripe pattern is a `content`
-    // declaration on that div (Legends.tsx:379-381), so it is unreachable for
-    // the eight Points shapes — the dispatch has to come first here too.
-    if (shape != null && shape != FluentChartLegendShape.defaultShape) {
-      return CustomPaint(
-        painter: FluentChartLegendShapePainter(
-          shape: shape,
-          fill: fill,
-          // Legends.tsx:366 — never dimmed.
-          stroke: item.color,
+  /// shape.tsx:35 — the fallback rectangle, reached only when the shape misses
+  /// the `pointPath` table (:34). The stripe pattern is a `content` declaration
+  /// on this div (Legends.tsx:379-381), so it is unreachable for the eight
+  /// Points shapes.
+  ///
+  /// It carries `useLegendsStyles.styles.ts:82` `border: 1px solid`
+  /// unconditionally, coloured from `legend.color` (Legends.tsx:378), which is
+  /// never dimmed. Legends.tsx:377 blanks only the *background colour* for a
+  /// stripe pattern, so a striped swatch is this same bordered box with the
+  /// stripes painted into its content box — without the border a dimmed
+  /// striped swatch is filled with the page background and vanishes.
+  Widget _buildRect({required Color fill, required double borderWidth}) =>
+      DecoratedBox(
+        decoration: BoxDecoration(
+          color: item.stripePattern ? null : fill,
+          border: Border.all(color: item.color, width: borderWidth),
         ),
+        child: item.stripePattern
+            ? Padding(
+                padding: EdgeInsets.all(borderWidth),
+                child: CustomPaint(
+                  painter: FluentChartStripePainter(color: fill),
+                ),
+              )
+            : null,
       );
-    }
-    // shape.tsx:35 — the fallback rectangle. It carries
-    // `useLegendsStyles.styles.ts:82` `border: 1px solid` unconditionally,
-    // coloured from `legend.color` (Legends.tsx:378), which is never dimmed.
-    // Legends.tsx:377 blanks only the *background colour* for a stripe
-    // pattern, so a striped swatch is this same bordered box with the stripes
-    // painted into it — without the border a dimmed striped swatch is filled
-    // with the page background and vanishes.
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: item.stripePattern ? null : fill,
-        border: Border.all(
-          color: item.color,
-          width: style.swatchBorderWidth!.resolve(<WidgetState>{})!,
-        ),
-      ),
-      child: item.stripePattern
-          ? CustomPaint(painter: FluentChartStripePainter(color: fill))
-          : null,
-    );
-  }
 }
 
 /// Applies a [FluentChartLegendStyle] to every [FluentChartLegend] below it.
@@ -575,11 +610,17 @@ class FluentChartLegend extends StatefulWidget {
   /// `Legends.tsx:270`.
   final bool allowFocusOnLegends;
 
-  /// Whether each line of legends is centred in the strip. `Legends.tsx:115`.
+  /// Whether the line of legends is centred in the strip. `Legends.tsx:115`.
+  ///
+  /// Overflow mode only: upstream's wrapped branch ignores it, see
+  /// [enabledWrapLines].
   final bool centerLegends;
 
   /// Whether rows wrap onto further lines instead of collapsing into an
   /// overflow menu. `Legends.tsx:109`.
+  ///
+  /// Wrapped lines always start at the leading edge: `Legends.tsx:152` sets
+  /// `justifyContent` on a root that is not a flex container.
   final bool enabledWrapLines;
 
   /// The word in the overflow trigger's `+{n} {overflowText}` label.
@@ -782,10 +823,12 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
   /// Every row, wrapping onto further lines, each beside its annotation.
   ///
   /// `Legends.tsx:142-169` — no overflow menu exists in this branch at all.
+  ///
+  /// Always start-aligned, whatever [FluentChartLegend.centerLegends] says.
+  /// `Legends.tsx:152` puts `justifyContent: center` on the root, which has no
+  /// `display: flex` (`useLegendsStyles.styles.ts:40-47`) and so ignores it;
+  /// the flex-wrap resizable area at `:156` sets no justification of its own.
   Widget _buildWrapped(List<Widget> rows) => Wrap(
-    alignment: widget.centerLegends
-        ? WrapAlignment.center
-        : WrapAlignment.start,
     crossAxisAlignment: WrapCrossAlignment.center,
     children: <Widget>[
       for (var index = 0; index < rows.length; index++)
@@ -819,8 +862,8 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
     FluentThemeData theme,
   ) {
     final labelStyle = style.labelTextStyle!.resolve(<WidgetState>{})!;
-    // FluentButton medium sets body1Strong (button.dart:264) and 12 of padding
-    // each side (:257) inside a 1px secondary border (:280-282).
+    // FluentButton medium sets body1Strong and an inset of 13 each side:
+    // upstream's 12 of padding plus the 1px border it draws inside it.
     final triggerStyle = theme.typography.body1Strong;
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -832,15 +875,14 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
         // list in the menu, so measure that (OverflowMenu.tsx:16). It is a
         // MenuButton (`OverflowMenu.tsx:59`), so the chevron and its gap are
         // part of the width the strip has to budget for — leave them out and
-        // the count admits one row too many.
-        final triggerWidth =
-            _measurer.width(
-              _triggerLabel(widget.legends.length),
-              triggerStyle,
-            ) +
-            2 * (FluentSpacing.m + FluentStroke.thin) +
-            FluentSpacing.sNudge +
-            _kOverflowChevronSize;
+        // the count admits one row too many. So does the button's floor.
+        final triggerWidth = math.max(
+          _kOverflowTriggerMinWidth,
+          _measurer.width(_triggerLabel(widget.legends.length), triggerStyle) +
+              2 * (FluentSpacing.m + FluentStroke.thin) +
+              _kOverflowChevronGap +
+              _kOverflowChevronSize,
+        );
         final visible = fluentChartLegendVisibleCount(
           widths,
           constraints.maxWidth,
@@ -897,12 +939,8 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
                 builder: (context, toggle) => FluentButton(
                   onPressed: toggle,
                   // `OverflowMenu.tsx:59` is a MenuButton, which is a Button
-                  // carrying `<ChevronDownRegular />` after its label.
-                  icon: const Icon(
-                    FluentIcons.chevron_down_20_regular,
-                    size: _kOverflowChevronSize,
-                  ),
-                  iconPosition: FluentButtonIconPosition.after,
+                  // carrying `<ChevronDownRegular />` in its menu icon slot.
+                  menuIcon: fluentMenuChevron,
                   child: Text(_triggerLabel(rows.length - visible)),
                 ),
               ),
@@ -943,12 +981,9 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
   ///
   /// [Padding] and not [Align], which is horizontal-only by accident of what it
   /// does to the *vertical* constraint: `Align` hands its child a loose one, so
-  /// a strip in a fixed-height legend row — `funnel_chart.dart:1119` reserves
-  /// `kMinLegendContainerHeight` — would stop filling that row and move 4px, and
-  /// the capture says it belongs where it already is
-  /// (`charts-funnelchart--funnel-chart-basic`, measured: 0.168% aligned against
-  /// 0.331% under an `Align`). `Padding` forwards the height untouched, so this
-  /// box is purely the horizontal cap it is upstream.
+  /// a strip in a legend row taller than its rows would stop filling that row
+  /// and move. `Padding` forwards the height untouched, so this box is purely
+  /// the horizontal cap it is upstream.
   Widget _resizableArea(Widget child) => LayoutBuilder(
     builder: (context, constraints) {
       // An unbounded strip has no half-overhang to take; the cap is still the

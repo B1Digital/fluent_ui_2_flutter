@@ -107,6 +107,7 @@ const FluentInteractionTag({
     this.onPressed,
     this.secondaryChild,
     this.icon,
+    this.activeIcon,
     this.appearance = FluentTagAppearance.filled,
     this.size = FluentTagSize.medium,
     this.selected = false,
@@ -128,6 +129,7 @@ const FluentInteractionTag({
 | `onPressed` | `VoidCallback?` | No | `null` | Invoked on tap and on Space or Enter. Null disables the whole tag. |
 | `secondaryChild` | `Widget?` | No | `null` | The second line. Figma only draws two lines at [FluentTagSize.medium]. |
 | `icon` | `Widget?` | No | `null` | Leading media — an avatar or an icon. |
+| `activeIcon` | `Widget?` | No | `null` | Shown in place of [icon] while an outline tag's primary half is hovered or pressed — upstream's `bundleIcon`, which swaps the Regular glyph for its Filled one there and tints it brand. Pass the filled counterpart of [icon]: |
 | `appearance` | `FluentTagAppearance` | No | `FluentTagAppearance.filled` | Fill and outline treatment. |
 | `size` | `FluentTagSize` | No | `FluentTagSize.medium` | Height and type ramp. |
 | `selected` | `bool` | No | `false` | Whether the tag is chosen. Selected overrides [appearance]: all three render as a brand-filled tag. |
@@ -180,6 +182,7 @@ const FluentInteractionTagBaseState({
     super.label,
     super.secondaryLabel,
     super.icon,
+    this.activeIcon,
   });
 ```
 
@@ -190,6 +193,7 @@ const FluentInteractionTagBaseState({
 | `label` | `Widget?` | No | `null` | The primary line. |
 | `secondaryLabel` | `Widget?` | No | `null` | The second line. Only the medium size has a two-line layout. |
 | `icon` | `Widget?` | No | `null` | Leading icon, at the content inset. Upstream's `icon` slot. |
+| `activeIcon` | `Widget?` | No | `null` | Shown in place of [icon] while the primary half is hovered or pressed, or null to keep [icon] throughout. |
 
 ### `FluentInteractionTagState`
 
@@ -207,6 +211,7 @@ const FluentInteractionTagState({
     super.label,
     super.secondaryLabel,
     super.icon,
+    super.activeIcon,
   });
 ```
 
@@ -220,6 +225,7 @@ const FluentInteractionTagState({
 | `label` | `Widget?` | No | `null` | The primary line. |
 | `secondaryLabel` | `Widget?` | No | `null` | The second line. Only the medium size has a two-line layout. |
 | `icon` | `Widget?` | No | `null` | Leading icon, at the content inset. Upstream's `icon` slot. |
+| `activeIcon` | `Widget?` | No | `null` | Shown in place of [icon] while the primary half is hovered or pressed, or null to keep [icon] throughout. |
 
 #### State, callback, and accessibility fields
 
@@ -477,6 +483,7 @@ Source: `packages/fluent_2/lib/src/surfaces/tag_style.dart`
 const FluentTagStyle({
     this.backgroundColor,
     this.foregroundColor,
+    this.iconColor,
     this.dismissForegroundColor,
     this.borderColor,
     this.borderWidth,
@@ -497,6 +504,7 @@ const FluentTagStyle({
 | --- | --- | --- | --- | --- |
 | `backgroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Surface fill. Drives the dismiss half too — Figma paints both from the same ramp, each resolved against its own interaction states. |
 | `foregroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Label and media colour. |
+| `iconColor` | `WidgetStateProperty<Color?>?` | No | `null` | Leading icon colour. Null follows [foregroundColor]. |
 | `dismissForegroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Dismiss glyph colour. |
 | `borderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Border colour. Null and transparent are different: Fluent's `transparentStrokeInteractive` becomes opaque in high contrast. |
 | `borderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Border width. Zero means no border, which is not the same as a transparent one — a zero-width border cannot become visible in high contrast. |
@@ -544,6 +552,7 @@ FluentInteractionTagState resolveFluentInteractionTagState({
   Widget? label,
   Widget? secondaryLabel,
   Widget? icon,
+  Widget? activeIcon,
 });
 
 FluentTagState resolveFluentTagState({
@@ -603,7 +612,7 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/surfaces/tag.dart`, `packages/fluent_2/lib/src/surfaces/interaction_tag.dart`
-- Tests: `packages/fluent_2/test/goldens/tag_golden_test.dart`, `packages/fluent_2/test/goldens/tag_picker_golden_test.dart`, `packages/fluent_2/test/inputs/tag_picker_test.dart`, `packages/fluent_2/test/surfaces/tag_test.dart`
+- Tests: `packages/fluent_2/test/goldens/tag_golden_test.dart`, `packages/fluent_2/test/goldens/tag_picker_golden_test.dart`, `packages/fluent_2/test/inputs/tag_picker_test.dart`, `packages/fluent_2/test/internal/interaction_wiring_test.dart`, `packages/fluent_2/test/surfaces/tag_test.dart`
 - Stories: `packages/fluent_2/example/lib/pages/components_tag_interactiontag.dart`, `packages/fluent_2/example/lib/pages/components_tag_tag.dart`, `packages/fluent_2/example/lib/pages/components_tag_taggroup.dart`, `packages/fluent_2/example/lib/pages/components_tagpicker.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/tag/usage/
 - Design decisions: `references/components-identity-content.md`

@@ -251,10 +251,14 @@ void main() {
                 variant.radius,
                 reason: '$where: radius',
               );
+              // The storybook, not Figma: `useListItemStyles.styles.ts` binds
+              // no background in any state, and the live list stories measure
+              // rgba(0, 0, 0, 0) on hovered, pressed, selected and disabled
+              // rows, where Figma ramps the subtle fills.
               expectFill(
                 surface.color!,
-                variant.fill,
-                '$where: fill (token ${variant.token('fills')})',
+                null,
+                '$where: no fill (Figma: ${variant.token('fills')})',
               );
 
               final padding = paddingOf(tester);
@@ -492,7 +496,10 @@ void main() {
   });
 
   group('motion', () {
-    testWidgets('the fill changes on the frame the pointer arrives', (
+    // `useListItemStyles.styles.ts` sets `cursor` and nothing else, and the
+    // live `components-list--single-action-selection` story measures
+    // rgba(0, 0, 0, 0) on a hovered and a pressed row.
+    testWidgets('hover and press paint no fill under a real mouse', (
       tester,
     ) async {
       await pump(tester, list());
@@ -502,15 +509,17 @@ void main() {
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await mouse.addPointer(location: Offset.zero);
       addTearDown(mouse.removePointer);
-      await mouse.moveTo(tester.getCenter(find.byKey(itemKey)));
-      // A single pump, not pumpAndSettle: an animated surface would still be
-      // part-way through the tween here.
+      final center = tester.getCenter(find.byKey(itemKey));
+      await mouse.moveTo(center);
+      await mouse.moveTo(center + const Offset(1, 0));
       await tester.pump();
-      expect(
-        surfaceOf(tester).color,
-        light.colors.subtleBackgroundHover,
-        reason: 'upstream declares no transition on a list item',
-      );
+      expect(surfaceOf(tester).color!.a, 0, reason: 'hover: no fill');
+
+      await mouse.down(center);
+      await tester.pump();
+      expect(surfaceOf(tester).color!.a, 0, reason: 'press: no fill');
+      await mouse.up();
+      await tester.pump();
     });
 
     testWidgets('reduced motion changes nothing, because nothing animates', (
@@ -603,7 +612,7 @@ void main() {
         tester,
         FluentThemeOverride(
           colors: const <FluentColorToken, Color>{
-            FluentColorToken.subtleBackgroundSelected: override,
+            FluentColorToken.subtleBackground: override,
           },
           child: list(selected: const <String>{'a'}),
         ),
@@ -645,10 +654,10 @@ void main() {
         if (selected) {
           expect(
             textStyleOf(tester, 'Title').color,
-            theme.colors.neutralForeground1Selected,
+            theme.colors.neutralForeground1,
             reason:
-                '$where: the selected row takes HighlightText, not the Rest '
-                'foreground — Figma binds Rest, which is white on cyan here',
+                '$where: with no Highlight fill under it, a selected row keeps '
+                'the Rest foreground; HighlightText would vanish on Canvas',
           );
         }
       }
@@ -734,7 +743,11 @@ void main() {
       await pump(tester, list(enabled: false, onSelectionChange: picked.add));
       await tester.pumpAndSettle();
 
-      expect(surfaceOf(tester).color, light.colors.neutralBackgroundDisabled);
+      expect(
+        surfaceOf(tester).color!.a,
+        0,
+        reason: 'upstream greys the text of a disabled row, never its fill',
+      );
       expect(
         textStyleOf(tester, 'Title').color,
         light.colors.neutralForegroundDisabled,
@@ -746,7 +759,7 @@ void main() {
       addTearDown(mouse.removePointer);
       await mouse.moveTo(tester.getCenter(find.byKey(itemKey)));
       await tester.pump();
-      expect(surfaceOf(tester).color, light.colors.neutralBackgroundDisabled);
+      expect(surfaceOf(tester).color!.a, 0);
 
       // No selection, and no focus.
       await tester.tap(find.byKey(itemKey));
@@ -1263,13 +1276,23 @@ void main() {
 
     testWidgets('a semantic label replaces the row text', (tester) async {
       final handle = tester.ensureSemantics();
-      await pump(tester, list(itemSemanticLabel: 'Ada Lovelace, unread'));
+      await pump(
+        tester,
+        list(twoLine: true, itemSemanticLabel: 'Ada Lovelace, unread'),
+      );
       await tester.pumpAndSettle();
-      // MergeSemantics folds the row's own text in after the label, so the
-      // label is what a screen reader reads *first*.
+      // Upstream's `aria-label` names the `<li>` outright. MergeSemantics used
+      // to fold every line of text in after the label, so the list story read
+      // "Melda Bevel\nMelda Bevel\nAvailable\nAvailable".
       expect(
         tester.getSemantics(find.byKey(itemKey)).label,
-        startsWith('Ada Lovelace, unread'),
+        'Ada Lovelace, unread',
+      );
+      expect(
+        find.bySemanticsLabel('Title'),
+        findsOneWidget,
+        reason:
+            'the content stays reachable as the row\'s child, as in the DOM',
       );
       handle.dispose();
     });

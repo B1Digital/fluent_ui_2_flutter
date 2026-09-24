@@ -74,54 +74,167 @@ void main() {
           // (`:115`).
         ),
       ),
-      // Measured 0.838% — 222 pixels of 26,482, down from 5.136% (1,360 px).
-      // What moved: `legend.dart` now reproduces `classes.resizableArea`, the
-      // box `Legends.tsx:115` and `:156` wrap the rows in. It is
-      // `max-width: 800px` with `position: relative; left: 50%; transform:
-      // translate(-50%, 0)` (`useLegendsStyles.styles.ts:109-116`) — 50% of the
-      // parent's width right, 50% of its own back left, i.e. a box capped at 800
-      // and centred. In this 944-wide root that is (944 - 800) / 2 = 72 of lead,
-      // and the reference's first swatch sits at exactly 72 + 8 of row padding.
-      // The port used to lay the rows straight into the incoming constraints and
-      // start at the container edge, which the harness could not report as a
-      // shift because its probe stops at ±3.
+      // Measured 0.008% — 2 of 26,482 px, aligned, in every zone: the two top
+      // corners of the Legend 4 triangle (x 340 and 355, row 9). Chromium
+      // fills the flat top edge on columns 341-354 and leaves both neighbours
+      // empty; Skia antialiases the diagonals' ends into them at about 45%
+      // coverage. Every swatch, including the diamond, lands on the capture.
       //
-      // Oracle B settles the box outright: `charts-legends--legends-wrap-lines`
-      // records `fui-legend__resizableArea` itself at (72, 0, 800, 120) in the
-      // same 944-wide root, and the corpus confirms the *rule* rather than the
-      // one number — a left-aligned strip's first swatch is at
-      // (rootWidth - 800) / 2 + 8 for every captured width over the cap (70 at
-      // 924, 78 at 940, 80 at 944) and at plain 8 for every width under it
-      // (`charts-linechart--line-chart-basic`, root 680, swatch at 8).
+      // History: 5.136% before `legend.dart` reproduced `classes.resizableArea`
+      // (`max-width: 800px`, centred by `left: 50%; translate(-50%, 0)`,
+      // `useLegendsStyles.styles.ts:109-116`: (944 - 800) / 2 = 72 of lead,
+      // which Oracle B records for legends-wrap-lines at (72, 0, 800, 120));
+      // 0.838% before the diamond turned about its box centre, as Chromium
+      // turns an outermost `<svg>`, and every swatch snapped to whole device
+      // pixels (the triangle's edges and Legend 2's fractional right column).
+      maxMismatch: 0.01,
+    );
+  });
+
+  testWidgets('LegendsControlled', (tester) async {
+    // `const legends: Legend[]` in charts-legends--legends-controlled.tsx — the
+    // same four rows as legends-basic, including the diamond and triangle.
+    final legends = <FluentChartLegendItem>[
+      FluentChartLegendItem(
+        title: 'Legend 1',
+        color: FluentDataVizPalette.resolve(FluentDataVizToken.color1),
+      ),
+      FluentChartLegendItem(
+        title: 'Legend 2',
+        color: FluentDataVizPalette.resolve(FluentDataVizToken.color2),
+      ),
+      FluentChartLegendItem(
+        title: 'Legend 3',
+        color: FluentDataVizPalette.resolve(FluentDataVizToken.color3),
+        shape: FluentChartLegendShape.diamond,
+      ),
+      FluentChartLegendItem(
+        title: 'Legend 4',
+        color: FluentDataVizPalette.resolve(FluentDataVizToken.color4),
+        shape: FluentChartLegendShape.triangle,
+      ),
+    ];
+
+    await expectReactParity(
+      tester,
+      'charts-legends--legends-controlled',
+      // The three "Select …" buttons and the "Selected legends:" line are the
+      // story's own chrome outside `fui-legend__root`, so the 944x32 clip
+      // holds the strip alone; see LegendsBasic for the OverflowBox.
+      OverflowBox(
+        alignment: Alignment.topLeft,
+        maxHeight: double.infinity,
+        child: FluentChartLegend(
+          legends: legends,
+          // `canSelectMultipleLegends`, and `selectedLegends` from
+          // `React.useState<string[]>([])` — controlled, nothing selected.
+          selectionMode: FluentChartLegendSelectionMode.multiple,
+          selectedLegends: const <String>[],
+          onChange: (_, _) {},
+        ),
+      ),
+      // Measured 0.008% — 2 of 26,482 px, aligned, in every zone: the same
+      // picture as LegendsBasic above, the Legend 4 triangle's two top corners
+      // (was 0.838% for the same reasons as LegendsBasic).
+      maxMismatch: 0.01,
+    );
+  });
+
+  // legends-overflow, -styled and -wrap-lines pass
+  // `overflowText="Overflow Items"`, `allowFocusOnLegends` and
+  // `canSelectMultipleLegends={false}` (the port's defaults for the last two)
+  // over seventeen plain rectangles. Their `action`/`hoverAction`/
+  // `onMouseOutAction` are console/alert side effects that change no pixel.
+  List<FluentChartLegendItem> seventeen(int firstColor) =>
+      <FluentChartLegendItem>[
+        for (var i = 0; i < 17; i++)
+          FluentChartLegendItem(
+            title: 'Legend ${i + 1}',
+            color: FluentDataVizPalette.resolve(
+              FluentDataVizToken.values[firstColor - 1 + i],
+            ),
+          ),
+      ];
+
+  testWidgets('LegendsOverflow', (tester) async {
+    await expectReactParity(
+      tester,
+      'charts-legends--legends-overflow',
+      OverflowBox(
+        alignment: Alignment.topLeft,
+        maxHeight: double.infinity,
+        child: FluentChartLegend(
+          // charts-legends--legends-overflow.tsx: Legend N is
+          // `DataVizPalette.color(N + 4)`, color5 .. color21.
+          legends: seventeen(5),
+          overflowText: 'Overflow Items',
+        ),
+      ),
+      // Measured 0.509% — 107 of 21,028 px, aligned, in every zone, all of it
+      // the "+10 Overflow Items" trigger's right end. Selawik Semibold sets
+      // the label 127.62 wide against Segoe UI Semibold's 123.58 (the
+      // capture's line box, x 693.23-816.81), so the button ends 4 px right
+      // of the reference's (its left edge, 680, matches):
       //
-      // The whole residual is three known things, none of them this file's and
-      // none of them a tolerance to raise:
+      //  * 64 px — the right border and its rounded corners, at x 848-849
+      //    where the reference has them at 844-846.
+      //  * 27 px — the chevron, inked at x 827-834 against 823-830.
+      //  * 16 px — the label's last glyph, which runs 3 columns (x 818-820)
+      //    past the reference label's masked rect.
       //
-      //  * 184 px — the Legend 3 diamond, which settles the origin question
-      //    `legend_shape.dart:241-258` records as unverified. Intensity-weighted
-      //    centroids, now that the strip is aligned: reference (260.993, 16.003)
-      //    against this port's (253.773, 18.937), an offset of (-7.22, +2.93).
-      //    That is rotating the 14x14 swatch's centre (7, 7) about the box
-      //    corner instead of about its centre — a predicted (-7, +2.9). Chromium
-      //    applies the `transform` attribute of an outermost `<svg>` in HTML flow
-      //    about the CSS `transform-origin: 50% 50%`, not about SVG user-space
-      //    (0, 0) as `FluentChartLegendShapePainter` does. The same reading
-      //    predicts the pyramid swatch — which that comment says paints nothing
-      //    today — renders normally upstream. Outside this task's file list.
-      //  * 24 px — the Legend 4 triangle's diagonal edges. Its centroid is within
-      //    0.36 px of the reference's ((350.776, 13.960) against
-      //    (350.421, 13.903)), so the geometry is right and only the edge
-      //    rasterisation differs.
-      //  * 14 px — one column at the right edge of Legend 2's rectangle. The row
-      //    pitch is 86.891, so the second swatch starts at a fractional x;
-      //    Chromium snaps a border box to whole device pixels and Skia does not
-      //    (measured 250,250,250 against 252,224,241, a partial coverage of
-      //    `#E3008C`).
-      //
-      // Pinned just above the measured value so the number is recorded and any
-      // drift — in either direction — fails and has to be re-pinned
-      // deliberately.
-      maxMismatch: 0.93,
+      // Every swatch, the row count and the break before the trigger match.
+      // History: 4.401% while the capture left the MenuButton label unmasked
+      // and the swatches sat at fractional x; 0.499% before the chevron moved
+      // into the MenuButton's `menuIcon` slot, which puts it on upstream's
+      // rows but, with the wider label, reshuffles 2 px of its antialiasing.
+      maxMismatch: 0.51,
+    );
+  });
+
+  testWidgets('LegendsStyled', (tester) async {
+    await expectReactParity(
+      tester,
+      'charts-legends--legends-styled',
+      OverflowBox(
+        alignment: Alignment.topLeft,
+        maxHeight: double.infinity,
+        child: FluentChartLegend(
+          // charts-legends--legends-styled.tsx: Legend N is `colorN`. Despite
+          // the name, the story passes no `styles`.
+          legends: seventeen(1),
+          overflowText: 'Overflow Items',
+        ),
+      ),
+      // Measured 0.509% — 107 of 21,028 px, aligned, in every zone: the same
+      // 107 trigger pixels as LegendsOverflow above (right border 64, chevron
+      // 27, the label's last glyph 16), and nothing from the swatches (was
+      // 4.461%, the extra 0.06 point Legend 2's fractional right column).
+      maxMismatch: 0.51,
+    );
+  });
+
+  testWidgets('LegendsWrapLines', (tester) async {
+    await expectReactParity(
+      tester,
+      'charts-legends--legends-wrap-lines',
+      OverflowBox(
+        alignment: Alignment.topLeft,
+        maxHeight: double.infinity,
+        child: FluentChartLegend(
+          // charts-legends--legends-wrap-lines.tsx: Legend N is `colorN`,
+          // with `enabledWrapLines`.
+          legends: seventeen(1),
+          overflowText: 'Overflow Items',
+          enabledWrapLines: true,
+        ),
+      ),
+      // Measured 0.000% — not one of 96,486 unmasked pixels differs, in any
+      // zone. Pinned at 0: the floor check admits nothing else. Line breaks,
+      // row pitch (40), the 800px resizable area, every swatch colour and
+      // every swatch edge match (was 0.336%, 324 px of 14px columns at the
+      // fourteen swatches Oracle B puts at fractional x, until the swatches
+      // snapped to whole device pixels as Chromium's border boxes do).
+      maxMismatch: 0,
     );
   });
 }

@@ -226,6 +226,7 @@ class _ToggleButtonState extends State<_ToggleButton> {
   bool get _isChecked => widget.checked ?? _selfChecked;
 
   FluentButtonStyle _checkedStyle(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
     final FluentButtonStyle base = resolveFluentButtonStyle(
       resolveFluentButtonState(
         enabled: widget.enabled,
@@ -233,19 +234,36 @@ class _ToggleButtonState extends State<_ToggleButton> {
         size: widget.size,
         shape: widget.shape,
       ),
-      FluentTheme.of(context),
+      theme,
     );
 
-    WidgetStateProperty<Color?> selected(WidgetStateProperty<Color?>? color) =>
-        WidgetStateProperty.resolveWith<Color?>(
-          (Set<WidgetState> states) =>
-              color?.resolve(<WidgetState>{...states, WidgetState.selected}),
-        );
+    WidgetStateProperty<T?>? selected<T>(WidgetStateProperty<T?>? value) =>
+        value == null
+        ? null
+        : WidgetStateProperty.resolveWith<T?>(
+            (Set<WidgetState> states) =>
+                value.resolve(<WidgetState>{...states, WidgetState.selected}),
+          );
 
+    // Measured on togglebutton--appearance, checked, in Chrome, and as
+    // `useToggleButtonStyles` writes it. The border keeps the button's own
+    // neutralStroke1 ramp (#d1d1d1, then Hover and Pressed) rather than
+    // neutralStroke1Selected, so it is not folded; outline thickens it to 3px,
+    // which the width and padding carry. `useIconCheckedStyles` holds a
+    // subtle or transparent icon at neutralForeground2BrandSelected: subtle's
+    // still goes Hover and Pressed through the button's icon ramp, while
+    // transparent's stays put even pressed, where its label darkens.
     return FluentButtonStyle(
       backgroundColor: selected(base.backgroundColor),
       foregroundColor: selected(base.foregroundColor),
-      borderColor: selected(base.borderColor),
+      iconColor: widget.appearance == FluentButtonAppearance.transparent
+          ? FluentStateColor.tokens(
+              rest: theme.colors.neutralForeground2BrandSelected,
+              disabled: theme.colors.neutralForegroundDisabled,
+            )
+          : selected(base.iconColor),
+      borderWidth: selected(base.borderWidth),
+      padding: selected(base.padding),
     );
   }
 
@@ -255,6 +273,10 @@ class _ToggleButtonState extends State<_ToggleButton> {
     size: widget.size,
     shape: widget.shape,
     icon: _isChecked ? widget.checkedIcon ?? widget.icon : widget.icon,
+    // bundleIcon's other half: an unchecked subtle or transparent toggle shows
+    // the filled glyph under the mouse too (`useButtonStyles` subtle and
+    // transparent `:hover`). FluentButton ignores it on the other appearances.
+    activeIcon: widget.checkedIcon,
     iconPosition: widget.iconPosition,
     semanticLabel: widget.semanticLabel,
     style: _isChecked ? _checkedStyle(context) : null,

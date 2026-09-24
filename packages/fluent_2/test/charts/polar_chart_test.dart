@@ -1305,6 +1305,221 @@ void main() {
       );
     });
 
+    group('on the storybook page', () {
+      // charts-polarchart--polar-chart-basic at its initial 600 x 350, laid
+      // out where the storybook puts the root in a 1024 x 768 page.
+      const origin = Offset(40, 97);
+      const basic = <FluentPolarSeries>[
+        FluentAreaPolarSeries(
+          legend: 'Mike',
+          color: Color(0xFF8884D8),
+          data: <FluentPolarDataPoint>[
+            FluentPolarDataPoint(r: 120, theta: 'Math'),
+            FluentPolarDataPoint(r: 98, theta: 'Chinese'),
+            FluentPolarDataPoint(r: 86, theta: 'English'),
+            FluentPolarDataPoint(r: 99, theta: 'Geography'),
+            FluentPolarDataPoint(r: 85, theta: 'Physics'),
+            FluentPolarDataPoint(r: 65, theta: 'History'),
+          ],
+        ),
+        FluentAreaPolarSeries(
+          legend: 'Lily',
+          color: Color(0xFF82CA9D),
+          data: <FluentPolarDataPoint>[
+            FluentPolarDataPoint(r: 110, theta: 'Math'),
+            FluentPolarDataPoint(r: 130, theta: 'Chinese'),
+            FluentPolarDataPoint(r: 130, theta: 'English'),
+            FluentPolarDataPoint(r: 100, theta: 'Geography'),
+            FluentPolarDataPoint(r: 90, theta: 'Physics'),
+            FluentPolarDataPoint(r: 85, theta: 'History'),
+          ],
+        ),
+      ];
+
+      /// Hovers Mike's [subject] marker and returns its box on screen.
+      Future<Rect> hoverMike(WidgetTester tester, String subject) async {
+        tester.view.physicalSize = const Size(1024, 768);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          FluentApp(
+            theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+            home: const Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: EdgeInsets.only(left: 40, top: 97),
+                // The storybook's root box, fui-polar__root [40,97,600,350].
+                child: SizedBox(
+                  width: 600,
+                  height: 350,
+                  child: FluentPolarChart(
+                    data: basic,
+                    width: 600,
+                    height: 350,
+                    shape: FluentPolarShape.polygon,
+                    direction: FluentPolarDirection.clockwise,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        final state = tester.state<FluentPolarChartState>(
+          find.byType(FluentPolarChart),
+        );
+        final marker = state.layout.markers.firstWhere(
+          (m) => m.legend == 'Mike' && m.popoverXValue == subject,
+        );
+        final centre =
+            tester.getTopLeft(find.byType(FluentPolarChart)) +
+            state.layout.centre +
+            marker.position;
+        final gesture = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        await gesture.addPointer(location: Offset.zero);
+        addTearDown(gesture.removePointer);
+        await gesture.moveTo(centre.translate(-1, -1));
+        await gesture.moveTo(centre);
+        await tester.pump();
+        return Rect.fromCircle(center: centre, radius: marker.radius);
+      }
+
+      Rect surface(WidgetTester tester) => tester.getRect(
+        find.descendant(
+          of: find.byType(FluentChartPopover),
+          matching: find.byType(ExcludeFocus),
+        ),
+      );
+
+      testWidgets('the popover clears the marker, above it in the page', (
+        tester,
+      ) async {
+        final marker = await hoverMike(tester, 'Chinese');
+        expect(
+          marker.top,
+          closeTo(203.87, 0.05),
+          reason: 'the storybook measures the circle at [424.83,203.87,4,4]',
+        );
+        final rect = surface(tester);
+        expect(
+          rect.bottom,
+          closeTo(marker.top - 20, 0.5),
+          reason:
+              'ChartPopover targets the <circle> element '
+              '(PolarChart.tsx:504, :679-681), so the storybook surface '
+              '[388,67,77.17,117] ends 20 above the circle, not its centre',
+        );
+        expect(
+          rect.center.dx,
+          closeTo(marker.center.dx, 0.5),
+          reason: 'centred on the circle: 388 + 77.17 / 2 = 426.6',
+        );
+        expect(
+          rect.top,
+          lessThan(origin.dy),
+          reason:
+              'the polar root clips nothing, so the surface is laid out in '
+              'the page, 30px over the chart. In the plot box it had 87px '
+              'above the marker and flipped below it.',
+        );
+        expect(
+          tester
+              .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+              .data
+              .isCartesian,
+          isFalse,
+          reason: 'PolarChart.tsx:677-686 pass no isCartesian',
+        );
+      });
+
+      testWidgets(
+        'the popover scrolls with its marker under a resting pointer',
+        (tester) async {
+          tester.view.physicalSize = const Size(1024, 768);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          await tester.pumpWidget(
+            FluentApp(
+              theme: FluentThemeData.light(
+                fontPlatform: FluentFontPlatform.web,
+              ),
+              home: const SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    SizedBox(height: 300),
+                    SizedBox(
+                      width: 600,
+                      height: 350,
+                      child: FluentPolarChart(
+                        data: basic,
+                        width: 600,
+                        height: 350,
+                      ),
+                    ),
+                    SizedBox(height: 1000),
+                  ],
+                ),
+              ),
+            ),
+          );
+          final state = tester.state<FluentPolarChartState>(
+            find.byType(FluentPolarChart),
+          );
+          final marker = state.layout.markers.firstWhere(
+            (m) => m.legend == 'Mike' && m.popoverXValue == 'Chinese',
+          );
+          Offset centre() =>
+              tester.getTopLeft(find.byType(FluentPolarChart)) +
+              state.layout.centre +
+              marker.position;
+          final at = centre();
+          final gesture = await tester.createGesture(
+            kind: PointerDeviceKind.mouse,
+          );
+          await gesture.addPointer(location: Offset.zero);
+          addTearDown(gesture.removePointer);
+          await gesture.moveTo(at.translate(-1, -1));
+          await gesture.moveTo(at);
+          await tester.pump();
+          // A wheel turn moves the page, and the marker with it, but the
+          // pointer stays put, so no hover reaches the plot.
+          await tester.sendEventToBinding(
+            PointerScrollEvent(
+              kind: PointerDeviceKind.mouse,
+              position: at,
+              scrollDelta: const Offset(0, 40),
+            ),
+          );
+          await tester.pump();
+          expect(centre().dy, closeTo(at.dy - 40, 1e-6));
+          expect(
+            surface(tester).bottom,
+            closeTo(centre().dy - marker.radius - 20, 0.5),
+            reason:
+                "the popover floats in the overlay, so the page's scroll only "
+                'reaches it through the follower; left at build it stayed 40px '
+                'below the marker it names',
+          );
+        },
+      );
+
+      testWidgets('a marker with no room above gets the popover below it', (
+        tester,
+      ) async {
+        final marker = await hoverMike(tester, 'Math');
+        expect(
+          surface(tester).top,
+          closeTo(marker.bottom + 20, 0.5),
+          reason:
+              'Mike/Math sits 131px down the page, less than the 117px '
+              'surface and its 20px offset need, so the storybook flips it '
+              'below: y 155 = circle bottom 135.23 + 20',
+        );
+      });
+    });
+
     testWidgets('arrow keys rove the markers and update the label', (
       tester,
     ) async {

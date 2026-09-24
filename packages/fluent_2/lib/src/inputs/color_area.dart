@@ -710,6 +710,8 @@ class _FluentColorAreaState extends State<FluentColorArea> {
           mouseCursor:
               resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
               SystemMouseCursors.basic,
+          // Upstream states no disabled cursor: the browser's `default`.
+          disabledMouseCursor: SystemMouseCursors.basic,
           builder: (context, states, _) => FluentPointerCapture(
             enabled: _enabled,
             onPointer: _reportAt,

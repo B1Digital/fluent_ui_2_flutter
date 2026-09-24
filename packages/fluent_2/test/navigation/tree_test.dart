@@ -647,6 +647,167 @@ void main() {
       expect(pressed, 1);
     });
 
+    // `useTreeItemLayout.tsx` renders `actions` only while
+    // `isActionsVisible`, which mouseover/mouseout and focus/blur on the tree
+    // item drive. The live `components-tree--actions` story shows no actions
+    // at rest, shows them on the hovered row only, and keeps every row 32 high
+    // (`.fui-TreeItem` 920x32) where the port had grown them to 40.
+    testWidgets('actions show only on the hovered row, which stays 32 high', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentTree(
+          defaultOpenItems: const <Object>{'branch'},
+          items: tree(
+            // A medium icon button, 32 high: the row must not grow around it.
+            actions: FluentButton.icon(
+              icon: const Icon(FluentIcons.edit_20_regular),
+              semanticLabel: 'Edit',
+              appearance: FluentButtonAppearance.subtle,
+              onPressed: () {},
+            ),
+          ),
+        ),
+      );
+      bool shown() => tester
+          .widget<Visibility>(
+            find.ancestor(
+              of: find.byType(FluentButton),
+              matching: find.byType(Visibility),
+            ),
+          )
+          .visible;
+
+      expect(shown(), isFalse, reason: 'rest: no actions');
+      expect(tester.getSize(rowOf('Branch')).height, 32);
+
+      final center = tester.getCenter(rowOf('Branch'));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(center);
+      await mouse.moveTo(center + const Offset(1, 0));
+      await tester.pumpAndSettle();
+      expect(shown(), isTrue, reason: 'hover reveals them');
+      expect(
+        tester.getSize(rowOf('Branch')).height,
+        32,
+        reason: 'overlaid, so revealing them adds no height',
+      );
+
+      await mouse.moveTo(tester.getCenter(rowOf('Leaf')));
+      await tester.pumpAndSettle();
+      expect(shown(), isFalse, reason: 'leaving the row hides them again');
+    });
+
+    testWidgets('keyboard focus on the row reveals its actions', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentTree(
+          items: tree(
+            actions: FluentButton.icon(
+              icon: const Icon(FluentIcons.edit_20_regular),
+              semanticLabel: 'Edit',
+              appearance: FluentButtonAppearance.subtle,
+              onPressed: () {},
+            ),
+          ),
+        ),
+      );
+      Visibility visibility() => tester.widget<Visibility>(
+        find.ancestor(
+          of: find.byType(FluentButton),
+          matching: find.byType(Visibility),
+        ),
+      );
+      expect(visibility().visible, isFalse);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(visibility().visible, isTrue, reason: 'focus on the tree item');
+    });
+
+    // `handleActionsBlur` in `useTreeItemLayout.tsx` keeps the actions
+    // visible while focus stays inside them, so the treegrid story's Tab into
+    // the actions never lands on a hidden button.
+    testWidgets('focus inside the actions keeps them shown', (tester) async {
+      final edit = FocusNode();
+      addTearDown(edit.dispose);
+      await pump(
+        tester,
+        FluentTree(
+          items: tree(
+            actions: FluentButton.icon(
+              icon: const Icon(FluentIcons.edit_20_regular),
+              semanticLabel: 'Edit',
+              appearance: FluentButtonAppearance.subtle,
+              focusNode: edit,
+              onPressed: () {},
+            ),
+          ),
+        ),
+      );
+      bool shown() => tester
+          .widget<Visibility>(
+            find.ancestor(
+              of: find.byType(FluentButton),
+              matching: find.byType(Visibility),
+            ),
+          )
+          .visible;
+      expect(shown(), isFalse);
+
+      edit.requestFocus();
+      await tester.pumpAndSettle();
+      expect(shown(), isTrue, reason: 'focus is inside the actions');
+
+      edit.unfocus();
+      await tester.pumpAndSettle();
+      expect(shown(), isFalse);
+    });
+
+    testWidgets('the aside shows at rest and gives way to the actions', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentTree(
+          items: <FluentTreeItem>[
+            FluentTreeItem(
+              value: 'a',
+              label: const Text('A'),
+              aside: const Text('3'),
+              actions: FluentButton.icon(
+                icon: const Icon(FluentIcons.edit_20_regular),
+                semanticLabel: 'Edit',
+                appearance: FluentButtonAppearance.subtle,
+                onPressed: () {},
+              ),
+            ),
+          ],
+        ),
+      );
+      expect(
+        find.text('3'),
+        findsOneWidget,
+        reason: 'aside is visible at rest',
+      );
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(rowOf('A')));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('3'),
+        findsNothing,
+        reason: 'useTreeItemLayout drops aside while the actions are visible',
+      );
+    });
+
     testWidgets('focus is drawn by FluentFocusRing, not a bespoke border', (
       tester,
     ) async {

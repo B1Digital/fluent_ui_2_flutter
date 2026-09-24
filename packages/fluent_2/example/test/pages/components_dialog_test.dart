@@ -45,8 +45,10 @@ void main() {
       expect(find.text('Close'), findsOneWidget);
       expect(
         find.byIcon(fluentDialogCloseIcon),
-        findsOneWidget,
-        reason: 'showCloseButton defaults to true, which is Figma over React',
+        findsNothing,
+        reason:
+            'a modal DialogTitle renders no close action unless asked '
+            '(useDialogTitle.js:36 renderByDefault: non-modal only)',
       );
       // A modal dialog is centred in the viewport, not anchored to its trigger:
       // the surface has no spatial relationship to the button that opened it.
@@ -56,43 +58,33 @@ void main() {
       );
     });
 
-    testWidgets(
-      'every dismissal path closes it: action, header, Escape, scrim',
-      (WidgetTester tester) async {
-        await pumpSection(tester, section);
+    testWidgets('every dismissal path closes it: action, Escape, scrim', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(tester, section);
 
-        Future<void> reopen() async {
-          await tapAndSettle(tester, find.text('Open dialog'));
-          await settleDialog(tester);
-          expect(find.text('Dialog title'), findsOneWidget);
-        }
-
-        await reopen();
-        await tapAndSettle(tester, find.text('Close'));
+      Future<void> reopen() async {
+        await tapAndSettle(tester, find.text('Open dialog'));
         await settleDialog(tester);
-        expect(find.text('Dialog title'), findsNothing, reason: 'Close action');
+        expect(find.text('Dialog title'), findsOneWidget);
+      }
 
-        await reopen();
-        await tapAndSettle(tester, find.byIcon(fluentDialogCloseIcon));
-        await settleDialog(tester);
-        expect(
-          find.text('Dialog title'),
-          findsNothing,
-          reason: 'header button',
-        );
+      await reopen();
+      await tapAndSettle(tester, find.text('Close'));
+      await settleDialog(tester);
+      expect(find.text('Dialog title'), findsNothing, reason: 'Close action');
 
-        await reopen();
-        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-        await settleDialog(tester);
-        expect(find.text('Dialog title'), findsNothing, reason: 'Escape');
+      await reopen();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await settleDialog(tester);
+      expect(find.text('Dialog title'), findsNothing, reason: 'Escape');
 
-        await reopen();
-        // The corner of the viewport: the surface is centred, so this is scrim.
-        await tester.tapAt(const Offset(40, 1360));
-        await settleDialog(tester);
-        expect(find.text('Dialog title'), findsNothing, reason: 'scrim press');
-      },
-    );
+      await reopen();
+      // The corner of the viewport: the surface is centred, so this is scrim.
+      await tester.tapAt(const Offset(40, 1360));
+      await settleDialog(tester);
+      expect(find.text('Dialog title'), findsNothing, reason: 'scrim press');
+    });
 
     testWidgets('the trigger commits under a real mouse', (
       WidgetTester tester,
@@ -588,14 +580,78 @@ void main() {
       expect(
         find.bySemanticsLabel('close'),
         findsOneWidget,
-        reason:
-            'closeButtonSemanticLabel is upstream\'s aria-label="close", '
-            'lower case and all',
+        reason: 'upstream\'s aria-label="close", lower case and all',
+      );
+      expect(
+        find.byIcon(fluentDialogCloseIcon),
+        findsNothing,
+        reason: 'the modal dialog draws no close of its own beside the action',
       );
 
-      await tapAndSettle(tester, find.byIcon(fluentDialogCloseIcon));
+      await mouseClick(tester, find.byIcon(FluentIcons.dismiss_24_regular));
       await settleDialog(tester);
       expect(find.text('Dialog title'), findsNothing);
+    });
+
+    testWidgets('the action is a 32px subtle button that ramps under a mouse', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(
+        tester,
+        sectionOf('components-dialog--title-custom-action'),
+      );
+      await tapAndSettle(tester, find.text('Open dialog'));
+      await settleDialog(tester);
+      final Finder action = find.ancestor(
+        of: find.byIcon(FluentIcons.dismiss_24_regular),
+        matching: find.byType(FluentButton),
+      );
+      final FluentColors colors = FluentTheme.of(tester.element(action)).colors;
+      Color? glyph() => tester
+          .widget<RichText>(
+            find.descendant(
+              of: find.byIcon(FluentIcons.dismiss_24_regular),
+              matching: find.byType(RichText),
+            ),
+          )
+          .text
+          .style
+          ?.color;
+
+      // Chrome, components-dialog--title-custom-action: a 32x32 subtle Button
+      // at the title's top end, 8px after it, clear at rest, #F5F5F5 with a
+      // brand glyph under the pointer and #E0E0E0 pressed.
+      expect(tester.getSize(action), const Size.square(32));
+      expect(
+        tester.getTopLeft(action).dx -
+            tester.getTopRight(find.text('Dialog title')).dx,
+        greaterThanOrEqualTo(8),
+      );
+      expect(
+        tester.getTopLeft(action).dy,
+        tester.getTopLeft(find.text('Dialog title')).dy,
+      );
+      expect(decorationUnder(tester, action).color, colors.subtleBackground);
+
+      final TestGesture mouse = await mouseHover(tester, action);
+      await mouse.moveBy(const Offset(1, 0));
+      await tester.pump();
+      expect(
+        decorationUnder(tester, action).color,
+        colors.subtleBackgroundHover,
+      );
+      expect(glyph(), colors.neutralForeground2BrandHover);
+
+      await mouse.down(tester.getCenter(action));
+      await settle(tester);
+      expect(
+        decorationUnder(tester, action).color,
+        colors.subtleBackgroundPressed,
+      );
+      await mouse.moveTo(const Offset(-1, -1));
+      await mouse.up();
+      await mouseAway(tester, mouse);
+      expect(decorationUnder(tester, action).color, colors.subtleBackground);
     });
   });
 

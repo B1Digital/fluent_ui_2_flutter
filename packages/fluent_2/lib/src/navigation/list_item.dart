@@ -27,8 +27,8 @@ enum FluentListItemSize {
 /// multi-select list and [radio] a single-select one, exactly as the HTML
 /// controls they compose imply.
 enum FluentListSelection {
-  /// No affordance. Rows still take the `Selected` fill when active, which is
-  /// how Fluent draws a navigation list.
+  /// No affordance. A selected row is told apart by its semibold title only:
+  /// upstream's `useListItemStyles.styles.ts` paints no selected fill.
   none,
 
   /// A `FluentCheckbox`. Selecting is additive: any number of rows may be
@@ -66,8 +66,8 @@ class FluentListItemBaseState {
   /// Whether the row responds to input.
   final bool enabled;
 
-  /// Whether the row is selected. Figma's `Active` axis, which moves both the
-  /// fill and the title's weight.
+  /// Whether the row is selected. Figma's `Active` axis, which this port
+  /// carries on the title's weight (the storybook paints no selected fill).
   final bool selected;
 
   /// The selection affordance, already built and made inert. Null when the list
@@ -158,26 +158,32 @@ FluentListItemState resolveFluentListItemState({
 /// ## Why `selected` picks the ramp rather than only the token
 ///
 /// Figma's `Active` axis moves two things at once: the fill goes to
-/// `Neutral/Background/Subtle/Selected`, which [FluentStateColor] resolves from
-/// [WidgetState.selected] directly, and the **type ramp steps to Semibold**,
-/// which no `WidgetStateProperty` can express because it is not a state — it is
-/// a variant. So the weight is branched on here and the fill is not.
+/// `Neutral/Background/Subtle/Selected` — not ported, see below — and the
+/// **type ramp steps to Semibold**, which no `WidgetStateProperty` can express
+/// because it is not a state — it is a variant. So the weight is branched on
+/// here.
 ///
-/// ## Three divergences from Figma, all recorded in `doc/token-divergences.md`
+/// ## Four divergences from Figma
+///
+/// * **No fill.** Figma ramps the row through `Neutral/Background/Subtle/*`
+///   and paints disabled rows `Neutral/Background/Disabled`; upstream's
+///   `useListItemStyles.styles.ts` sets no background in any state, and the
+///   live storybook agrees. The storybook wins.
+///
+/// The other three are recorded in `doc/token-divergences.md`:
 ///
 /// * The title on the one-line variants binds `Neutral/Foreground/1/Rest` in
 ///   every state, and the two-line **medium** set binds
 ///   `Neutral/Foreground/2/Rest` for the title where the two-line **small** set
 ///   binds `Neutral/Foreground/1/*` with a full ramp. The small two-line
-///   table is the internally consistent one — a title is `Foreground/1` and a
-///   second line is `Foreground/2` — and it is the only one of the three that
-///   states hover and pressed at all, so it wins.
-/// * `Active=True` binds the *Rest* foreground tokens. Those resolve to the
-///   same colour as `Neutral/Foreground/1/Selected` in light and dark, but in
-///   **high contrast** the selected fill is the system Highlight and the Rest
-///   foreground is HighlightText's inverse — white on cyan. The `*Selected`
-///   foreground tokens are selected instead; they are byte-identical to Figma
-///   for the title in both normal themes and readable in high contrast.
+///   table's families are the internally consistent ones — a title is
+///   `Foreground/1` and a second line is `Foreground/2` — so they win, at
+///   their Rest step (see the next point).
+/// * `Active=True` binds the *Rest* foreground tokens, and so does this port,
+///   for hover and press too. It once took Figma's `*Hover`, `*Pressed` and
+///   `*Selected` steps to stay readable on the system Highlight fill in high
+///   contrast; with no fill, the Rest tokens are the readable ones, and they
+///   are what upstream shows.
 /// * The focus ring's inner tone. Figma's `Border-inner` binds
 ///   `Neutral/Background/1/Rest`; [FluentFocusRing] binds `strokeFocus1`, as it
 ///   does for every other component in this port. The two agree in light and
@@ -188,33 +194,27 @@ FluentListItemStyle resolveFluentListItemStyle(
 ) {
   final c = theme.colors;
 
-  final background = FluentStateColor.tokens(
-    rest: c.subtleBackground,
-    hover: c.subtleBackgroundHover,
-    pressed: c.subtleBackgroundPressed,
-    selected: c.subtleBackgroundSelected,
-    disabled: c.neutralBackgroundDisabled,
-  );
+  // No fill in any state. Figma's set ramps `Neutral/Background/Subtle/*` and
+  // greys a disabled row, but `useListItemStyles.styles.ts` binds no
+  // background at all — only `cursor` — and the live `components-list--*`
+  // stories measure rgba(0, 0, 0, 0) on hovered, pressed, selected and
+  // disabled rows alike. The storybook wins; the checkbox carries selection.
+  final background = FluentStateColor.tokens(rest: c.subtleBackground);
 
+  // One foreground per line in every state but disabled. Upstream's list item
+  // colours no text at all, and with no fill underneath, Figma's `*Hover`,
+  // `*Pressed` and `*Selected` steps would be HighlightText on Canvas in high
+  // contrast — black on black.
   final primaryColor = FluentStateColor.tokens(
     rest: c.neutralForeground1,
-    hover: c.neutralForeground1Hover,
-    pressed: c.neutralForeground1Pressed,
-    selected: c.neutralForeground1Selected,
     disabled: c.neutralForegroundDisabled,
   );
   final secondaryColor = FluentStateColor.tokens(
     rest: c.neutralForeground2,
-    hover: c.neutralForeground2Hover,
-    pressed: c.neutralForeground2Pressed,
-    selected: c.neutralForeground2Selected,
     disabled: c.neutralForegroundDisabled,
   );
   final tertiaryColor = FluentStateColor.tokens(
     rest: c.neutralForeground3,
-    hover: c.neutralForeground3Hover,
-    pressed: c.neutralForeground3Pressed,
-    selected: c.neutralForeground3Selected,
     disabled: c.neutralForegroundDisabled,
   );
 
@@ -335,8 +335,9 @@ FluentListItemStyle resolveFluentListItemStyle(
 ///
 /// **Nothing animates, deliberately.** `useListItemStyles.styles.ts` and
 /// `useListStyles.styles.ts` on `microsoft/fluentui@master` declare no
-/// `transition`, no `animation` and no `motionTokens` reference at all, so the
-/// fill changes on the frame the pointer arrives. This is the Checkbox/Tooltip
+/// `transition`, no `animation` and no `motionTokens` reference at all, so a
+/// caller's state-dependent fill changes on the frame the pointer arrives —
+/// the default style paints none. This is the Checkbox/Tooltip
 /// category rather than an omission, and it also makes the component trivially
 /// correct under `MediaQuery.disableAnimationsOf`: there is no animation to
 /// shorten.
@@ -619,6 +620,10 @@ class FluentListItem<T extends Object> extends StatelessWidget {
   final FluentListItemStyle? style;
 
   /// Announced by assistive technology in place of the row's own text.
+  ///
+  /// Upstream's `aria-label`: it names the row, and the row's content — text
+  /// and any controls in it — stays reachable as the row's children instead
+  /// of being read after the label.
   final String? semanticLabel;
 
   /// The affordance for [selection], composed from the existing controls and
@@ -684,35 +689,49 @@ class FluentListItem<T extends Object> extends StatelessWidget {
         .merge(scope.listStyle)
         .merge(style);
 
-    return MergeSemantics(
-      child: Semantics(
-        role: SemanticsRole.listItem,
-        selected: selected,
+    // Upstream's `aria-label` names the `<li>` outright and leaves what is
+    // inside it — a persona, an Install button — as its own content. Merging a
+    // labelled row would instead append every line of text to the label
+    // ("Melda Bevel, Melda Bevel, Available"), so a labelled row keeps its
+    // content in a child node, and only an unlabelled one merges into one.
+    final labelled = semanticLabel != null;
+    final Widget row = Semantics(
+      role: SemanticsRole.listItem,
+      selected: selected,
+      enabled: live,
+      label: semanticLabel,
+      child: FluentInteractive(
+        onPressed: live ? () => scope.onToggle!(value) : null,
         enabled: live,
-        label: semanticLabel,
-        child: FluentInteractive(
-          onPressed: live ? () => scope.onToggle!(value) : null,
-          enabled: live,
-          focusNode: scope.focusNodeFor(value),
-          mouseCursor:
-              resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
-              SystemMouseCursors.click,
-          builder: (context, states, _) {
-            // A row in a read-only list is not *disabled*, it is merely not a
-            // control: `enabled` is the item's own flag and it alone selects
-            // the disabled token ramp. `FluentInteractive` reports disabled
-            // whenever it has no callback, which is exactly the read-only
-            // case, so that report is dropped here.
-            final visual = <WidgetState>{
-              ...states,
-              if (selected) WidgetState.selected,
-            };
-            if (enabled) visual.remove(WidgetState.disabled);
-            return buildFluentListItem(state, resolved, visual);
-          },
-        ),
+        focusNode: scope.focusNodeFor(value),
+        mouseCursor:
+            resolved.mouseCursor?.resolve(const <WidgetState>{}) ??
+            SystemMouseCursors.click,
+        // `useListItemStyles.styles.ts`: disabled is `cursor: 'default'`.
+        disabledMouseCursor: SystemMouseCursors.basic,
+        builder: (context, states, _) {
+          // A row in a read-only list is not *disabled*, it is merely not a
+          // control: `enabled` is the item's own flag and it alone selects
+          // the disabled token ramp. `FluentInteractive` reports disabled
+          // whenever it has no callback, which is exactly the read-only
+          // case, so that report is dropped here.
+          final visual = <WidgetState>{
+            ...states,
+            if (selected) WidgetState.selected,
+          };
+          if (enabled) visual.remove(WidgetState.disabled);
+          final built = buildFluentListItem(state, resolved, visual);
+          return labelled
+              ? Semantics(
+                  container: true,
+                  explicitChildNodes: true,
+                  child: built,
+                )
+              : built;
+        },
       ),
     );
+    return labelled ? row : MergeSemantics(child: row);
   }
 }
 

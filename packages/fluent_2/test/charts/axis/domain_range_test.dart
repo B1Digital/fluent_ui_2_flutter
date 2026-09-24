@@ -391,6 +391,27 @@ void main() {
       expect(range.dEndValue, 110, reason: 'and adds the end padding.');
     });
 
+    test('coerces a Date that wins the extent to epoch milliseconds', () {
+      final date = DateTime.utc(2020, 3, 5);
+      final range = domainRangeOfNumericForAreaLineScatterCharts(
+        <Object>[
+          _series('a', <(Object, double)>[(1, 10), (9, 20)]),
+          _series('d', <(Object, double)>[(date, 30)]),
+        ],
+        margins,
+        700,
+        isRtl: false,
+      );
+      expect(
+        range.dEndValue,
+        date.millisecondsSinceEpoch,
+        reason:
+            'utilities.ts:1364 casts the extent to number only in the types; '
+            'd3Max picks the Date by valueOf and the linear scale coerces it '
+            'with +d.',
+      );
+    });
+
     test('overrides the domain to the unit circle for scatterpolar', () {
       final range = domainRangeOfNumericForAreaLineScatterCharts(
         <Object>[
@@ -456,6 +477,32 @@ void main() {
         DateTime.utc(2020),
         reason:
             'utilities.ts:1535-1536 unions the tick values into the extent.',
+      );
+    });
+
+    test('keeps epoch-millisecond x values mixed with Dates', () {
+      final early = DateTime.utc(2020, 3).millisecondsSinceEpoch;
+      final late = DateTime.utc(2021).millisecondsSinceEpoch;
+      final range = domainRangeOfDateForAreaLineScatterVerticalBarCharts(
+        <Object>[
+          _series('ms', <(Object, double)>[(early, 10), (late, 20)]),
+          _series('date', <(Object, double)>[(DateTime.utc(2020, 3, 5), 30)]),
+        ],
+        margins,
+        700,
+        isRtl: false,
+        chartType: FluentChartType.lineChart,
+      );
+      expect(
+        <int>[
+          (range.dStartValue as DateTime).millisecondsSinceEpoch,
+          (range.dEndValue as DateTime).millisecondsSinceEpoch,
+        ],
+        <int>[early, late],
+        reason:
+            'x is number | Date upstream; d3Min/d3Max compare them by valueOf '
+            '(utilities.ts:2288-2297) and the time scale coerces the domain '
+            'with +d (d3-scale time.js:44), so the numbers set both ends.',
       );
     });
 

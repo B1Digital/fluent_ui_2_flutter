@@ -206,6 +206,31 @@ const DocsPage horizontalBarChartPage = DocsPage(
       description: 'Label on the legend overflow control.',
     ),
     PropRow(
+      name: 'legends',
+      type: 'List<FluentChartLegendItem>?',
+      defaultValue: 'null',
+      description:
+          'legendProps.legends: legend rows in place of the ones derived from '
+          'data.',
+    ),
+    PropRow(
+      name: 'enabledWrapLines',
+      type: 'bool',
+      defaultValue: 'false',
+      description:
+          'legendProps.enabledWrapLines: wrap the legend instead of '
+          'collapsing it into an overflow menu. Only a wrapped legend renders '
+          'annotationBuilder.',
+    ),
+    PropRow(
+      name: 'calloutPropsPerDataPoint',
+      type: 'FluentChartPopoverData? Function(FluentChartDataPoint)?',
+      defaultValue: 'null',
+      description:
+          "Overrides spread over one bar's popover reading; its "
+          'customContentBuilder replaces the body.',
+    ),
+    PropRow(
       name: 'style',
       type: 'FluentHorizontalBarChartStyle?',
       defaultValue: 'null',
@@ -502,11 +527,9 @@ class _HorizontalBarAbsoluteScaleState
 // #enddocregion charts-horizontalbarchart--horizontal-bar-absolute-scale
 
 // #docregion charts-horizontalbarchart--horizontal-bar-benchmark
-// `showTriangle` is a caller-supplied bool here, where upstream derives it from
-// the presence of a benchmark `data` field; passing it widens the row spacing
-// so the inverted triangle has somewhere to sit. Upstream's `hideRatio` array
-// has no port — it is dead in this story anyway, since the reference renders
-// the fraction on every row.
+// Each point's `data` is its benchmark, which draws the triangle. Upstream's
+// `hideRatio` array has no port — HorizontalBarChart.tsx never reads it, and
+// the reference renders the fraction on every row.
 Widget _horizontalBarBenchmark(BuildContext context) {
   final List<FluentChartData> data = <FluentChartData>[
     FluentChartData(
@@ -558,7 +581,6 @@ Widget _horizontalBarBenchmark(BuildContext context) {
     child: FluentHorizontalBarChart(
       data: data,
       chartDataMode: FluentChartDataMode.fraction,
-      showTriangle: true,
     ),
   );
 }
@@ -838,12 +860,12 @@ Widget _horizontalBarCustomAccessibility(BuildContext context) {
 // #enddocregion charts-horizontalbarchart--horizontal-bar-custom-accessibility
 
 // #docregion charts-horizontalbarchart--horizontal-bar-custom-callout
-// `FluentHorizontalBarChart` renders its own popover and takes neither
-// `calloutPropsPerDataPoint` nor `onRenderCalloutPerHorizontalBar`, so the
-// override is expressed through the two per-point fields the popover does
-// read: `xAxisCalloutData` becomes 'Custom XVal' and `yAxisCalloutData` gains
-// the ' h' suffix. Upstream's third line, 'Custom Legend', has no slot in our
-// popover, which shows one label and one value.
+// Upstream's `customPopoverProps` is `calloutPropsPerDataPoint`, spread over
+// the built-in reading; the point's own `xAxisCalloutData` and
+// `yAxisCalloutData` still take the legend and value lines
+// (ChartPopover.tsx:43-44). Its `onRenderCalloutPerHorizontalBar` is that
+// data's `customContentBuilder`, which replaces the body while the switch is
+// on.
 Widget _horizontalBarCustomCallout(BuildContext context) =>
     const _HorizontalBarCustomCallout();
 
@@ -871,13 +893,58 @@ class _HorizontalBarCustomCalloutState
         legend: title,
         horizontalBarChartData: FluentHorizontalDataPoint(x: x, total: 15000),
         color: FluentDataVizPalette.resolve(token),
-        xAxisCalloutData: _useCustomPopover ? 'Custom XVal' : '2020/04/30',
-        yAxisCalloutData: _useCustomPopover
-            ? '$yAxisCalloutData h'
-            : yAxisCalloutData,
+        xAxisCalloutData: '2020/04/30',
+        yAxisCalloutData: yAxisCalloutData,
       ),
     ],
   );
+
+  FluentChartPopoverData _customPopoverProps(FluentChartDataPoint point) =>
+      FluentChartPopoverData(
+        xValue: 'Custom XVal',
+        legend: 'Custom Legend',
+        yValue: '${point.yAxisCalloutData ?? point.data} h',
+        color: point.color,
+        customContentBuilder: _useCustomPopover
+            ? (BuildContext context) => _customPopover(point)
+            : null,
+      );
+
+  // ponytail: upstream's border is `1.5px dotted`, and Flutter's BorderStyle
+  // has no dotted style, so this one is solid.
+  Widget _customPopover(FluentChartDataPoint point) {
+    TextStyle line(FluentDataVizToken token) => TextStyle(
+      color: FluentDataVizPalette.resolve(token),
+      fontSize: FluentFontSize.base400,
+      fontWeight: FluentFontWeight.bold,
+    );
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: FluentDataVizPalette.resolve(FluentDataVizToken.color10),
+          width: 1.5,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              point.xAxisCalloutData ?? '',
+              style: line(FluentDataVizToken.warning),
+            ),
+            Text(point.legend ?? '', style: line(FluentDataVizToken.color3)),
+            Text(
+              '${point.yAxisCalloutData ?? point.data} h',
+              style: line(FluentDataVizToken.color2),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -907,7 +974,10 @@ class _HorizontalBarCustomCalloutState
                   setState(() => _useCustomPopover = value),
             ),
           ),
-          FluentHorizontalBarChart(data: data),
+          FluentHorizontalBarChart(
+            data: data,
+            calloutPropsPerDataPoint: _customPopoverProps,
+          ),
         ],
       ),
     );
@@ -916,11 +986,9 @@ class _HorizontalBarCustomCalloutState
 // #enddocregion charts-horizontalbarchart--horizontal-bar-custom-callout
 
 // #docregion charts-horizontalbarchart--horizontal-bar-stacked-annotated-inline-legend
-// `FluentHorizontalBarChart` builds its legend strip from `data` and takes no
-// `legendProps`, so upstream's per-legend `legendAnnotation` cannot hang off a
-// legend row here. The annotations render as their own row beneath each
-// chart's legend, with the same value badge and the same cursor-click toggle
-// over the same names.
+// Upstream's `legendProps: { enabledWrapLines: true, legends }` is the chart's
+// `enabledWrapLines` and `legends`, and each legend's `legendAnnotation` is its
+// `annotationBuilder`, which only a wrapped legend renders.
 Widget _horizontalBarStackedAnnotatedInlineLegend(BuildContext context) {
   const List<List<List<String>>> annotationMeta = <List<List<String>>>[
     <List<String>>[
@@ -966,31 +1034,33 @@ Widget _horizontalBarStackedAnnotatedInlineLegend(BuildContext context) {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        for (int group = 0; group < dataTemplate.length; group++) ...<Widget>[
+        for (int group = 0; group < dataTemplate.length; group++)
           FluentHorizontalBarChart(
             data: <FluentChartData>[dataTemplate[group]],
             hideTooltip: true,
             chartDataMode: FluentChartDataMode.hidden,
             showLegendForSinglePointBar: true,
-          ),
-          Wrap(
-            spacing: 16,
-            children: <Widget>[
+            enabledWrapLines: true,
+            legends: <FluentChartLegendItem>[
               for (
                 int item = 0;
                 item < dataTemplate[group].chartData!.length;
                 item++
               )
-                _AnnotationPopover(
-                  names: annotationMeta[group][item],
-                  value: dataTemplate[group]
-                      .chartData![item]
-                      .horizontalBarChartData!
-                      .x,
+                FluentChartLegendItem(
+                  title: dataTemplate[group].chartData![item].legend ?? '',
+                  color: dataTemplate[group].chartData![item].color!,
+                  annotationBuilder: (BuildContext context) =>
+                      _AnnotationPopover(
+                        names: annotationMeta[group][item],
+                        value: dataTemplate[group]
+                            .chartData![item]
+                            .horizontalBarChartData!
+                            .x,
+                      ),
                 ),
             ],
           ),
-        ],
       ],
     ),
   );
@@ -1018,13 +1088,17 @@ class _AnnotationPopoverState extends State<_AnnotationPopover> {
       Semantics(
         button: true,
         label: 'Show annotation',
-        child: GestureDetector(
-          onTap: () => setState(() => _isExpanded = !_isExpanded),
-          child: Icon(
-            _isExpanded
-                ? FluentIcons.cursor_click_20_regular
-                : FluentIcons.cursor_click_20_filled,
-            size: 16,
+        // The story's <button> sets `cursor: pointer`.
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: () => setState(() => _isExpanded = !_isExpanded),
+            child: Icon(
+              _isExpanded
+                  ? FluentIcons.cursor_click_20_regular
+                  : FluentIcons.cursor_click_20_filled,
+              size: 16,
+            ),
           ),
         ),
       ),

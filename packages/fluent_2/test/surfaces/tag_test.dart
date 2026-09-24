@@ -2,6 +2,7 @@ import 'dart:ui' show PictureRecorder;
 
 import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -385,13 +386,20 @@ void main() {
         isNot(restGlyph),
         reason: 'the glyph takes brand colour',
       );
-      expect(glyphColor(tester), light().colors.neutralForeground2BrandHover);
+      // React, not Figma: see the ramp test below.
+      expect(glyphColor(tester), light().colors.compoundBrandForeground1Hover);
       expect(dismissed, 0);
     });
 
-    testWidgets('the dismiss glyph ramp matches Figma per appearance', (
+    testWidgets('the dismiss glyph rests as Figma and ramps as React', (
       tester,
     ) async {
+      // Figma's `Shape` binds `Neutral/Foreground/2/Brand/Hover` / `Pressed`
+      // (and `Brand/Foreground/2/*` on Brand). Upstream's
+      // `useTagStyles.styles.ts` (useDismissIconStyles) writes
+      // `colorCompoundBrandForeground1Hover` / `Pressed` on all three, and the
+      // storybook's tag--dismiss reads #115EA3 / #0F548C. React wins.
+      final c = light().colors;
       for (final entry in appearanceNames.entries) {
         for (final state in ['Rest', 'Hover', 'Pressed']) {
           final variant = spec.variant({
@@ -411,7 +419,11 @@ void main() {
           );
           expectFill(
             resolved.dismissForegroundColor!.resolve(states)!,
-            variant.part('Shape').fill!,
+            switch (state) {
+              'Hover' => c.compoundBrandForeground1Hover,
+              'Pressed' => c.compoundBrandForeground1Pressed,
+              _ => variant.part('Shape').fill!,
+            },
             reason: '${entry.value} $state: glyph',
           );
         }
@@ -454,6 +466,47 @@ void main() {
         variant.part('Shape').fill!,
         reason: 'and it does not report hover either',
       );
+    });
+
+    testWidgets('a disabled tag is not-allowed across its whole surface', (
+      tester,
+    ) async {
+      // tag--disabled in Chrome: `.fui-Tag` and its text read `not-allowed`
+      // (useTagStyles.styles.ts useRootDisabledStyles), dismissible or not.
+      final pointer = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        pointer: 1,
+      );
+      await pointer.addPointer(location: Offset.zero);
+      addTearDown(pointer.removePointer);
+      MouseCursor? cursor() =>
+          RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1);
+      for (final onDismiss in <VoidCallback?>[null, () {}]) {
+        for (final enabled in <bool>[true, false]) {
+          await pump(
+            tester,
+            FluentTag(
+              key: key,
+              enabled: enabled,
+              onDismiss: onDismiss,
+              child: const Text('Tag'),
+            ),
+          );
+          await pointer.moveTo(
+            tester.getTopLeft(find.byKey(key)) + const Offset(4, 4),
+          );
+          await tester.pump();
+          await pointer.moveBy(const Offset(1, 0));
+          await tester.pump();
+          expect(
+            cursor(),
+            enabled ? SystemMouseCursors.basic : SystemMouseCursors.forbidden,
+            reason: 'dismissible: ${onDismiss != null}, enabled: $enabled',
+          );
+          await pointer.moveTo(Offset.zero);
+          await tester.pump();
+        }
+      }
     });
   });
 
@@ -684,15 +737,127 @@ void main() {
             variant.fill!,
             reason: '${entry.value} $state: fill',
           );
+          // Brand's label is React's, not Figma's `Brand/Foreground/2/*`:
+          // `useInteractionTagPrimaryStyles.styles.ts` writes
+          // `colorCompoundBrandForeground1Hover` / `Pressed`, and the
+          // storybook's interactiontag--appearance reads #115EA3 hovered (no
+          // change) and #0F548C pressed.
+          final c = light().colors;
           expectFill(
             resolvedTextStyleOf(tester, of: find.byKey(key)).color!,
-            variant.part('Primary').fill!,
+            switch ((entry.key, state)) {
+              (FluentTagAppearance.brand, 'Hover') =>
+                c.compoundBrandForeground1Hover,
+              (FluentTagAppearance.brand, 'Pressed') =>
+                c.compoundBrandForeground1Pressed,
+              _ => variant.part('Primary').fill!,
+            },
             reason: '${entry.value} $state: label',
           );
           await press?.up();
           await tester.pump();
         }
       }
+    });
+
+    testWidgets('outline swaps in the active icon, tinted brand, on hover', (
+      tester,
+    ) async {
+      // interactiontag--appearance and --selected in Chrome: an outline
+      // primary half shows `.fui-Icon-filled` under `:hover` (#0F6CBD) and
+      // `:active` (#115EA3) while the label goes #242424; selected outline
+      // shows it white; filled and brand never swap.
+      const regular = FluentIcons.calendar_month_20_regular;
+      const filled = FluentIcons.calendar_month_20_filled;
+      final c = light().colors;
+      Color? glyph(IconData icon) => tester
+          .widget<RichText>(
+            find.descendant(
+              of: find.byIcon(icon),
+              matching: find.byType(RichText),
+            ),
+          )
+          .text
+          .style
+          ?.color;
+      final pointer = await mouse(tester);
+      for (final (appearance, selected, swaps, hover, pressed)
+          in <(FluentTagAppearance, bool, bool, Color, Color)>[
+            (
+              FluentTagAppearance.outline,
+              false,
+              true,
+              c.neutralForeground2BrandHover,
+              c.neutralForeground2BrandPressed,
+            ),
+            (
+              FluentTagAppearance.outline,
+              true,
+              true,
+              c.neutralForegroundOnBrand,
+              c.neutralForegroundOnBrand,
+            ),
+            (
+              FluentTagAppearance.filled,
+              false,
+              false,
+              c.neutralForeground2Hover,
+              c.neutralForeground2Pressed,
+            ),
+          ]) {
+        final reason = '${appearance.name} selected: $selected';
+        await pump(
+          tester,
+          FluentInteractionTag(
+            key: key,
+            appearance: appearance,
+            selected: selected,
+            icon: const Icon(regular),
+            activeIcon: const Icon(filled),
+            onPressed: () {},
+            child: const Text('Tag'),
+          ),
+        );
+        await pointer.moveTo(Offset.zero);
+        await tester.pump();
+        expect(find.byIcon(regular), findsOneWidget, reason: reason);
+
+        await pointer.moveTo(tester.getCenter(find.byKey(key)));
+        await tester.pump();
+        await pointer.moveBy(const Offset(1, 0));
+        await tester.pump();
+        final shown = swaps ? filled : regular;
+        expect(find.byIcon(shown), findsOneWidget, reason: reason);
+        expect(glyph(shown), hover, reason: '$reason: hover');
+
+        await pointer.down(tester.getCenter(find.byKey(key)));
+        await tester.pump();
+        expect(glyph(shown), pressed, reason: '$reason: pressed');
+        await pointer.up();
+        await tester.pump();
+      }
+
+      // The brand tint is the Filled glyph's alone: at rest the Regular one
+      // still follows the label, including a caller's own colour.
+      const custom = Color(0xFF00AA00);
+      await pump(
+        tester,
+        FluentInteractionTag(
+          key: key,
+          appearance: FluentTagAppearance.outline,
+          icon: const Icon(regular),
+          activeIcon: const Icon(filled),
+          style: FluentTagStyle.from(foregroundColor: custom),
+          onPressed: () {},
+          child: const Text('Tag'),
+        ),
+      );
+      await pointer.moveTo(Offset.zero);
+      await tester.pump();
+      expect(glyph(regular), custom, reason: 'rest follows foregroundColor');
+      await pointer.moveTo(tester.getCenter(find.byKey(key)));
+      await tester.pump();
+      expect(glyph(filled), c.neutralForeground2BrandHover);
     });
 
     testWidgets('selected ramps on the brand fill in all three styles', (

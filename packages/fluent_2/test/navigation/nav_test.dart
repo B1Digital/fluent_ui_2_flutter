@@ -99,6 +99,23 @@ void main() {
   TextStyle labelStyle(WidgetTester tester, String label) =>
       resolvedTextStyleOf(tester, of: find.text(label));
 
+  /// The fill the storybook paints for [variant], which is Figma's except
+  /// while a row without secondary actions is pressed.
+  ///
+  /// Figma binds `Neutral/Background/4/Pressed` on every Pressed variant, but
+  /// `useRootDefaultClassName` in `sharedNavStyles.styles.ts` declares a
+  /// `:hover` and no `:active`, and the live `components-nav--basic` page holds
+  /// rgb(250, 250, 250) — `neutralBackground4Hover` — while a row is pressed.
+  /// A row with secondary actions is upstream's `SplitNavItem`, whose root
+  /// adds `':active': backgroundColorPressed`, so there Figma stands.
+  int? storybookFill(SpecVariant variant, Color? figma) =>
+      variant.props['State'] == 'Pressed' &&
+          variant.props['Secondary actions'] != 'True'
+      ? FluentThemeData.light(
+          fontPlatform: FluentFontPlatform.web,
+        ).colors.neutralBackground4Hover.toARGB32()
+      : figma?.toARGB32();
+
   /// Asserts one row against its Figma variant: the outer frame's height and
   /// padding, then the inner `Button` part's size, padding, radius and fill,
   /// then the label ramp.
@@ -144,7 +161,7 @@ void main() {
     }
     expect(
       decoration.color?.toARGB32(),
-      button.fill?.toARGB32(),
+      storybookFill(variant, button.fill),
       reason: '${variant.name}: Button fill (${button.token('fills')})',
     );
 
@@ -482,7 +499,7 @@ void main() {
         expect(innerPadding(tester, finder), variant.padding);
         expect(
           surface(tester, finder).color?.toARGB32(),
-          variant.fill?.toARGB32(),
+          storybookFill(variant, variant.fill),
         );
         final style = labelStyle(tester, 'Contoso');
         expect(style.fontSize, variant.text!.fontSize);
@@ -523,7 +540,11 @@ void main() {
       );
       expect(
         labelStyle(tester, 'Contoso').color,
-        theme.colors.neutralForeground1,
+        theme.colors.neutralForeground2,
+        reason:
+            'the storybook, not Figma: AppItem inherits '
+            'useRootDefaultClassName colorNeutralForeground2, and '
+            'components-nav--basic measures rgb(66, 66, 66) on Contoso HR',
       );
       expect(
         find.descendant(of: finder, matching: find.byType(FluentInteractive)),
@@ -740,6 +761,212 @@ void main() {
         tester.getSize(row),
         size,
         reason: 'a foreground border consumes no layout',
+      );
+    });
+  });
+
+  group('the storybook over Figma', () {
+    Widget pin() => FluentButton.icon(
+      icon: const Icon(FluentIcons.pin_20_regular),
+      semanticLabel: 'Pin',
+      size: FluentButtonSize.small,
+      appearance: FluentButtonAppearance.transparent,
+      onPressed: () {},
+    );
+
+    /// The overlay the secondary actions ride in.
+    Opacity pinOpacity(WidgetTester tester) => tester.widget<Opacity>(
+      find.ancestor(
+        of: find.byType(FluentButton),
+        matching: find.byType(Opacity),
+      ),
+    );
+
+    // `sharedNavStyles.styles.ts` `useRootDefaultClassName`: `color:
+    // colorNeutralForeground2` and no state rule on it; the live
+    // `components-nav--basic` page measures rgb(66, 66, 66) on 'Dashboard' at
+    // rest, hovered and pressed, and on the selected 'Announcements'.
+    testWidgets('the label holds neutralForeground2 under a real mouse, '
+        'selected or not', (tester) async {
+      final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+      await pump(
+        tester,
+        nav(
+          selected: 'b',
+          children: const <Widget>[
+            FluentNavItem(value: 'a', child: Text('A')),
+            FluentNavItem(value: 'b', child: Text('B')),
+          ],
+        ),
+        theme: theme,
+      );
+      expect(labelStyle(tester, 'B').color, theme.colors.neutralForeground2);
+
+      final finder = find.widgetWithText(FluentNavItem, 'A');
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(tester.getCenter(finder));
+      await gesture.moveTo(tester.getCenter(finder) + const Offset(1, 0));
+      await tester.pumpAndSettle();
+      expect(labelStyle(tester, 'A').color, theme.colors.neutralForeground2);
+
+      await gesture.down(tester.getCenter(finder));
+      await tester.pumpAndSettle();
+      expect(labelStyle(tester, 'A').color, theme.colors.neutralForeground2);
+      expect(
+        surface(tester, finder).color,
+        theme.colors.neutralBackground4Hover,
+        reason: 'no :active rule upstream, so a held row keeps the hover fill',
+      );
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    // `useSplitNavItemStyles.styles.ts`: `hoverAction` is `opacity: 0`, lifted
+    // by the root's `:hover` and `:focus-within`. The live `components-nav--split-nav-items` page
+    // measures the Pin button at opacity 0 -> 1 on row hover.
+    testWidgets('secondary actions hide at rest and appear under the mouse', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        nav(
+          children: <Widget>[
+            FluentNavItem(
+              value: 'a',
+              secondaryActions: <Widget>[pin()],
+              child: const Text('Performance Reviews'),
+            ),
+          ],
+        ),
+      );
+      expect(pinOpacity(tester).opacity, 0, reason: 'rest: invisible');
+
+      final finder = find.byType(FluentNavItem);
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(tester.getCenter(finder));
+      await gesture.moveTo(tester.getCenter(finder) + const Offset(1, 0));
+      await tester.pumpAndSettle();
+      expect(pinOpacity(tester).opacity, 1, reason: 'row hover reveals it');
+
+      await gesture.moveTo(const Offset(0, 500));
+      await tester.pumpAndSettle();
+      expect(pinOpacity(tester).opacity, 0, reason: 'and leaving hides it');
+    });
+
+    // The other half of `:focus-within`: focus on the pin itself, with the
+    // pointer nowhere near the row, must not leave a focused control
+    // invisible.
+    testWidgets('focus on a secondary action reveals it', (tester) async {
+      final pinFocus = FocusNode();
+      addTearDown(pinFocus.dispose);
+      await pump(
+        tester,
+        nav(
+          children: <Widget>[
+            FluentNavItem(
+              value: 'a',
+              secondaryActions: <Widget>[
+                FluentButton.icon(
+                  icon: const Icon(FluentIcons.pin_20_regular),
+                  semanticLabel: 'Pin',
+                  size: FluentButtonSize.small,
+                  appearance: FluentButtonAppearance.transparent,
+                  focusNode: pinFocus,
+                  onPressed: () {},
+                ),
+              ],
+              child: const Text('Performance Reviews'),
+            ),
+          ],
+        ),
+      );
+      expect(pinOpacity(tester).opacity, 0);
+
+      pinFocus.requestFocus();
+      await tester.pumpAndSettle();
+      expect(pinOpacity(tester).opacity, 1, reason: ':focus-within');
+
+      pinFocus.unfocus();
+      await tester.pumpAndSettle();
+      expect(pinOpacity(tester).opacity, 0);
+    });
+
+    // `useSplitNavItemStyles.styles.ts` `baseRoot` adds `':active':
+    // backgroundColorPressed`, which plain rows lack.
+    testWidgets('a row with secondary actions presses to 4Pressed', (
+      tester,
+    ) async {
+      final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+      await pump(
+        tester,
+        nav(
+          children: <Widget>[
+            FluentNavItem(
+              value: 'a',
+              secondaryActions: <Widget>[pin()],
+              child: const Text('Split'),
+            ),
+          ],
+        ),
+        theme: theme,
+      );
+      final finder = find.byType(FluentNavItem);
+      final center = tester.getCenter(find.text('Split'));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(center);
+      await gesture.moveTo(center + const Offset(1, 0));
+      await tester.pumpAndSettle();
+      expect(
+        surface(tester, finder).color,
+        theme.colors.neutralBackground4Hover,
+      );
+
+      await gesture.down(center);
+      await tester.pumpAndSettle();
+      expect(
+        surface(tester, finder).color,
+        theme.colors.neutralBackground4Pressed,
+      );
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('secondary actions do not take width from the label', (
+      tester,
+    ) async {
+      Future<double> labelWidth({required bool actions}) async {
+        await pump(
+          tester,
+          nav(
+            children: <Widget>[
+              FluentNavItem(
+                value: 'a',
+                icon: const Icon(FluentIcons.preview_link_20_regular),
+                secondaryActions: actions ? <Widget>[pin()] : const <Widget>[],
+                child: const Text('Performance Reviews'),
+              ),
+            ],
+          ),
+        );
+        return tester.getSize(find.text('Performance Reviews')).width;
+      }
+
+      final bare = await labelWidth(actions: false);
+      expect(
+        await labelWidth(actions: true),
+        bare,
+        reason: 'overlaid on the row end, so the label keeps its full width',
+      );
+      expect(
+        tester.getSize(find.byType(FluentNavItem)).height,
+        40,
+        reason: 'and the label does not wrap onto a second line',
       );
     });
   });
