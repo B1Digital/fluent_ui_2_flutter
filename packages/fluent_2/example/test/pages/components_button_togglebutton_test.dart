@@ -165,6 +165,34 @@ void main() {
       }
     });
 
+    testWidgets('an unchecked subtle or transparent toggle fills its glyph '
+        'under the mouse', (WidgetTester tester) async {
+      // bundleIcon on togglebutton--appearance: `useButtonStyles` shows the
+      // Filled glyph under subtle's and transparent's `:hover`, and on no
+      // other appearance until it is checked.
+      await pumpSection(tester, section);
+      for (final String label in appearances) {
+        final TestGesture mouse = await mouseHover(tester, buttonWith(label));
+        await mouse.moveTo(
+          tester.getCenter(buttonWith(label)) + const Offset(1, 0),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          glyphOf(tester, buttonWith(label)),
+          label == 'Subtle' || label == 'Transparent'
+              ? FluentIcons.calendar_month_20_filled
+              : FluentIcons.calendar_month_20_regular,
+          reason: '$label hovered',
+        );
+        await mouseAway(tester, mouse);
+        expect(
+          glyphOf(tester, buttonWith(label)),
+          FluentIcons.calendar_month_20_regular,
+          reason: '$label after the mouse leaves',
+        );
+      }
+    });
+
     testWidgets('a checked outline toggle takes a 3px border and grows by it', (
       WidgetTester tester,
     ) async {
@@ -201,8 +229,8 @@ void main() {
       WidgetTester tester,
     ) async {
       // togglebutton--appearance, Subtle checked: label rgb(36,36,36) with the
-      // icon rgb(15,108,189) — `useToggleButtonStyles.subtleChecked` colours
-      // `.fui-Button__icon` on its own.
+      // icon rgb(15,108,189) — `useToggleButtonStyles`'s
+      // `useIconCheckedStyles.subtleOrTransparent` colours the icon on its own.
       await pumpSection(tester, section);
       final FluentColors colors = themeColors(tester);
       final Finder subtle = buttonWith('Subtle');

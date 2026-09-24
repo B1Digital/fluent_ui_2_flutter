@@ -273,6 +273,10 @@ class _ToggleButtonState extends State<_ToggleButton> {
     size: widget.size,
     shape: widget.shape,
     icon: _isChecked ? widget.checkedIcon ?? widget.icon : widget.icon,
+    // bundleIcon's other half: an unchecked subtle or transparent toggle shows
+    // the filled glyph under the mouse too (`useButtonStyles` subtle and
+    // transparent `:hover`). FluentButton ignores it on the other appearances.
+    activeIcon: widget.checkedIcon,
     iconPosition: widget.iconPosition,
     semanticLabel: widget.semanticLabel,
     style: _isChecked ? _checkedStyle(context) : null,
