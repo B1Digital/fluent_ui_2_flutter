@@ -229,7 +229,7 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/inputs/link.dart`
-- Tests: `packages/fluent_2/test/goldens/link_golden_test.dart`, `packages/fluent_2/test/goldens/toast_golden_test.dart`, `packages/fluent_2/test/inputs/link_test.dart`, `packages/fluent_2/test/navigation/data_grid_test.dart`, `packages/fluent_2/test/overlays/toast_test.dart`
+- Tests: `packages/fluent_2/test/goldens/link_golden_test.dart`, `packages/fluent_2/test/goldens/toast_golden_test.dart`, `packages/fluent_2/test/inputs/link_test.dart`, `packages/fluent_2/test/internal/interaction_wiring_test.dart`, `packages/fluent_2/test/navigation/data_grid_test.dart`, `packages/fluent_2/test/overlays/toast_test.dart`
 - Stories: `packages/fluent_2/example/lib/pages/components_card_card.dart`, `packages/fluent_2/example/lib/pages/components_infolabel.dart`, `packages/fluent_2/example/lib/pages/components_link.dart`, `packages/fluent_2/example/lib/pages/components_menu_menu.dart`, `packages/fluent_2/example/lib/pages/components_messagebar.dart`, `packages/fluent_2/example/lib/pages/components_popover.dart`, `packages/fluent_2/example/lib/pages/components_tag_interactiontag.dart`, `packages/fluent_2/example/lib/pages/components_toast.dart`, `packages/fluent_2/example/lib/pages/components_tooltip.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/link/usage/
 - Design decisions: `references/components-actions-inputs.md`

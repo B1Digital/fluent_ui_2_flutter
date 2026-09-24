@@ -327,7 +327,7 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/surfaces/accordion.dart`
-- Tests: `packages/fluent_2/test/goldens/accordion_golden_test.dart`, `packages/fluent_2/test/surfaces/accordion_test.dart`
+- Tests: `packages/fluent_2/test/goldens/accordion_golden_test.dart`, `packages/fluent_2/test/internal/interaction_wiring_test.dart`, `packages/fluent_2/test/surfaces/accordion_test.dart`
 - Stories: `packages/fluent_2/example/lib/pages/components_accordion.dart`, `packages/fluent_2/example/lib/shell/dart_highlighter.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/accordion/usage/
 - Design decisions: `references/components-navigation-data.md`

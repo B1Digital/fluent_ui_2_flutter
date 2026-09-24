@@ -257,7 +257,7 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/inputs/switch.dart`
-- Tests: `packages/fluent_2/test/goldens/switch_golden_test.dart`, `packages/fluent_2/test/inputs/switch_test.dart`
+- Tests: `packages/fluent_2/test/goldens/switch_golden_test.dart`, `packages/fluent_2/test/inputs/switch_test.dart`, `packages/fluent_2/test/internal/interaction_wiring_test.dart`
 - Stories: `packages/fluent_2/example/lib/pages/charts_areachart.dart`, `packages/fluent_2/example/lib/pages/charts_charttable.dart`, `packages/fluent_2/example/lib/pages/charts_declarativechart.dart`, `packages/fluent_2/example/lib/pages/charts_donutchart.dart`, `packages/fluent_2/example/lib/pages/charts_funnelchart.dart`, `packages/fluent_2/example/lib/pages/charts_ganttchart.dart`, `packages/fluent_2/example/lib/pages/charts_gaugechart.dart`, `packages/fluent_2/example/lib/pages/charts_groupedverticalbarchart.dart`, `packages/fluent_2/example/lib/pages/charts_horizontalbarchart.dart`, `packages/fluent_2/example/lib/pages/charts_horizontalbarchartwithaxis.dart`, `packages/fluent_2/example/lib/pages/charts_linechart.dart`, `packages/fluent_2/example/lib/pages/charts_sankeychart.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/switch/usage/
 - Design decisions: `references/components-actions-inputs.md`

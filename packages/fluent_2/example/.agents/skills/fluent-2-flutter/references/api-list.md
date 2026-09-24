@@ -334,13 +334,20 @@ Widget buildFluentListItem(
 
 ## Verified usage
 
-No dedicated checked-in constructor excerpt is available. Use the exact
-signatures above and verify any new example with Dart analysis and a widget test.
+Checked-in usage excerpt from `packages/fluent_2/test/internal/interaction_wiring_test.dart`:
+
+```dart
+FluentListItem(value: 1, enabled: false, child: Text('Row'))
+```
+
+This excerpt verifies current constructor names. It may depend on local
+variables or surrounding story/test setup; inspect the cited file before
+copying it into a standalone application.
 
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/navigation/list_item.dart`
-- Tests: `packages/fluent_2/test/goldens/list_item_golden_test.dart`, `packages/fluent_2/test/navigation/list_item_test.dart`
+- Tests: `packages/fluent_2/test/goldens/list_item_golden_test.dart`, `packages/fluent_2/test/internal/interaction_wiring_test.dart`, `packages/fluent_2/test/navigation/list_item_test.dart`
 - Stories: `packages/fluent_2/example/lib/pages/components_list.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/list/usage/
 - Design decisions: `references/components-navigation-data.md`
