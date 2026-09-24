@@ -759,12 +759,32 @@ void main() {
         ),
       );
       expect(
-        find.byKey(const ValueKey<String>('popover-row-rule')),
+        find.byKey(kChartPopoverRowRuleKey),
         findsOneWidget,
         reason:
             'ChartPopover.tsx:135 forces shouldDrawBorderBottom to false on the '
             'last row, so of two flagged rows only the first draws one.',
       );
+    });
+
+    testWidgets('two ruled line rows mount side by side', (tester) async {
+      // A VerticalStackedBarChart stack with two lines rules both line rows
+      // (_onStackHoverFocus sets shouldDrawBorderBottom on every line), so
+      // the ruled wrappers are siblings in one Column.
+      await pumpMulti(
+        tester,
+        const FluentChartPopoverData(
+          isCalloutForStack: true,
+          xValue: 'Jan',
+          yValues: <FluentYValueHover>[
+            FluentYValueHover(legend: 'l1', y: 1, shouldDrawBorderBottom: true),
+            FluentYValueHover(legend: 'l2', y: 2, shouldDrawBorderBottom: true),
+            FluentYValueHover(legend: 'bar', y: 3),
+          ],
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(kChartPopoverRowRuleKey), findsNWidgets(2));
     });
 
     testWidgets('a flagged row is ruled off 10px below its bar', (
@@ -787,7 +807,12 @@ void main() {
         ),
       );
       final rule = tester.widget<Container>(
-        find.byKey(const ValueKey<String>('popover-row-rule')),
+        find
+            .ancestor(
+              of: find.byKey(kChartPopoverRowRuleKey),
+              matching: find.byType(Container),
+            )
+            .first,
       );
       final side =
           ((rule.decoration! as BoxDecoration).border! as Border).bottom;
@@ -814,7 +839,14 @@ void main() {
       );
       expect(
         tester
-            .getSize(find.byKey(const ValueKey<String>('popover-row-rule')))
+            .getSize(
+              find
+                  .ancestor(
+                    of: find.byKey(kChartPopoverRowRuleKey),
+                    matching: find.byType(Container),
+                  )
+                  .first,
+            )
             .width,
         moreOrLessEquals(
           tester.getSize(find.byType(IntrinsicWidth)).width,

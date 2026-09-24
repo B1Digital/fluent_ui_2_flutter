@@ -547,8 +547,11 @@ Widget _popoverRow(
   if (!value.shouldDrawBorderBottom || isLast) return row;
   // ChartPopover.tsx:144-153 — a 1px colorNeutralStroke2 rule, 10px below the
   // row, on the wrapper that holds it.
+  //
+  // The ruled wrappers are siblings in the body's Column, and a stack callout
+  // can rule several line rows, so the finder key sits one level down where
+  // it is unique to its row.
   return Container(
-    key: const ValueKey<String>('popover-row-rule'),
     padding: EdgeInsets.only(bottom: style.rowPaddingBottom!.resolve(states)!),
     decoration: BoxDecoration(
       border: Border(
@@ -558,9 +561,14 @@ Widget _popoverRow(
         ),
       ),
     ),
-    child: row,
+    child: KeyedSubtree(key: kChartPopoverRowRuleKey, child: row),
   );
 }
+
+/// Marks the row inside each ruled wrapper, so a test can find the rule as
+/// that row's [Container] ancestor.
+@visibleForTesting
+const Key kChartPopoverRowRuleKey = ValueKey<String>('popover-row-rule');
 
 /// Renders a whole-number double without its `.0`.
 ///
