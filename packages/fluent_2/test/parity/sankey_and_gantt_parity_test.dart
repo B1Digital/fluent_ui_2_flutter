@@ -89,8 +89,12 @@ void main() {
         chartTitle: 'Sankey Chart',
         reflowMode: FluentSankeyReflowMode.minWidth,
       ),
-      // Measured 0.064% — 212 pixels of 332,688, aligned at shift (0,0).
-      maxMismatch: 0.09,
+      // Measured 0.064% — 212 of 332,688 px, aligned, in every zone. Every
+      // node rect lands on the capture; all 212 px sit on near-horizontal
+      // ribbon borders (x 212-218 and 402-492), where Skia and Chromium
+      // flatten the same cubic a few tenths of a pixel apart. Rasteriser
+      // noise, not geometry.
+      maxMismatch: 0.07,
     );
   });
 
@@ -140,10 +144,19 @@ void main() {
         // gradients and rounded corners off.
         props: const FluentCartesianChartProps(showYAxisLabels: true),
       ),
-      // Measured 0.062% — 126 pixels of 203,099, aligned; the same in every
-      // zone and on macOS and Linux now that useUtc reaches the axis (was
-      // 0.098% at +03:00 when the axis was local).
-      maxMismatch: 0.07,
+      // Measured 0.048% — 98 of 203,099 px, aligned, the same in every zone
+      // (was 0.098% at +03:00 before useUtc reached the axis, and 0.062%
+      // before the legend swatches snapped to whole device pixels). All 98
+      // are four one-column bar edges, 24-25 px each: Job A's left (x 45) and
+      // right (x 250) ends and the left ends of Job B (x 268) and Job C
+      // (x 222). The left margin is the widest y label plus 20
+      // (`CartesianChart.tsx:679`), and Selawik Semibold sets "Job A" 25.874
+      // wide against Segoe UI Semibold's 25.438 (Oracle B), so the plot
+      // starts 0.44 px right of upstream's 45.42. The x range's right end is
+      // fixed, so a bar edge moves by that shift scaled by its distance from
+      // the right; these four are the ones it moves far enough to change an
+      // edge column by more than the tolerance.
+      maxMismatch: 0.05,
     );
   });
 }

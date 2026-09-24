@@ -74,54 +74,20 @@ void main() {
           // (`:115`).
         ),
       ),
-      // Measured 0.838% — 222 pixels of 26,482, down from 5.136% (1,360 px).
-      // What moved: `legend.dart` now reproduces `classes.resizableArea`, the
-      // box `Legends.tsx:115` and `:156` wrap the rows in. It is
-      // `max-width: 800px` with `position: relative; left: 50%; transform:
-      // translate(-50%, 0)` (`useLegendsStyles.styles.ts:109-116`) — 50% of the
-      // parent's width right, 50% of its own back left, i.e. a box capped at 800
-      // and centred. In this 944-wide root that is (944 - 800) / 2 = 72 of lead,
-      // and the reference's first swatch sits at exactly 72 + 8 of row padding.
-      // The port used to lay the rows straight into the incoming constraints and
-      // start at the container edge, which the harness could not report as a
-      // shift because its probe stops at ±3.
+      // Measured 0.008% — 2 of 26,482 px, aligned, in every zone: the two top
+      // corners of the Legend 4 triangle (x 340 and 355, row 9). Chromium
+      // fills the flat top edge on columns 341-354 and leaves both neighbours
+      // empty; Skia antialiases the diagonals' ends into them at about 45%
+      // coverage. Every swatch, including the diamond, lands on the capture.
       //
-      // Oracle B settles the box outright: `charts-legends--legends-wrap-lines`
-      // records `fui-legend__resizableArea` itself at (72, 0, 800, 120) in the
-      // same 944-wide root, and the corpus confirms the *rule* rather than the
-      // one number — a left-aligned strip's first swatch is at
-      // (rootWidth - 800) / 2 + 8 for every captured width over the cap (70 at
-      // 924, 78 at 940, 80 at 944) and at plain 8 for every width under it
-      // (`charts-linechart--line-chart-basic`, root 680, swatch at 8).
-      //
-      // The whole residual is three known things, none of them this file's and
-      // none of them a tolerance to raise:
-      //
-      //  * 184 px — the Legend 3 diamond, which settles the origin question
-      //    `legend_shape.dart:241-258` records as unverified. Intensity-weighted
-      //    centroids, now that the strip is aligned: reference (260.993, 16.003)
-      //    against this port's (253.773, 18.937), an offset of (-7.22, +2.93).
-      //    That is rotating the 14x14 swatch's centre (7, 7) about the box
-      //    corner instead of about its centre — a predicted (-7, +2.9). Chromium
-      //    applies the `transform` attribute of an outermost `<svg>` in HTML flow
-      //    about the CSS `transform-origin: 50% 50%`, not about SVG user-space
-      //    (0, 0) as `FluentChartLegendShapePainter` does. The same reading
-      //    predicts the pyramid swatch — which that comment says paints nothing
-      //    today — renders normally upstream. Outside this task's file list.
-      //  * 24 px — the Legend 4 triangle's diagonal edges. Its centroid is within
-      //    0.36 px of the reference's ((350.776, 13.960) against
-      //    (350.421, 13.903)), so the geometry is right and only the edge
-      //    rasterisation differs.
-      //  * 14 px — one column at the right edge of Legend 2's rectangle. The row
-      //    pitch is 86.891, so the second swatch starts at a fractional x;
-      //    Chromium snaps a border box to whole device pixels and Skia does not
-      //    (measured 250,250,250 against 252,224,241, a partial coverage of
-      //    `#E3008C`).
-      //
-      // Pinned just above the measured value so the number is recorded and any
-      // drift — in either direction — fails and has to be re-pinned
-      // deliberately.
-      maxMismatch: 0.93,
+      // History: 5.136% before `legend.dart` reproduced `classes.resizableArea`
+      // (`max-width: 800px`, centred by `left: 50%; translate(-50%, 0)`,
+      // `useLegendsStyles.styles.ts:109-116`: (944 - 800) / 2 = 72 of lead,
+      // which Oracle B records for legends-wrap-lines at (72, 0, 800, 120));
+      // 0.838% before the diamond turned about its box centre, as Chromium
+      // turns an outermost `<svg>`, and every swatch snapped to whole device
+      // pixels (the triangle's edges and Legend 2's fractional right column).
+      maxMismatch: 0.01,
     );
   });
 
@@ -167,13 +133,10 @@ void main() {
           onChange: (_, _) {},
         ),
       ),
-      // Measured 0.838% — 222 pixels of 26,482, the same picture and the same
-      // three causes as LegendsBasic above: 184 px the Legend 3 diamond
-      // (rotated about the svg's (0, 0) where Chromium rotates about its
-      // centre), 24 px the triangle's diagonal edges, 14 px the right-edge
-      // column of Legend 2's swatch at fractional x 166.891, which Chromium
-      // snaps to a whole pixel and Skia does not.
-      maxMismatch: 0.93,
+      // Measured 0.008% — 2 of 26,482 px, aligned, in every zone: the same
+      // picture as LegendsBasic above, the Legend 4 triangle's two top corners
+      // (was 0.838% for the same reasons as LegendsBasic).
+      maxMismatch: 0.01,
     );
   });
 
@@ -207,19 +170,24 @@ void main() {
           overflowText: 'Overflow Items',
         ),
       ),
-      // Measured 4.401% — 1,042 pixels of 23,674. 140 are ten 14px columns:
-      // the edges of the Legend 3-7 swatches, which sit at fractional x
-      // (253.78, 340.67, 427.56, 514.45, 601.34) where Chromium snaps a border
-      // box to whole pixels and Skia paints partial coverage.
-      // The other 902 px are the "+10 Overflow Items" trigger (x 680-850),
-      // which the capture does not mask: its label is the MenuButton's HTML
-      // text, not a `fui-legend__text`, so the manifest records no rect for
-      // it. 818 of them are the label's glyphs; 84 are its chevron and right
-      // border, 4.6 px to the right of the reference's because Selawik
-      // Semibold sets the label 127.63 wide against Segoe UI Semibold's 123.0
-      // (the reference button is 165 wide: 13 + 123 + 4 + 12 + 13). The row
-      // count and the trigger's left edge (680) match.
-      maxMismatch: 4.5,
+      // Measured 0.509% — 107 of 21,028 px, aligned, in every zone, all of it
+      // the "+10 Overflow Items" trigger's right end. Selawik Semibold sets
+      // the label 127.62 wide against Segoe UI Semibold's 123.0, so the
+      // button grows about 4 px to the right of the reference's (its left
+      // edge, 680, matches):
+      //
+      //  * 64 px — the right border and its rounded corners, at x 848-849
+      //    where the reference has them at 844-846.
+      //  * 27 px — the chevron, at x 828-833 against 824-829.
+      //  * 16 px — the label's last glyph, which runs 3 columns (x 818-820)
+      //    past the reference label's masked rect.
+      //
+      // Every swatch, the row count and the break before the trigger match.
+      // History: 4.401% while the capture left the MenuButton label unmasked
+      // and the swatches sat at fractional x; 0.499% before the chevron moved
+      // into the MenuButton's `menuIcon` slot, which puts it on upstream's
+      // rows but, with the wider label, reshuffles 2 px of its antialiasing.
+      maxMismatch: 0.51,
     );
   });
 
@@ -237,18 +205,11 @@ void main() {
           overflowText: 'Overflow Items',
         ),
       ),
-      // Measured 4.461% — 1,056 pixels of 23,674. 154 are eleven 14px
-      // columns: the fractional-x swatch edges of LegendsOverflow plus Legend
-      // 2's right edge (x 166), which the lighter color2 fringe trips here.
-      // The other 902 px are the "+10 Overflow Items" trigger (x 680-850),
-      // which the capture does not mask: its label is the MenuButton's HTML
-      // text, not a `fui-legend__text`, so the manifest records no rect for
-      // it. 818 of them are the label's glyphs; 84 are its chevron and right
-      // border, 4.6 px to the right of the reference's because Selawik
-      // Semibold sets the label 127.63 wide against Segoe UI Semibold's 123.0
-      // (the reference button is 165 wide: 13 + 123 + 4 + 12 + 13). The row
-      // count and the trigger's left edge (680) match.
-      maxMismatch: 4.5,
+      // Measured 0.509% — 107 of 21,028 px, aligned, in every zone: the same
+      // 107 trigger pixels as LegendsOverflow above (right border 64, chevron
+      // 27, the label's last glyph 16), and nothing from the swatches (was
+      // 4.461%, the extra 0.06 point Legend 2's fractional right column).
+      maxMismatch: 0.51,
     );
   });
 
@@ -267,15 +228,13 @@ void main() {
           enabledWrapLines: true,
         ),
       ),
-      // Measured 0.336% — 324 pixels of 96,486, and every one of them is a
-      // 14px column at a swatch's left or right edge. Oracle B puts fourteen
-      // of the seventeen swatches at fractional x (178.89, 273.78, ... 685.69
-      // inside the clip); Chromium snaps each border box to whole pixels and
-      // Skia paints the fraction, so a fractional edge is one column of
-      // partial coverage (482.97 is close enough to whole to pass). Line
-      // breaks, row pitch (40), the 800px resizable area and every swatch
-      // colour match.
-      maxMismatch: 0.35,
+      // Measured 0.000% — not one of 96,486 unmasked pixels differs, in any
+      // zone. Pinned at 0: the floor check admits nothing else. Line breaks,
+      // row pitch (40), the 800px resizable area, every swatch colour and
+      // every swatch edge match (was 0.336%, 324 px of 14px columns at the
+      // fourteen swatches Oracle B puts at fractional x, until the swatches
+      // snapped to whole device pixels as Chromium's border boxes do).
+      maxMismatch: 0,
     );
   });
 }

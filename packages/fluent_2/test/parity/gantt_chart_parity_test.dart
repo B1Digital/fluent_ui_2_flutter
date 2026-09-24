@@ -83,26 +83,18 @@ void main() {
         // gradients, rounded corners and multi-select off.
         props: const FluentCartesianChartProps(showYAxisLables: true),
       ),
-      // Measured 0.204% — 407 of 199,789 px, aligned, on a UTC+3 machine. All
-      // of it is vertical edge columns: the bars' left and right ends, and the
-      // legend swatches'.
-      //
-      //  * 150 px depend on the machine's time zone. GanttChart defaults
-      //    `useUTC` to true and hands it to the cartesian shell
-      //    (`GanttChart.tsx:45`, `:608`); `FluentGanttChart` keeps its own
-      //    `useUtc: true` but never copies it into `props.useUTC`, so the x
-      //    axis is niced and ticked in local time and every bar lands 3 hours
-      //    (0.37 px) right of the ticks. With `useUTC: true` in `props` this
-      //    story measures 0.129% — and so would this very file on a UTC
-      //    machine, which the 0.5 floor of this pin still admits.
-      //  * 213 px are the y-label width: the left margin is the widest label
-      //    plus 20 (`CartesianChart.tsx:679`), and Selawik Semibold sets
-      //    "Job-1" at 25.942 px against Segoe UI Semibold's 25.742, so every
-      //    bar starts 0.2 px right of upstream's 45.742.
-      //  * 44 px are the swatches: Chromium snaps each HTML box to whole
-      //    pixels ("Incomplete" at x 117.375 paints 117-130); the port paints
-      //    it at the fraction, antialiased.
-      maxMismatch: 0.23,
+      // Measured 0.107% — 213 of 199,789 px, aligned, the same in every zone
+      // (was 0.204% at +03:00 before useUtc reached the axis, and 0.129%
+      // before the legend swatches snapped to whole device pixels). All 213
+      // are nine one-column bar ends, 23-24 px each, at x 45, 84, 140, 178,
+      // 184, 246, 258, 261 and 311. The left margin is the widest y label
+      // plus 20 (`CartesianChart.tsx:679`): Selawik Semibold, whose digits
+      // are tabular, sets every "Job-N" at 25.942 against Segoe UI Semibold's
+      // widest, "Job-4", at 25.750 (Oracle B), so the plot starts 0.19 px
+      // right of upstream's 45.742. The x range's right end is fixed, so a
+      // bar end moves by that shift scaled by its distance from the right;
+      // these nine are the ones it tips past the tolerance.
+      maxMismatch: 0.11,
     );
   });
 }

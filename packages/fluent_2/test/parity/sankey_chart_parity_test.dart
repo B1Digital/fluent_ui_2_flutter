@@ -92,16 +92,17 @@ void main() {
         linkSemanticLabel: '{2} items moved from category {0} to {1}',
         reflowMode: FluentSankeyReflowMode.minWidth,
       ),
-      // Measured 0.072% — 228 of 315,162 px, aligned. Every node rect lands on
-      // the capture; all 228 px sit on the 2px ribbon borders between the
-      // first two columns (x 180-260), where a border runs within 2 px of
-      // horizontal and Skia and Chromium flatten the same cubic a few tenths
-      // of a pixel apart. Rasteriser noise, as in SankeyChartBasic.
+      // Measured 0.072% — 228 of 315,162 px, aligned, in every zone. Every
+      // node rect lands on the capture; all 228 px sit on the 2px ribbon
+      // borders between the first two columns (x 187-245), where a border
+      // runs within 2 px of horizontal and Skia and Chromium flatten the same
+      // cubic a few tenths of a pixel apart. Rasteriser noise, as in
+      // SankeyChartBasic.
       //
-      // Not counted, because it is inside the text mask: node 11 reads "No
-      // further action requi..." upstream, where SVG collapses the name's
-      // leading and doubled spaces before measuring, and "No further action
-      // req..." here, where `truncateSankeyText` keeps them.
+      // Node 11 reads "No further action requi..." in both renders:
+      // `collapseSvgWhiteSpace` drops its leading and doubled spaces before
+      // truncating, as SVG does (it read "req..." before; text is masked, so
+      // that never counted).
       maxMismatch: 0.08,
     );
   });
@@ -157,9 +158,11 @@ void main() {
         linkSemanticLabel: '{2} sign-ins from {0} and {1}',
         reflowMode: FluentSankeyReflowMode.minWidth,
       ),
-      // Measured 0.047% — 153 of 323,521 px, aligned: the same near-horizontal
-      // ribbon borders as SankeyChartInbox, and nothing else.
-      maxMismatch: 0.055,
+      // Measured 0.047% — 153 of 323,521 px, aligned, in every zone: the
+      // near-horizontal borders of the three 1-unit ribbons along the bottom
+      // (y 357-364), the same rasteriser noise as SankeyChartInbox, and
+      // nothing else.
+      maxMismatch: 0.05,
     );
   });
 
@@ -224,9 +227,9 @@ void main() {
       tester,
       'charts-sankeychart--sankey-chart-responsive',
       FluentSankeyChart(data: data, chartTitle: 'Sankey Chart'),
-      // Measured 0.045% — 197 of 436,578 px, aligned: near-horizontal ribbon
-      // borders only, as in SankeyChartInbox.
-      maxMismatch: 0.055,
+      // Measured 0.045% — 197 of 436,578 px, aligned, in every zone:
+      // near-horizontal ribbon borders only, as in SankeyChartInbox.
+      maxMismatch: 0.05,
     );
   });
 }
