@@ -56,7 +56,7 @@ enum FluentChartHitGranularity {
   mark,
 
   /// Regions that share a `FluentChartHitRegion.index` are merged into one
-  /// target whose bounds are their union.
+  /// target, hovered over any of their areas, whose bounds are their union.
   ///
   /// The **first** region of each index supplies the merged target's popover
   /// data and narration, which is where a group-mode chart puts its stack-wide
@@ -435,9 +435,15 @@ class FluentCartesianChartProps {
   /// pointer enters it and not as it moves on inside
   /// (`VerticalBarChart.tsx:475-478`, `HorizontalBarChartWithAxis.tsx:251-254`,
   /// `HeatMapChart.tsx:148-152`, `GanttChart.tsx:285-293`), so by default the
-  /// anchor stays where the pointer came in. VerticalStackedBarChart's stack callout listens to
-  /// `onMouseMove` instead (`VerticalStackedBarChart.tsx:1147-1148`), which is
-  /// what true reproduces.
+  /// anchor stays where the pointer came in. True reproduces a chart that
+  /// listens to `onMouseMove` as well: VerticalStackedBarChart's stacks and
+  /// segments alike (`VerticalStackedBarChart.tsx:1147-1148`, `:1044-1045`),
+  /// ScatterChart's circles (`ScatterChart.tsx:578-580`) and AreaChart's plot
+  /// (`AreaChart.tsx:703-705`).
+  ///
+  /// Either way the anchor moves only once the pointer is more than a pixel
+  /// from it, the threshold of every chart's `updatePosition`
+  /// (`ScatterChart.tsx:168-178`).
   final bool popoverFollowsPointer;
 
   /// The gap between an x tick line and its label: [tickPadding] when set,
@@ -469,7 +475,7 @@ class FluentCartesianChartProps {
 
   /// A copy of this bag with the listed fields replaced.
   ///
-  /// // ponytail: only the thirteen fields a chart actually rebrands are
+  /// // ponytail: only the fourteen fields a chart actually rebrands are
   /// parameters. Every shell chart wraps its caller's bag to add its own
   /// narration (`LineChart.tsx:1843-1846`), its band height (`:165`), its
   /// popover body (`GanttChart.tsx:604`), its `useUTC` default
@@ -478,11 +484,12 @@ class FluentCartesianChartProps {
   /// (`:1147-1148`), the scatterpolar y bounds at
   /// `LineChart.tsx:1922` and `ScatterChart.tsx:742`, and the hard-coded tick
   /// values at `HeatMapChart.tsx:805-807` and
-  /// `GroupedVerticalBarChart.tsx:1006`; the other 37 fields belong to the
-  /// caller. Add a parameter when a caller needs one. An omitted parameter
-  /// keeps the current value, so a null can never be written over a field that
-  /// was set.
+  /// `GroupedVerticalBarChart.tsx:1006`, and AreaChart's callout gate
+  /// (`AreaChart.tsx:1093`); the other 36 fields belong to the caller. Add a
+  /// parameter when a caller needs one. An omitted parameter keeps the current
+  /// value, so a null can never be written over a field that was set.
   FluentCartesianChartProps copyWith({
+    bool? hideTooltip,
     String? chartTitleForSemantics,
     double? eventLabelHeight,
     WidgetBuilder? popoverBuilder,
@@ -500,7 +507,7 @@ class FluentCartesianChartProps {
   }) => FluentCartesianChartProps(
     margins: margins,
     hideLegend: hideLegend,
-    hideTooltip: hideTooltip,
+    hideTooltip: hideTooltip ?? this.hideTooltip,
     tickValues: tickValues,
     yAxisTickFormat: yAxisTickFormat,
     secondaryYScaleOptions: secondaryYScaleOptions,

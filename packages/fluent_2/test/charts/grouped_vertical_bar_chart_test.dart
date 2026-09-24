@@ -1308,21 +1308,25 @@ void main() {
       );
     });
 
-    test('a dimmed bar is not an interactive region', () {
+    test('a dimmed bar is a region with no callout and no stop', () {
       final delegate = _gvbcDelegate(
         values: <double>[5, 7],
         selectedLegends: <String>['L0'],
       );
       final regions = delegate.buildHitRegions(_gvbcContext(), _layout());
       expect(
-        regions.map((region) => region.legend).toList(),
-        <String>['L0'],
+        <(String, bool, bool)>[
+          for (final region in regions)
+            (region.legend, region.focusable, region.popoverData != null),
+        ],
+        <(String, bool, bool)>[('L0', true, true), ('L1', false, false)],
         reason:
             'a bar dimmed by another legend gets no tab index at '
-            'GroupedVerticalBarChart.tsx:596',
+            'GroupedVerticalBarChart.tsx:596 and its hover closes the callout '
+            '(:971), while onClick={pointData.onClick} (:594) stays on it',
       );
       expect(
-        regions.single.semanticsLabel,
+        regions.first.semanticsLabel,
         'Category. L0, 5.',
         reason:
             '`${r'$'}{xValue}. ${r'$'}{legend}, ${r'$'}{yValue}.`, '
@@ -1363,7 +1367,7 @@ void main() {
       final readings = delegate
           .buildHitRegions(_gvbcContext(), _layout())
           .first
-          .popoverData
+          .popoverData!
           .yValues!
           .map((reading) => (reading.legend, reading.y))
           .toList();
@@ -1386,7 +1390,7 @@ void main() {
     test('a reading with no culture is formatted like toLocaleString', () {
       final readings = _gvbcDelegate(values: <double>[5000, 12345, 0.1234])
           .buildHitRegions(_gvbcContext(), _layout())
-          .map((region) => region.popoverData.yValue)
+          .map((region) => region.popoverData!.yValue)
           .toList();
       expect(
         readings,
@@ -1882,7 +1886,7 @@ void main() {
         reason: 'the region names the line series',
       );
       expect(
-        regions.first.popoverData.xValue,
+        regions.first.popoverData!.xValue,
         categories.first,
         reason:
             'XValue = xAxisCalloutData ?? groupData.xAxisPoint, '
@@ -1897,7 +1901,7 @@ void main() {
         reason: 'getAriaLabel, GroupedVerticalBarChart.tsx:724-729',
       );
       expect(
-        regions.first.popoverData.yValue,
+        regions.first.popoverData!.yValue,
         '-21,600',
         reason:
             'while the popover formats the same reading with '

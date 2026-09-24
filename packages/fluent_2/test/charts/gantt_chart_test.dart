@@ -412,7 +412,7 @@ void main() {
       expect(
         regions.every(
           (FluentChartHitRegion r) =>
-              r.popoverData.customContentBuilder == null,
+              r.popoverData!.customContentBuilder == null,
         ),
         isTrue,
         reason:
@@ -442,7 +442,7 @@ void main() {
             layout(),
           )
           .single
-          .popoverData;
+          .popoverData!;
       expect(
         <String?>[data.xValue, data.yValue],
         <String>['Job', d.formattedSpan(d.points.single)],

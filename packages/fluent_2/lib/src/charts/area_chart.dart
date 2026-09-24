@@ -247,7 +247,7 @@ class FluentAreaChartState extends State<FluentAreaChart> {
       // `_updatePosition` opens it on every move (`AreaChart.tsx:275`), and
       // `_getLineOpacity` reads that state as it is (`:633`). Duplicate or
       // missing x values only gate what reaches the callout (`:1093`), which
-      // `build` does through an empty `popoverBuilder`.
+      // `build` does through `hideTooltip`.
       _isPopoverOpen = true;
     });
   }
@@ -271,15 +271,13 @@ class FluentAreaChartState extends State<FluentAreaChart> {
         // click lands on; grouping merges them into one stop per x.
         hitRegionGranularity: FluentChartHitGranularity.group,
         // `_updatePosition` re-anchors on every move (`:267-277`).
-        // ponytail: its 1px dead zone is not reproduced.
         popoverFollowsPointer: true,
         // `isPopoverOpen && !_hasDuplicateXValues && !_hasMissingXValues`
-        // (`:1093`) closes the callout, custom body included, for good. An
-        // empty body is how the shell is told, as ScatterChart does.
-        popoverBuilder:
-            _dataSet.hasDuplicateXValues || _dataSet.hasMissingXValues
-            ? (context) => const SizedBox.shrink()
-            : null,
+        // (`:1093`) closes the callout, custom body included, for good.
+        hideTooltip:
+            widget.props.hideTooltip ||
+            _dataSet.hasDuplicateXValues ||
+            _dataSet.hasMissingXValues,
       ),
       legends: <FluentChartLegendItem>[
         for (var i = 0; i < _series.length; i++)
@@ -1100,47 +1098,52 @@ class FluentAreaChartDelegate extends FluentCartesianSeriesDelegate {
     final calloutByX = <Object, List<FluentCustomizedCalloutDataPoint>>{
       for (final entry in dataSet.calloutPoints) _xKey(entry.x): entry.values,
     };
-    final popovers = <FluentChartPopoverData>[
+    // `if (found) … else setPopoverOpen(false)` (`:241-257`): an x whose every
+    // point hides its callout closes it.
+    final popovers = <FluentChartPopoverData?>[
       for (final row in rows)
-        FluentChartPopoverData(
-          xValue: switch (firstByX[_xKey(row.xValue)]?.xAxisCalloutData) {
-            final String text when text.isNotEmpty => text,
-            // `formatDateToLocaleString(x, props.culture, props.useUTC)`
-            // (`AreaChart.tsx:234`), then `ChartPopover.tsx:128` formats the
-            // reading once more, which is what groups a numeric x.
-            _ => formatToLocaleString(
-              row.xValue,
-              culture: culture,
-              useUtc: useUtc,
-            ),
-          },
-          isCalloutForStack: true,
-          // parity: the calloutProps at `AreaChart.tsx:1087` carry no
-          // `culture`, so upstream's rows fall back to the runtime locale.
-          // The prop is documented as the popover's locale, so the port
-          // hands it on.
-          culture: culture,
-          // The callout points at x, narrowed to the highlighted legends by
-          // `_getFilteredLegendValues` (`:971-975`). The rows carry no
-          // `index`, as AreaChart's points never set one, so they draw the
-          // accent bar rather than a shape (`ChartPopover.tsx:188`).
-          yValues: <FluentYValueHover>[
-            for (final value
-                in calloutByX[_xKey(row.xValue)] ??
-                    const <FluentCustomizedCalloutDataPoint>[])
-              if (_noneHighlighted || _highlighted(value.legend))
-                FluentYValueHover(
-                  legend: value.legend,
-                  y: value.y,
-                  // `calloutData(points)` runs on `_addDefaultColors`' output
-                  // (`:1071-1074`), so an uncoloured series reads its palette
-                  // colour here too.
-                  color: dataSet.colours[value.index!],
-                  yAxisCalloutText: value.yAxisCalloutText,
-                  yAxisCalloutBreakdown: value.yAxisCalloutBreakdown,
-                ),
-          ],
-        ),
+        if (calloutByX[_xKey(row.xValue)]?.isEmpty ?? true)
+          null
+        else
+          FluentChartPopoverData(
+            xValue: switch (firstByX[_xKey(row.xValue)]?.xAxisCalloutData) {
+              final String text when text.isNotEmpty => text,
+              // `formatDateToLocaleString(x, props.culture, props.useUTC)`
+              // (`AreaChart.tsx:234`), then `ChartPopover.tsx:128` formats the
+              // reading once more, which is what groups a numeric x.
+              _ => formatToLocaleString(
+                row.xValue,
+                culture: culture,
+                useUtc: useUtc,
+              ),
+            },
+            isCalloutForStack: true,
+            // parity: the calloutProps at `AreaChart.tsx:1087` carry no
+            // `culture`, so upstream's rows fall back to the runtime locale.
+            // The prop is documented as the popover's locale, so the port
+            // hands it on.
+            culture: culture,
+            // The callout points at x, narrowed to the highlighted legends by
+            // `_getFilteredLegendValues` (`:971-975`). The rows carry no
+            // `index`, as AreaChart's points never set one, so they draw the
+            // accent bar rather than a shape (`ChartPopover.tsx:188`).
+            yValues: <FluentYValueHover>[
+              for (final value
+                  in calloutByX[_xKey(row.xValue)] ??
+                      const <FluentCustomizedCalloutDataPoint>[])
+                if (_noneHighlighted || _highlighted(value.legend))
+                  FluentYValueHover(
+                    legend: value.legend,
+                    y: value.y,
+                    // `calloutData(points)` runs on `_addDefaultColors`' output
+                    // (`:1071-1074`), so an uncoloured series reads its palette
+                    // colour here too.
+                    color: dataSet.colours[value.index!],
+                    yAxisCalloutText: value.yAxisCalloutText,
+                    yAxisCalloutBreakdown: value.yAxisCalloutBreakdown,
+                  ),
+            ],
+          ),
     ];
 
     final regions = <FluentChartHitRegion>[
@@ -1186,13 +1189,17 @@ class FluentAreaChartDelegate extends FluentCartesianSeriesDelegate {
         if (onClick == null) {
           continue;
         }
+        final centre = circle(layer, j);
         regions.add(
           FluentChartHitRegion(
-            bounds: Rect.fromCenter(
-              center: circle(layer, j),
-              width: radius * 2,
-              height: radius * 2,
+            bounds: Rect.fromCircle(
+              center: centre,
+              radius: radius,
             ).intersect(bands[j]),
+            // The `<circle>` itself (`:776-783`), hit as one.
+            hitTest: (position) =>
+                bands[j].contains(position) &&
+                (position - centre).distance <= radius,
             index: j,
             legend: series[layer].legend,
             popoverData: popovers[j],

@@ -24,6 +24,7 @@ import 'package:fluent_2/src/charts/vertical_bar_chart.dart';
 import 'package:fluent_2/src/charts/vertical_bar_chart_style.dart';
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -2326,7 +2327,7 @@ void main() {
         );
         expect(regions.length, count, reason: 'a count guard');
         expect(
-          regions.first.popoverData.isCalloutForStack,
+          regions.first.popoverData!.isCalloutForStack,
           withLine,
           reason: 'a guard: the stack is what a line brings',
         );
@@ -2522,6 +2523,142 @@ void main() {
         activeX(),
         isNull,
         reason: '_handleChartMouseLeave nulls it (:500-506)',
+      );
+    });
+
+    Future<void> pumpWithLine(
+      WidgetTester tester, {
+      List<FluentVerticalBarChartDataPoint>? data,
+      FocusNode? focusNode,
+    }) => tester.pumpWidget(
+      FluentApp(
+        theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+        home: Center(
+          child: SizedBox(
+            width: 800,
+            height: 350,
+            child: FluentVerticalBarChart(
+              data: data ?? _pointsWithLine(),
+              barWidth: 60,
+              lineLegendText: 'Trend',
+              focusNode: focusNode,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    FluentVerticalBarChartDelegate delegateOf(WidgetTester tester) =>
+        tester
+                .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+                .delegate
+            as FluentVerticalBarChartDelegate;
+
+    /// The middle of the bar at [index], on screen, from the mounted painter.
+    Offset barCentre(WidgetTester tester, int index) {
+      final plot = find.descendant(
+        of: find.byType(FluentCartesianChart),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is CustomPaint &&
+              widget.painter is FluentCartesianChartPainter,
+        ),
+      );
+      final painter =
+          tester.widget<CustomPaint>(plot).painter!
+              as FluentCartesianChartPainter;
+      final context = FluentCartesianChildContext(
+        xScale: painter.xAxis.scale,
+        yScalePrimary: painter.yAxisPrimary.scale,
+        containerWidth: painter.layout.size.width,
+        containerHeight: painter.layout.size.height,
+      );
+      return tester.getTopLeft(plot) +
+          delegateOf(
+            tester,
+          ).barsFor(context, painter.layout)[index].rect.center;
+    }
+
+    testWidgets('a touch tap shows the line dot until a tap lands elsewhere', (
+      tester,
+    ) async {
+      await pumpWithLine(tester);
+      await tester.tapAt(barCentre(tester, 1));
+      await tester.pump();
+      expect(
+        delegateOf(tester).activeXDataPoint,
+        'b',
+        reason:
+            "Chrome follows a tap with the compatibility mouseover, the bar's "
+            'onMouseOver (VerticalBarChart.tsx:489)',
+      );
+      await tester.tapAt(const Offset(2, 2));
+      await tester.pump();
+      expect(
+        delegateOf(tester).activeXDataPoint,
+        isNull,
+        reason: 'and a tap elsewhere its mouseleave (:500-506)',
+      );
+    });
+
+    testWidgets('a dimmed bar opens no callout and takes no tab stop, but '
+        'still clicks', (tester) async {
+      final clicks = <String>[];
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pumpWithLine(
+        tester,
+        focusNode: node,
+        data: <FluentVerticalBarChartDataPoint>[
+          for (final point in _pointsWithLine())
+            FluentVerticalBarChartDataPoint(
+              x: point.x,
+              y: point.y,
+              legend: point.legend,
+              lineData: point.lineData,
+              onClick: () => clicks.add('${point.x}'),
+            ),
+        ],
+      );
+      await tester.tap(find.text('Beta'));
+      await tester.pumpAndSettle();
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(barCentre(tester, 1));
+      await tester.pump();
+      expect(find.byType(FluentChartPopover), findsOneWidget);
+      await mouse.moveTo(barCentre(tester, 0));
+      await tester.pump();
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason:
+            'setPopoverOpen(_noLegendHighlighted() || '
+            '_legendHighlighted(point.legend)) (VerticalBarChart.tsx:479)',
+      );
+      await mouse.down(barCentre(tester, 0));
+      await mouse.up();
+      await tester.pump();
+      expect(clicks, <String>[
+        'a',
+      ], reason: 'onClick={point.onClick} sits on every bar (:674)');
+
+      await mouse.moveTo(const Offset(-1, -1));
+      await tester.pump();
+      node.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(
+        tester
+            .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+            .data
+            .legend,
+        'Beta',
+        reason:
+            'tabIndex={... shouldHighlight ? 0 : undefined} (:682): the first '
+            'stop is the one lit bar',
       );
     });
   });

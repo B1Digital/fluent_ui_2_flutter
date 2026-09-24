@@ -96,9 +96,7 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
   /// Null until a circle is hovered, which hands every region its own
   /// reading. parity: upstream starts from `hoverXValue: ''` and no rows
   /// (`:90`, `:92`), so a focus before any hover opens an empty 34px surface
-  /// there; here it opens on the focused circle's reading, and a pointer that
-  /// meets a region's square corner before its circle shows no empty card
-  /// either.
+  /// there; here it opens on the focused circle's reading.
   FluentChartPopoverData? _reading;
 
   /// Where d3 last left `#verticalLine`, or null while it is hidden.
@@ -1000,10 +998,15 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
       for (final mark in marksFor(context))
         FluentChartHitRegion(
           bounds: Rect.fromCircle(center: mark.centre, radius: mark.radius),
+          // SVG hit-tests the `<circle>` (`:445-466`), not the square around
+          // it, which is also what [_handlePointerMove] tests.
+          hitTest: (position) =>
+              (position - mark.centre).distance <= mark.radius,
           index: mark.pointIndex,
           legend: _series[mark.seriesIndex].legend,
-          popoverData:
-              popoverReading ?? _readingFor(mark, points!) ?? _emptyReading,
+          // Before any circle has written a reading, one whose x hides every
+          // callout opens nothing: `:587-588` never reaches `updatePosition`.
+          popoverData: popoverReading ?? _readingFor(mark, points!),
           semanticsLabel: mark.semanticsLabel,
           // `_getClickHandler(onDataPointClick)` (`ScatterChart.tsx:472`).
           onActivate:
@@ -1011,15 +1014,6 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
         ),
     ];
   }
-
-  /// `hoverXValue: ''` and `yValueHover: []` (`ScatterChart.tsx:90-92`), the
-  /// callout before any circle has written it.
-  ///
-  /// ponytail: only reached by a circle whose x hides every callout point
-  /// before any other circle has been hovered, where upstream opens nothing.
-  static const FluentChartPopoverData _emptyReading = FluentChartPopoverData(
-    isCalloutForStack: true,
-  );
 
   /// The callout reading for [mark] (`ScatterChart.tsx:568-586`, read at
   /// `:683-704`), or null when no point at its x shows a callout.

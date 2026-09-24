@@ -2283,12 +2283,12 @@ void main() {
       );
     });
 
-    test('the active region takes in the line the pointer is on', () {
+    test('the line leaving a point hovers that point\'s region', () {
       void onLineClick() {}
       void onDataPointClick() {}
-      // Points 100px apart, so the line leaving the active one runs well past
-      // its marker.
-      List<FluentChartHitRegion> regions({Offset? hoverPosition}) => _delegate(
+      // Points 100px apart, so the line leaving the second runs well past its
+      // marker.
+      final d = _delegate(
         <FluentLineChartSeries>[
           FluentLineChartSeries(
             legend: 'a',
@@ -2307,31 +2307,63 @@ void main() {
         ],
         theme: _theme(),
         selectedLegend: '',
-        activePointId: '0_1',
-        hoverPosition: hoverPosition,
-      ).buildHitRegions(_identityCtx(), _layout());
-      // Forty pixels on along the line, as a moving hand steps.
-      const next = Offset(190, 501);
-      final onLine = regions(hoverPosition: const Offset(150, 500))[1];
+      );
+      final regions = d.buildHitRegions(_identityCtx(), _layout());
       expect(
-        onLine.bounds.contains(next),
-        isTrue,
+        d.hoveredRegionAt(_identityCtx(), regions, const Offset(150, 501)),
+        1,
         reason:
-            'the shell hovers rectangles, so the point the line resolved to '
-            'must own wherever the pointer moves next along that line, or its '
-            'callout never opens',
+            'the <line> runs _handleHover for its start point '
+            "(LineChart.tsx:1251-1278), so the shell opens that point's "
+            'callout on the same move, however far along the line it is',
       );
       expect(
-        onLine.onActivate,
-        onLineClick,
+        regions[1].contains(const Offset(150, 501)),
+        isFalse,
         reason:
-            'a click there lands on the <line>, which carries onLineClick '
-            '(LineChart.tsx:1287), not on the marker',
+            'the region itself stays the marker, so a click on the line '
+            'reaches onLineClick through activationAt (:1287)',
       );
-      final onMarker = regions(hoverPosition: const Offset(100, 500))[1];
-      expect(onMarker.bounds.contains(next), isFalse);
-      expect(onMarker.onActivate, onDataPointClick);
-      expect(regions()[1].bounds.contains(next), isFalse);
+      expect(regions[1].onActivate, onDataPointClick);
+      expect(
+        d.hoveredRegionAt(_identityCtx(), regions, const Offset(150, 510)),
+        -1,
+        reason: 'off every mark nothing is hovered',
+      );
+    });
+
+    test('a circle marker is hit as a circle, its latch too', () {
+      final d = _lineDelegate(ys: flat);
+      expect(
+        d.hoverTargetAt(_ctx(), const Offset(12.3, 92.3)),
+        isNull,
+        reason:
+            "3.25px off the idle marker's centre, and 2.3 off its line, is "
+            'inside its 2.5px box and outside its circle, which is what SVG '
+            'hit-tests',
+      );
+      expect(
+        d.hoverTargetAt(_ctx(), const Offset(26, 96)),
+        isNull,
+        reason: 'the r=8 latch is a <circle> as well (:1162-1168)',
+      );
+      final regions = d.buildHitRegions(_ctx(), _layout());
+      expect(regions[2].contains(const Offset(26, 96)), isFalse);
+      expect(regions[2].contains(const Offset(25, 95)), isTrue);
+    });
+
+    test('a dimmed series takes no keyboard stop', () {
+      expect(
+        _lineDelegate(
+              ys: flat,
+              legends: const <String>['a', 'b'],
+              selectedLegend: 'b',
+            )
+            .buildHitRegions(_ctx(), _layout())
+            .map((r) => (r.legend, r.focusable)),
+        containsAll(<(String, bool)>[('a', false), ('b', true)]),
+        reason: 'tabIndex={isLegendSelected ? 0 : undefined} (:592, :864)',
+      );
     });
 
     test('the rule runs from the active point to a pixel below the axis', () {
@@ -2879,6 +2911,78 @@ void main() {
           (mark) =>
               mark.seriesIndex == seriesIndex && mark.pointIndex == pointIndex,
         );
+
+    testWidgets('a line opens its start point on the move that reaches it', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentLineChart(data: _lineData(), isCalloutForStack: false),
+      );
+      final plot = mountedPlot(tester);
+      final gesture = await tester.createGesture(
+        kind: ui.PointerDeviceKind.mouse,
+      );
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(plot.origin + markOf(plot, 1, 1).centre);
+      await tester.pump();
+      FluentChartPopoverData shown() => tester
+          .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+          .data;
+      expect((shown().legend, shown().xValue), ('beta', '2'));
+
+      // One move onto the middle of alpha's line from x = 1 to x = 2, and the
+      // pointer stops there.
+      final start = markOf(plot, 0, 0).centre;
+      final end = markOf(plot, 0, 1).centre;
+      await gesture.moveTo(plot.origin + Offset.lerp(start, end, 0.5)!);
+      await tester.pump();
+      expect(
+        (shown().legend, shown().xValue),
+        ('alpha', '1'),
+        reason:
+            'the <line> runs _handleHover for its start point on its own '
+            'mouseover (LineChart.tsx:1251-1278), so the callout moves on '
+            'with the marker, not one move behind it',
+      );
+    });
+
+    testWidgets('a tap on a line activates its start point', (tester) async {
+      await pump(
+        tester,
+        FluentLineChart(data: _lineData(), isCalloutForStack: false),
+      );
+      final plot = mountedPlot(tester);
+      final start = markOf(plot, 0, 0).centre;
+      final end = markOf(plot, 0, 1).centre;
+      await tester.tapAt(plot.origin + Offset.lerp(start, end, 0.5)!);
+      await tester.pump();
+      expect(
+        mountedPlot(tester).delegate.activePointId,
+        '0_0',
+        reason:
+            'Chrome follows a tap with the compatibility mouseover, which runs '
+            "the line's _handleHover (LineChart.tsx:1251-1278)",
+      );
+      expect(
+        tester
+            .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+            .data
+            .xValue,
+        '1',
+      );
+      await tester.tapAt(const Offset(2, 2));
+      await tester.pump();
+      expect(
+        mountedPlot(tester).delegate.activePointId,
+        isNull,
+        reason:
+            'a tap elsewhere is the chart\'s mouseleave, which clears the '
+            'active point (LineChart.tsx:1714-1720)',
+      );
+      expect(find.byType(FluentChartPopover), findsNothing);
+    });
 
     testWidgets('a hovered point grows into a hollow ring over the rule', (
       tester,

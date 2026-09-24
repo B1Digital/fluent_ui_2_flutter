@@ -1090,6 +1090,62 @@ void main() {
       );
     });
 
+    testWidgets('a hidden circle hovered first opens nothing', (tester) async {
+      await pump(
+        tester,
+        const FluentScatterChart(
+          data: FluentChartData(
+            scatterChartData: <FluentScatterChartSeries>[
+              FluentScatterChartSeries(
+                legend: 'S0',
+                data: <FluentScatterChartDataPoint>[
+                  FluentScatterChartDataPoint(x: 10, y: 10, hideCallout: true),
+                  FluentScatterChartDataPoint(x: 20, y: 50),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+      final marks = marksOf(tester);
+      final gesture = await hover(tester, marks[0].centre);
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason:
+            'findCalloutPoints finds nothing at its x, so _handleHover never '
+            'reaches updatePosition (ScatterChart.tsx:587-588)',
+      );
+      await gesture.moveTo(
+        tester.getTopLeft(find.byType(FluentCartesianChart)) + marks[1].centre,
+      );
+      await tester.pump();
+      expect(find.byType(FluentChartPopover), findsOneWidget);
+    });
+
+    testWidgets('the corner of a circle\'s square is not the circle', (
+      tester,
+    ) async {
+      await pump(tester, FluentScatterChart(data: _fixtureData()));
+      final mark = centreMark(tester);
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(
+        tester.getTopLeft(find.byType(FluentCartesianChart)) +
+            mark.centre +
+            Offset(mark.radius * 0.85, mark.radius * 0.85),
+      );
+      await tester.pump();
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason:
+            'SVG hit-tests the <circle> (ScatterChart.tsx:445-466): 1.2 radii '
+            'off its centre, inside its square, nothing is hovered',
+      );
+    });
+
     testWidgets('hover opens the stack popover', (tester) async {
       await pump(tester, FluentScatterChart(data: _fixtureData()));
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);

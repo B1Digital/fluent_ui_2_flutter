@@ -841,11 +841,11 @@ class FluentGroupedVerticalBarChartDelegate
     final regions = <FluentChartHitRegion>[];
     for (final bar in barsFor(context, layout)) {
       final point = _pointFor(bar);
-      // `.tsx:596` gives a bar dimmed by another legend no tab index at all,
-      // so it is not an interactive area.
-      if (!_isLegendActive(bar.legend)) {
-        continue;
-      }
+      // A bar another legend has dimmed keeps its `onClick` (`.tsx:594`) but
+      // takes no tab index (`:596`), and hovering it closes the callout
+      // (`setPopoverOpen(_noLegendHighlighted() ||
+      // _legendHighlighted(pointData.legend))`, `:971`).
+      final lit = _isLegendActive(bar.legend);
       // `getAriaLabel` (`.tsx:724-729`) and `_showCallout` (`:975-976`) read
       // the same two overrides.
       final xValue = point.xAxisCalloutData ?? bar.category;
@@ -856,15 +856,18 @@ class FluentGroupedVerticalBarChartDelegate
           // the bar's listbox by (`.tsx:640-642`).
           index: _categoryIndex(bar.category),
           legend: bar.legend,
-          popoverData: FluentChartPopoverData(
-            xValue: xValue,
-            yValue: point.yAxisCalloutData ?? formatY(point.data),
-            legend: bar.legend,
-            color: bar.colour,
-            isCalloutForStack: isCalloutForStack,
-            yValues: isCalloutForStack ? _yValuesOf(bar.category) : null,
-            culture: culture,
-          ),
+          focusable: lit,
+          popoverData: !lit
+              ? null
+              : FluentChartPopoverData(
+                  xValue: xValue,
+                  yValue: point.yAxisCalloutData ?? formatY(point.data),
+                  legend: bar.legend,
+                  color: bar.colour,
+                  isCalloutForStack: isCalloutForStack,
+                  yValues: isCalloutForStack ? _yValuesOf(bar.category) : null,
+                  culture: culture,
+                ),
           // The aria label interpolates the raw number (`.tsx:727-728`),
           // unformatted, where the popover formats it.
           semanticsLabel:
@@ -891,6 +894,9 @@ class FluentGroupedVerticalBarChartDelegate
       regions.add(
         FluentChartHitRegion(
           bounds: lineDotBounds(dot),
+          // A `<circle>`, hit as one (`.tsx:865-892`).
+          hitTest: (position) =>
+              (position - dot.centre).distance <= lineDotBounds(dot).width / 2,
           index: _categoryIndex(dot.category),
           legend: series.legend,
           popoverData: FluentChartPopoverData(

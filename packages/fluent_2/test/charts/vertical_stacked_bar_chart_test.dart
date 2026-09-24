@@ -2182,10 +2182,10 @@ void main() {
       final normal = Offset(a.dy - b.dy, b.dx - a.dx) / (b - a).distance;
       expect(
         <bool>[
-          dot.contains(mid),
-          dot.contains(mid + normal * 1.4),
-          dot.contains(mid + normal * 1.6),
-          regions[3].bounds.contains(mid),
+          regions[2].contains(mid),
+          regions[2].contains(mid + normal * 1.4),
+          regions[2].contains(mid + normal * 1.6),
+          regions[3].contains(mid),
         ],
         <bool>[true, true, false, false],
         reason:
@@ -2197,7 +2197,7 @@ void main() {
     test("a line point's callout is its own single value", () {
       final d = _vsbcWithLines(lineYs: <double>[10, 40]);
       final region = d.buildHitRegions(ctx, layout)[2];
-      final data = region.popoverData;
+      final data = region.popoverData!;
       expect(
         (data.xValue, data.legend, data.yValue, data.color),
         ('stack 0', 'line 0', '10', _palette[0]),
@@ -2231,8 +2231,8 @@ void main() {
       expect(regions.length, 4, reason: 'two stacks, then two points');
       expect(
         (
-          regions[3].popoverData.isCalloutForStack,
-          regions[3].popoverData.xValue,
+          regions[3].popoverData!.isCalloutForStack,
+          regions[3].popoverData!.xValue,
         ),
         (true, 'stack 1'),
         reason: 'isCalloutForStack picks the multi-value body (:1359)',
@@ -2311,7 +2311,7 @@ void main() {
         containerWidth: 640,
         containerHeight: 350,
       );
-      final data = d.buildHitRegions(numeric, layout).first.popoverData;
+      final data = d.buildHitRegions(numeric, layout).first.popoverData!;
       expect(
         data.xValue,
         '12,000',
@@ -2355,7 +2355,7 @@ void main() {
         containerHeight: 350,
       );
       expect(
-        d.buildHitRegions(numeric, layout).last.popoverData.xValue,
+        d.buildHitRegions(numeric, layout).last.popoverData!.xValue,
         '20',
         reason: '`xAxisPoint.toString()` (:756) prints 20, not 20.0',
       );
@@ -2521,6 +2521,37 @@ void main() {
         reason: '_lineHover(lineObject[item][i - 1]) on the <line> (:622)',
       );
       expect(mounted(tester).delegate.activeXAxisDataPoint, 'stack 0');
+    });
+
+    testWidgets('a line callout stays where the pointer came in', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentVerticalStackedBarChart(data: _vsbcLineOverlayStacks()),
+      );
+      final geometry = mounted(tester);
+      final dots = <Offset>[
+        for (final r in geometry.regions)
+          if (r.legend == 'line 0') r.bounds.center,
+      ];
+      final gesture = await mouse(tester);
+      final at = geometry.origin + Offset.lerp(dots[0], dots[1], 0.3)!;
+      await gesture.moveTo(at);
+      await tester.pump();
+      final first = tester.getRect(surface());
+      // Further along the same stroke.
+      await gesture.moveTo(
+        geometry.origin + Offset.lerp(dots[0], dots[1], 0.5)!,
+      );
+      await tester.pump();
+      expect(
+        tester.getRect(surface()),
+        first,
+        reason:
+            'the <line> and the <circle> carry onMouseOver only (:622, :644), '
+            'so the callout keeps the anchor it opened on',
+      );
     });
 
     testWidgets('a lone segment leaves the lit dot where it was', (

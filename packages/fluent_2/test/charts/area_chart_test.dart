@@ -1156,14 +1156,15 @@ void main() {
       );
       expect(regions, hasLength(3), reason: 'one region per distinct x value');
       expect(
-        regions[1].popoverData.isCalloutForStack,
+        regions[1].popoverData!.isCalloutForStack,
         isTrue,
         reason: 'AreaChart.tsx:1105 opens the stacked popover body',
       );
-      expect(regions[1].popoverData.yValues!.map((v) => v.y).toList(), <double>[
-        20,
-        15,
-      ], reason: 'the popover lists the raw y of every series at that x');
+      expect(
+        regions[1].popoverData!.yValues!.map((v) => v.y).toList(),
+        <double>[20, 15],
+        reason: 'the popover lists the raw y of every series at that x',
+      );
     });
 
     test('each x hovers from the plot edge to its neighbours\' midpoints', () {
@@ -1309,7 +1310,7 @@ void main() {
         _linearContext(width: 700, points: 5),
         _layout(),
       );
-      final first = regions[0].popoverData;
+      final first = regions[0].popoverData!;
       expect(
         first.xValue,
         '2018/04/04',
@@ -1334,7 +1335,7 @@ void main() {
         reason: 'AreaChart points carry no index, so no shape is drawn',
       );
       expect(
-        regions[1].popoverData.xValue,
+        regions[1].popoverData!.xValue,
         '5',
         reason:
             'series 0 has no xAxisCalloutData at x = 5, so the number is '
@@ -1612,13 +1613,27 @@ void main() {
         'b',
         'c',
       ], reason: 'every series at the nearest x, AreaChart.tsx:236-249');
-      final pointer = origin + local + const Offset(1, 0);
+      Offset floored(Offset pointer) =>
+          Offset(pointer.dx.floorToDouble(), pointer.dy.floorToDouble()) -
+          origin;
       expect(
         popover.anchorRect!.center,
-        Offset(pointer.dx.floorToDouble(), pointer.dy.floorToDouble()) - origin,
+        floored(origin + local),
+        reason:
+            '_updatePosition moves clickPosition only past a 1px threshold '
+            '(AreaChart.tsx:267-277), and this move was one whole pixel',
+      );
+      await gesture.moveBy(const Offset(1, 0));
+      await tester.pump();
+      expect(
+        tester
+            .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+            .anchorRect!
+            .center,
+        floored(origin + local + const Offset(2, 0)),
         reason:
             'clickPosition is the whole-pixel clientX/Y of the latest move '
-            '(AreaChart.tsx:189, :267-277)',
+            'that clears it (AreaChart.tsx:189, :267-277)',
       );
     });
 
@@ -1771,6 +1786,61 @@ void main() {
       expect(hits, <String>[
         'low2',
       ], reason: 'the band itself is not a circle and clicks nothing');
+      await gesture.moveTo(origin + circle + const Offset(7, 7));
+      await tester.pump();
+      await gesture.down(origin + circle + const Offset(7, 7));
+      await gesture.up();
+      await tester.pump();
+      expect(
+        hits,
+        <String>['low2'],
+        reason:
+            'nor does the corner of the r=8 circle\'s square: SVG hit-tests '
+            'the <circle> (AreaChart.tsx:776-784)',
+      );
+    });
+
+    testWidgets('an x whose every point hides its callout closes it', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentAreaChart(
+          data: FluentChartData(
+            lineChartData: <FluentLineChartSeries>[
+              FluentLineChartSeries(
+                legend: 'a',
+                data: <FluentLineChartDataPoint>[
+                  for (final x in <int>[1, 2, 3])
+                    FluentLineChartDataPoint(x: x, y: 10, hideCallout: x == 3),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+      final painter = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((paint) => paint.painter)
+          .whereType<FluentCartesianChartPainter>()
+          .single;
+      final origin = tester.getTopLeft(find.byType(FluentCartesianChart));
+      final y = painter.layout.plotRect.center.dy;
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(origin + Offset(painter.xAxis.scale(2)!, y));
+      await tester.pump();
+      expect(find.byType(FluentChartPopover), findsOneWidget);
+      await gesture.moveTo(origin + Offset(painter.xAxis.scale(3)! - 1, y));
+      await tester.pump();
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason:
+            'findCalloutPoints finds nothing there, so _onRectMouseMove runs '
+            'setPopoverOpen(false) (AreaChart.tsx:252-257)',
+      );
     });
 
     testWidgets('the keyboard grows the focused circle and anchors on it', (

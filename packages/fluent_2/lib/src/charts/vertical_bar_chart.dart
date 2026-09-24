@@ -244,21 +244,10 @@ class _FluentVerticalBarChartState extends State<FluentVerticalBarChart> {
       delegate: delegate,
       // A bar's `onMouseOver` enlarges the line dot at its x
       // (`VerticalBarChart.tsx:489`), which only a chart with a line can show.
-      // The shell does not say which region the pointer is over, so a sensor
-      // that lets every event through to the plot below resolves the bar
-      // itself, from the scales and layout the shell built the regions with.
-      overlayBuilder: _hasLine
-          ? (context, childContext, layout) {
-              // Resolved on the first move after each build, not on every one.
-              List<FluentVerticalBarRect>? bars;
-              return MouseRegion(
-                opaque: false,
-                onHover: (event) => _onPlotHover(
-                  bars ??= delegate.barsFor(childContext, layout),
-                  event.localPosition,
-                ),
-              );
-            }
+      // A touch tap runs it too, through Chrome's compatibility mouseover.
+      onPointerMoveInPlot: _hasLine
+          ? (local, childContext) =>
+                _onPlotHover(delegate.barAt(childContext, local))
           : null,
       onChartMouseLeave: () => setState(() => _activeXDataPoint = null),
     );
@@ -269,12 +258,9 @@ class _FluentVerticalBarChartState extends State<FluentVerticalBarChart> {
       _selectedLegends.isEmpty && (_activeLegend?.isEmpty ?? true);
 
   /// `setActiveXDatapoint(_noLegendHighlighted() ? point.x : null)` in
-  /// `_onBarHover` (`VerticalBarChart.tsx:489`), run on entering a bar. The
+  /// `_onBarHover` (`VerticalBarChart.tsx:489`), run on entering [bar]. The
   /// gaps change nothing: `_onBarLeave` is empty (`:496-498`).
-  void _onPlotHover(List<FluentVerticalBarRect> bars, Offset local) {
-    // The last match, as the shell's own hit test: a later bar wins an
-    // overlap.
-    final bar = bars.where((bar) => bar.rect.contains(local)).lastOrNull;
+  void _onPlotHover(FluentVerticalBarRect? bar) {
     if (bar == null) {
       return;
     }
@@ -833,6 +819,15 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
       selectedLegends.isEmpty &&
       (activeLegend == null || activeLegend!.isEmpty);
 
+  /// `shouldHighlight` (`VerticalBarChart.tsx:640`, `:698`, `:763`).
+  bool _highlighted(FluentVerticalBarChartDataPoint point) =>
+      isLegendHighlightedMulti(
+        point.legend ?? '',
+        selectedLegends: selectedLegends,
+        activeLegend: activeLegend,
+      ) ||
+      _noLegendHighlighted;
+
   /// `_legendHighlighted(lineLegendText!)` (`VerticalBarChart.tsx:908-910`):
   /// an absent title is never in the highlighted list.
   bool get _lineLegendHighlighted =>
@@ -1096,13 +1091,7 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
       final left = isBand
           ? xBarScale(point.x)! + 0.5 * (xBarScale.bandwidth - barWidth)
           : xBarScale(point.x)! - barWidth / 2;
-      final highlighted =
-          isLegendHighlightedMulti(
-            point.legend ?? '',
-            selectedLegends: selectedLegends,
-            activeLegend: activeLegend,
-          ) ||
-          _noLegendHighlighted;
+      final highlighted = _highlighted(point);
       out.add(
         FluentVerticalBarRect(
           rect: Rect.fromLTWH(left, top, barWidth, adjusted),
@@ -1351,6 +1340,21 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
     }
   }
 
+  /// The bars [buildHitRegions] last placed with each child context.
+  ///
+  /// The shell hands a pointer move the child context alone, and mints one
+  /// per solve, so it is the key; the table is weak and forgets a solve with
+  /// it, as VerticalStackedBarChart's does.
+  static final Expando<List<FluentVerticalBarRect>> _placed =
+      Expando<List<FluentVerticalBarRect>>();
+
+  /// The bar under [position], among those [buildHitRegions] placed with
+  /// [context]; the last wins an overlap, as in the shell's own hit test.
+  FluentVerticalBarRect? barAt(
+    FluentCartesianChildContext context,
+    Offset position,
+  ) => _placed[context]?.where((bar) => bar.rect.contains(position)).lastOrNull;
+
   @override
   List<FluentChartHitRegion> buildHitRegions(
     FluentCartesianChildContext context,
@@ -1362,16 +1366,23 @@ class FluentVerticalBarChartDelegate extends FluentCartesianSeriesDelegate {
     // made that quadratic.
     final firstPointAtX = _firstPointAtX;
     return <FluentChartHitRegion>[
-      for (final bar in barsFor(context, layout))
+      for (final bar in _placed[context] = barsFor(context, layout))
         FluentChartHitRegion(
           bounds: bar.rect,
           index: bar.index,
           legend: points[bar.index].legend ?? '',
-          popoverData: popoverDataFor(
-            points[bar.index],
-            yMax: yMax,
-            firstPointAtX: firstPointAtX,
-          ),
+          // A dimmed bar's hover closes the callout
+          // (`setPopoverOpen(_noLegendHighlighted() ||
+          // _legendHighlighted(point.legend))`, `:479`) and it takes no tab
+          // stop (`:682`), while its click stays.
+          popoverData: _highlighted(points[bar.index])
+              ? popoverDataFor(
+                  points[bar.index],
+                  yMax: yMax,
+                  firstPointAtX: firstPointAtX,
+                )
+              : null,
+          focusable: _highlighted(points[bar.index]),
           semanticsLabel: semanticsLabelFor(points[bar.index]),
           // `onClick={point.onClick}` on every bar (`VerticalBarChart.tsx:674`,
           // `:740`, `:797`).

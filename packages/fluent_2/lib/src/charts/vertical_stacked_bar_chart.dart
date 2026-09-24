@@ -52,7 +52,8 @@ typedef _LinePoint = ({
 /// where it leaves the active x alone.
 typedef _HitTarget = ({FluentChartHitRegion region, Object? activeX});
 
-/// A line point's hover target: its dot, plus the stroke to the next point.
+/// Whether [position] is on a line point's hover target: its dot, plus the
+/// stroke to the next point.
 ///
 /// Upstream hangs `_lineHover(lineObject[item][i - 1])` off the `<line>` from
 /// point i-1 to point i (`VerticalStackedBarChart.tsx:622`) and the same call
@@ -60,57 +61,33 @@ typedef _HitTarget = ({FluentChartHitRegion region, Object? activeX});
 /// are one target in everything but shape. The circle is hit out to the middle
 /// of its 3px ring and the stroke out to half its width — SVG's
 /// `visiblePainted` rule — with the stroke's ends taken as round, which is the
-/// default `strokeLinecap` (`:618`) and sits under the dots anyway.
-///
-/// ponytail: a region's `bounds` is the shell's only hit shape, so [contains]
-/// is overridden while the rectangle itself stays the dot's box — the box the
-/// shell centres a keyboard focus on, as `_lineFocus` centres the callout on
-/// the circle's bounding rect (`:233-236`). Anything reading the edges instead
-/// of calling [contains] sees the dot alone. Move this onto a hit-shape field
-/// if `FluentChartHitRegion` grows one.
-class _LineHitBounds extends Rect {
-  _LineHitBounds({
-    required Offset centre,
-    required double radius,
-    this.stroke,
-    this.strokeHalfWidth = 0,
-  }) : _centre = centre,
-       _radius = radius,
-       super.fromLTRB(
-         centre.dx - radius,
-         centre.dy - radius,
-         centre.dx + radius,
-         centre.dy + radius,
-       );
-
-  final Offset _centre;
-  final double _radius;
-
-  /// The stroke to the next point, or null on a legend's last point.
-  final (Offset, Offset)? stroke;
-
-  /// Half the stroke's width.
-  final double strokeHalfWidth;
-
-  @override
-  bool contains(Offset offset) {
-    if ((offset - _centre).distance <= _radius) {
-      return true;
-    }
-    final segment = stroke;
-    if (segment == null) {
-      return false;
-    }
-    final (a, b) = segment;
-    final ab = b - a;
-    final lengthSquared = ab.distanceSquared;
-    // The projection onto the segment, clamped to its ends.
-    final t = lengthSquared == 0
-        ? 0.0
-        : (((offset - a).dx * ab.dx + (offset - a).dy * ab.dy) / lengthSquared)
-              .clamp(0.0, 1.0);
-    return (offset - (a + ab * t)).distance <= strokeHalfWidth;
+/// default `strokeLinecap` (`:618`) and sits under the dots anyway. The
+/// region's bounds stay the dot's box, which a keyboard focus centres on, as
+/// `_lineFocus` centres the callout on the circle's bounding rect
+/// (`:233-236`).
+bool _onLineTarget(
+  Offset position, {
+  required Offset centre,
+  required double radius,
+  required (Offset, Offset)? stroke,
+  required double strokeHalfWidth,
+}) {
+  if ((position - centre).distance <= radius) {
+    return true;
   }
+  if (stroke == null) {
+    return false;
+  }
+  final (a, b) = stroke;
+  final ab = b - a;
+  final lengthSquared = ab.distanceSquared;
+  // The projection onto the segment, clamped to its ends.
+  final t = lengthSquared == 0
+      ? 0.0
+      : (((position - a).dx * ab.dx + (position - a).dy * ab.dy) /
+                lengthSquared)
+            .clamp(0.0, 1.0);
+  return (position - (a + ab * t)).distance <= strokeHalfWidth;
 }
 
 /// The output of the vertical stacked bar chart's gap-and-scale solve.
@@ -1816,7 +1793,7 @@ class FluentVerticalStackedBarChartDelegate
   /// group pass both key on.
   ///
   /// The line points follow the bars, one region each over the dot and its
-  /// outgoing stroke ([_LineHitBounds]), so the shell's backwards walk finds a
+  /// outgoing stroke ([_onLineTarget]), so the shell's backwards walk finds a
   /// line over the stack it crosses — the order the separate lines `<g>` after
   /// the bars' gives them (`:1407-1417`). Their indices continue past the
   /// stacks' so the group pass never folds a dot into a stack.
@@ -1856,7 +1833,7 @@ class FluentVerticalStackedBarChartDelegate
   Object? activeXAt(FluentCartesianChildContext context, Offset position) {
     for (final target
         in (_solvedTargets[context] ?? const <_HitTarget>[]).reversed) {
-      if (target.region.bounds.contains(position)) {
+      if (target.region.contains(position)) {
         return target.activeX;
       }
     }
@@ -1970,6 +1947,13 @@ class FluentVerticalStackedBarChartDelegate
             ),
           );
         }
+        final centre = _lineVertex(
+          context,
+          p,
+          useSecondary:
+              p.point.useSecondaryYScale && context.yScaleSecondary != null,
+          xShift: xShift,
+        );
         final radius =
             lineDotRadiusFor(
               highlighted: true,
@@ -1979,21 +1963,18 @@ class FluentVerticalStackedBarChartDelegate
             dotStrokeWidth / 2;
         out.add((
           region: FluentChartHitRegion(
-            bounds: _LineHitBounds(
-              centre: _lineVertex(
-                context,
-                p,
-                useSecondary:
-                    p.point.useSecondaryYScale &&
-                    context.yScaleSecondary != null,
-                xShift: xShift,
-              ),
+            bounds: Rect.fromCircle(center: centre, radius: radius),
+            hitTest: (position) => _onLineTarget(
+              position,
+              centre: centre,
               radius: radius,
               stroke: stroke,
               strokeHalfWidth: strokeHalfWidth,
             ),
             index: index++,
             legend: legend,
+            // Only `onMouseOver` places the callout (`:622`, `:644`).
+            followsPointer: false,
             // `isCalloutForStack` picks the popover's body, not the handler
             // (`:1359`), so upstream shows the multi-value body over a line
             // too, filled with whichever stack was hovered last — or with
@@ -2258,9 +2239,7 @@ class _FluentVerticalStackedBarChartState
         // the callout follows the pointer in either mode — a capture that
         // enters a segment and moves 22px down it ends with the callout on the
         // last position, not the first. Only a line point waits for
-        // `onMouseOver` (`:622`, `:644`).
-        // ponytail: the flag is chart-wide, so a line point follows too,
-        // across its few pixels of dot and stroke.
+        // `onMouseOver` (`:622`, `:644`), which its region says itself.
         popoverFollowsPointer: true,
         // `.tsx:1399`, after the `{...props}` spread, so the chart always wins.
         // It is also what `_getScales` nices the numeric bar scale on

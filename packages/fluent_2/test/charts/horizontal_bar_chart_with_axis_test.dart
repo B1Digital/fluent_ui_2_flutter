@@ -1225,17 +1225,24 @@ void main() {
       );
     });
 
-    test('a bar dimmed by a selected legend is not an interactive area', () {
+    test('a bar dimmed by a selected legend has no callout and no stop', () {
       final regions = delegateWith(
         selectedLegends: <String>['Apples'],
       ).buildHitRegions(_hbwaContext(delegateWith()), _layout(height: 350));
       expect(
-        regions.map((region) => region.legend),
-        <String>['Apples'],
+        <(String, bool, bool)>[
+          for (final region in regions)
+            (region.legend, region.focusable, region.popoverData != null),
+        ],
+        <(String, bool, bool)>[
+          ('Apples', true, true),
+          ('Bananas', false, false),
+        ],
         reason:
             'a dimmed bar has no tab index (HorizontalBarChartWithAxis.tsx:490) '
             'and its onMouseOver opens nothing while another legend is '
-            'selected (:251)',
+            'selected (:251), but it keeps onClick={point.onClick} (:480), so '
+            'it stays a region the shell can click',
       );
     });
 
@@ -1244,7 +1251,7 @@ void main() {
           .buildHitRegions(_hbwaContext(delegateWith()), _layout(height: 350))
           .firstWhere((region) => region.legend == 'Apples');
       expect(
-        region.popoverData.xValue,
+        region.popoverData!.xValue,
         '5000',
         reason:
             'XValue is point.y.toString() (HorizontalBarChartWithAxis.tsx:'
@@ -1252,7 +1259,7 @@ void main() {
             "reads '5000', not Dart's '5000.0'",
       );
       expect(
-        region.popoverData.yValue,
+        region.popoverData!.yValue,
         '100',
         reason: 'formatToLocaleString(point.x.toString()), ChartPopover.tsx:89',
       );
