@@ -362,6 +362,12 @@ FluentButtonStyle resolveFluentButtonStyle(
       ? FluentSize.size160
       : FluentSize.size120;
 
+  // Selected outline thickens to `strokeWidthThicker`, as both an open
+  // MenuButton and a checked ToggleButton do upstream.
+  bool thickened(Set<WidgetState> states) =>
+      state.appearance == FluentButtonAppearance.outline &&
+      states.contains(WidgetState.selected);
+
   // A keyboard-focused button takes the size's own radius — `useRootFocusStyles`
   // gives small `borderRadiusSmall` and large `borderRadiusLarge` — unless its
   // shape already fixes one, which is why only `rounded` varies.
@@ -389,19 +395,25 @@ FluentButtonStyle resolveFluentButtonStyle(
     foregroundColor: foreground,
     iconColor: icon,
     borderColor: border,
-    // Selected outline thickens to `strokeWidthThicker`, as both an open
-    // MenuButton and a checked ToggleButton do upstream.
     borderWidth: WidgetStateProperty.resolveWith<double?>(
       (states) => !bordered
           ? FluentStroke.none
-          : state.appearance == FluentButtonAppearance.outline &&
-                states.contains(WidgetState.selected)
+          : thickened(states)
           ? FluentStroke.thicker
           : FluentStroke.thin,
     ),
     borderRadius: radius,
     textStyle: WidgetStatePropertyAll<TextStyle?>(textStyle),
-    padding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(padding),
+    // The thicker border takes layout space as the 1px one does, so the
+    // content keeps its inset and the button grows: a checked outline toggle
+    // is 36 high where its unchecked self is 32, as Chrome renders
+    // togglebutton--appearance.
+    padding: WidgetStateProperty.resolveWith<EdgeInsetsGeometry?>(
+      (states) => thickened(states)
+          ? padding +
+                const EdgeInsets.all(FluentStroke.thicker - FluentStroke.thin)
+          : padding,
+    ),
     gap: WidgetStatePropertyAll<double?>(gap),
     iconSize: WidgetStatePropertyAll<double?>(iconSize),
     menuIconSize: WidgetStatePropertyAll<double?>(menuIconSize),

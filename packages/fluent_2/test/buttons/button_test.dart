@@ -241,6 +241,26 @@ void main() {
       }
     });
 
+    test('a selected outline button grows by its thicker border', () {
+      // An open outline MenuButton or a checked outline ToggleButton takes a
+      // 3px border, which takes layout space as the 1px one does: Chrome
+      // renders the checked outline toggle 36 high against 32 unchecked.
+      final style = resolveFluentButtonStyle(
+        resolveFluentButtonState(appearance: FluentButtonAppearance.outline),
+        FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+      );
+      const selected = <WidgetState>{WidgetState.selected};
+      expect(style.borderWidth!.resolve(selected), FluentStroke.thicker);
+      expect(
+        style.padding!.resolve(selected),
+        style.padding!
+            .resolve(const <WidgetState>{})!
+            .add(
+              const EdgeInsets.all(FluentStroke.thicker - FluentStroke.thin),
+            ),
+      );
+    });
+
     testWidgets('the Large glyph is 24, not the 20 the other sizes take', (
       tester,
     ) async {
