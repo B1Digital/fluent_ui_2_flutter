@@ -400,7 +400,7 @@
   },
   "components-avatar--color-colorful": {
     "kind": "composed",
-    "why": "FluentAvatarColor has no `colorful` mode \u2014 our avatar always takes a concrete colour \u2014 so the name/idForColor hash lives in the docregion as a small _colorful() helper over a const palette list. Same behaviour class, different hash, so individual picks differ from upstream's."
+    "why": "FluentAvatarColor has no `colorful` mode — our avatar always takes a concrete colour — so upstream's name/idForColor hash lives in the docregion as a small _colorful() helper: useAvatar.js's getHashCode over the same 30 avatarColors, so each pick is upstream's."
   },
   "components-avatar--name": {
     "kind": "reduced",
@@ -412,7 +412,7 @@
   },
   "components-avatargroup--default": {
     "kind": "composed",
-    "why": "FluentAvatarGroup takes a flat `children` list and has no AvatarGroupPopover slot, so the overflow indicator is composed as an ordinary member: a FluentAvatarColor.overflow avatar that owns a FluentPopover plus its open bit. partitionAvatarGroupItems is transcribed as sublist(7) / sublist(0, 7) \u2014 the same 4 inline / 7 overflow split upstream renders. FluentAvatar derives neither initials nor colour from `name`, so both are spelled out per person."
+    "why": "FluentAvatarGroup takes a flat `children` list and has no AvatarGroupPopover slot, so the overflow indicator is composed as an ordinary member: a FluentAvatarColor.overflow avatar that owns a FluentPopover plus its open bit. partitionAvatarGroupItems is transcribed as sublist(7) / sublist(0, 7) — the same 4 inline / 7 overflow split upstream renders. FluentAvatar derives neither initials nor colour from `name`, so both are spelled out per person, each colour being AvatarGroupItem's 'colorful' hash of the name."
   },
   "components-avatargroup--indicator": {
     "kind": "composed",

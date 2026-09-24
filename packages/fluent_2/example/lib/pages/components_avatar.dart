@@ -386,8 +386,8 @@ Widget _colorBrand(BuildContext context) => const FluentAvatar(
 // #docregion components-avatar--color-colorful
 // `FluentAvatarColor` has no `colorful` mode — our avatar always takes a
 // concrete colour — so the hash upstream applies to `name` (or `idForColor`)
-// lives in the example instead. Same idea, a different hash, so the individual
-// picks differ from upstream's.
+// lives in the example instead: useAvatar.js's getHashCode over its 30
+// avatarColors, so each pick is upstream's.
 const List<FluentAvatarColor> _colorfulColors = <FluentAvatarColor>[
   FluentAvatarColor.darkRed,
   FluentAvatarColor.cranberry,
@@ -415,12 +415,18 @@ const List<FluentAvatarColor> _colorfulColors = <FluentAvatarColor>[
   FluentAvatarColor.pink,
   FluentAvatarColor.magenta,
   FluentAvatarColor.plum,
+  FluentAvatarColor.beige,
+  FluentAvatarColor.mink,
+  FluentAvatarColor.platinum,
+  FluentAvatarColor.anchor,
 ];
 
 FluentAvatarColor _colorful(String idForColor) {
   int hash = 0;
-  for (final int unit in idForColor.codeUnits) {
-    hash = (hash * 31 + unit) & 0x7fffffff;
+  for (int i = idForColor.length - 1; i >= 0; i--) {
+    final int unit = idForColor.codeUnitAt(i);
+    final int shift = i % 8;
+    hash ^= (unit << shift) + (unit >> (8 - shift));
   }
   return _colorfulColors[hash % _colorfulColors.length];
 }
