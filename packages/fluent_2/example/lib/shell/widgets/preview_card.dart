@@ -220,21 +220,22 @@ class _StoryStage extends StatelessWidget {
       ),
     );
 
-    if (zoom == 1) {
-      return Padding(padding: _stageInset, child: themed);
-    }
-
     // `Transform.scale` alone does not change layout, so the card would keep the
     // unscaled height and the preview would spill out of it. `Align`'s
     // heightFactor reports `child.height * zoom`, and handing the child
     // `maxWidth / zoom` makes it lay out at logical width and scale to fill.
     // Hit-testing is transformed too, so controls inside a zoomed preview still
     // work.
+    //
+    // The same tree at every zoom, 1 included — an identity scale and no clip
+    // paint exactly what a bare child does. A separate zoom-1 branch remounted
+    // the story on every step to or from 1, where upstream keeps its value.
     return Padding(
       padding: _stageInset,
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
           return ClipRect(
+            clipBehavior: zoom == 1 ? Clip.none : Clip.hardEdge,
             child: Align(
               alignment: Alignment.topLeft,
               heightFactor: zoom,

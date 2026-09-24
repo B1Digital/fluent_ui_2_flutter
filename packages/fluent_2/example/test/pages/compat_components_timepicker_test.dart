@@ -208,7 +208,8 @@ void main() {
       await pumpSection(tester, section);
 
       await typeAndBlur(tester, find.byType(FluentTimePicker), '11:30');
-      expect(_fieldText(tester), _time(11, 30));
+      // Chrome keeps the text as typed, not the option's '11:30 AM'.
+      expect(_fieldText(tester), '11:30');
       expect(
         find.textContaining('Time out of'),
         findsNothing,
@@ -240,6 +241,51 @@ void main() {
       );
     });
 
+    testWidgets('a bare hour is invalid, and the message carries its icon', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(tester, section);
+      expect(find.byIcon(FluentIcons.error_circle_12_filled), findsNothing);
+
+      // Upstream's default parser takes H:MM only, so '8' is not a time, where
+      // '8:00' is one outside the range (Chrome).
+      await typeAndBlur(tester, find.byType(FluentTimePicker), '8');
+      expect(
+        find.text('Invalid time format. Please use the 24-hour format HH:MM.'),
+        findsOneWidget,
+      );
+      // Field's own default glyph for an error: upstream's DiamondDismiss12.
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is FluentFieldValidationGlyph &&
+              w.state == FluentFieldValidationState.error,
+        ),
+        findsOneWidget,
+      );
+
+      await typeAndBlur(tester, find.byType(FluentTimePicker), '8:00');
+      expect(
+        find.text('Time out of the 10:00 to 19:59 range.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the picker is 300 wide in a wider field, as upstream', (
+      WidgetTester tester,
+    ) async {
+      // Chrome: the Field spans the story, and `maxWidth: 300px` holds the
+      // TimePicker to 300 inside it.
+      for (final bool loose in <bool>[false, true]) {
+        await pumpSection(tester, section, loose: loose);
+        expect(
+          tester.getSize(find.byType(FluentTimePicker)).width,
+          300,
+          reason: 'loose $loose',
+        );
+      }
+    });
+
     testWidgets('emptying a typed time reports requiredInput', (
       WidgetTester tester,
     ) async {
@@ -250,20 +296,61 @@ void main() {
       expect(find.text('Time is required.'), findsOneWidget);
     });
 
-    testWidgets('opening and closing an empty required picker reports it', (
+    testWidgets('opening and closing an untouched picker reports nothing', (
       WidgetTester tester,
     ) async {
+      // Chrome (tail_timepicker T5_ff_*): opened and shut by Tab, Escape or a
+      // click away, a picker nobody typed into shows no message — upstream
+      // compares the text with what it last submitted, and both are nothing.
+      // "Time is required." waits until something was typed and emptied.
       await pumpSection(tester, section);
 
-      // The section's own instructions: "leave the input empty and close the
-      // TimePicker". Closing is what blur does, and a required field that has
-      // never been typed into is exactly the case the message exists for.
       await _open(tester);
       expect(_row(11, 0), findsOneWidget);
       await _blur(tester);
 
       expect(_row(11, 0), findsNothing, reason: 'blur must close the listbox');
+      expect(find.text('Time is required.'), findsNothing);
+
+      await typeAndBlur(tester, find.byType(FluentTimePicker), '1');
+      await typeAndBlur(tester, find.byType(FluentTimePicker), '');
       expect(find.text('Time is required.'), findsOneWidget);
+    });
+
+    testWidgets('an error turns the field border red, as aria-invalid does', (
+      WidgetTester tester,
+    ) async {
+      // Chrome (tail_timepicker T6_ff_invalid): '8' then Tab sets
+      // aria-invalid, and the Combobox root's border turns
+      // colorPaletteRedBorder2, rgb(209, 52, 56), until the field is focused.
+      await pumpSection(tester, section);
+      expect(
+        tester.widget<FluentTimePicker>(find.byType(FluentTimePicker)).error,
+        isFalse,
+      );
+
+      await typeAndBlur(tester, find.byType(FluentTimePicker), '8');
+      expect(
+        tester.widget<FluentTimePicker>(find.byType(FluentTimePicker)).error,
+        isTrue,
+      );
+      final FluentInputBorderPainter border = tester
+          .widgetList<CustomPaint>(
+            find.descendant(
+              of: find.byType(FluentTimePicker),
+              matching: find.byType(CustomPaint),
+            ),
+          )
+          .map((CustomPaint paint) => paint.painter)
+          .whereType<FluentInputBorderPainter>()
+          .single;
+      expect(border.borderColor, const Color(0xFFD13438));
+
+      await typeAndBlur(tester, find.byType(FluentTimePicker), '11:30');
+      expect(
+        tester.widget<FluentTimePicker>(find.byType(FluentTimePicker)).error,
+        isFalse,
+      );
     });
   });
 
@@ -312,8 +399,8 @@ void main() {
       );
       expect(
         _fieldText(tester),
-        'Afternoon: ${_time(15, 30)}',
-        reason: 'the committed value is written back through formatTime',
+        'Afternoon: 3:30',
+        reason: 'the field keeps the typed text, as Chrome does',
       );
     });
   });

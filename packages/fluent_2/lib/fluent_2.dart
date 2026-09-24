@@ -207,6 +207,7 @@ export 'src/inputs/time_picker_style.dart';
 export 'src/internal/animated_style.dart';
 export 'src/internal/focus_ring.dart';
 export 'src/internal/interaction.dart';
+export 'src/internal/menu_trigger_scope.dart';
 export 'src/internal/text_context_menu.dart';
 // The generated message catalogue. `src/l10n/fluent_localizations_*.dart` —
 // one file per locale — is deliberately NOT exported: the delegate is the only

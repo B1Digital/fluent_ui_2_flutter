@@ -76,8 +76,8 @@ const FluentTextarea({
 | `invalid` | `bool` | No | `false` | Whether to paint the error border. Figma's `State=Error`. |
 | `autofocus` | `bool` | No | `false` | Whether to take focus on mount. |
 | `obscureText` | `bool` | No | `false` | Whether to replace every glyph with a bullet. Requires `maxLines: 1`. |
-| `minLines` | `int?` | No | `2` | Smallest number of lines the field occupies. |
-| `maxLines` | `int?` | No | `null` | Largest number of lines before the field scrolls internally. Null grows without bound. |
+| `minLines` | `int?` | No | `2` | Smallest number of lines the field occupies. Two by default: upstream renders `<textarea rows="2">`. |
+| `maxLines` | `int?` | No | `null` | Largest number of lines the field grows to before it scrolls internally. Null holds it at [minLines], as `rows` does upstream: a `<textarea>` never grows with its text, it scrolls. |
 | `maxLength` | `int?` | No | `null` | Hard cap on the number of characters, enforced by an input formatter. |
 | `keyboardType` | `TextInputType?` | No | `null` | Soft keyboard type. Defaults to multiline, or plain text at `maxLines: 1`. |
 | `textInputAction` | `TextInputAction?` | No | `null` | What the soft keyboard's action key does. Defaults to inserting a newline on a multi-line field. |
@@ -144,7 +144,7 @@ const FluentTextareaBaseState({
 
 ### `FluentTextareaSize`
 
-Type ramp and inset. Figma's `Size` axis.
+Type ramp, inset and minimum height. Upstream's `size` prop.
 
 Source: `packages/fluent_2/lib/src/inputs/textarea.dart`
 
@@ -204,6 +204,7 @@ const FluentTextareaStyle({
     this.selectionColor,
     this.textStyle,
     this.padding,
+    this.minimumSize,
     this.mouseCursor,
   });
 ```
@@ -211,11 +212,11 @@ const FluentTextareaStyle({
 | Field | Type | Required | Default | Purpose |
 | --- | --- | --- | --- | --- |
 | `backgroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Surface fill behind the text. |
-| `borderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Colour of the border around all four sides. Null and transparent are different: Fluent's `transparentStroke` becomes opaque in high contrast. |
-| `borderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Border width. Zero means no border, which is not the same as a transparent one — a zero-width border cannot become visible in high contrast. |
+| `borderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Colour of the border around all four sides. Null means no border at all — nothing is painted and nothing is inset. Null and transparent are different: a transparent border still takes its space, and Fluent's `transparentStroke` becomes opaque in high contrast. |
+| `borderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Border width. As in CSS, the border insets the content by this much on every side, before [padding]. Zero means no border, which is not the same as a transparent one — a zero-width border cannot become visible in high contrast. |
 | `borderRadius` | `WidgetStateProperty<BorderRadius?>?` | No | `null` | Corner radius of the surface. |
-| `underlineColor` | `WidgetStateProperty<Color?>?` | No | `null` | The resting bottom rule, drawn over the border's bottom edge. |
-| `underlineThickness` | `WidgetStateProperty<double?>?` | No | `null` | Thickness of [underlineColor]. Fluent thickens this on press. |
+| `underlineColor` | `WidgetStateProperty<Color?>?` | No | `null` | The bottom side's colour, when it differs from [borderColor]. |
+| `underlineThickness` | `WidgetStateProperty<double?>?` | No | `null` | The bottom side's width, inset from the content like [borderWidth]. 1 in every state: upstream recolours it on press, it never thickens it. Ignored when [underlineColor] is null. |
 | `focusUnderlineColor` | `WidgetStateProperty<Color?>?` | No | `null` | The brand rule that scales in horizontally while the field holds focus. |
 | `focusUnderlineThickness` | `WidgetStateProperty<double?>?` | No | `null` | Thickness of [focusUnderlineColor]. |
 | `foregroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Colour of the text the user has entered. |
@@ -224,6 +225,7 @@ const FluentTextareaStyle({
 | `selectionColor` | `WidgetStateProperty<Color?>?` | No | `null` | Fill painted behind selected text. |
 | `textStyle` | `WidgetStateProperty<TextStyle?>?` | No | `null` | Type ramp of both the value and the placeholder. Its colour is overridden by [foregroundColor] and [placeholderColor] respectively. |
 | `padding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset between the border and the text. |
+| `minimumSize` | `WidgetStateProperty<Size?>?` | No | `null` | Minimum size of the border box. Extra height lands below the text, as a CSS `min-height` does. |
 | `mouseCursor` | `WidgetStateProperty<MouseCursor?>?` | No | `null` | Cursor shown while hovering. |
 
 ### `FluentTextareaTheme`

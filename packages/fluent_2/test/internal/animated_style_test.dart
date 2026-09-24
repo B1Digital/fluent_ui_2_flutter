@@ -150,4 +150,45 @@ void main() {
       );
     });
   });
+
+  group('FluentCssCubic', () {
+    test("ease matches Chrome's own scale to six decimals", () {
+      // `getComputedStyle(::after).transform` at 20ms steps of a 200ms `ease`
+      // transition, paused with `Animation.currentTime`, on the live
+      // storybook. Flutter's `Cubic` misses these by up to 0.002.
+      const chrome = <double>[
+        0.0947963,
+        0.295244,
+        0.513315,
+        0.68254,
+        0.802403,
+        0.885229,
+        0.940765,
+        0.975625,
+        0.994316,
+      ];
+      for (var i = 0; i < chrome.length; i++) {
+        final t = (i + 1) / 10;
+        expect(
+          FluentCssCubic.ease.transform(t),
+          closeTo(chrome[i], 2e-6),
+          reason: 't=$t',
+        );
+      }
+      expect(FluentCssCubic.ease.transform(0), 0);
+      expect(FluentCssCubic.ease.transform(1), 1);
+    });
+
+    test('solves steep and flat control points', () {
+      // decelerateMid (0, 0, 0, 1) has zero slope in x at t=0, which stalls
+      // Newton and must fall back to bisection.
+      const steep = FluentCssCubic(0, 0, 0, 1);
+      for (var t = 0.05; t < 1; t += 0.05) {
+        final y = steep.transform(t);
+        expect(y, inInclusiveRange(0, 1));
+        expect(y, greaterThanOrEqualTo(steep.transform(t - 0.05)));
+      }
+      expect(const FluentCssCubic(0.25, 0.1, 0.25, 1), FluentCssCubic.ease);
+    });
+  });
 }

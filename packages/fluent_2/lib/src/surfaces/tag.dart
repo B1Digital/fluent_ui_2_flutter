@@ -43,6 +43,7 @@ class FluentTagBaseState {
     required this.enabled,
     this.label,
     this.secondaryLabel,
+    this.media,
     this.icon,
     this.dismiss,
   });
@@ -57,7 +58,11 @@ class FluentTagBaseState {
   /// The second line. Only the medium size has a two-line layout.
   final Widget? secondaryLabel;
 
-  /// Leading media — an avatar or an icon.
+  /// Leading media — an avatar. Upstream's `media` slot: 1px inside the
+  /// border, with the content inset between it and the label.
+  final Widget? media;
+
+  /// Leading icon, at the content inset. Upstream's `icon` slot.
   final Widget? icon;
 
   /// The trailing dismiss affordance, already wrapped in its own interaction
@@ -76,6 +81,7 @@ class FluentTagState extends FluentTagBaseState {
     required this.selected,
     super.label,
     super.secondaryLabel,
+    super.media,
     super.icon,
     super.dismiss,
   });
@@ -105,6 +111,7 @@ FluentTagState resolveFluentTagState({
   bool selected = false,
   Widget? label,
   Widget? secondaryLabel,
+  Widget? media,
   Widget? icon,
   Widget? dismiss,
 }) => FluentTagState(
@@ -114,6 +121,7 @@ FluentTagState resolveFluentTagState({
   selected: selected,
   label: label,
   secondaryLabel: secondaryLabel,
+  media: media,
   icon: icon,
   dismiss: dismiss,
 );
@@ -324,6 +332,52 @@ Widget buildFluentTag(
     ],
   );
 
+  Widget body = Padding(
+    padding: padding,
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      spacing: gap,
+      children: <Widget>[
+        if (state.icon != null)
+          IconTheme.merge(
+            data: IconThemeData(color: foreground, size: iconSize),
+            child: state.icon!,
+          ),
+        // Upstream pads the text slot `0 XXS XXS`: the bottom 2px lifts a
+        // single line 1px off centre (Chrome). A second line drops it.
+        Padding(
+          padding: EdgeInsetsDirectional.only(
+            start: FluentSpacing.xxs,
+            end: FluentSpacing.xxs,
+            bottom: state.secondaryLabel == null ? FluentSpacing.xxs : 0,
+          ),
+          child: content,
+        ),
+        if (state.dismiss != null) state.dismiss!,
+      ],
+    ),
+  );
+
+  // Upstream's media slot is `padding: 0 S 0 1px` (SNudge below medium) in
+  // place of the root's start padding: the avatar sits 1px inside the border,
+  // and the content inset lands between it and the label instead.
+  if (state.media != null) {
+    body = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsetsDirectional.only(start: FluentSpacing.xxs),
+          child: IconTheme.merge(
+            data: IconThemeData(color: foreground, size: iconSize),
+            child: state.media!,
+          ),
+        ),
+        body,
+      ],
+    );
+  }
+
   return ConstrainedBox(
     constraints: BoxConstraints(
       minHeight: minimumSize.height,
@@ -340,32 +394,7 @@ Widget buildFluentTag(
             ? Border.all(color: borderColor, width: borderWidth)
             : null,
       ),
-      child: Padding(
-        padding: padding,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          spacing: gap,
-          children: <Widget>[
-            if (state.icon != null)
-              IconTheme.merge(
-                data: IconThemeData(color: foreground, size: iconSize),
-                child: state.icon!,
-              ),
-            // Figma insets the text slot by XXS on each side inside the
-            // content frame; the matching 2px at the BOTTOM is a compensation
-            // for Figma's text-box metrics and is not ported, the same call
-            // `FluentAccordion` makes about its `Text-offset` wrapper.
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: FluentSpacing.xxs,
-              ),
-              child: content,
-            ),
-            if (state.dismiss != null) state.dismiss!,
-          ],
-        ),
-      ),
+      child: body,
     ),
   );
 }
@@ -395,9 +424,8 @@ class FluentTagTheme extends InheritedTheme {
 
 /// Fluent's dismiss glyph, drawn rather than imported.
 ///
-/// This package has no icon dependency — `fluentui-system-icons` is not a
-/// dependency of `fluent_2_core` and its font ships under its own licence — so
-/// the one glyph both tag components need out of the box is stroked here.
+/// Painted from upstream's own `DismissRegular` path by
+/// [FluentTagDismissPainter], so the ink matches the React tag's at every size.
 ///
 /// Takes its colour and its box from the ambient [IconTheme], exactly as an
 /// `Icon` would, so passing a real Fluent `Dismiss` icon instead changes
@@ -423,33 +451,60 @@ class FluentTagDismissGlyph extends StatelessWidget {
 
 /// Paints [FluentTagDismissGlyph]'s cross.
 ///
-/// The ink is 0.67 of the glyph box, which is the ratio Figma's vectors keep
-/// across all three sizes: 8 in a 12 box, 11 in 16, 12 in 20.
+/// Upstream's own glyph, `DismissRegular` from `@fluentui/react-icons`: its
+/// 20-unit path, transcribed command for command and scaled to the box, as the
+/// browser scales the `1em` svg — 7.5 of ink in a 12 box, 10 in 16, 12 in 20.
 class FluentTagDismissPainter extends CustomPainter {
   /// Creates a painter for the given tone.
   const FluentTagDismissPainter({required this.color});
 
-  /// The stroke colour. Never derived — it comes from a Fluent token.
+  /// The fill colour. Never derived — it comes from a Fluent token.
   final Color color;
 
-  /// Ink width as a fraction of the glyph box.
-  static const double inkRatio = 0.67;
+  static final Path _dismissRegular = Path()
+    ..moveTo(4.09, 4.22)
+    ..relativeLineTo(0.06, -0.07)
+    ..relativeArcToPoint(const Offset(0.63, -0.06), radius: _r)
+    ..relativeLineTo(0.07, 0.06)
+    ..lineTo(10, 9.29)
+    ..relativeLineTo(5.15, -5.14)
+    ..relativeArcToPoint(const Offset(0.63, -0.06), radius: _r)
+    ..relativeLineTo(0.07, 0.06)
+    ..relativeCubicTo(0.18, 0.17, 0.2, 0.44, 0.06, 0.63)
+    ..relativeLineTo(-0.06, 0.07)
+    ..lineTo(10.71, 10)
+    ..relativeLineTo(5.14, 5.15)
+    ..relativeCubicTo(0.18, 0.17, 0.2, 0.44, 0.06, 0.63)
+    ..relativeLineTo(-0.06, 0.07)
+    ..relativeArcToPoint(const Offset(-0.63, 0.06), radius: _r)
+    ..relativeLineTo(-0.07, -0.06)
+    ..lineTo(10, 10.71)
+    ..relativeLineTo(-5.15, 5.14)
+    ..relativeArcToPoint(const Offset(-0.63, 0.06), radius: _r)
+    ..relativeLineTo(-0.07, -0.06)
+    ..relativeArcToPoint(const Offset(-0.06, -0.63), radius: _r)
+    ..relativeLineTo(0.06, -0.07)
+    ..lineTo(9.29, 10)
+    ..lineTo(4.15, 4.85)
+    ..relativeArcToPoint(const Offset(-0.06, -0.63), radius: _r)
+    ..relativeLineTo(0.06, -0.07)
+    ..relativeLineTo(-0.06, 0.07)
+    ..close();
+
+  static const Radius _r = Radius.circular(0.5);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final ink = size.shortestSide * inkRatio;
-    final inset = (size.shortestSide - ink) / 2;
-    final paint = Paint()
-      ..color = color
-      ..strokeCap = StrokeCap.round
-      // Fluent's regular icons stroke at 1 up to the 16 ramp and 1.5 above it.
-      ..strokeWidth = size.shortestSide <= FluentSize.size160
-          ? FluentStroke.thin
-          : FluentStroke.width15
-      ..style = PaintingStyle.stroke;
+    final scale = size.shortestSide / 20;
     canvas
-      ..drawLine(Offset(inset, inset), Offset(inset + ink, inset + ink), paint)
-      ..drawLine(Offset(inset + ink, inset), Offset(inset, inset + ink), paint);
+      ..save()
+      ..translate(
+        (size.width - size.shortestSide) / 2,
+        (size.height - size.shortestSide) / 2,
+      )
+      ..scale(scale)
+      ..drawPath(_dismissRegular, Paint()..color = color)
+      ..restore();
   }
 
   @override
@@ -486,6 +541,7 @@ class FluentTag extends StatelessWidget {
     super.key,
     required this.child,
     this.secondaryChild,
+    this.media,
     this.icon,
     this.appearance = FluentTagAppearance.filled,
     this.size = FluentTagSize.medium,
@@ -506,7 +562,11 @@ class FluentTag extends StatelessWidget {
   /// The second line. Figma only draws two lines at [FluentTagSize.medium].
   final Widget? secondaryChild;
 
-  /// Leading media — an avatar or an icon.
+  /// Leading media — an avatar, 1px inside the border with the content inset
+  /// after it. Upstream's `media` slot.
+  final Widget? media;
+
+  /// Leading icon, at the content inset. Upstream's `icon` slot.
   final Widget? icon;
 
   /// Fill and outline treatment.
@@ -558,6 +618,7 @@ class FluentTag extends StatelessWidget {
         selected: selected,
         label: child,
         secondaryLabel: secondaryChild,
+        media: media,
         icon: icon,
       ),
       FluentTheme.of(context),
@@ -572,6 +633,7 @@ class FluentTag extends StatelessWidget {
       enabled: enabled,
       label: child,
       secondaryLabel: secondaryChild,
+      media: media,
       icon: icon,
       dismiss: onDismiss == null
           ? null

@@ -40,6 +40,7 @@ const FluentSearchBox({
     this.controller,
     this.focusNode,
     this.enabled = true,
+    this.error = false,
     this.appearance = FluentSearchBoxAppearance.outline,
     this.size = FluentSearchBoxSize.medium,
     this.placeholder,
@@ -66,6 +67,7 @@ const FluentSearchBox({
 | `controller` | `TextEditingController?` | No | `null` | The controller. One is created and disposed internally when omitted. |
 | `focusNode` | `FocusNode?` | No | `null` | The focus node. One is created and disposed internally when omitted. |
 | `enabled` | `bool` | No | `true` | Whether the search box accepts input. False is a real disabled state. |
+| `error` | `bool` | No | `false` | Whether to paint the validation-error treatment: a `colorPaletteRedBorder2` border while unfocused, as upstream styles `aria-invalid="true"`. |
 | `appearance` | `FluentSearchBoxAppearance` | No | `FluentSearchBoxAppearance.outline` | Fill and outline treatment. |
 | `size` | `FluentSearchBoxSize` | No | `FluentSearchBoxSize.medium` | Height and type ramp. |
 | `placeholder` | `String?` | No | `null` | Hint shown while the value is empty. |
@@ -186,6 +188,7 @@ const FluentSearchBoxState({
     required super.field,
     required this.appearance,
     required this.size,
+    this.error = false,
     super.placeholder,
     super.icon,
     super.clear,
@@ -199,6 +202,7 @@ const FluentSearchBoxState({
 | `field` | `Widget` | Yes | — | The text editor itself. Supplied by the caller so [buildFluentSearchBox] stays a pure function of widgets. |
 | `appearance` | `FluentSearchBoxAppearance` | Yes | — | Fill and outline treatment. |
 | `size` | `FluentSearchBoxSize` | Yes | — | Height and type ramp. |
+| `error` | `bool` | No | `false` | Whether the field is showing a validation error: upstream's `aria-invalid="true"`, which the root styles with Input's invalid rule. |
 | `placeholder` | `Widget?` | No | `null` | Shown over [field] while the value is empty. |
 | `icon` | `Widget?` | No | `null` | The leading glyph. Null renders nothing in the leading slot. |
 | `clear` | `Widget?` | No | `null` | The trailing clear affordance. Null hides it, which is how "not focused" is expressed. |
@@ -238,7 +242,7 @@ const FluentSearchBoxStyle({
 | --- | --- | --- | --- | --- |
 | `backgroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Surface fill. |
 | `borderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Colour of the border drawn on all four sides. |
-| `bottomBorderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Colour of the 1px rule Figma draws across the bottom edge, over [borderColor]. |
+| `bottomBorderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Colour of the 1px bottom border, in place of [borderColor] on that side. |
 | `focusUnderlineColor` | `WidgetStateProperty<Color?>?` | No | `null` | Colour of the 2px focus underline. `compoundBrandStroke`. |
 | `borderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Border width. Zero means no border, which is not the same as a transparent one — a zero-width border cannot become visible in high contrast. |
 | `borderRadius` | `WidgetStateProperty<BorderRadius?>?` | No | `null` | Corner radius. |
@@ -249,13 +253,13 @@ const FluentSearchBoxStyle({
 | `selectionColor` | `WidgetStateProperty<Color?>?` | No | `null` | Selection highlight colour. |
 | `textStyle` | `WidgetStateProperty<TextStyle?>?` | No | `null` | Text style of both the value and the placeholder. Its colour is overridden by [foregroundColor] and [placeholderColor] respectively. |
 | `padding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Padding inside the border. |
-| `gap` | `WidgetStateProperty<double?>?` | No | `null` | Space between the leading glyph and the text. |
+| `gap` | `WidgetStateProperty<double?>?` | No | `null` | Space between the leading glyph and the text: upstream's `<input>` padding-left, so it stays, and still takes clicks, without a glyph. |
 | `contentGap` | `WidgetStateProperty<double?>?` | No | `null` | Space between the text and the trailing clear button. |
 | `iconSize` | `WidgetStateProperty<double?>?` | No | `null` | Leading glyph edge length. |
-| `clearIconSize` | `WidgetStateProperty<double?>?` | No | `null` | Trailing clear glyph edge length. Not the same ramp as [iconSize]. |
+| `clearIconSize` | `WidgetStateProperty<double?>?` | No | `null` | Trailing clear glyph edge length. Upstream sizes it on the same 16 / 20 / 24 ramp as [iconSize]. |
 | `minimumSize` | `WidgetStateProperty<Size?>?` | No | `null` | Minimum size. Only the height is meaningful. |
 | `maximumSize` | `WidgetStateProperty<Size?>?` | No | `null` | Maximum size. Only the width is meaningful; Fluent caps a search box at 468. |
-| `mouseCursor` | `WidgetStateProperty<MouseCursor?>?` | No | `null` | Cursor while hovering the field, outside the clear button. |
+| `mouseCursor` | `WidgetStateProperty<MouseCursor?>?` | No | `null` | Cursor over the text column: the `<input>`'s box, from the end of the leading glyph to the clear button, or to the border while the clear button is hidden. The root padding and the glyph show the arrow, or `forbidden` when disabled. |
 
 ### `FluentSearchBoxTheme`
 
@@ -289,6 +293,7 @@ FluentSearchBoxState resolveFluentSearchBoxState({
   required Widget field,
   bool enabled = true,
   bool focused = false,
+  bool error = false,
   FluentSearchBoxAppearance appearance = FluentSearchBoxAppearance.outline,
   FluentSearchBoxSize size = FluentSearchBoxSize.medium,
   Widget? placeholder,

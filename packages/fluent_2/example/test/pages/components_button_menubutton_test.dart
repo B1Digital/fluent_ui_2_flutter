@@ -390,10 +390,10 @@ void main() {
       const String long =
           'Long text wraps after it hits the max width of the component';
 
-      // The label is pinned to 230 so that 230 plus the medium ramp's padding,
+      // The label is pinned to 228 so that 228 plus the medium ramp's inset,
       // gap and chevron comes to upstream's 280. A label that refused to wrap
       // would leave the button one line tall and far wider than that.
-      expect(tester.getSize(find.text(long)).width, 230);
+      expect(tester.getSize(find.text(long)).width, 228);
       expect(
         tester.getSize(buttonAround(long)).height,
         greaterThan(tester.getSize(buttonAround('Short text')).height),

@@ -238,6 +238,14 @@ Checked-in usage excerpt from `packages/fluent_2/example/lib/pages/components_ca
 
 ```dart
 FluentToolbar(
+                  // Upstream's Toolbar has no background; ours defaults to
+                  // neutralBackground1, which would sit as a white box inside
+                  // the footer.
+                  style: const FluentToolbarStyle(
+                    backgroundColor: WidgetStatePropertyAll<Color?>(
+                      Color(0x00000000),
+                    ),
+                  ),
                   items: <Widget>[
                     for (int index = 0; index < _slideCount; index++)
                       FluentButton(

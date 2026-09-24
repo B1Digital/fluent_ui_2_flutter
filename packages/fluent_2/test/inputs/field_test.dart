@@ -1,4 +1,7 @@
+import 'dart:ui' show PictureRecorder;
+
 import 'package:fluent_2/fluent_2.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -6,7 +9,7 @@ import '../support/spec_fixture.dart';
 
 /// `FluentField` is a wrapper, so almost none of its contract is about pixels
 /// it paints itself — it paints none. What it owes is: the right type ramp on
-/// three text rows, the right gap between them, the right status token per
+/// three text rows, the right gap between them, upstream's glyph and tint per
 /// validation state, and a semantics tree that reads as one field.
 ///
 /// The Figma `Field` set (page `8911:3195`, set `9122:703`) has exactly one
@@ -19,6 +22,13 @@ void main() {
   const glyphKey = Key('glyph');
 
   final light = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+
+  // Upstream's colorPalette{Red,DarkOrange,Green}Foreground1 and the label's
+  // colorPaletteRedForeground3, as Chrome paints them under web-light.
+  const red = Color(0xFFBC2F32);
+  const darkOrange = Color(0xFFC43501);
+  const green = Color(0xFF0E700E);
+  const asteriskRed = Color(0xFFD13438);
 
   /// Figma's `Placeholder` slot: a 250x44 block standing in for the control.
   /// Using the same box the design file uses is what makes the row heights
@@ -263,9 +273,11 @@ void main() {
           text.lineHeight,
           reason: '${variant.name}: line height',
         );
+        // Figma binds Status/Danger/Foreground/1 (#b10e1c); upstream's
+        // colorPaletteRedForeground1 is what Chrome paints, and wins.
         expect(
           style.color,
-          light.colors.statusDangerForeground1,
+          red,
           reason: '${variant.name}: ${text.tokens['fills']!.single}',
         );
 
@@ -292,7 +304,7 @@ void main() {
         );
         expect(
           iconTheme(tester).color,
-          light.colors.statusDangerForeground1,
+          red,
           reason: '${variant.name}: glyph tint',
         );
         expect(
@@ -421,33 +433,67 @@ void main() {
       expect(styles, hasLength(2), reason: 'label plus asterisk');
       expect(find.text('*'), findsOneWidget);
       expect(styles[1].fontSize, asteriskOf(variant).text!.fontSize);
+      // The label runs the field's width, so the gap is measured from the
+      // last glyph's right edge rather than from the label's box.
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.descendant(
+          of: find.text('Label'),
+          matching: find.byType(RichText),
+        ),
+      );
+      final lastGlyph = paragraph
+          .getBoxesForSelection(
+            const TextSelection(baseOffset: 4, extentOffset: 5),
+          )
+          .single;
       expect(
-        tester
-            .widget<Row>(
-              find.descendant(
-                of: find.byType(FluentLabel),
-                matching: find.byType(Row),
-              ),
-            )
-            .spacing,
-        labelSlotOf(variant).gap,
+        tester.getTopLeft(find.text('*')).dx -
+            paragraph.localToGlobal(Offset(lastGlyph.right, 0)).dx,
+        moreOrLessEquals(labelSlotOf(variant).gap!),
         reason: labelSlotOf(variant).token('itemSpacing'),
       );
 
-      // A real disagreement inside Figma, carried through rather than forked.
-      // The standalone `Label` component set binds its asterisk to
-      // `Status/Danger/Foreground/3/Rest`, which is what `FluentLabel` ships.
-      // The `Label` INSTANCE inside every `Field` variant overrides it to
-      // `Status/Danger/Foreground/1/Rest` — one ramp stop darker, #B10E1C
-      // against #C50F1F. The Label set is the authority on Label, so reusing
-      // the component wins over restating the token here.
+      // Figma disagrees with itself and with upstream. The standalone `Label`
+      // set binds its asterisk to `Status/Danger/Foreground/3/Rest`; the
+      // `Label` INSTANCE inside every `Field` variant overrides it to
+      // `Status/Danger/Foreground/1/Rest`. Upstream's Field renders its Label
+      // unchanged, and Chrome paints the asterisk colorPaletteRedForeground3 —
+      // so reusing FluentLabel wins over restating either Figma token here.
       expect(
         asteriskOf(variant).text!.tokens['fills']!.single,
         'Status/Danger/'
         'Foreground/1/Rest',
       );
-      expect(asteriskOf(variant).fill, light.colors.statusDangerForeground1);
-      expect(styles[1].color, light.colors.statusDangerForeground3);
+      expect(styles[1].color, asteriskRed);
+    });
+
+    testWidgets('a long label wraps, the asterisk ending its last line', (
+      tester,
+    ) async {
+      // components-field--required in Chrome, label text swapped for a long
+      // one and the field narrowed to 250px: the label runs the field's full
+      // width, wraps, and the asterisk follows the last word. The TimePicker
+      // story had fixed its label to 300 wide to dodge an overflow here.
+      const long =
+          'Type a time outside of 10:00 to 19:59, type an invalid time, or '
+          'leave the input empty and close the TimePicker.';
+      await pump(
+        tester,
+        const FluentField(
+          key: key,
+          required: true,
+          label: Text(long),
+          child: child,
+        ),
+      );
+      final label = tester.getRect(find.byType(FluentLabel));
+      expect(label.width, 250);
+      expect(label.height, greaterThanOrEqualTo(3 * 20));
+      expect(
+        tester.getRect(find.text('*')).bottom,
+        label.bottom,
+        reason: 'on the last line, not on a line of its own',
+      );
     });
   });
 
@@ -470,11 +516,8 @@ void main() {
       // The only state Figma draws. Both the `Error text` node and upstream's
       // `secondaryTextStyles.error` agree on recolouring the text here.
       await pumpState(tester, FluentFieldValidationState.error);
-      expect(
-        stylesOf(tester).first.color,
-        light.colors.statusDangerForeground1,
-      );
-      expect(iconTheme(tester).color, light.colors.statusDangerForeground1);
+      expect(stylesOf(tester).first.color, red);
+      expect(iconTheme(tester).color, red);
     });
 
     testWidgets('warning and success tint the glyph ONLY', (tester) async {
@@ -485,14 +528,8 @@ void main() {
       // goes amber. Figma cannot arbitrate: it ships no warning or success
       // variant at all.
       for (final (state, tint) in <(FluentFieldValidationState, Color)>[
-        (
-          FluentFieldValidationState.warning,
-          light.colors.statusWarningForeground1,
-        ),
-        (
-          FluentFieldValidationState.success,
-          light.colors.statusSuccessForeground1,
-        ),
+        (FluentFieldValidationState.warning, darkOrange),
+        (FluentFieldValidationState.success, green),
       ]) {
         await pumpState(tester, state);
         expect(
@@ -510,17 +547,23 @@ void main() {
       expect(iconTheme(tester).color, light.colors.neutralForeground3);
     });
 
-    test('the status tokens come off the ALIAS layer', () {
-      // Upstream names colorPaletteRedForeground1 / DarkOrange / Green. Figma
-      // binds Status/Danger/Foreground/1/Rest, whose light value is #B10E1C —
-      // exactly statusDangerForeground1. Only the alias layer is reached by
-      // FluentThemeOverride and replaced by the high contrast palette, which is
-      // why this component must not reach for the palette family instead.
+    test('the tints come off the palette layer, not the status aliases', () {
+      // Upstream names colorPaletteRedForeground1 / DarkOrange / Green; Figma
+      // binds Status/Danger/Foreground/1/Rest, whose light value #b10e1c is
+      // statusDangerForeground1. Chrome paints the palette token, so that is
+      // what the field selects.
       expect(light.colors.statusDangerForeground1, const Color(0xFFB10E1C));
       expect(
         validationTextOf(spec.variant(const {'Size': 'Medium'})).fill,
         light.colors.statusDangerForeground1,
       );
+      final palette = light.colors.palette;
+      expect(palette.foreground1Rest(FluentPaletteFamily.red), red);
+      expect(
+        palette.foreground1Rest(FluentPaletteFamily.darkOrange),
+        darkOrange,
+      );
+      expect(palette.foreground1Rest(FluentPaletteFamily.green), green);
     });
 
     testWidgets('a message with no glyph still lays out', (tester) async {
@@ -529,6 +572,7 @@ void main() {
         const FluentField(
           key: key,
           validationState: FluentFieldValidationState.error,
+          showValidationMessageIcon: false,
           validationMessage: Text('Message'),
           child: child,
         ),
@@ -538,10 +582,196 @@ void main() {
         findsNothing,
         reason: 'no glyph, no glyph row',
       );
-      expect(
-        stylesOf(tester).first.color,
-        light.colors.statusDangerForeground1,
+      expect(stylesOf(tester).first.color, red);
+    });
+  });
+
+  group('upstream in Chrome', () {
+    // components-field--validation-message on storybooks.fluentui.dev, read
+    // with getComputedStyle in Chrome under web-light and web-dark: the
+    // message's `color` and the `.fui-Field__validationMessageIcon`'s.
+    testWidgets('message and glyph take the palette Foreground1 per state', (
+      tester,
+    ) async {
+      final dark = FluentThemeData.dark(fontPlatform: FluentFontPlatform.web);
+      for (final (theme, rows) in <(FluentThemeData, List<(Color, Color)>)>[
+        (
+          light,
+          const [
+            (Color(0xFF616161), Color(0xFF616161)), // none
+            (Color(0xFFBC2F32), Color(0xFFBC2F32)), // error: RedForeground1
+            (Color(0xFF616161), Color(0xFFC43501)), // warning: DarkOrange
+            (Color(0xFF616161), Color(0xFF0E700E)), // success: Green
+          ],
+        ),
+        (
+          dark,
+          const [
+            (Color(0xFFADADAD), Color(0xFFADADAD)),
+            (Color(0xFFE37D80), Color(0xFFE37D80)),
+            (Color(0xFFADADAD), Color(0xFFE9835E)),
+            (Color(0xFFADADAD), Color(0xFF54B054)),
+          ],
+        ),
+        // teams-high-contrast: every one of them is #ffffff.
+        (
+          FluentThemeData.highContrast(fontPlatform: FluentFontPlatform.web),
+          const [
+            (Color(0xFFFFFFFF), Color(0xFFFFFFFF)),
+            (Color(0xFFFFFFFF), Color(0xFFFFFFFF)),
+            (Color(0xFFFFFFFF), Color(0xFFFFFFFF)),
+            (Color(0xFFFFFFFF), Color(0xFFFFFFFF)),
+          ],
+        ),
+      ]) {
+        for (final state in FluentFieldValidationState.values) {
+          final (text, glyph) = rows[state.index];
+          await pump(
+            tester,
+            FluentField(
+              key: key,
+              validationState: state,
+              validationMessage: const Text('Message'),
+              validationMessageIcon: const SizedBox(key: glyphKey),
+              child: child,
+            ),
+            theme: theme,
+          );
+          final where = '${theme.colors.brightness.name} $state';
+          expect(stylesOf(tester).first.color, text, reason: '$where: text');
+          expect(iconTheme(tester).color, glyph, reason: '$where: glyph');
+        }
+      }
+    });
+
+    // `useField_unstable` renders DiamondDismiss12Filled, Warning12Filled and
+    // CheckmarkCircle12Filled by default, and nothing for `none`. In Chrome
+    // the 12x12 svg sits 2px below the message's top and the text starts 16px
+    // in (the icon's width plus spacingHorizontalXS).
+    testWidgets("each state draws upstream's glyph unless told otherwise", (
+      tester,
+    ) async {
+      for (final state in FluentFieldValidationState.values) {
+        await pump(
+          tester,
+          FluentField(
+            key: key,
+            validationState: state,
+            validationMessage: const Text('Message'),
+            child: child,
+          ),
+        );
+        final glyph = find.byType(FluentFieldValidationGlyph);
+        if (state == FluentFieldValidationState.none) {
+          expect(glyph, findsNothing, reason: 'none has no default glyph');
+          continue;
+        }
+        expect(tester.widget<FluentFieldValidationGlyph>(glyph).state, state);
+        final painter =
+            tester
+                    .widget<CustomPaint>(
+                      find.descendant(
+                        of: glyph,
+                        matching: find.byType(CustomPaint),
+                      ),
+                    )
+                    .painter!
+                as FluentFieldValidationGlyphPainter;
+        expect(
+          painter.color,
+          IconTheme.of(tester.element(glyph)).color,
+          reason: '$state: tinted like any Icon',
+        );
+        final text = tester.getRect(find.text('Message'));
+        final ink = tester.getRect(glyph);
+        expect(ink.size, const Size.square(12), reason: '$state');
+        expect(
+          ink.topLeft - text.topLeft,
+          const Offset(-16, 2),
+          reason: '$state',
+        );
+      }
+
+      // `validationMessageIcon` replaces the default …
+      await pump(
+        tester,
+        const FluentField(
+          key: key,
+          validationState: FluentFieldValidationState.error,
+          validationMessage: Text('Message'),
+          validationMessageIcon: SizedBox(key: glyphKey),
+          child: child,
+        ),
       );
+      expect(find.byType(FluentFieldValidationGlyph), findsNothing);
+      expect(find.byKey(glyphKey), findsOneWidget);
+
+      // … and `showValidationMessageIcon: false` drops it and its gutter, the
+      // counterpart of `validationMessageIcon={null}`.
+      await pump(
+        tester,
+        const FluentField(
+          key: key,
+          validationState: FluentFieldValidationState.error,
+          showValidationMessageIcon: false,
+          validationMessage: Text('Message'),
+          child: child,
+        ),
+      );
+      expect(find.byType(FluentFieldValidationGlyph), findsNothing);
+      expect(
+        tester.getRect(find.text('Message')).left,
+        tester.getRect(find.byKey(key)).left,
+      );
+    });
+
+    testWidgets("the glyphs ink as upstream's svg paths", (tester) async {
+      // Each svg rasterised by Chrome, black on white in a 12px box at DPR 4:
+      // the ink's bounds and its area, in CSS px.
+      const dpr = 4.0;
+      for (final (state, bounds, area) in const [
+        (FluentFieldValidationState.error, Rect.fromLTWH(1, 1, 10, 10), 54.8),
+        (FluentFieldValidationState.warning, Rect.fromLTWH(1, 1, 10, 9), 50.93),
+        (
+          FluentFieldValidationState.success,
+          Rect.fromLTWH(1, 1, 10, 10),
+          71.15,
+        ),
+      ]) {
+        const px = 48;
+        final recorder = PictureRecorder();
+        FluentFieldValidationGlyphPainter(
+          state: state,
+          color: const Color(0xFF000000),
+        ).paint(Canvas(recorder)..scale(dpr), const Size.square(12));
+        final bytes = (await tester.runAsync(() async {
+          final image = await recorder.endRecording().toImage(px, px);
+          return image.toByteData();
+        }))!;
+        var (minX, minY, maxX, maxY) = (px, px, -1, -1);
+        var ink = 0.0;
+        for (var y = 0; y < px; y++) {
+          for (var x = 0; x < px; x++) {
+            final alpha = bytes.getUint8((y * px + x) * 4 + 3) / 255;
+            ink += alpha;
+            if (alpha > .1) {
+              (minX, minY) = (x < minX ? x : minX, y < minY ? y : minY);
+              (maxX, maxY) = (x > maxX ? x : maxX, y > maxY ? y : maxY);
+            }
+          }
+        }
+        expect(
+          Rect.fromLTRB(
+            minX / dpr,
+            minY / dpr,
+            (maxX + 1) / dpr,
+            (maxY + 1) / dpr,
+          ),
+          bounds,
+          reason: '$state: ink bounds',
+        );
+        expect(ink / dpr / dpr, closeTo(area, 1), reason: '$state: ink area');
+      }
     });
   });
 
@@ -574,7 +804,7 @@ void main() {
       // One frame, no settle.
       expect(
         stylesOf(tester).first.color,
-        light.colors.statusDangerForeground1,
+        red,
         reason: 'must be instant, not mid-tween',
       );
     });
@@ -665,7 +895,7 @@ void main() {
       );
       expect(
         iconTheme(tester).color,
-        light.colors.statusWarningForeground1,
+        darkOrange,
         reason: 'overriding the gap must not drop the warning tint',
       );
       expect(
@@ -775,9 +1005,11 @@ void main() {
   });
 
   group('theming', () {
-    testWidgets('a single-token override reaches the validation message', (
+    testWidgets('a single-token override reaches the neutral message', (
       tester,
     ) async {
+      // The palette tint is not an alias token, so it is restyled through
+      // FluentFieldStyle; the neutral ramp still follows the theme.
       const magenta = Color(0xFF780510);
       await tester.pumpWidget(
         FluentApp(
@@ -786,10 +1018,10 @@ void main() {
             child: SizedBox(
               width: 250,
               child: FluentThemeOverride(
-                colors: {FluentColorToken.statusDangerForeground1: magenta},
+                colors: {FluentColorToken.neutralForeground3: magenta},
                 child: FluentField(
                   key: key,
-                  validationState: FluentFieldValidationState.error,
+                  validationState: FluentFieldValidationState.warning,
                   validationMessage: Text('Message'),
                   child: child,
                 ),

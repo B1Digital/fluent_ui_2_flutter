@@ -101,7 +101,7 @@ void main() {
       final FluentColors colors = themeOf(tester).colors;
       expect(
         textStyleOf(tester, find.text('Error ProgressBar'))?.color,
-        colors.statusDangerForeground1,
+        colors.palette.foreground1Rest(FluentPaletteFamily.red),
       );
       // Not an oversight, and not a colour to "fix": upstream applies its error
       // text style for `error` alone and leaves warning and success on

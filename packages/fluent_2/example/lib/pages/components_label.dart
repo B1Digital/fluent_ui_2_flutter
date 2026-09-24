@@ -125,28 +125,29 @@ Widget _disabled(BuildContext context) => const FluentLabel(
 // #docregion components-label--required
 // Upstream's `required` prop doubles as a slot: `required="***"` replaces the
 // asterisk with a string or JSX. Ours is a plain bool, so the custom indicator
-// is composed next to the label using the same statusDangerForeground3 token
-// FluentLabel paints its own asterisk with.
-Widget _required(BuildContext context) => Wrap(
-  spacing: 16,
-  runSpacing: 12,
-  crossAxisAlignment: WrapCrossAlignment.center,
-  children: <Widget>[
-    const FluentLabel(required: true, child: Text('Required label')),
-    Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      spacing: FluentSpacing.xs,
-      children: <Widget>[
-        const FluentLabel(child: Text('Required label')),
-        Text(
-          '***',
-          style: TextStyle(
-            color: FluentTheme.of(context).colors.statusDangerForeground3,
-          ),
-        ),
-      ],
-    ),
-  ],
-);
+// is composed next to the label in the colour FluentLabel resolves for its own
+// asterisk.
+Widget _required(BuildContext context) {
+  final Color? asterisk = resolveFluentLabelStyle(
+    resolveFluentLabelState(required: true),
+    FluentTheme.of(context),
+  ).requiredColor?.resolve(const <WidgetState>{});
+  return Wrap(
+    spacing: 16,
+    runSpacing: 12,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    children: <Widget>[
+      const FluentLabel(required: true, child: Text('Required label')),
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        spacing: FluentSpacing.xs,
+        children: <Widget>[
+          const FluentLabel(child: Text('Required label')),
+          Text('***', style: TextStyle(color: asterisk)),
+        ],
+      ),
+    ],
+  );
+}
 // #enddocregion components-label--required

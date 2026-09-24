@@ -62,13 +62,15 @@ class FluentDatePickerStyle {
   /// Faceplate corner radius.
   final WidgetStateProperty<BorderRadius?>? borderRadius;
 
-  /// The 1px rule along the bottom edge at rest.
+  /// The faceplate's bottom border side, when it differs from [borderColor].
   ///
-  /// Null means the appearance draws none, which is a different claim from a
-  /// transparent one.
+  /// Feeds `FluentInputStyle.bottomBorderColor`: a side of the box border that
+  /// joins the others on the corner diagonal, not an overlay. Null means the
+  /// bottom follows [borderColor] like the other three sides.
   final WidgetStateProperty<Color?>? underlineColor;
 
-  /// Thickness of the resting bottom rule.
+  /// Width of the bottom border side, 1 in every state. Like [borderWidth], it
+  /// insets the content.
   final WidgetStateProperty<double?>? underlineWidth;
 
   /// The brand rule that grows across the bottom edge while the picker is
@@ -104,7 +106,8 @@ class FluentDatePickerStyle {
   /// Edge length of the calendar glyph.
   final WidgetStateProperty<double?>? iconSize;
 
-  /// Inset around the calendar glyph.
+  /// Horizontal inset of the editable text inside the faceplate — the
+  /// `<input>`'s own padding upstream, which equals the gap to the glyph.
   final WidgetStateProperty<EdgeInsetsGeometry?>? iconPadding;
 
   /// Popup fill.

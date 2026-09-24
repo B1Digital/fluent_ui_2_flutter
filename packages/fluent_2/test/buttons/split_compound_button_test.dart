@@ -20,18 +20,19 @@ import '../support/spec_fixture.dart';
 ///
 /// ## Where the numbers come from
 ///
+/// The split button follows upstream as Chrome renders it: the chevron half's
+/// size, inset and glyph, the divider's tokens, focus and the open-menu state
+/// are pinned against `useSplitButtonStyles`, `useMenuButtonStyles` and live
+/// probes of the storybook, each test naming its source.
+///
 /// `test/fixtures/secondary_action.json` is the Figma `.Secondary action` set
-/// (`9026:1241`, 25 variants) — the chevron half of a split button, which Figma
-/// draws as its own component and embeds unresized in all 150 `Split button`
-/// variants. Every chevron-half number below is asserted against it.
+/// (`9026:1241`, 25 variants) — the chevron half as Figma draws it, with no
+/// size axis. It still pins what Figma and upstream agree on: the chevron
+/// half's square leading corners and missing leading stroke, so the rule
+/// between the halves is drawn exactly once.
 ///
-/// The two things that set does not carry were read straight out of the same
-/// Figma file and are pinned here as literals, each naming the token Figma binds:
-///
-/// - the **divider**, which is the primary half's `strokeRightWeight` on
-///   `Split button` (`9026:1317`) — the chevron half has `strokeLeftWeight: 0`
-///   in every bordered variant, so the rule is drawn exactly once;
-/// - the **compound** geometry and ramps from `Compound button` (`9026:2278`).
+/// The **compound** geometry and ramps come from Figma's `Compound button`
+/// (`9026:2278`), pinned here as literals naming the token Figma binds.
 ///
 /// Everything else is `FluentButton`'s own table, already pinned variant by
 /// variant against `test/fixtures/button.json` in `button_test.dart`; asserting
@@ -55,12 +56,7 @@ void main() {
   FluentThemeData light() =>
       FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
 
-  /// The rendered surface of one half.
-  ///
-  /// Found by position rather than by the edge painter: the appearances Figma
-  /// leaves undivided and unbordered — subtle and transparent — have no painter
-  /// at all, and a finder that silently matched nothing there would turn every
-  /// assertion below into a no-op.
+  /// The rendered surface of one half, found by position.
   Finder sideOf(FluentSplitButtonSide side) => find
       .descendant(
         of: find.byKey(splitKey),
@@ -68,7 +64,7 @@ void main() {
       )
       .at(side.index);
 
-  /// The edge painter of one half, or null where Figma paints no edge.
+  /// The edge painter of one half, or null if it has none.
   FluentSplitButtonEdgePainter? maybePainterOf(
     WidgetTester tester,
     FluentSplitButtonSide side,
@@ -176,18 +172,16 @@ void main() {
 
     testWidgets('the divider selects a token per appearance', (tester) async {
       final theme = light();
-      // Figma binds these to the primary half's `strokes`, at
-      // `strokeRightWeight: Stroke width/Thin`, in Split button 9026:1317.
-      // Upstream instead says `colorNeutralStrokeOnBrand` (the /1/ step) for
-      // Primary and gives Subtle and Transparent a transparent rule; the Figma
-      // file paints no stroke on those two at all, on either half, in any
-      // state. Figma wins.
-      final expected = <FluentButtonAppearance, Color?>{
-        FluentButtonAppearance.primary: theme.colors.neutralStrokeOnBrand2,
+      // `useSplitButtonStyles` sets the primary half's `borderRightColor`:
+      // colorNeutralStrokeOnBrand on primary, a transparent colour on subtle
+      // and transparent. Secondary and outline keep the button's own border.
+      const clear = Color(0x00000000);
+      final expected = <FluentButtonAppearance, Color>{
+        FluentButtonAppearance.primary: theme.colors.neutralStrokeOnBrand,
         FluentButtonAppearance.secondary: theme.colors.neutralStroke1,
         FluentButtonAppearance.outline: theme.colors.neutralStroke1,
-        FluentButtonAppearance.subtle: null,
-        FluentButtonAppearance.transparent: null,
+        FluentButtonAppearance.subtle: clear,
+        FluentButtonAppearance.transparent: clear,
       };
 
       for (final entry in expected.entries) {
@@ -200,40 +194,38 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        final painter = maybePainterOf(
-          tester,
-          FluentSplitButtonSide.primaryAction,
-        );
         expect(
-          painter?.dividerColor,
+          painterOf(tester, FluentSplitButtonSide.primaryAction).dividerColor,
           entry.value,
           reason: '${entry.key.name}: divider',
         );
       }
     });
 
-    testWidgets('the primary divider ramps with the primary half', (
+    testWidgets('the primary divider holds one token through hover', (
       tester,
     ) async {
-      // `Neutral/Stroke/on Brand/2/<State>` on every Primary variant of
-      // 9026:1317 — a rest-only token would leave the rule stranded on a fill
-      // that has moved underneath it.
-      final theme = light();
-      final node = FocusNode();
-      addTearDown(node.dispose);
+      // Upstream repeats colorNeutralStrokeOnBrand under `:hover` and
+      // `:active`. Dark theme is where it shows: #292929 there, where the
+      // on-brand /2/ steps are white.
+      final theme = FluentThemeData.dark(fontPlatform: FluentFontPlatform.web);
+      expect(
+        theme.colors.neutralStrokeOnBrand,
+        isNot(theme.colors.neutralStrokeOnBrand2),
+      );
       await pump(
         tester,
         splitButton(
           appearance: FluentButtonAppearance.primary,
-          focusNode: node,
           onPressed: () {},
           onMenuPressed: () {},
         ),
+        theme: theme,
       );
       await tester.pumpAndSettle();
       expect(
         painterOf(tester, FluentSplitButtonSide.primaryAction).dividerColor,
-        theme.colors.neutralStrokeOnBrand2,
+        theme.colors.neutralStrokeOnBrand,
       );
 
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
@@ -245,21 +237,24 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         painterOf(tester, FluentSplitButtonSide.primaryAction).dividerColor,
-        theme.colors.neutralStrokeOnBrand2Hover,
+        theme.colors.neutralStrokeOnBrand,
       );
     });
 
-    testWidgets('a disabled primary split button has no divider at all', (
-      tester,
-    ) async {
-      // Both halves fall to neutralBackgroundDisabled and Figma paints nothing
-      // between them, so there is no rule to select a token for.
-      await pump(
-        tester,
-        splitButton(appearance: FluentButtonAppearance.primary),
-      );
-      await tester.pumpAndSettle();
-      expect(maybePainterOf(tester, FluentSplitButtonSide.primaryAction), null);
+    testWidgets('a disabled split button keeps its seam, in the disabled '
+        'stroke', (tester) async {
+      // `useSplitButtonStyles.disabled` sets colorNeutralStrokeDisabled on
+      // every appearance — so a disabled subtle split button shows a rule its
+      // enabled self does not.
+      for (final appearance in FluentButtonAppearance.values) {
+        await pump(tester, splitButton(appearance: appearance));
+        await tester.pumpAndSettle();
+        expect(
+          painterOf(tester, FluentSplitButtonSide.primaryAction).dividerColor,
+          light().colors.neutralStrokeDisabled,
+          reason: appearance.name,
+        );
+      }
     });
 
     testWidgets('only the primary half draws the divider', (tester) async {
@@ -307,61 +302,67 @@ void main() {
       }
     });
 
-    testWidgets('the chevron half is the width the fixture states, at every '
-        'size', (tester) async {
-      // `.Secondary action` has no size axis: all 25 variants measure 24 wide,
-      // and Split button embeds the instance unresized next to a 40-high Large
-      // half as much as next to a 24-high Small one. The button ramp would have
-      // made it 52 wide at Large.
-      final chevron = loadSpec(
-        'secondary_action',
-      ).variant(const {'Style': 'Secondary', 'State': 'Rest'});
+    testWidgets('the chevron half is as wide as upstream renders it', (
+      tester,
+    ) async {
+      // A live probe of the Size story: 24, 24 and 31. The half is an
+      // icon-only MenuButton whose floor `useSplitButtonStyles` lowers to 24
+      // (WCAG 2.2's minimum for adjacent targets); only large, with 7px of
+      // padding round a 16px chevron plus its 1px border, grows past it.
+      const widths = <FluentButtonSize, double>{
+        FluentButtonSize.small: 24,
+        FluentButtonSize.medium: 24,
+        FluentButtonSize.large: 31,
+      };
 
-      for (final size in FluentButtonSize.values) {
+      for (final entry in widths.entries) {
         await pump(
           tester,
-          splitButton(size: size, onPressed: () {}, onMenuPressed: () {}),
+          splitButton(size: entry.key, onPressed: () {}, onMenuPressed: () {}),
         );
         await tester.pumpAndSettle();
         expect(
           tester.getSize(sideOf(FluentSplitButtonSide.menu)).width,
-          chevron.size.width,
-          reason: '${size.name}: chevron width',
+          entry.value,
+          reason: '${entry.key.name}: chevron width',
         );
       }
-      // Which is also WCAG 2.2's minimum for adjacent targets.
-      expect(chevron.size.width, FluentSize.size240);
     });
 
-    testWidgets('the chevron half takes its own inset and glyph, not the '
-        'button ramp', (tester) async {
-      final chevron = loadSpec(
-        'secondary_action',
-      ).variant(const {'Style': 'Secondary', 'State': 'Rest'});
-      // 6px each side of a 12px glyph is exactly the 24 above; the button ramp
-      // would have inset 12 and drawn 20.
-      expect(chevron.padding, const EdgeInsets.symmetric(horizontal: 6));
-      expect(chevron.token('paddingLeft'), 'Spacing/Horizontal/SNudge');
-      expect(chevron.token('paddingTop'), 'Spacing/Vertical/None');
-      expect(chevron.gap, 0);
+    testWidgets('the chevron half takes the icon-only inset and the menu '
+        'glyph', (tester) async {
+      // `useRootIconOnlyStyles` pads by 1, 5 or 7; `useMenuIconStyles` sizes
+      // the chevron 12, 12 or 16. There is no border on the seam side, so only
+      // the other three add its pixel to the inset.
+      const expected = <FluentButtonSize, (double, double)>{
+        FluentButtonSize.small: (1, FluentSize.size120),
+        FluentButtonSize.medium: (5, FluentSize.size120),
+        FluentButtonSize.large: (7, FluentSize.size160),
+      };
 
-      for (final size in FluentButtonSize.values) {
+      for (final entry in expected.entries) {
+        final (inset, glyph) = entry.value;
         final style = resolveFluentSplitButtonStyle(
-          resolveFluentSplitButtonState(size: size),
+          resolveFluentSplitButtonState(size: entry.key),
           light(),
           side: FluentSplitButtonSide.menu,
         ).button!;
         const rest = <WidgetState>{};
         expect(
           style.padding!.resolve(rest),
-          chevron.padding,
-          reason: '${size.name}: chevron padding',
+          EdgeInsetsDirectional.fromSTEB(
+            inset,
+            inset + 1,
+            inset + 1,
+            inset + 1,
+          ),
+          reason: '${entry.key.name}: chevron padding',
         );
-        expect(style.gap!.resolve(rest), chevron.gap, reason: size.name);
+        expect(style.gap!.resolve(rest), 0, reason: entry.key.name);
         expect(
           style.iconSize!.resolve(rest),
-          FluentSize.size120,
-          reason: '${size.name}: chevron glyph',
+          glyph,
+          reason: '${entry.key.name}: chevron glyph',
         );
       }
     });
@@ -779,6 +780,212 @@ void main() {
     }
   });
 
+  // Live probes of the SplitButton stories: keyboard focus, an open menu, the
+  // chevron's box, the icon-only half.
+  group('split button — upstream states', () {
+    Future<void> keyboardFocus(WidgetTester tester, FocusNode node) async {
+      node.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+    }
+
+    /// The ring round the half [of] finds — the nearest ring above its surface.
+    FluentFocusRingPainter ringOf(WidgetTester tester, Finder of) => tester
+        .widgetList<CustomPaint>(
+          find.ancestor(of: of, matching: find.byType(CustomPaint)),
+        )
+        .map((p) => p.foregroundPainter)
+        .whereType<FluentFocusRingPainter>()
+        .first;
+
+    Widget withMenu(Widget Function(VoidCallback toggle) trigger) => FluentMenu(
+      items: <FluentMenuItem>[
+        FluentMenuItem(label: const Text('Item'), onPressed: () {}),
+      ],
+      builder: (context, toggle) => trigger(toggle),
+    );
+
+    for (final direction in TextDirection.values) {
+      testWidgets('the chevron half\'s ring is one pixel on the seam under '
+          '${direction.name}', (tester) async {
+        // `borderLeftWidth: 0` survives focus, so on the seam only the 1px
+        // inset shadow is black — probed: grey rule, then 4 device px of black.
+        final node = FocusNode();
+        addTearDown(node.dispose);
+        await pump(
+          tester,
+          Directionality(
+            textDirection: direction,
+            child: FluentSplitButton(
+              key: splitKey,
+              menuSemanticLabel: 'More options',
+              menuFocusNode: node,
+              onPressed: () {},
+              onMenuPressed: () {},
+              child: const Text('Send'),
+            ),
+          ),
+        );
+        await keyboardFocus(tester, node);
+
+        final ring = ringOf(tester, sideOf(FluentSplitButtonSide.menu));
+        expect(ring.visible, isTrue);
+        expect(
+          ring.insets,
+          direction == TextDirection.ltr
+              ? const EdgeInsets.fromLTRB(1, 2, 2, 2)
+              : const EdgeInsets.fromLTRB(2, 2, 1, 2),
+        );
+      });
+    }
+
+    testWidgets('a focused primary half turns its rule the focus stroke', (
+      tester,
+    ) async {
+      // The focus indicator's `borderColor` reaches all four sides, the rule
+      // included — on primary as much as on secondary.
+      for (final appearance in <FluentButtonAppearance>[
+        FluentButtonAppearance.secondary,
+        FluentButtonAppearance.primary,
+      ]) {
+        final node = FocusNode();
+        addTearDown(node.dispose);
+        await tester.pumpWidget(const SizedBox());
+        await pump(
+          tester,
+          splitButton(
+            appearance: appearance,
+            focusNode: node,
+            onPressed: () {},
+            onMenuPressed: () {},
+          ),
+        );
+        await keyboardFocus(tester, node);
+        expect(
+          painterOf(tester, FluentSplitButtonSide.primaryAction).dividerColor,
+          light().colors.strokeFocus2,
+          reason: appearance.name,
+        );
+      }
+    });
+
+    testWidgets('an open menu takes the chevron half\'s Selected tokens', (
+      tester,
+    ) async {
+      // `useRootExpandedStyles.secondary`: colorNeutralBackground1Selected
+      // under colorNeutralStroke1Selected, announced as `aria-expanded`.
+      final theme = light();
+      await pump(
+        tester,
+        withMenu(
+          (toggle) => FluentSplitButton(
+            key: splitKey,
+            menuSemanticLabel: 'More options',
+            onPressed: () {},
+            onMenuPressed: toggle,
+            child: const Text('Send'),
+          ),
+        ),
+      );
+      final menu = sideOf(FluentSplitButtonSide.menu);
+      expect(decorationOf(tester, menu).color, theme.colors.neutralBackground1);
+
+      await tester.tap(menu);
+      await tester.pumpAndSettle();
+      expect(
+        decorationOf(tester, menu).color,
+        theme.colors.neutralBackground1Selected,
+      );
+      expect(
+        painterOf(tester, FluentSplitButtonSide.menu).borderColor,
+        theme.colors.neutralStroke1Selected,
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('More options')),
+        isSemantics(hasExpandedState: true, isExpanded: true),
+      );
+    });
+
+    testWidgets('an open outline menu thickens the chevron half to 3px', (
+      tester,
+    ) async {
+      // `useRootExpandedStyles.outline`: `strokeWidthThicker`, and the half
+      // grows by the difference — probed 24 to 25.
+      await pump(
+        tester,
+        FluentSplitButton(
+          key: splitKey,
+          appearance: FluentButtonAppearance.outline,
+          menuSemanticLabel: 'More options',
+          menuExpanded: true,
+          onPressed: () {},
+          onMenuPressed: () {},
+          child: const Text('Send'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        painterOf(tester, FluentSplitButtonSide.menu).borderWidth,
+        FluentStroke.thicker,
+      );
+      expect(tester.getSize(sideOf(FluentSplitButtonSide.menu)).width, 25);
+    });
+
+    testWidgets('an icon-only primary half is a square', (tester) async {
+      // With no children upstream's primary half is `iconOnly`: 32 at medium.
+      await pump(
+        tester,
+        FluentSplitButton(
+          key: splitKey,
+          menuSemanticLabel: 'More options',
+          semanticLabel: 'Calendar',
+          icon: const Icon(FluentIcons.calendar_month_20_regular),
+          onPressed: () {},
+          onMenuPressed: () {},
+        ),
+      );
+      expect(
+        tester.getSize(sideOf(FluentSplitButtonSide.primaryAction)),
+        const Size.square(32),
+      );
+    });
+
+    testWidgets('the chevron is painted a pixel below centre', (tester) async {
+      // The svg in upstream's `menuIcon` span sits on a 16px line's baseline,
+      // 1px below the span, at every size.
+      await pump(tester, splitButton(onPressed: () {}, onMenuPressed: () {}));
+      final shift = tester.widget<Transform>(
+        find.descendant(
+          of: sideOf(FluentSplitButtonSide.menu),
+          matching: find.byType(Transform),
+        ),
+      );
+      expect(shift.transform.getTranslation().y, 1);
+      expect(shift.transform.getTranslation().x, 0);
+    });
+
+    testWidgets('the seam lands on a whole device pixel', (tester) async {
+      // Chrome snaps box edges to device pixels; a label of fractional width
+      // must not leave the rule straddling two.
+      await pump(
+        tester,
+        FluentSplitButton(
+          key: splitKey,
+          menuSemanticLabel: 'More options',
+          onPressed: () {},
+          onMenuPressed: () {},
+          child: const SizedBox(width: 100.3, height: 10),
+        ),
+      );
+      final ratio = tester.view.devicePixelRatio;
+      final seam =
+          tester.getSize(sideOf(FluentSplitButtonSide.primaryAction)).width *
+          ratio;
+      expect(seam, closeTo(seam.roundToDouble(), 1e-6));
+    });
+  });
+
   group('split button — the two halves are separate controls', () {
     testWidgets('each callback fires from its own half only', (tester) async {
       var actions = 0;
@@ -890,6 +1097,9 @@ void main() {
           hasEnabledState: true,
           hasTapAction: true,
           hasFocusAction: true,
+          // Collapsed, and saying so: upstream's menu button always carries
+          // `aria-expanded`, false until its menu opens.
+          hasExpandedState: true,
         ),
         reason: 'the chevron must announce as a named button, not an image',
       );
@@ -908,6 +1118,7 @@ void main() {
           // `FluentInteractive` keeps one attached and drops the callback —
           // see `surprises` in the report.
           hasTapAction: false,
+          hasExpandedState: true,
         ),
       );
     });

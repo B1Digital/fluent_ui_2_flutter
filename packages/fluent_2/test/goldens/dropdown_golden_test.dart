@@ -12,12 +12,14 @@ void main() {
     FluentDropdownAppearance appearance,
     FluentDropdownSize size, {
     String? value,
+    bool error = false,
   }) => SizedBox(
     width: 200,
     child: FluentDropdown<String>(
       appearance: appearance,
       size: size,
       value: value,
+      error: error,
       placeholder: const Text('Select'),
       options: const <FluentDropdownOption<String>>[
         FluentDropdownOption<String>(value: 'osl', label: Text('Oslo')),
@@ -35,6 +37,12 @@ void main() {
         FluentDropdownAppearance.outline,
         FluentDropdownSize.medium,
         value: 'osl',
+      ),
+      // Upstream's `aria-invalid`: `colorPaletteRedBorder2` all round.
+      trigger(
+        FluentDropdownAppearance.outline,
+        FluentDropdownSize.medium,
+        error: true,
       ),
       // Disabled is a real state, not a treatment: it swaps the whole ramp.
       const SizedBox(

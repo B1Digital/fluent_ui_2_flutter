@@ -193,9 +193,13 @@ class FluentApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!FluentFonts.requiresLoading || FluentFonts.isLoaded) {
-      return _buildApp(context);
-    }
+    if (!FluentFonts.requiresLoading) return _buildApp(context);
+    // Always the FutureBuilder on a loading platform, even once the fonts are
+    // in: returning the app bare after the load swapped the root widget's type
+    // on the next rebuild (a parent toggling themeMode) and remounted every
+    // State below. `ensureLoaded` is memoized, so the future is stable, and
+    // `isLoaded` lets a FluentApp mounted after the load paint on frame one
+    // instead of waiting a frame for the completed future's snapshot.
     return FutureBuilder<void>(
       future: FluentFonts.ensureLoaded(),
       builder: (context, snapshot) {
@@ -204,9 +208,7 @@ class FluentApp extends StatelessWidget {
             'Unable to load the Fluent font family: ${snapshot.error}',
           );
         }
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const SizedBox.shrink();
-        }
+        if (!FluentFonts.isLoaded) return const SizedBox.shrink();
         return _buildApp(context);
       },
     );

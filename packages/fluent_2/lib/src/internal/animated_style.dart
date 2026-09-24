@@ -153,6 +153,89 @@ final class FluentMotionSpec {
   String toString() => 'FluentMotionSpec($duration, $curve)';
 }
 
+/// A CSS `cubic-bezier()` timing function, solved as tightly as a browser
+/// solves it.
+///
+/// Flutter's [Cubic] bisects only until it is within 0.001 of the input time.
+/// On `ease`, whose slope reaches 1.6, that leaves the output up to 0.002 off:
+/// about 0.4px at each end of a 400px focus bar, measured against Chrome, which
+/// is exact to six decimals. This is the solver Chromium's `gfx::CubicBezier`
+/// uses — Newton–Raphson from the input time, then bisection if Newton stalls —
+/// to 1e-7.
+///
+/// Use it where a transition is ported from a real browser rather than from a
+/// Fluent motion token.
+@immutable
+class FluentCssCubic extends Curve {
+  /// Creates `cubic-bezier(x1, y1, x2, y2)`. The end points are fixed at
+  /// (0, 0) and (1, 1), as in CSS.
+  const FluentCssCubic(this.x1, this.y1, this.x2, this.y2);
+
+  /// CSS `ease`: `cubic-bezier(0.25, 0.1, 0.25, 1)`, the initial value of
+  /// `transition-timing-function`.
+  static const FluentCssCubic ease = FluentCssCubic(0.25, 0.1, 0.25, 1);
+
+  /// First control point, x.
+  final double x1;
+
+  /// First control point, y.
+  final double y1;
+
+  /// Second control point, x.
+  final double x2;
+
+  /// Second control point, y.
+  final double y2;
+
+  static const double _epsilon = 1e-7;
+
+  static double _sample(double p1, double p2, double t) =>
+      ((1 + 3 * p1 - 3 * p2) * t + (3 * p2 - 6 * p1)) * t * t + 3 * p1 * t;
+
+  static double _slope(double p1, double p2, double t) =>
+      (3 * (1 + 3 * p1 - 3 * p2) * t + 2 * (3 * p2 - 6 * p1)) * t + 3 * p1;
+
+  @override
+  double transformInternal(double t) {
+    var s = t;
+    for (var i = 0; i < 8; i++) {
+      final error = _sample(x1, x2, s) - t;
+      if (error.abs() < _epsilon) return _sample(y1, y2, s);
+      final slope = _slope(x1, x2, s);
+      if (slope.abs() < 1e-6) break;
+      s -= error / slope;
+    }
+    var lo = 0.0;
+    var hi = 1.0;
+    s = t;
+    while (hi - lo > _epsilon) {
+      final x = _sample(x1, x2, s);
+      if ((x - t).abs() < _epsilon) break;
+      if (x < t) {
+        lo = s;
+      } else {
+        hi = s;
+      }
+      s = (lo + hi) / 2;
+    }
+    return _sample(y1, y2, s);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is FluentCssCubic &&
+      other.x1 == x1 &&
+      other.y1 == y1 &&
+      other.x2 == x2 &&
+      other.y2 == y2;
+
+  @override
+  int get hashCode => Object.hash(x1, y1, x2, y2);
+
+  @override
+  String toString() => 'FluentCssCubic($x1, $y1, $x2, $y2)';
+}
+
 /// Interpolates between two style values.
 ///
 /// Shaped like the framework's own static lerps — [Color.lerp],

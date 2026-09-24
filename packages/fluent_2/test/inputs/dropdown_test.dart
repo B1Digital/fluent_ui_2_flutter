@@ -1,5 +1,8 @@
+import 'dart:ui' as ui;
+
 import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,8 +10,9 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/spec_fixture.dart';
 
 /// `FluentDropdown` is a closed trigger plus an overlay list, so these tests
-/// cover both halves: the trigger against the Figma `Dropdown` set, the rows
-/// against `.ListItem`, and the keyboard contract that ties them together.
+/// cover both halves: the trigger against upstream as it renders in Chrome
+/// (and the Figma `Dropdown` set where the two agree), the rows against
+/// `.ListItem`, and the keyboard contract that ties them together.
 void main() {
   const key = Key('dropdown');
 
@@ -75,6 +79,18 @@ void main() {
       .whereType<BoxDecoration>()
       .first;
 
+  /// The trigger's border, painted the way `FluentInput` paints its own.
+  FluentInputBorderPainter borderPainter(WidgetTester tester) => tester
+      .widgetList<CustomPaint>(
+        find.descendant(
+          of: find.byKey(key),
+          matching: find.byType(CustomPaint),
+        ),
+      )
+      .map((p) => p.painter)
+      .whereType<FluentInputBorderPainter>()
+      .single;
+
   /// Every solid colour painted under the trigger, surface and rules alike.
   List<Color> triggerColors(WidgetTester tester) => <Color>[
     for (final box in tester.widgetList<DecoratedBox>(
@@ -118,7 +134,9 @@ void main() {
     return mouse;
   }
 
-  group('pixel fidelity against Figma', () {
+  // Upstream as rendered in Chrome is the oracle; the Figma fixture is still
+  // checked wherever the two agree, which is the Rest column and the rows.
+  group('pixel fidelity', () {
     final spec = loadSpec('dropdown');
     final rows = loadSpec('dropdown_option');
 
@@ -135,11 +153,36 @@ void main() {
       expect(spec.properties['Expanded'], <String>['True', 'False']);
     });
 
-    testWidgets('geometry matches every size', (tester) async {
+    testWidgets('geometry matches upstream at every size', (tester) async {
+      // Measured in Chrome on the live storybook: the button's padding is
+      // `3px 6px 3px 8px` / `5px 10px 5px 12px` / `7px 12px 7px 18px` inside
+      // the 1px border, so the text starts at 9 / 13 / 19 and the chevron's
+      // right edge sits 7 / 11 / 13 in from the root's. Figma's frames say
+      // 6 / 10 / 12 either side; upstream wins.
       const names = {
         FluentDropdownSize.small: 'Small',
         FluentDropdownSize.medium: 'Medium',
         FluentDropdownSize.large: 'Large',
+      };
+      const upstream = {
+        FluentDropdownSize.small: (
+          height: 24.0,
+          text: 9.0,
+          end: 7.0,
+          icon: 16.0,
+        ),
+        FluentDropdownSize.medium: (
+          height: 32.0,
+          text: 13.0,
+          end: 11.0,
+          icon: 20.0,
+        ),
+        FluentDropdownSize.large: (
+          height: 40.0,
+          text: 19.0,
+          end: 13.0,
+          icon: 24.0,
+        ),
       };
 
       for (final entry in names.entries) {
@@ -148,47 +191,55 @@ void main() {
           'Size': entry.value,
           'Expanded': 'False',
         });
+        final want = upstream[entry.key]!;
 
-        await pump(
-          tester,
-          FluentDropdown<String>(
-            key: key,
-            size: entry.key,
-            options: options,
-            value: 'osl',
-            onChanged: (_) {},
-          ),
-        );
-        await tester.pumpAndSettle();
+        for (final appearance in FluentDropdownAppearance.values) {
+          await pump(
+            tester,
+            FluentDropdown<String>(
+              key: key,
+              size: entry.key,
+              appearance: appearance,
+              options: options,
+              value: 'osl',
+              onChanged: (_) {},
+            ),
+          );
+          await tester.pumpAndSettle();
 
-        expect(
-          tester.getSize(find.byKey(key)).height,
-          variant.part('Input').size.height,
-          reason: '${entry.value}: height',
-        );
-
-        // The text's own inset, and the chevron slot's, are the only paddings
-        // the variant frame states — it carries none of its own.
-        final paddings = tester
-            .widgetList<Padding>(
-              find.descendant(
-                of: find.byKey(key),
-                matching: find.byType(Padding),
-              ),
-            )
-            .map((p) => p.padding.resolve(TextDirection.ltr))
-            .toList();
-
-        expect(
-          paddings.first,
-          variant.part('Icon-Text-stack').padding,
-          reason: '${entry.value}: content inset',
-        );
-        expect(
-          paddings[1],
-          variant.part('Icon End').padding,
-          reason: '${entry.value}: chevron slot inset',
-        );
+          final reason = '${entry.value} ${appearance.name}';
+          final box = tester.getRect(find.byKey(key));
+          // Transparent has a bottom border only, so it is a pixel shorter:
+          // upstream's root states no height of its own.
+          expect(
+            box.height,
+            appearance == FluentDropdownAppearance.transparent
+                ? want.height - 1
+                : want.height,
+            reason: '$reason: height',
+          );
+          // Transparent has no left border to inset the text by.
+          final side = appearance == FluentDropdownAppearance.transparent
+              ? 1
+              : 0;
+          expect(
+            tester.getRect(find.text('Oslo')).left - box.left,
+            want.text - side,
+            reason: '$reason: text start',
+          );
+          final chevron = tester.getRect(find.byIcon(fluentDropdownChevron));
+          expect(chevron.width, want.icon, reason: '$reason: chevron size');
+          expect(
+            box.right - chevron.right,
+            want.end - side,
+            reason: '$reason: chevron end',
+          );
+          expect(
+            chevron.top - box.top,
+            (want.height - want.icon) / 2 - side,
+            reason: '$reason: chevron centred inside the border',
+          );
+        }
 
         final text = tester
             .widgetList<RichText>(
@@ -258,69 +309,93 @@ void main() {
           expect(decoration.color, expected, reason: '${entry.value}: fill');
         }
 
+        // Upstream and Figma agree at rest, so the fixture still settles it.
         final stroke = contents.stroke;
+        final border = borderPainter(tester);
         expect(
-          decoration.border != null,
+          border.borderColor != null,
           stroke != null,
           reason: '${entry.value}: has border',
         );
         if (stroke != null) {
-          final side = decoration.border!.top;
-          expect(side.width, contents.strokeWidth, reason: entry.value);
+          expect(border.borderWidth, contents.strokeWidth, reason: entry.value);
           if (stroke.a == 0) {
-            expect(side.color.a, 0, reason: '${entry.value}: border alpha');
+            expect(
+              border.borderColor!.a,
+              0,
+              reason: '${entry.value}: border alpha',
+            );
           } else {
-            expect(side.color, stroke, reason: '${entry.value}: border');
+            expect(
+              border.borderColor,
+              stroke,
+              reason: '${entry.value}: border',
+            );
           }
         }
       }
     });
 
-    testWidgets('the resting rule is on exactly Outline and Transparent', (
-      tester,
-    ) async {
-      const names = {
-        FluentDropdownAppearance.outline: 'Outline',
-        FluentDropdownAppearance.transparent: 'Transparent',
-        FluentDropdownAppearance.fillLighter: 'Fill lighter',
-        FluentDropdownAppearance.fillDarker: 'Fill darker',
-      };
-      final theme = light();
+    testWidgets(
+      'the bottom border differs on exactly Outline and Transparent',
+      (tester) async {
+        const names = {
+          FluentDropdownAppearance.outline: 'Outline',
+          FluentDropdownAppearance.transparent: 'Transparent',
+          FluentDropdownAppearance.fillLighter: 'Fill lighter',
+          FluentDropdownAppearance.fillDarker: 'Fill darker',
+        };
+        final theme = light();
 
-      for (final entry in names.entries) {
-        final variant = spec.variant({
-          'Appearance': entry.value,
-          'Size': 'Medium',
-          'Expanded': 'False',
-        });
-        final ruled = variant.parts.any((p) => p.name == 'Thin underline');
+        for (final entry in names.entries) {
+          final variant = spec.variant({
+            'Appearance': entry.value,
+            'Size': 'Medium',
+            'Expanded': 'False',
+          });
+          final ruled = variant.parts.any((p) => p.name == 'Thin underline');
 
-        await pump(
-          tester,
-          FluentDropdown<String>(
-            key: key,
-            appearance: entry.key,
-            options: options,
-            onChanged: (_) {},
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        expect(
-          triggerColors(tester).contains(theme.colors.neutralStrokeAccessible),
-          ruled,
-          reason: '${entry.value}: resting rule',
-        );
-        if (ruled) {
-          expect(
-            variant.part('Thin underline').fill,
-            theme.colors.neutralStrokeAccessible,
-            reason: '${entry.value}: rule token',
+          await pump(
+            tester,
+            FluentDropdown<String>(
+              key: key,
+              appearance: entry.key,
+              options: options,
+              onChanged: (_) {},
+            ),
           );
-          expect(variant.part('Thin underline').size.height, FluentStroke.thin);
+          await tester.pumpAndSettle();
+
+          // A side of the border rather than Figma's overlaid rectangle, so it
+          // joins the others on the CSS corner diagonal.
+          expect(
+            borderPainter(tester).bottomBorderColor ==
+                theme.colors.neutralStrokeAccessible,
+            ruled,
+            reason: '${entry.value}: bottom border',
+          );
+          expect(
+            find.descendant(
+              of: find.byKey(key),
+              matching: find.byType(FluentInputUnderline),
+            ),
+            findsOneWidget,
+            reason: '${entry.value}: only the focus bar, no overlaid rule',
+          );
+          if (ruled) {
+            expect(
+              variant.part('Thin underline').fill,
+              theme.colors.neutralStrokeAccessible,
+              reason: '${entry.value}: rule token',
+            );
+            expect(
+              variant.part('Thin underline').size.height,
+              FluentStroke.thin,
+            );
+          }
         }
-      }
-    });
+      },
+    );
 
     testWidgets('Expanded=True paints the 2px brand accent instead', (
       tester,
@@ -546,16 +621,588 @@ void main() {
     });
   });
 
+  // `useDropdownStyles.styles.ts` as it renders in Chrome on the live
+  // storybook: hover, press and focus driven with a real mouse.
+  group('upstream states', () {
+    Color barColor(WidgetTester tester) => tester
+        .widget<FluentInputFocusUnderline>(
+          find.descendant(
+            of: find.byKey(key),
+            matching: find.byType(FluentInputFocusUnderline),
+          ),
+        )
+        .color;
+
+    testWidgets('a pointer open and close keeps the bar until focus leaves', (
+      tester,
+    ) async {
+      // `:focus-within` is any focus: the trigger is a `<button>`, which a
+      // browser focuses on mousedown, so the bar outlives the popup.
+      await pump(
+        tester,
+        FluentDropdown<String>(key: key, options: options, onChanged: (_) {}),
+      );
+      await tester.tap(find.byKey(key));
+      await tester.pumpAndSettle();
+      expect(accentScale(tester), 1);
+
+      await tester.tap(find.byKey(key));
+      await tester.pumpAndSettle();
+      expect(find.text('Lisbon'), findsNothing, reason: 'closed');
+      expect(accentScale(tester), 1, reason: 'still focused');
+
+      // A click on the page elsewhere blurs a browser button; so it does here.
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+      expect(accentScale(tester), 0);
+    });
+
+    testWidgets('a held mouse press focuses at pointer-down; the click opens', (
+      tester,
+    ) async {
+      // Chrome focuses the `<button>` on mousedown — left or right — so the
+      // bar grows while the press is held; the popup waits for the click,
+      // and a right press never opens it. The dropdown above holds focus
+      // first: its outside-press blur must not undo this one's focus.
+      final first = FocusNode();
+      final node = FocusNode();
+      addTearDown(first.dispose);
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            FluentDropdown<String>(
+              focusNode: first,
+              options: options,
+              onChanged: _ignore,
+            ),
+            FluentDropdown<String>(
+              key: key,
+              focusNode: node,
+              options: options,
+              onChanged: _ignore,
+            ),
+          ],
+        ),
+      );
+      first.requestFocus();
+      await tester.pumpAndSettle();
+      final centre = tester.getCenter(find.byKey(key));
+
+      for (final buttons in <int>[kPrimaryButton, kSecondaryMouseButton]) {
+        first.requestFocus();
+        await tester.pumpAndSettle();
+        final mouse = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+          buttons: buttons,
+        );
+        await mouse.addPointer(location: centre);
+        await mouse.down(centre);
+        await tester.pumpAndSettle();
+        expect(node.hasFocus, isTrue, reason: 'buttons $buttons, held');
+        expect(accentScale(tester), 1, reason: 'buttons $buttons, held');
+        expect(find.text('Lisbon'), findsNothing, reason: 'not yet open');
+
+        await mouse.up();
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Lisbon'),
+          buttons == kPrimaryButton ? findsOneWidget : findsNothing,
+          reason: 'buttons $buttons, released',
+        );
+        await mouse.removePointer();
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+      }
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('a disabled trigger shows the not-allowed cursor', (
+      tester,
+    ) async {
+      // `disabled: { cursor: 'not-allowed' }` on the button, as Chrome shows
+      // it.
+      await pump(
+        tester,
+        const FluentDropdown<String>(key: key, options: options),
+      );
+      // A mouse `TestPointer` is device 1.
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(find.byKey(key)));
+      addTearDown(mouse.removePointer);
+      await tester.pump();
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+        SystemMouseCursors.forbidden,
+      );
+    });
+
+    testWidgets('focus moves the outline to Pressed, and hover wins over it', (
+      tester,
+    ) async {
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      final colors = light().colors;
+      await pump(
+        tester,
+        FluentDropdown<String>(
+          key: key,
+          focusNode: node,
+          options: options,
+          onChanged: (_) {},
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+      expect(borderPainter(tester).borderColor, colors.neutralStroke1Pressed);
+      expect(
+        borderPainter(tester).bottomBorderColor,
+        colors.neutralStrokeAccessiblePressed,
+      );
+
+      // `:focus-within` is its own rule, sorted before `:hover`.
+      final mouse = await hover(tester, find.byKey(key));
+      expect(borderPainter(tester).borderColor, colors.neutralStroke1Hover);
+      expect(
+        borderPainter(tester).bottomBorderColor,
+        colors.neutralStrokeAccessibleHover,
+      );
+      expect(barColor(tester), colors.compoundBrandStroke);
+
+      // `:focus-within:active::after` is the only rule that moves the bar.
+      await mouse.down(tester.getCenter(find.byKey(key)));
+      await tester.pump();
+      expect(borderPainter(tester).borderColor, colors.neutralStroke1Pressed);
+      expect(barColor(tester), colors.compoundBrandStrokePressed);
+      await mouse.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets(
+      'a held right press keeps the hover look; a middle one presses',
+      (tester) async {
+        // Chrome, held on the live storybook: right keeps #c7c7c7 sides,
+        // #575757 bottom and a #0f6cbd bar; middle paints #b3b3b3, #4d4d4d and
+        // #0f548c. The root loses `:active` a task after the `contextmenu`.
+        final colors = light().colors;
+        await pump(
+          tester,
+          const FluentDropdown<String>(
+            key: key,
+            options: options,
+            onChanged: _ignore,
+          ),
+        );
+        final centre = tester.getCenter(find.byKey(key));
+        for (final (buttons, side, bottom, bar) in <(int, Color, Color, Color)>[
+          (
+            kSecondaryMouseButton,
+            colors.neutralStroke1Hover,
+            colors.neutralStrokeAccessibleHover,
+            colors.compoundBrandStroke,
+          ),
+          (
+            kMiddleMouseButton,
+            colors.neutralStroke1Pressed,
+            colors.neutralStrokeAccessiblePressed,
+            colors.compoundBrandStrokePressed,
+          ),
+        ]) {
+          final mouse = await tester.createGesture(
+            kind: PointerDeviceKind.mouse,
+            buttons: buttons,
+          );
+          await mouse.addPointer(location: centre);
+          await tester.pump();
+          await mouse.down(centre);
+          await tester.pumpAndSettle();
+          expect(accentScale(tester), 1, reason: 'buttons $buttons, focused');
+          expect(borderPainter(tester).borderColor, side, reason: '$buttons');
+          expect(
+            borderPainter(tester).bottomBorderColor,
+            bottom,
+            reason: 'buttons $buttons',
+          );
+          expect(barColor(tester), bar, reason: 'buttons $buttons');
+          await mouse.up();
+          await mouse.removePointer();
+          await tester.pumpAndSettle();
+        }
+      },
+    );
+
+    testWidgets('only Outline ramps: the fill and chevron never move', (
+      tester,
+    ) async {
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      final colors = light().colors;
+      Color chevron() => tester
+          .widget<RichText>(
+            find.descendant(
+              of: find.byIcon(fluentDropdownChevron),
+              matching: find.byType(RichText),
+            ),
+          )
+          .text
+          .style!
+          .color!;
+
+      for (final appearance in FluentDropdownAppearance.values) {
+        await pump(
+          tester,
+          FluentDropdown<String>(
+            key: key,
+            focusNode: node,
+            appearance: appearance,
+            options: options,
+            onChanged: (_) {},
+          ),
+        );
+        await tester.pumpAndSettle();
+        final rest = borderPainter(tester);
+        final fill = triggerDecoration(tester).color;
+
+        node.requestFocus();
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: tester.getCenter(find.byKey(key)));
+        await mouse.down(tester.getCenter(find.byKey(key)));
+        await tester.pump();
+        expect(triggerDecoration(tester).color, fill, reason: appearance.name);
+        expect(
+          chevron(),
+          colors.neutralStrokeAccessible,
+          reason: appearance.name,
+        );
+        if (appearance != FluentDropdownAppearance.outline) {
+          expect(
+            borderPainter(tester).borderColor,
+            rest.borderColor,
+            reason: '${appearance.name}: no interactive rule upstream',
+          );
+          expect(
+            borderPainter(tester).bottomBorderColor,
+            rest.bottomBorderColor,
+            reason: '${appearance.name}: no interactive rule upstream',
+          );
+        }
+        await mouse.up();
+        await mouse.removePointer();
+        node.unfocus();
+        await tester.pumpAndSettle();
+      }
+    });
+
+    testWidgets(
+      'error is colorPaletteRedBorder2 until the trigger is focused',
+      (tester) async {
+        final node = FocusNode();
+        addTearDown(node.dispose);
+        final colors = light().colors;
+        final danger = colors.palette.stroke2Rest(FluentPaletteFamily.red);
+
+        await pump(
+          tester,
+          FluentDropdown<String>(
+            key: key,
+            focusNode: node,
+            error: true,
+            options: options,
+            onChanged: (_) {},
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(borderPainter(tester).borderColor, danger);
+        expect(borderPainter(tester).bottomBorderColor, danger);
+
+        // `:hover:not(:focus-within)` keeps it red under the pointer.
+        await hover(tester, find.byKey(key));
+        expect(borderPainter(tester).borderColor, danger);
+
+        // Focus falls back to the ordinary ramp; hover still wins there.
+        node.requestFocus();
+        await tester.pumpAndSettle();
+        expect(borderPainter(tester).borderColor, colors.neutralStroke1Hover);
+
+        // Transparent colours its bottom border only.
+        node.unfocus();
+        await pump(
+          tester,
+          FluentDropdown<String>(
+            key: key,
+            error: true,
+            appearance: FluentDropdownAppearance.transparent,
+            options: options,
+            onChanged: (_) {},
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(borderPainter(tester).borderColor, isNull);
+        expect(borderPainter(tester).bottomBorderColor, danger);
+
+        // The palette knows nothing of high contrast; the status token does.
+        final contrast = FluentThemeData.highContrast(
+          fontPlatform: FluentFontPlatform.web,
+        );
+        await pump(
+          tester,
+          FluentDropdown<String>(
+            key: key,
+            error: true,
+            options: options,
+            onChanged: (_) {},
+          ),
+          theme: contrast,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          borderPainter(tester).borderColor,
+          (contrast.colors as FluentHighContrastColors).statusDangerBorder2,
+        );
+      },
+    );
+
+    testWidgets('error outranks disabled, as Chrome renders it', (
+      tester,
+    ) async {
+      // `invalid` is not gated on `!disabled`, and `:not(:focus-within)`
+      // out-specifies `disabled`'s plain class: Chrome reads rgb(209, 52, 56)
+      // on a disabled, aria-invalid trigger, over a transparent fill.
+      final colors = light().colors;
+      final danger = colors.palette.stroke2Rest(FluentPaletteFamily.red);
+      for (final appearance in FluentDropdownAppearance.values) {
+        await pump(
+          tester,
+          FluentDropdown<String>(
+            key: key,
+            error: true,
+            appearance: appearance,
+            options: options,
+          ),
+        );
+        await tester.pumpAndSettle();
+        final transparent = appearance == FluentDropdownAppearance.transparent;
+        expect(
+          borderPainter(tester).borderColor,
+          transparent ? isNull : danger,
+          reason: appearance.name,
+        );
+        if (transparent) {
+          expect(borderPainter(tester).bottomBorderColor, danger);
+        }
+        expect(triggerDecoration(tester).color, colors.transparentBackground);
+      }
+    });
+
+    testWidgets('a custom border width widens the bottom side too', (
+      tester,
+    ) async {
+      // A CSS `border-width` moves all four sides; only Transparent, which
+      // has no others, keeps its bottom at 1px.
+      for (final appearance in [
+        FluentDropdownAppearance.outline,
+        FluentDropdownAppearance.transparent,
+      ]) {
+        await pump(
+          tester,
+          FluentDropdown<String>(
+            key: key,
+            appearance: appearance,
+            style: const FluentDropdownStyle(
+              borderWidth: WidgetStatePropertyAll<double?>(2),
+            ),
+            options: options,
+            onChanged: (_) {},
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          borderPainter(tester).bottomBorderWidth,
+          appearance == FluentDropdownAppearance.outline ? 2 : 1,
+          reason: appearance.name,
+        );
+      }
+    });
+
+    testWidgets('Transparent is square; the bar overhangs it a pixel a side', (
+      tester,
+    ) async {
+      // `underline: { borderRadius: '0' }`, while `::after` keeps its own 4px
+      // bottom radii and `left/right: -1px` — flush with a bordered root, one
+      // pixel past a borderless one.
+      for (final appearance in [
+        FluentDropdownAppearance.outline,
+        FluentDropdownAppearance.transparent,
+      ]) {
+        await pump(
+          tester,
+          FluentDropdown<String>(
+            key: key,
+            appearance: appearance,
+            options: options,
+            onChanged: (_) {},
+          ),
+        );
+        await tester.pumpAndSettle();
+        final overhang = appearance == FluentDropdownAppearance.transparent
+            ? 1.0
+            : 0.0;
+        expect(
+          triggerDecoration(tester).borderRadius,
+          overhang == 1 ? BorderRadius.zero : FluentRadius.allMedium,
+          reason: appearance.name,
+        );
+        final box = tester.getRect(find.byKey(key));
+        final bar = find.descendant(
+          of: find.byKey(key),
+          matching: find.byType(FluentInputFocusUnderline),
+        );
+        expect(tester.getRect(bar).left, box.left - overhang);
+        expect(tester.getRect(bar).right, box.right + overhang);
+        expect(tester.getRect(bar).bottom, box.bottom);
+        expect(
+          tester.widget<FluentInputFocusUnderline>(bar).borderRadius,
+          const BorderRadius.vertical(bottom: FluentRadius.medium),
+          reason: appearance.name,
+        );
+      }
+    });
+
+    testWidgets('a tight parent height stretches the box, bar and all', (
+      tester,
+    ) async {
+      // A CSS `height` sizes the border box, and `::after` sits on its bottom.
+      await pump(
+        tester,
+        SizedBox(
+          height: 60,
+          child: FluentDropdown<String>(
+            key: key,
+            options: options,
+            onChanged: (_) {},
+          ),
+        ),
+      );
+      final painted = find.descendant(
+        of: find.byKey(key),
+        matching: find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is FluentInputBorderPainter,
+        ),
+      );
+      final bar = find.descendant(
+        of: find.byKey(key),
+        matching: find.byType(FluentInputFocusUnderline),
+      );
+      expect(tester.getRect(painted).height, 60);
+      expect(tester.getRect(bar).bottom, tester.getRect(painted).bottom);
+    });
+
+    testWidgets(
+      'the bottom colour meets the sides on the CSS corner diagonal',
+      (tester) async {
+        // A browser splits two border colours along the line from the border
+        // box's corner to the padding box's — 45° here — so the darker bottom
+        // colour climbs half-way round each bottom arc. At DPR 4, device pixel
+        // (7, 4h − 6) lies inside the ring below the diagonal; (4, 4h − 8) is
+        // the same arc above it. The overlaid 1px rule this replaced left the
+        // side colour at the first.
+        const boundary = Key('boundary');
+        await pump(
+          tester,
+          RepaintBoundary(
+            key: boundary,
+            child: FluentDropdown<String>(
+              key: key,
+              options: options,
+              onChanged: (_) {},
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        const ratio = 4.0;
+        final size = tester.getSize(find.byKey(boundary));
+        final width = (size.width * ratio).round();
+        final bottom = (size.height * ratio).round();
+
+        final pixels = (await tester.runAsync(() async {
+          final image = await tester
+              .renderObject<RenderRepaintBoundary>(find.byKey(boundary))
+              .toImage(pixelRatio: ratio);
+          final data = await image.toByteData(
+            format: ui.ImageByteFormat.rawRgba,
+          );
+          image.dispose();
+          return data;
+        }))!;
+        void expectPixel(int x, int y, Color expected, String reason) {
+          final i = (y * width + x) * 4;
+          final actual = [for (var c = 0; c < 3; c++) pixels.getUint8(i + c)];
+          final want = [
+            for (final channel in [expected.r, expected.g, expected.b])
+              (channel * 255).round(),
+          ];
+          for (var c = 0; c < 3; c++) {
+            expect(
+              actual[c],
+              closeTo(want[c], 3),
+              reason: '$reason: got $actual, want $want',
+            );
+          }
+        }
+
+        final colors = light().colors;
+        expectPixel(
+          7,
+          bottom - 6,
+          colors.neutralStrokeAccessible,
+          'below the diagonal: the bottom colour, #616161',
+        );
+        expectPixel(
+          4,
+          bottom - 8,
+          colors.neutralStroke1,
+          'above the diagonal: the side colour, #d1d1d1',
+        );
+      },
+    );
+
+    testWidgets('the listbox outline sits outside the surface', (tester) async {
+      // `useListboxStyles`: `outline: 1px solid colorTransparentStroke`, which
+      // takes no room — the first row sits at the 4px padding exactly.
+      await pump(
+        tester,
+        FluentDropdown<String>(key: key, options: options, onChanged: (_) {}),
+      );
+      await tester.tap(find.byKey(key));
+      await tester.pumpAndSettle();
+      final surface = find
+          .ancestor(
+            of: find.text('Nordics'),
+            matching: find.byType(DecoratedBox),
+          )
+          .last;
+      final border =
+          (tester.widget<DecoratedBox>(surface).decoration as BoxDecoration)
+                  .border!
+              as Border;
+      expect(border.top.strokeAlign, BorderSide.strokeAlignOutside);
+      expect(border.top.color, light().colors.transparentStroke);
+    });
+  });
+
   group('motion', () {
     testWidgets('the accent grows over 200ms and collapses over 50ms', (
       tester,
     ) async {
       // useDropdownStyles.styles.ts: ::after transitions `transform`, at
-      // durationNormal on :focus-within and durationUltraFast off it.
+      // durationNormal on :focus-within and durationUltraFast off it, on CSS
+      // `ease` both ways — the curve tokens sit in `transitionDelay`, which
+      // the browser drops.
       expect(fluentDropdownAccentEnter.duration, FluentDuration.normal);
-      expect(fluentDropdownAccentEnter.curve, FluentCurve.decelerateMid);
+      expect(fluentDropdownAccentEnter.curve, FluentCssCubic.ease);
       expect(fluentDropdownAccentExit.duration, FluentDuration.ultraFast);
-      expect(fluentDropdownAccentExit.curve, FluentCurve.accelerateMid);
+      expect(fluentDropdownAccentExit.curve, FluentCssCubic.ease);
 
       await pump(
         tester,
@@ -605,11 +1252,12 @@ void main() {
       expect(accentScale(tester), 1);
     });
 
-    testWidgets('nothing else animates: the fill is instant on hover', (
+    testWidgets('nothing else animates: the border is instant on hover', (
       tester,
     ) async {
       // useDropdownStyles declares no transition on background, border or
-      // colour — only on the ::after transform.
+      // colour — only on the ::after transform. Nor does it declare a hover
+      // fill: only the outline moves.
       await pump(
         tester,
         FluentDropdown<String>(key: key, options: options, onChanged: (_) {}),
@@ -618,8 +1266,12 @@ void main() {
 
       await hover(tester, find.byKey(key));
       expect(
+        borderPainter(tester).borderColor,
+        light().colors.neutralStroke1Hover,
+      );
+      expect(
         triggerDecoration(tester).color,
-        light().colors.neutralBackground1Hover,
+        light().colors.neutralBackground1,
       );
     });
   });
@@ -767,20 +1419,21 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final decoration = triggerDecoration(tester);
+        final border = borderPainter(tester);
         if (appearance == FluentDropdownAppearance.transparent) {
-          // Transparent has no box border in any theme — Figma paints none —
-          // so its outline is the resting rule, which must stay opaque.
-          expect(decoration.border, isNull);
+          // Transparent has no box border in any theme — upstream sets only
+          // `borderBottom` — so its outline is the bottom border, which must
+          // stay opaque.
+          expect(border.borderColor, isNull);
           expect(
-            triggerColors(tester),
-            contains(theme.colors.neutralStrokeAccessible),
-            reason: 'transparent keeps its rule in high contrast',
+            border.bottomBorderColor,
+            theme.colors.neutralStrokeAccessible,
+            reason: 'transparent keeps its bottom border in high contrast',
           );
         } else {
-          expect(decoration.border, isNotNull, reason: appearance.name);
+          expect(border.borderColor, isNotNull, reason: appearance.name);
           expect(
-            decoration.border!.top.color.a,
+            border.borderColor!.a,
             1.0,
             reason: '${appearance.name}: border must be opaque here',
           );
@@ -797,22 +1450,29 @@ void main() {
       );
       await tester.pumpAndSettle();
       final theme = light();
+      // Upstream's `disabled`: a transparent fill, and
+      // `colorNeutralStrokeDisabled` on every side, the bottom included.
       expect(
         triggerDecoration(tester).color,
-        theme.colors.neutralBackgroundDisabled,
+        theme.colors.transparentBackground,
       );
       expect(
-        triggerDecoration(tester).border!.top.color,
+        borderPainter(tester).borderColor,
+        theme.colors.neutralStrokeDisabled,
+      );
+      expect(
+        borderPainter(tester).bottomBorderColor,
         theme.colors.neutralStrokeDisabled,
       );
 
+      await hover(tester, find.byKey(key));
       await tester.tap(find.byKey(key), warnIfMissed: false);
       await tester.pumpAndSettle();
       expect(find.text('Lisbon'), findsNothing, reason: 'must not open');
       expect(
-        triggerDecoration(tester).color,
-        theme.colors.neutralBackgroundDisabled,
-        reason: 'must not adopt the hover fill',
+        borderPainter(tester).borderColor,
+        theme.colors.neutralStrokeDisabled,
+        reason: 'must not adopt the hover border',
       );
     });
 
@@ -1013,6 +1673,105 @@ void main() {
       expect(find.text('Lisbon'), findsNothing);
     });
 
+    testWidgets(
+      'a press on another field takes focus from it while still held',
+      (tester) async {
+        // Chrome: with the dropdown focused, a mousedown on a field focuses
+        // that field at once, so its bar grows under the held press. The
+        // dropdown's outside-tap blur runs later in the same pointer-down and
+        // used to park focus on the route's scope, cancelling the field's own
+        // request: the held press focused nothing.
+        final dropdownNode = FocusNode();
+        addTearDown(dropdownNode.dispose);
+        final fieldNode = FocusNode();
+        addTearDown(fieldNode.dispose);
+        await tester.pumpWidget(
+          FluentApp(
+            theme: light(),
+            home: Center(
+              child: SizedBox(
+                width: 300,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    FluentDropdown<String>(
+                      key: key,
+                      focusNode: dropdownNode,
+                      options: options,
+                      onChanged: (_) {},
+                    ),
+                    const SizedBox(height: 20),
+                    FluentSpinButton(
+                      key: const Key('field'),
+                      focusNode: fieldNode,
+                      value: 1,
+                      onChanged: (_) {},
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        dropdownNode.requestFocus();
+        await tester.pumpAndSettle();
+        expect(dropdownNode.hasFocus, isTrue);
+
+        final press = await tester.startGesture(
+          tester.getTopLeft(find.byKey(const Key('field'))) +
+              const Offset(20, 16),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump();
+        await tester.pump();
+        expect(fieldNode.hasFocus, isTrue, reason: 'focused under the press');
+        expect(dropdownNode.hasFocus, isFalse);
+        await press.up();
+        await tester.pumpAndSettle();
+        expect(fieldNode.hasFocus, isTrue);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets('a dropdown removed mid-press takes the release quietly', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentDropdown<String>(key: key, options: options, onChanged: (_) {}),
+      );
+      final press = await tester.startGesture(
+        tester.getCenter(find.byKey(key)),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox());
+      await press.up();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a tap on the page still blurs it', (tester) async {
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        FluentDropdown<String>(
+          key: key,
+          focusNode: node,
+          options: options,
+          onChanged: (_) {},
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+      expect(node.hasFocus, isTrue);
+
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+      expect(node.hasFocus, isFalse, reason: 'a click on the body blurs');
+    });
+
     testWidgets('a click BEHIND the popup lands, and still dismisses', (
       tester,
     ) async {
@@ -1196,12 +1955,25 @@ void main() {
       expect(find.text('Oslo'), findsOneWidget, reason: 'Down opens');
       expect(node.hasFocus, isTrue, reason: 'focus stays on the trigger');
 
-      // Active starts on the first selectable row — the header is skipped.
+      // Active starts on the first option row — the header is skipped.
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await tester.pumpAndSettle();
-      // Oslo -> Helsinki -> Lisbon: the disabled Reykjavik is stepped over.
+      // Oslo -> Helsinki -> Reykjavik. Upstream's walker visits a disabled
+      // option too, and Enter or Space on it does nothing: the list stays open
+      // (Chrome, the Default story's Ferret).
+      for (final k in <LogicalKeyboardKey>[
+        LogicalKeyboardKey.enter,
+        LogicalKeyboardKey.space,
+      ]) {
+        await tester.sendKeyEvent(k);
+        await tester.pumpAndSettle();
+        expect(chosen, isNull, reason: '$k on a disabled row');
+        expect(find.text('Lisbon'), findsOneWidget, reason: 'still open');
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
       expect(chosen, 'lis');
@@ -1209,27 +1981,37 @@ void main() {
       expect(node.hasFocus, isTrue, reason: 'focus returned to the trigger');
     });
 
-    testWidgets('Up from closed opens on the last option', (tester) async {
+    testWidgets('Up from closed opens on the selection, else the first', (
+      tester,
+    ) async {
+      // Chrome: Up opens exactly as Down does — never on the last option.
       String? chosen;
       final node = FocusNode();
       addTearDown(node.dispose);
-      await pump(
-        tester,
-        FluentDropdown<String>(
-          key: key,
-          focusNode: node,
-          options: options,
-          onChanged: (value) => chosen = value,
-        ),
-      );
-      node.requestFocus();
-      await tester.pumpAndSettle();
+      for (final (value, expected) in <(String?, String)>[
+        (null, 'osl'),
+        ('hel', 'hel'),
+      ]) {
+        chosen = null;
+        await pump(
+          tester,
+          FluentDropdown<String>(
+            key: key,
+            focusNode: node,
+            value: value,
+            options: options,
+            onChanged: (value) => chosen = value,
+          ),
+        );
+        node.requestFocus();
+        await tester.pumpAndSettle();
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
-      await tester.pumpAndSettle();
-      await tester.sendKeyEvent(LogicalKeyboardKey.space);
-      await tester.pumpAndSettle();
-      expect(chosen, 'lis');
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.space);
+        await tester.pumpAndSettle();
+        expect(chosen, expected, reason: 'value $value');
+      }
     });
 
     testWidgets('Home and End jump to the ends', (tester) async {
@@ -1248,6 +2030,20 @@ void main() {
       node.requestFocus();
       await tester.pumpAndSettle();
 
+      // Closed, they do nothing and are not even taken: upstream's trigger
+      // maps them to 'None' and never calls preventDefault, so the page
+      // still gets them (Chrome, the Default story).
+      for (final k in <LogicalKeyboardKey>[
+        LogicalKeyboardKey.home,
+        LogicalKeyboardKey.end,
+        LogicalKeyboardKey.pageUp,
+        LogicalKeyboardKey.pageDown,
+      ]) {
+        expect(await tester.sendKeyEvent(k), isFalse, reason: '$k passes');
+        await tester.pumpAndSettle();
+        expect(find.text('Lisbon'), findsNothing, reason: '$k while closed');
+      }
+
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.end);
@@ -1257,6 +2053,485 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
       expect(chosen, 'osl', reason: 'Home lands on the first selectable row');
+    });
+
+    /// The label of the row drawing the keyboard ring: the active one.
+    String activeRow(WidgetTester tester) => tester
+        .widget<Text>(
+          find.descendant(
+            of: find.byWidgetPredicate(
+              (w) => w is FluentFocusRing && w.visible,
+            ),
+            matching: find.byType(Text),
+          ),
+        )
+        .data!;
+
+    testWidgets('PageUp and PageDown walk ten option rows, then stop', (
+      tester,
+    ) async {
+      // Upstream's PageDown is `next()` ten times (useTriggerSlot.ts), and
+      // `next()` skips a header, visits a disabled row and stops at the end.
+      // Chrome, Default story: Cat -> Snake and Caterpillar -> Snake with ten
+      // rows, Snake -> Cat back up; Grouped (8 rows, two headers): Cat -> Seal.
+      // Here 13 rows under two headers, r5 disabled: ten rows from r0 is r10
+      // only if the header is skipped and r5 counted.
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        FluentDropdown<String>(
+          key: key,
+          focusNode: node,
+          options: <FluentDropdownOption<String>>[
+            const FluentDropdownOption<String>.header(label: Text('A')),
+            for (var i = 0; i < 13; i++) ...<FluentDropdownOption<String>>[
+              if (i == 3)
+                const FluentDropdownOption<String>.header(label: Text('B')),
+              FluentDropdownOption<String>(
+                value: 'r$i',
+                label: Text('r$i'),
+                enabled: i != 5,
+              ),
+            ],
+          ],
+          onChanged: _ignore,
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(activeRow(tester), 'r0');
+
+      for (final (k, expected) in <(LogicalKeyboardKey, String)>[
+        (LogicalKeyboardKey.pageDown, 'r10'),
+        (LogicalKeyboardKey.pageDown, 'r12'),
+        (LogicalKeyboardKey.pageUp, 'r2'),
+        (LogicalKeyboardKey.pageUp, 'r0'),
+      ]) {
+        expect(await tester.sendKeyEvent(k), isTrue, reason: 'open takes $k');
+        await tester.pumpAndSettle();
+        expect(activeRow(tester), expected, reason: '$k');
+      }
+    });
+
+    testWidgets('PageDown scrolls the page while closed, never while open', (
+      tester,
+    ) async {
+      // Closed, upstream leaves the key to the browser, which scrolls the page;
+      // open, it prevents the default (Chrome). Flutter's page scroll is
+      // WidgetsApp's own PageDown -> ScrollIntent, reached only by a key the
+      // dropdown did not take.
+      final node = FocusNode();
+      final controller = ScrollController();
+      addTearDown(node.dispose);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        FluentApp(
+          theme: light(),
+          home: SingleChildScrollView(
+            controller: controller,
+            child: Column(
+              children: <Widget>[
+                SizedBox(
+                  width: 312,
+                  child: FluentDropdown<String>(
+                    key: key,
+                    focusNode: node,
+                    options: options,
+                    onChanged: _ignore,
+                  ),
+                ),
+                const SizedBox(height: 4000),
+              ],
+            ),
+          ),
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
+      await tester.pumpAndSettle();
+      expect(controller.offset, 0, reason: 'open: the list takes it');
+      expect(activeRow(tester), 'Lisbon');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
+      await tester.pumpAndSettle();
+      expect(controller.offset, greaterThan(0), reason: 'closed: the page');
+      expect(find.text('Lisbon'), findsNothing, reason: 'and it stays shut');
+    });
+
+    testWidgets('Alt+Down opens or moves on; Alt+Up opens or commits', (
+      tester,
+    ) async {
+      // Chrome, Default story: closed, both open on the first row; open,
+      // Alt+Down is Down, and Alt+Up is Enter — Corgi is chosen and the list
+      // closes, while on the disabled Ferret nothing happens and it stays open.
+      String? chosen;
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        FluentDropdown<String>(
+          key: key,
+          focusNode: node,
+          options: options,
+          onChanged: (value) => chosen = value,
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+
+      Future<void> alt(LogicalKeyboardKey k) async {
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+        await tester.sendKeyEvent(k);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+        await tester.pumpAndSettle();
+      }
+
+      await alt(LogicalKeyboardKey.arrowDown);
+      expect(activeRow(tester), 'Oslo', reason: 'closed Alt+Down opens');
+      await alt(LogicalKeyboardKey.arrowDown);
+      await alt(LogicalKeyboardKey.arrowDown);
+      expect(activeRow(tester), 'Reykjavik', reason: 'open Alt+Down moves on');
+
+      await alt(LogicalKeyboardKey.arrowUp);
+      expect(chosen, isNull, reason: 'Alt+Up on a disabled row');
+      expect(activeRow(tester), 'Reykjavik', reason: 'and it stays open');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await alt(LogicalKeyboardKey.arrowUp);
+      expect(chosen, 'hel', reason: 'open Alt+Up commits the active row');
+      expect(find.text('Lisbon'), findsNothing, reason: 'and closes');
+      expect(node.hasFocus, isTrue);
+
+      await alt(LogicalKeyboardKey.arrowUp);
+      expect(activeRow(tester), 'Oslo', reason: 'closed Alt+Up opens');
+    });
+
+    testWidgets('Shift, Ctrl, Meta and Alt change no key but Up', (
+      tester,
+    ) async {
+      // Upstream's getDropdownActionFromKey reads `e.key` alone, bar Alt on Up
+      // (Chrome, Default story): closed, Shift+Down, Ctrl+Down, Meta+Up and
+      // Shift+Enter open; open, Shift+Down and Meta+Down move on, Shift+ and
+      // Alt+PageDown reach the end, Ctrl+Home and Shift+End jump, Shift+Enter,
+      // Alt+Enter, Ctrl+Space and Alt+Shift+Up commit, Shift+Escape closes.
+      String? chosen;
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        FluentDropdown<String>(
+          key: key,
+          focusNode: node,
+          options: options,
+          onChanged: (value) => chosen = value,
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+
+      const shift = LogicalKeyboardKey.shiftLeft;
+      const control = LogicalKeyboardKey.controlLeft;
+      const meta = LogicalKeyboardKey.metaLeft;
+      const alt = LogicalKeyboardKey.altLeft;
+      Future<void> press(
+        LogicalKeyboardKey k,
+        List<LogicalKeyboardKey> modifiers,
+      ) async {
+        for (final m in modifiers) {
+          await tester.sendKeyDownEvent(m);
+        }
+        expect(await tester.sendKeyEvent(k), isTrue, reason: '$modifiers $k');
+        for (final m in modifiers.reversed) {
+          await tester.sendKeyUpEvent(m);
+        }
+        await tester.pumpAndSettle();
+      }
+
+      bool open() => find.text('Lisbon').evaluate().isNotEmpty;
+
+      await press(LogicalKeyboardKey.arrowDown, [shift]);
+      expect(activeRow(tester), 'Oslo', reason: 'closed Shift+Down opens');
+      await press(LogicalKeyboardKey.pageDown, [shift]);
+      expect(activeRow(tester), 'Lisbon', reason: 'Shift+PageDown');
+      await press(LogicalKeyboardKey.home, [control]);
+      expect(activeRow(tester), 'Oslo', reason: 'Ctrl+Home');
+      await press(LogicalKeyboardKey.arrowDown, [meta]);
+      expect(activeRow(tester), 'Helsinki', reason: 'Meta+Down');
+      await press(LogicalKeyboardKey.end, [shift]);
+      expect(activeRow(tester), 'Lisbon', reason: 'Shift+End');
+      await press(LogicalKeyboardKey.pageUp, [alt]);
+      expect(activeRow(tester), 'Oslo', reason: 'Alt+PageUp');
+      await press(LogicalKeyboardKey.escape, [shift]);
+      expect(open(), isFalse, reason: 'Shift+Escape closes');
+
+      await press(LogicalKeyboardKey.arrowDown, [control]);
+      expect(activeRow(tester), 'Oslo', reason: 'closed Ctrl+Down opens');
+      await press(LogicalKeyboardKey.enter, [shift]);
+      expect((chosen, open()), ('osl', false), reason: 'Shift+Enter commits');
+
+      await press(LogicalKeyboardKey.arrowUp, [meta]);
+      expect(activeRow(tester), 'Oslo', reason: 'closed Meta+Up opens');
+      await press(LogicalKeyboardKey.arrowDown, [shift]);
+      await press(LogicalKeyboardKey.space, [control]);
+      expect((chosen, open()), ('hel', false), reason: 'Ctrl+Space commits');
+
+      await press(LogicalKeyboardKey.enter, [shift]);
+      expect(activeRow(tester), 'Oslo', reason: 'closed Shift+Enter opens');
+      await press(LogicalKeyboardKey.end, []);
+      await press(LogicalKeyboardKey.arrowUp, [alt, shift]);
+      expect((chosen, open()), ('lis', false), reason: 'Alt+Shift+Up commits');
+
+      await press(LogicalKeyboardKey.arrowDown, []);
+      await press(LogicalKeyboardKey.home, []);
+      await press(LogicalKeyboardKey.enter, [alt]);
+      expect((chosen, open()), ('osl', false), reason: 'Alt+Enter commits');
+
+      // The keypad's Enter is `e.key` 'Enter' too: it opens, then commits.
+      await press(LogicalKeyboardKey.numpadEnter, []);
+      expect(activeRow(tester), 'Oslo', reason: 'closed keypad Enter opens');
+      await press(LogicalKeyboardKey.arrowDown, []);
+      await press(LogicalKeyboardKey.numpadEnter, []);
+      expect((chosen, open()), ('hel', false), reason: 'keypad Enter commits');
+    });
+
+    testWidgets('Escape on a closed trigger reaches the dialog around it', (
+      tester,
+    ) async {
+      // Closed, upstream maps Escape to 'None' and leaves the event alone, so
+      // the Dialog around a Dropdown closes; open, it closes the list and
+      // stops the event there (useTriggerSlot.ts). The ancestor takes Escape
+      // as FluentDialog does: a DismissIntent action above the trigger.
+      var dismissed = 0;
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        Actions(
+          actions: <Type, Action<Intent>>{
+            DismissIntent: CallbackAction<DismissIntent>(
+              onInvoke: (_) => dismissed++,
+            ),
+          },
+          child: FluentDropdown<String>(
+            key: key,
+            focusNode: node,
+            options: options,
+            onChanged: _ignore,
+          ),
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Lisbon'), findsNothing, reason: 'open: the list shuts');
+      expect(dismissed, 0, reason: 'and the dialog stays');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(dismissed, 1, reason: 'closed: the dialog gets Escape');
+    });
+
+    testWidgets('the list scrolls just far enough, 2px clear of the edge', (
+      tester,
+    ) async {
+      // Upstream's `scrollIntoView` in Chrome on the Default story's ten
+      // animals, listbox held to 260px (scrollHeight 346, padding 4 inside the
+      // scroller): the scrollTop after each key, and where the active row
+      // lands against the listbox's own edges.
+      const animals = <String>[
+        'Cat', 'Caterpillar', 'Corgi', 'Chupacabra', 'Dog', //
+        'Ferret', 'Fish', 'Fox', 'Hamster', 'Snake',
+      ];
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      Future<void> mount(String? value) => pump(
+        tester,
+        FluentDropdown<String>(
+          key: key,
+          focusNode: node,
+          value: value,
+          style: const FluentDropdownStyle(
+            surfaceMaxHeight: WidgetStatePropertyAll<double?>(260),
+          ),
+          options: <FluentDropdownOption<String>>[
+            for (final a in animals)
+              FluentDropdownOption<String>(value: a, label: Text(a), text: a),
+          ],
+          onChanged: _ignore,
+        ),
+      );
+      final list = find.byType(SingleChildScrollView);
+      double scrollTop() => tester
+          .state<ScrollableState>(
+            find.descendant(of: list, matching: find.byType(Scrollable)),
+          )
+          .position
+          .pixels;
+      Future<void> key_(LogicalKeyboardKey k) async {
+        await tester.sendKeyEvent(k);
+        await tester.pumpAndSettle();
+      }
+
+      await mount(null);
+      node.requestFocus();
+      await tester.pump();
+      await key_(LogicalKeyboardKey.arrowDown);
+      expect(tester.getSize(list).height, 260);
+      expect(scrollTop(), 0);
+      final down = <double>[];
+      for (var i = 0; i < 9; i++) {
+        await key_(LogicalKeyboardKey.arrowDown);
+        down.add(scrollTop());
+      }
+      expect(down, <double>[0, 0, 0, 0, 0, 0, 16, 50, 84]);
+      expect(
+        tester.getRect(list).bottom - tester.getRect(find.text('Snake')).bottom,
+        greaterThan(0),
+      );
+      final up = <double>[];
+      for (var i = 0; i < 9; i++) {
+        await key_(LogicalKeyboardKey.arrowUp);
+        up.add(scrollTop());
+      }
+      expect(up, <double>[84, 84, 84, 84, 84, 84, 70, 36, 2]);
+      await key_(LogicalKeyboardKey.end);
+      expect(scrollTop(), 84, reason: 'End');
+      await key_(LogicalKeyboardKey.home);
+      expect(scrollTop(), 2, reason: 'Home');
+
+      // Opening on a selection runs the same rule from the top: Fish fits,
+      // Fox needs 16, Snake the 84 the arrows reach. (Chrome reads 86 for
+      // both there, but only because floating-ui's first pass holds that
+      // listbox at 140px when the rule runs, before shifting it over the
+      // trigger. This popup is laid out once, below the trigger.)
+      for (final (value, expected) in <(String, double)>[
+        ('Fish', 0),
+        ('Fox', 16),
+        ('Snake', 84),
+      ]) {
+        await key_(LogicalKeyboardKey.escape);
+        await mount(value);
+        await key_(LogicalKeyboardKey.arrowDown);
+        expect(scrollTop(), expected, reason: 'opened on $value');
+      }
+    });
+
+    testWidgets('PageDown reveals each of its ten rows in turn', (
+      tester,
+    ) async {
+      // Upstream's PageDown is ten `next()` calls, each running its own
+      // `scrollIntoView`. Chrome, the Default story's ten animals cloned to 30
+      // (Cat1 is row 10), listbox held to 260px, scrollHeight 1026: with the
+      // list wheeled to its bottom (766), PageDown from Cat walks back up
+      // through Caterpillar and down again, ending with Cat1 2px clear of the
+      // BOTTOM at 118 — not at the top, as one reveal of Cat1 would put it.
+      // PageUp from the last row with the list at the top ends at 648, Snake1
+      // 2px clear of the top.
+      const animals = <String>[
+        'Cat', 'Caterpillar', 'Corgi', 'Chupacabra', 'Dog', //
+        'Ferret', 'Fish', 'Fox', 'Hamster', 'Snake',
+      ];
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        FluentDropdown<String>(
+          key: key,
+          focusNode: node,
+          style: const FluentDropdownStyle(
+            surfaceMaxHeight: WidgetStatePropertyAll<double?>(260),
+          ),
+          options: <FluentDropdownOption<String>>[
+            for (final suffix in <String>['', '1', '2'])
+              for (final a in animals)
+                FluentDropdownOption<String>(
+                  value: '$a$suffix',
+                  label: Text('$a$suffix'),
+                  text: '$a$suffix',
+                  enabled: a != 'Ferret',
+                ),
+          ],
+          onChanged: _ignore,
+        ),
+      );
+      ScrollPosition position() => tester
+          .state<ScrollableState>(
+            find.descendant(
+              of: find.byType(SingleChildScrollView),
+              matching: find.byType(Scrollable),
+            ),
+          )
+          .position;
+      Future<void> key_(LogicalKeyboardKey k) async {
+        await tester.sendKeyEvent(k);
+        await tester.pumpAndSettle();
+      }
+
+      node.requestFocus();
+      await tester.pump();
+      await key_(LogicalKeyboardKey.arrowDown);
+      expect(position().maxScrollExtent, 1026 - 260);
+      position().jumpTo(766);
+      await tester.pump();
+      await key_(LogicalKeyboardKey.pageDown);
+      expect(activeRow(tester), 'Cat1');
+      expect(position().pixels, 118, reason: 'PageDown, list at the bottom');
+
+      await key_(LogicalKeyboardKey.end);
+      position().jumpTo(0);
+      await tester.pump();
+      await key_(LogicalKeyboardKey.pageUp);
+      expect(activeRow(tester), 'Snake1');
+      expect(position().pixels, 648, reason: 'PageUp, list at the top');
+    });
+
+    testWidgets('a list that shrinks under the active row falls back to the '
+        'first option', (tester) async {
+      // Upstream's `useComboboxBaseState` re-runs `first()` whenever the
+      // children change under an open listbox with nothing active, and an
+      // option that has left the DOM is not active. Here the stale index
+      // threw a RangeError on Enter and left Up and Down stuck.
+      String? chosen;
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      Future<void> mount(List<String> items) => pump(
+        tester,
+        FluentDropdown<String>(
+          key: key,
+          focusNode: node,
+          options: <FluentDropdownOption<String>>[
+            for (final a in items)
+              FluentDropdownOption<String>(value: a, label: Text(a), text: a),
+          ],
+          onChanged: (value) => chosen = value,
+        ),
+      );
+      await mount(<String>['Cat', 'Dog', 'Fox', 'Owl']);
+      node.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.end);
+      await tester.pumpAndSettle();
+      await mount(<String>['Cat', 'Dog']);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(chosen, 'Cat');
+      expect(find.text('Dog'), findsNothing, reason: 'closed');
     });
 
     testWidgets('Escape closes and chooses nothing', (tester) async {
