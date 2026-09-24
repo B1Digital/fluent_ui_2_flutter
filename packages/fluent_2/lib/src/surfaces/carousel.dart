@@ -292,14 +292,24 @@ FluentCarouselStyle resolveFluentCarouselStyle(
   // One property for both: the selected step resolves it with
   // `WidgetState.selected` added, so an override passed to that step alone
   // still reaches its pill.
-  final mark = c.neutralForeground1;
-  final brand = state.navAppearance == FluentCarouselNavAppearance.brand;
+  //
+  // High contrast turns the hit target under a hovered or pressed mark the
+  // system Highlight (below), so the hover and press steps read Foreground1's
+  // own Hover and Pressed tokens: HighlightText there, Foreground1 itself in
+  // every other theme. Upstream keeps a mark visible in forced colors with a
+  // `difference` blend (the `::after` `@media (forced-colors: active)` rule),
+  // which has no token equivalent; brand's Hover and Pressed tokens are that
+  // same Highlight here, so brand falls back to neutral in high contrast.
+  final brand =
+      state.navAppearance == FluentCarouselNavAppearance.brand &&
+      c is! FluentHighContrastColors;
   final dot = FluentStateColor.tokens(
-    rest: mark.withValues(alpha: 0.6),
-    hover: (brand ? c.compoundBrandBackgroundHover : mark).withValues(
-      alpha: 0.75,
-    ),
-    pressed: brand ? c.compoundBrandBackgroundPressed : mark,
+    rest: c.neutralForeground1.withValues(alpha: 0.6),
+    hover: (brand ? c.compoundBrandBackgroundHover : c.neutralForeground1Hover)
+        .withValues(alpha: 0.75),
+    pressed: brand
+        ? c.compoundBrandBackgroundPressed
+        : c.neutralForeground1Pressed,
     disabled: c.neutralForegroundDisabled,
   );
   final pill = brand
@@ -310,9 +320,9 @@ FluentCarouselStyle resolveFluentCarouselStyle(
           disabled: c.neutralForegroundDisabled,
         )
       : FluentStateColor.tokens(
-          rest: mark,
-          hover: mark.withValues(alpha: 0.75),
-          pressed: mark.withValues(alpha: 0.65),
+          rest: c.neutralForeground1,
+          hover: c.neutralForeground1Hover.withValues(alpha: 0.75),
+          pressed: c.neutralForeground1Pressed.withValues(alpha: 0.65),
           disabled: c.neutralForegroundDisabled,
         );
   final stepColor = WidgetStateProperty.resolveWith<Color?>(

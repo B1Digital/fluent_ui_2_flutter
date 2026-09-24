@@ -1265,53 +1265,71 @@ void main() {
     /// border still drew and the layout still measured right. Nothing about
     /// this component may repeat it.
     test('no foreground matches the surface it paints on', () {
-      final style = resolveFluentCarouselStyle(
-        resolveFluentCarouselState(layout: FluentCarouselLayout.overContent),
-        highContrast,
-      );
       final c = highContrast.colors;
 
-      for (final states in const <Set<WidgetState>>[
-        <WidgetState>{},
-        <WidgetState>{WidgetState.hovered},
-        <WidgetState>{WidgetState.pressed},
-        <WidgetState>{WidgetState.disabled},
-      ]) {
-        final hitTarget = style.stepBackgroundColor!.resolve(states)!;
-        final wash = style.indicatorBackgroundColor!.resolve(states)!;
+      // The mark is translucent (upstream's opacity ramp), so "not equal" is
+      // no test at all: it has to stand out once composited. 3:1 is WCAG's
+      // non-text contrast floor.
+      double contrast(Color a, Color b) {
+        final (la, lb) = (a.computeLuminance(), b.computeLuminance());
+        return la > lb ? (la + 0.05) / (lb + 0.05) : (lb + 0.05) / (la + 0.05);
+      }
 
-        // What the mark actually paints on: its own hit target once that is
-        // opaque, otherwise the wash showing through it. Getting this wrong is
-        // how an invisible foreground ships — the border still draws and the
-        // layout still measures right.
-        final beneath = hitTarget.a == 1.0 ? hitTarget : wash;
-        for (final selected in <bool>[false, true]) {
-          expect(
-            style.stepColor!.resolve(<WidgetState>{
+      for (final appearance in FluentCarouselNavAppearance.values) {
+        final style = resolveFluentCarouselStyle(
+          resolveFluentCarouselState(
+            layout: FluentCarouselLayout.overContent,
+            navAppearance: appearance,
+          ),
+          highContrast,
+        );
+        for (final states in const <Set<WidgetState>>[
+          <WidgetState>{},
+          <WidgetState>{WidgetState.hovered},
+          <WidgetState>{WidgetState.pressed},
+          <WidgetState>{WidgetState.disabled},
+        ]) {
+          final hitTarget = style.stepBackgroundColor!.resolve(states)!;
+          final wash = style.indicatorBackgroundColor!.resolve(states)!;
+
+          // What the mark actually paints on: its own hit target once that is
+          // opaque, otherwise the wash showing through it. Getting this wrong
+          // is how an invisible foreground ships — the border still draws and
+          // the layout still measures right.
+          final beneath = hitTarget.a == 1.0 ? hitTarget : wash;
+          for (final selected in <bool>[false, true]) {
+            final mark = style.stepColor!.resolve(<WidgetState>{
               ...states,
               if (selected) WidgetState.selected,
-            }),
-            isNot(beneath),
-            reason:
-                'the step mark would vanish into the surface under it '
-                'for $states',
-          );
-        }
-        expect(beneath.a, 1.0, reason: 'the surface under the mark is opaque');
-        // Only the *interactive* transparent tokens gain a high-contrast
-        // override — Hover, Pressed and Selected resolve to the system
-        // Highlight, while Rest stays genuinely see-through in every theme. A
-        // hardcoded Colors.transparent would stay invisible on hover too, and
-        // a hovered step would then have no surface at all here.
-        if (states.contains(WidgetState.hovered) ||
-            states.contains(WidgetState.pressed)) {
+            })!;
+            expect(
+              contrast(Color.alphaBlend(mark, beneath), beneath),
+              greaterThanOrEqualTo(3),
+              reason:
+                  'the $appearance step mark (selected: $selected) would '
+                  'vanish into the surface under it for $states',
+            );
+          }
           expect(
-            hitTarget.a,
+            beneath.a,
             1.0,
-            reason:
-                'the transparent token is opaque in high contrast for '
-                '$states',
+            reason: 'the surface under the mark is opaque',
           );
+          // Only the *interactive* transparent tokens gain a high-contrast
+          // override — Hover, Pressed and Selected resolve to the system
+          // Highlight, while Rest stays genuinely see-through in every theme. A
+          // hardcoded Colors.transparent would stay invisible on hover too, and
+          // a hovered step would then have no surface at all here.
+          if (states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.pressed)) {
+            expect(
+              hitTarget.a,
+              1.0,
+              reason:
+                  'the transparent token is opaque in high contrast for '
+                  '$states',
+            );
+          }
         }
       }
 
