@@ -272,6 +272,8 @@ void main() {
           supportedLocales: FluentLocalizations.supportedLocales,
           home: FluentDialog(
             open: true,
+            // A modal dialog draws no close button unless asked, as upstream.
+            showCloseButton: true,
             title: Text('Başlık'),
             content: Text('İçerik'),
             child: SizedBox.shrink(),
@@ -296,6 +298,7 @@ void main() {
           supportedLocales: FluentLocalizations.supportedLocales,
           home: FluentDialog(
             open: true,
+            showCloseButton: true,
             closeButtonSemanticLabel: 'Kapat pencereyi',
             title: Text('Başlık'),
             content: Text('İçerik'),

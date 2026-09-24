@@ -45,8 +45,10 @@ void main() {
       expect(find.text('Close'), findsOneWidget);
       expect(
         find.byIcon(fluentDialogCloseIcon),
-        findsOneWidget,
-        reason: 'showCloseButton defaults to true, which is Figma over React',
+        findsNothing,
+        reason:
+            'a modal DialogTitle renders no close action unless asked '
+            '(useDialogTitle.js:36 renderByDefault: non-modal only)',
       );
       // A modal dialog is centred in the viewport, not anchored to its trigger:
       // the surface has no spatial relationship to the button that opened it.
@@ -56,43 +58,33 @@ void main() {
       );
     });
 
-    testWidgets(
-      'every dismissal path closes it: action, header, Escape, scrim',
-      (WidgetTester tester) async {
-        await pumpSection(tester, section);
+    testWidgets('every dismissal path closes it: action, Escape, scrim', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(tester, section);
 
-        Future<void> reopen() async {
-          await tapAndSettle(tester, find.text('Open dialog'));
-          await settleDialog(tester);
-          expect(find.text('Dialog title'), findsOneWidget);
-        }
-
-        await reopen();
-        await tapAndSettle(tester, find.text('Close'));
+      Future<void> reopen() async {
+        await tapAndSettle(tester, find.text('Open dialog'));
         await settleDialog(tester);
-        expect(find.text('Dialog title'), findsNothing, reason: 'Close action');
+        expect(find.text('Dialog title'), findsOneWidget);
+      }
 
-        await reopen();
-        await tapAndSettle(tester, find.byIcon(fluentDialogCloseIcon));
-        await settleDialog(tester);
-        expect(
-          find.text('Dialog title'),
-          findsNothing,
-          reason: 'header button',
-        );
+      await reopen();
+      await tapAndSettle(tester, find.text('Close'));
+      await settleDialog(tester);
+      expect(find.text('Dialog title'), findsNothing, reason: 'Close action');
 
-        await reopen();
-        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-        await settleDialog(tester);
-        expect(find.text('Dialog title'), findsNothing, reason: 'Escape');
+      await reopen();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await settleDialog(tester);
+      expect(find.text('Dialog title'), findsNothing, reason: 'Escape');
 
-        await reopen();
-        // The corner of the viewport: the surface is centred, so this is scrim.
-        await tester.tapAt(const Offset(40, 1360));
-        await settleDialog(tester);
-        expect(find.text('Dialog title'), findsNothing, reason: 'scrim press');
-      },
-    );
+      await reopen();
+      // The corner of the viewport: the surface is centred, so this is scrim.
+      await tester.tapAt(const Offset(40, 1360));
+      await settleDialog(tester);
+      expect(find.text('Dialog title'), findsNothing, reason: 'scrim press');
+    });
 
     testWidgets('the trigger commits under a real mouse', (
       WidgetTester tester,
