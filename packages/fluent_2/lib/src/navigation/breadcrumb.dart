@@ -931,6 +931,9 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
       child: FluentInteractive(
         enabled: state.enabled,
         onPressed: state.enabled ? item.onPressed : null,
+        // A crumb is a subtle Button upstream, pressed under `:hover:active`:
+        // a mouse press dragged off falls back to rest.
+        pressedRequiresHover: true,
         mouseCursor:
             style.mouseCursor?.resolve(const <WidgetState>{}) ??
             SystemMouseCursors.click,
@@ -947,6 +950,8 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
     final trigger = FluentInteractive(
       onPressed: _toggle,
       focusNode: _overflowFocus,
+      // A Button upstream, as the crumbs are.
+      pressedRequiresHover: true,
       mouseCursor:
           style.mouseCursor?.resolve(const <WidgetState>{}) ??
           SystemMouseCursors.click,
@@ -1118,6 +1123,9 @@ class _FluentBreadcrumbState extends State<FluentBreadcrumb> {
       child: FluentInteractive(
         enabled: state.enabled,
         onPressed: state.enabled ? () => _select(item) : null,
+        // The popup's rows are MenuItems upstream, pressed under
+        // `:hover:active` (useMenuItemStyles).
+        pressedRequiresHover: true,
         mouseCursor:
             style.mouseCursor?.resolve(const <WidgetState>{}) ??
             SystemMouseCursors.click,
