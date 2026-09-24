@@ -2,6 +2,7 @@ import 'package:fluent_2/src/charts/area_chart.dart';
 import 'package:fluent_2/src/charts/area_chart_style.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_chart.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_layout.dart';
+import 'package:fluent_2/src/charts/cartesian/cartesian_painter.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_series_delegate.dart';
 import 'package:fluent_2/src/charts/chrome/chart_popover.dart';
 import 'package:fluent_2/src/charts/internal/chart_colors.dart';
@@ -13,6 +14,7 @@ import 'package:fluent_2/src/charts/model/cartesian_series.dart';
 import 'package:fluent_2/src/charts/model/chart_common.dart';
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -32,6 +34,14 @@ List<FluentLineChartSeries> _twoSeries({
   required List<double> a,
   required List<double> b,
 }) => <FluentLineChartSeries>[_series('a', a), _series('b', b)];
+
+/// [series] plotted against the secondary y scale.
+FluentLineChartSeries _onSecondary(FluentLineChartSeries series) =>
+    FluentLineChartSeries(
+      legend: series.legend,
+      data: series.data,
+      useSecondaryYScale: true,
+    );
 
 /// Two series that disagree on their x sets: `b` never reports x = 2.
 List<FluentLineChartSeries> _seriesWithHoles() => <FluentLineChartSeries>[
@@ -270,8 +280,8 @@ List<Offset> _samplePath(Path path, int count) {
   ];
 }
 
-/// A layout big enough to hold [_linearContext]; the delegate reads nothing off
-/// it, but the shell hands one to every call.
+/// A layout big enough to hold [_linearContext], with no margins and no label
+/// reserve, so its content height is the context's 300.
 FluentCartesianLayout _layout() => FluentCartesianLayout.resolve(
   size: const Size(700, 300),
   margins: const FluentChartMargins(left: 0, right: 0, top: 0, bottom: 0),
@@ -290,6 +300,16 @@ class _RecordingCanvas implements Canvas {
   final List<Color> circleFills = <Color>[];
   final List<Color> circleStrokes = <Color>[];
   final List<double> circleRadii = <double>[];
+  final List<({Offset from, Offset to, Color colour, double width})> lines =
+      <({Offset from, Offset to, Color colour, double width})>[];
+
+  @override
+  void drawLine(Offset p1, Offset p2, Paint paint) => lines.add((
+    from: p1,
+    to: p2,
+    colour: paint.color,
+    width: paint.strokeWidth,
+  ));
 
   @override
   void drawPath(Path path, Paint paint) {
@@ -365,14 +385,17 @@ FluentAreaChartDelegate _delegateFor(
   bool isCircleClicked = false,
   bool isPopoverOpen = false,
   bool isHighContrast = false,
+  bool hasSecondaryYScale = false,
+  bool keyboardFocused = false,
 }) => FluentAreaChartDelegate(
   series: series,
   dataSet: buildFluentAreaChartDataSet(
     series: series,
     mode: mode,
-    hasSecondaryYScale: false,
+    hasSecondaryYScale: hasSecondaryYScale,
     hasSelectedLegends: selectedLegends.isNotEmpty,
   ),
+  keyboardFocused: keyboardFocused,
   style: resolveFluentAreaChartStyle(_delegateTheme),
   colors: _colours(isHighContrast: isHighContrast),
   measurer: FluentChartTextMeasurer(),
@@ -405,11 +428,13 @@ FluentAreaChartDelegate _multiStackDelegate({
   List<String> selectedLegends = const <String>[],
   String? activeLegend,
   bool isPopoverOpen = false,
+  Object? nearestX,
 }) => _delegateFor(
   _twoSeries(a: <double>[10, 20, 30], b: <double>[5, 15, 25]),
   selectedLegends: selectedLegends,
   activeLegend: activeLegend,
   isPopoverOpen: isPopoverOpen,
+  nearestX: nearestX,
 );
 
 /// One series carrying exactly one datum.
@@ -461,7 +486,10 @@ void main() {
 
     test('a secondary y scale forces tozeroy even in tonexty mode', () {
       final set = buildFluentAreaChartDataSet(
-        series: _twoSeries(a: <double>[1, 2], b: <double>[10, 20]),
+        series: <FluentLineChartSeries>[
+          _series('a', <double>[1, 2]),
+          _onSecondary(_series('b', <double>[10, 20])),
+        ],
         mode: FluentAreaChartMode.toNextY,
         hasSecondaryYScale: true,
         hasSelectedLegends: false,
@@ -470,6 +498,62 @@ void main() {
         0,
         0,
       ], reason: '_shouldFillToZeroY at AreaChart.tsx:1065-1067');
+      expect(
+        set.fillsToZero,
+        isTrue,
+        reason: 'the flag the layer opacity reads must see the axis too, :685',
+      );
+    });
+
+    test('secondary-scale options with no series on them keep the stack', () {
+      final set = buildFluentAreaChartDataSet(
+        series: _twoSeries(a: <double>[1, 2], b: <double>[10, 20]),
+        mode: FluentAreaChartMode.toNextY,
+        hasSecondaryYScale: true,
+        hasSelectedLegends: false,
+      );
+      expect(
+        set.fillsToZero,
+        isFalse,
+        reason:
+            '_containsSecondaryYAxis also needs a series with '
+            'useSecondaryYScale (AreaChart.tsx:1072)',
+      );
+      expect(set.layers[1].map((p) => p.lo).toList(), <double>[
+        1,
+        2,
+      ], reason: 'still stacked on a');
+      expect(set.maxOfYVal, 22, reason: 'the stacked ceiling, :313');
+    });
+
+    test('a secondary axis takes the primary ceiling from the primary series '
+        'alone', () {
+      final set = buildFluentAreaChartDataSet(
+        series: <FluentLineChartSeries>[
+          _series('primary', <double>[7, 20, 3]),
+          const FluentLineChartSeries(
+            legend: 'secondary',
+            useSecondaryYScale: true,
+            data: <Object>[
+              FluentLineChartDataPoint(x: 1, y: 28),
+              FluentLineChartDataPoint(x: 2, y: 9),
+              FluentLineChartDataPoint(x: 3, y: 1),
+            ],
+          ),
+        ],
+        mode: FluentAreaChartMode.toNextY,
+        hasSecondaryYScale: true,
+        hasSelectedLegends: false,
+      );
+      expect(
+        set.maxOfYVal,
+        20,
+        reason:
+            'AreaChart.tsx:336 replaces the tozeroy max with '
+            'findNumericMinMaxOfY(lineChartData).endValue, which keeps only '
+            '!useSecondaryYScale series (utilities.ts:1599); 28 would squash '
+            'the primary axis of charts-areachart--area-chart-secondary-y-axis',
+      );
     });
 
     test('missing x values are back-filled with zero and then sorted', () {
@@ -624,8 +708,13 @@ void main() {
               'returns to the same floor, AreaChart.tsx:1065-1067',
         );
       }
+      final recovered = _recoverSeries(areas, baseline);
       final set = buildFluentAreaChartDataSet(
-        series: _recoverSeries(areas, baseline),
+        // The story's legend2 is the one on the secondary scale.
+        series: <FluentLineChartSeries>[
+          recovered.first,
+          _onSecondary(recovered.last),
+        ],
         mode: FluentAreaChartMode.toNextY,
         hasSecondaryYScale: true,
         hasSelectedLegends: false,
@@ -930,6 +1019,88 @@ void main() {
       );
     });
 
+    test('a secondary axis pins the layer opacity to 0.8 as tozeroy does', () {
+      final delegate = _delegateFor(<FluentLineChartSeries>[
+        _series('a', <double>[10, 20, 30]),
+        _onSecondary(_series('b', <double>[5, 15, 25])),
+      ], hasSecondaryYScale: true);
+      expect(
+        delegate.mode,
+        FluentAreaChartMode.toNextY,
+        reason: 'the mode alone would leave the layer at its own opacity',
+      );
+      expect(
+        delegate
+            .layersFor(_linearContext(width: 700))
+            .map((layer) => layer.layerOpacity),
+        everyElement(0.8),
+        reason:
+            '_shouldFillToZeroY() is mode === "tozeroy" || '
+            '_containsSecondaryYAxis (AreaChart.tsx:685, :1065-1067); the '
+            'secondary-y story paints its fills at 0.8 * 0.7',
+      );
+    });
+
+    test('the hover rule is a dashed half-opacity line at the nearest x', () {
+      final delegate = _multiStackDelegate(nearestX: 2);
+      final canvas = _RecordingCanvas();
+      delegate.paintSeries(
+        canvas,
+        _linearContext(width: 700),
+        _layout(),
+        delegate.colors,
+      );
+      final lines = canvas.lines;
+      expect(lines, isNotEmpty, reason: 'AreaChart.tsx:827-842 draws a rule');
+      for (final line in lines) {
+        expect(line.from.dx, 350, reason: 'x1 = x2 = xScale(nearest), :831');
+        expect(line.to.dx, 350);
+        expect(line.width, 1, reason: 'strokeWidth={1}, :835');
+        expect(
+          line.colour.toARGB32(),
+          delegate.dataSet.colours.last.withValues(alpha: 0.5).toARGB32(),
+          reason:
+              'stroke={lineColor} is the last series colour the circle loop '
+              'left behind, at opacity={0.5}, :837-838',
+        );
+      }
+      expect(lines.first.from.dy, 0, reason: 'y1={0}, :832');
+      expect(
+        lines.last.to.dy,
+        lessThanOrEqualTo(300),
+        reason: 'y2 is the getGraphData height, the layout content height',
+      );
+      expect(
+        lines.last.to.dy,
+        greaterThan(300 - 11),
+        reason: 'the dashes run the whole height',
+      );
+      for (var i = 0; i < lines.length - 1; i++) {
+        expect(
+          lines[i].to.dy - lines[i].from.dy,
+          closeTo(5.5, 1e-9),
+          reason: 'strokeDasharray={5.5}: 5.5 on …',
+        );
+        expect(
+          lines[i + 1].from.dy - lines[i].to.dy,
+          closeTo(5.5, 1e-9),
+          reason: '… and 5.5 off',
+        );
+      }
+    });
+
+    test('there is no hover rule without a nearest x', () {
+      final delegate = _multiStackDelegate();
+      final canvas = _RecordingCanvas();
+      delegate.paintSeries(
+        canvas,
+        _linearContext(width: 700),
+        _layout(),
+        delegate.colors,
+      );
+      expect(canvas.lines, isEmpty, reason: 'visibility hidden, :839');
+    });
+
     test('circles are invisible until hovered or focused', () {
       final delegate = _areaDelegate();
       expect(
@@ -976,6 +1147,132 @@ void main() {
         20,
         15,
       ], reason: 'the popover lists the raw y of every series at that x');
+    });
+
+    test('each x hovers from the plot edge to its neighbours\' midpoints', () {
+      final regions = _multiStackDelegate().buildHitRegions(
+        _linearContext(width: 700),
+        _layout(),
+      );
+      final expected = <Rect>[
+        const Rect.fromLTRB(0, 0, 175, 300),
+        const Rect.fromLTRB(175, 0, 525, 300),
+        const Rect.fromLTRB(525, 0, 700, 300),
+      ];
+      for (var j = 0; j < expected.length; j++) {
+        for (final (actual, wanted) in <(double, double)>[
+          (regions[j].bounds.left, expected[j].left),
+          (regions[j].bounds.top, expected[j].top),
+          (regions[j].bounds.right, expected[j].right),
+          (regions[j].bounds.bottom, expected[j].bottom),
+        ]) {
+          expect(
+            actual,
+            closeTo(wanted, 1e-6),
+            reason:
+                '_onRectMouseMove runs on the whole plot rect and bisects to '
+                'the nearest x (AreaChart.tsx:185-228, :1133-1141), so the '
+                'callout is not tied to the top marker',
+          );
+        }
+      }
+      int hovered(double x) =>
+          regions.lastIndexWhere((r) => r.bounds.contains(Offset(x, 150)));
+      expect(
+        hovered(175),
+        0,
+        reason:
+            'an exact midpoint keeps d0, `x - d0.x > d1.x - x ? d1 : d0` '
+            '(AreaChart.tsx:215), as the bisector does',
+      );
+      expect(hovered(700), 2, reason: 'the last x is inside the rect');
+      expect(
+        regions.every((r) => r.popoverAnchor == null),
+        isTrue,
+        reason: 'a hover anchors at the pointer, ChartPopover.tsx:23-34',
+      );
+    });
+
+    test('a keyboard stop anchors at the top circle of its x', () {
+      final regions = _delegateFor(
+        _twoSeries(a: <double>[10, 20, 30], b: <double>[5, 15, 25]),
+        keyboardFocused: true,
+      ).buildHitRegions(_linearContext(width: 700), _layout());
+      expect(
+        regions[1].popoverAnchor,
+        Rect.fromCenter(
+          center: const Offset(350, 300 - 35 * 3),
+          width: 0,
+          height: 0,
+        ),
+        reason: '_handleFocus centres on the focused circle, :948-951',
+      );
+    });
+
+    test('the callout reads the upstream header and rows', () {
+      final delegate = _delegateFor(
+        <FluentLineChartSeries>[
+          const FluentLineChartSeries(
+            legend: 'a',
+            data: <Object>[
+              FluentLineChartDataPoint(
+                x: 4.0,
+                y: 1,
+                xAxisCalloutData: '2018/04/04',
+                yAxisCalloutText: '100%',
+              ),
+              FluentLineChartDataPoint(x: 5.0, y: 2),
+            ],
+          ),
+          const FluentLineChartSeries(
+            legend: 'b',
+            data: <Object>[
+              FluentLineChartDataPoint(x: 4.0, y: 3, yAxisCalloutText: '50%'),
+              FluentLineChartDataPoint(
+                x: 5.0,
+                y: 4,
+                xAxisCalloutData: 'not series 0',
+              ),
+            ],
+          ),
+        ],
+        selectedLegends: <String>['b'],
+      );
+      final regions = delegate.buildHitRegions(
+        _linearContext(width: 700, points: 5),
+        _layout(),
+      );
+      final first = regions[0].popoverData;
+      expect(
+        first.xValue,
+        '2018/04/04',
+        reason: 'xAxisCalloutData of lineChartData[0] wins, AreaChart.tsx:250',
+      );
+      expect(
+        first.yValues!.map((v) => (v.legend, v.yAxisCalloutText)).toList(),
+        <(String?, String?)>[('b', '50%')],
+        reason:
+            '_getFilteredLegendValues keeps the selected legends only '
+            '(:971-975) and each row keeps its yAxisCalloutData '
+            '(ChartPopover.tsx:231-233)',
+      );
+      expect(
+        first.yValues!.single.color,
+        delegate.dataSet.colours[1],
+        reason: 'calloutData runs on _addDefaultColors output, :1071-1074',
+      );
+      expect(
+        first.yValues!.single.index,
+        isNull,
+        reason: 'AreaChart points carry no index, so no shape is drawn',
+      );
+      expect(
+        regions[1].popoverData.xValue,
+        '5',
+        reason:
+            'series 0 has no xAxisCalloutData at x = 5, so the number is '
+            'formatted without a trailing .0; series 1\'s is never read',
+      );
     });
   });
 
@@ -1188,14 +1485,202 @@ void main() {
       await pump(tester, FluentAreaChart(data: _duplicateXData()));
       await hoverPlot(tester);
       expect(
-        _renderedDelegate(tester).isPopoverOpen,
-        isFalse,
-        reason: 'AreaChart.tsx:1093 forces isPopoverOpen false',
-      );
-      expect(
         find.byType(FluentChartPopover),
         findsNothing,
-        reason: 'AreaChart.tsx:1093 forces isPopoverOpen false',
+        reason: 'AreaChart.tsx:1093 forces the callout closed',
+      );
+      expect(
+        _renderedDelegate(tester).isPopoverOpen,
+        isTrue,
+        reason:
+            'but only the callout: _updatePosition still opens the state '
+            '(:275) and _getLineOpacity reads it ungated (:633)',
+      );
+    });
+
+    testWidgets('a mouse anywhere over the plot opens the callout at the '
+        'pointer', (tester) async {
+      await pump(tester, FluentAreaChart(data: _threeSeriesData()));
+      final painter = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((paint) => paint.painter)
+          .whereType<FluentCartesianChartPainter>()
+          .single;
+      final origin = tester.getTopLeft(find.byType(FluentCartesianChart));
+      final xScale = painter.xAxis.scale;
+      // Between x = 2 and x = 3, nearer 2, at the plot floor: nowhere near
+      // the top marker the popover used to need.
+      final local = Offset(
+        xScale(2)! + (xScale(3)! - xScale(2)!) * 0.4 + 0.6,
+        painter.layout.plotRect.bottom - 4.3,
+      );
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(origin + local);
+      await tester.pump();
+      await gesture.moveBy(const Offset(1, 0));
+      await tester.pump();
+      final state = tester.state<FluentAreaChartState>(
+        find.byType(FluentAreaChart),
+      );
+      expect(state.nearestX, 2, reason: 'the bisector, AreaChart.tsx:193');
+      final popover = tester.widget<FluentChartPopover>(
+        find.byType(FluentChartPopover),
+      );
+      expect(popover.data.yValues!.map((v) => v.legend).toList(), <String>[
+        'a',
+        'b',
+        'c',
+      ], reason: 'every series at the nearest x, AreaChart.tsx:236-249');
+      final pointer = origin + local + const Offset(1, 0);
+      expect(
+        popover.anchorRect!.center,
+        Offset(pointer.dx.floorToDouble(), pointer.dy.floorToDouble()) - origin,
+        reason:
+            'clickPosition is the whole-pixel clientX/Y of the latest move '
+            '(AreaChart.tsx:189, :267-277)',
+      );
+    });
+
+    testWidgets('past the last x nothing listens', (tester) async {
+      await pump(tester, FluentAreaChart(data: _threeSeriesData()));
+      final painter = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((paint) => paint.painter)
+          .whereType<FluentCartesianChartPainter>()
+          .single;
+      final origin = tester.getTopLeft(find.byType(FluentCartesianChart));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(
+        origin +
+            Offset(
+              painter.xAxis.scale(1)! + 3,
+              painter.layout.plotRect.center.dy,
+            ),
+      );
+      await tester.pump();
+      final state = tester.state<FluentAreaChartState>(
+        find.byType(FluentAreaChart),
+      );
+      expect(state.nearestX, 1);
+      await gesture.moveTo(
+        origin +
+            Offset(
+              painter.xAxis.scale(3)! + 5,
+              painter.layout.plotRect.center.dy,
+            ),
+      );
+      await tester.pump();
+      expect(
+        state.nearestX,
+        1,
+        reason:
+            'the listening rect ends at the last x (AreaChart.tsx:1128); '
+            'beyond it the state is left as it was',
+      );
+      expect(find.byType(FluentChartPopover), findsOneWidget);
+    });
+
+    testWidgets('a click on a lower layer runs that layer\'s point', (
+      tester,
+    ) async {
+      final hits = <String>[];
+      await pump(
+        tester,
+        FluentAreaChart(
+          data: FluentChartData(
+            lineChartData: <FluentLineChartSeries>[
+              for (final legend in <String>['low', 'high'])
+                FluentLineChartSeries(
+                  legend: legend,
+                  data: <FluentLineChartDataPoint>[
+                    for (final x in <int>[1, 2, 3])
+                      FluentLineChartDataPoint(
+                        x: x,
+                        y: 10,
+                        onDataPointClick: () => hits.add('$legend$x'),
+                      ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      );
+      final painter = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((paint) => paint.painter)
+          .whereType<FluentCartesianChartPainter>()
+          .single;
+      final origin = tester.getTopLeft(find.byType(FluentCartesianChart));
+      final circle = Offset(
+        painter.xAxis.scale(2)!,
+        painter.yAxisPrimary.scale(10)!,
+      );
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: origin + circle);
+      addTearDown(gesture.removePointer);
+      await gesture.moveBy(const Offset(1, 0));
+      await tester.pump();
+      await gesture.down(origin + circle + const Offset(1, 0));
+      await tester.pump(const Duration(milliseconds: 90));
+      await gesture.up();
+      await tester.pump();
+      expect(
+        hits,
+        <String>['low2'],
+        reason:
+            'every circle hangs its own onClick (AreaChart.tsx:784, '
+            ':846-853), not only the top layer\'s',
+      );
+      await gesture.moveTo(
+        origin + Offset(circle.dx + 1, painter.layout.plotRect.bottom - 2),
+      );
+      await tester.pump();
+      await gesture.down(
+        origin + Offset(circle.dx + 1, painter.layout.plotRect.bottom - 2),
+      );
+      await gesture.up();
+      await tester.pump();
+      expect(hits, <String>[
+        'low2',
+      ], reason: 'the band itself is not a circle and clicks nothing');
+    });
+
+    testWidgets('the keyboard grows the focused circle and anchors on it', (
+      tester,
+    ) async {
+      final focusNode = FocusNode();
+      addTearDown(focusNode.dispose);
+      await pump(
+        tester,
+        FluentAreaChart(data: _threeSeriesData(), focusNode: focusNode),
+      );
+      focusNode.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(
+        _renderedDelegate(tester).activePointId,
+        '2_0',
+        reason: '_handleFocus sets activePoint, which grows it (:966, :863)',
+      );
+      final painter = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((paint) => paint.painter)
+          .whereType<FluentCartesianChartPainter>()
+          .single;
+      expect(
+        tester
+            .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+            .anchorRect!
+            .center,
+        Offset(painter.xAxis.scale(1)!, painter.yAxisPrimary.scale(16)!),
+        reason:
+            'the callout sits on the focused circle, the top of the stack '
+            'at x = 1 (10 + 5 + 1), AreaChart.tsx:948-951',
       );
     });
 

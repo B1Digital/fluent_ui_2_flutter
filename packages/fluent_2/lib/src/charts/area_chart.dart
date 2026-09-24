@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
@@ -31,7 +33,9 @@ import 'model/chart_value.dart';
 ///
 /// Ports `AreaChart.tsx`. Hover selection follows upstream exactly: the pointer
 /// x is inverted through the x scale, a bisector runs over **series 0 only**
-/// (`AreaChart.tsx:194`) and the winner is chosen by absolute distance.
+/// (`AreaChart.tsx:194`) and the winner is chosen by absolute distance. Any
+/// move over the plot does this, not only a move over a mark, and the callout
+/// opens at the pointer (`:185-277`).
 class FluentAreaChart extends StatefulWidget {
   /// Creates an area chart over [data].
   const FluentAreaChart({
@@ -111,6 +115,10 @@ class FluentAreaChartState extends State<FluentAreaChart> {
   Object? _nearestX;
   bool _isCircleClicked = false;
   bool _isPopoverOpen = false;
+
+  /// Whether the shell's roving keyboard index is on a stop, which moves the
+  /// popover from the pointer to the focused circle.
+  bool _keyboardFocused = false;
   late final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
 
   List<FluentLineChartSeries> get _series =>
@@ -149,7 +157,9 @@ class FluentAreaChartState extends State<FluentAreaChart> {
     }
     if (selectionChanged ||
         oldWidget.data != widget.data ||
-        oldWidget.mode != widget.mode) {
+        oldWidget.mode != widget.mode ||
+        (oldWidget.props.secondaryYScaleOptions == null) !=
+            (widget.props.secondaryYScaleOptions == null)) {
       _rebuildDataSet();
     }
   }
@@ -206,6 +216,17 @@ class FluentAreaChartState extends State<FluentAreaChart> {
     if (inverted == null || _series.isEmpty || _series.first.data.isEmpty) {
       return;
     }
+    // The plot `<rect>` that listens runs from the chart's leading edge to
+    // the last x (`AreaChart.tsx:1128-1141`); past it nothing hears the move,
+    // which is where the delegate's hover bands stop too.
+    // ponytail: upstream's rect ends at the last *tick* and the area paths
+    // carry the listener on to the last x; the two only differ when a date or
+    // numeric domain does not end on a tick.
+    final first = context.xScale(_dataSet.rows.first.xValue)!;
+    final last = context.xScale(_dataSet.rows.last.xValue)!;
+    if ((local.dx - last) * (last - first) > 0) {
+      return;
+    }
     final candidate = nearestXValueForInverted(_xOrder(inverted));
     final found = findCalloutPoints(
       _dataSet.calloutPoints,
@@ -221,10 +242,11 @@ class FluentAreaChartState extends State<FluentAreaChart> {
       _nearestX = candidate;
       _isCircleClicked = false;
       _activePointId = null;
-      // parity: AreaChart.tsx:1093 — duplicate or missing x values suppress
-      // the popover entirely.
-      _isPopoverOpen =
-          !_dataSet.hasDuplicateXValues && !_dataSet.hasMissingXValues;
+      // `_updatePosition` opens it on every move (`AreaChart.tsx:275`), and
+      // `_getLineOpacity` reads that state as it is (`:633`). Duplicate or
+      // missing x values only gate what reaches the callout (`:1093`), which
+      // `build` does through an empty `popoverBuilder`.
+      _isPopoverOpen = true;
     });
   }
 
@@ -243,6 +265,19 @@ class FluentAreaChartState extends State<FluentAreaChart> {
             // `${chartTitle}. Area chart with ${n} data series. ` (`:1012`).
             : '${widget.data.chartTitle}. Area chart with '
                   '${_series.length} data series. ',
+        // The delegate's regions are one hover band per x plus the circles a
+        // click lands on; grouping merges them into one stop per x.
+        hitRegionGranularity: FluentChartHitGranularity.group,
+        // `_updatePosition` re-anchors on every move (`:267-277`).
+        // ponytail: its 1px dead zone is not reproduced.
+        popoverFollowsPointer: true,
+        // `isPopoverOpen && !_hasDuplicateXValues && !_hasMissingXValues`
+        // (`:1093`) closes the callout, custom body included, for good. An
+        // empty body is how the shell is told, as ScatterChart does.
+        popoverBuilder:
+            _dataSet.hasDuplicateXValues || _dataSet.hasMissingXValues
+            ? (context) => const SizedBox.shrink()
+            : null,
       ),
       legends: <FluentChartLegendItem>[
         for (var i = 0; i < _series.length; i++)
@@ -298,8 +333,17 @@ class FluentAreaChartState extends State<FluentAreaChart> {
         xMaxValue: widget.props.xMaxValue,
         culture: widget.culture,
         useUtc: _useUtc,
+        keyboardFocused: _keyboardFocused,
       ),
       onPointerMoveInPlot: _handlePointerMove,
+      // `_handleFocus` (`AreaChart.tsx:939-968`) grows the focused circle
+      // through `activePoint` and opens the callout; `_handleBlur` (`:977-984`)
+      // undoes both. The stop is the top layer's circle at that x.
+      onFocusedRegionChange: (index, _) => setState(() {
+        _keyboardFocused = index != null;
+        _activePointId = index == null ? null : '${_series.length - 1}_$index';
+        _isPopoverOpen = index != null;
+      }),
       onChartMouseLeave: () => setState(() {
         // `_handleChartMouseLeave` resets everything (`:279-289`).
         _nearestX = null;
@@ -347,7 +391,13 @@ class FluentAreaChartDataSet {
     required this.hasDuplicateXValues,
     required this.hasMissingXValues,
     required this.calloutPoints,
+    this.fillsToZero = false,
   });
+
+  /// Whether every layer sits on zero rather than on the one below it —
+  /// `_shouldFillToZeroY()` (`AreaChart.tsx:1065-1067`): tozeroy mode, or a
+  /// secondary y axis, which forces it.
+  final bool fillsToZero;
 
   /// One row per distinct x, ascending.
   final List<FluentAreaChartRow> rows;
@@ -386,6 +436,9 @@ class FluentAreaChartDataSet {
 /// re-sorts. This port keys the rows by x instead and reads a missing y as 0,
 /// which produces the same rows in the same ascending order without copying or
 /// mutating the caller's series. Recorded divergence.
+///
+/// [hasSecondaryYScale] is whether `secondaryYScaleOptions` was given; the
+/// layers only fill to zero once a series is also plotted against it.
 FluentAreaChartDataSet buildFluentAreaChartDataSet({
   required List<FluentLineChartSeries> series,
   required FluentAreaChartMode mode,
@@ -428,10 +481,14 @@ FluentAreaChartDataSet buildFluentAreaChartDataSet({
       ),
   ];
 
+  // `_containsSecondaryYAxis` (`:1072`): the options alone are not enough, a
+  // series must also be plotted against them.
+  final containsSecondaryYAxis =
+      hasSecondaryYScale && series.any((s) => s.useSecondaryYScale);
   // `mode === 'tozeroy' || _shouldFillToZeroY()` (`:296`, `:1065-1067`).
-  final toZero = mode == FluentAreaChartMode.toZeroY || hasSecondaryYScale;
+  final toZero = mode == FluentAreaChartMode.toZeroY || containsSecondaryYAxis;
   final List<List<d3.StackPoint>> layers;
-  final double maxOfYVal;
+  double maxOfYVal;
   if (toZero) {
     layers = <List<d3.StackPoint>>[
       for (var i = 0; i < series.length; i++)
@@ -447,6 +504,15 @@ FluentAreaChartDataSet buildFluentAreaChartDataSet({
     maxOfYVal = layers.isEmpty || layers.last.isEmpty
         ? 0
         : layers.last.map((p) => p.hi).reduce((a, b) => a > b ? a : b);
+  }
+  if (containsSecondaryYAxis) {
+    // `:336` — the ceiling is the primary axis's alone, so it is taken over
+    // the primary series only (`findNumericMinMaxOfY` keeps
+    // `!useSecondaryYScale`, `utilities.ts:1599`). With no primary series it
+    // is `undefined`, which `createNumericYAxis` defaults to 0
+    // (`utilities.ts:809`).
+    final primaryMax = findNumericMinMaxOfY(series).endValue;
+    maxOfYVal = primaryMax.isNaN ? 0 : primaryMax;
   }
 
   return FluentAreaChartDataSet(
@@ -467,6 +533,7 @@ FluentAreaChartDataSet buildFluentAreaChartDataSet({
     hasDuplicateXValues: hasDuplicates,
     hasMissingXValues: hasMissing,
     calloutPoints: calloutData(series),
+    fillsToZero: toZero,
   );
 }
 
@@ -514,8 +581,8 @@ class FluentAreaChartLayer {
   /// indistinguishable block (design spec section 5.3).
   final Color strokeColour;
 
-  /// Whole-layer opacity — 0.8 in tozeroy mode, else the series opacity
-  /// (`AreaChart.tsx:685`).
+  /// Whole-layer opacity — 0.8 once the layers fill to zero, whether by mode or
+  /// by a secondary axis, else the series opacity (`AreaChart.tsx:685`).
   final double layerOpacity;
 
   /// Fill opacity from `_getOpacity` (`AreaChart.tsx:619-626`).
@@ -555,6 +622,7 @@ class FluentAreaChartDelegate extends FluentCartesianSeriesDelegate {
     this.xMaxValue,
     this.culture,
     this.useUtc = false,
+    this.keyboardFocused = false,
   });
 
   /// The input series.
@@ -622,6 +690,11 @@ class FluentAreaChartDelegate extends FluentCartesianSeriesDelegate {
 
   /// Whether a date reading is formatted in UTC (`props.useUTC`).
   final bool useUtc;
+
+  /// Whether the keyboard is on one of the chart's stops, which anchors the
+  /// popover to the top circle at that x — `_handleFocus` positions it at the
+  /// focused circle (`AreaChart.tsx:948-951`) — rather than to the pointer.
+  final bool keyboardFocused;
 
   @override
   FluentChartType get chartType => FluentChartType.areaChart;
@@ -759,7 +832,7 @@ class FluentAreaChartDelegate extends FluentCartesianSeriesDelegate {
           colour: colors.flattenMark(dataSet.colours[i]),
           strokeColour: colors.flattenMarkStroke(dataSet.colours[i]),
           // `_shouldFillToZeroY() ? 0.8 : _opacity[index]` (`:685`).
-          layerOpacity: mode == FluentAreaChartMode.toZeroY
+          layerOpacity: dataSet.fillsToZero
               ? style.areaOpacityToZeroY!.resolve(<WidgetState>{})!
               : dataSet.opacities[i],
           fillOpacity: fillOpacityFor(series[i].legend),
@@ -931,6 +1004,39 @@ class FluentAreaChartDelegate extends FluentCartesianSeriesDelegate {
           );
       }
     }
+    // Pass 3: the vertical rule at the nearest x, pushed after every circle
+    // (`:827-842`). It spans `getGraphData`'s height, 0 to the plot's content
+    // height, in `lineColor` — which the circle loop leaves on the last series.
+    final nearest = nearestX;
+    if (nearest == null || layers.isEmpty) {
+      return;
+    }
+    final x = context.xScale(nearest)!;
+    final bottom = layout.plotContentHeight;
+    final pattern = style.hoverLineDashPattern!.resolve(<WidgetState>{})!;
+    final rule = Paint()
+      ..strokeWidth = style.hoverLineWidth!.resolve(<WidgetState>{})!
+      ..color = layers.last.strokeColour.withValues(
+        alpha: style.hoverLineOpacity!.resolve(<WidgetState>{}),
+      );
+    // SVG repeats an odd-length dash array to make it even, which is what
+    // walking it with the index parity does.
+    if (pattern.fold<double>(0, (sum, run) => sum + run) <= 0) {
+      canvas.drawLine(Offset(x, 0), Offset(x, bottom), rule);
+      return;
+    }
+    var y = 0.0;
+    for (var i = 0; y < bottom; i++) {
+      final run = pattern[i % pattern.length];
+      if (i.isEven) {
+        canvas.drawLine(
+          Offset(x, y),
+          Offset(x, math.min(y + run, bottom)),
+          rule,
+        );
+      }
+      y += run;
+    }
   }
 
   @override
@@ -938,63 +1044,156 @@ class FluentAreaChartDelegate extends FluentCartesianSeriesDelegate {
     FluentCartesianChildContext context,
     FluentCartesianLayout layout,
   ) {
-    if (dataSet.rows.isEmpty || series.isEmpty) {
+    final rows = dataSet.rows;
+    if (rows.isEmpty || series.isEmpty) {
       return const <FluentChartHitRegion>[];
     }
-    final radius = style.pointRadius!.resolve(<WidgetState>{})!;
-    // `_getOnClickHandler` (`AreaChart.tsx:846-853`) clicks a circle only while
-    // no x repeats or goes missing. Each region sits on the last layer's
-    // circle, so that circle's point is the one it runs.
+    // One band per x: the stretch of the plot the bisector at
+    // `AreaChart.tsx:193-228` resolves to it, cut at the midpoints of its
+    // neighbours in data space. The first reaches back to the chart's edge,
+    // where the listening `<rect>` starts (`:1133-1141`); the last stops at its
+    // own x, as `FluentAreaChartState` does.
+    // ponytail: the rect stops `margins.top` short of the bottom (`:1129`),
+    // inside the x tick labels; the bands run the full height.
     //
-    // parity: upstream also clicks the lower layers' circles, which have no
-    // region here, and `_onDataPointClick` (`:612-617`) flags the circle
-    // clicked, which shrinks it; neither is reproduced.
-    final onClickByX = dataSet.hasDuplicateXValues || dataSet.hasMissingXValues
-        ? const <Object, VoidCallback?>{}
-        : <Object, VoidCallback?>{
-            for (final point
-                in series.last.data.cast<FluentLineChartDataPoint>())
-              _xKey(point.x): point.onDataPointClick,
-          };
-    return <FluentChartHitRegion>[
-      for (var j = 0; j < dataSet.rows.length; j++)
-        FluentChartHitRegion(
-          bounds: Rect.fromCenter(
-            center: Offset(
-              context.xScale(dataSet.rows[j].xValue)!,
-              context.yScalePrimary(dataSet.layers.last[j].hi)!,
-            ),
-            width: radius * 2,
-            height: radius * 2,
-          ),
-          index: j,
-          legend: series.last.legend,
-          popoverData: FluentChartPopoverData(
+    // `Rect.contains` gives a shared edge to the band on its right, while the
+    // bisector keeps the lower x on a tie (`:215`) and the rect holds the last
+    // x itself. Left to right, both sit on a band's right edge, so each right
+    // edge moves on by a hair; right to left they are already left edges.
+    final nudge = layout.isRtl ? 0.0 : 1e-9;
+    double edgeAfter(int j) =>
+        nudge +
+        context.xScale(
+          j == rows.length - 1
+              ? _xOrder(rows[j].xValue)
+              : (_xOrder(rows[j].xValue) + _xOrder(rows[j + 1].xValue)) / 2,
+        )!;
+    final edge = layout.isRtl ? context.containerWidth : 0.0;
+    final bands = <Rect>[
+      for (var j = 0; j < rows.length; j++)
+        Rect.fromPoints(
+          Offset(j == 0 ? edge : edgeAfter(j - 1), 0),
+          Offset(edgeAfter(j), context.containerHeight),
+        ),
+    ];
+    Offset circle(int layer, int j) => Offset(
+      context.xScale(rows[j].xValue)!,
+      _yScaleFor(layer, context)(dataSet.layers[layer][j].hi)!,
+    );
+
+    // The header is series 0's own point at that x — `lineChartData[0]
+    // .data[index]` (`:231`) — and its truthy `xAxisCalloutData` wins over
+    // the formatted x (`:250`).
+    final firstByX = <Object, FluentLineChartDataPoint>{
+      for (final point in series.first.data.cast<FluentLineChartDataPoint>())
+        _xKey(point.x): point,
+    };
+    // `findCalloutPoints(_calloutPoints, x)` (`:236`), keyed once rather than
+    // scanned per x, since every hover move rebuilds these.
+    final calloutByX = <Object, List<FluentCustomizedCalloutDataPoint>>{
+      for (final entry in dataSet.calloutPoints) _xKey(entry.x): entry.values,
+    };
+    final popovers = <FluentChartPopoverData>[
+      for (final row in rows)
+        FluentChartPopoverData(
+          xValue: switch (firstByX[_xKey(row.xValue)]?.xAxisCalloutData) {
+            final String text when text.isNotEmpty => text,
             // `formatDateToLocaleString(x, props.culture, props.useUTC)`
             // (`AreaChart.tsx:234`), then `ChartPopover.tsx:128` formats the
             // reading once more, which is what groups a numeric x.
-            xValue: formatToLocaleString(
-              dataSet.rows[j].xValue,
+            _ => formatToLocaleString(
+              row.xValue,
               culture: culture,
               useUtc: useUtc,
             ),
-            isCalloutForStack: true,
-            // parity: the calloutProps at `AreaChart.tsx:1087` carry no
-            // `culture`, so upstream's rows fall back to the runtime locale.
-            // The prop is documented as the popover's locale, so the port
-            // hands it on.
-            culture: culture,
-            yValues: <FluentYValueHover>[
-              for (var i = 0; i < series.length; i++)
+          },
+          isCalloutForStack: true,
+          // parity: the calloutProps at `AreaChart.tsx:1087` carry no
+          // `culture`, so upstream's rows fall back to the runtime locale.
+          // The prop is documented as the popover's locale, so the port
+          // hands it on.
+          culture: culture,
+          // The callout points at x, narrowed to the highlighted legends by
+          // `_getFilteredLegendValues` (`:971-975`). The rows carry no
+          // `index`, as AreaChart's points never set one, so they draw the
+          // accent bar rather than a shape (`ChartPopover.tsx:188`).
+          yValues: <FluentYValueHover>[
+            for (final value
+                in calloutByX[_xKey(row.xValue)] ??
+                    const <FluentCustomizedCalloutDataPoint>[])
+              if (_noneHighlighted || _highlighted(value.legend))
                 FluentYValueHover(
-                  legend: series[i].legend,
-                  y: dataSet.rows[j].values[i],
-                  color: dataSet.colours[i],
+                  legend: value.legend,
+                  y: value.y,
+                  // `calloutData(points)` runs on `_addDefaultColors`' output
+                  // (`:1071-1074`), so an uncoloured series reads its palette
+                  // colour here too.
+                  color: dataSet.colours[value.index!],
+                  yAxisCalloutText: value.yAxisCalloutText,
+                  yAxisCalloutBreakdown: value.yAxisCalloutBreakdown,
                 ),
-            ],
-          ),
-          onActivate: onClickByX[_xKey(dataSet.rows[j].xValue)],
+          ],
         ),
     ];
+
+    final regions = <FluentChartHitRegion>[
+      for (var j = 0; j < rows.length; j++)
+        FluentChartHitRegion(
+          bounds: bands[j],
+          index: j,
+          legend: series.last.legend,
+          popoverData: popovers[j],
+          // A keyboard stop has no pointer; the shell would otherwise take
+          // the middle of the band.
+          popoverAnchor: keyboardFocused
+              ? Rect.fromCenter(
+                  center: circle(series.length - 1, j),
+                  width: 0,
+                  height: 0,
+                )
+              : null,
+        ),
+    ];
+    // `_getOnClickHandler` (`:846-853`) clicks a circle only while no x
+    // repeats or goes missing. Every visible circle at the hovered x takes the
+    // click for its own point, so each is a mark of its band's index, after
+    // every band so that it wins the press. Clipped to its band, so the merged
+    // hover target stays the bisector's.
+    // parity: `_onDataPointClick` (`:612-617`) also flags the circle clicked,
+    // which shrinks it; not reproduced.
+    if (dataSet.hasDuplicateXValues || dataSet.hasMissingXValues) {
+      return regions;
+    }
+    final radius = markerRadius ?? style.pointRadius!.resolve(<WidgetState>{})!;
+    for (var layer = 0; layer < series.length; layer++) {
+      // `_getCircleRadius` hides a dimmed legend's circles (`:857-859`).
+      if (!_noneHighlighted && !_highlighted(series[layer].legend)) {
+        continue;
+      }
+      final onClickByX = <Object, VoidCallback?>{
+        for (final point in series[layer].data.cast<FluentLineChartDataPoint>())
+          _xKey(point.x): point.onDataPointClick,
+      };
+      for (var j = 0; j < rows.length; j++) {
+        final onClick = onClickByX[_xKey(rows[j].xValue)];
+        if (onClick == null) {
+          continue;
+        }
+        regions.add(
+          FluentChartHitRegion(
+            bounds: Rect.fromCenter(
+              center: circle(layer, j),
+              width: radius * 2,
+              height: radius * 2,
+            ).intersect(bands[j]),
+            index: j,
+            legend: series[layer].legend,
+            popoverData: popovers[j],
+            onActivate: onClick,
+          ),
+        );
+      }
+    }
+    return regions;
   }
 }
