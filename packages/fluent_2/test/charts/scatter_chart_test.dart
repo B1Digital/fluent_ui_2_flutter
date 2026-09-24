@@ -524,6 +524,51 @@ void main() {
       expect(delegate.popoverFor(marks.last), isNotNull);
     });
 
+    test('a large chart builds its hit regions over one callout index', () {
+      final delegate = _delegateOf(<FluentScatterChartSeries>[
+        _series(
+          'S0',
+          <Object>[for (var i = 0; i < 3000; i++) i / 300],
+          <Object>[for (var i = 0; i < 3000; i++) i % 100],
+        ),
+      ]);
+      final watch = Stopwatch()..start();
+      final regions = delegate.buildHitRegions(_numericContext(), _layout());
+      watch.stop();
+      expect(regions, hasLength(3000));
+      expect(
+        watch.elapsed,
+        lessThan(const Duration(seconds: 2)),
+        reason:
+            'calloutPointsRef is built once (ScatterChart.tsx:144); one '
+            'calloutData per circle is quadratic and took over ten seconds',
+      );
+    });
+
+    test('the rule ends 6px past an axis the tick labels pushed up', () {
+      final ctx = _numericContext();
+      final canvas = _RuleCanvas();
+      _delegateOf(
+        <FluentScatterChartSeries>[
+          _series('S0', <Object>[4], <Object>[50]),
+        ],
+        hoverRule: (x: 4, y: 50, lengthY: 50),
+      ).paintSeries(
+        canvas,
+        ctx,
+        _layout(xAxisLabelReserve: 30),
+        FluentChartColors.of(theme),
+      );
+      expect(
+        canvas.lines.last.to.dy,
+        moreOrLessEquals(310 - 30 - 55 + 6.0),
+        reason:
+            'verticaLineHeight (ScatterChart.tsx:404) reads the containerHeight '
+            'getGraphData passes, less the labels\' reserve '
+            '(CartesianChart.tsx:425)',
+      );
+    });
+
     test('the hover rule runs dashed from the circle to 6px past the axis', () {
       final ctx = _numericContext();
       final layout = _layout();
@@ -989,6 +1034,62 @@ void main() {
       ), reason: 'and the rule keeps the y2 that hover wrote (:576)');
     });
 
+    /// Two touching circles, the second at an x whose callout is hidden.
+    const hiddenData = FluentChartData(
+      scatterChartData: <FluentScatterChartSeries>[
+        FluentScatterChartSeries(
+          legend: 'S0',
+          data: <FluentScatterChartDataPoint>[
+            FluentScatterChartDataPoint(x: 10, y: 10),
+            FluentScatterChartDataPoint(x: 10.1, y: 10, hideCallout: true),
+            FluentScatterChartDataPoint(x: 20, y: 50),
+          ],
+        ),
+      ],
+    );
+
+    testWidgets('a circle with no callout leaves the rule hidden', (
+      tester,
+    ) async {
+      await pump(tester, const FluentScatterChart(data: hiddenData));
+      final marks = marksOf(tester);
+      final gesture = await hover(tester, marks[0].centre);
+      expect(delegateOf(tester).hoverRule, isNotNull);
+      // Straight into the next circle, with no event over the gap between.
+      await gesture.moveTo(
+        tester.getTopLeft(find.byType(FluentCartesianChart)) + marks[1].centre,
+      );
+      await tester.pump();
+      expect(delegateOf(tester).activePointId, '0_1');
+      expect(
+        delegateOf(tester).hoverRule,
+        isNull,
+        reason:
+            'the first circle\'s onMouseOut (ScatterChart.tsx:467, :606-608) '
+            'hides the rule, and :587-588 only grows the second',
+      );
+    });
+
+    testWidgets('focus moving to a circle with no callout hides the rule', (
+      tester,
+    ) async {
+      await pump(tester, const FluentScatterChart(data: hiddenData));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(delegateOf(tester).hoverRule, isNotNull);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(delegateOf(tester).activePointId, '0_1');
+      expect(
+        delegateOf(tester).hoverRule,
+        isNull,
+        reason:
+            'the last stop\'s onBlur (ScatterChart.tsx:471) hides the rule, '
+            'and :554 only grows the new one',
+      );
+    });
+
     testWidgets('hover opens the stack popover', (tester) async {
       await pump(tester, FluentScatterChart(data: _fixtureData()));
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
@@ -1259,10 +1360,16 @@ FluentCartesianChildContext _bandYContext(List<String> categories) =>
       containerHeight: 310,
     );
 
-FluentCartesianLayout _layout() => FluentCartesianLayout.resolve(
-  size: const Size(650, 310),
-  margins: const FluentChartMargins(top: 20, bottom: 55, left: 64, right: 20),
-  xAxisLabelReserve: 0,
-  isRtl: false,
-  startFromX: 0,
-);
+FluentCartesianLayout _layout({double xAxisLabelReserve = 0}) =>
+    FluentCartesianLayout.resolve(
+      size: const Size(650, 310),
+      margins: const FluentChartMargins(
+        top: 20,
+        bottom: 55,
+        left: 64,
+        right: 20,
+      ),
+      xAxisLabelReserve: xAxisLabelReserve,
+      isRtl: false,
+      startFromX: 0,
+    );

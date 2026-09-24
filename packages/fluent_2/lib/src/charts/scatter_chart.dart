@@ -169,9 +169,9 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
     final point = _pointOf(mark);
     final found = delegate.popoverFor(mark) != null;
     setState(() {
-      if (found) {
-        _rule = (x: point.x, y: null);
-      } else {
+      // The last stop's `onBlur` (`:471`) has hidden the rule already.
+      _rule = found ? (x: point.x, y: null) : null;
+      if (!found) {
         _activePointId = '${mark.seriesIndex}_${mark.pointIndex}';
       }
     });
@@ -213,9 +213,11 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
       final reading = delegate.popoverFor(mark);
       setState(() {
         _activePointId = id;
+        // The circle the pointer came from has fired `onMouseOut` (`:467`),
+        // even one this overlaps, so a rule this x does not show stays hidden.
+        _rule = reading == null ? null : (x: point.x, y: point.y);
         if (reading != null) {
           _reading = reading;
-          _rule = (x: point.x, y: point.y);
           _ruleLengthY = point.y;
         }
       });
@@ -947,9 +949,11 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
     // centre at `:410-412`.
     final y = rule.y;
     final top = y == null ? 0.0 : context.yScalePrimary(y);
-    // `verticaLineHeight` (`:404`): 6px past the x axis.
+    // `verticaLineHeight` (`:404`): 6px past the x axis. Its containerHeight
+    // is the one `getGraphData` hands `_createPlot`, less the x tick labels'
+    // reserve (`CartesianChart.tsx:425`), not the full one `:755` renders.
     final lineHeight =
-        context.containerHeight - (layout.margins.bottom ?? 0) + 6;
+        layout.plotContentHeight - (layout.margins.bottom ?? 0) + 6;
     final lengthY = rule.lengthY;
     final length = lengthY == null
         ? context.containerHeight
@@ -988,19 +992,25 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
   List<FluentChartHitRegion> buildHitRegions(
     FluentCartesianChildContext context,
     FluentCartesianLayout layout,
-  ) => <FluentChartHitRegion>[
-    for (final mark in marksFor(context))
-      FluentChartHitRegion(
-        bounds: Rect.fromCircle(center: mark.centre, radius: mark.radius),
-        index: mark.pointIndex,
-        legend: _series[mark.seriesIndex].legend,
-        popoverData: popoverReading ?? popoverFor(mark) ?? _emptyReading,
-        semanticsLabel: mark.semanticsLabel,
-        // `_getClickHandler(onDataPointClick)` (`ScatterChart.tsx:472`).
-        onActivate:
-            _series[mark.seriesIndex].data[mark.pointIndex].onDataPointClick,
-      ),
-  ];
+  ) {
+    // Built once for every circle, as `calloutPointsRef` is (`:144`): once per
+    // circle took a 2000-point chart seconds to lay out.
+    final points = popoverReading == null ? _calloutPoints() : null;
+    return <FluentChartHitRegion>[
+      for (final mark in marksFor(context))
+        FluentChartHitRegion(
+          bounds: Rect.fromCircle(center: mark.centre, radius: mark.radius),
+          index: mark.pointIndex,
+          legend: _series[mark.seriesIndex].legend,
+          popoverData:
+              popoverReading ?? _readingFor(mark, points!) ?? _emptyReading,
+          semanticsLabel: mark.semanticsLabel,
+          // `_getClickHandler(onDataPointClick)` (`ScatterChart.tsx:472`).
+          onActivate:
+              _series[mark.seriesIndex].data[mark.pointIndex].onDataPointClick,
+        ),
+    ];
+  }
 
   /// `hoverXValue: ''` and `yValueHover: []` (`ScatterChart.tsx:90-92`), the
   /// callout before any circle has written it.
@@ -1017,16 +1027,25 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
   /// The rows are `findCalloutPoints(calloutPointsRef.current, x).values`
   /// (`:569`): every series' point at the hovered x, not the hovered point
   /// alone, which is two rows on the string and date stories.
-  FluentChartPopoverData? popoverFor(FluentScatterMark mark) {
-    final point = _series[mark.seriesIndex].data[mark.pointIndex];
-    // `calloutData(pointsRef.current)` (`:144`), over every series whatever
-    // the legend selection, because `selectedLegendPoints` is never set
-    // (`:94`, `:249`).
-    final rows = findCalloutPoints(
+  FluentChartPopoverData? popoverFor(FluentScatterMark mark) =>
+      _readingFor(mark, _calloutPoints());
+
+  /// `calloutData(pointsRef.current)` (`:144`), over every series whatever
+  /// the legend selection, because `selectedLegendPoints` is never set
+  /// (`:94`, `:249`).
+  List<FluentCustomizedCalloutData> _calloutPoints() =>
       calloutData(<FluentLineChartSeries>[
         for (final series in _series)
           FluentLineChartSeries(legend: series.legend, data: series.data),
-      ]),
+      ]);
+
+  FluentChartPopoverData? _readingFor(
+    FluentScatterMark mark,
+    List<FluentCustomizedCalloutData> points,
+  ) {
+    final point = _series[mark.seriesIndex].data[mark.pointIndex];
+    final rows = findCalloutPoints(
+      points,
       point.x,
       isXAxisDate: point.x is DateTime,
     );
