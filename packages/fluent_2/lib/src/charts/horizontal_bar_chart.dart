@@ -689,7 +689,13 @@ class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
   Widget _buildPopover(BuildContext context) {
     final point = _hovered;
     final anchor = _anchor;
-    if (point == null || anchor == null) return const SizedBox.shrink();
+    // Upstream's ChartPopover (HorizontalBarChart.tsx:465) is not gated on
+    // hideTooltip, so turning it on leaves an open popover up until the
+    // pointer leaves. Read here, it empties at once. The controller cannot be
+    // hidden from didUpdateWidget instead, which runs during build.
+    if (widget.hideTooltip || point == null || anchor == null) {
+      return const SizedBox.shrink();
+    }
     // The anchor is global, and the popover lays out in the overlay's space.
     final origin =
         fluentAnchorRect(Overlay.of(context).context)?.topLeft ?? Offset.zero;

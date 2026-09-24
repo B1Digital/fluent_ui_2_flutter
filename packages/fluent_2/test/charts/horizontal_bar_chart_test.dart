@@ -6,6 +6,7 @@ import 'package:fluent_2/src/charts/model/bar_data.dart';
 import 'package:fluent_2/src/charts/model/cartesian_series.dart';
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -439,6 +440,72 @@ void main() {
             'the custom-callout story shows exactly these three lines.',
       );
       expect(popover(tester).data.color, red);
+    });
+
+    testWidgets('focus opens it at the centre of the bar', (tester) async {
+      await pump(
+        tester,
+        FluentHorizontalBarChart(key: key, data: threeLegends),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      // Bar A spans 0..118.2 of the row.
+      expect(
+        popover(tester).anchor,
+        tester.getRect(strip).topLeft + const Offset(59.1, 6),
+        reason:
+            'HorizontalBarChart.tsx:321 runs _hoverOn on focus too, and '
+            ':73-77 anchor it at the centre of the bar, in the screen space '
+            'the overlay shares.',
+      );
+    });
+
+    testWidgets('hovering a legend closes it', (tester) async {
+      await pump(
+        tester,
+        FluentHorizontalBarChart(key: key, data: threeLegends),
+      );
+      final gesture = await hover(
+        tester,
+        tester.getRect(strip).topLeft + const Offset(20, 6),
+      );
+      await gesture.moveTo(tester.getCenter(find.text('B')));
+      await tester.pump();
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason:
+            "HorizontalBarChart.tsx:128-131 — a legend's hoverAction runs "
+            '_handleChartMouseLeave before it records the active legend.',
+      );
+    });
+
+    testWidgets('turning hideTooltip on empties an open popover', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentHorizontalBarChart(key: key, data: threeLegends),
+      );
+      await hover(tester, tester.getRect(strip).topLeft + const Offset(20, 6));
+      expect(find.byType(FluentChartPopover), findsOneWidget);
+      await pump(
+        tester,
+        FluentHorizontalBarChart(
+          key: key,
+          data: threeLegends,
+          hideTooltip: true,
+        ),
+      );
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason:
+            'Upstream only unwires the bar handlers (HorizontalBarChart.tsx:37, '
+            ':318-321) and leaves the ungated ChartPopover (:465) open until '
+            'the pointer leaves; a tooltip the caller has just hidden should '
+            'not stay on screen.',
+      );
     });
   });
 
