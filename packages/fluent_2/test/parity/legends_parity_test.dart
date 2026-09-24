@@ -172,13 +172,13 @@ void main() {
       ),
       // Measured 0.509% — 107 of 21,028 px, aligned, in every zone, all of it
       // the "+10 Overflow Items" trigger's right end. Selawik Semibold sets
-      // the label 127.62 wide against Segoe UI Semibold's 123.0, so the
-      // button grows about 4 px to the right of the reference's (its left
-      // edge, 680, matches):
+      // the label 127.62 wide against Segoe UI Semibold's 123.58 (the
+      // capture's line box, x 693.23-816.81), so the button ends 4 px right
+      // of the reference's (its left edge, 680, matches):
       //
       //  * 64 px — the right border and its rounded corners, at x 848-849
       //    where the reference has them at 844-846.
-      //  * 27 px — the chevron, at x 828-833 against 824-829.
+      //  * 27 px — the chevron, inked at x 827-834 against 823-830.
       //  * 16 px — the label's last glyph, which runs 3 columns (x 818-820)
       //    past the reference label's masked rect.
       //
