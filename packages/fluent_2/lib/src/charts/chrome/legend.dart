@@ -981,12 +981,9 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
   ///
   /// [Padding] and not [Align], which is horizontal-only by accident of what it
   /// does to the *vertical* constraint: `Align` hands its child a loose one, so
-  /// a strip in a fixed-height legend row — `funnel_chart.dart:1119` reserves
-  /// `kMinLegendContainerHeight` — would stop filling that row and move 4px, and
-  /// the capture says it belongs where it already is
-  /// (`charts-funnelchart--funnel-chart-basic`, measured: 0.168% aligned against
-  /// 0.331% under an `Align`). `Padding` forwards the height untouched, so this
-  /// box is purely the horizontal cap it is upstream.
+  /// a strip in a legend row taller than its rows would stop filling that row
+  /// and move. `Padding` forwards the height untouched, so this box is purely
+  /// the horizontal cap it is upstream.
   Widget _resizableArea(Widget child) => LayoutBuilder(
     builder: (context, constraints) {
       // An unbounded strip has no half-overhang to take; the cap is still the
