@@ -83,11 +83,11 @@ FluentRadioState resolveFluentRadioState({
 /// * **disabled**, either way — ring and dot `Neutral/Foreground/Disabled`, a
 ///   real token, never the enabled colour at reduced opacity.
 ///
-/// The **label does not branch**: Figma binds `Neutral/Foreground/1/Rest` on
-/// every one of the 30 `Radio` variants, checked or not, hovered or not. React's
-/// `useRadioStyles.styles.ts` instead ramps `colorNeutralForeground3` →
-/// `2` → `1` across rest/hover/pressed while unchecked; Figma wins, so the
-/// label is one flat token here. See `doc/token-divergences.md`.
+/// The **label branches too**, the way `useRadioStyles.styles.ts` does it: an
+/// unchecked label ramps `colorNeutralForeground3` → `2` → `1` across
+/// rest/hover/pressed, and a checked one holds `colorNeutralForeground1`.
+/// Figma binds `Neutral/Foreground/1/Rest` on all 30 `Radio` variants instead;
+/// the storybook is what this port matches, so React wins.
 FluentRadioStyle resolveFluentRadioStyle(
   FluentRadioState state,
   FluentThemeData theme,
@@ -119,10 +119,20 @@ FluentRadioStyle resolveFluentRadioStyle(
     disabled: c.neutralForegroundDisabled,
   );
 
-  final foreground = FluentStateColor.tokens(
-    rest: c.neutralForeground1,
-    disabled: c.neutralForegroundDisabled,
-  );
+  // `useRadioStyles.styles.ts`: `:enabled:not(:checked) ~ label` is
+  // Foreground3, warming to 2 on `:hover` and 1 on `:hover:active`; checked
+  // is Foreground1 throughout. Measured in Chrome: #616161 / #424242 / #242424.
+  final foreground = state.checked
+      ? FluentStateColor.tokens(
+          rest: c.neutralForeground1,
+          disabled: c.neutralForegroundDisabled,
+        )
+      : FluentStateColor.tokens(
+          rest: c.neutralForeground3,
+          hover: c.neutralForeground2,
+          pressed: c.neutralForeground1,
+          disabled: c.neutralForegroundDisabled,
+        );
 
   final labelPadding = switch (state.labelPosition) {
     // Figma's `.RadioBase` for `Icon+Label after`: itemSpacing XS between the

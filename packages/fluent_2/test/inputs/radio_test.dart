@@ -16,8 +16,9 @@ import '../support/spec_fixture.dart';
 /// a child, so the assertions below read `variant.parts` rather than the frame.
 ///
 /// Two values disagree with `microsoft/fluentui@master`
-/// `react-radio/.../useRadioStyles.styles.ts`, and Figma wins in both; see
-/// `doc/token-divergences.md`.
+/// `react-radio/.../useRadioStyles.styles.ts`. The disabled ring keeps Figma's
+/// token; the unchecked label follows React, because the storybook is what the
+/// port is measured against.
 void main() {
   const key = Key('radio');
 
@@ -161,10 +162,24 @@ void main() {
       }
     });
 
-    test('the label is one flat token, checked or not, in every state', () {
-      // Figma binds Neutral/Foreground/1/Rest on all 30 variants. React ramps
-      // 3 -> 2 -> 1 while unchecked; Figma wins.
+    test('the label ramps like React, not flat like Figma', () {
+      // Figma binds Neutral/Foreground/1/Rest on all 30 variants. React's
+      // useRadioStyles.styles.ts ramps an unchecked label Foreground3 -> 2 -> 1
+      // across rest/hover/pressed and holds a checked one at Foreground1;
+      // Chrome paints #616161 / #424242 / #242424. The storybook wins.
       final theme = light();
+      final ramp = <bool, Map<String, Color>>{
+        false: <String, Color>{
+          'Rest': theme.colors.neutralForeground3,
+          'Hover': theme.colors.neutralForeground2,
+          'Pressed': theme.colors.neutralForeground1,
+        },
+        true: <String, Color>{
+          'Rest': theme.colors.neutralForeground1,
+          'Hover': theme.colors.neutralForeground1,
+          'Pressed': theme.colors.neutralForeground1,
+        },
+      };
       for (final checked in <bool>[false, true]) {
         final style = resolveFluentRadioStyle(
           resolveFluentRadioState(checked: checked),
@@ -177,12 +192,14 @@ void main() {
             'Checked': checked ? 'On' : 'Off',
             'State': entry.key,
           });
+          // Figma's binding, kept on record so a re-extraction that changes it
+          // is noticed.
           expect(variant.text!.tokens['fills'], <String>[
             'Neutral/Foreground/1/Rest',
           ], reason: variant.name);
           expect(
             style.foregroundColor!.resolve(entry.value),
-            theme.colors.neutralForeground1,
+            ramp[checked]![entry.key],
             reason: variant.name,
           );
         }
@@ -341,14 +358,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(painterOf(tester).ring, theme.colors.neutralStrokeAccessible);
       expect(painterOf(tester).dot, isNull, reason: 'unchecked paints no dot');
-      expect(labelStyleOf(tester).color, theme.colors.neutralForeground1);
+      expect(labelStyleOf(tester).color, theme.colors.neutralForeground3);
 
       await hover(tester);
       expect(painterOf(tester).ring, theme.colors.neutralStrokeAccessibleHover);
       expect(
         labelStyleOf(tester).color,
-        theme.colors.neutralForeground1,
-        reason: 'Figma binds Neutral/Foreground/1/Rest in every state',
+        theme.colors.neutralForeground2,
+        reason: 'useRadioStyles warms an unchecked label on hover',
       );
 
       await tester.startGesture(tester.getCenter(find.byKey(key)));
