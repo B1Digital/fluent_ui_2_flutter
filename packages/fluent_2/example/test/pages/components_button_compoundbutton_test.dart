@@ -237,6 +237,41 @@ void main() {
       );
     });
 
+    testWidgets('subtle and transparent fill their glyph under the mouse', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(tester, section);
+      // Upstream's `bundleIcon(CalendarMonthFilled, CalendarMonthRegular)` on
+      // outline, subtle and transparent; only the last two swap on :hover
+      // (useButtonStyles.styles.ts iconFilledClassName).
+      Finder glyph(String label, IconData icon) =>
+          find.descendant(of: buttonWith(label), matching: find.byIcon(icon));
+      for (final (String label, bool swaps) in <(String, bool)>[
+        ('Outline', false),
+        ('Subtle', true),
+        ('Transparent', true),
+      ]) {
+        expect(
+          glyph(label, FluentIcons.calendar_month_20_filled),
+          findsNothing,
+        );
+        final TestGesture mouse = await mouseHover(tester, buttonWith(label));
+        // A one-pixel drift, as a real pointer delivers, must keep the swap.
+        await mouse.moveBy(const Offset(1, 0));
+        await tester.pump();
+        expect(
+          glyph(label, FluentIcons.calendar_month_20_filled),
+          swaps ? findsOneWidget : findsNothing,
+          reason: '$label ${swaps ? 'must' : 'must not'} fill under the mouse',
+        );
+        await mouseAway(tester, mouse);
+        expect(
+          glyph(label, FluentIcons.calendar_month_20_regular),
+          findsOneWidget,
+        );
+      }
+    });
+
     testWidgets('subtle and transparent are only told apart under a pointer', (
       WidgetTester tester,
     ) async {

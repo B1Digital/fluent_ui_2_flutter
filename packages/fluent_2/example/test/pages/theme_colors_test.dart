@@ -95,6 +95,12 @@ void main() {
     ) async {
       await pumpPageBody(tester, page);
       expect(tokenNames(tester), hasLength(FluentColorToken.values.length));
+      // The trigger is a MenuButton: its chevron sits in the menuIcon slot,
+      // drawn 12 as useMenuIconStyles sizes it, not as a 20px trailing icon.
+      expect(
+        tester.getSize(find.byIcon(FluentIcons.chevron_down_20_regular)),
+        const Size.square(12),
+      );
 
       // A real press, not a synthetic tap: the trigger is a transparent
       // FluentButton wrapped by FluentMenu, and a menu that opens under `tap`

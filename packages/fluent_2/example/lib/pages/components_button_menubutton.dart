@@ -6,8 +6,8 @@ import '../shell/catalog.dart';
 /// The MenuButton docs page.
 ///
 /// A menu button is not a widget of its own here. `fluent_2` documents it —
-/// as Figma and upstream both do — as a [FluentButton] carrying
-/// [fluentMenuChevron] after its label, hung off a [FluentMenu].
+/// as Figma and upstream both do — as a [FluentButton] whose `menuIcon` is
+/// [fluentMenuChevron], hung off a [FluentMenu].
 ///
 /// Sections, titles, descriptions and sample data are upstream's, verbatim.
 const DocsPage menuButtonPage = DocsPage(
@@ -127,9 +127,23 @@ const DocsPage menuButtonPage = DocsPage(
       name: 'icon',
       type: 'Widget?',
       defaultValue: 'null',
+      description: 'Optional leading or trailing icon.',
+    ),
+    PropRow(
+      name: 'activeIcon',
+      type: 'Widget?',
+      defaultValue: 'null',
       description:
-          'Optional leading or trailing icon. A menu button puts the chevron '
-          'here.',
+          'Shown in place of icon while a subtle or transparent button is '
+          "hovered or pressed: upstream's bundleIcon filled glyph.",
+    ),
+    PropRow(
+      name: 'menuIcon',
+      type: 'Widget?',
+      defaultValue: 'null',
+      description:
+          'The menu affordance after the label; fluentMenuChevron makes this '
+          'a menu button. Drawn 12 (16 at large) and 4 after the label.',
     ),
     PropRow(
       name: 'iconPosition',
@@ -165,24 +179,6 @@ const DocsPage menuButtonPage = DocsPage(
   ],
 );
 
-/// The leading icon upstream renders in `MenuButton`'s `icon` slot.
-///
-/// [FluentButton] has one icon slot and the chevron owns it, so a leading icon
-/// has to ride inside the label — where no `IconTheme` tints it. This reads the
-/// foreground colour the button already resolved onto its default text style,
-/// so the icon stays white on a primary fill instead of falling back to the
-/// ambient neutral.
-class _LeadingIcon extends StatelessWidget {
-  const _LeadingIcon(this.icon, {this.size = 20});
-
-  final IconData icon;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) =>
-      Icon(icon, size: size, color: DefaultTextStyle.of(context).style.color);
-}
-
 // #docregion components-button-menubutton--default
 Widget _default(BuildContext context) => FluentMenu(
   items: <FluentMenuItem>[
@@ -191,8 +187,7 @@ Widget _default(BuildContext context) => FluentMenu(
   ],
   builder: (BuildContext context, VoidCallback toggle) => FluentButton(
     onPressed: toggle,
-    icon: fluentMenuChevron,
-    iconPosition: FluentButtonIconPosition.after,
+    menuIcon: fluentMenuChevron,
     child: const Text('Example'),
   ),
 );
@@ -210,8 +205,7 @@ Widget _shape(BuildContext context) => Wrap(
       ],
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
+        menuIcon: fluentMenuChevron,
         child: const Text('Rounded'),
       ),
     ),
@@ -223,8 +217,7 @@ Widget _shape(BuildContext context) => Wrap(
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
         shape: FluentButtonShape.circular,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
+        menuIcon: fluentMenuChevron,
         child: const Text('Circular'),
       ),
     ),
@@ -236,8 +229,7 @@ Widget _shape(BuildContext context) => Wrap(
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
         shape: FluentButtonShape.square,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
+        menuIcon: fluentMenuChevron,
         child: const Text('Square'),
       ),
     ),
@@ -246,12 +238,9 @@ Widget _shape(BuildContext context) => Wrap(
 // #enddocregion components-button-menubutton--shape
 
 // #docregion components-button-menubutton--appearance
-// Upstream's `bundleIcon` swaps the filled glyph in on hover and press.
-// FluentButton has no filled/regular pair hook, so each button keeps the
-// regular glyph in every state.
-//
-// The leading glyph also sits inside the label rather than in an `icon` slot of
-// its own: FluentButton has one slot and the chevron holds it.
+// Outline, Subtle and Transparent take upstream's `bundleIcon(CalendarMonth
+// Filled, CalendarMonthRegular)`: `activeIcon` is the filled half, which
+// subtle and transparent show under the pointer.
 Widget _appearance(BuildContext context) => Wrap(
   spacing: 15,
   runSpacing: 15,
@@ -263,16 +252,9 @@ Widget _appearance(BuildContext context) => Wrap(
       ],
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: FluentSpacing.sNudge,
-          children: <Widget>[
-            _LeadingIcon(FluentIcons.calendar_month_20_regular),
-            Text('Default'),
-          ],
-        ),
+        icon: const Icon(FluentIcons.calendar_month_20_regular),
+        menuIcon: fluentMenuChevron,
+        child: const Text('Default'),
       ),
     ),
     FluentMenu(
@@ -283,16 +265,9 @@ Widget _appearance(BuildContext context) => Wrap(
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
         appearance: FluentButtonAppearance.primary,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: FluentSpacing.sNudge,
-          children: <Widget>[
-            _LeadingIcon(FluentIcons.calendar_month_20_regular),
-            Text('Primary'),
-          ],
-        ),
+        icon: const Icon(FluentIcons.calendar_month_20_regular),
+        menuIcon: fluentMenuChevron,
+        child: const Text('Primary'),
       ),
     ),
     FluentMenu(
@@ -303,16 +278,10 @@ Widget _appearance(BuildContext context) => Wrap(
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
         appearance: FluentButtonAppearance.outline,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: FluentSpacing.sNudge,
-          children: <Widget>[
-            _LeadingIcon(FluentIcons.calendar_month_20_regular),
-            Text('Outline'),
-          ],
-        ),
+        icon: const Icon(FluentIcons.calendar_month_20_regular),
+        activeIcon: const Icon(FluentIcons.calendar_month_20_filled),
+        menuIcon: fluentMenuChevron,
+        child: const Text('Outline'),
       ),
     ),
     FluentMenu(
@@ -323,16 +292,10 @@ Widget _appearance(BuildContext context) => Wrap(
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
         appearance: FluentButtonAppearance.subtle,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: FluentSpacing.sNudge,
-          children: <Widget>[
-            _LeadingIcon(FluentIcons.calendar_month_20_regular),
-            Text('Subtle'),
-          ],
-        ),
+        icon: const Icon(FluentIcons.calendar_month_20_regular),
+        activeIcon: const Icon(FluentIcons.calendar_month_20_filled),
+        menuIcon: fluentMenuChevron,
+        child: const Text('Subtle'),
       ),
     ),
     FluentMenu(
@@ -343,16 +306,10 @@ Widget _appearance(BuildContext context) => Wrap(
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
         appearance: FluentButtonAppearance.transparent,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: FluentSpacing.sNudge,
-          children: <Widget>[
-            _LeadingIcon(FluentIcons.calendar_month_20_regular),
-            Text('Transparent'),
-          ],
-        ),
+        icon: const Icon(FluentIcons.calendar_month_20_regular),
+        activeIcon: const Icon(FluentIcons.calendar_month_20_filled),
+        menuIcon: fluentMenuChevron,
+        child: const Text('Transparent'),
       ),
     ),
   ],
@@ -360,9 +317,8 @@ Widget _appearance(BuildContext context) => Wrap(
 // #enddocregion components-button-menubutton--appearance
 
 // #docregion components-button-menubutton--icon
-// Upstream's `menuIcon` slot is FluentButton's `icon` slot: it is the trailing
-// glyph, and `fluentMenuChevron` is only its default. Upstream's `icon` slot
-// has no counterpart, so the leading glyph rides inside the label.
+// An icon-only MenuButton draws no menuIcon upstream (renderMenuButton skips it
+// when `iconOnly`), so the third button is a plain FluentButton.icon.
 Widget _icon(BuildContext context) => Wrap(
   spacing: 15,
   runSpacing: 15,
@@ -374,16 +330,9 @@ Widget _icon(BuildContext context) => Wrap(
       ],
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: FluentSpacing.sNudge,
-          children: <Widget>[
-            _LeadingIcon(FluentIcons.calendar_month_20_regular),
-            Text('With calendar icon'),
-          ],
-        ),
+        icon: const Icon(FluentIcons.calendar_month_20_regular),
+        menuIcon: fluentMenuChevron,
+        child: const Text('With calendar icon'),
       ),
     ),
     FluentMenu(
@@ -393,16 +342,9 @@ Widget _icon(BuildContext context) => Wrap(
       ],
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
-        icon: const Icon(FluentIcons.filter_20_regular),
-        iconPosition: FluentButtonIconPosition.after,
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: FluentSpacing.sNudge,
-          children: <Widget>[
-            _LeadingIcon(FluentIcons.calendar_month_20_regular),
-            Text('With calendar icon and custom filter menu icon'),
-          ],
-        ),
+        icon: const Icon(FluentIcons.calendar_month_20_regular),
+        menuIcon: const Icon(FluentIcons.filter_20_regular),
+        child: const Text('With calendar icon and custom filter menu icon'),
       ),
     ),
     FluentMenu(
@@ -412,12 +354,10 @@ Widget _icon(BuildContext context) => Wrap(
       ],
       builder: (BuildContext context, VoidCallback toggle) => FluentTooltip(
         content: const Text('With calendar icon and no contents'),
-        child: FluentButton(
+        child: FluentButton.icon(
           onPressed: toggle,
           semanticLabel: 'With calendar icon and no contents',
-          icon: fluentMenuChevron,
-          iconPosition: FluentButtonIconPosition.after,
-          child: const _LeadingIcon(FluentIcons.calendar_month_20_regular),
+          icon: const Icon(FluentIcons.calendar_month_20_regular),
         ),
       ),
     ),
@@ -439,8 +379,7 @@ Widget _size(BuildContext context) => Wrap(
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
         size: FluentButtonSize.small,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
+        menuIcon: fluentMenuChevron,
         child: const Text('Size: small'),
       ),
     ),
@@ -451,8 +390,7 @@ Widget _size(BuildContext context) => Wrap(
       ],
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
+        menuIcon: fluentMenuChevron,
         child: const Text('Size: medium'),
       ),
     ),
@@ -464,8 +402,7 @@ Widget _size(BuildContext context) => Wrap(
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
         size: FluentButtonSize.large,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
+        menuIcon: fluentMenuChevron,
         child: const Text('Size: large'),
       ),
     ),
@@ -486,8 +423,7 @@ Widget _sizeSmall(BuildContext context) => Wrap(
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
         size: FluentButtonSize.small,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
+        menuIcon: fluentMenuChevron,
         child: const Text('Small'),
       ),
     ),
@@ -499,16 +435,9 @@ Widget _sizeSmall(BuildContext context) => Wrap(
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
         size: FluentButtonSize.small,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: FluentSpacing.xs,
-          children: <Widget>[
-            _LeadingIcon(FluentIcons.calendar_month_20_regular),
-            Text('Small with calendar icon'),
-          ],
-        ),
+        icon: const Icon(FluentIcons.calendar_month_20_regular),
+        menuIcon: fluentMenuChevron,
+        child: const Text('Small with calendar icon'),
       ),
     ),
     FluentMenu(
@@ -518,13 +447,11 @@ Widget _sizeSmall(BuildContext context) => Wrap(
       ],
       builder: (BuildContext context, VoidCallback toggle) => FluentTooltip(
         content: const Text('Small with calendar icon only'),
-        child: FluentButton(
+        child: FluentButton.icon(
           onPressed: toggle,
           size: FluentButtonSize.small,
           semanticLabel: 'Small with calendar icon only',
-          icon: fluentMenuChevron,
-          iconPosition: FluentButtonIconPosition.after,
-          child: const _LeadingIcon(FluentIcons.calendar_month_20_regular),
+          icon: const Icon(FluentIcons.calendar_month_20_regular),
         ),
       ),
     ),
@@ -544,8 +471,7 @@ Widget _sizeMedium(BuildContext context) => Wrap(
       ],
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
+        menuIcon: fluentMenuChevron,
         child: const Text('Medium'),
       ),
     ),
@@ -556,16 +482,9 @@ Widget _sizeMedium(BuildContext context) => Wrap(
       ],
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: FluentSpacing.sNudge,
-          children: <Widget>[
-            _LeadingIcon(FluentIcons.calendar_month_20_regular),
-            Text('Medium with calendar icon'),
-          ],
-        ),
+        icon: const Icon(FluentIcons.calendar_month_20_regular),
+        menuIcon: fluentMenuChevron,
+        child: const Text('Medium with calendar icon'),
       ),
     ),
     FluentMenu(
@@ -575,12 +494,10 @@ Widget _sizeMedium(BuildContext context) => Wrap(
       ],
       builder: (BuildContext context, VoidCallback toggle) => FluentTooltip(
         content: const Text('Medium with calendar icon only'),
-        child: FluentButton(
+        child: FluentButton.icon(
           onPressed: toggle,
           semanticLabel: 'Medium with calendar icon only',
-          icon: fluentMenuChevron,
-          iconPosition: FluentButtonIconPosition.after,
-          child: const _LeadingIcon(FluentIcons.calendar_month_20_regular),
+          icon: const Icon(FluentIcons.calendar_month_20_regular),
         ),
       ),
     ),
@@ -601,8 +518,7 @@ Widget _sizeLarge(BuildContext context) => Wrap(
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
         size: FluentButtonSize.large,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
+        menuIcon: fluentMenuChevron,
         child: const Text('Large'),
       ),
     ),
@@ -614,16 +530,9 @@ Widget _sizeLarge(BuildContext context) => Wrap(
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
         size: FluentButtonSize.large,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: FluentSpacing.sNudge,
-          children: <Widget>[
-            _LeadingIcon(FluentIcons.calendar_month_20_regular, size: 24),
-            Text('Large with calendar icon'),
-          ],
-        ),
+        icon: const Icon(FluentIcons.calendar_month_20_regular),
+        menuIcon: fluentMenuChevron,
+        child: const Text('Large with calendar icon'),
       ),
     ),
     FluentMenu(
@@ -633,16 +542,11 @@ Widget _sizeLarge(BuildContext context) => Wrap(
       ],
       builder: (BuildContext context, VoidCallback toggle) => FluentTooltip(
         content: const Text('Large with calendar icon only'),
-        child: FluentButton(
+        child: FluentButton.icon(
           onPressed: toggle,
           size: FluentButtonSize.large,
           semanticLabel: 'Large with calendar icon only',
-          icon: fluentMenuChevron,
-          iconPosition: FluentButtonIconPosition.after,
-          child: const _LeadingIcon(
-            FluentIcons.calendar_month_20_regular,
-            size: 24,
-          ),
+          icon: const Icon(FluentIcons.calendar_month_20_regular),
         ),
       ),
     ),
@@ -662,8 +566,7 @@ Widget _disabled(BuildContext context) => Wrap(
       ],
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
+        menuIcon: fluentMenuChevron,
         child: const Text('Enabled state'),
       ),
     ),
@@ -674,8 +577,7 @@ Widget _disabled(BuildContext context) => Wrap(
       ],
       builder: (BuildContext context, VoidCallback toggle) =>
           const FluentButton(
-            icon: fluentMenuChevron,
-            iconPosition: FluentButtonIconPosition.after,
+            menuIcon: fluentMenuChevron,
             child: Text('Disabled state'),
           ),
     ),
@@ -690,8 +592,7 @@ Widget _disabled(BuildContext context) => Wrap(
       ],
       builder: (BuildContext context, VoidCallback toggle) => const Focus(
         child: FluentButton(
-          icon: fluentMenuChevron,
-          iconPosition: FluentButtonIconPosition.after,
+          menuIcon: fluentMenuChevron,
           child: Text('Disabled focusable state'),
         ),
       ),
@@ -713,15 +614,14 @@ Widget _withLongText(BuildContext context) => Wrap(
       ],
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
+        menuIcon: fluentMenuChevron,
         child: const Text('Short text'),
       ),
     ),
     // Upstream pins the button itself to 280px. FluentButton lays its label out
-    // in an unbounded Row, so the width goes on the label instead: 228 plus the
-    // medium ramp's 13px inset either side, its 6px gap and the 20px chevron
-    // is the same 280.
+    // in an unbounded Row, so the width goes on the label instead: 280 less the
+    // medium ramp's 12px inset and 1px border either side, and the 4px gap and
+    // 12px chevron of the menuIcon slot.
     FluentMenu(
       items: <FluentMenuItem>[
         FluentMenuItem(label: const Text('Item a'), onPressed: () {}),
@@ -729,10 +629,13 @@ Widget _withLongText(BuildContext context) => Wrap(
       ],
       builder: (BuildContext context, VoidCallback toggle) => FluentButton(
         onPressed: toggle,
-        icon: fluentMenuChevron,
-        iconPosition: FluentButtonIconPosition.after,
+        menuIcon: fluentMenuChevron,
         child: const SizedBox(
-          width: 228,
+          width:
+              280 -
+              (FluentSpacing.m + FluentStroke.thin) * 2 -
+              FluentSpacing.xs -
+              FluentSize.size120,
           child: Text(
             'Long text wraps after it hits the max width of the component',
             textAlign: TextAlign.center,

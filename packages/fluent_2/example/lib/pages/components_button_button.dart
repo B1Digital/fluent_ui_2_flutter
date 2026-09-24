@@ -125,6 +125,22 @@ const DocsPage buttonPage = DocsPage(
       description: 'Optional leading or trailing icon.',
     ),
     PropRow(
+      name: 'activeIcon',
+      type: 'Widget?',
+      defaultValue: 'null',
+      description:
+          'Shown in place of icon while a subtle or transparent button is '
+          "hovered or pressed: upstream's bundleIcon filled glyph.",
+    ),
+    PropRow(
+      name: 'menuIcon',
+      type: 'Widget?',
+      defaultValue: 'null',
+      description:
+          "A menu affordance after the label, upstream MenuButton's menuIcon; "
+          'fluentMenuChevron is the usual one.',
+    ),
+    PropRow(
       name: 'style',
       type: 'FluentButtonStyle?',
       defaultValue: 'null',
@@ -178,8 +194,9 @@ Widget _shape(BuildContext context) => Wrap(
 // #enddocregion components-button-button--shape
 
 // #docregion components-button-button--appearance
-// Upstream bundles the filled and regular calendar icons so the glyph fills on
-// hover. `icon` is a plain widget here, so every button keeps the regular one.
+// Outline, Subtle and Transparent take upstream's `bundleIcon(CalendarMonth
+// Filled, CalendarMonthRegular)`: `activeIcon` is the filled half, which
+// subtle and transparent show under the pointer.
 Widget _appearance(BuildContext context) => Wrap(
   spacing: 15,
   runSpacing: 15,
@@ -198,18 +215,21 @@ Widget _appearance(BuildContext context) => Wrap(
     FluentButton(
       appearance: FluentButtonAppearance.outline,
       icon: const Icon(FluentIcons.calendar_month_20_regular),
+      activeIcon: const Icon(FluentIcons.calendar_month_20_filled),
       onPressed: () {},
       child: const Text('Outline'),
     ),
     FluentButton(
       appearance: FluentButtonAppearance.subtle,
       icon: const Icon(FluentIcons.calendar_month_20_regular),
+      activeIcon: const Icon(FluentIcons.calendar_month_20_filled),
       onPressed: () {},
       child: const Text('Subtle'),
     ),
     FluentButton(
       appearance: FluentButtonAppearance.transparent,
       icon: const Icon(FluentIcons.calendar_month_20_regular),
+      activeIcon: const Icon(FluentIcons.calendar_month_20_filled),
       onPressed: () {},
       child: const Text('Transparent'),
     ),

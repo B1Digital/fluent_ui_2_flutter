@@ -132,6 +132,14 @@ const DocsPage compoundButtonPage = DocsPage(
           'Optional leading or trailing icon, rendered at 40 logical pixels.',
     ),
     PropRow(
+      name: 'activeIcon',
+      type: 'Widget?',
+      defaultValue: 'null',
+      description:
+          'Shown in place of icon while a subtle or transparent button is '
+          "hovered or pressed: upstream's bundleIcon filled glyph.",
+    ),
+    PropRow(
       name: 'style',
       type: 'FluentCompoundButtonStyle?',
       defaultValue: 'null',
@@ -183,9 +191,9 @@ Widget _shape(BuildContext context) => Wrap(
 // #enddocregion components-button-compoundbutton--shape
 
 // #docregion components-button-compoundbutton--appearance
-// Upstream bundles the filled and regular calendar icons so the glyph fills on
-// hover. We have no bundled-icon widget, so every button shows the regular
-// glyph, which is what upstream shows at rest.
+// Outline, Subtle and Transparent take upstream's `bundleIcon(CalendarMonth
+// Filled, CalendarMonthRegular)`: `activeIcon` is the filled half, which
+// subtle and transparent show under the pointer.
 Widget _appearance(BuildContext context) => Wrap(
   spacing: 15,
   runSpacing: 15,
@@ -207,6 +215,7 @@ Widget _appearance(BuildContext context) => Wrap(
       secondaryContent: const Text('Secondary content'),
       appearance: FluentButtonAppearance.outline,
       icon: const Icon(FluentIcons.calendar_month_20_regular),
+      activeIcon: const Icon(FluentIcons.calendar_month_20_filled),
       onPressed: () {},
       child: const Text('Outline'),
     ),
@@ -214,6 +223,7 @@ Widget _appearance(BuildContext context) => Wrap(
       secondaryContent: const Text('Secondary content'),
       appearance: FluentButtonAppearance.subtle,
       icon: const Icon(FluentIcons.calendar_month_20_regular),
+      activeIcon: const Icon(FluentIcons.calendar_month_20_filled),
       onPressed: () {},
       child: const Text('Subtle'),
     ),
@@ -221,6 +231,7 @@ Widget _appearance(BuildContext context) => Wrap(
       secondaryContent: const Text('Secondary content'),
       appearance: FluentButtonAppearance.transparent,
       icon: const Icon(FluentIcons.calendar_month_20_regular),
+      activeIcon: const Icon(FluentIcons.calendar_month_20_filled),
       onPressed: () {},
       child: const Text('Transparent'),
     ),

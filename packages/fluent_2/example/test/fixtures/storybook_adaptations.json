@@ -494,10 +494,6 @@
     "kind": "nearest-widget",
     "why": "Upstream's BreadcrumbButton is an <a href=\"https://www.bing.com/\">; FluentBreadcrumbItem takes onPressed instead of an href, and the trailing chevrons come from the widget rather than explicit BreadcrumbDivider children."
   },
-  "components-button-button--appearance": {
-    "kind": "reduced",
-    "why": "Upstream bundleIcon(CalendarMonthFilled, CalendarMonthRegular) swaps the glyph to filled on hover and when selected. FluentButton takes a plain icon widget with no state-driven swap, so every button keeps the regular glyph \u2014 which is upstream's rest state."
-  },
   "components-button-button--disabled": {
     "kind": "composed",
     "why": "FluentButton has no disabledFocusable: a null onPressed both disables the button and drops it from the tab order. The third button in each row is wrapped in a Focus node to restore the tab stop that flag exists for."
@@ -509,10 +505,6 @@
   "components-button-button--with-long-text": {
     "kind": "composed",
     "why": "FluentButton lays its label out in a Row, and a Row gives non-flexible children unbounded width, so a bounded-width button cannot wrap its label. The label is wrapped in Flexible to reach upstream's wrap-at-280px behaviour. This is a fluent_2 defect, not a porting choice."
-  },
-  "components-button-compoundbutton--appearance": {
-    "kind": "reduced",
-    "why": "Same bundleIcon gap as Button/Appearance: no filled-on-hover glyph swap, so all five buttons show the regular glyph."
   },
   "components-button-compoundbutton--disabled": {
     "kind": "reduced",
@@ -527,32 +519,20 @@
     "why": "Upstream's width:280px on the button wraps its text; a Flutter Row gives non-flex children unbounded width, so the width is applied to the label inset by the medium compound padding to reach the same wrap point."
   },
   "components-button-menubutton--appearance": {
-    "kind": "slot",
-    "why": "FluentButton has one icon slot and the chevron occupies it, so upstream's leading icon renders inside the label. Upstream's bundleIcon hover swap also has no FluentButton hook."
+    "kind": "reduced",
+    "why": "bundleIcon's filled half is activeIcon, which subtle and transparent show under the pointer. Upstream also shows it, and the selected fill, while the menu is open (useMenuButtonStyles expanded); FluentMenu's trigger builder hands the button no open state, so the open trigger keeps its rest glyph and fill."
   },
   "components-button-menubutton--disabled": {
     "kind": "nearest-widget",
     "why": "FluentButton has no disabledFocusable, so the third demo wraps the disabled button in Focus to restore the tab stop."
   },
   "components-button-menubutton--icon": {
-    "kind": "slot",
-    "why": "Upstream's menuIcon maps to FluentButton's single icon slot with iconPosition after, so upstream's separate leading icon slot has no counterpart and rides inside the label."
-  },
-  "components-button-menubutton--size-large": {
-    "kind": "slot",
-    "why": "Same single-icon-slot gap; the label glyph is pinned to 24 to match the large ramp's icon size, which the label does not inherit."
-  },
-  "components-button-menubutton--size-medium": {
-    "kind": "slot",
-    "why": "Same single-icon-slot gap: the calendar glyph rides inside the label while the chevron holds the icon slot."
-  },
-  "components-button-menubutton--size-small": {
-    "kind": "slot",
-    "why": "Same single-icon-slot gap: the calendar glyph rides inside the label while the chevron holds the icon slot."
+    "kind": "nearest-widget",
+    "why": "The icon-only third button is FluentButton.icon, with no chevron: upstream's renderMenuButton skips menuIcon when the button is iconOnly."
   },
   "components-button-menubutton--with-long-text": {
     "kind": "reduced",
-    "why": "Upstream pins the button to 280px; the label is laid out in a Row that hands it unbounded width, so the width is expressed on the label plus the medium ramp's padding, gap and chevron."
+    "why": "Upstream pins the button to 280px; the label is laid out in a Row that hands it unbounded width, so the width is expressed on the label: 280 less the medium ramp's inset and border and the menuIcon's gap and chevron."
   },
   "components-button-splitbutton--default": {
     "kind": "local-state",

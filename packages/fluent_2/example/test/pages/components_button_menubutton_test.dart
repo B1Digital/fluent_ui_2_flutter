@@ -6,8 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'harness.dart';
 
-/// A menu button is not a widget here — it is a `FluentButton` carrying
-/// [fluentMenuChevron] hung off a [FluentMenu] — so this page has two things to
+/// A menu button is not a widget here — it is a `FluentButton` whose
+/// `menuIcon` is [fluentMenuChevron], hung off a [FluentMenu] — so this page
+/// has two things to
 /// prove that `render_test.dart` cannot. First, that the composition still opens
 /// a menu: every one of these buttons is inert until pressed, and a page of ten
 /// dead chevrons mounts perfectly. Second, that the props the sections are named
@@ -27,7 +28,7 @@ void main() {
       await pumpSection(tester, section);
       final Finder chevron = find.byIcon(FluentIcons.chevron_down_20_regular);
       expect(chevron, findsOneWidget);
-      // `iconPosition: after` is the whole difference between a menu button and
+      // The `menuIcon` slot is the whole difference between a menu button and
       // a button with a leading glyph, and only geometry can see it.
       expect(
         tester.getRect(chevron).left,
@@ -150,27 +151,62 @@ void main() {
         );
       }
 
-      // The leading glyph rides inside the label rather than in a slot of its
-      // own, so it has no `IconTheme` to tint it — the page reads the button's
-      // resolved foreground instead, and a primary button whose icon fell back
-      // to the ambient neutral would be invisible on the brand fill.
+      // The leading glyph sits in the button's own `icon` slot, so the
+      // button's IconTheme tints it: a primary button's icon must be on-brand,
+      // not the ambient neutral, which would vanish on the brand fill.
       final Color? onBrand = labelColourOf(tester, 'Primary');
       expect(onBrand, isNot(labelColourOf(tester, 'Default')));
       expect(
-        tester
-            .widget<Icon>(
-              find
-                  .descendant(
-                    of: buttonAround('Primary'),
-                    matching: find.byIcon(
-                      FluentIcons.calendar_month_20_regular,
-                    ),
-                  )
-                  .first,
-            )
-            .color,
+        IconTheme.of(
+          tester.element(
+            find
+                .descendant(
+                  of: buttonAround('Primary'),
+                  matching: find.byIcon(FluentIcons.calendar_month_20_regular),
+                )
+                .first,
+          ),
+        ).color,
         onBrand,
       );
+    });
+
+    testWidgets('subtle and transparent fill their glyph under the mouse', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(
+        tester,
+        sectionOf('components-button-menubutton--appearance'),
+      );
+      // Upstream's `bundleIcon(CalendarMonthFilled, CalendarMonthRegular)` on
+      // outline, subtle and transparent; only the last two swap on :hover
+      // (useButtonStyles.styles.ts iconFilledClassName).
+      Finder glyph(String label, IconData icon) =>
+          find.descendant(of: buttonAround(label), matching: find.byIcon(icon));
+      for (final (String label, bool swaps) in <(String, bool)>[
+        ('Outline', false),
+        ('Subtle', true),
+        ('Transparent', true),
+      ]) {
+        expect(
+          glyph(label, FluentIcons.calendar_month_20_filled),
+          findsNothing,
+        );
+        final TestGesture mouse = await mouseHover(tester, buttonAround(label));
+        // A one-pixel drift, as a real pointer delivers, must keep the swap.
+        await mouse.moveBy(const Offset(1, 0));
+        await tester.pump();
+        expect(
+          glyph(label, FluentIcons.calendar_month_20_filled),
+          swaps ? findsOneWidget : findsNothing,
+          reason: '$label ${swaps ? 'must' : 'must not'} fill under the mouse',
+        );
+        await mouseAway(tester, mouse);
+        expect(
+          glyph(label, FluentIcons.calendar_month_20_regular),
+          findsOneWidget,
+        );
+      }
     });
   });
 
@@ -183,12 +219,16 @@ void main() {
         sectionOf('components-button-menubutton--icon'),
       );
 
-      // Upstream's `menuIcon` slot is this button's `icon` slot, and the chevron
-      // is only its default: the middle button swaps a filter glyph in, and the
-      // two either side keep theirs.
+      // The chevron is only `menuIcon`'s default: the middle button swaps a
+      // filter glyph in, and the icon-only third one draws none, as upstream's
+      // renderMenuButton skips `menuIcon` when `iconOnly`.
+      expect(find.byIcon(FluentIcons.chevron_down_20_regular), findsOneWidget);
       expect(
-        find.byIcon(FluentIcons.chevron_down_20_regular),
-        findsNWidgets(2),
+        find.descendant(
+          of: find.byType(FluentButton).at(2),
+          matching: find.byIcon(FluentIcons.chevron_down_20_regular),
+        ),
+        findsNothing,
       );
       final Finder filter = find.byIcon(FluentIcons.filter_20_regular);
       expect(filter, findsOneWidget);
@@ -292,13 +332,13 @@ void main() {
         final Finder buttons = find.byType(FluentButton);
         expect(buttons, findsNWidgets(3));
 
-        // The third button is icon-only, so its height is the ramp's and
-        // nothing else: the glyph plus the ramp's vertical padding comes to
-        // exactly the ramp height at all three sizes. That is the one reading
-        // no font can move.
+        // The third button is icon-only, so it is the ramp's square and
+        // nothing else: the glyph plus the ramp's padding comes to exactly the
+        // ramp height at all three sizes, and upstream draws no chevron beside
+        // it to widen it. That is the one reading no font can move.
         expect(
-          tester.getSize(buttons.at(2)).height,
-          ramp.height,
+          tester.getSize(buttons.at(2)),
+          Size.square(ramp.height),
           reason: 'the icon-only button left the ${ramp.label} ramp',
         );
         for (int i = 0; i < 2; i++) {
@@ -390,10 +430,11 @@ void main() {
       const String long =
           'Long text wraps after it hits the max width of the component';
 
-      // The label is pinned to 228 so that 228 plus the medium ramp's inset,
-      // gap and chevron comes to upstream's 280. A label that refused to wrap
-      // would leave the button one line tall and far wider than that.
-      expect(tester.getSize(find.text(long)).width, 228);
+      // The label is pinned to 238 so that 238 plus the medium ramp's 13px
+      // inset either side and the menuIcon's 4px gap and 12px chevron comes to
+      // upstream's 280. A label that refused to wrap would leave the button one
+      // line tall and far wider than that.
+      expect(tester.getSize(find.text(long)).width, 238);
       expect(
         tester.getSize(buttonAround(long)).height,
         greaterThan(tester.getSize(buttonAround('Short text')).height),
