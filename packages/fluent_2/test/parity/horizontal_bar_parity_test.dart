@@ -124,7 +124,10 @@ void main() {
         data: data,
         chartDataMode: FluentChartDataMode.fraction,
       ),
-      // Measured 0.335% — 247 px. 113 are the unmasked row-title glyphs (see
+      // Re-measured on 31eef6d, which fits each row's bars and gaps inside the
+      // row where upstream overflows it (#36): every gap moves left, so that
+      // departure is part of the residual below. Before it: 0.335%.
+      // Measured 0.428% — 316 px. 113 are the unmasked row-title glyphs (see
       // absolute scale). 134 are the three benchmark triangles, a real defect:
       // the port paints each 3px LOW (top at y 21 against the capture's 18 —
       // the container's `marginTop: -3px`,
@@ -132,7 +135,7 @@ void main() {
       // top-aligned OverflowBox) and UNDER the bar, so the 0.4-alpha
       // placeholder darkens its tip to #00487F. Upstream's `.triangle` is
       // `position: absolute` and paints above the svg.
-      maxMismatch: 0.35,
+      maxMismatch: 0.45,
     );
     expect(tester.takeException(), isNull);
   });
@@ -171,10 +174,13 @@ void main() {
       tester,
       'charts-horizontalbarchart--horizontal-bar-custom-accessibility',
       FluentHorizontalBarChart(data: data),
-      // Measured 0.149% — identical to horizontal-bar-basic, which has the
+      // Re-measured on 31eef6d, which fits each row's bars and gaps inside the
+      // row where upstream overflows it (#36): every gap moves left, so that
+      // departure is part of the residual below. Before it: 0.149%.
+      // Measured 0.313% — identical to horizontal-bar-basic, which has the
       // same geometry: 283 px of unmasked row-title glyphs and 6 px of
       // "11,444" (weight 600) poking out of its mask. Bars exact.
-      maxMismatch: 0.16,
+      maxMismatch: 0.32,
     );
     expect(tester.takeException(), isNull);
   });
@@ -212,9 +218,12 @@ void main() {
       tester,
       'charts-horizontalbarchart--horizontal-bar-custom-callout',
       FluentHorizontalBarChart(data: data),
-      // Measured 0.149% — same geometry and residual as the accessibility
+      // Re-measured on 31eef6d, which fits each row's bars and gaps inside the
+      // row where upstream overflows it (#36): every gap moves left, so that
+      // departure is part of the residual below. Before it: 0.149%.
+      // Measured 0.314% — same geometry and residual as the accessibility
       // story: 283 px of unmasked row-title glyphs, 6 px of "11,444" edge.
-      maxMismatch: 0.16,
+      maxMismatch: 0.32,
     );
     expect(tester.takeException(), isNull);
   });
@@ -251,14 +260,17 @@ void main() {
       tester,
       'charts-horizontalbarchart--horizontal-bar-stacked',
       FluentHorizontalBarChart(data: data),
-      // Measured 0.552% — 549 px; the bars are exact (1 px). 113 are the
+      // Re-measured on 31eef6d, which fits each row's bars and gaps inside the
+      // row where upstream overflows it (#36): every gap moves left, so that
+      // departure is part of the residual below. Before it: 0.552%.
+      // Measured 1.089% — 1083 px; the bars are exact (1 px). 113 are the
       // unmasked row-title glyphs. 295 are the "+2 more" overflow trigger:
       // its label has no textRect either, so 600-weight Selawik is compared
       // unmasked and the chevron sits 2px right behind the wider label. 140
       // are one antialiased column either side of each legend swatch: the
       // centred strip lands on fractional x (43.94 upstream), Chromium snaps
       // the 14px box to whole pixels and Flutter paints it where it falls.
-      maxMismatch: 0.6,
+      maxMismatch: 1.1,
     );
     expect(tester.takeException(), isNull);
   });
