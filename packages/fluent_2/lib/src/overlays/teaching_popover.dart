@@ -23,9 +23,11 @@ enum FluentTeachingPopoverAppearance {
   brand,
 }
 
-/// The dismiss glyph a teaching popover's header carries.
+/// The dismiss glyph a teaching popover's header carries: upstream's
+/// `Dismiss12Regular` (useTeachingPopoverHeader.js:66), 8px of ink in a 12px
+/// box.
 const IconData fluentTeachingPopoverDismissIcon =
-    FluentIcons.dismiss_20_regular;
+    FluentIcons.dismiss_12_regular;
 
 /// Multi-step state for a teaching popover's footer.
 ///
@@ -239,8 +241,9 @@ const BorderRadius _dotTargetRadius = FluentRadius.allMedium;
 /// `test/fixtures/teaching_popover.json` and
 /// `test/fixtures/teaching_popover_footer.json`.
 ///
-/// Four values diverge from `react-teaching-popover`, and Figma wins in all
-/// four — see `doc/token-divergences.md`.
+/// Three values diverge from `react-teaching-popover`, and Figma wins in all
+/// three — see `doc/token-divergences.md`. The header dismiss, a fourth, now
+/// follows the storybook.
 FluentTeachingPopoverStyle resolveFluentTeachingPopoverStyle(
   FluentTeachingPopoverState state,
   FluentThemeData theme,
@@ -264,37 +267,36 @@ FluentTeachingPopoverStyle resolveFluentTeachingPopoverStyle(
     headerColor: FluentStateColor.tokens(
       rest: brand ? onBrand : c.neutralForeground3,
     ),
-    // Figma stops at the dismiss button's frame, so the glyph's tone is
-    // upstream's: `useTeachingPopoverHeaderStyles.dismissButton` states
-    // `color: tokens.colorNeutralForeground2` outright rather than inheriting
-    // the ambient tone, and a live probe of `.fui-TeachingPopoverHeader__
-    // dismissButton` reads `rgb(66, 66, 66)` = #424242 = neutralForeground2.
-    // Brand keeps `neutralForegroundOnBrand`, which has no second step.
+    // `useTeachingPopoverHeaderStyles.dismissButton` states `color:
+    // tokens.colorNeutralForeground2` outright, with no :hover or :active rule
+    // (useTeachingPopoverHeaderStyles.styles.raw.js:26-45), and a live probe of
+    // the storybook's dismiss changes 0px on hover and on press. Brand swaps in
+    // `neutralForegroundOnBrand` (:46-48), likewise flat.
     dismissColor: FluentStateColor.tokens(
       rest: brand ? onBrand : c.neutralForeground2,
-      hover: brand ? onBrand : c.neutralForeground2Hover,
-      pressed: brand ? onBrand : c.neutralForeground2Pressed,
     ),
-    // Neutral takes the subtle ramp Figma binds. Brand cannot: the subtle
-    // hover token is a light neutral, which on a brand fill would flash a grey
-    // patch. Upstream gives the dismiss slot `colorTransparentBackground` with
-    // no hover at all, and that is what the brand variant uses — still a real
-    // token, so it turns opaque in high contrast rather than vanishing.
-    dismissBackgroundColor: brand
-        ? FluentStateColor.tokens(
-            rest: c.transparentBackground,
-            hover: c.transparentBackgroundHover,
-            pressed: c.transparentBackgroundPressed,
-          )
-        : FluentStateColor.tokens(
-            rest: c.subtleBackground,
-            hover: c.subtleBackgroundHover,
-            pressed: c.subtleBackgroundPressed,
-          ),
+    // `backgroundColor: tokens.colorTransparentBackground` on both appearances
+    // and nothing on hover or press, so no fill ever shows. Figma binds the
+    // subtle ramp on the neutral variant, whose #F5F5F5 hover and #E0E0E0 press
+    // the storybook never paints; the storybook wins.
+    dismissBackgroundColor: FluentStateColor.tokens(
+      rest: c.transparentBackground,
+    ),
+    // `padding: 4px` inside a 1px transparent border on every side but the
+    // end (`borderRightStyle: 'none'`), round a 12px glyph: the storybook's
+    // 21 x 22 button. The border is layout only — it is transparent — so it is
+    // folded into the padding here.
     dismissPadding: const WidgetStatePropertyAll<EdgeInsetsGeometry?>(
-      EdgeInsets.all(FluentSpacing.xxs),
+      EdgeInsetsDirectional.fromSTEB(
+        FluentSpacing.xs + FluentStroke.thin,
+        FluentSpacing.xs + FluentStroke.thin,
+        FluentSpacing.xs,
+        FluentSpacing.xs + FluentStroke.thin,
+      ),
     ),
-    dismissIconSize: const WidgetStatePropertyAll<double?>(FluentSize.size200),
+    // `Dismiss12Regular` (useTeachingPopoverHeader.js:66), where Figma draws a
+    // 20px glyph.
+    dismissIconSize: const WidgetStatePropertyAll<double?>(FluentSize.size120),
     dismissBorderRadius: const WidgetStatePropertyAll<BorderRadius?>(
       FluentRadius.allMedium,
     ),
@@ -481,9 +483,9 @@ Widget _buildHeaderBlock(
 
 /// The header's trailing dismiss button.
 ///
-/// Built inline rather than from a `FluentButton`: Figma draws a 24-square
-/// target around a 20 glyph, where the button ramp's smallest medium is 32 and
-/// its icon-only inset is 8.
+/// Built inline rather than from a `FluentButton`: upstream's is a bare
+/// `<button>` of 21 x 22 round a 12 glyph with no hover or press treatment,
+/// where the button ramp's smallest icon-only square is 24 and ramps its fill.
 Widget _buildDismiss(
   FluentTeachingPopoverBaseState state,
   FluentTeachingPopoverStyle style,

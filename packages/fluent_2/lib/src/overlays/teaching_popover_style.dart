@@ -256,7 +256,7 @@ class FluentTeachingPopoverStyle {
   ///
   /// The counterpart of Material's `styleFrom`. Use the constructor directly
   /// when a property genuinely differs per state — which, on this component,
-  /// only the dismiss button's fill does.
+  /// only the carousel dots' fill does.
   static FluentTeachingPopoverStyle from({
     double? contentWidth,
     double? contentGap,
