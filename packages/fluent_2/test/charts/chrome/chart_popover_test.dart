@@ -1225,16 +1225,19 @@ void main() {
           contentMaxWidth: 238,
         ),
       );
-      final padding = resolveFluentChartPopoverStyle(theme).surfacePadding!
+      final style = resolveFluentChartPopoverStyle(theme);
+      final padding = style.surfacePadding!
           .resolve(const <WidgetState>{})!
           .resolve(TextDirection.ltr);
+      final border = style.surfaceBorderWidth!.resolve(const <WidgetState>{})!;
       expect(
         rect.width,
-        moreOrLessEquals(238 + padding.horizontal, epsilon: 0.01),
+        moreOrLessEquals(238 + padding.horizontal + 2 * border, epsilon: 0.01),
         reason:
             'HeatMapChart puts maxWidth 238 on calloutContentRoot '
             '(useHeatMapChartStyles.styles.ts:35-37), inside the 16px surface '
-            'padding.',
+            "padding and PopoverSurface's 1px transparent border: 272 in "
+            'Chrome.',
       );
     });
 
