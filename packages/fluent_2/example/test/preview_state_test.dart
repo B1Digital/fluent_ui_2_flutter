@@ -3,17 +3,18 @@ import 'package:fluent_2_example/shell/router.dart';
 import 'package:fluent_2_example/shell/showroom_app.dart';
 import 'package:fluent_2_example/shell/showroom_scope.dart';
 import 'package:fluent_2_example/shell/widgets/docs_scaffold.dart';
+import 'package:fluent_2_example/shell/widgets/preview_band.dart';
 import 'package:fluent_2_example/shell/widgets/preview_card.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// The toolbar's grid, outline and viewport toggles and the card's zoom dress
-/// the preview; they must not remount it. Upstream Storybook keeps a typed
+/// The toolbar's grid, background and outline controls and the card's zoom
+/// dress the preview; they must not remount it. Upstream Storybook keeps a typed
 /// value and caret through all four, and focus through the toolbar's three
 /// (Chrome), because they only restyle a wrapper.
 void main() {
-  testWidgets('grid, outline, viewport and zoom keep a story mounted', (
+  testWidgets('grid, background, outline and zoom keep a story mounted', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(1600, 1200);
@@ -52,7 +53,7 @@ void main() {
     for (final (String name, VoidCallback toggle) in <(String, VoidCallback)>[
       ('grid', scope.onToggleGrid),
       ('outline', scope.onToggleOutlines),
-      ('viewport', () => scope.onViewportChanged(PreviewViewport.tablet)),
+      ('background', () => scope.onBackgroundChanged(PreviewBackground.dark)),
     ]) {
       toggle();
       await tester.pumpAndSettle();

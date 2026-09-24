@@ -5,7 +5,6 @@ import '../../pages.dart';
 import '../catalog.dart';
 import '../docs_metrics.dart';
 import '../showroom_scope.dart';
-import '../theme_variants.dart';
 import 'docs_prose.dart';
 import 'docs_toolbar.dart';
 import 'markdown_view.dart';
@@ -35,20 +34,10 @@ class DocsScaffold extends StatelessWidget {
         // a shorter one.
         : _DocsBody(key: ValueKey<String>(page.id), page: page);
 
-    // Full screen drops the chrome entirely and hands the window to the page.
-    if (scope.fullScreen) {
-      return ColoredBox(
-        color: DocsMetrics.canvas,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            const ShellToolbar(),
-            Expanded(child: body),
-          ],
-        ),
-      );
-    }
-
+    // Full screen is the hidden sidebar and nothing more, as upstream's is in
+    // docs mode (`layout.ts:146-148`, with no addons panel). One tree for both
+    // keeps the body's element — its scroll offset and every story's state —
+    // across the toggle: the Row matches the trailing Expanded from the end.
     return ColoredBox(
       color: DocsMetrics.canvas,
       child: Row(
@@ -90,23 +79,6 @@ class _DocsBodyState extends State<_DocsBody> {
   String? _active;
   bool _spyLocked = false;
 
-  /// The theme this page — and only this page — renders in, or null to follow
-  /// the shell.
-  ///
-  /// Page-local on purpose. The docs toolbar's controls are overrides, not a
-  /// second set of global ones, and this State is keyed by page id above, so
-  /// navigating away disposes them and the next page opens on the shell's theme
-  /// and direction again. No save/restore, no dispose code.
-  ThemeVariant? _variantOverride;
-
-  /// The direction this page — and only this page — renders in, or null to
-  /// follow the shell. Same lifetime as [_variantOverride].
-  TextDirection? _directionOverride;
-
-  /// The shell values this page last saw, so a change to either can be noticed.
-  ThemeVariant? _shellVariant;
-  TextDirection? _shellDirection;
-
   @override
   void initState() {
     super.initState();
@@ -122,33 +94,6 @@ class _DocsBodyState extends State<_DocsBody> {
         _syncSpy();
       }
     });
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // A *change* to one of the shell's own menus outranks the matching page
-    // override. Without this the two toolbars sit there disagreeing about what
-    // is on screen — which is the confusion the overrides exist to remove, not
-    // one to add.
-    //
-    // Re-picking the value the shell already has is deliberately a no-op: that
-    // item is drawn checked, and a checked menu item that silently resets the
-    // page would be the surprise. The page dropdown is how a page override is
-    // undone.
-    //
-    // Each control is tracked separately: changing the shell's theme must not
-    // quietly straighten out a page's direction, and the scope notifies for the
-    // grid and outline toggles too, which must clear neither.
-    final ShowroomScope shell = ShowroomScope.of(context);
-    if (shell.variant != _shellVariant) {
-      _shellVariant = shell.variant;
-      _variantOverride = null;
-    }
-    if (shell.textDirection != _shellDirection) {
-      _shellDirection = shell.textDirection;
-      _directionOverride = null;
-    }
   }
 
   @override
@@ -224,142 +169,128 @@ class _DocsBodyState extends State<_DocsBody> {
   @override
   Widget build(BuildContext context) {
     final DocsPage page = widget.page;
-    final ShowroomScope shell = ShowroomScope.of(context);
 
-    // Everything below the shell toolbar reads the page's theme and direction,
-    // not the shell's: the docs toolbar writes the overrides here, and every
-    // PreviewCard reads them back through `ShowroomScope.of`, unchanged.
-    //
     // The rail sits OUTSIDE the scroll view. Upstream's is `position: sticky`,
     // which a child of the scrollable cannot be — it would slide away with the
     // article. It reads the offset instead and parks itself at 64px.
-    return ShowroomScope.override(
-      parent: shell,
-      variant: _variantOverride ?? shell.variant,
-      onVariantChanged: (ThemeVariant value) =>
-          setState(() => _variantOverride = value),
-      textDirection: _directionOverride ?? shell.textDirection,
-      onTextDirectionChanged: (TextDirection value) =>
-          setState(() => _directionOverride = value),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Expanded(
-            // No RawScrollbar here any more: `FluentScrollBehavior` supplies one
-            // for every vertical scroller now, so a hand-rolled wrapper would
-            // paint a second thumb on top of it.
-            child: SingleChildScrollView(
-              key: _viewportKey,
-              controller: _scroll,
-              // Prose is made selectable block by block rather than in one
-              // region around the whole article. A `SelectableRegion` puts a
-              // pan recogniser over everything inside it, and for a mouse a
-              // pan is claimed after only ONE pixel of movement
-              // (`kPrecisePointerHitSlop`) — so a real click, which always
-              // drifts a pixel or two between press and release, was being
-              // taken by the selection instead of by the control under the
-              // cursor. Every button, switch and dropdown in the article was
-              // dead unless clicked perfectly still. It is not a Fluent bug:
-              // a bare GestureDetector inside a bare SelectableRegion behaves
-              // the same, and `SelectionContainer.disabled` does not help
-              // because it governs selection, not gestures.
-              //
-              // The cost is that a drag can no longer select across two
-              // blocks. Controls that work beat selection that spans
-              // headings, and "Copy Page" already covers taking the whole
-              // thing.
-              child: Center(
-                child: ConstrainedBox(
-                  // Pages with no sections have no "On this page" rail beside
-                  // them, so the article gets the full content width rather
-                  // than the narrower story column that leaves room for one.
-                  constraints: BoxConstraints(
-                    maxWidth:
-                        (page.sections.isEmpty
-                            ? DocsMetrics.contentMaxWidth
-                            : DocsMetrics.storyColumnWidth) +
-                        DocsMetrics.contentInset * 2,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Expanded(
+          // No RawScrollbar here any more: `FluentScrollBehavior` supplies one
+          // for every vertical scroller now, so a hand-rolled wrapper would
+          // paint a second thumb on top of it.
+          child: SingleChildScrollView(
+            key: _viewportKey,
+            controller: _scroll,
+            // Prose is made selectable block by block rather than in one
+            // region around the whole article. A `SelectableRegion` puts a
+            // pan recogniser over everything inside it, and for a mouse a
+            // pan is claimed after only ONE pixel of movement
+            // (`kPrecisePointerHitSlop`) — so a real click, which always
+            // drifts a pixel or two between press and release, was being
+            // taken by the selection instead of by the control under the
+            // cursor. Every button, switch and dropdown in the article was
+            // dead unless clicked perfectly still. It is not a Fluent bug:
+            // a bare GestureDetector inside a bare SelectableRegion behaves
+            // the same, and `SelectionContainer.disabled` does not help
+            // because it governs selection, not gestures.
+            //
+            // The cost is that a drag can no longer select across two
+            // blocks. Controls that work beat selection that spans
+            // headings, and "Copy Page" already covers taking the whole
+            // thing.
+            child: Center(
+              child: ConstrainedBox(
+                // Pages with no sections have no "On this page" rail beside
+                // them, so the article gets the full content width rather
+                // than the narrower story column that leaves room for one.
+                constraints: BoxConstraints(
+                  maxWidth:
+                      (page.sections.isEmpty
+                          ? DocsMetrics.contentMaxWidth
+                          : DocsMetrics.storyColumnWidth) +
+                      DocsMetrics.contentInset * 2,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: DocsMetrics.contentInset,
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: DocsMetrics.contentInset,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        const SizedBox(height: 49),
-                        Selectable(
-                          child: Text(page.title, style: DocsMetrics.h1),
-                        ),
-                        const SizedBox(height: 16),
-                        // Theme pages carry neither the toolbar nor the rule
-                        // upstream — they open straight onto their token card,
-                        // because there are no stories for a theme control to
-                        // act on.
-                        if (page.sections.isNotEmpty) ...<Widget>[
-                          DocsToolbar(page: page),
-                          Selectable(child: DocsProse(page.description)),
-                          const SizedBox(height: DocsMetrics.ruleGap),
-                          const _Rule(),
-                          const SizedBox(height: DocsMetrics.ruleGap),
-                        ] else if (page.description.isNotEmpty) ...<Widget>[
-                          Selectable(child: DocsProse(page.description)),
-                          const SizedBox(height: 24),
-                        ],
-                        // A page that carries its own markdown is rendered
-                        // by the viewer, which handles the tables and nested
-                        // lists the prose renderer would flatten.
-                        if (page.markdown != null)
-                          Selectable(
-                            child: MarkdownBody(
-                              source: page.markdown!,
-                              skipLeadingHeading: true,
-                            ),
-                          ),
-                        for (final ProseBlock block in page.prose) ...<Widget>[
-                          const SizedBox(height: 32),
-                          Selectable(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(block.title, style: DocsMetrics.h3),
-                                const SizedBox(height: 12),
-                                DocsProse(block.body),
-                              ],
-                            ),
-                          ),
-                        ],
-                        if (page.prose.isNotEmpty)
-                          const SizedBox(height: DocsMetrics.ruleGap),
-                        if (page.body != null) page.body!(context),
-                        for (final DocsSection section in page.sections)
-                          _Section(
-                            key: _anchors[section.id],
-                            section: section,
-                            assetPath: page.source,
-                          ),
-                        if (page.props.isNotEmpty)
-                          Selectable(child: PropsTable(rows: page.props)),
-                        const SizedBox(height: 96),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      const SizedBox(height: 49),
+                      Selectable(
+                        child: Text(page.title, style: DocsMetrics.h1),
+                      ),
+                      const SizedBox(height: 16),
+                      // Theme pages carry neither the toolbar nor the rule
+                      // upstream — they open straight onto their token card,
+                      // because there are no stories for a theme control to
+                      // act on.
+                      if (page.sections.isNotEmpty) ...<Widget>[
+                        DocsToolbar(page: page),
+                        Selectable(child: DocsProse(page.description)),
+                        const SizedBox(height: DocsMetrics.ruleGap),
+                        const _Rule(),
+                        const SizedBox(height: DocsMetrics.ruleGap),
+                      ] else if (page.description.isNotEmpty) ...<Widget>[
+                        Selectable(child: DocsProse(page.description)),
+                        const SizedBox(height: 24),
                       ],
-                    ),
+                      // A page that carries its own markdown is rendered
+                      // by the viewer, which handles the tables and nested
+                      // lists the prose renderer would flatten.
+                      if (page.markdown != null)
+                        Selectable(
+                          child: MarkdownBody(
+                            source: page.markdown!,
+                            skipLeadingHeading: true,
+                          ),
+                        ),
+                      for (final ProseBlock block in page.prose) ...<Widget>[
+                        const SizedBox(height: 32),
+                        Selectable(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(block.title, style: DocsMetrics.h3),
+                              const SizedBox(height: 12),
+                              DocsProse(block.body),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (page.prose.isNotEmpty)
+                        const SizedBox(height: DocsMetrics.ruleGap),
+                      if (page.body != null) page.body!(context),
+                      for (final DocsSection section in page.sections)
+                        _Section(
+                          key: _anchors[section.id],
+                          section: section,
+                          assetPath: page.source,
+                        ),
+                      if (page.props.isNotEmpty)
+                        Selectable(child: PropsTable(rows: page.props)),
+                      const SizedBox(height: 96),
+                    ],
                   ),
                 ),
               ),
             ),
           ),
-          // Only the rail rebuilds as the page scrolls; the article does not.
-          ListenableBuilder(
-            listenable: _scroll,
-            builder: (BuildContext context, _) => OnThisPage(
-              sections: page.sections,
-              activeId: _active,
-              onSelect: _scrollTo,
-              scrollOffset: _scroll.hasClients ? _scroll.offset : 0,
-            ),
+        ),
+        // Only the rail rebuilds as the page scrolls; the article does not.
+        ListenableBuilder(
+          listenable: _scroll,
+          builder: (BuildContext context, _) => OnThisPage(
+            sections: page.sections,
+            activeId: _active,
+            onSelect: _scrollTo,
+            scrollOffset: _scroll.hasClients ? _scroll.offset : 0,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
