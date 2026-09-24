@@ -374,10 +374,10 @@ const FluentTagPickerStyle({
 | `padding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset from the inside of the border to the content and the expand chevron. |
 | `contentPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around the field — upstream's `TagPickerInput` padding, which is what sets the control's height while it has no tags. |
 | `tagSpacing` | `WidgetStateProperty<double?>?` | No | `null` | Space between the tags on a row — upstream's `TagGroup` `columnGap`. |
-| `tagRunSpacing` | `WidgetStateProperty<double?>?` | No | `null` | Space between rows of tags — upstream's `TagPickerGroup` row `gap`. Falls back to `tagSpacing`. |
-| `tagPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around the tags — upstream's `TagPickerGroup` padding. Falls back to `contentPadding`. |
+| `tagRunSpacing` | `WidgetStateProperty<double?>?` | No | `null` | Space between rows of tags — upstream's `TagPickerGroup` row `gap`. Falls back to [tagSpacing]. |
+| `tagPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around the tags — upstream's `TagPickerGroup` padding. Falls back to [contentPadding]. |
 | `fieldSpacing` | `WidgetStateProperty<double?>?` | No | `null` | Space between the tags and a field on the same line — the control's `columnGap`. |
-| `fieldWidth` | `WidgetStateProperty<double?>?` | No | `null` | Narrowest the field may be beside the tags — upstream's `minWidth`. The field fills whatever the tags leave of their line, as upstream's `flexGrow: 1` input does, while that is at least this wide and its text fits; otherwise it takes a line of its own below them. |
+| `fieldWidth` | `WidgetStateProperty<double?>?` | No | `null` | Narrowest the field may be beside the tags — upstream's `minWidth`. |
 | `minimumSize` | `WidgetStateProperty<Size?>?` | No | `null` | Minimum size of the control. |
 | `mouseCursor` | `WidgetStateProperty<MouseCursor?>?` | No | `null` | Cursor while hovering the control. |
 | `surfaceColor` | `WidgetStateProperty<Color?>?` | No | `null` | Popup surface fill. |
