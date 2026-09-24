@@ -1952,7 +1952,7 @@ void main() {
         isFalse,
         reason:
             'showRoundOffXTickValues={!isScalePaddingDefined(...)} at '
-            'VerticalStackedBarChart.tsx:1389 turns the axis rounding off once '
+            'VerticalStackedBarChart.tsx:1399 turns the axis rounding off once '
             'an inner padding is given, as _getScales does for the bars '
             '(:861-863)',
       );

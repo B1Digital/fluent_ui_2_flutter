@@ -48,6 +48,10 @@ typedef _LinePoint = ({
   FluentStackedBarLineDatum point,
 });
 
+/// A hit region and the x that hovering or focusing it makes active, null
+/// where it leaves the active x alone.
+typedef _HitTarget = ({FluentChartHitRegion region, Object? activeX});
+
 /// A line point's hover target: its dot, plus the stroke to the next point.
 ///
 /// Upstream hangs `_lineHover(lineObject[item][i - 1])` off the `<line>` from
@@ -706,7 +710,7 @@ class FluentVerticalStackedBarChartDelegate
   /// (`:880-888`), and the numeric one over the same extent and range, niced on
   /// the same `isScalePaddingDefined` test that
   /// `FluentCartesianChartProps.showRoundOffXTickValues` carries (`:854-863`,
-  /// `:1389`).
+  /// `:1399`).
   Scale _xBarScale(
     FluentCartesianChildContext context,
     FluentCartesianLayout layout,
@@ -1821,20 +1825,24 @@ class FluentVerticalStackedBarChartDelegate
     FluentCartesianChildContext context,
     FluentCartesianLayout layout,
   ) {
-    _solvedLayouts[context] = layout;
-    return <FluentChartHitRegion>[
-      for (final target in _hitTargets(context, layout)) target.region,
-    ];
+    final targets = _solvedTargets[context] = _hitTargets(context, layout);
+    return <FluentChartHitRegion>[for (final target in targets) target.region];
   }
 
-  /// The layout [buildHitRegions] was last handed with each child context.
+  /// The targets [buildHitRegions] last built with each child context.
   ///
-  /// The shell's pointer and focus callbacks carry the child context alone,
-  /// while the stacks cannot be placed without the margins the layout holds.
+  /// The shell's pointer and focus callbacks carry the child context alone.
   /// The shell mints one context per solve and passes that same object to
   /// both, so it is the key; the table is weak and forgets a solve with it.
-  static final Expando<FluentCartesianLayout> _solvedLayouts =
-      Expando<FluentCartesianLayout>();
+  /// Reading the solve back, rather than solving again, keeps a pointer move
+  /// from re-placing every stack and keeps the lit dot on the regions the
+  /// shell is hit-testing. One table per delegate, hung off it through
+  /// [_solved] because the const constructor rules out a field.
+  Expando<List<_HitTarget>> get _solvedTargets =>
+      _solved[this] ??= Expando<List<_HitTarget>>();
+
+  static final Expando<Expando<List<_HitTarget>>> _solved =
+      Expando<Expando<List<_HitTarget>>>();
 
   /// The x a hover at [position] makes active, or null when what lies there
   /// leaves it alone.
@@ -1846,11 +1854,8 @@ class FluentVerticalStackedBarChartDelegate
   /// (`_onRectFocusHover`, `:727-768`), and neither does a gap, because every
   /// leave handler is empty (`:802-804`).
   Object? activeXAt(FluentCartesianChildContext context, Offset position) {
-    final layout = _solvedLayouts[context];
-    if (layout == null) {
-      return null;
-    }
-    for (final target in _hitTargets(context, layout).reversed) {
+    for (final target
+        in (_solvedTargets[context] ?? const <_HitTarget>[]).reversed) {
       if (target.region.bounds.contains(position)) {
         return target.activeX;
       }
@@ -1863,21 +1868,17 @@ class FluentVerticalStackedBarChartDelegate
   /// `_onStackFocus` and `_lineFocus` run the hover handlers (`:775-800`), so
   /// focus lights the same dot hover does.
   Object? activeXOfRegion(FluentCartesianChildContext context, int index) {
-    final layout = _solvedLayouts[context];
-    if (layout == null) {
-      return null;
-    }
-    final targets = _hitTargets(context, layout);
+    final targets = _solvedTargets[context] ?? const <_HitTarget>[];
     return index < 0 || index >= targets.length ? null : targets[index].activeX;
   }
 
   /// Every region, with the x hovering or focusing it makes active.
-  List<({FluentChartHitRegion region, Object? activeX})> _hitTargets(
+  List<_HitTarget> _hitTargets(
     FluentCartesianChildContext context,
     FluentCartesianLayout layout,
   ) {
     final segments = interactiveSegmentsFor(context, layout);
-    final out = <({FluentChartHitRegion region, Object? activeX})>[];
+    final out = <_HitTarget>[];
     if (!isCalloutForStack) {
       for (final segment in segments) {
         out.add((
@@ -1924,12 +1925,10 @@ class FluentVerticalStackedBarChartDelegate
   /// is hit at the radius it is drawn at — 8 with nothing highlighted, which
   /// makes every dot a target even while it is transparent — plus half its
   /// 3px ring.
-  List<({FluentChartHitRegion region, Object? activeX})> _lineTargets(
-    FluentCartesianChildContext context,
-  ) {
+  List<_HitTarget> _lineTargets(FluentCartesianChildContext context) {
     final byLegend = _lineObject;
     if (byLegend.isEmpty) {
-      return const <({FluentChartHitRegion region, Object? activeX})>[];
+      return const <_HitTarget>[];
     }
     final strokeWidth = style.lineStrokeWidth!.resolve(const <WidgetState>{})!;
     final dotStrokeWidth = style.lineDotStrokeWidth!.resolve(
@@ -1943,7 +1942,7 @@ class FluentVerticalStackedBarChartDelegate
         selectedLegends.isEmpty &&
         (activeLegend == null || activeLegend!.isEmpty);
     var index = stacks.length;
-    final out = <({FluentChartHitRegion region, Object? activeX})>[];
+    final out = <_HitTarget>[];
     for (final MapEntry(key: legend, value: points) in byLegend.entries) {
       if (!isSegmentHighlighted(legend)) {
         continue;
@@ -2263,7 +2262,7 @@ class _FluentVerticalStackedBarChartState
         // ponytail: the flag is chart-wide, so a line point follows too,
         // across its few pixels of dot and stroke.
         popoverFollowsPointer: true,
-        // `.tsx:1389`, after the `{...props}` spread, so the chart always wins.
+        // `.tsx:1399`, after the `{...props}` spread, so the chart always wins.
         // It is also what `_getScales` nices the numeric bar scale on
         // (`:861-863`), which keeps the stacks on the axis's own scale.
         showRoundOffXTickValues: !isScalePaddingDefined(
