@@ -695,10 +695,17 @@ class FluentDropdownActivateIntent extends Intent {
 /// | Key | Closed | Open |
 /// |---|---|---|
 /// | Down / Up | opens, active on the selected option, else the first | moves the active option, disabled rows included |
+/// | Alt+Up | as Up | as Enter |
 /// | Home / End | — | jumps to first / last |
-/// | Enter / Space | opens | selects the active option and closes; nothing on a disabled one |
+/// | PageUp / PageDown | — | moves ten options, stopping at either end |
+/// | Enter (either) / Space | opens | selects the active option and closes; nothing on a disabled one |
 /// | Escape | — | closes, nothing selected |
 /// | Tab | moves on | closes, then moves on |
+///
+/// Shift, Ctrl, Meta and Alt change none of these keys but Up, as upstream
+/// reads the key alone. A key marked — is not taken at all, so it still
+/// reaches an ancestor: PageUp and PageDown scroll the page, as upstream leaves
+/// them to the browser, and Escape closes a dialog around the dropdown.
 ///
 /// Focus never leaves the trigger while the popup is open — the rows are
 /// deliberately outside the traversal order, so "focus returns to the trigger
@@ -1066,16 +1073,20 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
       _openPopup();
       return;
     }
-    final from = (_active ?? (delta > 0 ? -1 : widget.options.length)) + delta;
-    _setActive(_seek(from, delta));
+    // One option row at a time, each revealed in turn, staying put at an end:
+    // upstream's PageDown is `next()` ten times, each with its own
+    // `scrollIntoView`, and `next()` on the last row stays there (Chrome).
+    final step = delta.sign;
+    for (var i = 0; i < delta.abs(); i++) {
+      final from = _active ?? (step > 0 ? -1 : widget.options.length);
+      _setActive(_seek(from + step, step));
+    }
   }
 
   int get _last => widget.options.length - 1;
 
-  /// Home and End on a closed trigger do nothing upstream (Chrome).
-  void _edge({required bool last}) {
-    if (_open) _setActive(last ? _seek(_last, -1) : _seek(0, 1));
-  }
+  void _edge({required bool last}) =>
+      _setActive(last ? _seek(_last, -1) : _seek(0, 1));
 
   void _activate() {
     if (!_open) {
@@ -1267,10 +1278,11 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
             buildFluentDropdownOption(state, style, <WidgetState>{
               ...states,
               // The active row is where the keyboard is, even though the
-              // framework's focus never leaves the trigger. `_active` is set by
-              // hover too, so on its own it means "active descendant" —
-              // upstream's `data-activedescendant`. The ring belongs to its
-              // focus-visible sibling, which is this AND.
+              // framework's focus never leaves the trigger. `_active` is
+              // upstream's `data-activedescendant`: only opening and the keys
+              // move it, never hover, which is the row's own state here as
+              // upstream. The ring belongs to its focus-visible sibling, which
+              // is this AND.
               if (index == _active && keyboard) WidgetState.focused,
             }),
       ),
@@ -1352,19 +1364,32 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
           // option" while a tap still only toggles.
           child: Shortcuts(
             shortcuts: const <ShortcutActivator, Intent>{
-              SingleActivator(LogicalKeyboardKey.arrowDown):
+              // Alt+Up is upstream's 'CloseSelect', Enter's action, while open
+              // and 'Open', as Up, while closed (getDropdownActionFromKey,
+              // Chrome). First, so plain Up below never sees it.
+              _AnyModifiers(LogicalKeyboardKey.arrowUp, alt: true):
+                  FluentDropdownActivateIntent(),
+              _AnyModifiers(LogicalKeyboardKey.arrowDown):
                   FluentDropdownMoveIntent(1),
-              SingleActivator(LogicalKeyboardKey.arrowUp):
+              _AnyModifiers(LogicalKeyboardKey.arrowUp):
                   FluentDropdownMoveIntent(-1),
-              SingleActivator(LogicalKeyboardKey.home):
-                  FluentDropdownEdgeIntent(last: false),
-              SingleActivator(LogicalKeyboardKey.end): FluentDropdownEdgeIntent(
+              _AnyModifiers(LogicalKeyboardKey.home): FluentDropdownEdgeIntent(
+                last: false,
+              ),
+              _AnyModifiers(LogicalKeyboardKey.end): FluentDropdownEdgeIntent(
                 last: true,
               ),
-              SingleActivator(LogicalKeyboardKey.enter):
+              _AnyModifiers(LogicalKeyboardKey.pageUp): _PageIntent(-10),
+              _AnyModifiers(LogicalKeyboardKey.pageDown): _PageIntent(10),
+              // The keypad's Enter is `e.key` 'Enter' upstream too; left to
+              // the app's ActivateIntent it would only toggle, never commit.
+              _AnyModifiers(LogicalKeyboardKey.enter):
                   FluentDropdownActivateIntent(),
-              SingleActivator(LogicalKeyboardKey.space):
+              _AnyModifiers(LogicalKeyboardKey.numpadEnter):
                   FluentDropdownActivateIntent(),
+              _AnyModifiers(LogicalKeyboardKey.space):
+                  FluentDropdownActivateIntent(),
+              _AnyModifiers(LogicalKeyboardKey.escape): _CloseIntent(),
             },
             child: Actions(
               actions: <Type, Action<Intent>>{
@@ -1376,12 +1401,20 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
                       },
                     ),
                 FluentDropdownEdgeIntent:
-                    CallbackAction<FluentDropdownEdgeIntent>(
+                    _WhileOpenAction<FluentDropdownEdgeIntent>(
+                      this,
                       onInvoke: (intent) {
                         _edge(last: intent.last);
                         return null;
                       },
                     ),
+                _PageIntent: _WhileOpenAction<_PageIntent>(
+                  this,
+                  onInvoke: (intent) {
+                    _move(intent.delta);
+                    return null;
+                  },
+                ),
                 FluentDropdownActivateIntent:
                     CallbackAction<FluentDropdownActivateIntent>(
                       onInvoke: (_) {
@@ -1389,10 +1422,16 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
                         return null;
                       },
                     ),
-                // Only enabled while the popup is open, so Escape still reaches
-                // whatever an ancestor does with it when there is nothing to
-                // dismiss here.
-                DismissIntent: _DismissDropdownAction<T>(this),
+                // Not DismissIntent: `Actions.maybeFind` stops at the nearest
+                // action for an intent, enabled or not, so a closed trigger
+                // holding one hid a FluentDialog's own from the app's Escape.
+                _CloseIntent: _WhileOpenAction<_CloseIntent>(
+                  this,
+                  onInvoke: (_) {
+                    _close();
+                    return null;
+                  },
+                ),
               },
               // Chrome focuses a `<button>` on mousedown, whichever button, so
               // the bar grows while a press is still held; a tap would focus
@@ -1419,18 +1458,55 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
   }
 }
 
-/// Closes the popup on Escape, and only while there is one to close.
-class _DismissDropdownAction<T> extends Action<DismissIntent> {
-  _DismissDropdownAction(this.state);
+/// PageUp and PageDown: [delta] option rows, and only while open.
+class _PageIntent extends Intent {
+  const _PageIntent(this.delta);
 
-  final _FluentDropdownState<T> state;
+  final int delta;
+}
+
+/// Escape: closes the popup, and only while there is one.
+class _CloseIntent extends Intent {
+  const _CloseIntent();
+}
+
+/// [key] under any modifiers; with [alt], only while Alt is among them.
+///
+/// Upstream's `getDropdownActionFromKey` reads `e.key` alone: Shift, Ctrl,
+/// Meta and Alt change nothing but Up, where Alt commits (Chrome, the Default
+/// story). A [SingleActivator] wants its modifiers exact, so Shift+PageDown or
+/// Ctrl+Home slipped past the list.
+class _AnyModifiers extends ShortcutActivator {
+  const _AnyModifiers(this.key, {this.alt = false});
+
+  final LogicalKeyboardKey key;
+  final bool alt;
 
   @override
-  bool isEnabled(DismissIntent intent) => state._open;
+  Iterable<LogicalKeyboardKey> get triggers => <LogicalKeyboardKey>[key];
 
   @override
-  Object? invoke(DismissIntent intent) {
-    state._close();
-    return null;
-  }
+  bool accepts(KeyEvent event, HardwareKeyboard state) =>
+      event is! KeyUpEvent &&
+      event.logicalKey == key &&
+      (!alt || state.isAltPressed);
+
+  @override
+  String debugDescribeKeys() => '${alt ? 'Alt + ' : ''}${key.keyLabel}';
+}
+
+/// A key the popup takes only while it is up.
+///
+/// Closed, upstream's trigger maps Home, End, PageUp, PageDown and Escape to
+/// 'None' (`getDropdownActionFromKey`) and never calls preventDefault on them
+/// (Chrome), so the page still gets them. Reporting disabled rather than doing
+/// nothing is what lets them fall through here too: to WidgetsApp's page
+/// scroll, or its Escape -> DismissIntent and a dialog's action for it.
+class _WhileOpenAction<I extends Intent> extends CallbackAction<I> {
+  _WhileOpenAction(this.state, {required super.onInvoke});
+
+  final _FluentDropdownState<Object?> state;
+
+  @override
+  bool isEnabled(I intent) => state._open;
 }

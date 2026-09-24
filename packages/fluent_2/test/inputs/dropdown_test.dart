@@ -2030,12 +2030,16 @@ void main() {
       node.requestFocus();
       await tester.pumpAndSettle();
 
-      // Closed, they do nothing (Chrome).
+      // Closed, they do nothing and are not even taken: upstream's trigger
+      // maps them to 'None' and never calls preventDefault, so the page
+      // still gets them (Chrome, the Default story).
       for (final k in <LogicalKeyboardKey>[
         LogicalKeyboardKey.home,
         LogicalKeyboardKey.end,
+        LogicalKeyboardKey.pageUp,
+        LogicalKeyboardKey.pageDown,
       ]) {
-        await tester.sendKeyEvent(k);
+        expect(await tester.sendKeyEvent(k), isFalse, reason: '$k passes');
         await tester.pumpAndSettle();
         expect(find.text('Lisbon'), findsNothing, reason: '$k while closed');
       }
@@ -2049,6 +2053,295 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
       expect(chosen, 'osl', reason: 'Home lands on the first selectable row');
+    });
+
+    /// The label of the row drawing the keyboard ring: the active one.
+    String activeRow(WidgetTester tester) => tester
+        .widget<Text>(
+          find.descendant(
+            of: find.byWidgetPredicate(
+              (w) => w is FluentFocusRing && w.visible,
+            ),
+            matching: find.byType(Text),
+          ),
+        )
+        .data!;
+
+    testWidgets('PageUp and PageDown walk ten option rows, then stop', (
+      tester,
+    ) async {
+      // Upstream's PageDown is `next()` ten times (useTriggerSlot.ts), and
+      // `next()` skips a header, visits a disabled row and stops at the end.
+      // Chrome, Default story: Cat -> Snake and Caterpillar -> Snake with ten
+      // rows, Snake -> Cat back up; Grouped (8 rows, two headers): Cat -> Seal.
+      // Here 13 rows under two headers, r5 disabled: ten rows from r0 is r10
+      // only if the header is skipped and r5 counted.
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        FluentDropdown<String>(
+          key: key,
+          focusNode: node,
+          options: <FluentDropdownOption<String>>[
+            const FluentDropdownOption<String>.header(label: Text('A')),
+            for (var i = 0; i < 13; i++) ...<FluentDropdownOption<String>>[
+              if (i == 3)
+                const FluentDropdownOption<String>.header(label: Text('B')),
+              FluentDropdownOption<String>(
+                value: 'r$i',
+                label: Text('r$i'),
+                enabled: i != 5,
+              ),
+            ],
+          ],
+          onChanged: _ignore,
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(activeRow(tester), 'r0');
+
+      for (final (k, expected) in <(LogicalKeyboardKey, String)>[
+        (LogicalKeyboardKey.pageDown, 'r10'),
+        (LogicalKeyboardKey.pageDown, 'r12'),
+        (LogicalKeyboardKey.pageUp, 'r2'),
+        (LogicalKeyboardKey.pageUp, 'r0'),
+      ]) {
+        expect(await tester.sendKeyEvent(k), isTrue, reason: 'open takes $k');
+        await tester.pumpAndSettle();
+        expect(activeRow(tester), expected, reason: '$k');
+      }
+    });
+
+    testWidgets('PageDown scrolls the page while closed, never while open', (
+      tester,
+    ) async {
+      // Closed, upstream leaves the key to the browser, which scrolls the page;
+      // open, it prevents the default (Chrome). Flutter's page scroll is
+      // WidgetsApp's own PageDown -> ScrollIntent, reached only by a key the
+      // dropdown did not take.
+      final node = FocusNode();
+      final controller = ScrollController();
+      addTearDown(node.dispose);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        FluentApp(
+          theme: light(),
+          home: SingleChildScrollView(
+            controller: controller,
+            child: Column(
+              children: <Widget>[
+                SizedBox(
+                  width: 312,
+                  child: FluentDropdown<String>(
+                    key: key,
+                    focusNode: node,
+                    options: options,
+                    onChanged: _ignore,
+                  ),
+                ),
+                const SizedBox(height: 4000),
+              ],
+            ),
+          ),
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
+      await tester.pumpAndSettle();
+      expect(controller.offset, 0, reason: 'open: the list takes it');
+      expect(activeRow(tester), 'Lisbon');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
+      await tester.pumpAndSettle();
+      expect(controller.offset, greaterThan(0), reason: 'closed: the page');
+      expect(find.text('Lisbon'), findsNothing, reason: 'and it stays shut');
+    });
+
+    testWidgets('Alt+Down opens or moves on; Alt+Up opens or commits', (
+      tester,
+    ) async {
+      // Chrome, Default story: closed, both open on the first row; open,
+      // Alt+Down is Down, and Alt+Up is Enter — Corgi is chosen and the list
+      // closes, while on the disabled Ferret nothing happens and it stays open.
+      String? chosen;
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        FluentDropdown<String>(
+          key: key,
+          focusNode: node,
+          options: options,
+          onChanged: (value) => chosen = value,
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+
+      Future<void> alt(LogicalKeyboardKey k) async {
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+        await tester.sendKeyEvent(k);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+        await tester.pumpAndSettle();
+      }
+
+      await alt(LogicalKeyboardKey.arrowDown);
+      expect(activeRow(tester), 'Oslo', reason: 'closed Alt+Down opens');
+      await alt(LogicalKeyboardKey.arrowDown);
+      await alt(LogicalKeyboardKey.arrowDown);
+      expect(activeRow(tester), 'Reykjavik', reason: 'open Alt+Down moves on');
+
+      await alt(LogicalKeyboardKey.arrowUp);
+      expect(chosen, isNull, reason: 'Alt+Up on a disabled row');
+      expect(activeRow(tester), 'Reykjavik', reason: 'and it stays open');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await alt(LogicalKeyboardKey.arrowUp);
+      expect(chosen, 'hel', reason: 'open Alt+Up commits the active row');
+      expect(find.text('Lisbon'), findsNothing, reason: 'and closes');
+      expect(node.hasFocus, isTrue);
+
+      await alt(LogicalKeyboardKey.arrowUp);
+      expect(activeRow(tester), 'Oslo', reason: 'closed Alt+Up opens');
+    });
+
+    testWidgets('Shift, Ctrl, Meta and Alt change no key but Up', (
+      tester,
+    ) async {
+      // Upstream's getDropdownActionFromKey reads `e.key` alone, bar Alt on Up
+      // (Chrome, Default story): closed, Shift+Down, Ctrl+Down, Meta+Up and
+      // Shift+Enter open; open, Shift+Down and Meta+Down move on, Shift+ and
+      // Alt+PageDown reach the end, Ctrl+Home and Shift+End jump, Shift+Enter,
+      // Alt+Enter, Ctrl+Space and Alt+Shift+Up commit, Shift+Escape closes.
+      String? chosen;
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        FluentDropdown<String>(
+          key: key,
+          focusNode: node,
+          options: options,
+          onChanged: (value) => chosen = value,
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+
+      const shift = LogicalKeyboardKey.shiftLeft;
+      const control = LogicalKeyboardKey.controlLeft;
+      const meta = LogicalKeyboardKey.metaLeft;
+      const alt = LogicalKeyboardKey.altLeft;
+      Future<void> press(
+        LogicalKeyboardKey k,
+        List<LogicalKeyboardKey> modifiers,
+      ) async {
+        for (final m in modifiers) {
+          await tester.sendKeyDownEvent(m);
+        }
+        expect(await tester.sendKeyEvent(k), isTrue, reason: '$modifiers $k');
+        for (final m in modifiers.reversed) {
+          await tester.sendKeyUpEvent(m);
+        }
+        await tester.pumpAndSettle();
+      }
+
+      bool open() => find.text('Lisbon').evaluate().isNotEmpty;
+
+      await press(LogicalKeyboardKey.arrowDown, [shift]);
+      expect(activeRow(tester), 'Oslo', reason: 'closed Shift+Down opens');
+      await press(LogicalKeyboardKey.pageDown, [shift]);
+      expect(activeRow(tester), 'Lisbon', reason: 'Shift+PageDown');
+      await press(LogicalKeyboardKey.home, [control]);
+      expect(activeRow(tester), 'Oslo', reason: 'Ctrl+Home');
+      await press(LogicalKeyboardKey.arrowDown, [meta]);
+      expect(activeRow(tester), 'Helsinki', reason: 'Meta+Down');
+      await press(LogicalKeyboardKey.end, [shift]);
+      expect(activeRow(tester), 'Lisbon', reason: 'Shift+End');
+      await press(LogicalKeyboardKey.pageUp, [alt]);
+      expect(activeRow(tester), 'Oslo', reason: 'Alt+PageUp');
+      await press(LogicalKeyboardKey.escape, [shift]);
+      expect(open(), isFalse, reason: 'Shift+Escape closes');
+
+      await press(LogicalKeyboardKey.arrowDown, [control]);
+      expect(activeRow(tester), 'Oslo', reason: 'closed Ctrl+Down opens');
+      await press(LogicalKeyboardKey.enter, [shift]);
+      expect((chosen, open()), ('osl', false), reason: 'Shift+Enter commits');
+
+      await press(LogicalKeyboardKey.arrowUp, [meta]);
+      expect(activeRow(tester), 'Oslo', reason: 'closed Meta+Up opens');
+      await press(LogicalKeyboardKey.arrowDown, [shift]);
+      await press(LogicalKeyboardKey.space, [control]);
+      expect((chosen, open()), ('hel', false), reason: 'Ctrl+Space commits');
+
+      await press(LogicalKeyboardKey.enter, [shift]);
+      expect(activeRow(tester), 'Oslo', reason: 'closed Shift+Enter opens');
+      await press(LogicalKeyboardKey.end, []);
+      await press(LogicalKeyboardKey.arrowUp, [alt, shift]);
+      expect((chosen, open()), ('lis', false), reason: 'Alt+Shift+Up commits');
+
+      await press(LogicalKeyboardKey.arrowDown, []);
+      await press(LogicalKeyboardKey.home, []);
+      await press(LogicalKeyboardKey.enter, [alt]);
+      expect((chosen, open()), ('osl', false), reason: 'Alt+Enter commits');
+
+      // The keypad's Enter is `e.key` 'Enter' too: it opens, then commits.
+      await press(LogicalKeyboardKey.numpadEnter, []);
+      expect(activeRow(tester), 'Oslo', reason: 'closed keypad Enter opens');
+      await press(LogicalKeyboardKey.arrowDown, []);
+      await press(LogicalKeyboardKey.numpadEnter, []);
+      expect((chosen, open()), ('hel', false), reason: 'keypad Enter commits');
+    });
+
+    testWidgets('Escape on a closed trigger reaches the dialog around it', (
+      tester,
+    ) async {
+      // Closed, upstream maps Escape to 'None' and leaves the event alone, so
+      // the Dialog around a Dropdown closes; open, it closes the list and
+      // stops the event there (useTriggerSlot.ts). The ancestor takes Escape
+      // as FluentDialog does: a DismissIntent action above the trigger.
+      var dismissed = 0;
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        Actions(
+          actions: <Type, Action<Intent>>{
+            DismissIntent: CallbackAction<DismissIntent>(
+              onInvoke: (_) => dismissed++,
+            ),
+          },
+          child: FluentDropdown<String>(
+            key: key,
+            focusNode: node,
+            options: options,
+            onChanged: _ignore,
+          ),
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Lisbon'), findsNothing, reason: 'open: the list shuts');
+      expect(dismissed, 0, reason: 'and the dialog stays');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(dismissed, 1, reason: 'closed: the dialog gets Escape');
     });
 
     testWidgets('the list scrolls just far enough, 2px clear of the edge', (
@@ -2134,6 +2427,75 @@ void main() {
         await key_(LogicalKeyboardKey.arrowDown);
         expect(scrollTop(), expected, reason: 'opened on $value');
       }
+    });
+
+    testWidgets('PageDown reveals each of its ten rows in turn', (
+      tester,
+    ) async {
+      // Upstream's PageDown is ten `next()` calls, each running its own
+      // `scrollIntoView`. Chrome, the Default story's ten animals cloned to 30
+      // (Cat1 is row 10), listbox held to 260px, scrollHeight 1026: with the
+      // list wheeled to its bottom (766), PageDown from Cat walks back up
+      // through Caterpillar and down again, ending with Cat1 2px clear of the
+      // BOTTOM at 118 — not at the top, as one reveal of Cat1 would put it.
+      // PageUp from the last row with the list at the top ends at 648, Snake1
+      // 2px clear of the top.
+      const animals = <String>[
+        'Cat', 'Caterpillar', 'Corgi', 'Chupacabra', 'Dog', //
+        'Ferret', 'Fish', 'Fox', 'Hamster', 'Snake',
+      ];
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        FluentDropdown<String>(
+          key: key,
+          focusNode: node,
+          style: const FluentDropdownStyle(
+            surfaceMaxHeight: WidgetStatePropertyAll<double?>(260),
+          ),
+          options: <FluentDropdownOption<String>>[
+            for (final suffix in <String>['', '1', '2'])
+              for (final a in animals)
+                FluentDropdownOption<String>(
+                  value: '$a$suffix',
+                  label: Text('$a$suffix'),
+                  text: '$a$suffix',
+                  enabled: a != 'Ferret',
+                ),
+          ],
+          onChanged: _ignore,
+        ),
+      );
+      ScrollPosition position() => tester
+          .state<ScrollableState>(
+            find.descendant(
+              of: find.byType(SingleChildScrollView),
+              matching: find.byType(Scrollable),
+            ),
+          )
+          .position;
+      Future<void> key_(LogicalKeyboardKey k) async {
+        await tester.sendKeyEvent(k);
+        await tester.pumpAndSettle();
+      }
+
+      node.requestFocus();
+      await tester.pump();
+      await key_(LogicalKeyboardKey.arrowDown);
+      expect(position().maxScrollExtent, 1026 - 260);
+      position().jumpTo(766);
+      await tester.pump();
+      await key_(LogicalKeyboardKey.pageDown);
+      expect(activeRow(tester), 'Cat1');
+      expect(position().pixels, 118, reason: 'PageDown, list at the bottom');
+
+      await key_(LogicalKeyboardKey.end);
+      position().jumpTo(0);
+      await tester.pump();
+      await key_(LogicalKeyboardKey.pageUp);
+      expect(activeRow(tester), 'Snake1');
+      expect(position().pixels, 648, reason: 'PageUp, list at the top');
     });
 
     testWidgets('a list that shrinks under the active row falls back to the '

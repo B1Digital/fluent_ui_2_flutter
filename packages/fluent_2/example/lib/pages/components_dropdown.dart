@@ -251,24 +251,27 @@ class _DefaultState extends State<_Default> {
     // Prevent the example from taking the full width of the page (optional)
     constraints: const BoxConstraints(maxWidth: 400),
     child: Column(
-      // Stack the label above the field with a 2px gap
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      // Stack the label above the field with a 2px gap, each only as wide as
+      // its content: the dropdown's own 250 minimum, not the column's 400
+      crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       spacing: FluentSpacing.xxs,
       children: <Widget>[
         const FluentLabel(child: Text('Best pet')),
-        FluentDropdown<String>(
-          value: _value,
-          placeholder: const Text('Select an animal'),
-          onChanged: (String value) => setState(() => _value = value),
-          options: <FluentDropdownOption<String>>[
-            for (final String option in _options)
-              FluentDropdownOption<String>(
-                value: option,
-                label: Text(option),
-                enabled: option != 'Ferret',
-              ),
-          ],
+        IntrinsicWidth(
+          child: FluentDropdown<String>(
+            value: _value,
+            placeholder: const Text('Select an animal'),
+            onChanged: (String value) => setState(() => _value = value),
+            options: <FluentDropdownOption<String>>[
+              for (final String option in _options)
+                FluentDropdownOption<String>(
+                  value: option,
+                  label: Text(option),
+                  enabled: option != 'Ferret',
+                ),
+            ],
+          ),
         ),
       ],
     ),

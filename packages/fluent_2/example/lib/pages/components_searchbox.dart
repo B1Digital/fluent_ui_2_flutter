@@ -193,7 +193,11 @@ const DocsPage searchBoxPage = DocsPage(
 // #docregion components-searchbox--default
 Widget _default(BuildContext context) => const FluentField(
   label: Text('Sample SearchBox'),
-  child: FluentSearchBox(),
+  // The field stretches its control; aligned, the box keeps its 468 cap
+  child: Align(
+    alignment: AlignmentDirectional.centerStart,
+    child: FluentSearchBox(),
+  ),
 );
 // #enddocregion components-searchbox--default
 
@@ -469,11 +473,6 @@ class _ControlledState extends State<_Controlled> {
     validationMessage: _valid
         ? null
         : const Text('Input is limited to 20 characters.'),
-    // Upstream's Field picks `Warning12Filled` for the warning state itself;
-    // FluentField takes the glyph from the caller.
-    validationMessageIcon: _valid
-        ? null
-        : const Icon(FluentIcons.warning_12_filled),
     child: FluentSearchBox(controller: _controller, onChanged: _onChanged),
   );
 }
