@@ -59,9 +59,9 @@ void main() {
       await pumpSection(tester, section);
       expect(find.byType(FluentChartPopover), findsNothing);
 
-      // A bar's popover hangs off `MouseRegion.onHover`, which a synthetic tap
-      // never produces: without a real pointer this demo has no observable
-      // behaviour at all.
+      // A bar's popover hangs off `MouseRegion.onEnter` (upstream's
+      // `onMouseOver`), which a synthetic tap never produces: without a real
+      // pointer this demo has no observable behaviour at all.
       TestGesture mouse = await mouseHover(tester, _bars.first);
       expect(find.byType(FluentChartPopover), findsOneWidget);
       expect(
@@ -181,6 +181,17 @@ void main() {
           tester,
         ).map((FluentBenchmarkTrianglePainter p) => p.ratio),
         <double>[0.5, 0.15, 0.1],
+      );
+      // The story passes no `showTriangle`: upstream derives the marker from
+      // each point's `data`, and the flag would widen the row spacing past
+      // the storybook's 10px.
+      expect(
+        tester
+            .widget<FluentHorizontalBarChart>(
+              find.byType(FluentHorizontalBarChart),
+            )
+            .showTriangle,
+        isFalse,
       );
       await expectCleanTeardown(tester, section.id);
     });
@@ -351,13 +362,21 @@ void main() {
       'charts-horizontalbarchart--horizontal-bar-custom-callout',
     );
 
-    testWidgets('the override switch rewrites what the popover says', (
+    testWidgets('the override switch swaps the popover body', (
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
 
+      // Off: `calloutPropsPerDataPoint` adds the 'Custom XVal' heading, and
+      // the point's own `xAxisCalloutData` and `yAxisCalloutData` still take
+      // the legend and value lines over 'Custom Legend' and '1.5K h'
+      // (ChartPopover.tsx:41-44).
       TestGesture mouse = await mouseHover(tester, _bars.first);
-      expect(_popoverText(tester), <String>['2020/04/30', '1.5K']);
+      expect(_popoverText(tester), <String>[
+        'Custom XVal',
+        '2020/04/30',
+        '1.5K',
+      ]);
       await mouseAway(tester, mouse);
 
       await mouseClick(tester, find.byType(FluentSwitch));
@@ -366,19 +385,22 @@ void main() {
         isTrue,
       );
 
+      // On: the story's `customPopover` body replaces the built-in one.
       mouse = await mouseHover(tester, _bars.first);
       expect(_popoverText(tester), <String>[
-        'Custom XVal',
+        '2020/04/30',
+        'one',
         '1.5K h',
-      ], reason: 'the switch must rewrite both popover slots, not just one');
+      ], reason: 'the switch must swap in the custom body');
       await mouseAway(tester, mouse);
 
       await mouseClick(tester, find.byType(FluentSwitch));
       mouse = await mouseHover(tester, _bars.first);
-      expect(_popoverText(tester), <String>[
-        '2020/04/30',
-        '1.5K',
-      ], reason: 'turning the override back off must restore the defaults');
+      expect(
+        _popoverText(tester),
+        <String>['Custom XVal', '2020/04/30', '1.5K'],
+        reason: 'turning the override back off must restore the built-in body',
+      );
       await mouseAway(tester, mouse);
       await expectCleanTeardown(tester, section.id);
     });
@@ -398,6 +420,28 @@ void main() {
       final Finder toggle = find.bySemanticsLabel('Show annotation');
       expect(toggle, findsNWidgets(3));
       expect(find.text('Person 1'), findsNothing);
+      // `legendProps.legends[].legendAnnotation` hangs each annotation off
+      // its own legend row, not off a row of its own beneath the legend.
+      for (final String legend in <String>['One.One', 'Two.One', 'Two.Two']) {
+        expect(
+          find.descendant(
+            of: find.ancestor(
+              of: find.text(legend),
+              matching: find.byType(FluentChartLegend),
+            ),
+            matching: find.byType(Icon),
+          ),
+          findsWidgets,
+          reason: '$legend must carry its annotation inside the legend',
+        );
+      }
+      expect(
+        find.descendant(
+          of: find.byType(FluentChartLegend),
+          matching: find.text('100%'),
+        ),
+        findsOneWidget,
+      );
 
       await mouseClick(tester, toggle.first);
       expect(find.text('Person 1'), findsOneWidget);

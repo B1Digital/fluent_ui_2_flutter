@@ -45,7 +45,7 @@
   },
   "charts-donutchart--donut-chart-custom-callout": {
     "kind": "reduced",
-    "why": "`onRenderCalloutPerDataPoint` becomes `popoverBuilder`, which returns null for the built-in body while the 'User Popover Override' switch is off. `calloutPropsPerDataPoint` has no counterpart on FluentDonutChart, so the built-in body keeps the datum's own reading and colour instead of upstream's 'Custom XVal' heading, '<value> h' value and warning colour. The custom body's `1.5px dotted` border is solid, because Flutter's BorderStyle has no dotted style, and `href` is dropped as in the basic story."
+    "why": "`onRenderCalloutPerDataPoint` becomes `popoverBuilder`, which returns null for the built-in body while the 'User Popover Override' switch is off; `calloutPropsPerDataPoint` passes through as-is. The custom body's `1.5px dotted` border is solid, because Flutter's BorderStyle has no dotted style, and `href` is dropped as in the basic story."
   },
   "charts-donutchart--donut-chart-dynamic": {
     "kind": "reduced",
@@ -105,18 +105,18 @@
   },
   "charts-horizontalbarchart--horizontal-bar-benchmark": {
     "kind": "reduced",
-    "why": "FluentHorizontalBarChart has no hideRatio; showTriangle is a caller-supplied bool here rather than derived from the presence of benchmark data, so it is passed explicitly. The reference PNG renders the fraction on all three rows anyway, so dropping hideRatio changes nothing visible."
+    "why": "FluentHorizontalBarChart has no hideRatio, which HorizontalBarChart.tsx never reads either, and the reference PNG renders the fraction on all three rows. The benchmark marker follows each point's `data` as upstream, so no showTriangle is passed."
   },
   "charts-horizontalbarchart--horizontal-bar-custom-callout": {
     "kind": "reduced",
-    "why": "FluentHorizontalBarChart renders its own popover and takes neither calloutPropsPerDataPoint nor onRenderCalloutPerHorizontalBar. The Switch is live and drives the override through the two per-point fields the popover does read: xAxisCalloutData becomes 'Custom XVal' and yAxisCalloutData gains the ' h' suffix. Upstream's third popover line, 'Custom Legend', has no slot in our one-label/one-value popover. Upstream labels the Switch 'User Popover Override', a typo the showroom corrects to 'Use Popover Override'.",
+    "why": "`calloutPropsPerDataPoint` passes through as-is, and `onRenderCalloutPerHorizontalBar` becomes the returned data's `customContentBuilder`, set only while the Switch is on. The custom body's `1.5px dotted` border is solid, because Flutter's BorderStyle has no dotted style. Upstream labels the Switch 'User Popover Override', a typo the showroom corrects to 'Use Popover Override'.",
     "sampleStringsSkip": [
       "User Popover Override"
     ]
   },
   "charts-horizontalbarchart--horizontal-bar-stacked-annotated-inline-legend": {
-    "kind": "composed",
-    "why": "The chart builds its legend strip from data and takes no legendProps, so legendProps.legends[].legendAnnotation cannot hang off a legend row. Each chart keeps its own legend and the annotations (value badge, cursor-click toggle, Person names) render as their own row beneath it, ported from upstream's AnnotationPopover."
+    "kind": "model",
+    "why": "`legendProps: { enabledWrapLines, legends }` maps to the chart's `enabledWrapLines` and `legends`, and each `legendAnnotation` to FluentChartLegendItem.annotationBuilder. The story's AnnotationPopover button is a 16px cursor-click glyph under a GestureDetector with a 'Show annotation' semantics label."
   },
   "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-basic": {
     "kind": "local-state",
@@ -128,7 +128,7 @@
   },
   "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-dynamic": {
     "kind": "local-state",
-    "why": "dart:math is outside this page's import allowlist, so Math.random() becomes an inline MINSTD generator kept under 2^53 so it stays exact on web; deterministic, and Change data advances the stream as upstream's button does. yAxisPadding is non-nullable here with upstream's own 0.5 default, so the cleared checkbox passes 0.5 rather than undefined \u2014 the same value React resolves to. hideTickOverlap={true} is already the FluentCartesianChartProps default. The visually-hidden aria-live paragraph becomes Semantics(liveRegion: true), and the width slider's 1000 maximum is absorbed by a horizontal SingleChildScrollView."
+    "why": "dart:math is outside this page's import allowlist, so Math.random() becomes an inline MINSTD generator kept under 2^53 so it stays exact on web; deterministic, and Change data advances the stream as upstream's button does. yAxisPadding is non-nullable here with upstream's own 0.5 default, so the cleared checkbox passes 0.5 rather than undefined \u2014 the same value React resolves to. The visually-hidden aria-live paragraph becomes Semantics(liveRegion: true), and the width slider's 1000 maximum is absorbed by a horizontal SingleChildScrollView."
   },
   "charts-horizontalbarchartwithaxis--horizontal-bar-with-axis-negative": {
     "kind": "reduced",
@@ -155,8 +155,8 @@
     "why": "Same drops as Basic: legendsOverflowText, enablePerfOptimization, styles.svgTooltip and the window.navigator culture."
   },
   "charts-linechart--line-chart-annotations-example": {
-    "kind": "reduced",
-    "why": "Annotation text is HTML upstream; our annotation layer parses only <b>, <i> and <br />, so <div>, <strong>, <span> and the <ul>/<li> list become emphasis and line breaks with the words unchanged. CSS strings become Flutter types: padding to EdgeInsets, boxShadow to BoxShadow, fontWeight 600 to FontWeight.w600, rgba() to Color.fromRGBO."
+    "kind": "model",
+    "why": "The annotation text is upstream's markup verbatim: like ChartAnnotationLayer.tsx, the layer honours only <b>, <i> and <br /> and prints <div>, <strong>, <span> and the <ul>/<li> list as literal text. CSS strings become Flutter types: padding to EdgeInsets, boxShadow to BoxShadow, fontWeight 600 to FontWeight.w600, rgba() to Color.fromRGBO."
   },
   "charts-linechart--line-chart-basic": {
     "kind": "reduced",
@@ -168,7 +168,7 @@
   },
   "charts-linechart--line-chart-custom-locale-date-axis": {
     "kind": "nearest-widget",
-    "why": "props.timeFormatLocale takes d3.TimeLocaleDefinition, which lives under src/charts/internal/d3/ and is deliberately not exported, so the Italian axis comes from customDateTimeFormatter plus the it-IT abbreviated month names. culture='rs-ss' is also dropped: our popover formats dates through package:intl, which throws LocaleDataException for a locale whose data was never initialised."
+    "why": "props.timeFormatLocale takes d3.TimeLocaleDefinition, which lives under src/charts/internal/d3/ and is deliberately not exported, so the Italian axis comes from customDateTimeFormatter plus the it-IT abbreviated month names. culture='rs-ss' passes through: it is a locale no runtime has data for, and the popover falls back to the default locale as ECMA-402's toLocaleString does."
   },
   "charts-linechart--line-chart-events": {
     "kind": "reduced",
@@ -266,8 +266,8 @@
     ]
   },
   "charts-verticalbarchart--vertical-bar-date-axis": {
-    "kind": "nearest-widget",
-    "why": "Our shell has no d3 tickFormat string prop, so \"%m/%d\" is expressed as FluentCartesianChartProps.customDateTimeFormatter. DateTime has no const constructor, so the five dates are locals shared between the points and tickValues."
+    "kind": "reduced",
+    "why": "tickFormat=\"%m/%d\" is not transcribed: createDateXAxis reads it only when culture is undefined (utilities.ts:507), and the story always passes one, so its ticks read 'Jan 2018'. culture={window.navigator.language} becomes the fixed 'en-us' a test can reproduce, and DateTime has no const constructor, so the five dates are locals shared between the points and tickValues."
   },
   "charts-verticalbarchart--vertical-bar-default": {
     "kind": "local-state",

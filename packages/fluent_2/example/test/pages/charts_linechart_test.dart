@@ -494,6 +494,34 @@ void main() {
     });
   });
 
+  group('line chart custom locale date axis', () {
+    testWidgets("upstream's unknown culture still opens the popover", (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(
+        tester,
+        sectionOf('charts-linechart--line-chart-custom-locale-date-axis'),
+      );
+      expect(
+        tester.widget<FluentLineChart>(find.byType(FluentLineChart)).culture,
+        'rs-ss',
+      );
+
+      // `rs-ss` has no locale data anywhere, and ECMA-402 falls back to the
+      // default locale for it; a formatter that threw instead would take the
+      // hover down with it.
+      final TestGesture mouse = await hoverAt(
+        tester,
+        markCentre(tester, series: 0, point: 3),
+        what: 'the fourth point of the first line',
+      );
+      expect(find.byType(FluentChartPopover), findsOneWidget);
+      expect(popoverTexts(tester), contains('248,000'));
+      expect(tester.takeException(), isNull);
+      await mouseAway(tester, mouse);
+    });
+  });
+
   group('line chart annotations', () {
     testWidgets('every annotation box lands with its text', (
       WidgetTester tester,
@@ -515,6 +543,10 @@ void main() {
       ]) {
         expect(rendered, contains(text));
       }
+      // Upstream's layer honours only <b>, <i> and <br /> and prints every
+      // other tag as written, so the storybook shows this markup literally.
+      expect(rendered, contains('<div><strong>Launch day</strong>'));
+      expect(rendered, contains('<span>Stretch goal'));
       expect(
         find.byType(FluentChartAnnotationLayer),
         findsOneWidget,

@@ -240,17 +240,40 @@ void main() {
       final Finder popover = find.byType(FluentChartPopover);
 
       // Off: `popoverBuilder` returns null, so the built-in body shows the
-      // datum's own reading.
+      // story's `calloutPropsPerDataPoint` spread over the datum's reading:
+      // its heading and ' h' value, with the datum's `xAxisCalloutData` still
+      // winning the legend line (ChartPopover.tsx:41-44).
       TestGesture mouse = await hoverAt(
         tester,
         arcPoint(tester, 0),
         what: 'the first arc',
       );
+      for (final String line in <String>[
+        'Custom XVal',
+        '2020/04/30',
+        '20000 h',
+      ]) {
+        expect(
+          find.descendant(of: popover, matching: find.text(line)),
+          findsOneWidget,
+          reason: 'the overridden built-in body must show "$line"',
+        );
+      }
       expect(
-        find.descendant(of: popover, matching: find.text('2020/04/30')),
-        findsOneWidget,
+        find.descendant(of: popover, matching: find.text('Custom Legend')),
+        findsNothing,
+        reason: "the datum's xAxisCalloutData outranks the custom legend",
       );
-      expect(find.text('20000 h'), findsNothing);
+      expect(
+        tester
+            .widget<Text>(
+              find.descendant(of: popover, matching: find.text('20000 h')),
+            )
+            .style
+            ?.color,
+        FluentDataVizPalette.resolve(FluentDataVizToken.warning),
+        reason: 'the custom colour paints the reading',
+      );
       await mouseAway(tester, mouse);
 
       await mouseClick(tester, toggle);

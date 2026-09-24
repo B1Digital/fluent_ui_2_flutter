@@ -712,7 +712,10 @@ class _HorizontalBarWithAxisDynamicState
             // Upstream passes `undefined` while the checkbox is clear, which
             // lands on the same 0.5 this default carries.
             yAxisPadding: _yAxisPaddingEnabled ? _yAxisPadding : 0.5,
-            props: const FluentCartesianChartProps(hideLegend: true),
+            props: const FluentCartesianChartProps(
+              hideLegend: true,
+              hideTickOverlap: true,
+            ),
           ),
         ),
       ),
@@ -1045,6 +1048,7 @@ class _HorizontalBarWithAxisCategoryOrderState
             ),
             props: const FluentCartesianChartProps(
               hideLegend: true,
+              hideTickOverlap: true,
               showYAxisLabels: true,
             ),
           ),

@@ -221,7 +221,7 @@ void main() {
   });
 
   group('vertical bar date axis', () {
-    testWidgets('the custom formatter labels every tick', (
+    testWidgets('the ticks read as the culture formats them', (
       WidgetTester tester,
     ) async {
       await pumpSection(
@@ -229,21 +229,16 @@ void main() {
         sectionOf('charts-verticalbarchart--vertical-bar-date-axis'),
       );
       expect(_bars(tester), hasLength(5));
-      // The demo hands the shell five explicit tick values and a `%m/%d`
-      // formatter. The formatter lands; the tick values do not — the axis
-      // labels thirteen generated monthly ticks instead of the five dates the
-      // section names. Upstream's own capture of this story
+      // One label per tick value. Upstream's `tickFormat="%m/%d"` loses to
+      // the story's `culture` (utilities.ts:507), so its capture
       // (`test/fixtures/charts/oracle_b/charts-verticalbarchart--vertical-bar-
-      // date-axis.json`) carries exactly five x labels, one per tick value, so
-      // this is the port dropping the prop: `FluentCartesianChartProps
-      // .tickValues` reaches the domain solve and then the three x builders are
-      // handed `delegate.tickParams`, which no delegate ever fills in.
+      // date-axis.json`) reads 'Jan 2018', not '01/01'.
       expect(_painter(tester).xAxis.tickLabels, <String>[
-        '01/01',
-        '03/01',
-        '07/01',
-        '10/01',
-        '01/01',
+        'Jan 2018',
+        'Mar 2018',
+        'Jul 2018',
+        'Oct 2018',
+        'Jan 2019',
       ]);
     });
   });

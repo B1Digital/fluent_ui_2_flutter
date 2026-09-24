@@ -1762,7 +1762,10 @@ class _VerticalStackedBarDateAxisState
                       '${date.month.toString().padLeft(2, '0')}/'
                       '${date.day.toString().padLeft(2, '0')}',
                   yMaxValue: 120,
-                  yAxisTickFormat: (double x) => '${x.toStringAsFixed(0)} h',
+                  // Upstream's `${x} h`: a JS number prints '2.5' as it is and
+                  // '3' without the '.0' a Dart double would add.
+                  yAxisTickFormat: (double x) =>
+                      '${x == x.roundToDouble() ? x.toInt() : x} h',
                   margins: const FluentChartMargins(
                     bottom: 35,
                     top: 10,
