@@ -1090,11 +1090,13 @@ void main() {
             'GanttChart.tsx:572-580',
       );
       expect(
-        popover.data.isCalloutForStack,
+        popover.data.isCartesian,
         isFalse,
         reason:
-            'parity: Gantt never sets isCartesian, so the popover uses the '
-            'non-cartesian 28px typography, GanttChart.tsx:572-580',
+            'Gantt never sets isCartesian, so the popover uses the '
+            'non-cartesian title2 reading, 600 at 28/36 (GanttChart.tsx:572-580, '
+            'useChartPopoverStyles.styles.ts:147-151); the storybook measures '
+            "'01/01/2009 - 02/28/2009' at 600 on a 36px line",
       );
     });
 
