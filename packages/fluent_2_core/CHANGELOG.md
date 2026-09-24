@@ -9,6 +9,14 @@
   toggling `themeMode` wiped routes, typed text and scroll positions. It now
   always returns the one `FutureBuilder` and builds the app as soon as the
   fonts are loaded.
+- **Light lavender `background2Rest` was navy's colour (#73)**, so lavender
+  avatars rendered navy. The palette layer is generated from the Figma file,
+  which has that slip and seven more, and no test compared it with React. The
+  generator now corrects all eight to Fluent UI React v9 — lavender
+  `background2Rest` (light), red `background3Rest` and `foreground2Rest`,
+  green `foreground3Rest` and `stroke2Rest`, dark red `strokeActiveRest` (all
+  dark), and plum `strokeActiveRest` (both) — and `token_parity_test.dart` now
+  checks every palette token against React in light, dark and Teams dark.
 
 ## 0.0.3
 

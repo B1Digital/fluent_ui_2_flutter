@@ -151,6 +151,61 @@ void main() {
     });
   }
 
+  // The palette layer is generated from the Figma file, which slipped in
+  // places — light lavender Background2 held navy's value (#73). React wins;
+  // `tool/generate_tokens.py` carries the corrections.
+  //
+  // High contrast is left out: React collapses every palette token onto the
+  // canvas pair, which this package does not model yet.
+  final paletteAccessors =
+      <String, Color? Function(FluentPaletteColors, FluentPaletteFamily)>{
+        'Background1': (p, f) => p.background1Rest(f),
+        'Background2': (p, f) => p.background2Rest(f),
+        'Background3': (p, f) => p.background3Rest(f),
+        'Foreground1': (p, f) => p.foreground1Rest(f),
+        'Foreground2': (p, f) => p.foreground2Rest(f),
+        'Foreground3': (p, f) => p.foreground3Rest(f),
+        'ForegroundInverted': (p, f) => p.foregroundInvertedRest(f),
+        'Border1': (p, f) => p.stroke1Rest(f),
+        'Border2': (p, f) => p.stroke2Rest(f),
+        'BorderActive': (p, f) => p.strokeActiveRest(f),
+      };
+  for (final variant in ['webLight', 'webDark', 'teamsDark']) {
+    test('$variant palette matches $source, token for token', () {
+      final palette = variants[variant]!.palette;
+      final react = (themes[variant] as Map<String, dynamic>)
+          .cast<String, String>();
+      final drifted = <String>[];
+      final ported = <String>{};
+      for (final family in FluentPaletteFamily.values) {
+        for (final MapEntry(key: suffix, value: read)
+            in paletteAccessors.entries) {
+          final color = read(palette, family);
+          if (color == null) continue;
+          final name = family.name;
+          final key =
+              'colorPalette${name[0].toUpperCase()}${name.substring(1)}$suffix';
+          ported.add(key);
+          if (hex(color) != react[key]) {
+            drifted.add('  $key: ${hex(color)} != ${react[key]}');
+          }
+        }
+      }
+      expect(
+        drifted,
+        isEmpty,
+        reason:
+            'a Figma slip in the palette layer; correct it in '
+            '`tool/generate_tokens.py` and regenerate:\n${drifted.join('\n')}',
+      );
+      expect(
+        ported,
+        react.keys.where((k) => k.startsWith('colorPalette')).toSet(),
+        reason: 'the accessors above cover exactly the React palette tokens',
+      );
+    });
+  }
+
   test('the Dart-only tokens are exactly the pinned ones', () {
     final react = (themes['webLight'] as Map<String, dynamic>).keys.toSet();
     final only = FluentColorToken.values
