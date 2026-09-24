@@ -1,4 +1,4 @@
-## Unreleased
+## 0.0.6
 
 ### Added
 
@@ -26,7 +26,38 @@
     shape, a circle as a circle), `focusable` and `followsPointer`, and
     `FluentCartesianSeriesDelegate.hoveredRegionAt`, which names the hovered
     region on the same pointer event the chart hears.
+  - `FluentCartesianSeriesDelegate.activationAt`, consulted on a press that
+    hits no region (a line chart uses it to click its stroke), and
+    `FluentCartesianChart.onFocusedRegionChange`, fired as the arrow keys move
+    the roving focus index and with null on blur.
+  - `FluentChartPopoverData.culture` (upstream's `ChartPopoverProps.culture`),
+    in which a multi-value popover formats its rows.
+  - `FluentDonutChart.popoverBuilder`, which replaces the popover body for
+    the hovered or focused datum (upstream's `onRenderCalloutPerDataPoint`);
+    a null return keeps the default body.
+  - `FluentLineChart.eventAnnotationStrokeColor`, `eventAnnotationLabelColor`
+    and `eventAnnotationLabelWidth` (upstream's
+    `eventAnnotationProps.labelWidth`, default 105), forwarded to the event
+    annotation layer.
+  - `FluentCartesianChartProps.copyWith(useUTC:)`.
+  - `FluentChartImageExporter` takes `clipHeight`, `continuationKey` and
+    `continuationX`, which the declarative chart's export uses to draw every
+    legend and a table's whole grid.
 - **Components:**
+  - `FluentSplitButton.menuExpanded` and an optional `child` (an icon-only
+    primary half); `FluentMenuTriggerScope`, through which `FluentMenu`
+    scopes its open state to its trigger so the split button's chevron half
+    takes its Selected tokens and announces expanded.
+  - `FluentFocusRing`'s inset mode, and `FluentButtonStyle.focusRingInsets`,
+    `focusRingInnerColor` and `shadow` (upstream's ring sits inside the
+    button; primary adds a white inner ring and `shadow2`).
+  - `FluentSpinnerPainter.textDirection` (the arc mirrors in RTL),
+    `FluentSpinnerMotion.reducedRotation`, `FluentSpinnerPose.reduced` and
+    `tailFades`.
+  - `FluentInputStyle.focusUnderlineWidth`, the focus bar's thickness.
+  - `FluentDatePickerValidationResult.message`, the `errorStrings` (or
+    ambient locale) text for the error, for a `FluentField` to show.
+  - `FluentCalendarPanel.slideProgress` and `slideForwards`.
   - `FluentButton.activeIcon` (upstream's `bundleIcon` filled glyph, shown
     while a subtle or transparent button is hovered or pressed; also on
     `FluentCompoundButton`) and `FluentButton.menuIcon` (MenuButton's chevron
@@ -44,6 +75,61 @@
 
 ### Changed
 
+- **Requires `fluent_2_core` 0.0.4**, which keeps `FluentApp`'s tree when it
+  rebuilds after the fonts load and corrects eight palette tokens to Fluent UI
+  React v9 (lavender avatars no longer render navy).
+- **Chart prop spellings fixed; the old names are deprecated, not removed.**
+  `showXAxisLablesTooltip`, `wrapXAxisLables`, `rotateXAxisLables`,
+  `showYAxisLables` and `showYAxisLablesTooltip` on
+  `FluentCartesianChartProps` (and `resolveShellXAxisTickPadding`'s
+  parameter) are now `*Labels`, and `xAxistickSize` on
+  `FluentCartesianChartProps` and `FluentXAxisParams` is `xAxisTickSize`.
+  Each old name stays as a `@Deprecated` constructor argument, getter and
+  `copyWith` argument that forwards to the new one, so 0.0.5 code compiles.
+- **Deprecated:** `FluentChartLegendRow.listLength` (now optional; Flutter
+  has no `aria-setsize` semantics to carry it) and
+  `FluentCartesianChartProps.enableFirstRenderOptimization` (the port always
+  lays out with real constraints, so there is no first frame to skip). Both
+  were already ignored.
+- **`tickPadding` is honoured.** A caller's `FluentCartesianChartProps
+  .tickPadding` used to be read only as a truth test (25 painted a 5 gap, 0
+  gave 10), copying a JavaScript precedence slip; it is now
+  `tickPadding ?? (tooltip ? 5 : 10)`.
+- **Button geometry follows upstream in Chrome** (every `FluentButton`): a
+  1px border that takes layout space on every appearance, labelled buttons
+  floored at 64/96/96 wide, icon-only buttons a 24/32/40 square with 1/5/7
+  padding, the focus ring inside the button, and a menu button's label and
+  chevron centred as one group. The legend's "+N more" button grows to the
+  floor as well.
+- **`FluentSplitButton` matches upstream:** icon-only chevron half (large is
+  31 wide, the chevron 1px low as upstream's svg sits), the divider's tokens
+  per appearance and state, the open-menu Selected state, a whole-pixel
+  seam, and the edges drawn with CSS border geometry — a circular split
+  button is now a stadium, not two ellipses, and the outline no longer
+  notches at the seam.
+- **`FluentSpinner` moves like react-spinner 9.4+** (two conic wedges behind
+  a mask) instead of the old stroke-dasharray keyframes: the arc grows from
+  30° to 255° and back with no snap at the cycle boundary, has flat ends,
+  and mirrors in RTL. Under reduced motion the ring keeps turning over 1.8s
+  with a fixed, fading comet tail, as upstream does, instead of freezing.
+  The ring repaints on its own `RepaintBoundary`.
+- **`FluentGanttChart`'s date axis honours `useUtc`** (it built a local time
+  scale while the popover read UTC); `props.useUTC ?? useUtc` now feeds both,
+  and only `true` or `'utc'` enable UTC.
+- **`FluentDataGrid` headers and rows follow upstream:** a sortable header is
+  one interactive surface with the subtle hover and press fill, a bare 12px
+  arrow shown only while it holds the sort (an unsorted column draws none,
+  keeping an empty slot), and regular-weight labels; a pressed row fills
+  `subtleBackgroundPressed`; a cell's focus ring shows for keyboard focus
+  only.
+- **Nav rows follow the storybook:** labels stay `neutralForeground2` in
+  every state, a held plain row keeps the hover fill, and split-row
+  secondary actions fade in over the row end on hover, press or focus, so
+  the label keeps its width.
+- **Horizontal bar rows fit their gaps.** A row of n bars used to run
+  (n − 1) × 3px past its edge (past the start in RTL); bars now shrink into
+  the room the gaps leave, and a zero-width bar takes no gap
+  (`FluentHorizontalBarRowLayout.compute`, new `absoluteLabelIndex`).
 - **BREAKING (custom styles): `FluentInputStyle.borderWidth`,
   `bottomBorderColor` and `bottomBorderWidth` now describe a real CSS-style
   border.** The border takes space and the content row sits inside it, on top
@@ -321,9 +407,62 @@
   scheduled while it is open — and the surface still follows a trigger that
   moves.
 
+- **Documented chart and input options that did nothing now work:**
+  - `culture` on `FluentAreaChart`, `FluentVerticalBarChart`,
+    `FluentHorizontalBarChartWithAxis` and `FluentScatterChart` localizes
+    their readings and tick labels, and the stacked popover of Line, grouped
+    and stacked bar charts formats in it (`12.345,6` under de-DE);
+  - per-point `onClick` / `onDataPointClick` handlers run on HeatMap,
+    VerticalBar, HorizontalBarWithAxis, Gantt, GroupedVerticalBar, Area and
+    Scatter (only Line and stacked bar ran them), and each bar of a
+    coalesced grouped-bar stop keeps its own click;
+  - `FluentLineChartSeries.onLineClick` runs when the stroke between markers
+    is clicked (markers still win);
+  - `FluentEventAnnotation.cardBuilder`: clicking a label with cards opens
+    them in a popover below it, in date order, closed by Escape or an outside
+    click;
+  - `accentWidth` on `FluentDatePickerStyle` and `FluentTimePickerStyle` sets
+    the focus bar's thickness;
+  - `FluentDatePicker.errorStrings` reaches the validation result's
+    `message`.
+- **Chart export is sharp and complete.** The declarative chart's Download
+  captured at pixel ratio 1 and stretched it 5× nearest-neighbour, exported
+  only the table rows in view and the "+N more" button instead of the
+  legends. It now captures at the export scale (fitted inside the browser's
+  8192px / 4096² limits), draws every legend as vectors and exports a table's
+  whole grid.
+- **A submenu's entrance played twice** when its row was clicked within the
+  hover delay, or clicked again while open. Opening cancels the pending hover
+  timer, an already-open submenu only closes what is below it and takes
+  focus, and a stale timer no longer reopens a submenu after Escape or after
+  the pointer left for an ancestor row.
+- **A split `FluentCalendar` replayed the wrong grid's slide.** Each panel now
+  slides on its own when its page changes, and paging the day grid past
+  December moves the month picker to the new year.
+- **The scatter chart grew marker `0_0` whenever it had focus**; it now grows
+  the marker the arrow keys moved to, and nothing on a bare Tab.
 - **Charts:**
   - an unknown `culture` (such as `'rs-ss'`) falls back to the default locale
     instead of throwing during build;
+  - a gauge segment hovers on its painted path (not its bounding box),
+    strokes its outline on keyboard focus only, and its callout targets the
+    segment, the rotated needle or the value text; the title sits on
+    upstream's baseline and the value is measured in the font it paints in;
+  - the donut popover anchors on its arc, stays open until the pointer leaves
+    the chart, and reads in the chart's culture; the polar popover clears its
+    marker; the funnel and polar callouts follow their mark on scroll; the
+    sankey callout stays where the pointer came in and closes only when the
+    pointer leaves the chart;
+  - an open HorizontalBarChart popover hides when `hideTooltip` turns on;
+  - the scatter chart builds its callout index once (a 2000-point chart laid
+    out in ten seconds before its first hover) and ends its rule where
+    upstream does; the area chart's hover listens from the left edge in RTL;
+  - an axis-label tooltip near the edge keeps its words whole instead of
+    breaking them mid-word;
+  - a dashed Vega rule keeps its label border solid; an empty legend adds no
+    margin to a barred popover row;
+  - the donut and gauge measure only the arc a popover targets (a 30-slice
+    hover sweep went from 3.6s to 1.2s in debug);
   - a log y axis draws its default log ticks; mixed number and `Date` x values
     compare by value, and a `Date` extent on a numeric axis no longer throws;
   - annotation boxes lay out and paint as the CSS container (max-width,
@@ -361,7 +500,30 @@
   content; the teaching popover dismiss is upstream's bare 12px glyph; a
   labelled list item announces its label once; `FluentSearchBox` keeps its
   468px cap inside a stretching parent such as `FluentField`; a hovered
-  carousel step mark stays visible in high contrast.
+  carousel step mark stays visible in high contrast and snaps its colours as
+  `CarouselNavButton` does; a disabled tag shows `not-allowed` across the
+  whole tag and its resting icon keeps the label colour; `FluentSpinButton`
+  shows no selection handles for a mouse.
+
+### Showroom (example app)
+
+- Storybook's canvas and docs toolbars as upstream renders them — grid,
+  backgrounds (`PreviewBand`), per-element outlines (`StoryOutlines`), the
+  vision simulator filters and width — and toggling any of them keeps the
+  story's state; an RTL story sits at the canvas's start edge.
+- Stories wired to the new APIs: chart callouts, legends, locale, event
+  annotation colours and label width, the donut popover override, the
+  button stories' bundled, menu and checked icons, the tag stories' filled
+  glyphs, brand carousel nav, TeachingPopover's first-run carousel, and the
+  date picker's error messages from `result.message`.
+- Chart export now downloads the image; inert knobs were dropped (gradient
+  switches, dialog motion, the date range type, the disabled bottom drawer
+  buttons) and switch labels no longer change with their value.
+- Fixes to upstream's story details: colourful avatars use upstream's name
+  hash, the tree actions are small, empty spin buttons start at 0, the
+  title-custom-action dialog has the subtle close, the HBC annotation toggle
+  shows the pointer, the card text is readable in dark theme, and copy
+  typos are corrected.
 
 ## 0.0.5
 

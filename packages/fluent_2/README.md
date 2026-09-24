@@ -34,7 +34,7 @@
 
 ```yaml
 dependencies:
-  fluent_2: ^0.0.1
+  fluent_2: ^0.0.6
 ```
 
 ```dart
