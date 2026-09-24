@@ -137,6 +137,51 @@
 - **A fixed parent height stretches every text field**, with the focus bar on
   its bottom edge, as CSS `height` does — it used to draw the box at its
   natural height and the bar below it.
+- **BREAKING (behaviour), to match upstream's Combobox family:**
+  - `FluentTagPickerRemoveLastIntent` (Backspace in an empty field) focuses
+    the last chip instead of removing it; Delete, Backspace, Enter or Space
+    (on release) then removes the focused chip;
+  - `FluentTagPickerStyle.fieldWidth` is a minimum (24) rather than a fixed
+    96: the field takes the rest of the chips' last line and wraps below it
+    or when its text no longer fits; `contentPadding` changed meaning, and
+    `tagRunSpacing`, `tagPadding` and `fieldSpacing` are new;
+  - a non-freeform `FluentTimePicker` takes a caret and typing (type-ahead;
+    its text reverts on close or picks an exact match), and
+    `resolveFluentTimePickerState(readOnly:)` defaults to false; `hourCycle`
+    is nullable; the default parser accepts upstream's formats only (`8` is
+    no longer a time); the 416px `surfaceMaxHeight` default is gone — the
+    list takes the room below the field;
+  - `FluentInteractive` reports `pressed` for middle and right presses (new
+    `pressedOnSecondary`, which the Dropdown trigger turns off) and tracks
+    hover while disabled.
+- **Pickers behave as upstream's in Chrome** (each measured there first):
+  - TimePicker: freeform typing rings the matching option; typed text is kept
+    after Tab, blur and Escape instead of being reformatted; Enter with a
+    typed match only opens, with none it commits and opens on the committed
+    time; Space picks on an open list not being typed into; a chevron press
+    toggles on mousedown for any button and leaves the caret; a click that
+    drifts still counts; the list keeps its scroll across a reopen;
+  - TagPicker: typed text is cleared on blur or close; chips are focusable,
+    and a press on one while open removes it and moves focus to the next; a
+    click on the field toggles the list (primary button only), and a press on
+    the chevron, padding or aside toggles on mousedown; Up opens on the first
+    row, disabled rows are visited, and a pick leaves a caller's controller
+    alone;
+  - Dropdown: PageUp/PageDown move ten rows, Alt+Up selects and closes,
+    Alt+Down opens or moves on, keypad Enter commits, and every key but Alt+Up
+    reads the same under Shift, Ctrl or Meta; disabled rows are reachable;
+    Escape on a shut list reaches a dialog around it;
+  - DatePicker: a click while the calendar is open leaves it open unless text
+    input is on; with text input the popup keeps focus under a held press and
+    the closing click puts the caret where it landed; a press dragged off the
+    field opens nothing;
+  - lists scroll their active row just into view, 2px clear, instead of
+    centring it.
+- **`FluentField` takes upstream's validation colours and glyphs:** the message
+  and glyph are `colorPalette*Foreground1` per state (error `#bc2f32`), and a
+  default glyph is drawn per state (new `FluentFieldValidationGlyph`) unless
+  one is passed. `FluentLabel` wraps a long label with the required asterisk
+  inline after the last word.
 
 ### Fixed
 
@@ -156,6 +201,8 @@
   `FluentDatePicker`, `FluentTimePicker`, `FluentTagPicker`, `FluentTextarea`
   and `FluentSearchBox` track them while disabled and filter them in the
   build, as Chrome keeps a disabled root's `:hover` and `:active`.
+- **A `FluentDropdown` whose options shrank under the open list threw** on
+  Enter; the active row now falls back to the first option.
 
 ## 0.0.5
 
