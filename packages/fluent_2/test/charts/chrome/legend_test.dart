@@ -1458,6 +1458,53 @@ void main() {
       );
     });
 
+    testWidgets('the overflow trigger is a MenuButton, chevron in menuIcon', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 160,
+              child: FluentChartLegend(
+                legends: List<FluentChartLegendItem>.generate(
+                  6,
+                  (i) => FluentChartLegendItem(
+                    title: 'series number $i',
+                    color: seriesColour,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final label = find.textContaining('more');
+      final trigger = tester.widget<FluentButton>(
+        find.ancestor(of: label, matching: find.byType(FluentButton)),
+      );
+      expect(
+        trigger.menuIcon,
+        isNotNull,
+        reason:
+            'OverflowMenu.tsx:59 renders a MenuButton, whose chevron is the '
+            'menuIcon slot, not an icon placed after the label',
+      );
+      expect(trigger.icon, isNull);
+      final chevron = find.byIcon(FluentIcons.chevron_down_20_regular);
+      expect(tester.getSize(chevron), const Size.square(12));
+      expect(
+        tester.getCenter(chevron).dy - tester.getCenter(label).dy,
+        1,
+        reason:
+            'the menu icon span sits on the label baseline, a pixel low: the '
+            'charts-legends--legends-overflow capture inks the chevron on '
+            'rows 15-19, and the label box is rows 6-25',
+      );
+    });
+
     testWidgets('a short overflow trigger budgets its 96px floor', (
       tester,
     ) async {

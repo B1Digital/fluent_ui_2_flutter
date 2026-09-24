@@ -10,7 +10,7 @@ import 'package:flutter/services.dart'
 import 'package:flutter/widgets.dart';
 
 import '../../buttons/button.dart';
-import '../../buttons/button_style.dart';
+import '../../buttons/split_button.dart';
 import '../../internal/focus_ring.dart';
 import '../../internal/interaction.dart';
 import '../../l10n/l10n.dart';
@@ -67,14 +67,15 @@ import 'legend_style.dart';
 /// the trigger AND this before it is allowed to stay visible.
 const double kLegendOverflowPadding = 10;
 
-/// Side of the overflow trigger's chevron.
+/// Side of the overflow trigger's chevron, for the strip's width budget.
 ///
 /// `useMenuButtonStyles.styles.ts` sizes the menu icon 12 at small and medium
-/// and 16 at large — NOT the button ramp's own 20, which is why this is stated
-/// rather than inherited. The trigger is a medium button, so 12.
+/// and 16 at large — NOT the button ramp's own 20. The trigger is a medium
+/// button, so 12, which is what `FluentButton.menuIcon` draws it at.
 const double _kOverflowChevronSize = 12;
 
-/// Space between the overflow trigger's label and its chevron.
+/// Space between the overflow trigger's label and its chevron, for the same
+/// budget.
 ///
 /// `useMenuButtonStyles.styles.raw.js:93` gives a labelled MenuButton's menu
 /// icon `marginLeft: spacingHorizontalXS` — 4, not the 6 a plain medium
@@ -1000,14 +1001,9 @@ class _FluentChartLegendState extends State<FluentChartLegend> {
                 ],
                 builder: (context, toggle) => FluentButton(
                   onPressed: toggle,
-                  style: FluentButtonStyle.from(gap: _kOverflowChevronGap),
                   // `OverflowMenu.tsx:59` is a MenuButton, which is a Button
-                  // carrying `<ChevronDownRegular />` after its label.
-                  icon: const Icon(
-                    FluentIcons.chevron_down_20_regular,
-                    size: _kOverflowChevronSize,
-                  ),
-                  iconPosition: FluentButtonIconPosition.after,
+                  // carrying `<ChevronDownRegular />` in its menu icon slot.
+                  menuIcon: fluentMenuChevron,
                   child: Text(_triggerLabel(rows.length - visible)),
                 ),
               ),
