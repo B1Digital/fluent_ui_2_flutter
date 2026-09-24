@@ -1158,6 +1158,10 @@ class FluentPolarChartState extends State<FluentPolarChart> {
   /// where the page leaves 184px and the plot alone 87.
   final OverlayPortalController _portal = OverlayPortalController();
 
+  /// Carries the popover with the plot when the page scrolls under a resting
+  /// pointer, which moves the marker but sends no hover.
+  final LayerLink _link = LayerLink();
+
   /// The layout the chart last painted. Exposed for tests and for the export
   /// handle.
   FluentPolarLayout get layout => _layout!;
@@ -1423,49 +1427,58 @@ class FluentPolarChartState extends State<FluentPolarChart> {
           child: OverlayPortal(
             controller: _portal,
             overlayChildBuilder: (context) => _buildPopover(context, l),
-            child: Stack(
-              children: <Widget>[
-                // `:653` — the grid group, under everything.
-                CustomPaint(
-                  size: size,
-                  painter: FluentPolarGridPainter(
-                    layout: l,
-                    shape: widget.shape,
-                    gridColor: gridColour,
-                    gridWidth: style.gridLineWidth!.resolve(states)!,
-                    innerOpacity: style.gridLineInnerOpacity!.resolve(states)!,
-                    outerOpacity: style.gridLineOuterOpacity!.resolve(states)!,
-                  ),
-                ),
-                // Only this layer repaints on a hover or a legend change.
-                RepaintBoundary(
-                  child: CustomPaint(
+            child: CompositedTransformTarget(
+              link: _link,
+              child: Stack(
+                children: <Widget>[
+                  // `:653` — the grid group, under everything.
+                  CustomPaint(
                     size: size,
-                    painter: FluentPolarSeriesPainter(
+                    painter: FluentPolarGridPainter(
                       layout: l,
-                      activeLegends: _activeLegends,
-                      activePointId: _activePointId,
-                      style: style,
-                      states: states,
-                      colors: chartColors,
+                      shape: widget.shape,
+                      gridColor: gridColour,
+                      gridWidth: style.gridLineWidth!.resolve(states)!,
+                      innerOpacity: style.gridLineInnerOpacity!.resolve(
+                        states,
+                      )!,
+                      outerOpacity: style.gridLineOuterOpacity!.resolve(
+                        states,
+                      )!,
                     ),
                   ),
-                ),
-                // `:671` — the ticks last, over the data.
-                CustomPaint(
-                  size: size,
-                  painter: FluentPolarTickPainter(
-                    layout: l,
-                    measurer: _measurer,
-                    labelStyle: style.tickLabelStyle!.resolve(states)!,
-                    gridColor: gridColour,
-                    gridWidth: style.gridLineWidth!.resolve(states)!,
-                    outerOpacity: style.gridLineOuterOpacity!.resolve(states)!,
-                    tickSize: style.tickSize!.resolve(states)!,
-                    labelOffset: style.labelOffset!.resolve(states)!,
+                  // Only this layer repaints on a hover or a legend change.
+                  RepaintBoundary(
+                    child: CustomPaint(
+                      size: size,
+                      painter: FluentPolarSeriesPainter(
+                        layout: l,
+                        activeLegends: _activeLegends,
+                        activePointId: _activePointId,
+                        style: style,
+                        states: states,
+                        colors: chartColors,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                  // `:671` — the ticks last, over the data.
+                  CustomPaint(
+                    size: size,
+                    painter: FluentPolarTickPainter(
+                      layout: l,
+                      measurer: _measurer,
+                      labelStyle: style.tickLabelStyle!.resolve(states)!,
+                      gridColor: gridColour,
+                      gridWidth: style.gridLineWidth!.resolve(states)!,
+                      outerOpacity: style.gridLineOuterOpacity!.resolve(
+                        states,
+                      )!,
+                      tickSize: style.tickSize!.resolve(states)!,
+                      labelOffset: style.labelOffset!.resolve(states)!,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1487,27 +1500,46 @@ class FluentPolarChartState extends State<FluentPolarChart> {
         overlay is! RenderBox) {
       return const SizedBox.shrink();
     }
-    // Not interactive: a surface flipped over the plot would pull the pointer
-    // off the marker that opened it.
-    return IgnorePointer(
-      child: FluentChartPopover(
-        data: FluentChartPopoverData(
-          xValue: marker.popoverXValue,
-          legend: marker.legend,
-          color: marker.color,
-          yValue: marker.popoverYValue,
-          // `:677-686` pass no isCartesian.
-          isCartesian: false,
-        ),
-        // `:504` and `:679-681` target the hovered <circle> itself, so the
-        // surface centres on the marker and clears its box, not its centre:
-        // the storybook's Mike/Math surface starts at the circle's bottom,
-        // 135.23, plus 20.
-        anchorRect: MatrixUtils.transformRect(
-          plot.getTransformTo(overlay),
-          Rect.fromCircle(
-            center: l.centre + marker.position,
-            radius: marker.radius,
+    final toOverlay = plot.getTransformTo(overlay);
+    final toPlot = Matrix4.tryInvert(toOverlay);
+    if (toPlot == null) {
+      return const SizedBox.shrink();
+    }
+    // Laid out in the overlay against the plot as it sits now. The follower
+    // paints in the plot's space as it sits when painted, and undoing the first
+    // leaves only how far the page has moved it since: a scroll under a
+    // resting pointer sends no hover, so nothing rebuilds this.
+    // ponytail: flip and shift are decided at build, as FluentPopover's are,
+    // so a popover scrolled to an edge is not pushed back in until the next
+    // marker rebuilds it.
+    return CompositedTransformFollower(
+      link: _link,
+      showWhenUnlinked: false,
+      child: Transform(
+        transform: toPlot,
+        // Not interactive: a surface flipped over the plot would pull the
+        // pointer off the marker that opened it.
+        child: IgnorePointer(
+          child: FluentChartPopover(
+            data: FluentChartPopoverData(
+              xValue: marker.popoverXValue,
+              legend: marker.legend,
+              color: marker.color,
+              yValue: marker.popoverYValue,
+              // `:677-686` pass no isCartesian.
+              isCartesian: false,
+            ),
+            // `:504` and `:679-681` target the hovered <circle> itself, so the
+            // surface centres on the marker and clears its box, not its centre:
+            // the storybook's Mike/Math surface starts at the circle's bottom,
+            // 135.23, plus 20.
+            anchorRect: MatrixUtils.transformRect(
+              toOverlay,
+              Rect.fromCircle(
+                center: l.centre + marker.position,
+                radius: marker.radius,
+              ),
+            ),
           ),
         ),
       ),

@@ -754,6 +754,10 @@ class _FluentFunnelChartState extends State<FluentFunnelChart> {
   /// over the Visitors stage the surface sits in the page above the chart.
   final OverlayPortalController _portal = OverlayPortalController();
 
+  /// Carries the callout with the funnel when the page scrolls under a resting
+  /// pointer, which moves the stage but sends no hover.
+  final LayerLink _link = LayerLink();
+
   /// Opens the callout on segment [index], or closes it for null.
   void _showCallout(int? index) {
     if (index == _callout) {
@@ -1044,15 +1048,35 @@ class _FluentFunnelChartState extends State<FluentFunnelChart> {
                     overlay is! RenderBox) {
                   return const SizedBox.shrink();
                 }
-                // Not interactive: over its own segment the surface would
-                // pull the pointer off the mark that opened it.
-                return IgnorePointer(
-                  child: FluentChartPopover(
-                    anchorRect: MatrixUtils.transformRect(
-                      box.getTransformTo(overlay),
-                      segments[index].geometry.path!.getBounds(),
+                final toOverlay = box.getTransformTo(overlay);
+                final toFunnel = Matrix4.tryInvert(toOverlay);
+                if (toFunnel == null) {
+                  return const SizedBox.shrink();
+                }
+                // Laid out in the overlay against the funnel as it sits now.
+                // The follower paints in the funnel's space as it sits when
+                // painted, and undoing the first leaves only how far the page
+                // has moved it since: a scroll under a resting pointer sends
+                // no hover, so nothing rebuilds this.
+                // ponytail: flip and shift are decided at build, as
+                // FluentPopover's are, so a callout scrolled to an edge is not
+                // pushed back in until the next stage rebuilds it.
+                return CompositedTransformFollower(
+                  link: _link,
+                  showWhenUnlinked: false,
+                  child: Transform(
+                    transform: toFunnel,
+                    // Not interactive: over its own segment the surface would
+                    // pull the pointer off the mark that opened it.
+                    child: IgnorePointer(
+                      child: FluentChartPopover(
+                        anchorRect: MatrixUtils.transformRect(
+                          toOverlay,
+                          segments[index].geometry.path!.getBounds(),
+                        ),
+                        data: callouts[index],
+                      ),
                     ),
-                    data: callouts[index],
                   ),
                 );
               },
@@ -1063,42 +1087,45 @@ class _FluentFunnelChartState extends State<FluentFunnelChart> {
                     width: funnelWidth,
                     top: 0,
                     bottom: 0,
-                    child: Stack(
-                      key: _plotKey,
-                      children: <Widget>[
-                        Positioned.fill(child: CustomPaint(painter: painter)),
-                        // One Focus per segment, not a roving index — design
-                        // spec §5.7 bounded-cardinality exemption, bound
-                        // asserted above at 32 marks.
-                        for (var i = 0; i < segments.length; i++)
-                          Positioned.fromRect(
-                            rect: segments[i].geometry.path!.getBounds(),
-                            child: Focus(
-                              key: ValueKey<String>(
-                                'funnel-segment-${segments[i].key}',
-                              ),
-                              // FunnelChart.tsx:305 — a dimmed segment leaves
-                              // the tab order, but :233 keeps its focus
-                              // handler live.
-                              canRequestFocus: segments[i].opacity == 1,
-                              // :233-234 — focus opens the callout on the
-                              // segment, blur closes it. Only this segment's
-                              // own callout, whichever of a move's two focus
-                              // notifications lands first.
-                              onFocusChange: (hasFocus) {
-                                if (hasFocus) {
-                                  _showCallout(i);
-                                } else if (_callout == i) {
-                                  _showCallout(null);
-                                }
-                              },
-                              child: Semantics(
-                                label: ariaLabels[i],
-                                child: const SizedBox.expand(),
+                    child: CompositedTransformTarget(
+                      link: _link,
+                      child: Stack(
+                        key: _plotKey,
+                        children: <Widget>[
+                          Positioned.fill(child: CustomPaint(painter: painter)),
+                          // One Focus per segment, not a roving index — design
+                          // spec §5.7 bounded-cardinality exemption, bound
+                          // asserted above at 32 marks.
+                          for (var i = 0; i < segments.length; i++)
+                            Positioned.fromRect(
+                              rect: segments[i].geometry.path!.getBounds(),
+                              child: Focus(
+                                key: ValueKey<String>(
+                                  'funnel-segment-${segments[i].key}',
+                                ),
+                                // FunnelChart.tsx:305 — a dimmed segment leaves
+                                // the tab order, but :233 keeps its focus
+                                // handler live.
+                                canRequestFocus: segments[i].opacity == 1,
+                                // :233-234 — focus opens the callout on the
+                                // segment, blur closes it. Only this segment's
+                                // own callout, whichever of a move's two focus
+                                // notifications lands first.
+                                onFocusChange: (hasFocus) {
+                                  if (hasFocus) {
+                                    _showCallout(i);
+                                  } else if (_callout == i) {
+                                    _showCallout(null);
+                                  }
+                                },
+                                child: Semantics(
+                                  label: ariaLabels[i],
+                                  child: const SizedBox.expand(),
+                                ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ],

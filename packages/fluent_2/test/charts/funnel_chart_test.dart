@@ -1,5 +1,6 @@
 import 'package:fluent_2/fluent_2.dart';
-import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/gestures.dart'
+    show PointerDeviceKind, PointerScrollEvent;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -536,6 +537,94 @@ void main() {
             'storybook keeps it at (108, 109) after the pointer moves on to '
             '(200, 320) inside Visitors',
       );
+    });
+
+    testWidgets('the callout scrolls with its stage under a resting pointer', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1024, 768);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: const SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                SizedBox(height: 190),
+                SizedBox(width: 600, height: 532, child: basic),
+                SizedBox(height: 1000),
+              ],
+            ),
+          ),
+        ),
+      );
+      final gesture = await mouseAt(tester, const Offset(160, 422));
+      // A wheel turn moves the page, and the stage with it, but the pointer
+      // stays put, so no hover reaches the funnel.
+      await tester.sendEventToBinding(
+        const PointerScrollEvent(
+          kind: PointerDeviceKind.mouse,
+          position: Offset(160, 422),
+          scrollDelta: Offset(0, 40),
+        ),
+      );
+      await tester.pump();
+      expect(stage(tester, '0').top, 190, reason: 'scrolled 40px up');
+      expect(
+        surface(tester).bottom,
+        closeTo(stage(tester, '0').top - 20, 0.5),
+        reason:
+            "the callout floats in the overlay, so the page's scroll only "
+            'reaches it through the follower; left at build it stayed 40px '
+            'below the stage it names',
+      );
+      // Moving on inside the same stage rebuilds nothing, so a stale callout
+      // would stay stale.
+      await gesture.moveTo(const Offset(162, 424));
+      await tester.pump();
+      expect(surface(tester).bottom, closeTo(stage(tester, '0').top - 20, 0.5));
+    });
+
+    testWidgets('a zoomed funnel still gets its callout over the stage', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1024, 768);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      // The showroom's canvas zoom: a Transform.scale about the top-left.
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: Padding(
+              padding: EdgeInsets.only(left: origin.dx, top: origin.dy),
+              child: Transform.scale(
+                scale: 0.5,
+                alignment: Alignment.topLeft,
+                child: const SizedBox(width: 600, height: 532, child: basic),
+              ),
+            ),
+          ),
+        ),
+      );
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      final at = stage(tester, '0').center;
+      await gesture.moveTo(at.translate(-1, -1));
+      await gesture.moveTo(at);
+      await tester.pump();
+      expect(
+        surface(tester).bottom,
+        closeTo(stage(tester, '0').top - 20, 0.5),
+        reason:
+            'the follower paints in the scaled funnel space, so the callout '
+            'undoes that transform rather than taking it twice',
+      );
+      expect(surface(tester).center.dx, closeTo(at.dx, 0.5));
     });
 
     testWidgets('leaving the stages for the ground closes the callout', (

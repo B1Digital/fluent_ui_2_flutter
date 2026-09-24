@@ -1433,6 +1433,78 @@ void main() {
         );
       });
 
+      testWidgets(
+        'the popover scrolls with its marker under a resting pointer',
+        (tester) async {
+          tester.view.physicalSize = const Size(1024, 768);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          await tester.pumpWidget(
+            FluentApp(
+              theme: FluentThemeData.light(
+                fontPlatform: FluentFontPlatform.web,
+              ),
+              home: const SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    SizedBox(height: 300),
+                    SizedBox(
+                      width: 600,
+                      height: 350,
+                      child: FluentPolarChart(
+                        data: basic,
+                        width: 600,
+                        height: 350,
+                      ),
+                    ),
+                    SizedBox(height: 1000),
+                  ],
+                ),
+              ),
+            ),
+          );
+          final state = tester.state<FluentPolarChartState>(
+            find.byType(FluentPolarChart),
+          );
+          final marker = state.layout.markers.firstWhere(
+            (m) => m.legend == 'Mike' && m.popoverXValue == 'Chinese',
+          );
+          Offset centre() =>
+              tester.getTopLeft(find.byType(FluentPolarChart)) +
+              state.layout.centre +
+              marker.position;
+          final at = centre();
+          final gesture = await tester.createGesture(
+            kind: PointerDeviceKind.mouse,
+          );
+          await gesture.addPointer(location: Offset.zero);
+          addTearDown(gesture.removePointer);
+          await gesture.moveTo(at.translate(-1, -1));
+          await gesture.moveTo(at);
+          await tester.pump();
+          // A wheel turn moves the page, and the marker with it, but the
+          // pointer stays put, so no hover reaches the plot.
+          await tester.sendEventToBinding(
+            PointerScrollEvent(
+              kind: PointerDeviceKind.mouse,
+              position: at,
+              scrollDelta: const Offset(0, 40),
+            ),
+          );
+          await tester.pump();
+          expect(centre().dy, closeTo(at.dy - 40, 1e-6));
+          expect(
+            surface(tester).bottom,
+            closeTo(centre().dy - marker.radius - 20, 0.5),
+            reason:
+                "the popover floats in the overlay, so the page's scroll only "
+                'reaches it through the follower; left at build it stayed 40px '
+                'below the marker it names',
+          );
+        },
+      );
+
       testWidgets('a marker with no room above gets the popover below it', (
         tester,
       ) async {
