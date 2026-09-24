@@ -100,10 +100,10 @@ FluentSwatchPickerStyle resolveFluentSwatchPickerStyle(
   FluentThemeData theme,
 ) => FluentSwatchPickerStyle(
   // Every one of the 14 Figma variants binds `Spacing/{Horizontal,Vertical}
-  // /MNudge` on all four sides. Upstream's root is `padding: 0`; Figma wins.
-  padding: const WidgetStatePropertyAll<EdgeInsetsGeometry?>(
-    EdgeInsets.all(FluentSpacing.mNudge),
-  ),
+  // /MNudge` on all four sides, but upstream's root is `padding: 0`
+  // (useSwatchPickerStyles.styles.ts), and the storybook's swatches sit flush
+  // with the picker's box. React wins: a 10px inset moved every swatch.
+  padding: const WidgetStatePropertyAll<EdgeInsetsGeometry?>(EdgeInsets.zero),
   spacing: WidgetStatePropertyAll<double?>(switch (state.spacing) {
     FluentSwatchPickerSpacing.medium => FluentSpacing.xs,
     FluentSwatchPickerSpacing.small => FluentSpacing.xxs,
