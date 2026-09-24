@@ -1,5 +1,6 @@
 import 'dart:ui' show Tristate;
 
+import 'package:fluent_2/src/buttons/button.dart' show FluentButton;
 import 'package:fluent_2/src/charts/chrome/legend.dart';
 import 'package:fluent_2/src/charts/chrome/legend_shape.dart';
 import 'package:fluent_2/src/charts/chrome/legend_style.dart';
@@ -1418,6 +1419,106 @@ void main() {
         centred,
         plain,
         reason: 'centerLegends moves no wrapped row at all.',
+      );
+    });
+
+    testWidgets('the overflow chevron sits 4px after the trigger label', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 160,
+              child: FluentChartLegend(
+                legends: List<FluentChartLegendItem>.generate(
+                  6,
+                  (i) => FluentChartLegendItem(
+                    title: 'series number $i',
+                    color: seriesColour,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final label = find.textContaining('more');
+      final chevron = find.byIcon(FluentIcons.chevron_down_20_regular);
+      expect(label, findsOneWidget, reason: 'Guard: the trigger rendered.');
+      expect(
+        tester.getTopLeft(chevron).dx - tester.getTopRight(label).dx,
+        FluentSpacing.xs,
+        reason:
+            'OverflowMenu.tsx:60 is a MenuButton, whose menu icon takes '
+            'marginLeft: spacingHorizontalXS (useMenuButtonStyles.styles.raw.js'
+            ':93) — 4, not the 6 a plain medium button spaces its icon by.',
+      );
+    });
+
+    testWidgets('a short overflow trigger budgets its 96px floor', (
+      tester,
+    ) async {
+      // `+3 more` already clears 96 in Selawik, so a shorter overflowText.
+      const titles = <String>['alpha', 'beta', 'a much longer third series'];
+      final measurer = FluentChartTextMeasurer();
+      final labelStyle = resolveFluentChartLegendStyle(
+        theme,
+      ).labelTextStyle!.resolve(<WidgetState>{})!;
+      final rows = <double>[
+        for (final title in titles)
+          fluentChartLegendRowWidth(title, labelStyle, measurer),
+      ];
+      // Label, 13 of inset each side, the 4px gap and the 12px chevron.
+      final content =
+          measurer.width('+3 etc', theme.typography.body1Strong) + 26 + 16;
+      expect(
+        content,
+        lessThan(96),
+        reason: 'Guard: the trigger content has to fall short of the floor.',
+      );
+      // Two rows fit beside a trigger as wide as its content, not beside one
+      // at the 96 floor.
+      final width =
+          rows[0] + rows[1] + kLegendOverflowPadding + (content + 96) / 2;
+      expect(
+        rows.reduce((a, b) => a + b),
+        greaterThan(width),
+        reason: 'Guard: the three rows overflow.',
+      );
+
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: width,
+              child: FluentChartLegend(
+                overflowText: 'etc',
+                legends: <FluentChartLegendItem>[
+                  for (final title in titles)
+                    FluentChartLegendItem(title: title, color: seriesColour),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(
+        tester.getSize(find.byType(FluentButton)).width,
+        96,
+        reason: 'Guard: the trigger renders at the floor.',
+      );
+      expect(
+        find.text('+2 etc'),
+        findsOneWidget,
+        reason:
+            'The trigger is a MenuButton (OverflowMenu.tsx:60) with the Button '
+            "root's minWidth: 96px (useButtonStyles.styles.raw.js:47), so "
+            'the strip keeps 96 for it and only one row fits beside it.',
       );
     });
 
