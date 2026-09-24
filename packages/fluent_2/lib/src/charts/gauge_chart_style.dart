@@ -362,9 +362,13 @@ FluentGaugeChartStyle resolveFluentGaugeChartStyle(FluentThemeData theme) {
     limitsTextStyle: theme.typography.caption1Strong.copyWith(
       color: theme.colors.neutralForeground1,
     ),
-    chartValueTextStyle: TextStyle(
-      // GaugeChart.tsx:678 sets the size from the breakpoint at paint time;
-      // the weight is the only thing the class fixes.
+    // useGaugeChartStyles.styles.ts:52-56 fixes only the weight and the fill;
+    // the family is inherited from the root's body1 (:36), and GaugeChart.tsx
+    // :678 sets the size from the breakpoint at paint time. Without body1's
+    // family the measurer lays the value out in the fallback font while the
+    // painted Text inherits the theme's, which put '50%' 10px left and 7px
+    // low and elided '50/100' to '...'.
+    chartValueTextStyle: theme.typography.body1.copyWith(
       fontWeight: FluentFontWeight.semibold,
       color: theme.colors.neutralForeground1,
     ),

@@ -145,6 +145,24 @@ void main() {
     );
   });
 
+  test('the chart value is semibold in the root body1 family', () {
+    final style = resolveFluentGaugeChartStyle(
+      theme,
+    ).chartValueTextStyle!.resolve(states)!;
+    expect(
+      style.fontFamily,
+      theme.typography.body1.fontFamily,
+      reason:
+          'useGaugeChartStyles.styles.ts:52-56 sets no family, so the value '
+          "inherits the root's body1 (:36). Without it the measurer lays the "
+          'value out in the fallback font while the painted Text inherits the '
+          "theme's: '50%' landed 10px left and 7px low of the capture, and "
+          "'50/100' elided to '...'.",
+    );
+    expect(style.fontWeight, FluentFontWeight.semibold);
+    expect(style.color, theme.colors.neutralForeground1);
+  });
+
   test('the dimmed opacity is 0.1', () {
     expect(
       resolveFluentGaugeChartStyle(theme).dimmedOpacity!.resolve(states),
