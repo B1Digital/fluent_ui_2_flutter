@@ -108,9 +108,23 @@ void main() {
         styles.popoverY.fontSize,
         theme.typography.subtitle2Stronger.fontSize,
         reason:
-            'useChartPopoverStyles.styles.ts:79-81 calloutContentYCartesian. '
-            'The non-cartesian arm at :82-84 is title2 and is applied by the '
-            'popover itself.',
+            'useChartPopoverStyles.styles.ts:79-81 calloutContentYCartesian.',
+      );
+    });
+
+    test('popoverYNonCartesian is title2, the non-cartesian arm', () {
+      expect(
+        styles.popoverYNonCartesian.fontWeight,
+        theme.typography.title2.fontWeight,
+        reason:
+            'useChartPopoverStyles.styles.ts:82-84 calloutContentYNonCartesian '
+            'is title2: 28px at weight 600 on a 36px line.',
+      );
+      expect(
+        styles.popoverYNonCartesian.height! *
+            styles.popoverYNonCartesian.fontSize!,
+        moreOrLessEquals(36, epsilon: 1e-9),
+        reason: 'title2 sets lineHeightHero800, 36px.',
       );
     });
 

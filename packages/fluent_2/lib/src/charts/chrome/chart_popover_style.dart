@@ -37,10 +37,12 @@ const double kChartPopoverSubHeaderFontSize = 16;
 /// Gap between multi-value columns. `ChartPopover.tsx:187`.
 const double kChartPopoverColumnGap = 16;
 
-/// Top margin inside a multi-value row. `ChartPopover.tsx:226`.
+/// Top margin above a multi-value row. `ChartPopover.tsx:226`.
 ///
 /// Written as `marginTop: xValue ? '13px' : 'unset'`, and `xValue` is the row's
-/// own datum, which is always truthy — so it is always 13.
+/// own datum, which is always truthy — so it is always 13. It sits on the inner
+/// block, but collapses through the barred outer one (`:199-208`, no top border
+/// or padding), so it lands above the accent bar rather than inside it.
 const double kChartPopoverRowMarginTop = 13;
 
 /// Padding below a multi-value row that draws its bottom rule.
@@ -143,7 +145,7 @@ class FluentChartPopoverStyle {
   /// Gap between multi-value columns.
   final WidgetStateProperty<double?>? columnGap;
 
-  /// Top margin inside a multi-value row.
+  /// Top margin above a multi-value row, outside its accent bar.
   final WidgetStateProperty<double?>? rowMarginTop;
 
   /// Colour of a multi-value row's bottom rule.
@@ -334,7 +336,13 @@ class FluentChartPopoverStyle {
 }
 
 /// Resolves the theme-derived chart popover defaults from [theme].
-FluentChartPopoverStyle resolveFluentChartPopoverStyle(FluentThemeData theme) {
+///
+/// [isCartesian] picks the y reading's class, `calloutContentYCartesian` or
+/// `calloutContentYNonCartesian` (`useChartPopoverStyles.styles.ts:147-151`).
+FluentChartPopoverStyle resolveFluentChartPopoverStyle(
+  FluentThemeData theme, {
+  bool isCartesian = true,
+}) {
   final text = FluentChartTextStyles.of(theme);
   // ChartPopover.tsx:52 renders a bare `<PopoverSurface>`, so the surface
   // itself is the package's own medium popover.
@@ -378,7 +386,9 @@ FluentChartPopoverStyle resolveFluentChartPopoverStyle(FluentThemeData theme) {
     ),
     xTextStyle: WidgetStatePropertyAll<TextStyle?>(text.popoverX),
     legendTextStyle: WidgetStatePropertyAll<TextStyle?>(text.popoverLegend),
-    valueTextStyle: WidgetStatePropertyAll<TextStyle?>(text.popoverY),
+    valueTextStyle: WidgetStatePropertyAll<TextStyle?>(
+      isCartesian ? text.popoverY : text.popoverYNonCartesian,
+    ),
     valueFontSize: const WidgetStatePropertyAll<double?>(
       kChartPopoverValueFontSize,
     ),
