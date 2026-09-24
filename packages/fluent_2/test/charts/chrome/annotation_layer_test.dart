@@ -1850,8 +1850,10 @@ void mainLayerWidget() {
         ),
       ),
     );
+    // Inside the 26px-tall box, below the top 6 rows the shifted shadow leaves
+    // uncovered, and in the left padding, clear of the border and the text.
     expect(
-      pixelAt(23, 23),
+      pixelAt(24, 36),
       0xFFFFFFFF,
       reason:
           'CSS paints an outer box-shadow only outside the border box, so a '
@@ -1862,6 +1864,30 @@ void mainLayerWidget() {
       pixelAt(30, 20 + 26 + 3),
       0xFF000000,
       reason: 'Below the box the shadow is still painted.',
+    );
+  });
+
+  testWidgets('the first shadow is painted on top', (tester) async {
+    final pixelAt = await paintOverWhite(
+      tester,
+      const FluentChartAnnotation(
+        text: 'Peak',
+        coordinates: corner,
+        layout: cornerLayout,
+        style: FluentChartAnnotationStyle(
+          boxShadow: <BoxShadow>[
+            BoxShadow(color: Color(0xFFFF0000), offset: Offset(0, 6)),
+            BoxShadow(color: Color(0xFF0000FF), offset: Offset(0, 6)),
+          ],
+        ),
+      ),
+    );
+    expect(
+      pixelAt(30, 20 + 26 + 3),
+      0xFFFF0000,
+      reason:
+          'CSS Backgrounds 3 §7.1: "The first shadow is on top", where a '
+          'BoxDecoration paints its list in order, last on top.',
     );
   });
 
