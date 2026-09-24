@@ -1291,12 +1291,23 @@ class _TitleCustomActionState extends State<_TitleCustomAction> {
   Widget build(BuildContext context) => FluentDialog(
     open: _open,
     onOpenChange: (bool open) => setState(() => _open = open),
-    // There is no `action` slot to swap, so upstream's custom action is the
-    // header close button, which a modal dialog draws only when asked.
-    // Upstream's `aria-label="close"` maps to `closeButtonSemanticLabel`.
-    showCloseButton: true,
-    closeButtonSemanticLabel: 'close',
-    title: const Text('Dialog title'),
+    // FluentDialog has no `action` slot, so upstream's custom action rides at
+    // the end of the title: the grid's 8px gap, then a subtle icon Button at
+    // the top (useDialogTitleStyles action: justifySelf end, alignSelf start).
+    // A modal dialog draws no close of its own, so this is the only one.
+    title: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: FluentSpacing.s,
+      children: <Widget>[
+        const Expanded(child: Text('Dialog title')),
+        FluentButton.icon(
+          appearance: FluentButtonAppearance.subtle,
+          semanticLabel: 'close',
+          icon: const Icon(FluentIcons.dismiss_24_regular),
+          onPressed: () => setState(() => _open = false),
+        ),
+      ],
+    ),
     content: const Text(
       'Lorem, ipsum dolor sit amet consectetur adipisicing elit. Aliquid, '
       'explicabo repudiandae impedit doloribus laborum quidem maxime dolores '

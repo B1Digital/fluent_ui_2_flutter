@@ -788,7 +788,7 @@
   },
   "components-dialog--title-custom-action": {
     "kind": "slot",
-    "why": "There is no `action` slot to replace, so the custom action is the header close button, which a modal dialog draws only with showCloseButton:true. It is FluentDialog's bare dismiss glyph rather than upstream's subtle Button with Dismiss24Regular; only its accessible name is the caller's, so aria-label=\"close\" maps to closeButtonSemanticLabel."
+    "why": "FluentDialog has no `action` slot, so the custom action rides at the end of the title: a Row of the title text, the grid's 8px gap and upstream's subtle icon Button with Dismiss24Regular and aria-label=\"close\", closing the dialog as DialogTrigger action=\"close\" does. The modal dialog draws no close of its own."
   },
   "components-dialog--title-no-action": {
     "kind": "slot",
