@@ -67,6 +67,7 @@ class FluentTreeItem {
     required this.label,
     this.icon,
     this.actions,
+    this.aside,
     this.searchLabel,
     this.children = const <FluentTreeItem>[],
     this.enabled = true,
@@ -84,7 +85,18 @@ class FluentTreeItem {
 
   /// Optional trailing controls. Figma's `Quick actions` slot, which holds a
   /// 24px subtle icon button — pass a `FluentButton.icon` to reproduce it.
+  ///
+  /// Upstream's `TreeItemLayout` `actions` slot: shown only while the row is
+  /// hovered, pressed or focused (or focus is inside the actions), overlaid on
+  /// the row's end so revealing them never changes its height. For trailing
+  /// content that is always shown, use [aside].
   final Widget? actions;
+
+  /// Optional trailing content that is always shown — a badge, a status icon.
+  ///
+  /// Upstream's `TreeItemLayout` `aside` slot: it sits where [actions] do and
+  /// gives way to them while they are shown.
+  final Widget? aside;
 
   /// Plain text used for typeahead, since [label] is a widget and cannot be
   /// read. Null opts this row out of typeahead.
@@ -122,6 +134,7 @@ class FluentTreeItemBaseState {
     this.icon,
     this.label,
     this.actions,
+    this.aside,
     this.onSelectionChanged,
   });
 
@@ -151,8 +164,11 @@ class FluentTreeItemBaseState {
   /// The row's label.
   final Widget? label;
 
-  /// Optional trailing controls.
+  /// Optional trailing controls, shown while the row is in use.
   final Widget? actions;
+
+  /// Optional trailing content, shown whenever [actions] are not.
+  final Widget? aside;
 
   /// Invoked by the selection control with the next value. Null renders the
   /// control disabled.
@@ -187,6 +203,7 @@ class FluentTreeItemState extends FluentTreeItemBaseState {
     super.icon,
     super.label,
     super.actions,
+    super.aside,
     super.onSelectionChanged,
   });
 
@@ -214,6 +231,7 @@ FluentTreeItemState resolveFluentTreeItemState({
   Widget? icon,
   Widget? label,
   Widget? actions,
+  Widget? aside,
   ValueChanged<bool>? onSelectionChanged,
 }) => FluentTreeItemState(
   enabled: enabled,
@@ -229,6 +247,7 @@ FluentTreeItemState resolveFluentTreeItemState({
   icon: icon,
   label: label,
   actions: actions,
+  aside: aside,
   onSelectionChanged: onSelectionChanged,
 );
 
@@ -494,18 +513,107 @@ Widget buildFluentTreeItem(
           padding: padding.add(
             EdgeInsetsDirectional.only(start: indent * state.indentSteps),
           ),
-          child: Row(
-            children: <Widget>[
-              leading,
-              Expanded(child: content),
-              if (state.actions != null)
-                Padding(padding: actionsPadding, child: state.actions!),
-            ],
-          ),
+          child: state.actions == null
+              ? Row(
+                  children: <Widget>[
+                    leading,
+                    Expanded(child: content),
+                    if (state.aside != null)
+                      Padding(padding: actionsPadding, child: state.aside!),
+                  ],
+                )
+              : _FluentTreeActionsRow(
+                  rowActive:
+                      states.contains(WidgetState.hovered) ||
+                      states.contains(WidgetState.pressed) ||
+                      states.contains(WidgetState.focused),
+                  leading: leading,
+                  content: content,
+                  aside: state.aside,
+                  actions: state.actions!,
+                  padding: actionsPadding,
+                ),
         ),
       ),
     ),
   );
+}
+
+/// A row whose trailing [actions] show only while it is in use.
+///
+/// `useTreeItemLayout.tsx` renders `actions` only while `isActionsVisible`,
+/// which mouseover/mouseout and focus/blur on the tree item and on the actions
+/// themselves drive, and drops `aside` for exactly that time. [rowActive] is
+/// the row's hover, press or keyboard focus; focus inside the actions is
+/// tracked here, so a Tab into them (the treegrid story) never lands on an
+/// invisible button.
+///
+/// The actions are overlaid on the row's end, so revealing them never moves
+/// the label or grows the row: upstream stays 32 high because its
+/// `buttonContextValue` shrinks the buttons to `small`, and this keeps the row
+/// at its own height whatever the caller puts in the slot.
+///
+/// ponytail: hidden, not unmounted as upstream does. A menu opened from an
+/// action lives in the overlay, and unmounting its trigger the moment the
+/// pointer leaves the row for the menu would close it. They stay hit-testable
+/// and in the semantics tree too: a mouse always hovers the row, revealing
+/// them, before it can click, and touch and screen readers have no hover to
+/// reveal them with.
+class _FluentTreeActionsRow extends StatefulWidget {
+  const _FluentTreeActionsRow({
+    required this.rowActive,
+    required this.leading,
+    required this.content,
+    required this.aside,
+    required this.actions,
+    required this.padding,
+  });
+
+  final bool rowActive;
+  final Widget leading;
+  final Widget content;
+  final Widget? aside;
+  final Widget actions;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  State<_FluentTreeActionsRow> createState() => _FluentTreeActionsRowState();
+}
+
+class _FluentTreeActionsRowState extends State<_FluentTreeActionsRow> {
+  bool _focusWithin = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = widget.rowActive || _focusWithin;
+    return Stack(
+      fit: StackFit.passthrough,
+      alignment: AlignmentDirectional.centerEnd,
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            widget.leading,
+            Expanded(child: widget.content),
+            if (widget.aside != null && !shown)
+              Padding(padding: widget.padding, child: widget.aside!),
+          ],
+        ),
+        PositionedDirectional(
+          end: 0,
+          child: Focus(
+            canRequestFocus: false,
+            skipTraversal: true,
+            onFocusChange: (value) => setState(() => _focusWithin = value),
+            child: Padding(
+              padding: widget.padding,
+              child: Visibility.maintain(visible: shown, child: widget.actions),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 /// The rotating chevron.
@@ -1216,6 +1324,7 @@ class _FluentTreeRow extends StatelessWidget {
       icon: item.icon,
       label: item.label,
       actions: item.actions,
+      aside: item.aside,
       onSelectionChanged: item.enabled ? onSelectionChanged : null,
     );
 

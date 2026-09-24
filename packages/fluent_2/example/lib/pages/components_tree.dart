@@ -753,15 +753,15 @@ class _ExpandIconState extends State<_ExpandIcon> {
 
 // #docregion components-tree--icon-before-and-after
 // `iconBefore` is the row's leading `icon` slot. `iconAfter` has no counterpart
-// — the nearest thing is the trailing `actions` slot, which sits at the end of
-// the row rather than immediately after the label.
+// — the nearest thing is the trailing `aside` slot, which is always shown but
+// sits at the end of the row rather than immediately after the label.
 Widget _iconBeforeAndAfter(BuildContext context) => const FluentTree(
   semanticLabel: 'Icon Before & After',
   items: <FluentTreeItem>[
     FluentTreeItem(
       value: '1',
       icon: Icon(FluentIcons.image_20_regular),
-      actions: Icon(FluentIcons.lock_closed_20_regular),
+      aside: Icon(FluentIcons.lock_closed_20_regular),
       label: Text('level 1, item 1'),
       children: <FluentTreeItem>[
         FluentTreeItem(
@@ -779,12 +779,12 @@ Widget _iconBeforeAndAfter(BuildContext context) => const FluentTree(
     FluentTreeItem(
       value: '2',
       icon: Icon(FluentIcons.image_20_regular),
-      actions: Icon(FluentIcons.lock_closed_20_regular),
+      aside: Icon(FluentIcons.lock_closed_20_regular),
       label: Text('level 1, item 2'),
       children: <FluentTreeItem>[
         FluentTreeItem(
           value: '2-1',
-          actions: Icon(FluentIcons.warning_20_regular),
+          aside: Icon(FluentIcons.warning_20_regular),
           label: Text('icon after'),
         ),
       ],
@@ -794,8 +794,7 @@ Widget _iconBeforeAndAfter(BuildContext context) => const FluentTree(
 // #enddocregion components-tree--icon-before-and-after
 
 // #docregion components-tree--aside
-// The `aside` slot maps to `FluentTreeItem.actions` — one trailing slot rather
-// than upstream's two that share a spot — and `CounterBadge` to a small danger
+// The `aside` slot is `FluentTreeItem.aside`, and `CounterBadge` a small danger
 // `FluentBadge`. Upstream's `aria-description` lives on the tree item;
 // `FluentTreeItem` has no description field, so it is passed to the aside and
 // announced with it.
@@ -804,7 +803,7 @@ Widget _aside(BuildContext context) => const FluentTree(
   items: <FluentTreeItem>[
     FluentTreeItem(
       value: '1',
-      actions: _AsideContent(
+      aside: _AsideContent(
         isImportant: true,
         messageCount: 3,
         description: 'Important, 3 message',
@@ -813,19 +812,19 @@ Widget _aside(BuildContext context) => const FluentTree(
       children: <FluentTreeItem>[
         FluentTreeItem(
           value: '1-1',
-          actions: _AsideContent(isImportant: true, description: 'Important'),
+          aside: _AsideContent(isImportant: true, description: 'Important'),
           label: Text('level 2, item 1'),
         ),
         FluentTreeItem(
           value: '1-2',
-          actions: _AsideContent(messageCount: 2, description: '2 messages'),
+          aside: _AsideContent(messageCount: 2, description: '2 messages'),
           label: Text('level 2, item 2'),
         ),
       ],
     ),
     FluentTreeItem(
       value: '2',
-      actions: _AsideContent(
+      aside: _AsideContent(
         isImportant: true,
         messageCount: 1,
         description: 'Important, 1 message',
@@ -834,12 +833,12 @@ Widget _aside(BuildContext context) => const FluentTree(
       children: <FluentTreeItem>[
         FluentTreeItem(
           value: '2-1',
-          actions: _AsideContent(messageCount: 1, description: '1 message'),
+          aside: _AsideContent(messageCount: 1, description: '1 message'),
           label: Text('level 2, item 1'),
           children: <FluentTreeItem>[
             FluentTreeItem(
               value: '2-1-1',
-              actions: _AsideContent(),
+              aside: _AsideContent(),
               label: Text('level 3, item 1'),
             ),
           ],

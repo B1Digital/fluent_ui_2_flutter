@@ -66,7 +66,8 @@ class FluentTreeItemStyle {
   /// Inset around the label alone. Figma's `Content slot`.
   final WidgetStateProperty<EdgeInsetsGeometry?>? contentPadding;
 
-  /// Inset around the trailing actions slot. Figma's `Quick actions`.
+  /// Inset around the trailing actions and aside slots. Figma's
+  /// `Quick actions`.
   final WidgetStateProperty<EdgeInsetsGeometry?>? actionsPadding;
 
   /// Space between the leading icon, the selector and the label.
