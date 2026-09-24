@@ -1154,13 +1154,18 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
   ) {
     // FILL_Y_PADDING (`LineChart.tsx:1381`).
     final pad = style.fillBarYPadding!.resolve(<WidgetState>{})!;
-    final domainTop = context.yScalePrimary.domain.last;
-    final yMax = domainTop is num ? domainTop.toDouble() : 0.0;
-    // `:1404` — the band starts one padding above the top of the y extent.
-    final top = context.yScalePrimary(yMax)! - pad;
+    // `:1404` — the band starts one padding above the largest y the primary
+    // series hold (`findNumericMinMaxOfY(_points)`, `:1380`), not above the
+    // niced domain top, which is higher.
+    final top =
+        context.yScalePrimary(findNumericMinMaxOfY(series).endValue)! - pad;
     // `:1406` — and runs down to `props.yMinValue || 0`.
     final bottom = context.yScalePrimary(yMinValue)!;
     final out = <({Rect rect, Color colour, double opacity, bool patterned})>[];
+    // No primary series: `yScale(undefined)` is NaN and SVG drops the rect.
+    if (!top.isFinite) {
+      return out;
+    }
     for (final bar in colorFillBars) {
       // `:1828-1830` — a patterned bar is opaque, a plain one 0.4; `:1396-1398`
       // overrides both with 0.1 once another legend is highlighted.

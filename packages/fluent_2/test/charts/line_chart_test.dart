@@ -1539,7 +1539,9 @@ void main() {
       expect(
         bar.rect.top,
         closeTo(_ctx().yScalePrimary(_yMax)! - 3, 1e-9),
-        reason: 'FILL_Y_PADDING == 3, LineChart.tsx:1381 and :1404',
+        reason:
+            'FILL_Y_PADDING == 3 above the largest y the series hold, '
+            'LineChart.tsx:1380-1381 and :1404',
       );
       expect(
         bar.rect.height,
@@ -3197,9 +3199,10 @@ FluentLineChartDelegate _lineDelegate({
   activePointId: activePointId,
 );
 
-/// The y-domain ceiling of [_ctx]. The fill-bar rect is pinned to it, so the
-/// two must agree or the padding assertions say nothing.
-const double _yMax = 10;
+/// The largest y of [_lineDelegateWithFillBar]'s series, which the fill-bar
+/// rect is pinned to (`LineChart.tsx:1380`). It sits well under [_ctx]'s domain
+/// ceiling of 10, so a rect topped at the domain instead fails.
+const double _yMax = 2;
 
 FluentLineChartDelegate _lineDelegateWithFillBar({
   required num startX,
