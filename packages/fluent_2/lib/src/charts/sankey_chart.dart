@@ -808,7 +808,12 @@ class FluentSankeyChartState extends State<FluentSankeyChart> {
             isCartesian: false,
           );
         }
-        _tooltipName = _visuals[item.index].trimmed
+        // The name is a `<text>` only a node taller than MIN_HEIGHT_FOR_TYPE
+        // draws (`:823`), and its tooltip needs that text trimmed (`:837`).
+        // ponytail: shown over the whole node rather than over the name.
+        _tooltipName =
+            node.y1 - node.y0 > kSankeyMinHeightForType &&
+                _visuals[item.index].trimmed
             ? l.data.nodes[item.index].name
             : null;
       });
@@ -985,10 +990,11 @@ class FluentSankeyChartState extends State<FluentSankeyChart> {
                     // 28 lifts the tooltip clear of the pointer, the same gap
                     // `useSankeyChartStyles.styles.ts:47` gives the label div.
                     top: _popoverAnchor.dy - 28,
-                    child: FluentAxisLabelTooltip(
-                      fullText: _tooltipName!,
-                      renderedText: '',
-                      child: const SizedBox.shrink(),
+                    // `getTooltipStyle` (`Common.styles.ts:36-49`): a bare box
+                    // at opacity 0.9, no arrow, no delay, `pointerEvents:
+                    // 'none'`.
+                    child: IgnorePointer(
+                      child: FluentChartTooltipBox(text: _tooltipName!),
                     ),
                   ),
               ],

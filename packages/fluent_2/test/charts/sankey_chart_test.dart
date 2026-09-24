@@ -527,6 +527,92 @@ void main() {
       );
     });
 
+    testWidgets('a trimmed node name shows whole beside the pointer', (
+      tester,
+    ) async {
+      const name =
+          'An inbox whose name runs far past the room a sankey node label has';
+      await pump(
+        tester,
+        const FluentSankeyChart(
+          data: FluentSankeyChartData(
+            nodes: <FluentSankeyNode>[
+              FluentSankeyNode(nodeId: 0, name: name),
+              FluentSankeyNode(nodeId: 1, name: 'Archive'),
+              FluentSankeyNode(nodeId: 2, name: 'Deleted'),
+            ],
+            links: <FluentSankeyLink>[
+              FluentSankeyLink(source: 0, target: 1, value: 70),
+              FluentSankeyLink(source: 0, target: 2, value: 30),
+            ],
+          ),
+        ),
+      );
+      final state = tester.state<FluentSankeyChartState>(
+        find.byType(FluentSankeyChart),
+      );
+      final node = state.layout.nodes[0];
+      final origin = tester.getTopLeft(find.byType(FluentSankeyChart));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer();
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(
+        origin + Offset((node.x0 + node.x1) / 2, (node.y0 + node.y1) / 2),
+      );
+      await tester.pump();
+      expect(
+        find.widgetWithText(FluentChartTooltipBox, name),
+        findsOneWidget,
+        reason:
+            '_showTooltip fills fui-sc__toolTip with the whole name at once '
+            '(SankeyChart.tsx:994-1004), the getTooltipStyle box with no arrow '
+            'and no delay',
+      );
+    });
+
+    testWidgets('a node too short to draw its name shows no name tooltip', (
+      tester,
+    ) async {
+      const name = 'A tiny source whose name runs far past a sankey node label';
+      await pump(
+        tester,
+        const FluentSankeyChart(
+          data: FluentSankeyChartData(
+            nodes: <FluentSankeyNode>[
+              FluentSankeyNode(nodeId: 0, name: 'Large'),
+              FluentSankeyNode(nodeId: 1, name: name),
+              FluentSankeyNode(nodeId: 2, name: 'Target'),
+            ],
+            links: <FluentSankeyLink>[
+              FluentSankeyLink(source: 0, target: 2, value: 10001),
+              FluentSankeyLink(source: 1, target: 2, value: 2),
+            ],
+          ),
+        ),
+      );
+      final state = tester.state<FluentSankeyChartState>(
+        find.byType(FluentSankeyChart),
+      );
+      final node = state.layout.nodes[1];
+      expect(node.y1 - node.y0, lessThan(kSankeyMinHeightForType));
+      final origin = tester.getTopLeft(find.byType(FluentSankeyChart));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer();
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(
+        origin + Offset((node.x0 + node.x1) / 2, (node.y0 + node.y1) / 2),
+      );
+      await tester.pump();
+      expect(find.byType(FluentChartPopover), findsOneWidget);
+      expect(
+        find.byType(FluentChartTooltipBox),
+        findsNothing,
+        reason:
+            'the name <text> and its tooltip only exist above '
+            'MIN_HEIGHT_FOR_TYPE (SankeyChart.tsx:823); the callout names it',
+      );
+    });
+
     testWidgets('hovering a stream opens the popover with the From message', (
       tester,
     ) async {
