@@ -218,7 +218,11 @@ void main() {
       // dropped the 1px border and the first and last half-leading, ignored
       // `borderStyle: dashed` and painted shadow16 under the translucent
       // stretch-goal fill.
-      maxMismatch: 0.75,
+      //
+      // Linux CI reads 0.899% (4,290 px): the unmasked glyphs are the part of
+      // this story that depends on the host, and FreeType rasterises them
+      // further from Chromium than CoreText does. The pin covers both.
+      maxMismatch: 0.95,
     );
   });
 

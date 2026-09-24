@@ -125,6 +125,16 @@ const double kDefaultMismatchTolerance = 2.0;
 /// no measured figure yet and would fail on its very first run.
 const double _mismatchFloorRatio = 0.5;
 
+/// How many pixels a story must also have gained before its pin counts as
+/// stale.
+///
+/// CI rasterises through FreeType and a Mac through CoreText, and a story
+/// pinned at a handful of pixels reads a few more or fewer on each: measured,
+/// area-chart-secondary-y-axis is 4 px on macOS and 2 px on Linux, so no pin
+/// sits within [_mismatchFloorRatio] of both. Below this slack the difference
+/// is the host, not an improvement anyone could re-pin to.
+const int _staleSlackPixels = 16;
+
 const String _pngDir = 'test/fixtures/charts/react_png';
 const String _outDir = 'test/parity/out';
 
@@ -392,7 +402,9 @@ Future<ParityResult> expectReactParity(
         '$result\nLook at $_outDir/$id.png — reference, Flutter, diff. A '
         'number is not a diagnosis.',
   );
-  if (maxMismatch != kDefaultMismatchTolerance) {
+  final pinnedPixels = maxMismatch / 100 * result.comparedPixels;
+  if (maxMismatch != kDefaultMismatchTolerance &&
+      pinnedPixels - result.mismatchedPixels > _staleSlackPixels) {
     expect(
       result.mismatchPercent,
       greaterThanOrEqualTo(maxMismatch * _mismatchFloorRatio),
