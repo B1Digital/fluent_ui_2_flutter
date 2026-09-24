@@ -415,8 +415,12 @@ Widget _popoverRow(
     mainAxisSize: MainAxisSize.min,
     children: <Widget>[
       // ChartPopover.tsx:228 renders ` {xValue.legend}`, whose leading space
-      // collapses.
-      _popoverLegend(value.legend, style),
+      // collapses. Without a shape the block around it is a plain block box, so
+      // an empty legend's 4px margin collapses into the row's 13px one and
+      // leaves nothing; the shape arm's `inline-grid`
+      // (useChartPopoverStyles.styles.ts:66) keeps it.
+      if (toDrawShape || (value.legend?.isNotEmpty ?? false))
+        _popoverLegend(value.legend, style),
       // ChartPopover.tsx:229 — `direction: ltr; unicode-bidi: isolate` keeps
       // numbers left-to-right under an RTL chart. The multi-value path does NOT
       // apply the 28px inline size the single-value path does.

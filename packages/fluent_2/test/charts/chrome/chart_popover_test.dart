@@ -861,7 +861,7 @@ void main() {
       );
     });
 
-    testWidgets('an empty legend keeps only its 4px margin', (tester) async {
+    testWidgets('an empty legend leaves a barred row nothing', (tester) async {
       await pumpMulti(
         tester,
         const FluentChartPopoverData(
@@ -876,13 +876,11 @@ void main() {
               find.byKey(const ValueKey<String>('popover-row-accent-bar')),
             )
             .height,
-        moreOrLessEquals(
-          FluentSpacing.xs + tester.getSize(find.text('7')).height,
-          epsilon: 0.01,
-        ),
+        moreOrLessEquals(tester.getSize(find.text('7')).height, epsilon: 0.01),
         reason:
-            'ChartPopover.tsx:228 renders ` {legend}`; with no legend the '
-            'whitespace collapses and the div is 0px tall plus its margin.',
+            'ChartPopover.tsx:228 renders ` {legend}`; with no legend the div '
+            'is empty, so its 4px margin collapses through it into the 13px '
+            'row margin. Chrome measures the bar at 22px, the reading alone.',
       );
     });
 
