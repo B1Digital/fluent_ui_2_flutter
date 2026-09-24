@@ -977,6 +977,8 @@ Widget _actions(BuildContext context) => const FluentTree(
   ],
 );
 
+// TreeItemLayout hands its actions a small ButtonContext, so upstream's
+// buttons here are 24x24 (Chrome, components-tree--actions).
 class _TreeItemActions extends StatelessWidget {
   const _TreeItemActions();
 
@@ -988,6 +990,7 @@ class _TreeItemActions extends StatelessWidget {
         icon: const Icon(FluentIcons.edit_20_regular),
         semanticLabel: 'Edit',
         appearance: FluentButtonAppearance.subtle,
+        size: FluentButtonSize.small,
         onPressed: () {},
       ),
       FluentMenu(
@@ -1002,6 +1005,7 @@ class _TreeItemActions extends StatelessWidget {
               icon: const Icon(FluentIcons.more_horizontal_20_regular),
               semanticLabel: 'More options',
               appearance: FluentButtonAppearance.subtle,
+              size: FluentButtonSize.small,
               onPressed: toggle,
             ),
       ),
@@ -1112,6 +1116,7 @@ class _TreeGridItemActions extends StatelessWidget {
         icon: const Icon(FluentIcons.edit_20_regular),
         semanticLabel: 'Edit',
         appearance: FluentButtonAppearance.subtle,
+        size: FluentButtonSize.small,
         onPressed: () {},
       ),
       FluentMenu(
@@ -1126,6 +1131,7 @@ class _TreeGridItemActions extends StatelessWidget {
               icon: const Icon(FluentIcons.more_horizontal_20_regular),
               semanticLabel: 'More options',
               appearance: FluentButtonAppearance.subtle,
+              size: FluentButtonSize.small,
               onPressed: toggle,
             ),
       ),
