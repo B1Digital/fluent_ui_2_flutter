@@ -6,6 +6,7 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../internal/anchor_metrics.dart';
 import '../l10n/l10n.dart';
 import 'axis/axis_label_layout.dart';
 import 'axis/tick_format.dart';
@@ -281,6 +282,31 @@ Path _arcPathOf(
   return sink.path;
 }
 
+/// [path]'s tight bounding box: SVG's `getBBox`, which is what
+/// `getBoundingClientRect` hands a popover's `positioning.target`.
+///
+/// [Path.getBounds] also takes in the control points of the conics Skia
+/// splits an arc into, and those run far past any arc that does not start on
+/// an axis: the basic story's 229-degree 'second' slice measured 382..580 x
+/// 82..304 against Chrome's 420..581 x 82..266.
+///
+/// ponytail: sampled every half pixel along the outline, which is exact to
+/// well under a pixel for a popover anchor and costs O(perimeter).
+Rect _tightBounds(Path path) {
+  Rect? bounds;
+  for (final metric in path.computeMetrics()) {
+    for (var distance = 0.0; ; distance += 0.5) {
+      final point = metric
+          .getTangentForOffset(math.min(distance, metric.length))!
+          .position;
+      final dot = Rect.fromPoints(point, point);
+      bounds = bounds?.expandToInclude(dot) ?? dot;
+      if (distance >= metric.length) break;
+    }
+  }
+  return bounds ?? Rect.zero;
+}
+
 /// One arc label, already positioned and aligned.
 @immutable
 class FluentDonutArcLabel {
@@ -477,6 +503,7 @@ class FluentDonutChart extends StatefulWidget {
     this.hideLegend = false,
     this.hideTooltip = false,
     this.popoverBuilder,
+    this.calloutPropsPerDataPoint,
     this.culture,
     this.order = FluentDonutOrder.byDefault,
     this.canSelectMultipleLegends = false,
@@ -526,7 +553,23 @@ class FluentDonutChart extends StatefulWidget {
   final Widget? Function(BuildContext context, FluentChartDataPoint point)?
   popoverBuilder;
 
-  /// Locale for the centre value (`DonutChart.tsx:225`).
+  /// Overrides for the built-in popover reading of the hovered or focused
+  /// datum.
+  ///
+  /// Ports `calloutPropsPerDataPoint` (`DonutChart.tsx:409-411`), whose
+  /// result `ChartPopover.tsx:41` spreads over the chart's own props. The
+  /// non-null [FluentChartPopoverData.xValue], [FluentChartPopoverData.legend],
+  /// [FluentChartPopoverData.yValue], [FluentChartPopoverData.color],
+  /// [FluentChartPopoverData.ratio] and
+  /// [FluentChartPopoverData.descriptionMessage] replace the chart's. The
+  /// datum's own `xAxisCalloutData` and `yAxisCalloutData` still win over the
+  /// legend and the reading, because `ChartPopover.tsx:43-44` reads the
+  /// chart's callout values after the spread.
+  final FluentChartPopoverData? Function(FluentChartDataPoint point)?
+  calloutPropsPerDataPoint;
+
+  /// Locale for the centre value (`DonutChart.tsx:225`) and the popover
+  /// reading (`DonutChart.tsx:394`).
   final String? culture;
 
   /// Legend ordering (`DonutChart.tsx:107-111`).
@@ -562,11 +605,39 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
   /// `DonutChart.tsx:57` — an id upstream, an index here.
   int? _focusedIndex;
 
+  /// The datum the popover reads — `dataPointCalloutProps`
+  /// (`DonutChart.tsx:58`) — or null once the pointer has left the root.
   FluentChartDataPoint? _hovered;
-  Offset? _anchor;
+
+  /// The hovered arc's box in the plot's coordinates: `refSelected`
+  /// (`DonutChart.tsx:59`), which the popover targets (`:395-397`).
+  Rect? _anchor;
 
   /// Owned by the state so its cache survives a rebuild.
   final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
+
+  /// The plot's own box, which [_anchor] is measured in.
+  final GlobalKey _plotKey = GlobalKey();
+
+  /// Hosts the floating popover. Shown on every open and never hidden: the
+  /// overlay child is empty while nothing is hovered, so no hide has to be
+  /// kept in step with the state, and showing again lifts it over any portal
+  /// opened since and re-attaches a remounted [OverlayPortal].
+  final OverlayPortalController _popoverPortal = OverlayPortalController();
+
+  /// `isPopoverOpen` (`DonutChart.tsx:60`): hovering an arc the selection has
+  /// dimmed records it but keeps the popover shut (`:179`, `:398-400`).
+  bool get _isPopoverOpen =>
+      _hovered != null &&
+      (_highlighted.isEmpty || _isHighlighted(_hovered!.legend));
+
+  void _setHovered(FluentChartDataPoint? point, Rect? anchor) {
+    if (point != null) _popoverPortal.show();
+    setState(() {
+      _hovered = point;
+      _anchor = anchor;
+    });
+  }
 
   /// `_getHighlightedLegend` (`DonutChart.tsx:237-239`).
   List<String> get _highlighted => _selectedLegends.isNotEmpty
@@ -641,29 +712,90 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
     // margin, and `_height + titleHeight / 2` when it is not.
     final bandDelta = (widget.hideLegend ? 1 : -1) * titleHeight / 2;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Flexible(
-          child: LayoutBuilder(
-            builder: (context, constraints) => _buildPlot(
-              context,
-              constraints,
-              theme,
-              resolved,
-              points,
-              titleHeight,
-              bandDelta,
+    // DonutChart.tsx:391-414 renders the ChartPopover inline in a root with no
+    // clipping (useDonutChartStyles.styles.ts:27-35), so the popover's
+    // boundary is the viewport and it hangs past the chart freely. Hosted in
+    // the plot's Stack it was flipped and shifted against the plot band
+    // instead, so it floats in the app's Overlay.
+    return OverlayPortal(
+      controller: _popoverPortal,
+      overlayChildBuilder: _buildPopover,
+      child: MouseRegion(
+        // DonutChart.tsx:346 — only leaving the root closes the popover. An
+        // arc's own leave handler is empty (:193-195), so the hole, the gaps
+        // between arcs and the legend strip keep it open.
+        onExit: (_) => _setHovered(null, null),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Flexible(
+              child: LayoutBuilder(
+                builder: (context, constraints) => _buildPlot(
+                  context,
+                  constraints,
+                  theme,
+                  resolved,
+                  points,
+                  titleHeight,
+                  bandDelta,
+                ),
+              ),
             ),
-          ),
+            if (!widget.hideLegend) ...<Widget>[
+              // useDonutChartStyles.styles.ts:42-45 — the legend container's
+              // paddingTop.
+              SizedBox(height: resolved.legendGap!.resolve(states)!),
+              _buildLegend(points, resolved, theme),
+            ],
+          ],
         ),
-        if (!widget.hideLegend) ...<Widget>[
-          // useDonutChartStyles.styles.ts:42-45 — the legend container's
-          // paddingTop.
-          SizedBox(height: resolved.legendGap!.resolve(states)!),
-          _buildLegend(points, resolved, theme),
-        ],
-      ],
+      ),
+    );
+  }
+
+  /// The overlay child: the popover on the hovered arc, or nothing.
+  Widget _buildPopover(BuildContext context) {
+    final point = _hovered;
+    final anchor = _anchor;
+    // DonutChart.tsx:398-400.
+    if (widget.hideTooltip || !_isPopoverOpen || anchor == null) {
+      return const SizedBox.shrink();
+    }
+    // ChartPopover.tsx:41 spreads these over the chart's props, then :43-44
+    // still prefer the datum's callout values to the legend and the reading.
+    final custom = widget.calloutPropsPerDataPoint?.call(point!);
+    final culture = widget.culture;
+    // The popover takes no pointer, so the pointer stays over the chart that
+    // opened it rather than leaving it for the surface.
+    return IgnorePointer(
+      child: FluentChartPopover(
+        // Off the plot's render box rather than a leader layer, because the
+        // overlay is a screen-space tree — see [fluentAnchorRect].
+        anchorRect: anchor.shift(
+          fluentAnchorRect(_plotKey.currentContext!)?.topLeft ?? Offset.zero,
+        ),
+        data: FluentChartPopoverData(
+          xValue: custom?.xValue,
+          // ChartPopover.tsx:80 and :89 run both through formatToLocaleString,
+          // so a numeric reading groups: 20000 reads 20,000. The raw reading
+          // is `data.data!.toString()` (DonutChart.tsx:180).
+          legend: formatToLocaleString(
+            point!.xAxisCalloutData ?? custom?.legend ?? point.legend,
+            culture: culture,
+          ),
+          yValue: formatToLocaleString(
+            point.yAxisCalloutData ?? custom?.yValue ?? point.data,
+            culture: culture,
+          ),
+          color: custom?.color ?? point.color,
+          ratio: custom?.ratio,
+          descriptionMessage: custom?.descriptionMessage,
+          culture: culture,
+          // DonutChart.tsx:413.
+          isCartesian: false,
+          customContentBuilder: _customPopoverBody(context),
+        ),
+      ),
     );
   }
 
@@ -716,6 +848,9 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
       layout,
       cornerRadius: resolved.cornerRadius!.resolve(states)!,
     );
+    // The arcs' own boxes: the focus and semantics targets, and what the
+    // popover targets (DonutChart.tsx:395-397).
+    final arcBoxes = <Rect>[for (final path in arcPaths) _tightBounds(path)];
     final dimmed = resolved.dimmedOpacity!.resolve(states)!;
     final opacities = <double>[
       // Arc.tsx:112-113.
@@ -746,21 +881,16 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
             context,
           ).donutChartDescription(layout.slices.length),
           child: MouseRegion(
-            // DonutChart.tsx:344 — onMouseLeave clears the popover.
-            onExit: (_) => setState(() {
-              _hovered = null;
-              _anchor = null;
-            }),
             onHover: (event) =>
-                _handleHover(event.localPosition, layout, arcPaths),
+                _handleHover(event.localPosition, layout, arcPaths, arcBoxes),
             child: Stack(
+              key: _plotKey,
               // useDonutChartStyles.styles.ts:40 — `overflow: visible` on
-              // the svg, and upstream floats the popover in a portal. The
-              // default hard edge is not free here: the arc hit targets below
-              // are `Positioned` on their path bounds, so one of them reaching
-              // a rounding step past the band switches the clip on for the
-              // whole stack and takes the hover popover and the arc labels
-              // with it. Measured at 2 px of Skia fringe on
+              // the svg. The default hard edge is not free here: the arc hit
+              // targets below are `Positioned` on their path bounds, so one of
+              // them reaching a rounding step past the band switches the clip
+              // on for the whole stack and takes the arc labels with it.
+              // Measured at 2 px of Skia fringe on
               // `charts-donutchart--donut-chart-basic` (0.110% either way).
               clipBehavior: Clip.none,
               children: <Widget>[
@@ -830,28 +960,11 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
                 ),
                 for (var i = 0; i < layout.slices.length; i++)
                   Positioned.fromRect(
-                    rect: arcPaths[i].getBounds(),
-                    child: _buildArcTarget(
-                      layout.slices[i],
-                      i,
-                      arcPaths[i].getBounds().center,
-                    ),
+                    rect: arcBoxes[i],
+                    child: _buildArcTarget(layout.slices[i], i, arcBoxes[i]),
                   ),
                 if (centreValue != null)
                   _buildCentreValue(centreValue, layout, resolved),
-                if (!widget.hideTooltip && _hovered != null && _anchor != null)
-                  FluentChartPopover(
-                    anchor: _anchor!,
-                    data: FluentChartPopoverData(
-                      // ChartPopover.tsx:43-44 — the callout overrides win.
-                      legend: _hovered!.xAxisCalloutData ?? _hovered!.legend,
-                      yValue:
-                          _hovered!.yAxisCalloutData ??
-                          d3.jsNumberToString(_hovered!.data ?? 0),
-                      color: _hovered!.color,
-                      customContentBuilder: _customPopoverBody(context),
-                    ),
-                  ),
               ],
             ),
           ),
@@ -873,7 +986,7 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
   /// carry no gesture recogniser and no hit-testable render object of their
   /// own, which is why the pointer still reaches the [MouseRegion] underneath
   /// and the hover is resolved against the real path there.
-  Widget _buildArcTarget(FluentDonutSlice slice, int index, Offset anchor) {
+  Widget _buildArcTarget(FluentDonutSlice slice, int index, Rect anchor) {
     // Arc.tsx:148 — tabIndex 0 only for an arc the selection has not dimmed.
     final focusable = _shouldHighlightArc(slice.point.legend);
     final point = slice.point;
@@ -886,12 +999,12 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
       canRequestFocus: focusable,
       skipTraversal: !focusable,
       includeSemantics: false,
-      onFocusChange: (focused) => setState(() {
+      onFocusChange: (focused) {
         _focusedIndex = focused ? index : null;
-        // DonutChart.tsx:155-169 — focus opens the popover on the focused arc.
-        _hovered = focused ? point : null;
-        _anchor = focused ? anchor : null;
-      }),
+        // DonutChart.tsx:155-169 — focus opens the popover on the focused
+        // arc's own box.
+        _setHovered(focused ? point : null, focused ? anchor : null);
+      },
       child: Semantics(
         container: true,
         selected: _selectedLegends.contains(point.legend),
@@ -908,31 +1021,25 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
     Offset position,
     FluentDonutLayout layout,
     List<Path> arcPaths,
+    List<Rect> arcBoxes,
   ) {
     for (var i = 0; i < arcPaths.length; i++) {
       if (!arcPaths[i].contains(position)) {
         continue;
       }
-      final point = layout.slices[i].point;
-      // DonutChart.tsx:170-186 — the popover only opens on an arc the
-      // selection has not dimmed.
-      if (!(_highlighted.isEmpty || _isHighlighted(point.legend))) {
-        return;
-      }
-      if (!identical(_hovered, point)) {
-        setState(() {
-          _hovered = point;
-          _anchor = position;
-        });
+      // DonutChart.tsx:172-187 — a new arc re-targets the popover at the arc
+      // element itself (Arc.tsx:115, :145-146), so moving over the same arc
+      // moves nothing. An arc the selection has dimmed is recorded but opens
+      // nothing ([_isPopoverOpen]). The slice's point is rebuilt with every
+      // layout, so the arc is told apart by its box rather than by identity.
+      final bounds = arcBoxes[i];
+      if (bounds != _anchor) {
+        _setHovered(layout.slices[i].point, bounds);
       }
       return;
     }
-    if (_hovered != null) {
-      setState(() {
-        _hovered = null;
-        _anchor = null;
-      });
-    }
+    // Off every arc nothing changes: the arcs' leave handler is empty
+    // (DonutChart.tsx:193-195).
   }
 
   /// One label per slice that clears the three gates at `Arc.tsx:69-75`.
@@ -1019,7 +1126,7 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
     }
     final highlighted = _highlighted;
     Object? value = supplied;
-    if (highlighted.length == 1 || _hovered != null) {
+    if (highlighted.length == 1 || _isPopoverOpen) {
       // DonutChart.tsx:203-209.
       for (final slice in layout.slices) {
         if (_isHighlighted(slice.point.legend)) {

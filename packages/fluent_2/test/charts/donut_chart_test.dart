@@ -415,6 +415,253 @@ void main() {
     expect(find.text('custom A'), findsNothing);
   });
 
+  group('hover popover', () {
+    final plot = find.byWidgetPredicate(
+      (widget) =>
+          widget is CustomPaint && widget.painter is FluentDonutChartPainter,
+    );
+    final surface = find.descendant(
+      of: find.byType(FluentChartPopover),
+      matching: find.byType(ExcludeFocus),
+    );
+
+    /// A screen point on slice [index] at [fraction] of its sweep, midway
+    /// through the ring.
+    Offset arcPoint(WidgetTester tester, int index, {double fraction = 0.5}) {
+      final layout = painterOf(tester).layout;
+      final slice = layout.slices[index];
+      final angle =
+          slice.startAngle + (slice.endAngle - slice.startAngle) * fraction;
+      final radius = (layout.innerRadius + layout.outerRadius) / 2;
+      return tester.getTopLeft(plot) +
+          layout.centre +
+          Offset(math.sin(angle) * radius, -math.cos(angle) * radius);
+    }
+
+    /// Slice [index]'s arc box on the screen.
+    ///
+    /// Tight, as SVG's getBBox is: [Path.getBounds] would take in the control
+    /// points of the conics Skia splits an arc into.
+    Rect arcBox(WidgetTester tester, int index) {
+      final path = painterOf(tester).arcPaths[index];
+      final points = <Offset>[
+        for (final metric in path.computeMetrics())
+          for (var d = 0.0; d <= metric.length; d += 0.25)
+            metric.getTangentForOffset(d)!.position,
+      ];
+      final xs = points.map((p) => p.dx);
+      final ys = points.map((p) => p.dy);
+      return Rect.fromLTRB(
+        xs.reduce(math.min),
+        ys.reduce(math.min),
+        xs.reduce(math.max),
+        ys.reduce(math.max),
+      ).shift(tester.getTopLeft(plot));
+    }
+
+    Future<TestGesture> hover(WidgetTester tester, Offset at) async {
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(at);
+      await tester.pump();
+      await mouse.moveTo(at + const Offset(1, 0));
+      await tester.pump();
+      return mouse;
+    }
+
+    const chart = FluentDonutChart(
+      key: key,
+      innerRadius: 40,
+      data: FluentChartData(
+        chartData: <FluentChartDataPoint>[
+          FluentChartDataPoint(legend: 'first', data: 20000),
+          FluentChartDataPoint(legend: 'second', data: 35000),
+        ],
+      ),
+    );
+
+    testWidgets('the popover centres on the hovered arc, not the pointer', (
+      tester,
+    ) async {
+      await pump(tester, chart, box: const Size(300, 400));
+      // The 229-degree 'second' arc, which Skia splits into conics whose
+      // control points run 38px past its left edge and 38px below it.
+      final mouse = await hover(tester, arcPoint(tester, 1, fraction: 0.2));
+      final box = arcBox(tester, 1);
+      final rect = tester.getRect(surface);
+      expect(
+        rect.center.dx,
+        moreOrLessEquals(box.center.dx, epsilon: 0.5),
+        reason:
+            'DonutChart.tsx:395-397 targets refSelected, the arc element '
+            '(Arc.tsx:115), and the Popover centres on its getBBox. Measured '
+            'upstream on the basic story: the "second" arc 420..581 x 82..266 '
+            'put a 130.48px surface at 435,286.',
+      );
+      // Within the device-pixel snap of `writeContainerupdates.js:28-29`.
+      final above = (rect.bottom - (box.top - 20)).abs() < 0.5;
+      final below = (rect.top - (box.bottom + 20)).abs() < 0.5;
+      expect(
+        above || below,
+        isTrue,
+        reason:
+            'It clears the arc box by 20px (ChartPopover.tsx:48); got $rect '
+            'against $box.',
+      );
+
+      await mouse.moveTo(arcPoint(tester, 1, fraction: 0.8));
+      await tester.pump();
+      expect(
+        tester.getRect(surface),
+        rect,
+        reason: 'Anywhere on the same arc is the same target.',
+      );
+    });
+
+    testWidgets('the reading is grouped and the value is not cartesian', (
+      tester,
+    ) async {
+      await pump(tester, chart, box: const Size(300, 400));
+      await hover(tester, arcPoint(tester, 0));
+      final reading = find.descendant(
+        of: find.byType(FluentChartPopover),
+        matching: find.text('20,000'),
+      );
+      expect(
+        reading,
+        findsOneWidget,
+        reason:
+            'DonutChart.tsx:180 hands over data.toString(), and '
+            'ChartPopover.tsx:89 runs it through formatToLocaleString, which '
+            'groups from 10000 up. Measured upstream: "20,000".',
+      );
+      final style = tester.widget<Text>(reading).style!;
+      expect(
+        style.fontWeight,
+        FluentFontWeight.semibold,
+        reason:
+            'DonutChart.tsx:413 passes isCartesian={false}, so the reading '
+            'takes title2 (28px/600/36px), not subtitle2Stronger\'s 700.',
+      );
+      expect(tester.getSize(reading).height, 36);
+    });
+
+    testWidgets('the popover stays open until the pointer leaves the root', (
+      tester,
+    ) async {
+      await pump(tester, chart, box: const Size(300, 400));
+      final mouse = await hover(tester, arcPoint(tester, 0));
+      expect(surface, findsOneWidget);
+
+      await mouse.moveTo(
+        tester.getTopLeft(plot) + painterOf(tester).layout.centre,
+      );
+      await tester.pump();
+      expect(
+        surface,
+        findsOneWidget,
+        reason:
+            "DonutChart.tsx:193-195 — an arc's leave handler is empty, so the "
+            'hole keeps the popover up (upstream db_hole capture).',
+      );
+
+      // The strip's empty leading end: a legend button itself closes the
+      // popover (DonutChart.tsx:116-119).
+      await mouse.moveTo(
+        tester.getRect(find.byType(FluentChartLegend)).centerLeft +
+            const Offset(2, 0),
+      );
+      await tester.pump();
+      expect(
+        surface,
+        findsOneWidget,
+        reason: 'The legend strip is still inside the root.',
+      );
+
+      await mouse.moveTo(Offset.zero);
+      await tester.pump();
+      expect(
+        surface,
+        findsNothing,
+        reason: 'DonutChart.tsx:346 — the root\'s onMouseLeave closes it.',
+      );
+    });
+
+    testWidgets('the popover is not confined to the plot band', (tester) async {
+      // A short donut: its plot band is far shorter than the popover.
+      await pump(tester, chart, box: const Size(300, 120));
+      await hover(tester, arcPoint(tester, 0));
+      final root = tester.getRect(find.byKey(key));
+      final rect = tester.getRect(surface);
+      expect(
+        rect.top < root.top || rect.bottom > root.bottom,
+        isTrue,
+        reason:
+            'useDonutChartStyles.styles.ts:27-35 — the root clips nothing, so '
+            "upstream's popover hangs past the chart (db_slice2: below the "
+            'arc at y 286, past the chart bottom); got $rect in $root.',
+      );
+    });
+
+    testWidgets('calloutPropsPerDataPoint overrides the default reading', (
+      tester,
+    ) async {
+      final warning = FluentDataVizPalette.resolve(FluentDataVizToken.warning);
+      await pump(
+        tester,
+        FluentDonutChart(
+          key: key,
+          innerRadius: 55,
+          data: const FluentChartData(
+            chartData: <FluentChartDataPoint>[
+              FluentChartDataPoint(
+                legend: 'first',
+                data: 20000,
+                xAxisCalloutData: '2020/04/30',
+              ),
+              FluentChartDataPoint(
+                legend: 'second',
+                data: 39000,
+                xAxisCalloutData: '2020/04/20',
+              ),
+            ],
+          ),
+          // charts-donutchart--donut-chart-custom-callout's customPopoverProps.
+          calloutPropsPerDataPoint: (point) => FluentChartPopoverData(
+            xValue: 'Custom XVal',
+            legend: 'Custom Legend',
+            yValue: '${point.yAxisCalloutData ?? point.data?.round()} h',
+            color: warning,
+          ),
+        ),
+        box: const Size(300, 400),
+      );
+      await hover(tester, arcPoint(tester, 0));
+
+      Finder inPopover(String text) => find.descendant(
+        of: find.byType(FluentChartPopover),
+        matching: find.text(text),
+      );
+      expect(inPopover('Custom XVal'), findsOneWidget);
+      expect(
+        inPopover('2020/04/30'),
+        findsOneWidget,
+        reason:
+            'ChartPopover.tsx:43 reads the chart\'s xCalloutValue after the '
+            'spread at :41, so the datum\'s callout value beats "Custom '
+            'Legend". Measured upstream on the custom-callout story.',
+      );
+      expect(inPopover('Custom Legend'), findsNothing);
+      expect(inPopover('20000 h'), findsOneWidget);
+      expect(
+        tester.widget<Text>(inPopover('20000 h')).style!.color,
+        warning,
+        reason: 'Upstream paints the reading and the bar rgb(247, 99, 12).',
+      );
+    });
+  });
+
   testWidgets('every arc fill flattens to one system colour under high '
       'contrast', (tester) async {
     final highContrast = FluentThemeData.highContrast(
