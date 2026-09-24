@@ -196,7 +196,8 @@ void main() {
       // pixel. It was 0.918% while none of the prose was masked and Skia
       // painted the stroke's fringe a column past the 80px plot, which the
       // browser's `<svg>` viewport clips; the sparkline now clips it too.
-      maxMismatch: 0.04,
+      // Linux CI reads 0.052% (36 px), the same glyphs through FreeType.
+      maxMismatch: 0.06,
     );
   });
 }
