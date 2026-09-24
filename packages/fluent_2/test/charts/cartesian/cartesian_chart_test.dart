@@ -12,7 +12,9 @@ import 'package:fluent_2/src/charts/cartesian/cartesian_painter.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_series_delegate.dart';
 import 'package:fluent_2/src/charts/chrome/annotation_layer.dart';
 import 'package:fluent_2/src/charts/chrome/chart_popover.dart';
+import 'package:fluent_2/src/charts/chrome/chart_popover_style.dart';
 import 'package:fluent_2/src/charts/chrome/legend.dart';
+import 'package:fluent_2/src/charts/model/callout_data.dart';
 import 'package:fluent_2/src/charts/model/chart_annotation.dart';
 import 'package:fluent_2/src/charts/model/chart_common.dart';
 import 'package:fluent_2/src/charts/model/chart_value.dart';
@@ -81,7 +83,10 @@ void main() {
     ),
   );
 
-  Widget anchored({required bool anchorsToRegion}) => SizedBox(
+  Widget anchored({
+    required bool anchorsToRegion,
+    bool followsPointer = false,
+  }) => SizedBox(
     width: 400,
     height: 260,
     child: FluentCartesianChart(
@@ -89,10 +94,14 @@ void main() {
       props: FluentCartesianChartProps(
         hideLegend: true,
         popoverAnchorsToRegion: anchorsToRegion,
+        popoverFollowsPointer: followsPointer,
       ),
       legends: const <FluentChartLegendItem>[],
     ),
   );
+
+  Offset popoverAnchor(WidgetTester tester) =>
+      tester.widget<FluentChartPopover>(find.byType(FluentChartPopover)).anchor;
 
   /// Hovers the centre-left of the stub's first region: 50 across and 100 down
   /// from the chart's top-left corner, which the default margins put inside
@@ -1265,23 +1274,198 @@ void main() {
       );
     });
 
-    testWidgets('popoverAnchorsToRegion anchors to the region centre', (
+    testWidgets('popoverAnchorsToRegion anchors to the region itself', (
       tester,
     ) async {
       await pump(tester, anchored(anchorsToRegion: true));
       await hoverFirstStubRegion(tester);
+      final popover = tester.widget<FluentChartPopover>(
+        find.byType(FluentChartPopover),
+      );
+      // The first stub region is 20 logical pixels wide at the plot's left
+      // edge and as tall as the plot: LTWH(40, 20, 20, 205).
       expect(
-        tester
-            .widget<FluentChartPopover>(find.byType(FluentChartPopover))
-            .anchor,
-        // The first stub region is 20 logical pixels wide at the plot's left
-        // edge and as tall as the plot: LTWH(40, 20, 20, 205), so its centre is
-        // (50, 122.5).
-        const Offset(50, 122.5),
+        popover.anchorRect,
+        const Rect.fromLTWH(40, 20, 20, 205),
         reason:
             'GroupedVerticalBarChart hands Popover the bar element itself, '
-            '.tsx:437 and :970',
+            '.tsx:437 and :970, so the surface centres on the bar and clears '
+            'its top edge rather than its centre',
       );
+      expect(popover.anchor, const Offset(50, 122.5));
+    });
+
+    testWidgets('moving inside a mark leaves the anchor where it came in', (
+      tester,
+    ) async {
+      await pump(tester, anchored(anchorsToRegion: false));
+      final gesture = await hoverFirstStubRegion(tester);
+      await gesture.moveTo(
+        tester.getTopLeft(find.byType(FluentCartesianChart)) +
+            const Offset(55, 130),
+      );
+      await tester.pump();
+      expect(
+        popoverAnchor(tester),
+        const Offset(50, 100),
+        reason:
+            'a mark re-anchors the callout from onMouseOver, which fires on '
+            'entering it and not on moving inside '
+            '(VerticalBarChart.tsx:475-478)',
+      );
+    });
+
+    testWidgets('popoverFollowsPointer re-anchors on every move', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        anchored(anchorsToRegion: false, followsPointer: true),
+      );
+      final gesture = await hoverFirstStubRegion(tester);
+      await gesture.moveTo(
+        tester.getTopLeft(find.byType(FluentCartesianChart)) +
+            const Offset(55, 130),
+      );
+      await tester.pump();
+      expect(
+        popoverAnchor(tester),
+        const Offset(55, 130),
+        reason:
+            "VerticalStackedBarChart's stack callout listens to onMouseMove "
+            '(VerticalStackedBarChart.tsx:1147-1148)',
+      );
+    });
+
+    testWidgets('re-entering a mark re-anchors it', (tester) async {
+      await pump(tester, anchored(anchorsToRegion: false));
+      final gesture = await hoverFirstStubRegion(tester);
+      final origin = tester.getTopLeft(find.byType(FluentCartesianChart));
+      // Out into the gap past the three 20px stub regions, then back in.
+      await gesture.moveTo(origin + const Offset(350, 100));
+      await tester.pump();
+      await gesture.moveTo(origin + const Offset(45, 150));
+      await tester.pump();
+      expect(
+        popoverAnchor(tester),
+        const Offset(45, 150),
+        reason: 'onMouseOver fires again as the pointer comes back in',
+      );
+    });
+
+    testWidgets('the anchor is floored to whole pixels', (tester) async {
+      await pump(tester, anchored(anchorsToRegion: false));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(
+        tester.getTopLeft(find.byType(FluentCartesianChart)) +
+            const Offset(50.8, 100.6),
+      );
+      await tester.pump();
+      expect(
+        popoverAnchor(tester),
+        const Offset(50, 100),
+        reason:
+            'upstream anchors to MouseEvent clientX and clientY, which are '
+            'whole pixels',
+      );
+    });
+
+    testWidgets('the popover lays out against the root, legend included', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        chart(
+          legends: const <FluentChartLegendItem>[
+            FluentChartLegendItem(title: 'A', color: Color(0xFF0078D4)),
+          ],
+        ),
+      );
+      await hoverFirstStubRegion(tester);
+      final root = tester.getRect(find.byType(FluentCartesianChart));
+      expect(
+        painterOf(tester).layout.size.height,
+        lessThan(root.height),
+        reason: 'the legend strip takes its height out of the plot',
+      );
+      expect(
+        tester.getRect(find.byType(FluentChartPopoverLayout)),
+        root,
+        reason:
+            'fui-cart__root holds the legend and is the callout\'s clipping '
+            'ancestor (useCartesianChartStyles.styles.ts:38-46), so the '
+            'callout positions against all of it, not the plot alone',
+      );
+    });
+
+    testWidgets('a 14-row stacked callout never overflows the chart', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        SizedBox(
+          width: 700,
+          height: 300,
+          child: FluentCartesianChart(
+            delegate: _TallCalloutStubDelegate(),
+            props: const FluentCartesianChartProps(),
+            legends: const <FluentChartLegendItem>[
+              FluentChartLegendItem(title: 'A', color: Color(0xFF0078D4)),
+            ],
+          ),
+        ),
+      );
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      final root = tester.getRect(find.byType(FluentCartesianChart));
+      final plot = painterOf(tester).layout.plotRect.shift(root.topLeft);
+      for (final point in <Offset>[
+        plot.topCenter + const Offset(0, 2),
+        plot.center,
+        plot.bottomCenter - const Offset(0, 2),
+        plot.topLeft + const Offset(2, 2),
+        plot.bottomRight - const Offset(2, 2),
+        plot.centerLeft + const Offset(2, 0),
+        plot.centerRight - const Offset(2, 0),
+      ]) {
+        await gesture.moveTo(point);
+        await tester.pump();
+        expect(
+          tester.takeException(),
+          isNull,
+          reason:
+              'charts-linechart--line-chart-multiple threw "A RenderFlex '
+              'overflowed by 454 pixels on the bottom" here; upstream caps the '
+              "surface at the room left (autoSize: 'always', maxSize.js:46-63) "
+              'and scrolls it',
+        );
+        final surface = tester.getRect(
+          find.descendant(
+            of: find.byType(FluentChartPopover),
+            matching: find.byType(ExcludeFocus),
+          ),
+        );
+        expect(
+          surface.top >= root.top - 0.5 &&
+              surface.bottom <= root.bottom + 0.5 &&
+              surface.left >= root.left - 0.5 &&
+              surface.right <= root.right + 0.5,
+          isTrue,
+          reason: 'the surface $surface stays inside the chart root $root',
+        );
+        final anchor = popoverAnchor(tester) + root.topLeft;
+        expect(
+          surface.bottom <= anchor.dy - kChartPopoverAnchorOffset + 0.5 ||
+              surface.top >= anchor.dy + kChartPopoverAnchorOffset - 0.5,
+          isTrue,
+          reason:
+              '`coverTarget: false` (ChartPopover.tsx:48): the surface never '
+              'slides over the pointer it belongs to',
+        );
+      }
     });
 
     testWidgets('popoverBuilder replaces the popover body', (tester) async {
@@ -1506,4 +1690,45 @@ class _StackedStubDelegate extends StubCartesianDelegate {
               : 'Segment $segment of stack $stack',
         ),
   ];
+}
+
+/// A stub whose plot is tiled edge to edge with ten columns, each carrying the
+/// fourteen-row stacked callout `charts-linechart--line-chart-multiple` shows —
+/// far taller than any 300px chart.
+class _TallCalloutStubDelegate extends StubCartesianDelegate {
+  _TallCalloutStubDelegate() : super(hitRegionCount: 0);
+
+  @override
+  List<FluentChartHitRegion> buildHitRegions(
+    FluentCartesianChildContext context,
+    FluentCartesianLayout layout,
+  ) {
+    final plot = layout.plotRect;
+    final width = plot.width / 10;
+    return <FluentChartHitRegion>[
+      for (var column = 0; column < 10; column++)
+        FluentChartHitRegion(
+          bounds: Rect.fromLTWH(
+            plot.left + column * width,
+            plot.top,
+            width,
+            plot.height,
+          ),
+          index: column,
+          legend: 'Series 0',
+          popoverData: FluentChartPopoverData(
+            isCalloutForStack: true,
+            xValue: 'Column $column',
+            yValues: <FluentYValueHover>[
+              for (var row = 0; row < 14; row++)
+                FluentYValueHover(
+                  legend: 'Series $row',
+                  y: row * 10.0,
+                  color: const Color(0xFF0078D4),
+                ),
+            ],
+          ),
+        ),
+    ];
+  }
 }

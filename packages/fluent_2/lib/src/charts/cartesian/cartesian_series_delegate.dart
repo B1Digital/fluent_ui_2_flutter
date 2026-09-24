@@ -23,6 +23,7 @@ class FluentChartHitRegion {
     required this.popoverData,
     this.semanticsLabel,
     this.onActivate,
+    this.popoverAnchor,
   });
 
   /// The area, in plot coordinates.
@@ -54,6 +55,14 @@ class FluentChartHitRegion {
   /// [FluentCartesianSeriesDelegate.activationAt] instead.
   final VoidCallback? onActivate;
 
+  /// The mark the popover positions against, in plot coordinates, when it is
+  /// not [bounds] — LineChart's 11px active marker inside its wider latch
+  /// (`LineChart.tsx:1674-1676`, `:1888-1892`).
+  ///
+  /// Null anchors the popover to the pointer, or to [bounds] under
+  /// `FluentCartesianChartProps.popoverAnchorsToRegion`.
+  final Rect? popoverAnchor;
+
   /// [popoverData] and [onActivate] are deliberately excluded: both carry
   /// closures — [FluentChartPopoverData.customContentBuilder] and the handler
   /// itself — minted afresh on every build, so folding them in would make every
@@ -65,10 +74,12 @@ class FluentChartHitRegion {
       other.bounds == bounds &&
       other.index == index &&
       other.legend == legend &&
-      other.semanticsLabel == semanticsLabel;
+      other.semanticsLabel == semanticsLabel &&
+      other.popoverAnchor == popoverAnchor;
 
   @override
-  int get hashCode => Object.hash(bounds, index, legend, semanticsLabel);
+  int get hashCode =>
+      Object.hash(bounds, index, legend, semanticsLabel, popoverAnchor);
 }
 
 /// The five values upstream's render prop hands each chart
