@@ -93,9 +93,13 @@ void main() {
         ),
         culture: 'en-US',
       ),
-      // Measured 0.028% — 54 pixels of 191,179 — then pinned just above it.
-      // Skia and Chromium genuinely agree on this chart: the residual is a
-      // handful of pixels where a 4px line crosses another at a shallow angle.
+      // Measured 0.014% — 26 pixels of 191,179, aligned — then pinned just
+      // above it. Skia and Chromium genuinely agree on this chart: 22 are
+      // antialiasing along the teal line's shallow Mar 06-07 segment where the
+      // purple line crosses it (x 449-468), and 4 are the left fringe of the
+      // "152.1k" tick's leading "1", which Selawik's tabular digits set a
+      // pixel left of its mask. (0.028% before the legend swatches snapped to
+      // device pixels as Chromium's do.)
       //
       // It was 6.663% at first, and the whole of that gap was defects rather
       // than rasteriser noise:
@@ -110,7 +114,7 @@ void main() {
       //
       // Pinned tight rather than loosened: an improvement has to be re-pinned
       // deliberately, and a regression of even a tenth of a percent fails here.
-      maxMismatch: 0.05,
+      maxMismatch: 0.015,
     );
   });
 }

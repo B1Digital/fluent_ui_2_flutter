@@ -188,18 +188,15 @@ void main() {
           at(0, 339, sl8, legend: true),
         ],
       ),
-      // Measured 0.918% — 718 pixels of 78,198. 713 of them are the prose's
-      // glyph edges: every run lands on its reference position (the shift
-      // probe finds nothing better than aligned), but Skia and Chromium hint
-      // and antialias glyphs differently, which is the reason the harness
-      // masks text at all — this text is unmasked only because the capture
-      // records the chart's own `<text>` boxes and not the page's. The other
-      // 5 are the plots' right edge: at x 80 (rows 157, 348, 349) Skia paints
-      // the stroke's antialiased fringe one column outside the 80px plot,
-      // where the browser's `<svg>` viewport clips it, and at x 79 (rows 158,
-      // 318) the two rasterisers' coverage differs. The ten sparklines are
-      // otherwise identical.
-      maxMismatch: 0.95,
+      // Measured 0.038% — 26 pixels of 69,084, aligned, all glyph edges of
+      // the "ne" that "A sparkline " shows in columns 0-8. The corpus masks 3
+      // of the story's 5 prose runs (react_png/README.md) and this one is
+      // not among them, so its glyphs are compared, and Skia and Chromium
+      // hint and antialias them differently. The ten sparklines match to the
+      // pixel. It was 0.918% while none of the prose was masked and Skia
+      // painted the stroke's fringe a column past the 80px plot, which the
+      // browser's `<svg>` viewport clips; the sparkline now clips it too.
+      maxMismatch: 0.04,
     );
   });
 }

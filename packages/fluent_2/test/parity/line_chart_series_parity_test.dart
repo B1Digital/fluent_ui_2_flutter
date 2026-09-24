@@ -51,177 +51,175 @@ void main() {
     final experimentColor = _token(FluentDataVizToken.color6);
     const milestoneColor = Color(0xFFD83B01);
 
-    // flutter_test paints every BoxShadow unblurred (`debugDisableShadows`
-    // defaults to true under the test binding), which turns shadow16 and the
-    // story's own 20-24px shadows into hard grey slabs. Chromium blurs them,
-    // so the comparison is only meaningful with real shadows. Restored in the
-    // body: the binding checks the flag before any tearDown runs.
-    debugDisableShadows = false;
-    try {
-      await expectReactParity(
-        tester,
-        'charts-linechart--line-chart-annotations-example',
-        FluentLineChart(
-          // `const chartData: ChartProps`.
-          data: FluentChartData(
-            chartTitle: 'Weekly signups',
-            lineChartData: <FluentLineChartSeries>[
-              FluentLineChartSeries(
-                legend: 'Signups',
-                color: primaryColor,
-                data: const <Object>[
-                  FluentLineChartDataPoint(x: 0, y: 18),
-                  FluentLineChartDataPoint(x: 1, y: 26),
-                  FluentLineChartDataPoint(x: 2, y: 31),
-                  FluentLineChartDataPoint(x: 3, y: 37),
-                  FluentLineChartDataPoint(x: 4, y: 44),
-                  FluentLineChartDataPoint(x: 5, y: 51),
-                  FluentLineChartDataPoint(x: 6, y: 47),
+    await expectReactParity(
+      tester,
+      'charts-linechart--line-chart-annotations-example',
+      FluentLineChart(
+        // `const chartData: ChartProps`.
+        data: FluentChartData(
+          chartTitle: 'Weekly signups',
+          lineChartData: <FluentLineChartSeries>[
+            FluentLineChartSeries(
+              legend: 'Signups',
+              color: primaryColor,
+              data: const <Object>[
+                FluentLineChartDataPoint(x: 0, y: 18),
+                FluentLineChartDataPoint(x: 1, y: 26),
+                FluentLineChartDataPoint(x: 2, y: 31),
+                FluentLineChartDataPoint(x: 3, y: 37),
+                FluentLineChartDataPoint(x: 4, y: 44),
+                FluentLineChartDataPoint(x: 5, y: 51),
+                FluentLineChartDataPoint(x: 6, y: 47),
+              ],
+            ),
+          ],
+        ),
+        props: FluentCartesianChartProps(
+          // `const annotations: ChartAnnotation[]`. The text is the story's
+          // HTML VERBATIM: upstream's `parseSimpleMarkup`
+          // (`ChartAnnotationLayer.tsx:127-208`) understands only <b>, <i> and
+          // <br>, so <div>, <strong>, <span>, <ul> and <li> are drawn as
+          // literal text in the reference, and `white-space: pre-wrap`
+          // (`useChartAnnotationLayer.styles.ts:107`) keeps the template
+          // literal's newline and eight spaces.
+          annotations: <FluentChartAnnotation>[
+            FluentChartAnnotation(
+              id: 'launch-html',
+              text:
+                  '<div><strong>Launch day</strong><br /><span '
+                  'style="color:#2aa0a4">+18% conversions</span></div>',
+              coordinates: const FluentDataCoordinate(x: 1, y: 26),
+              layout: const FluentChartAnnotationLayout(
+                align: FluentChartAnnotationAlign.start,
+                verticalAlign: FluentChartAnnotationVerticalAlign.bottom,
+                offsetX: 16,
+                offsetY: -68,
+                maxWidth: 220,
+                clipToBounds: true,
+              ),
+              style: FluentChartAnnotationStyle(
+                backgroundColor: const Color(0xFFFFFFFF),
+                borderColor: primaryColor,
+                borderWidth: 1,
+                borderRadius: 12,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 16,
+                ),
+                fontWeight: FontWeight.w600,
+                boxShadow: const <BoxShadow>[
+                  BoxShadow(
+                    color: Color.fromRGBO(15, 23, 42, 0.18),
+                    offset: Offset(0, 12),
+                    blurRadius: 24,
+                  ),
                 ],
               ),
-            ],
-          ),
-          props: FluentCartesianChartProps(
-            // `const annotations: ChartAnnotation[]`. The text is the story's
-            // HTML VERBATIM: upstream's `parseSimpleMarkup`
-            // (`ChartAnnotationLayer.tsx:127-208`) understands only <b>, <i> and
-            // <br>, so <div>, <strong>, <span>, <ul> and <li> are drawn as
-            // literal text in the reference, and `white-space: pre-wrap`
-            // (`useChartAnnotationLayer.styles.ts:107`) keeps the template
-            // literal's newline and eight spaces.
-            annotations: <FluentChartAnnotation>[
-              FluentChartAnnotation(
-                id: 'launch-html',
-                text:
-                    '<div><strong>Launch day</strong><br /><span '
-                    'style="color:#2aa0a4">+18% conversions</span></div>',
-                coordinates: const FluentDataCoordinate(x: 1, y: 26),
-                layout: const FluentChartAnnotationLayout(
-                  align: FluentChartAnnotationAlign.start,
-                  verticalAlign: FluentChartAnnotationVerticalAlign.bottom,
-                  offsetX: 16,
-                  offsetY: -68,
-                  maxWidth: 220,
-                  clipToBounds: true,
+              connector: FluentChartAnnotationConnector(
+                strokeColor: primaryColor,
+                strokeWidth: 2,
+                startPadding: 24,
+                endPadding: 6,
+              ),
+            ),
+            FluentChartAnnotation(
+              id: 'experiment',
+              text:
+                  '<div><strong>Pricing experiment</strong><br /><em>A/B '
+                  'test running</em><ul><li>Variant B at 52%</li>\n'
+                  '        <li>Average order ↑</li></ul></div>',
+              coordinates: const FluentDataCoordinate(x: 3, y: 37),
+              layout: const FluentChartAnnotationLayout(
+                offsetX: 132,
+                offsetY: -12,
+                maxWidth: 280,
+                clipToBounds: false,
+              ),
+              style: FluentChartAnnotationStyle(
+                backgroundColor: const Color(0xFFF4F9FF),
+                borderColor: experimentColor,
+                borderWidth: 1,
+                borderRadius: 16,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 14,
+                  horizontal: 18,
                 ),
-                style: FluentChartAnnotationStyle(
-                  backgroundColor: const Color(0xFFFFFFFF),
-                  borderColor: primaryColor,
-                  borderWidth: 1,
-                  borderRadius: 12,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 12,
-                    horizontal: 16,
+                boxShadow: const <BoxShadow>[
+                  BoxShadow(
+                    color: Color.fromRGBO(15, 23, 42, 0.16),
+                    offset: Offset(0, 10),
+                    blurRadius: 20,
                   ),
-                  fontWeight: FontWeight.w600,
-                  boxShadow: const <BoxShadow>[
-                    BoxShadow(
-                      color: Color.fromRGBO(15, 23, 42, 0.18),
-                      offset: Offset(0, 12),
-                      blurRadius: 24,
-                    ),
-                  ],
-                ),
-                connector: FluentChartAnnotationConnector(
-                  strokeColor: primaryColor,
-                  strokeWidth: 2,
-                  startPadding: 24,
-                  endPadding: 6,
-                ),
+                ],
               ),
-              FluentChartAnnotation(
-                id: 'experiment',
-                text:
-                    '<div><strong>Pricing experiment</strong><br /><em>A/B '
-                    'test running</em><ul><li>Variant B at 52%</li>\n'
-                    '        <li>Average order ↑</li></ul></div>',
-                coordinates: const FluentDataCoordinate(x: 3, y: 37),
-                layout: const FluentChartAnnotationLayout(
-                  offsetX: 132,
-                  offsetY: -12,
-                  maxWidth: 280,
-                  clipToBounds: false,
-                ),
-                style: FluentChartAnnotationStyle(
-                  backgroundColor: const Color(0xFFF4F9FF),
-                  borderColor: experimentColor,
-                  borderWidth: 1,
-                  borderRadius: 16,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 14,
-                    horizontal: 18,
-                  ),
-                  boxShadow: const <BoxShadow>[
-                    BoxShadow(
-                      color: Color.fromRGBO(15, 23, 42, 0.16),
-                      offset: Offset(0, 10),
-                      blurRadius: 20,
-                    ),
-                  ],
-                ),
-                connector: FluentChartAnnotationConnector(
-                  strokeColor: experimentColor,
-                  strokeWidth: 2,
-                  startPadding: 18,
-                  endPadding: 4,
-                  dashArray: '5, 5',
-                ),
+              connector: FluentChartAnnotationConnector(
+                strokeColor: experimentColor,
+                strokeWidth: 2,
+                startPadding: 18,
+                endPadding: 4,
+                dashArray: '5, 5',
               ),
-              const FluentChartAnnotation(
-                id: 'stretch-goal',
-                text:
-                    '<span>Stretch goal<br /><strong>5k signups</strong></span>',
-                coordinates: FluentRelativeCoordinate(x: 0.84, y: 0.34),
-                layout: FluentChartAnnotationLayout(clipToBounds: false),
-                style: FluentChartAnnotationStyle(
-                  backgroundColor: Color.fromRGBO(216, 59, 1, 0.08),
-                  borderColor: milestoneColor,
-                  borderStyle: FluentChartAnnotationBorderStyle.dashed,
-                  borderWidth: 1,
-                  borderRadius: 8,
-                  padding: EdgeInsets.symmetric(vertical: 6, horizontal: 14),
-                  textColor: milestoneColor,
-                  fontWeight: FontWeight.w600,
-                ),
+            ),
+            const FluentChartAnnotation(
+              id: 'stretch-goal',
+              text:
+                  '<span>Stretch goal<br /><strong>5k signups</strong></span>',
+              coordinates: FluentRelativeCoordinate(x: 0.84, y: 0.34),
+              layout: FluentChartAnnotationLayout(clipToBounds: false),
+              style: FluentChartAnnotationStyle(
+                backgroundColor: Color.fromRGBO(216, 59, 1, 0.08),
+                borderColor: milestoneColor,
+                borderStyle: FluentChartAnnotationBorderStyle.dashed,
+                borderWidth: 1,
+                borderRadius: 8,
+                padding: EdgeInsets.symmetric(vertical: 6, horizontal: 14),
+                textColor: milestoneColor,
+                fontWeight: FontWeight.w600,
               ),
-              const FluentChartAnnotation(
-                id: 'offset-info',
-                text:
-                    '<div><strong>Note:</strong> Values rounded to nearest '
-                    'whole signup.</div>',
-                coordinates: FluentPixelCoordinate(x: 24, y: 24),
-                layout: FluentChartAnnotationLayout(
-                  align: FluentChartAnnotationAlign.start,
-                  verticalAlign: FluentChartAnnotationVerticalAlign.top,
-                  clipToBounds: false,
-                ),
-                style: FluentChartAnnotationStyle(
-                  backgroundColor: Color(0xFFFFFFFF),
-                  borderColor: Color(0xFFC7C7C7),
-                  borderWidth: 1,
-                  borderRadius: 6,
-                  padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                  fontSize: 12,
-                ),
+            ),
+            const FluentChartAnnotation(
+              id: 'offset-info',
+              text:
+                  '<div><strong>Note:</strong> Values rounded to nearest '
+                  'whole signup.</div>',
+              coordinates: FluentPixelCoordinate(x: 24, y: 24),
+              layout: FluentChartAnnotationLayout(
+                align: FluentChartAnnotationAlign.start,
+                verticalAlign: FluentChartAnnotationVerticalAlign.top,
+                clipToBounds: false,
               ),
-            ],
-          ),
+              style: FluentChartAnnotationStyle(
+                backgroundColor: Color(0xFFFFFFFF),
+                borderColor: Color(0xFFC7C7C7),
+                borderWidth: 1,
+                borderRadius: 6,
+                padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                fontSize: 12,
+              ),
+            ),
+          ],
         ),
-        // Measured 5.216% — every red pixel is in the annotation layer; the
-        // line, axes, gridlines and legend match. The port sizes each box to
-        // maxWidth as a BORDER box where CSS max-width is the CONTENT box (the
-        // launch box is 220 wide against 254, experiment 280 against 318, so
-        // both re-wrap and move), omits the 1px border and trims the first and
-        // last line's half-leading (every box 4px short), ignores
-        // `borderStyle: dashed`, and paints shadow16 beneath the translucent
-        // stretch-goal fill that CSS clips to outside the border box. Under all
-        // of that, the annotation text is not in the capture's textRects, so
-        // Selawik-vs-Segoe glyphs count here (~0.8% even when aligned).
-        maxMismatch: 5.3,
-      );
-    } finally {
-      debugDisableShadows = true;
-    }
+      ),
+      // Measured 0.725% — 3,458 of 477,223 px, aligned; every red pixel is
+      // in the annotation layer, and the line, axes, gridlines and legend
+      // match. About 2,900 are glyphs: the corpus masks only 6 of the 13
+      // annotation text runs (the other 7 sit on box fills and connectors
+      // that drifted between Chrome builds, see react_png/README.md), so the
+      // stretch-goal box's text and most of the experiment box's are
+      // compared unmasked, and Skia and Chromium rasterise them differently
+      // (Flutter also leaves a blank where upstream draws the "↑" of
+      // "Average order ↑"). About 500 are the stretch-goal box's dashed
+      // border: its semibold text runs wide in Selawik Semibold, so the box
+      // spans x 672-919 against upstream's 674-917 and its dashes fall on
+      // another phase. The last ~80 are arrowhead edges: 62 on the launch-day
+      // connector's and 19 on the base of the experiment connector's.
+      //
+      // Was 5.216% while the port sized each box to maxWidth as a border box,
+      // dropped the 1px border and the first and last half-leading, ignored
+      // `borderStyle: dashed` and painted shadow16 under the translucent
+      // stretch-goal fill.
+      maxMismatch: 0.75,
+    );
   });
 
   testWidgets('LineChartCustomAccessibility', (tester) async {
@@ -349,12 +347,14 @@ void main() {
           ],
         ),
       ),
-      // Measured 0.531% — 863px are the colour-fill bars starting 5.7px too
-      // high: `line_chart.dart:1125-1128` tops them at the nice'd y domain
-      // (72) where `LineChart.tsx:1380,1404` uses the data's max y (70). The
-      // rest is the striped legend swatch's stripe phase and unsnapped legend
-      // swatch edges (~156px), and line antialiasing (~53px).
-      maxMismatch: 0.55,
+      // Measured 0.026% — 53 of 201,906 px, aligned, all line antialiasing:
+      // 43 along the "Third" line's upper edge where it crosses the hatched
+      // "Time Range 2" band (x 214-275), the rest single pixels on shallow
+      // edges. It was 0.531% while the colour-fill bars were topped at the
+      // nice'd y domain (72) instead of the data's max y (70,
+      // `LineChart.tsx:1380,1404`) and the legend swatches, the striped one's
+      // stripe phase included, did not match Chromium's.
+      maxMismatch: 0.03,
     );
   });
 
@@ -446,9 +446,10 @@ void main() {
           ],
         ),
       ),
-      // Measured 0.033% — antialiasing where the two 4px lines cross at
-      // shallow angles.
-      maxMismatch: 0.04,
+      // Measured 0.019% — 37 of 199,188 px, aligned, all antialiasing on the
+      // 4px lines' edges: 21 under the green line's shallow 03/04-03/05
+      // segment and 16 along the gold line's steep climb to 03/08.
+      maxMismatch: 0.02,
     );
   });
 
@@ -622,11 +623,13 @@ void main() {
           useUTC: true,
         ),
       ),
-      // Measured 0.156% — ~405px are the 'Low Confidence Data*' dotted
-      // segments, whose dash phase is 1px off: `lineOptions.strokeDashoffset`
-      // (-1) is never read by the port, where `LineChart.tsx:1285` applies it
-      // to every segment. The rest is the dotted legend swatch.
-      maxMismatch: 0.16,
+      // Measured 0.006% — 16 of 266,853 px, aligned, all antialiasing on the
+      // green line's lower edge where it steepens beside the dotted segment
+      // (x 445-468). It was 0.156% while the port ignored
+      // `lineOptions.strokeDashoffset` (-1), which `LineChart.tsx:1285`
+      // applies to every segment, so the 'Low Confidence Data*' dots and the
+      // dotted legend swatch sat a pixel off.
+      maxMismatch: 0.008,
     );
   });
 
@@ -706,13 +709,22 @@ void main() {
           ],
         ),
       ),
-      // Measured 0.498% — ~210px are the colour-fill bars starting 1.6px too
-      // high (the nice'd domain top, 252, instead of the data max, 250), ~355
-      // are antialiasing on the lines' shallow edges, ~128 unsnapped legend
-      // swatch edges, and ~280 the "+6 more" overflow button, whose text the
-      // capture never masked and which runs half a pixel wide in Selawik
-      // Semibold.
-      maxMismatch: 0.51,
+      // Measured 0.250% — 499 of 199,230 px, aligned:
+      //   * 355 antialiasing on the lines' shallow edges, nearly all in two
+      //     strips at x 182-234 and 468-529, just after the 02/01 and 05/01
+      //     vertices;
+      //   * 21 hatch stripe ends along the plot's top edge;
+      //   * 56 the "Sixth" and "Eight" legend swatches, one column off: they
+      //     snap to device pixels as Chromium's do, but the labels before them
+      //     measure a fraction of a pixel differently in Selawik and Segoe UI,
+      //     so the fractional x rounds the other way;
+      //   * 67 the "+6 more" overflow button, a column wider than upstream's
+      //     (its Selawik Semibold label runs wide): 48 on its right border and
+      //     19 on its chevron.
+      // It was 0.498% while the colour-fill bars were topped at the nice'd
+      // domain (252) instead of the data max (250), the swatches were
+      // unsnapped and the button's text was unmasked.
+      maxMismatch: 0.26,
     );
   });
 
@@ -777,8 +789,9 @@ void main() {
           ],
         ),
       ),
-      // Measured 0.041% — antialiasing on the 4px line's shallow first
-      // segment and its round joins.
+      // Measured 0.041% — 84 of 206,686 px, aligned, all antialiasing on the
+      // 4px line: 79 along its shallow first segment (x 171-241) and 5 at a
+      // round join.
       maxMismatch: 0.05,
     );
   });

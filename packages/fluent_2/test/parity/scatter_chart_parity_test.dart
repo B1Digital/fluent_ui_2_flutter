@@ -80,14 +80,16 @@ void main() {
           yAxisTitle: 'Revenue in dollars',
         ),
       ),
-      // Measured 0.026% — 57 pixels of 216,656. 56 of them are two 14px
-      // columns: the edges of the "Phase 2" and "Milestone" legend swatches.
-      // Oracle B puts those boxes at fractional x (106.75 and 185.5 inside the
-      // clip); Chromium snaps a border box to whole device pixels and paints
-      // [107, 121) and [186, 200), while Flutter paints the true fraction and
-      // leaves partial coverage on both edge columns. The last pixel is one
-      // antialiased marker edge. Every marker, gridline and tick matches.
-      maxMismatch: 0.03,
+      // Measured 0.013% — 29 pixels of 216,656, aligned. 28 of them are two
+      // 14px columns, x 185 and 199: the "Milestone" legend swatch, one column
+      // left of upstream's. Oracle B puts it at x 185.5 inside the clip and
+      // Chromium paints [186, 200); the port now snaps swatches to device
+      // pixels as Chromium does, but the labels before it measure a fraction
+      // of a pixel differently in Selawik and Segoe UI, so its x lands under
+      // the .5 and rounds to [185, 199). The last pixel is one antialiased
+      // marker edge. Every marker, gridline and tick matches. It was 0.026%
+      // while the "Phase 2" swatch (x 106.75) was unsnapped too.
+      maxMismatch: 0.015,
     );
   });
 
@@ -159,9 +161,9 @@ void main() {
       ),
       // Measured 0.000% — not one of 217,726 unmasked pixels differs. Both
       // legend swatches land within 1/64 px of a whole pixel here (Oracle B:
-      // x 28 and 113.015625 inside the clip), so the fractional-x swatch
-      // residual the other scatter stories carry does not arise. Pinned at 0:
-      // the floor check (measured >= half the pin) admits nothing else.
+      // x 28 and 113.015625 inside the clip), so the swatch rounding that
+      // costs scatter-default its "Milestone" columns does not arise. Pinned
+      // at 0: the floor check (measured >= half the pin) admits nothing else.
       maxMismatch: 0,
     );
   });
@@ -353,19 +355,16 @@ void main() {
           yScaleType: FluentAxisScaleType.log,
         ),
       ),
-      // Measured 11.195% — 22,950 pixels of 205,005. 22,933 of them are 38
-      // missing horizontal gridlines. Upstream's `createNumericYAxis` never
-      // calls `tickValues` or `ticks(count)` on a log scale
-      // (`utilities.ts:858-861`), so d3-axis asks the scale for its DEFAULT ten
-      // ticks; the domain spans 4.48 decades, under ten, so `log.js` returns
-      // every 1-9 mantissa (2, 3, ... 9, 10, 20, ... 30k) and each one is a
-      // full-width gridline with a blank label. The port asks for
-      // `scale.ticks(yAxisTickCount)` = 4 (`axis_builders.dart:664-667`), 4.48
-      // is not under 4, and only the four decades survive. Measured with those
-      // ticks forced in through `yAxisTickValues`, this story drops to 0.008%.
-      //
-      // The remaining 17 px are the "Trace 2" legend circle's antialiased edge.
-      maxMismatch: 11.2,
+      // Measured 0.000% — not one of 205,005 unmasked pixels differs. It was
+      // 11.195%, nearly all of it 38 missing horizontal gridlines: upstream's
+      // `createNumericYAxis` never calls `tickValues` or `ticks(count)` on a
+      // log scale (`utilities.ts:858-861`), so d3-axis asks for the scale's
+      // DEFAULT ten ticks, and over 4.48 decades `log.js` returns every 1-9
+      // mantissa (2, 3, ... 9, 10, 20, ... 30k), each a full-width gridline
+      // with a blank label. The port asked for `yAxisTickCount` = 4 and kept
+      // only the four decades; it now draws the default ticks too. The other
+      // 17px, on the "Trace 2" legend circle's edge, are gone as well.
+      maxMismatch: 0,
     );
   });
 }

@@ -82,12 +82,11 @@ void main() {
           ),
         ],
       ),
-      // Measured 0.009% — 5 pixels of 58,400. All five are the antialiased
-      // half-pixel where the last vertex meets the plot's right edge: (80, 9)
-      // and (80, 106) are the 80-wide plots' final column, (197..200, 178..181)
-      // the 200-wide one's. Chromium's svg clip drops that fringe and Skia
-      // paints it. Nothing else in the four charts differs at all.
-      maxMismatch: 0.015,
+      // Measured 0.000% — not one of 58,400 unmasked pixels differs. It was
+      // 0.009% while Skia painted the stroke's antialiased fringe past the
+      // plot's right edge, where Chromium's svg viewport clips it; the
+      // sparkline now clips its stroke to the plot too.
+      maxMismatch: 0,
     );
   });
 
@@ -158,41 +157,32 @@ void main() {
         headers: headers,
         rows: rows,
       ),
-      // Measured 4.070% — 7,684 pixels of 188,800 — down from 12.476%. Both
-      // of the geometry defects that made up the old number are gone:
+      // Measured 0.850% — 1,419 pixels of 167,002 (21,798 masked), aligned.
+      // The cell text is masked now that the corpus records the table's
+      // `<foreignObject>` text (react_png/README.md), so what is left is
+      // geometry. 1,408 are the four inner vertical lines in the body rows
+      // (the header row's grey fill sits within tolerance of the line
+      // colour): every horizontal line lands exactly, rows 0/34/68/102/136/170
+      // in both, but the verticals land on 0/128/245/362/479/596/698 against
+      // the capture's 0/129/243/360/477/595/698 — pitches
+      // 128/117/117/117/117/102 against 129/114/117/117/118/103. The other 11
+      // are the trailing "s" of "Q2 Sales", "Q3 Sales" and "Q4 Sales" poking
+      // a column past its mask.
       //
-      //  1. The grid is 700 wide, not 376. `width` now lands on the grid the
-      //     way `ChartTable.tsx:130` lands it on the <table>, and the columns
-      //     take the surplus in proportion to their content the way CSS auto
-      //     layout does.
-      //  2. The row pitch is 34, not 32, and the grid is 172 tall, not 160.
-      //     The collapsed 2px line is laid out as a real Border on each cell
-      //     instead of stroked over the top by TableBorder, so it occupies the
-      //     space `border-collapse` gives it.
+      // Both are the documented font residual. Chromium sizes the four
+      // "Qn Sales" headers differently from one another (114/117/117/118);
+      // Selawik Semibold makes all four identical (117/117/117/117), and
+      // back-solving the proportional split puts Selawik's "Q1 Sales" 3.3%
+      // wide of Segoe UI Semibold's — inside the 3.87% that
+      // `support/react_parity.dart` measured for weight 600. CSS auto layout
+      // then amplifies each of those by 698/388, so a 1.5px metric error
+      // becomes a 3px column error.
       //
-      // Measured off the two PNGs, every horizontal line now lands exactly:
-      // rows 0/34/68/102/136/170 in both. The verticals land on
-      // 0/128/245/362/479/596/698 against the capture's
-      // 0/129/243/360/477/595/698 — pitches 128/117/117/117/117/102 against
-      // 129/114/117/117/118/103.
-      //
-      // That last 1-2px is the documented font residual and nothing else.
-      // Chromium sizes the four "Qn Sales" headers differently from one
-      // another (114/117/117/118); Selawik Semibold makes all four identical
-      // (117/117/117/117), and back-solving the proportional split puts
-      // Selawik's "Q1 Sales" 3.3% wide of Segoe UI Semibold's — inside the
-      // 3.87% that `support/react_parity.dart` measured for weight 600. CSS
-      // auto layout then amplifies each of those by 698/388, so a 1.5px metric
-      // error becomes a 3px column error.
-      //
-      // The story has no textRects, so unlike every other parity story its
-      // glyphs are compared unmasked, and there is no layout fix below about
-      // 1.7%: shifting each column of the Flutter render by its own measured
-      // offset before comparing still leaves 3,219 mismatched pixels of pure
-      // Skia-versus-Chromium glyph rasterisation (the reference carries 4,730
-      // dark pixels, 2.51%). Of the 7,684 that remain, 896 are the four
-      // misplaced vertical lines and the other 6,788 are text.
-      maxMismatch: 4.48,
+      // It was 12.476% while the grid ignored `width` (376 wide, not 700) and
+      // stroked its 2px lines over a 32px row pitch instead of laying them
+      // out as `border-collapse` does (34), and 4.070% while the cell text
+      // was compared unmasked.
+      maxMismatch: 0.9,
     );
   });
 }

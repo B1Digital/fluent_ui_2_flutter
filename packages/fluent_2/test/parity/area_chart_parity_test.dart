@@ -92,15 +92,14 @@ void main() {
         data: data,
         props: const FluentCartesianChartProps(yAxisTickFormat: _dollarTick),
       ),
-      // Measured 0.072% — 147 px — then pinned just above it. Of those, 44 are
-      // the legend swatch edge columns (Chrome pixel-snaps each 14px swatch
-      // box; Flutter paints it at the fractional x the label widths put it); 81
-      // are the seams between stacked layers where a curve runs nearly flat
-      // (x473-523, rows 185-187) and Skia's coverage there sits ~0.3px below
-      // Chromium's; 22 are "$111" spilling left of its mask — Selawik
-      // Semibold's tabular "1" (5.63px) against Segoe UI's proportional one
-      // (~4.0px).
-      maxMismatch: 0.08,
+      // Measured 0.051% — 103 px, aligned — then pinned just above it. 81 are
+      // antialiasing on the layer edges, 43 of them on the seam where a curve
+      // runs nearly flat (x473-523, rows 185-187) and Skia's coverage sits
+      // ~0.3px below Chromium's; 22 are "$111" spilling left of its mask —
+      // Selawik Semibold's tabular "1" (5.63px) against Segoe UI's
+      // proportional one (~4.0px). It was 0.072% before the legend swatches
+      // snapped to device pixels as Chromium's do.
+      maxMismatch: 0.06,
     );
   });
 
@@ -131,12 +130,11 @@ void main() {
       tester,
       'charts-areachart--area-chart-large-data',
       FluentAreaChart(data: data),
-      // Measured 0.050% — 102 px — then pinned just above it. Of those, 56 are
-      // the legend swatch edge columns (Chrome pixel-snaps each 14px swatch
-      // box; Flutter paints it at the fractional x the label widths put it); 37
-      // are flat-seam antialiasing between stacked layers; 9 are "111" spilling
-      // left of its mask (Selawik's tabular "1" is wider than Segoe UI's).
-      maxMismatch: 0.06,
+      // Measured 0.023% — 46 px, aligned — then pinned just above it. 37 are
+      // flat-seam antialiasing between stacked layers; 9 are "111" spilling
+      // left of its mask (Selawik's tabular "1" is wider than Segoe UI's). It
+      // was 0.050% before the legend swatches snapped to device pixels.
+      maxMismatch: 0.025,
     );
   });
 
@@ -176,14 +174,14 @@ void main() {
         data: data,
         props: const FluentCartesianChartProps(yAxisTickFormat: _dollarTick),
       ),
-      // Measured 0.074% — 152 px — then pinned just above it. Of those, 119 are
-      // the seams between stacked layers, which run nearly flat for 280px here
-      // (five points across the axis), and where Skia's coverage sits ~0.3px
-      // below Chromium's — an analytic model of the seam matches the reference
-      // to ~8 levels and Flutter to ~25; 28 are the legend swatch edge columns
-      // (Chrome pixel-snaps each 14px swatch box; Flutter paints it at the
-      // fractional x the label widths put it); 5 are tick-label spill.
-      maxMismatch: 0.08,
+      // Measured 0.061% — 124 px, aligned — then pinned just above it. 119
+      // are the seams between stacked layers, which run nearly flat for 280px
+      // here (five points across the axis), and where Skia's coverage sits
+      // ~0.3px below Chromium's — an analytic model of the seam matches the
+      // reference to ~8 levels and Flutter to ~25; 5 are the "$" of "$116"
+      // spilling left of its mask (Selawik's tabular "1" widens the label).
+      // It was 0.074% before the legend swatches snapped to device pixels.
+      maxMismatch: 0.07,
     );
   });
 
@@ -228,13 +226,12 @@ void main() {
           yAxisTickFormat: _dollarTick,
         ),
       ),
-      // Measured 0.058% — 118 px — then pinned just above it. Of those, 44 are
-      // the legend swatch edge columns (Chrome pixel-snaps each 14px swatch
-      // box; Flutter paints it at the fractional x the label widths put it); 44
-      // are the "−$" tick labels: d3 prints U+2212, which Selawik has no glyph
-      // for, so `flutter test` draws a fallback box that pokes out of the mask;
-      // 30 are flat-seam antialiasing between stacked layers.
-      maxMismatch: 0.07,
+      // Measured 0.015% — 30 px, aligned — then pinned just above it. All 30
+      // are antialiasing on the seams between stacked layers where a curve
+      // runs nearly flat (x 189-225 and 475-508). It was 0.058% with the
+      // unsnapped legend swatches and the U+2212 of every "−$" tick drawn as
+      // a tofu box, before `loadParityFonts` gave the minus a real glyph.
+      maxMismatch: 0.02,
     );
   });
 
@@ -276,13 +273,13 @@ void main() {
         data: data,
         props: const FluentCartesianChartProps(yAxisTickFormat: _dollarTick),
       ),
-      // Measured 0.086% — 175 px — then pinned just above it. Of those, 66 are
-      // the "−$" tick labels (U+2212 has no Selawik glyph, so `flutter test`
-      // draws a fallback box that pokes out of the mask); 44 are the legend
-      // swatch edge columns (Chrome pixel-snaps each 14px swatch box; Flutter
-      // paints it at the fractional x the label widths put it); 65 are
-      // antialiasing where layers cross or meet at a shallow angle.
-      maxMismatch: 0.1,
+      // Measured 0.032% — 65 px, aligned — then pinned just above it. All 65
+      // are antialiasing on layer edges: 29 along the steep final dip to
+      // −$55 (x 612-644), the rest where layers cross or meet at a shallow
+      // angle.
+      // It was 0.086% with the unsnapped legend swatches and the U+2212 tofu
+      // of every "−$" tick.
+      maxMismatch: 0.04,
     );
   });
 
@@ -318,12 +315,12 @@ void main() {
         ),
         culture: 'en-US',
       ),
-      // Measured 0.042% — 83 px — then pinned just above it. Of those, 77 are
-      // the "−" of −27.75k / −18.5k / −9.25k: U+2212 has no Selawik glyph, so
-      // `flutter test` draws a fallback box that pokes out of the mask. 6 are
-      // edge antialiasing. The single legend swatch sits on a whole pixel, so
-      // it matches.
-      maxMismatch: 0.05,
+      // Measured 0.003% — 6 px, aligned — then pinned just above it: edge
+      // antialiasing on the area's outline (4 at x 80-82, 2 at x 422). The
+      // single legend swatch sits on a whole pixel, so it matches. It was
+      // 0.042% while the U+2212 of −27.75k / −18.5k / −9.25k was a tofu box
+      // poking out of its mask.
+      maxMismatch: 0.005,
     );
   });
 
@@ -378,19 +375,15 @@ void main() {
           secondaryYScaleOptions: FluentSecondaryYScaleOptions(),
         ),
       ),
-      // Measured 29.841% — 58,215 px — then pinned just above it. Nearly all
-      // of it is two port defects in `area_chart.dart`, which the analytic
-      // model above reproduces to within 0.2 points (29.67%):
-      //   * the fills are painted at 0.7 alpha, not 0.56. A secondary axis
-      //     forces tozeroy, whose layer opacity is 0.8 (`AreaChart.tsx:685`
-      //     `_shouldFillToZeroY()`), but `:740` tests `mode` alone. Alone this
-      //     is ~28.6 points;
-      //   * the primary axis runs 0..28.49k instead of 0..20k: in tozeroy the
-      //     max is taken over every series (`:431-433`), where upstream takes
-      //     only the primary ones once a secondary axis exists
-      //     (`AreaChart.tsx:336`, `utilities.ts:1599`). Alone ~8.2 points.
-      // With both fixed the model leaves 0.011% in the plot.
-      maxMismatch: 30.0,
+      // Measured 0.002% — 4 of 195,083 px, aligned — then pinned just above
+      // it: the trailing "k" of the right axis's "21.37k", "14.24k" and
+      // "7.12k" reaching a pixel past its mask. The fitted offsets hold: not
+      // one plot pixel differs. It was 29.841% while the fills were painted
+      // at 0.7 alpha, not the 0.56 that tozeroy's 0.8 layer opacity gives (a
+      // secondary axis forces tozeroy, `AreaChart.tsx:685`), and the primary
+      // axis ran 0..28.49k because its max was taken over the secondary
+      // series too (`AreaChart.tsx:336`, `utilities.ts:1599`).
+      maxMismatch: 0.003,
     );
   });
 }

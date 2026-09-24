@@ -21,13 +21,11 @@
 // storybook no longer reproduces these 9.3.23 PNGs pixel for pixel even in
 // Istanbul, so they were kept.
 //
-// Two residuals recur below and are named once here:
-//   * a legend swatch after the first label paints at a fractional x (184.34
-//     after "From_Legacy_to_O365"), which Chromium pixel-snaps to 184 and
-//     Flutter antialiases across 184 and 198 — 28px per story;
-//   * d3-format writes negatives with U+2212 MINUS SIGN, which Segoe UI has
-//     and the bundled Selawik does not, so `flutter test` draws a tofu box
-//     wider than the minus and part of it lands outside the label mask.
+// Two residuals these stories used to share are gone: the legend swatch after
+// "From_Legacy_to_O365" (x 184.34) now snaps to device pixels as Chromium's
+// does, where it cost 28px a story, and `loadParityFonts` gives U+2212 MINUS
+// SIGN a real fallback glyph, where `flutter test` drew a tofu box that stuck
+// out of every negative label's mask.
 //
 // See `support/react_parity.dart` for why text is masked and why the tolerance
 // is not zero.
@@ -191,10 +189,10 @@ void main() {
         // `window.navigator.language` in the capture browser.
         culture: 'en-US',
       ),
-      // Measured 0.026% — 28px: the "All" legend swatch at x 184.34, which
-      // Chromium snaps to 184 and Flutter paints fractionally (see the header);
-      // 22px: the U+2212 tofu of "−304.3k" poking out of its label mask.
-      maxMismatch: 0.03,
+      // Measured 0.000% — not one of 190,723 unmasked pixels differs. It was
+      // 0.026%: the fractional "All" swatch and the U+2212 tofu of "−304.3k"
+      // (see the header).
+      maxMismatch: 0,
     );
   });
 
@@ -211,11 +209,12 @@ void main() {
         props: _negativeProps,
         culture: 'en-US',
       ),
-      // Measured 0.071% — 99px: the U+2212 tofu of "−151k" and "−302k", wider
-      // than the minus and so outside the reference's label mask; 28px: the
-      // fractional "All" legend swatch; 4px Selawik-600 fringe; 5px AA where
-      // the two lines cross.
-      maxMismatch: 0.08,
+      // Measured 0.005% — 9 of 191,539 px, aligned: 5 are antialiasing where
+      // the two lines cross at x 215-225, and 4 are the left fringe of the
+      // "151k" tick's leading "1", which Selawik's tabular digits set a pixel
+      // left of its mask. It was 0.071% with the U+2212 tofu of "−151k" and
+      // "−302k" and the fractional "All" swatch (see the header).
+      maxMismatch: 0.005,
     );
   });
 
@@ -277,9 +276,11 @@ void main() {
           useUTC: true,
         ),
       ),
-      // Measured 0.022% — 28px: the fractional "All" legend swatch; the rest
-      // is antialiasing where the 4px lines join at the first point.
-      maxMismatch: 0.03,
+      // Measured 0.008% — 16 of 201,528 px, aligned, all antialiasing on the
+      // 4px lines' edges: 14 along a shallow stretch of the magenta "All"
+      // line (x 205-214) and two single pixels. It was 0.022% with the
+      // fractional "All" legend swatch (see the header).
+      maxMismatch: 0.01,
     );
   });
 
@@ -317,9 +318,11 @@ void main() {
           yScaleType: FluentAxisScaleType.log,
         ),
       ),
-      // Measured 0.026% — 16px: the fractional "Series 2" legend swatch; the
-      // rest is antialiasing along the two diagonals near their markers.
-      maxMismatch: 0.03,
+      // Measured 0.018% — 37 of 206,258 px, aligned, all antialiasing along
+      // the two shallow diagonals: 24 on the orange one at x 449-472 and 13
+      // on both lines near x 186-217. It was 0.026% with
+      // the fractional "Series 2" legend swatch.
+      maxMismatch: 0.02,
     );
   });
 
@@ -370,11 +373,12 @@ void main() {
           secondaryYScaleOptions: FluentSecondaryYScaleOptions(),
         ),
       ),
-      // Measured 0.068% — 103px: the U+2212 tofu of "−141", "−282" (left)
-      // and "−150", "−300" (right, start-anchored, so it pushes the trailing
-      // digit out of the mask); 28px: the fractional "All" legend swatch; 2px
-      // Selawik-600 fringe.
-      maxMismatch: 0.08,
+      // Measured 0.001% — 2 of 195,855 px, aligned: the left fringe of the
+      // "141" tick's leading "1", which Selawik's tabular digits set a pixel
+      // left of its mask. It was 0.068% with the U+2212 tofu of "−141",
+      // "−282", "−150" and "−300" and the fractional "All" swatch (see the
+      // header).
+      maxMismatch: 0.002,
     );
   });
 
@@ -438,14 +442,13 @@ void main() {
           useUTC: true,
         ),
       ),
-      // Measured 9.688% — all of it a port defect: `d3.min`/`d3.max`
-      // (`internal/d3/array_stats.dart:6-17`) refuse to compare a num with a
-      // DateTime where JS compares both by `valueOf`, and the date domain
-      // (`axis/domain_range.dart:444-452`) then drops every numeric extent, so
-      // the domain collapses to the one Date — every line is drawn at a single
-      // x under a lone "02 AM" tick. Re-typed as `DateTime` x the same story
-      // measures 0.014%, so re-pin to that once mixed x is coerced.
-      maxMismatch: 9.7,
+      // Measured 0.000% — not one of 200,611 unmasked pixels differs. It was
+      // 9.688% while `d3.min`/`d3.max` refused to compare the numeric x with
+      // the Date one and the date domain dropped every numeric extent, which
+      // drew every line at a single x under a lone "02 AM" tick. Mixed number
+      // and Date x values now compare by `valueOf`, as JS does, and the
+      // fractional "All" swatch is gone too (see the header).
+      maxMismatch: 0,
     );
   });
 }

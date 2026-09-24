@@ -152,23 +152,18 @@ void main() {
         ),
         culture: 'en-US',
       ),
-      // Measured 0.032% — 64 pixels of 198,369 — then pinned just above it.
-      // The whole residual is antialiasing, in two places:
-      //   * 4 columns of 14px in the legend row (x=111/125 and x=195/209),
-      //     which are the left and right edge columns of the legend1 and
-      //     legend2 swatches. The reference has x=125 at full magenta and
-      //     x=111 at background; Flutter has both at partial coverage, so its
-      //     swatch sits under a pixel to the left of upstream's. Sub-pixel
-      //     rounding of the same rect, not a different rect.
-      //   * 8 loose pixels on the stacked bands' outlines, where a curve
-      //     crosses at a shallow angle and Skia and Chromium disagree by one
-      //     level of coverage.
-      // Nothing else differs: the bands, the baseline, the gridlines and the
-      // axis ticks land on identical pixels.
+      // Measured 0.004% — 8 pixels of 198,369, aligned — then pinned just
+      // above it. All 8 are loose pixels on the stacked bands' outlines, where
+      // a curve crosses at a shallow angle and Skia and Chromium disagree by
+      // one level of coverage. Nothing else differs: the bands, the baseline,
+      // the gridlines, the axis ticks and the legend swatches land on
+      // identical pixels. It was 0.032% while the legend1 and legend2
+      // swatches were painted at their fractional x; they now snap to device
+      // pixels as Chromium's do.
       //
       // Pinned tight rather than loosened: an improvement has to be re-pinned
       // deliberately, and a regression of even a tenth of a percent fails.
-      maxMismatch: 0.06,
+      maxMismatch: 0.005,
     );
   });
 
@@ -292,21 +287,18 @@ void main() {
         ),
         culture: 'en-US',
       ),
-      // Measured 0.013% — 28 pixels of 212,803 — against the UTC capture,
-      // the same figure under TZ=UTC, Europe/Istanbul, America/Los_Angeles
-      // and Asia/Tokyo, then pinned just above it. The old +03:00 capture
-      // could only be met in +03:00: its markers sat 3h right of the ticks.
-      // Every one of the 28 is the same sub-pixel legend-swatch offset the area
-      // chart shows: two 14px columns at x=144 and x=158, the edges of the
-      // "Sales Performance" swatch. Upstream has x=158 at solid #9373C0 and
-      // x=144 at background; Flutter has partial coverage at both, so its
-      // swatch spans roughly [144.2, 158.3] against upstream's [145, 159].
+      // Measured 0.000% — not one of 212,803 unmasked pixels differs, against
+      // the UTC capture, and the same under TZ=UTC and Europe/Istanbul. The
+      // old +03:00 capture could only be met in +03:00: its markers sat 3h
+      // right of the ticks. It was 0.013% while the "Sales Performance"
+      // legend swatch was painted at its fractional x (28px on its edge
+      // columns); it now snaps to device pixels as Chromium's does.
       //
-      // Not one marker differs. All fifteen circles — including the 40px
-      // promotional bubble at a half-day x — sit on the same pixels, in the
-      // same colours, in the same paint order, and the date ticks the
-      // reference chose (Feb 28 - Mar 08) are the ticks Flutter chose.
-      maxMismatch: 0.02,
+      // All fifteen circles — including the 40px promotional bubble at a
+      // half-day x — sit on the same pixels, in the same colours, in the same
+      // paint order, and the date ticks the reference chose (Feb 28 - Mar 08)
+      // are the ticks Flutter chose.
+      maxMismatch: 0,
     );
   });
 }
