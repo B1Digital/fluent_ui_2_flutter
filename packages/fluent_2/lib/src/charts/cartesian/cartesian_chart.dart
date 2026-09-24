@@ -500,18 +500,39 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
   /// at its centre and `translateX(-50%)` (`:1310-1317`). Absolutely placed
   /// from `left` with no width, the div shrinks to fit the room right of that
   /// line, and the root's `overflow: hidden` clips it.
-  Widget _axisLabelTooltip(FluentCartesianChartStyle style) {
+  Widget _axisLabelTooltip(
+    BuildContext context,
+    FluentCartesianChartStyle style,
+    TextStyle textStyle,
+  ) {
     final label = _hoveredAxisLabel;
     if (label == null) return const SizedBox.shrink();
     const states = <WidgetState>{};
+    // The longest word, split as `autoLayoutXAxisLabels` splits one
+    // (`utilities.ts:2614`), in the style and scale the box's Text lays out.
+    final merged = DefaultTextStyle.of(context).style.merge(textStyle);
+    final minContent = _measurer
+        .longestWidth(
+          label.fullText.split(RegExp(r'\s+')),
+          merged.copyWith(
+            fontSize: MediaQuery.textScalerOf(
+              context,
+            ).scale(merged.fontSize ?? 14),
+          ),
+        )
+        .ceilToDouble();
     return IgnorePointer(
       // The box repeats a label the axis already names.
       child: ExcludeSemantics(
         child: ClipRect(
           child: CustomSingleChildLayout(
-            delegate: _AxisLabelTooltipLayout(label.bounds.shift(_plotOrigin)),
+            delegate: _AxisLabelTooltipLayout(
+              label.bounds.shift(_plotOrigin),
+              minWidth: minContent + 2 * FluentSpacing.s,
+            ),
             child: FluentChartTooltipBox(
               text: label.fullText,
+              textStyle: textStyle,
               backgroundColor: style.tooltipBackgroundColor?.resolve(states),
               borderRadius: style.tooltipBorderRadius?.resolve(states),
             ),
@@ -641,7 +662,8 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
               if (_hoveredAxisLabel != null)
                 Positioned.fill(
                   child: LayoutBuilder(
-                    builder: (context, _) => _axisLabelTooltip(style),
+                    builder: (context, _) =>
+                        _axisLabelTooltip(context, style, textStyles.tooltip),
                   ),
                 ),
             ],
@@ -1157,17 +1179,24 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
 ///
 /// The div is absolutely positioned by `left` with no `width` or `right`, so
 /// CSS shrinks it to fit between that line and the root's right edge before
-/// `translateX(-50%)` moves it back by half.
+/// `translateX(-50%)` moves it back by half. Shrink-to-fit never goes below
+/// the div's min-content width, though: a word wider than the room overflows
+/// the edge instead of breaking. Measured in Chrome 20px from the right edge,
+/// 'Supercalifragilisticexpialidocious' stays one 215px line, and a sentence
+/// wraps at its longest word.
 class _AxisLabelTooltipLayout extends SingleChildLayoutDelegate {
-  const _AxisLabelTooltipLayout(this.tick);
+  const _AxisLabelTooltipLayout(this.tick, {required this.minWidth});
 
   /// The tick text's box, in the root's coordinates.
   final Rect tick;
 
+  /// The box's min-content width: its longest word and its padding.
+  final double minWidth;
+
   @override
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
       BoxConstraints(
-        maxWidth: math.max(0, constraints.maxWidth - tick.center.dx),
+        maxWidth: math.max(minWidth, constraints.maxWidth - tick.center.dx),
       );
 
   @override
@@ -1178,5 +1207,5 @@ class _AxisLabelTooltipLayout extends SingleChildLayoutDelegate {
 
   @override
   bool shouldRelayout(_AxisLabelTooltipLayout oldDelegate) =>
-      oldDelegate.tick != tick;
+      oldDelegate.tick != tick || oldDelegate.minWidth != minWidth;
 }

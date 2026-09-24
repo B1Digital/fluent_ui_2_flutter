@@ -1115,6 +1115,41 @@ void main() {
       );
       expect(rect.height, greaterThan(36), reason: 'so the label wraps');
     });
+
+    testWidgets('a word wider than the room stays whole', (tester) async {
+      await pump(
+        tester,
+        labelled(
+          const FluentCartesianChartProps(
+            hideLegend: true,
+            showXAxisLabelsTooltip: true,
+          ),
+          categories: const <String>[
+            'Data',
+            'Supercalifragilisticexpialidocious',
+          ],
+        ),
+      );
+      final tick = painterOf(tester).axisLabelTooltipTargets.single.bounds;
+      await hover(tester, tick.center);
+      final origin = tester.getTopLeft(find.byType(FluentCartesianChart));
+      final rect = tester
+          .getRect(find.byType(FluentChartTooltipBox))
+          .shift(-origin);
+      expect(
+        rect.width,
+        greaterThan(400 - tick.center.dx),
+        reason: 'the word is wider than the room right of the tick',
+      );
+      expect(
+        rect.height,
+        36,
+        reason:
+            'shrink-to-fit stops at min-content, so the word overflows on one '
+            'line rather than breaking, as Chrome lays it out',
+      );
+      expect(rect.center.dx, moreOrLessEquals(tick.center.dx));
+    });
   });
 
   group('annotation layer', () {
