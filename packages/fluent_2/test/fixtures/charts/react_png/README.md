@@ -101,12 +101,13 @@ only adopted where that live render provably is the committed one:
 
 The other 69 stories are unchanged: in 64 pass 3 finds no text outside the
 committed mask; in gauge basic it finds only a sliver of story-control text on
-the clip's top edge, with no ink; and in the four stories whose data is
-`Math.random` at render time (horizontal-bar-with-axis category order and
+the clip's top edge, with no ink; and in four of the five stories whose data
+is `Math.random` at render time (horizontal-bar-with-axis category order and
 dynamic, vertical-bar dynamic, vertical-stacked-bar category order) the only
 new rects are svg labels at the new random positions, which the check rejects.
-None of those four has HTML text to recover. The record, with both lists, is
-`textRectsRemeasured` in the manifest.
+The fifth, area chart secondary y-axis, is one of the 64. None of the five has
+HTML text to recover. The record, with both lists, is `textRectsRemeasured` in
+the manifest.
 
 ## Regenerating
 
