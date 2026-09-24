@@ -397,7 +397,12 @@ Widget _popoverRow(
   final colour = value.color ?? fallbackForeground;
   // ChartPopover.tsx:189-190.
   final y = formatToLocaleString(value.y, culture: culture);
-  final reading = value.yAxisCalloutText ?? y;
+  // ChartPopover.tsx:230-235 formats the callout text as it formats a number,
+  // so a numeric one is grouped too; an empty one is falsy and reads y.
+  final text = value.yAxisCalloutText;
+  final reading = text == null || text.isEmpty
+      ? y
+      : formatToLocaleString(text, culture: culture);
   // ChartPopover.tsx:196 and :246 both render `{legend} ({y})`.
   final header = Text(
     '${value.legend ?? ''} ($y)',

@@ -879,6 +879,36 @@ void main() {
       );
     });
 
+    testWidgets('a row formats its callout text as it formats a number', (
+      tester,
+    ) async {
+      await pumpMulti(
+        tester,
+        const FluentChartPopoverData(
+          isCalloutForStack: true,
+          xValue: 'Jan',
+          yValues: <FluentYValueHover>[
+            FluentYValueHover(legend: 'a', y: 1, yAxisCalloutText: '12345'),
+            FluentYValueHover(legend: 'b', y: 7, yAxisCalloutText: ''),
+            FluentYValueHover(legend: 'c', y: 2, yAxisCalloutText: '44%'),
+          ],
+        ),
+      );
+      expect(
+        find.text('12,345'),
+        findsOneWidget,
+        reason:
+            'ChartPopover.tsx:230-235 runs yAxisCalloutData through '
+            'formatToLocaleString, which groups a numeric string from 10000 up',
+      );
+      expect(
+        find.text('7'),
+        findsOneWidget,
+        reason: 'an empty callout text is falsy, so the row reads its y',
+      );
+      expect(find.text('44%'), findsOneWidget);
+    });
+
     testWidgets('a subcount group gets a 16px header', (tester) async {
       await pumpMulti(
         tester,
