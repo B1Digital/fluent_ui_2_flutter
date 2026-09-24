@@ -59,27 +59,21 @@ void main() {
         height: 500,
         orientation: FluentFunnelOrientation.horizontal,
       ),
-      // Measured 0.509% — 1,593 of 312,906 px, aligned. Three causes, none of
-      // them the segment geometry, which lands on upstream's everywhere:
+      // Measured 0.018% — 57 of 312,906 px, aligned, all of it antialiasing
+      // on shallow diagonals: 36 px on the A|B and C|D seams where Visit
+      // narrows into Sign-Up (x 156-216), 21 px on the Purchase stage's
+      // outline and thin band edges near the apex (x 447-492). Each segment
+      // is its own source-over path in both, so both show the same light
+      // seam; only single pixels along it differ. The legend lands on the
+      // capture, swatches included.
       //
-      //  * 992 px are the seams between categories inside a stage. Upstream
-      //    paints each segment as its own source-over `<path>`
-      //    (`FunnelChart.tsx:256-263`), so two half-covered pixels either side
-      //    of a shared diagonal edge let the ground through: the reference
-      //    reads (97,176,186) on the Visit/Sign-Up A|B seam at x 240, y 217.
-      //    `FluentFunnelChartPainter` sums the fills into one `BlendMode.plus`
-      //    layer precisely to remove that seam, and reads (41,156,128). Painted
-      //    source-over in a scratch run, the plot drops from 1,049 to 57
-      //    mismatched pixels.
-      //  * 432 px are the legend strip sitting 4 px high (swatches y 505-518
-      //    against 509-522) — the same as FunnelChartBasic: the port reserves
-      //    `kMinLegendContainerHeight` (40) under the plot where upstream's
-      //    legend div follows the 500px svg at its own 32px height
-      //    (`FunnelChart.tsx:481-486`, `:528`).
-      //  * 112 px are swatch edge columns: Chromium snaps each HTML swatch box
-      //    to whole pixels (A at x 216.75 paints 217-230), the port paints it
-      //    at the fractional x with antialiased edges.
-      maxMismatch: 0.56,
+      // Was 0.509% (1,593 px) before b60009d: the port summed the fills into
+      // one `BlendMode.plus` layer and so painted no seam where upstream's
+      // separate `<path>`s (`FunnelChart.tsx:256-263`) let the ground through
+      // (992 px), reserved a 40px legend strip upstream does not have, which
+      // put the legend 4 px high (432 px), and painted swatches at fractional
+      // x where Chromium snaps them (112 px, 61c1a1c).
+      maxMismatch: 0.02,
     );
   });
 }

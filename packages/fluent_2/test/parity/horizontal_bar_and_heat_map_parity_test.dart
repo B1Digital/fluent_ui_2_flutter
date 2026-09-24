@@ -119,28 +119,26 @@ void main() {
       //     `opacity` is an SVG presentation attribute, which multiplies.
       //     Sampled at (300, 26): reference (150,150,150), now (153,153,153).
       //
-      // What is masked: the eight right-hand values, as captured, and the
-      // eight left-hand row titles, whose rects were added to `_manifest.json`
-      // by hand. `FocusableTooltipText` nests a span inside
-      // `fui-hbc__chartTitleLeft`, and `capture_png.mjs` keeps only leaf `fui-`
-      // elements, so the capture dropped them. The added rects are that same
-      // 9.3.23 capture's Oracle B `fui-hbc__chartTitleLeft` boxes
-      // (`oracle_b/charts-horizontalbarchart--horizontal-bar-basic.json`),
-      // moved by the clip origin (24, 48). Unmasked, the titles compared
-      // Skia's glyph raster against Chromium's: 283 px on macOS, and 627 on
-      // Linux, where the same glyphs come out lighter, which put CI at 0.490%
-      // against a 0.32 pin. `capture_png.mjs` is gitignored and still drops
-      // non-leaf text rects, so a re-capture must keep these eight or fix the
-      // filter first.
+      // What is masked: the eight right-hand values and the eight left-hand
+      // row titles. `FocusableTooltipText` nests a span inside
+      // `fui-hbc__chartTitleLeft`, which the capture's leaf-`fui-` pass
+      // skipped, so the title rects were first added by hand from Oracle B's
+      // `fui-hbc__chartTitleLeft` boxes, moved by the clip origin (24, 48).
+      // `capture_png.mjs`'s text-node pass now records nested text, and its
+      // 2026-09-24 re-measure found the same eight rects to the last digit
+      // (`react_png/README.md`). Unmasked, the titles compared Skia's glyph
+      // raster against Chromium's: 283 px on macOS, and 627 on Linux, where
+      // the same glyphs come out lighter, which put CI at 0.490% against a
+      // 0.32 pin.
       // The trade: this test no longer sees a title's colour or its absence
       // (`test/goldens/charts_shell_free_golden_test.dart` still does). Titles
       // moved 3px right, or uppercased, still spill out of their boxes and
       // fail the pin (0.191% and 0.248%).
       //
       // The 0.171% left is 325 pixels. 319 are the bar gaps, and they are a
-      // deliberate departure: upstream's bars fill the row and its 3px gap
-      // pushes the remainder bar past the svg, where the capture clips it.
-      // The port shrinks both bars into the 597px the gap leaves
+      // deliberate departure (#36, 31eef6d): upstream's bars fill the row and
+      // its 3px gap pushes the remainder bar past the svg, where the capture
+      // clips it. The port shrinks both bars into the 597px the gap leaves
       // (FluentHorizontalBarRowLayout.compute), which moves every gap left by
       // the value bar's share of 3px. The other 6 are the leading edge of
       // "11,444" poking two pixels out of its own mask, which is the
@@ -258,58 +256,41 @@ void main() {
         // storybook page runs, not the chart's own painting, and the reference
         // is a single static clip — no port equivalent, nothing to pass.
       ),
-      // MEASURED, NOT CHOSEN — 2.713%, down from 48.388%. Pinned at the
-      // measurement so the number is on record and any change to it, in either
-      // direction, has to be re-pinned deliberately.
+      // Measured 0.014% — 18 of 130,908 px, aligned, and all 18 are the
+      // "+3 more" trigger's chevron, half a pixel right of the capture's —
+      // centred on one pixel column where the capture's straddles two —
+      // beside a label that Selawik Semibold sets wider than Segoe UI
+      // Semibold (the label itself is masked). Every cell, gridline, row
+      // boundary and swatch lands on the capture.
       //
-      // What moved. The old 48% was every cell in the wrong row: the reference
-      // y axis reads Texas, Alaska, Ohio, DC, NYC bottom to top — p3, p2, p1,
-      // p4, p5, the order the cells appear in the story's source — and the
-      // port gave Alaska, DC, NYC, Ohio, Texas, alphabetical. Two causes, both
-      // in one function, and both reachable from this story's props, which set
-      // no ordering at all:
+      // How it got here, from 48.388%, which was every cell in the wrong
+      // row: the reference y axis reads Texas, Alaska, Ohio, DC, NYC bottom
+      // to top — p3, p2, p1, p4, p5, the order the cells appear in the
+      // story's source — and the port gave them alphabetically. Two causes,
+      // both reachable from this story's props, which set no ordering:
       //
       //  1. Upstream branches on `props.yAxisCategoryOrder !== 'default'`
       //     (`HeatMapChart.tsx:715-717`), and an ABSENT prop is `undefined`,
-      //     which is not `'default'` — HeatMapChart's
-      //     `props = { yAxisCategoryOrder: 'default', … }` (`:49-56`) is a
-      //     parameter default that fires only when React passes no props
-      //     object, which it never does. So the story takes the
-      //     `sortAxisCategories` path, whose `undefined` arm returns
-      //     `Object.keys(...)`, insertion order (`utilities.ts:2049-2110`).
-      //     `FluentCartesianChartProps.yAxisCategoryOrder` was non-nullable and
-      //     defaulted to `FluentAxisCategoryOrder.defaultOrder`, which is
-      //     upstream's *explicit* `'default'` and the legacy `sortOrder` path
-      //     the story never reaches. It is now `FluentAxisCategoryOrder?` and
-      //     null is the absent prop, so this story says nothing and gets the
-      //     insertion order the reference has.
-      //  2. That alone moved 48.388% to 37.494% and flipped the defect onto the
-      //     x axis, because `buildFluentHeatMapDataSet` did not know the axis
-      //     type: upstream gates the whole `sortAxisCategories` branch behind
-      //     `_xAxisType.current === XAxisTypes.StringAxis` (`:711-717`), so this
-      //     story's DATE x axis stays on the legacy arm and sorts `+a - +b` over
-      //     the epoch-millisecond index keys. The port sent both axes down the
-      //     same path and produced Mar/05, Mar/03, Mar/04, Mar/09, … The
-      //     function now derives the axis types the way `:744-746` does and
-      //     sorts the legacy arm on the raw value, which also retires the
-      //     `// parity:` note that used to sit on it.
+      //     not `'default'` — the `props = { yAxisCategoryOrder: 'default' }`
+      //     default (`:49-56`) only fires when React passes no props object,
+      //     which it never does. So the story takes `sortAxisCategories`,
+      //     whose `undefined` arm is insertion order (`utilities.ts:
+      //     2049-2110`). `FluentCartesianChartProps.yAxisCategoryOrder` is now
+      //     nullable, and null is the absent prop.
+      //  2. Upstream gates that branch behind a STRING x axis (`:711-717`), so
+      //     this story's date x axis stays on the legacy arm and sorts on the
+      //     epoch-millisecond keys. `buildFluentHeatMapDataSet` now derives
+      //     the axis types the way `:744-746` does.
       //
-      // 0.217% since, and the 2.713% it replaced was never this chart's fault.
-      // 3,129 of those pixels were ten scanlines at the five row boundaries —
-      // the port's cell band measured 49.976 on a 50.996 pitch against the
-      // capture's 49.781 on 50.797 — and the cause was the HARNESS, not the
-      // cell geometry. Oracle B records the root box at y 125.21875, height
-      // 350, so the screenshot spans 351 device rows for a 350px box; the
-      // harness sized the chart to the PNG and handed it a pixel the browser
-      // never had, which the y band scale then divided out across all five
-      // rows. `logicalSize` gives it the browser's 350 and the band comes out
-      // at 49.781, Oracle's number exactly. The x axis was always right
-      // (41.111111 / 54.444444 in both, unchanged).
-      //
-      // The rest was the legend's overflow trigger, closed in
-      // `chrome/legend.dart` — see the VerticalBarChart story for that one.
+      // Then 2.713% -> 0.217%: the screenshot spans 351 device rows for a
+      // 350px box at y 125.21875 (Oracle B), and the harness used to hand
+      // the chart that extra pixel, which the y band scale divided across
+      // all five rows. `logicalSize` gives it the browser's 350, and the band
+      // comes out at Oracle's 49.781. Most of the rest was the "+3 more"
+      // trigger, whose label was compared unmasked until the capture's
+      // text-node pass recorded it, and whose chevron sat off its rows.
       logicalSize: const Size(450, 350),
-      maxMismatch: 0.24,
+      maxMismatch: 0.015,
     );
   });
 }

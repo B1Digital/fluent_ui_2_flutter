@@ -57,37 +57,24 @@ void main() {
           ),
         ],
       ),
-      // Measured 0.145%, down from 4.246%. The gauge used to be painted
-      // against the LEFT edge of its box instead of centred: the `CustomPaint`
-      // was `Positioned.fill` over the whole incoming 944, while the origin it
-      // consumes is `size.width / 2` solved from the `width` PROP, so the arc
-      // landed at x = 126 against the reference's 472. The chart area is now
-      // the svg's own 252 and centred in the root, as
-      // `useGaugeChartStyles.styles.ts:35-43` (`align-items: center`) does
-      // upstream, while the legend keeps the full 944 (`:126-128`). The
-      // capture's own html boxes settle it: `fui-gc__chartWrapper` at x 370 by
-      // 252 wide, `fui-legend__root` at x 24 by 944 — a 346px inset that is
-      // exactly (944 - 252) / 2.
+      // Measured 0.004% — 5 of 115,520 px, aligned: one antialiased row
+      // along the Medium Risk arc's inner edge where it meets the needle
+      // (x 462-466, y 30). The arc, needle, centred "50%" and legend land on
+      // the capture.
       //
-      // The 0.145% left is 152 pixels in two places, neither of them the arc,
-      // which now lands on the reference to within its antialiased edge:
-      //   * ~96px around the centred `50%`, which is drawn the right SIZE in
-      //     the wrong PLACE — 38x16 of ink in both, at x 453..490 / y 65..80 in
-      //     the reference against x 443..480 / y 72..87 in the port, so 10 left
-      //     and 7 low. `gauge_chart_style.dart:365` builds `chartValueTextStyle`
-      //     as a bare `TextStyle(fontWeight, color)` with no `fontFamily`,
-      //     unlike every sibling in that resolver. `FluentChartTextMeasurer`
-      //     lays out a bare `TextSpan`, so it measures that style in the
-      //     FALLBACK font — a 60px advance and a 16px ascent for "50%" at 20px
-      //     — while `_centredText`'s `Text` merges the `DefaultTextStyle` and
-      //     paints Selawik at 38 and ~22.6. `left = origin.dx - width / 2` and
-      //     `top = origin.dy - ascent` then miss by exactly the two deltas.
-      //     Left here deliberately: the same one-line style fix moves the
-      //     `charts_shell_free` goldens, which cannot be regenerated while
-      //     another change already has them failing.
-      //   * 56px on the three legend swatches' left and right edges, each one
-      //     column wide (port 424..438 against the reference's 425..438).
-      maxMismatch: 0.165,
+      // Was 4.246% while the gauge was painted against the LEFT edge of its
+      // box: the `CustomPaint` filled the incoming 944 while the origin it
+      // consumes is `size.width / 2` of the `width` prop, so the arc landed
+      // at x = 126 against the reference's 472. The chart area is now the
+      // svg's own 252, centred in the root as `useGaugeChartStyles.styles.ts:
+      // 35-43` (`align-items: center`) does, while the legend keeps the full
+      // 944 (`:126-128`) — the capture's `fui-gc__chartWrapper` at x 370 by
+      // 252 and `fui-legend__root` at x 24 by 944 settle it. Then 0.145%
+      // while `chartValueTextStyle` had no `fontFamily`, so the measurer laid
+      // "50%" out in the fallback font and it was drawn 10 px left and 7 px
+      // low (6bb4129), and the swatches were painted at their fractional x
+      // where Chromium snaps them (61c1a1c).
+      maxMismatch: 0.005,
     );
   });
 
@@ -132,10 +119,10 @@ void main() {
         shape: FluentPolarShape.polygon,
         direction: FluentPolarDirection.clockwise,
       ),
-      // Measured 0.027% — 56px, the four one-column swatch edges (x 248/262
-      // and 312/326, rows 327..340) where Chrome pixel-snaps the legend div
-      // and Skia antialiases the same fractional box. The plot is exact.
-      maxMismatch: 0.03,
+      // Measured 0.000% — not one of 204,726 unmasked pixels differs. Was
+      // 0.027% while the two legend swatches were painted at their
+      // fractional x where Chromium snaps the div (56 px; 61c1a1c).
+      maxMismatch: 0,
     );
   });
 }

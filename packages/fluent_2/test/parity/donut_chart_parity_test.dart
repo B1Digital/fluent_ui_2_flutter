@@ -67,14 +67,14 @@ void main() {
         height: 220,
         valueInsideDonut: 39000,
       ),
-      // Measured 0.096% — 222 of 230,602 px, aligned. 56 are the two legend
-      // swatches' outer columns (x 411/425, 471/485, rows 227-240): Chromium
-      // pixel-snaps the `fui-legend__rect` div at x 411.39 to 411..424 while
-      // Skia antialiases the fractional box, so each swatch gets a 61%/39%
-      // column either side. The other 166 are one-to-four-pixel runs on the
-      // ring's antialiased outer and inner circles (worst channel delta 54,
-      // no systematic radius bias) — rasteriser noise, as in DonutChartBasic.
-      maxMismatch: 0.11,
+      // Measured 0.072% — 166 of 230,602 px, aligned, all of them
+      // one-to-six-pixel runs on the ring's antialiased outer and inner
+      // circles, rows 18-201 — rasteriser noise, as in DonutChartBasic. The
+      // legend lands on the capture. Was 0.096% while the two swatches were
+      // painted at their fractional x (x 411.39) with a 61%/39% column either
+      // side, where Chromium pixel-snaps the `fui-legend__rect` div (56 px;
+      // 61c1a1c).
+      maxMismatch: 0.075,
     );
   });
 
@@ -83,9 +83,10 @@ void main() {
     // charts-donutchart--donut-chart-custom-callout.tsx. `useCustomPopover`
     // starts false and `calloutPropsPerDataPoint` /
     // `onRenderCalloutPerDataPoint` only shape the HOVER popover, which the
-    // static capture does not show — the port has neither hook (hover-only
-    // gap, invisible here). The `Switch` above the chart is outside the
-    // captured box (its label rect sits at y=-36).
+    // static capture does not show, so they are not passed here (the port's
+    // are `calloutPropsPerDataPoint` and `popoverBuilder`). The `Switch`
+    // above the chart is outside the captured box (its label rect sits at
+    // y=-36).
     final data = FluentChartData(
       chartTitle: 'Donut chart custom callout example',
       chartData: <FluentChartDataPoint>[
@@ -121,10 +122,11 @@ void main() {
         height: 220,
         valueInsideDonut: 39000,
       ),
-      // Measured 0.110% — 253 of 230,535 px, aligned: 56 on the two legend
-      // swatches' fractional edge columns (Chromium snaps the div, Skia
-      // antialiases it) and 197 of ring-edge antialiasing noise.
-      maxMismatch: 0.125,
+      // Measured 0.085% — 197 of 230,535 px, aligned, all ring-edge
+      // antialiasing noise on the outer and inner circles; the legend lands
+      // on the capture. Was 0.110% while the two swatches were painted at
+      // their fractional x where Chromium snaps the div (56 px; 61c1a1c).
+      maxMismatch: 0.09,
     );
   });
 
@@ -171,11 +173,12 @@ void main() {
         showLabelsInPercent: false,
         height: 248,
       ),
-      // Measured 0.063% — 163 of 257,301 px, aligned. 84 are swatch edge
-      // columns (three of the four swatches sit on fractional x; Chromium
-      // snaps them, Skia does not) and 79 ring-edge antialiasing. The four
-      // arc labels land inside the reference's text boxes, so they are right.
-      maxMismatch: 0.075,
+      // Measured 0.031% — 79 of 257,301 px, aligned, all ring-edge
+      // antialiasing on the outer and inner circles. The four arc labels land
+      // inside the reference's text boxes, and the legend on the capture. Was
+      // 0.063% while three of the four swatches were painted at their
+      // fractional x where Chromium snaps them (84 px; 61c1a1c).
+      maxMismatch: 0.035,
     );
   });
 
@@ -263,13 +266,14 @@ void main() {
           ),
         ],
       ),
-      // Measured 0.131% — 333 of 253,506 px, aligned: 56 swatch edge columns
-      // (fractional x, snapped by Chromium only), 254 ring-edge antialiasing
-      // and 23 on the antialiased ellipse border and the title's backing-rect
-      // corners, which this test composes. Before the chart was given the
-      // 944 content box it measured 0.355%: a 968-wide chart centres its
-      // legend on 484, 12 px right of upstream's.
-      maxMismatch: 0.15,
+      // Measured 0.109% — 277 of 253,506 px, aligned: 254 ring-edge
+      // antialiasing and 23 on the antialiased ellipse border, which this
+      // test composes, and the title's backing-rect corners. The legend
+      // lands on the capture. Was 0.131% while the swatches were painted at
+      // their fractional x where Chromium snaps them (56 px; 61c1a1c), and
+      // 0.355% before the chart was given the 944 content box: a 968-wide
+      // chart centres its legend on 484, 12 px right of upstream's.
+      maxMismatch: 0.11,
     );
   });
 
@@ -307,12 +311,15 @@ void main() {
       tester,
       'charts-donutchart--donut-chart-responsive',
       FluentDonutChart(data: data, innerRadius: 55, valueInsideDonut: 39000),
-      // Measured 0.151% — 313 of 207,126 px, aligned. 240 of them (77%) are
-      // legend swatch edge columns: ten swatches, most on a fractional x that
-      // Chromium snaps to whole pixels and Skia antialiases. The other 73 are
-      // ring-edge antialiasing noise; the plot height the port inverts from
-      // the 230 box (200, an A82 outer arc) matches Oracle B exactly.
-      maxMismatch: 0.17,
+      // Measured 0.035% — 73 of 207,126 px, aligned, all scattered single
+      // pixels on the outer and inner edges of the magenta "second" arc:
+      // antialiasing, which on the other nine arcs' edges stays under the
+      // 24-level threshold. The plot height the port inverts from the 230
+      // box (200, an A82 outer arc) matches Oracle B exactly, and all ten
+      // legend swatches land on the capture. Was 0.151% while most swatches
+      // were painted at their fractional x where Chromium snaps them (240 px;
+      // 61c1a1c).
+      maxMismatch: 0.04,
     );
   });
 }

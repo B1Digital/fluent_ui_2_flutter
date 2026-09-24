@@ -47,14 +47,16 @@ void main() {
         chartValue: 75,
         variant: FluentGaugeChartVariant.multipleSegments,
       ),
-      // Measured 0.134% — 155 of 115,942 px, aligned. 91 are the "75%" drawn
-      // 10 px left and 7 px low (ink x 443..480 / y 73..87 against the
-      // reference's 453..489 / 66..79), leaking out of the masked box; same
-      // cause as GaugeChartBasic — `gauge_chart_style.dart`'s
-      // `chartValueTextStyle` has no `fontFamily`, so the measurer lays it
-      // out in the fallback font while the `Text` paints Selawik. 56 are the
-      // three legend swatches' fractional edge columns, 8 arc-edge noise.
-      maxMismatch: 0.15,
+      // Measured 0.007% — 8 of 115,942 px, aligned: 7 antialiased pixels
+      // along the Medium Risk arc's inner edge at the top of the gauge
+      // (x 462-469, y 30) and 1 on its outer edge (x 469, y 18). The needle,
+      // the "75%" and the
+      // legend land on the capture. Was 0.134% while `chartValueTextStyle`
+      // had no `fontFamily`, so "75%" was measured in the fallback font and
+      // drawn 10 px left and 7 px low (91 px; 6bb4129), and the swatches were
+      // painted at their fractional x where Chromium snaps them (56 px;
+      // 61c1a1c).
+      maxMismatch: 0.01,
     );
   });
 
@@ -86,17 +88,17 @@ void main() {
         chartValueFormat: FluentGaugeValueFormat.fraction,
         variant: FluentGaugeChartVariant.singleSegment,
       ),
-      // Measured 0.044% — 70 of 157,578 px, aligned, and the number flatters
-      // it: the centre "50/100" is NOT drawn at all. The port paints "..."
-      // instead, because `_fitCharacters` measures the value in the fallback
-      // font (`chartValueTextStyle` has no `fontFamily`), where "50/100" at
-      // 20px is 120 wide against the 76 budget (inner radius 50 * 2 - 24);
-      // in Segoe UI it is 60.7 and fits. The text box is masked, so only the
-      // 9 dot pixels that fall below it count. The rest: 44 swatch edge
-      // columns, 4 of the title's glyph tops (the port puts the title's
-      // baseline 5 px above upstream's `-(outerRadius + TITLE_OFFSET)`) and
-      // 13 of antialiasing on the inner arc's flat top.
-      maxMismatch: 0.05,
+      // Measured 0.008% — 13 of 157,578 px, aligned, all antialiasing on
+      // the "Used" arc beside the needle: 12 on its inner edge (x 454-466,
+      // y 55-58) and 1 on its outer (x 454, y 45). "50/100", the title, the
+      // sublabel and the legend land on the capture. Was 0.044% — and
+      // flattering — while `chartValueTextStyle` had no `fontFamily`:
+      // `_fitCharacters` measured "50/100" in the fallback font (120 wide
+      // against a 76 budget) and painted "..." instead, the title's baseline
+      // sat 5 px above upstream's `-(outerRadius + TITLE_OFFSET)` (both
+      // 6bb4129), and the swatches were painted at their fractional x (44 px;
+      // 61c1a1c).
+      maxMismatch: 0.01,
     );
   });
 }

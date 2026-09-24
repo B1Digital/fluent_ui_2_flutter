@@ -119,12 +119,14 @@ void main() {
       // the 351-row capture holds a 350px box — the same fractional origin as
       // HeatMapChartBasic; see `logicalSize` in `support/react_parity.dart`.
       logicalSize: const Size(450, 350),
-      // Measured 0.050% — 64 of 126,820 px, aligned. Every cell, gridline and
-      // row boundary lands on the capture. 56 px are the edge columns of the
-      // second and third legend swatches, which Chromium snaps to whole pixels
-      // (x 107.69 paints 108-121) where the port antialiases the fraction; the
-      // other 8 are glyph fringe of the cell labels outside the text mask.
-      maxMismatch: 0.06,
+      // Measured 0.006% — 8 of 126,820 px, aligned, all of them glyph fringe
+      // of three cell labels (two trailing "B"s, one leading "2") reaching a
+      // pixel past the text mask.
+      // Every cell, gridline, row boundary and swatch lands on the capture.
+      // Was 0.050% while the second and third swatches were painted at their
+      // fractional x (56 px of antialiased edge columns) where Chromium snaps
+      // them to whole pixels (61c1a1c).
+      maxMismatch: 0.01,
     );
   });
 }
