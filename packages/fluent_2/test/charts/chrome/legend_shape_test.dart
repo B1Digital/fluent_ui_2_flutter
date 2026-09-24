@@ -699,8 +699,10 @@ void mainPart3() {
     // loop fails to emit shows up here as a pixel that disagrees with the
     // shared definition.
     for (final size in const <Size>[
-      // The swatch box itself.
-      Size(kLegendShapeViewportSize, kLegendShapeViewportSize),
+      // The content boxes the legend hands the painter: a rect swatch's 12x12
+      // and a line-in-bar swatch's 12x4, inside their 1px border.
+      Size(12, 12),
+      Size(12, 4),
       // Taller than it is wide, and taller than the widest phase its width
       // alone reaches: 6 + 40 over sqrt2 is 32.5, against 6. A loop bounded by
       // anything narrower than the far corner's own phase runs out of bands
