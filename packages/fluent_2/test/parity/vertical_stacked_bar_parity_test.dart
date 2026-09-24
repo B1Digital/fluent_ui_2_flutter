@@ -459,17 +459,21 @@ void main() {
     final secondChartPoints = points(30, 3, 40);
     final thirdChartPoints = points(10, 60, 30);
     // `new Date("2018/03/01")` is LOCAL midnight, and `useUTC={false}` keeps
-    // the scale local too, so `DateTime(...)` (local) is the transcription.
+    // the scale local too, so the reference is these calendar dates on the
+    // capture browser's clock: Europe/Istanbul, +03:00 all year since 2016.
+    // A local scale in a zone with DST stretches the months it spans, so the
+    // same calendar dates go on a UTC scale (`useUTC: true` below), which
+    // draws the reference's picture in every zone.
     final dates = <DateTime>[
-      DateTime(2018, 3),
-      DateTime(2018, 5),
-      DateTime(2018, 7),
-      DateTime(2018, 9),
-      DateTime(2018, 11),
-      DateTime(2019, 2),
-      DateTime(2019, 5),
-      DateTime(2019, 7),
-      DateTime(2019, 9),
+      DateTime.utc(2018, 3),
+      DateTime.utc(2018, 5),
+      DateTime.utc(2018, 7),
+      DateTime.utc(2018, 9),
+      DateTime.utc(2018, 11),
+      DateTime.utc(2019, 2),
+      DateTime.utc(2019, 5),
+      DateTime.utc(2019, 7),
+      DateTime.utc(2019, 9),
     ];
     final chartPoints = <List<FluentStackedBarDatum>>[
       firstChartPoints,
@@ -521,7 +525,8 @@ void main() {
             left: 35,
             right: 0,
           ),
-          useUTC: false,
+          // Upstream passes `useUTC={false}`; see `dates` above.
+          useUTC: true,
         ),
       ),
       // Measured 15.248% — every stack sits at its tick instead of where

@@ -7,10 +7,18 @@
 // invented or rounded: a chart fed different data than the reference is a
 // comparison of two different pictures.
 //
-// Dates: `new Date('2018/01/01')` and `new Date('01-01-2018')` are LOCAL
-// midnight in Chromium, so they are `DateTime(2018)` here; an ISO date-only or
-// `...Z` string is UTC midnight and is `DateTime.utc`. The capture and this
-// suite run on the same machine and zone, so the two locals agree.
+// Dates: the references were captured in a Europe/Istanbul browser (+03:00
+// all year since 2016), and every date story here leaves `useUTC` unset or
+// false, so upstream drew a LOCAL time scale on Istanbul's wall clock. CI runs
+// `flutter test` in UTC, where a local scale sits three hours off that
+// picture, and a zone with DST bends it between months. So each date story
+// draws a UTC scale (`useUTC: true`) over the reference's Istanbul wall clock,
+// which is the same picture in every zone: `new Date('2018/01/01')` and
+// `new Date('01-01-2018')` are local midnight in Chromium, so
+// `DateTime.utc(2018)`; an ISO date-only or `...Z` string is a UTC instant, so
+// `_istanbul(DateTime.utc(...))`. A UTC recapture would make `_istanbul` the
+// identity, but Chrome 153 on the live storybook no longer reproduces these
+// 9.3.23 PNGs pixel for pixel even in Istanbul, so they were kept.
 //
 // `tickFormat: '%m/%d'` has no string form in the port; it is
 // `customDateTimeFormatter`. Tick labels are masked, so only its effect on
@@ -29,6 +37,11 @@ String _monthDay(DateTime date) =>
     '${date.day.toString().padLeft(2, '0')}';
 
 Color _token(FluentDataVizToken token) => FluentDataVizPalette.resolve(token);
+
+/// The capture browser's Europe/Istanbul wall clock at the instant [utc], as a
+/// UTC date (see the header). Istanbul has been +03:00 all year since 2016,
+/// and every story date is later.
+DateTime _istanbul(DateTime utc) => utc.add(const Duration(hours: 3));
 
 void main() {
   setUpAll(loadParityFonts);
@@ -237,31 +250,31 @@ void main() {
               FluentDataVizToken.color4,
               <FluentLineChartDataPoint>[
                 FluentLineChartDataPoint(
-                  x: DateTime(2018),
+                  x: DateTime.utc(2018),
                   y: 10,
                   xAxisCalloutData: '2018/01/01',
                   yAxisCalloutText: '10%',
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime(2018, 2),
+                  x: DateTime.utc(2018, 2),
                   y: 30,
                   xAxisCalloutData: '2018/01/15',
                   yAxisCalloutText: '18%',
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime(2018, 3),
+                  x: DateTime.utc(2018, 3),
                   y: 10,
                   xAxisCalloutData: '2018/01/28',
                   yAxisCalloutText: '24%',
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime(2018, 4),
+                  x: DateTime.utc(2018, 4),
                   y: 30,
                   xAxisCalloutData: '2018/02/01',
                   yAxisCalloutText: '25%',
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime(2018, 5),
+                  x: DateTime.utc(2018, 5),
                   y: 10,
                   xAxisCalloutData: '2018/03/01',
                   yAxisCalloutText: '15%',
@@ -272,22 +285,22 @@ void main() {
               'Second',
               FluentDataVizToken.color5,
               <FluentLineChartDataPoint>[
-                FluentLineChartDataPoint(x: DateTime(2018), y: 30),
-                FluentLineChartDataPoint(x: DateTime(2018, 2), y: 50),
-                FluentLineChartDataPoint(x: DateTime(2018, 3), y: 30),
-                FluentLineChartDataPoint(x: DateTime(2018, 4), y: 50),
-                FluentLineChartDataPoint(x: DateTime(2018, 5), y: 30),
+                FluentLineChartDataPoint(x: DateTime.utc(2018), y: 30),
+                FluentLineChartDataPoint(x: DateTime.utc(2018, 2), y: 50),
+                FluentLineChartDataPoint(x: DateTime.utc(2018, 3), y: 30),
+                FluentLineChartDataPoint(x: DateTime.utc(2018, 4), y: 50),
+                FluentLineChartDataPoint(x: DateTime.utc(2018, 5), y: 30),
               ],
             ),
             series(
               'Third',
               FluentDataVizToken.color6,
               <FluentLineChartDataPoint>[
-                FluentLineChartDataPoint(x: DateTime(2018), y: 50),
-                FluentLineChartDataPoint(x: DateTime(2018, 2), y: 70),
-                FluentLineChartDataPoint(x: DateTime(2018, 3), y: 50),
-                FluentLineChartDataPoint(x: DateTime(2018, 4), y: 70),
-                FluentLineChartDataPoint(x: DateTime(2018, 5), y: 50),
+                FluentLineChartDataPoint(x: DateTime.utc(2018), y: 50),
+                FluentLineChartDataPoint(x: DateTime.utc(2018, 2), y: 70),
+                FluentLineChartDataPoint(x: DateTime.utc(2018, 3), y: 50),
+                FluentLineChartDataPoint(x: DateTime.utc(2018, 4), y: 70),
+                FluentLineChartDataPoint(x: DateTime.utc(2018, 5), y: 50),
               ],
             ),
           ],
@@ -301,8 +314,8 @@ void main() {
             color: _token(FluentDataVizToken.color11),
             data: <FluentColorFillBarRange>[
               FluentColorFillBarRange(
-                startX: DateTime(2018, 1, 6),
-                endX: DateTime(2018, 1, 25),
+                startX: DateTime.utc(2018, 1, 6),
+                endX: DateTime.utc(2018, 1, 25),
               ),
             ],
           ),
@@ -312,12 +325,12 @@ void main() {
             applyPattern: true,
             data: <FluentColorFillBarRange>[
               FluentColorFillBarRange(
-                startX: DateTime(2018, 1, 18),
-                endX: DateTime(2018, 2, 20),
+                startX: DateTime.utc(2018, 1, 18),
+                endX: DateTime.utc(2018, 2, 20),
               ),
               FluentColorFillBarRange(
-                startX: DateTime(2018, 4, 17),
-                endX: DateTime(2018, 5, 10),
+                startX: DateTime.utc(2018, 4, 17),
+                endX: DateTime.utc(2018, 5, 10),
               ),
             ],
           ),
@@ -325,12 +338,14 @@ void main() {
         props: FluentCartesianChartProps(
           customDateTimeFormatter: _monthDay,
           enableFirstRenderOptimization: true,
+          // Upstream leaves `useUTC` unset; see the header's Dates note.
+          useUTC: true,
           tickValues: <Object>[
-            DateTime(2018),
-            DateTime(2018, 2),
-            DateTime(2018, 3),
-            DateTime(2018, 4),
-            DateTime(2018, 5),
+            DateTime.utc(2018),
+            DateTime.utc(2018, 2),
+            DateTime.utc(2018, 3),
+            DateTime.utc(2018, 4),
+            DateTime.utc(2018, 5),
           ],
         ),
       ),
@@ -365,13 +380,16 @@ void main() {
       lineOptions: const FluentLineOptions(lineBorderWidth: 4),
       data: <Object>[
         for (var i = 0; i < ys.length; i++)
-          FluentLineChartDataPoint(x: DateTime.utc(2020, 3, 3 + i), y: ys[i]),
+          FluentLineChartDataPoint(
+            x: _istanbul(DateTime.utc(2020, 3, 3 + i)),
+            y: ys[i],
+          ),
       ],
     );
 
     FluentEventAnnotation event(int n, int day) => FluentEventAnnotation(
       event: 'event $n',
-      date: DateTime.utc(2020, 3, day),
+      date: _istanbul(DateTime.utc(2020, 3, day)),
     );
 
     await expectReactParity(
@@ -420,8 +438,11 @@ void main() {
           yAxisTickFormat: currency,
           customDateTimeFormatter: _monthDay,
           enableFirstRenderOptimization: true,
+          // Upstream leaves `useUTC` unset; see the header's Dates note.
+          useUTC: true,
           tickValues: <Object>[
-            for (var day = 3; day <= 9; day++) DateTime.utc(2020, 3, day),
+            for (var day = 3; day <= 9; day++)
+              _istanbul(DateTime.utc(2020, 3, day)),
           ],
         ),
       ),
@@ -452,12 +473,12 @@ void main() {
               color: _token(FluentDataVizToken.color11),
               data: <Object>[
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 3),
+                  x: _istanbul(DateTime.utc(2020, 3, 3)),
                   y: 250000,
                   hideCallout: true,
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 10),
+                  x: _istanbul(DateTime.utc(2020, 3, 10)),
                   y: 250000,
                   hideCallout: true,
                 ),
@@ -475,53 +496,53 @@ void main() {
               color: _token(FluentDataVizToken.color12),
               data: <Object>[
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 3),
+                  x: _istanbul(DateTime.utc(2020, 3, 3)),
                   y: 216000,
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 3, 10, 30),
+                  x: _istanbul(DateTime.utc(2020, 3, 3, 10, 30)),
                   y: 218123,
                   hideCallout: true,
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 3, 11),
+                  x: _istanbul(DateTime.utc(2020, 3, 3, 11)),
                   y: 219000,
                   hideCallout: true,
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 4),
+                  x: _istanbul(DateTime.utc(2020, 3, 4)),
                   y: 248000,
                   hideCallout: true,
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 5),
+                  x: _istanbul(DateTime.utc(2020, 3, 5)),
                   y: 252000,
                   hideCallout: true,
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 6),
+                  x: _istanbul(DateTime.utc(2020, 3, 6)),
                   y: 274000,
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 7),
+                  x: _istanbul(DateTime.utc(2020, 3, 7)),
                   y: 260000,
                   hideCallout: true,
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 8),
+                  x: _istanbul(DateTime.utc(2020, 3, 8)),
                   y: 300000,
                   hideCallout: true,
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 8, 12),
+                  x: _istanbul(DateTime.utc(2020, 3, 8, 12)),
                   y: 218000,
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 9),
+                  x: _istanbul(DateTime.utc(2020, 3, 9)),
                   y: 218000,
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 10),
+                  x: _istanbul(DateTime.utc(2020, 3, 10)),
                   y: 269000,
                 ),
               ],
@@ -543,27 +564,27 @@ void main() {
               color: _token(FluentDataVizToken.color13),
               data: <Object>[
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 3, 10, 30),
+                  x: _istanbul(DateTime.utc(2020, 3, 3, 10, 30)),
                   y: 218123,
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 3, 11),
+                  x: _istanbul(DateTime.utc(2020, 3, 3, 11)),
                   y: 219000,
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 4),
+                  x: _istanbul(DateTime.utc(2020, 3, 4)),
                   y: 248000,
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 5),
+                  x: _istanbul(DateTime.utc(2020, 3, 5)),
                   y: 252000,
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 7),
+                  x: _istanbul(DateTime.utc(2020, 3, 7)),
                   y: 260000,
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime.utc(2020, 3, 8),
+                  x: _istanbul(DateTime.utc(2020, 3, 8)),
                   y: 300000,
                 ),
               ],
@@ -584,7 +605,7 @@ void main() {
                   299000,
                 ].indexed)
                   FluentLineChartDataPoint(
-                    x: DateTime.utc(2020, 3, 3 + i),
+                    x: _istanbul(DateTime.utc(2020, 3, 3 + i)),
                     y: y,
                   ),
               ],
@@ -597,6 +618,8 @@ void main() {
           yMaxValue: 400000,
           enableFirstRenderOptimization: true,
           margins: FluentChartMargins(left: 35, top: 20, bottom: 35, right: 20),
+          // Upstream leaves `useUTC` unset; see the header's Dates note.
+          useUTC: true,
         ),
       ),
       // Measured 0.156% — ~405px are the 'Low Confidence Data*' dotted
@@ -617,7 +640,7 @@ void main() {
           data: <Object>[
             for (var i = 0; i < 6; i++)
               FluentLineChartDataPoint(
-                x: DateTime(2018, i + 1),
+                x: DateTime.utc(2018, i + 1),
                 y: base + (i.isOdd ? 20 : 0),
               ),
           ],
@@ -651,8 +674,8 @@ void main() {
             color: _token(FluentDataVizToken.color19),
             data: <FluentColorFillBarRange>[
               FluentColorFillBarRange(
-                startX: DateTime(2018, 1, 6),
-                endX: DateTime(2018, 1, 25),
+                startX: DateTime.utc(2018, 1, 6),
+                endX: DateTime.utc(2018, 1, 25),
               ),
             ],
           ),
@@ -662,12 +685,12 @@ void main() {
             applyPattern: true,
             data: <FluentColorFillBarRange>[
               FluentColorFillBarRange(
-                startX: DateTime(2018, 1, 18),
-                endX: DateTime(2018, 2, 20),
+                startX: DateTime.utc(2018, 1, 18),
+                endX: DateTime.utc(2018, 2, 20),
               ),
               FluentColorFillBarRange(
-                startX: DateTime(2018, 4, 17),
-                endX: DateTime(2018, 5, 10),
+                startX: DateTime.utc(2018, 4, 17),
+                endX: DateTime.utc(2018, 5, 10),
               ),
             ],
           ),
@@ -675,10 +698,11 @@ void main() {
         props: FluentCartesianChartProps(
           customDateTimeFormatter: _monthDay,
           enableFirstRenderOptimization: true,
-          useUTC: false,
+          // Upstream passes `useUTC={false}`; see the header's Dates note.
+          useUTC: true,
           hideTickOverlap: true,
           tickValues: <Object>[
-            for (var month = 1; month <= 7; month++) DateTime(2018, month),
+            for (var month = 1; month <= 7; month++) DateTime.utc(2018, month),
           ],
         ),
       ),
@@ -706,32 +730,32 @@ void main() {
               color: _token(FluentDataVizToken.color10),
               data: <Object>[
                 FluentLineChartDataPoint(
-                  x: DateTime(2018, 1, 6),
+                  x: DateTime.utc(2018, 1, 6),
                   y: 10,
                   xAxisCalloutData: 'Appointment 1',
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime(2018, 1, 16),
+                  x: DateTime.utc(2018, 1, 16),
                   y: 18,
                   xAxisCalloutData: 'Appointment 2',
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime(2018, 1, 20),
+                  x: DateTime.utc(2018, 1, 20),
                   y: 24,
                   xAxisCalloutData: 'Appointment 3',
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime(2018, 1, 24),
+                  x: DateTime.utc(2018, 1, 24),
                   y: 35,
                   xAxisCalloutData: 'Appointment 4',
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime(2018, 1, 26),
+                  x: DateTime.utc(2018, 1, 26),
                   y: 35,
                   xAxisCalloutData: 'Appointment 5',
                 ),
                 FluentLineChartDataPoint(
-                  x: DateTime(2018, 1, 29),
+                  x: DateTime.utc(2018, 1, 29),
                   y: 90,
                   xAxisCalloutData: 'Appointment 6',
                 ),
@@ -744,8 +768,13 @@ void main() {
           showXAxisLablesTooltip: true,
           customDateTimeFormatter: _monthDay,
           enableFirstRenderOptimization: true,
+          // Upstream leaves `useUTC` unset; see the header's Dates note.
+          useUTC: true,
           // ISO date-only strings: UTC midnight.
-          tickValues: <Object>[DateTime.utc(2018), DateTime.utc(2018, 2, 9)],
+          tickValues: <Object>[
+            _istanbul(DateTime.utc(2018)),
+            _istanbul(DateTime.utc(2018, 2, 9)),
+          ],
         ),
       ),
       // Measured 0.041% — antialiasing on the 4px line's shallow first

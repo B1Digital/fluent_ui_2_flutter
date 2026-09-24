@@ -155,13 +155,23 @@ be for a consumer who sized the chart that way.
 - **Not reproducible without the network.** CI can compare against the
   committed PNGs but cannot regenerate them, exactly as with Oracle B.
 - **Captured in +03:00.** Every PNG but ScatterChart date's predates the UTC
-  pin and was captured in Europe/Istanbul. Six of those stories draw a local
-  time scale, and the live storybook in UTC differs from their PNG (measured
-  2026-09-24): line chart events, gaps, large data, styled, custom locale date
-  axis and, by a few pixels, negative. A Flutter render in any other zone, or
-  with `useUTC` set, is compared against a different picture until they are
-  re-captured. ScatterChart date's was re-captured with the pin; its tick
-  labels, and so its `textRects`, came out identical.
+  pin and was captured in Europe/Istanbul (+03:00, no DST since 2016). Five of
+  those stories draw a local time scale over UTC instants, so their PNG holds
+  only in +03:00: line chart events, gaps, large data, styled and custom
+  locale date axis. Live, in Chrome 153, a UTC render of each differs from an
+  Istanbul one by 13896, 10504, 4235, 328 and 182 px over 24 levels (measured
+  2026-09-24). They were **not** re-captured: that Istanbul render is not the
+  committed PNG either (hundreds of px over 24 levels along every antialiased
+  line: a newer Chrome and a newer build), so a UTC capture would swap more
+  than the zone. Their parity tests draw a UTC scale over the Istanbul wall
+  clock instead (`_istanbul` in `test/parity/line_chart_*_parity_test.dart`),
+  which is the PNG's picture in every zone. Line chart multiple, custom
+  accessibility and vertical stacked bar date axis date everything in local
+  time, so UTC and Istanbul (neither has DST) draw them identically, to the
+  pixel; their tests use UTC calendar dates on a UTC scale, so a DST zone
+  cannot bend them. Line chart negative sets `useUTC` and is identical in both.
+  ScatterChart date's was re-captured with the pin; its tick labels, and so
+  its `textRects`, came out identical.
 - **Version-locked.** These PNGs are 9.3.23 (the re-measure above changed
   rectangles only, never a pixel), except ScatterChart date's, captured later
   from the live storybook. Re-capturing against a different

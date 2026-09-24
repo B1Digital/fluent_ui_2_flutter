@@ -8,13 +8,18 @@
 // invented or rounded: a chart fed different data than the reference is a
 // comparison of two different pictures.
 //
-// The capture browser ran in Europe/Istanbul (UTC+3, no DST since 2016), the
-// same zone `flutter test` runs in on the machine that pinned these figures.
-// Two stories depend on it: large-data builds its x values with the local-time
+// The capture browser ran in Europe/Istanbul (UTC+3, no DST since 2016). Two
+// stories depend on it: large-data builds its x values with the local-time
 // `Date.setHours`, and it and custom-locale leave `useUTC` unset, so d3's local
 // `scaleTime().nice()` rounds their domains to Istanbul month boundaries —
 // Oracle B's first large-data point sits 3 hours inside the domain, at 35.189
-// rather than 35, which is exactly that offset.
+// rather than 35, which is exactly that offset. CI runs `flutter test` in UTC,
+// where a local scale sits three hours off that picture, so both stories draw
+// a UTC scale (`useUTC: true`) over `_istanbul` of every instant: the
+// reference's own wall clock, and the same picture in every zone. A UTC
+// recapture would make `_istanbul` the identity, but Chrome 153 on the live
+// storybook no longer reproduces these 9.3.23 PNGs pixel for pixel even in
+// Istanbul, so they were kept.
 //
 // Two residuals recur below and are named once here:
 //   * a legend swatch after the first label paints at a fractional x (184.34
@@ -39,6 +44,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support/react_parity.dart';
 
 Color _palette(FluentDataVizToken token) => FluentDataVizPalette.resolve(token);
+
+/// The capture browser's +03:00 offset (see the header).
+const Duration _istanbulOffset = Duration(hours: 3);
+
+/// The capture browser's Europe/Istanbul wall clock at the instant [utc], as a
+/// UTC date. Every story date is later than 2016, Istanbul's last DST change.
+DateTime _istanbul(DateTime utc) => utc.add(_istanbulOffset);
 
 FluentLineChartDataPoint _p(DateTime x, double y) =>
     FluentLineChartDataPoint(x: x, y: y);
@@ -216,15 +228,15 @@ void main() {
           color: _palette(FluentDataVizToken.color1),
           lineOptions: const FluentLineOptions(lineBorderWidth: 4),
           data: <Object>[
-            _p(DateTime.utc(2020, 3, 3), 216000),
-            _p(DateTime.utc(2020, 4, 3, 10), 218123),
-            _p(DateTime.utc(2020, 5, 5, 11), 217124),
-            _p(DateTime.utc(2020, 7, 14), 248000),
-            _p(DateTime.utc(2020, 11, 15), 252000),
-            _p(DateTime.utc(2020, 12, 6), 274000),
-            _p(DateTime.utc(2021, 1, 7), 260000),
-            _p(DateTime.utc(2021, 2, 14), 304000),
-            _p(DateTime.utc(2021, 3, 9), 218000),
+            _p(_istanbul(DateTime.utc(2020, 3, 3)), 216000),
+            _p(_istanbul(DateTime.utc(2020, 4, 3, 10)), 218123),
+            _p(_istanbul(DateTime.utc(2020, 5, 5, 11)), 217124),
+            _p(_istanbul(DateTime.utc(2020, 7, 14)), 248000),
+            _p(_istanbul(DateTime.utc(2020, 11, 15)), 252000),
+            _p(_istanbul(DateTime.utc(2020, 12, 6)), 274000),
+            _p(_istanbul(DateTime.utc(2021, 1, 7)), 260000),
+            _p(_istanbul(DateTime.utc(2021, 2, 14)), 304000),
+            _p(_istanbul(DateTime.utc(2021, 3, 9)), 218000),
           ],
         ),
         FluentLineChartSeries(
@@ -232,13 +244,13 @@ void main() {
           color: _palette(FluentDataVizToken.color2),
           lineOptions: const FluentLineOptions(lineBorderWidth: 4),
           data: <Object>[
-            _p(DateTime.utc(2020, 3, 3), 297000),
-            _p(DateTime.utc(2020, 4, 4), 284000),
-            _p(DateTime.utc(2020, 5, 5), 282000),
-            _p(DateTime.utc(2020, 6, 6), 294000),
-            _p(DateTime.utc(2020, 9, 16), 224000),
-            _p(DateTime.utc(2021, 2, 8), 300000),
-            _p(DateTime.utc(2021, 3, 9), 298000),
+            _p(_istanbul(DateTime.utc(2020, 3, 3)), 297000),
+            _p(_istanbul(DateTime.utc(2020, 4, 4)), 284000),
+            _p(_istanbul(DateTime.utc(2020, 5, 5)), 282000),
+            _p(_istanbul(DateTime.utc(2020, 6, 6)), 294000),
+            _p(_istanbul(DateTime.utc(2020, 9, 16)), 224000),
+            _p(_istanbul(DateTime.utc(2021, 2, 8)), 300000),
+            _p(_istanbul(DateTime.utc(2021, 3, 9)), 298000),
           ],
         ),
       ],
@@ -261,6 +273,8 @@ void main() {
           xAxisTickCount: 10,
           margins: FluentChartMargins(left: 35, top: 20, bottom: 35, right: 20),
           timeFormatLocale: _itIT,
+          // Upstream leaves `useUTC` unset; see the header.
+          useUTC: true,
         ),
       ),
       // Measured 0.022% — 28px: the fractional "All" legend swatch; the rest
@@ -373,6 +387,8 @@ void main() {
     // `start + i` hours.
     const start = 1583020800000; // Date.parse('2020-03-01T00:00:00.000Z')
     const hour = 3600000;
+    // `start` on the capture's wall clock; see the header.
+    final from = start + _istanbulOffset.inMilliseconds;
     double getY(int i) {
       final n = i % 1000;
       return n < 500 ? (n * n).toDouble() : (1000000 - n * n).toDouble();
@@ -388,7 +404,7 @@ void main() {
           lineOptions: const FluentLineOptions(lineBorderWidth: 4),
           data: <Object>[
             for (var i = 0; i < 10000; i++)
-              FluentLineChartDataPoint(x: start + i * hour, y: 500000),
+              FluentLineChartDataPoint(x: from + i * hour, y: 500000),
           ],
         ),
         FluentLineChartSeries(
@@ -397,13 +413,13 @@ void main() {
           lineOptions: const FluentLineOptions(lineBorderWidth: 4),
           data: <Object>[
             for (var i = 1000; i < 9000; i++)
-              FluentLineChartDataPoint(x: start + i * hour, y: getY(i)),
+              FluentLineChartDataPoint(x: from + i * hour, y: getY(i)),
           ],
         ),
         FluentLineChartSeries(
           legend: 'single point',
           color: _palette(FluentDataVizToken.color10),
-          data: <Object>[_p(DateTime.utc(2020, 3, 5), 282000)],
+          data: <Object>[_p(_istanbul(DateTime.utc(2020, 3, 5)), 282000)],
         ),
       ],
     );
@@ -418,6 +434,8 @@ void main() {
           yMinValue: 200,
           yMaxValue: 301,
           margins: FluentChartMargins(left: 35, top: 20, bottom: 35, right: 20),
+          // Upstream leaves `useUTC` unset; see the header.
+          useUTC: true,
         ),
       ),
       // Measured 9.688% — all of it a port defect: `d3.min`/`d3.max`
