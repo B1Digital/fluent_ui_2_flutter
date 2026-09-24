@@ -37,6 +37,16 @@ void main() {
   TextStyle textStyleOf(WidgetTester tester) =>
       resolvedTextStyleOf(tester, of: find.byKey(key));
 
+  /// The underline the link paints itself. The text engine draws none: its
+  /// `decorationThickness` is a multiple of the font's own underline.
+  FluentLinkUnderline underlineOf(WidgetTester tester) =>
+      tester.widget<FluentLinkUnderline>(
+        find.descendant(
+          of: find.byKey(key),
+          matching: find.byType(FluentLinkUnderline),
+        ),
+      );
+
   /// Maps a Figma variable path straight onto the core token it names.
   ///
   /// The point of the fixture's `tokens` map: nobody reverse-engineers
@@ -86,6 +96,11 @@ void main() {
         // which only flips once the added pointer has been flushed.
         await tester.pump();
         await mouse.moveTo(tester.getCenter(find.byKey(key)));
+        await tester.pump();
+        // Drift a pixel, as a real pointer does after it arrives.
+        await mouse.moveTo(
+          tester.getCenter(find.byKey(key)) + const Offset(1, 0),
+        );
       case 'Pressed':
         final press = await tester.startGesture(
           tester.getCenter(find.byKey(key)),
@@ -211,7 +226,7 @@ void main() {
     //   Disabled     9067:589  hidden
     //
     // Underline width is `Stroke width/Thin` in every state.
-    Future<TextStyle> pumpDriven(
+    Future<FluentLinkUnderline> pumpDriven(
       WidgetTester tester,
       String state, {
       FluentLinkAppearance appearance = FluentLinkAppearance.standard,
@@ -233,40 +248,76 @@ void main() {
         theme: theme,
       );
       await drive(tester, state, node);
-      return textStyleOf(tester);
+      // Whatever the state, the text engine's own underline stays off.
+      expect(textStyleOf(tester).decoration, TextDecoration.none);
+      return underlineOf(tester);
     }
 
     testWidgets('rest and disabled carry none, interaction carries one', (
       tester,
     ) async {
       for (final state in ['Rest/Visited', 'Disabled']) {
-        final style = await pumpDriven(tester, state);
-        expect(style.decoration, TextDecoration.none, reason: state);
+        final underline = await pumpDriven(tester, state);
+        expect(underline.color, isNull, reason: state);
       }
       for (final state in ['Hover', 'Pressed', 'Focused']) {
-        final style = await pumpDriven(tester, state);
-        expect(style.decoration, TextDecoration.underline, reason: state);
-        expect(style.decorationThickness, FluentStroke.thin, reason: state);
+        final underline = await pumpDriven(tester, state);
+        expect(underline.color, isNotNull, reason: state);
+        expect(underline.thickness, FluentStroke.thin, reason: state);
       }
     });
 
     testWidgets('inline underlines at rest, matching the Figma boolean', (
       tester,
     ) async {
-      final style = await pumpDriven(tester, 'Rest/Visited', inline: true);
-      expect(style.decoration, TextDecoration.underline);
-      expect(style.decorationColor, lightTheme().colors.brandForegroundLink);
+      final underline = await pumpDriven(tester, 'Rest/Visited', inline: true);
+      expect(underline.color, lightTheme().colors.brandForegroundLink);
+      expect(underline.doubled, isFalse);
     });
 
     testWidgets('hover and pressed take the foreground token', (tester) async {
       final theme = lightTheme();
       expect(
-        (await pumpDriven(tester, 'Hover')).decorationColor,
+        (await pumpDriven(tester, 'Hover')).color,
         theme.colors.brandForegroundLinkHover,
       );
       expect(
-        (await pumpDriven(tester, 'Pressed')).decorationColor,
+        (await pumpDriven(tester, 'Pressed')).color,
         theme.colors.brandForegroundLinkPressed,
+      );
+    });
+
+    testWidgets('the hover underline is a crisp 1px line under the baseline', (
+      tester,
+    ) async {
+      // Regression: `decorationThickness: 1` is a multiple of the font's own
+      // underline, 50/2048 em in Selawik, so the text engine drew a 0.34px
+      // smear. Upstream renders `text-decoration-thickness: strokeWidthThin`,
+      // a solid 1px row one pixel under the baseline in Chrome
+      // (components-link--default, hovered).
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final theme = lightTheme();
+      await pumpDriven(tester, 'Hover');
+
+      final painter = TextPainter(
+        text: TextSpan(text: 'Link', style: textStyleOf(tester)),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      addTearDown(painter.dispose);
+      final top =
+          (painter.computeDistanceToActualBaseline(TextBaseline.alphabetic) +
+                  FluentStroke.thin)
+              .roundToDouble();
+      final x = painter.width / 2;
+
+      expect(
+        tester.renderObject(find.byType(FluentLinkUnderline)),
+        paints..path(
+          color: theme.colors.brandForegroundLinkHover,
+          includes: <Offset>[Offset(x, top + 0.5)],
+          excludes: <Offset>[Offset(x, top - 0.5), Offset(x, top + 1.5)],
+        ),
       );
     });
 
@@ -278,17 +329,17 @@ void main() {
         FluentLinkAppearance.standard,
         FluentLinkAppearance.subtle,
       ]) {
-        final style = await pumpDriven(
+        final underline = await pumpDriven(
           tester,
           'Focused',
           appearance: appearance,
         );
         expect(
-          style.decorationColor,
+          underline.color,
           theme.colors.strokeFocus2,
           reason: '${appearance.name}: Neutral/Stroke/Focus/2/Rest',
         );
-        expect(style.decorationStyle, TextDecorationStyle.double);
+        expect(underline.doubled, isTrue);
       }
 
       // OverBrand is the exception: its focused underline binds
@@ -298,11 +349,8 @@ void main() {
         'Focused',
         appearance: FluentLinkAppearance.overBrand,
       );
-      expect(
-        overBrand.decorationColor,
-        theme.colors.neutralForegroundInvertedLink,
-      );
-      expect(overBrand.decorationStyle, TextDecorationStyle.double);
+      expect(overBrand.color, theme.colors.neutralForegroundInvertedLink);
+      expect(overBrand.doubled, isTrue);
     });
   });
 
@@ -501,13 +549,13 @@ void main() {
         );
 
         await drive(tester, 'Focused', node);
-        final focused = textStyleOf(tester);
+        final focused = underlineOf(tester);
         // A link has no border to go invisible, so the equivalent failure mode
         // is a focus underline that cannot be seen. It must be drawn, opaque,
         // and a different ink from the label it sits under.
-        expect(focused.decoration, TextDecoration.underline);
+        expect(focused.color, isNotNull);
         expect(
-          focused.decorationColor!.a,
+          focused.color!.a,
           1.0,
           reason: '${appearance.name}: focus underline must be opaque',
         );
@@ -565,6 +613,7 @@ void main() {
       await tester.pump();
       expect(textStyleOf(tester).color, theme.colors.neutralForegroundDisabled);
       expect(textStyleOf(tester).decoration, TextDecoration.none);
+      expect(underlineOf(tester).color, isNull);
     });
 
     testWidgets('announces itself as a link, not a button', (tester) async {
