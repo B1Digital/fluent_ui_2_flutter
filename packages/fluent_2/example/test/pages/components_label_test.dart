@@ -187,7 +187,10 @@ void main() {
       final FluentThemeData theme = FluentTheme.of(
         tester.element(find.byType(FluentLabel).first),
       );
-      final Color danger = theme.colors.statusDangerForeground3;
+      // Upstream's colorPaletteRedForeground3, as Chrome paints it.
+      final Color danger = theme.colors.brightness == Brightness.dark
+          ? const Color(0xFFE37D80)
+          : const Color(0xFFD13438);
 
       // The built-in asterisk and the hand-composed `***` are the section's two
       // halves, and the page comment claims they use the same token. They are
