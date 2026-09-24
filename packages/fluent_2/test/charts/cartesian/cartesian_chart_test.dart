@@ -1150,6 +1150,38 @@ void main() {
       );
       expect(rect.center.dx, moreOrLessEquals(tick.center.dx));
     });
+
+    testWidgets('a touch tap shows it and a tap elsewhere hides it', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        labelled(
+          const FluentCartesianChartProps(
+            hideLegend: true,
+            showXAxisLabelsTooltip: true,
+          ),
+          categories: const <String>[long, 'Data'],
+        ),
+      );
+      final tick = painterOf(tester).axisLabelTooltipTargets.single.bounds;
+      final origin = tester.getTopLeft(find.byType(FluentCartesianChart));
+      final box = find.byType(FluentChartTooltipBox);
+
+      await tester.tapAt(origin + tick.center);
+      await tester.pump();
+      expect(
+        box,
+        findsOneWidget,
+        reason:
+            "Chrome's compatibility mouseover follows the tap onto the label, "
+            'on vertical-bar-axis-tooltip',
+      );
+
+      await tester.tapAt(origin + const Offset(200, 100));
+      await tester.pump();
+      expect(box, findsNothing, reason: 'and its mouseout the next tap');
+    });
   });
 
   group('annotation layer', () {

@@ -832,6 +832,12 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
                         )
                       : null;
                   _onPointer(details.localPosition, details.globalPosition);
+                  // Chrome follows a touch tap with the compatibility mouse
+                  // events, so a tapped cut-short label gets its `mouseover`
+                  // and the next tap elsewhere its `mouseout` (measured on
+                  // vertical-bar-axis-tooltip). A mouse press is a no-op here:
+                  // the hover already put it on the label.
+                  _hoverAxisLabel(details.localPosition);
                 },
                 // The click itself, on the pressed mark: re-hit-testing the
                 // release would drop a thin mark's click entirely and, on a
