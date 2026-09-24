@@ -47,38 +47,43 @@ void main() {
     );
   });
 
-  testWidgets('it rests on the nav surface, not on nothing', (tester) async {
+  /// The glyph's own colour, as the button's [IconTheme] hands it down.
+  Color? glyph(WidgetTester tester) => IconTheme.of(
+    tester.element(find.byIcon(FluentIcons.navigation_20_filled)),
+  ).color;
+
+  // The live storybook, not `useHamburgerStyles.styles.ts` read in isolation:
+  // that file merges the navItemTokens fill *before* the transparent Button's
+  // own classes, so the Button wins. `components-nav--basic` measures
+  // backgroundColor rgba(0, 0, 0, 0) at rest, hover and press, and moves only
+  // the icon: rgb(66,66,66) -> rgb(15,108,189) -> rgb(17,94,163).
+  testWidgets('it is transparent at rest, on hover and on press, and only the '
+      'glyph moves to brand', (tester) async {
     await pump(
       tester,
       FluentHamburger(onPressed: () {}, semanticLabel: 'Collapse navigation'),
     );
 
-    expect(
-      fill(tester).color?.toARGB32(),
-      theme.colors.neutralBackground4.toARGB32(),
-      reason:
-          'useHamburgerStyles overrides the transparent appearance back to '
-          'colorNeutralBackground4, so the button disappears into the nav',
-    );
-  });
-
-  testWidgets('hovering moves it to the 4Hover token', (tester) async {
-    await pump(
-      tester,
-      FluentHamburger(onPressed: () {}, semanticLabel: 'Collapse navigation'),
-    );
+    expect(fill(tester).color?.a ?? 0, 0, reason: 'rest: no nav chip');
+    expect(glyph(tester), theme.colors.neutralForeground2);
 
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await gesture.addPointer(location: Offset.zero);
     addTearDown(gesture.removePointer);
-    await gesture.moveTo(tester.getCenter(find.byType(FluentButton)));
+    final center = tester.getCenter(find.byType(FluentButton));
+    await gesture.moveTo(center);
+    await gesture.moveTo(center + const Offset(1, 0));
     await tester.pumpAndSettle();
 
-    expect(
-      fill(tester).color?.toARGB32(),
-      theme.colors.neutralBackground4Hover.toARGB32(),
-      reason: 'useHamburgerStyles binds navItemTokens hover to 4Hover',
-    );
+    expect(fill(tester).color?.a ?? 0, 0, reason: 'hover: still no chip');
+    expect(glyph(tester), theme.colors.neutralForeground2BrandHover);
+
+    await gesture.down(center);
+    await tester.pumpAndSettle();
+    expect(fill(tester).color?.a ?? 0, 0, reason: 'press: still no chip');
+    expect(glyph(tester), theme.colors.neutralForeground2BrandPressed);
+    await gesture.up();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('expanded is absent unless the caller asks for it', (
@@ -133,8 +138,8 @@ void main() {
       fill(tester).color?.toARGB32(),
       const Color(0xFF00FF00).toARGB32(),
       reason:
-          'style is merged over the nav fill, as everywhere else in this '
-          'package',
+          'style is merged over the transparent button, as everywhere else '
+          'in this package',
     );
   });
 
