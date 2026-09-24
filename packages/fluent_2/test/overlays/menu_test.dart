@@ -1653,6 +1653,51 @@ void main() {
     });
   });
 
+  // `useMenuItemStyles.styles.ts` writes the pressed ramp under
+  // `:hover:active`, so in Chrome a held row dragged off shows rest again and
+  // pressed once the pointer is back. A touch press has no hover to lose.
+  testWidgets('a mouse press dragged off a row falls back to rest; a finger '
+      'holds', (tester) async {
+    var pressed = 0;
+    await pumpMenu(tester, <FluentMenuItem>[
+      FluentMenuItem(label: const Text('One'), onPressed: () => pressed++),
+      FluentMenuItem(label: const Text('Two'), onPressed: () {}),
+    ]);
+    await open(tester);
+    final c = light().colors;
+    Color fill() => surfaceColorOf(tester, of: row('One').first);
+    final center = tester.getCenter(find.text('One'));
+    const away = Offset(790, 590);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: center);
+    await tester.pumpAndSettle();
+    await mouse.down(center);
+    await tester.pumpAndSettle();
+    expect(fill(), c.neutralBackground1Pressed, reason: 'a held mouse press');
+
+    await mouse.moveTo(away);
+    await tester.pumpAndSettle();
+    expect(fill().a, 0, reason: 'dragged off');
+
+    await mouse.moveTo(center);
+    await tester.pumpAndSettle();
+    expect(fill(), c.neutralBackground1Pressed, reason: 'dragged back');
+    await mouse.moveTo(away);
+    await mouse.up();
+    await mouse.removePointer();
+    await tester.pumpAndSettle();
+
+    final finger = await tester.startGesture(center);
+    await finger.moveTo(away);
+    await tester.pumpAndSettle();
+    expect(fill(), c.neutralBackground1Pressed, reason: 'a finger dragged off');
+    await finger.up();
+    await tester.pumpAndSettle();
+    expect(fill().a, 0, reason: 'released');
+    expect(pressed, 0, reason: 'no drag activates the row');
+  });
+
   // Menu rows sit outside the traversal order inside an `ExcludeFocus`, so
   // `FluentInteractive` never sees focus for them and the row state is
   // synthesised from the level's active index — which **hover** also sets. That

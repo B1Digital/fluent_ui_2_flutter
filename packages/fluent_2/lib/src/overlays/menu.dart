@@ -1011,6 +1011,9 @@ class _FluentMenuState extends State<FluentMenu> {
         child: FluentInteractive(
           enabled: item.selectable,
           onPressed: item.selectable ? () => _activate(depth, index) : null,
+          // useMenuItemStyles presses under `:hover:active`, so a mouse press
+          // dragged off the row falls back to rest.
+          pressedRequiresHover: true,
           // The rows are outside the traversal order on purpose: the level's
           // own node holds focus, so Tab never walks a menu row by row.
           mouseCursor:
