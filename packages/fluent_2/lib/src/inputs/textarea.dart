@@ -1,4 +1,5 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -11,59 +12,64 @@ import 'textarea_style.dart';
 
 /// How a textarea is filled and outlined. Figma's `Style` axis.
 enum FluentTextareaAppearance {
-  /// `neutralBackground1` behind a full neutral border, with a heavier
-  /// accessible rule along the bottom edge. The default.
+  /// `neutralBackground1` behind a neutral border whose bottom side is the
+  /// darker accessible stroke. The default.
   outline,
 
-  /// `neutralBackground3`, no visible border and no bottom rule.
+  /// `neutralBackground3` behind a transparent border, which only high contrast
+  /// makes visible.
   filledDarker,
 
-  /// `neutralBackground1`, no visible border and no bottom rule.
+  /// `neutralBackground1` behind a transparent border, which only high contrast
+  /// makes visible.
   filledLighter,
 }
 
-/// Type ramp and inset. Figma's `Size` axis.
+/// Type ramp, inset and minimum height. Upstream's `size` prop.
 enum FluentTextareaSize {
-  /// `caption1` (12/16). Content inset 4 + 4 horizontally.
+  /// `caption1` (12/16). Text inset 4 vertically and 8 horizontally; 44 tall.
   small,
 
-  /// `body1` (14/20). The default. Content inset 10 + 2 horizontally.
+  /// `body1` (14/20). The default. Text inset 6 vertically and 12
+  /// horizontally; 56 tall.
   medium,
 
-  /// `body2` (16/22). Content inset 12 + 2 horizontally.
+  /// `body2` (16/22). Text inset 8 vertically and 14 horizontally; 68 tall.
   large,
 }
 
-/// The focus underline sliding in, verified against
-/// `useTextareaStyles.styles.ts` — `:focus-within::after` transitions
-/// `transform` over `durationNormal` on `curveDecelerateMid`.
+/// The focus underline sliding in. `useTextareaStyles.styles.ts`'s
+/// `:focus-within::after` transitions `transform` over `durationNormal`.
 ///
-/// Upstream writes that curve into `transitionDelay` rather than
-/// `transitionTimingFunction`, which a browser rejects; the *intent* is
-/// unambiguous and is what is ported here. The 0.01ms
-/// `prefers-reduced-motion` clamp upstream pairs it with is handled centrally
-/// by [FluentAnimatedStyle].
+/// Upstream writes `curveDecelerateMid` into `transitionDelay` rather than
+/// `transitionTimingFunction`. A browser drops it, so the bar runs on CSS
+/// `ease` ([FluentCssCubic.ease]) with no delay — measured on the live
+/// storybook, where every one of the fields that share this bar samples
+/// identically. The port ports what renders, not what the typo suggests was
+/// meant. The 0.01ms `prefers-reduced-motion` clamp upstream pairs it with is
+/// handled inside [FluentInputFocusUnderline].
 ///
-/// The bar itself is [FluentInputFocusUnderline], whose spec carries the same
-/// two tokens off the same `::after` rule — so this is an alias rather than a
-/// second copy of them.
+/// That widget's spec comes off the same `::after` rule — so this is an alias
+/// rather than a second copy of it.
 const FluentMotionSpec fluentTextareaFocusUnderlineEnter =
     fluentInputFocusUnderlineEnter;
 
 /// The focus underline leaving. Upstream's resting `::after` rule transitions
-/// `transform` over `durationUltraFast` on `curveAccelerateMid` — four times
-/// faster than [fluentTextareaFocusUnderlineEnter], and accelerating rather
-/// than decelerating. The asymmetry is upstream's; do not "tidy" it.
+/// `transform` over `durationUltraFast`, on `ease` for the same reason — four
+/// times faster than [fluentTextareaFocusUnderlineEnter]. The asymmetry is
+/// upstream's; do not "tidy" it.
 ///
 /// An alias of [fluentInputFocusUnderlineExit], for the reason given on
 /// [fluentTextareaFocusUnderlineEnter].
 const FluentMotionSpec fluentTextareaFocusUnderlineExit =
     fluentInputFocusUnderlineExit;
 
-/// Identifies the resting bottom rule inside a textarea's chrome.
+/// Identifies the [CustomPaint] that draws a textarea's border, whose bottom
+/// side is the resting bottom rule. Its painter is a
+/// [FluentInputBorderPainter].
 ///
 /// Public so a test — or a caller wrapping [buildFluentTextarea] — can find the
-/// rule without matching on colour.
+/// border without matching on colour.
 const Key fluentTextareaUnderlineKey = Key('fluent-textarea-underline');
 
 /// Identifies the brand focus rule — the [FluentInputFocusUnderline] that
@@ -106,13 +112,13 @@ class FluentTextareaBaseState {
   ///   this package, and a textarea's brand underline is not keyboard-gated —
   ///   upstream keys it off `:focus-within`, so clicking into the field raises
   ///   it too.
-  /// * The underline does not swap colour on focus, it *animates in* by
+  /// * The brand bar does not swap colour on focus, it *animates in* by
   ///   scaling horizontally. That is a transition between two builds, which no
   ///   [WidgetStateProperty] can express.
   ///
   /// A textarea draws no focus ring at all — `:focus-within` sets
-  /// `outlineColor: 'transparent'` upstream and no Figma variant paints one —
-  /// so nothing here depends on the keyboard-visible distinction.
+  /// `outlineColor: 'transparent'` upstream — so nothing here depends on the
+  /// keyboard-visible distinction.
   final bool focused;
 }
 
@@ -161,43 +167,51 @@ FluentTextareaState resolveFluentTextareaState({
 /// that reads the design axes. Every value comes from a Fluent token; nothing
 /// here computes a colour.
 ///
-/// Token sources are the Figma `Textarea` component set (63 variants over
-/// `Style`, `Size` and `State`), extracted into `test/fixtures/textarea.json`
-/// and asserted variant-by-variant in the tests.
+/// The oracle is upstream as it renders — `useTextareaStyles.styles.ts`
+/// measured in Chrome on the live storybook — not the Figma `Textarea` set.
+/// Where the two disagree, upstream wins:
 ///
-/// ## Disabled and read-only erase the appearance
-///
-/// Both swap to a transparent fill and the disabled stroke *wholesale*, on all
-/// three appearances — a disabled `filledDarker` textarea loses its grey fill
-/// rather than dimming it. All 18 of Figma's Disabled and Read-only variants
-/// bind the identical pair, and `useTextareaStyles.styles.ts` agrees. The two
-/// differ only in the text: read-only content reads at full
-/// `neutralForeground1` contrast, because it is content the user is meant to
-/// read rather than a control they are meant to ignore.
+/// * **Read only has no styling.** Upstream passes `readOnly` straight to the
+///   `<textarea>`; the root keeps every interactive rule. Only
+///   [FluentTextareaBaseState.enabled] changes the ramp.
+/// * **Hover wins over focus.** Unlike Input, `outlineInteractive` writes
+///   `:focus-within` as its own rule, and Griffel sorts it before `:hover` and
+///   `:active`. A focused outline field shows `Stroke1Pressed` sides and a
+///   `compoundBrandStroke` bottom until the pointer moves over it, then the
+///   Hover colours; a press shows the Pressed ones.
+/// * **The bottom border is a border.** 1px in every state, joined to the sides
+///   on the CSS corner diagonal by [FluentInputBorderPainter].
+/// * **Invalid is `colorPaletteRedBorder2`**, not the status danger token.
+/// * **Height is a floor, not a sum.** The `<textarea>` carries `min-height`
+///   40 / 52 / 64 and the root a 2px `padding-bottom`, so the border box is
+///   44 / 56 / 68 — Figma's 52px medium frame is 4 short.
 FluentTextareaStyle resolveFluentTextareaStyle(
   FluentTextareaState state,
   FluentThemeData theme,
 ) {
   final c = theme.colors;
-  final inert = !state.enabled || state.readOnly;
+  final disabled = !state.enabled;
+  final focused = state.focused;
   // The invalid treatment is gated on focus because upstream gates it:
   // `useTextareaStyles.styles.ts` writes `colorPaletteRedBorder2` under
   // `':not(:focus-within),:hover:not(:focus-within)'`, so a focused invalid
   // textarea falls back to the ordinary ramp and the brand bar marks it
-  // instead. Figma cannot contradict this — Error and Focus are two values of
-  // one `State` axis there, so the file has no Error-while-focused variant.
-  final invalid = state.invalid && !state.focused;
+  // instead.
+  final invalid = state.invalid && !focused;
+  // `colorPaletteRedBorder2`. The palette layer knows nothing of high contrast,
+  // where the status token is the system text colour instead.
+  final danger = c is FluentHighContrastColors
+      ? c.statusDangerBorder2
+      : c.palette.stroke2Rest(FluentPaletteFamily.red)!;
 
   // `body2` is the step ABOVE `body1` on the Web and Windows ramps, but the
   // step BELOW it on the Apple and Android ones — Fluent's mobile specs put
   // Body1 at 16/17 and Body2 at 14/15, which is faithful and not a bug in the
   // ramps. So the size axis cannot name `body2` directly; it has to order the
   // pair by size. Binding `large` straight to `body2` renders Large in SMALLER
-  // type than Medium on every mobile ramp, and a textarea has no height floor
-  // — its box is two lines plus a flat inset — so the inversion arrives as a
-  // Large field visibly SHORTER than the Medium one above it.
+  // type than Medium on every mobile ramp.
   // fontSize is null only for a supplied ramp with no size at all; 0 then
-  // leaves the Web order, which is the one Figma is drawn against.
+  // leaves the Web order, which is the one upstream renders.
   final rampsUpToBody2 =
       (theme.typography.body1.fontSize ?? 0) <=
       (theme.typography.body2.fontSize ?? 0);
@@ -208,7 +222,9 @@ FluentTextareaStyle resolveFluentTextareaStyle(
       ? theme.typography.body2
       : theme.typography.body1;
 
-  final background = inert
+  // One fill per appearance in every interactive state: upstream never moves
+  // the surface. Disabled swaps it to transparent on all three appearances.
+  final background = disabled
       ? FluentStateColor.tokens(rest: c.transparentBackground)
       : switch (state.appearance) {
           FluentTextareaAppearance.outline ||
@@ -220,40 +236,48 @@ FluentTextareaStyle resolveFluentTextareaStyle(
           ),
         };
 
-  // Figma binds one fill token per appearance across Rest, Hover, Pressed and
-  // Focus alike — the surface never moves, which is why every branch above is a
-  // single Rest token rather than a ramp.
-  final border = switch ((inert, invalid, state.appearance)) {
+  final border = switch ((disabled, invalid, state.appearance)) {
     (true, _, _) => FluentStateColor.tokens(rest: c.neutralStrokeDisabled),
-    (false, true, _) => FluentStateColor.tokens(rest: c.statusDangerBorder2),
+    (false, true, _) => FluentStateColor.tokens(rest: danger),
+    // Hover stays unconditional: see the doc comment.
     (false, false, FluentTextareaAppearance.outline) => FluentStateColor.tokens(
-      rest: c.neutralStroke1,
+      rest: focused ? c.neutralStroke1Pressed : c.neutralStroke1,
       hover: c.neutralStroke1Hover,
       pressed: c.neutralStroke1Pressed,
     ),
-    // Figma paints NO stroke on either filled appearance. React does, in the
-    // transparent tokens, and React wins here for the same reason it does on
-    // the Switch's checked track: a transparent Fluent token turns OPAQUE in
-    // high contrast, and this border is the only thing that would outline a
-    // filled textarea there.
+    // `filled` moves `:hover,:focus-within` to the Interactive token. Both are
+    // transparent in light and dark; high contrast makes them opaque, and this
+    // border is the only thing that outlines a filled textarea there.
     (false, false, _) => FluentStateColor.tokens(
-      rest: c.transparentStroke,
+      rest: focused ? c.transparentStrokeInteractive : c.transparentStroke,
       hover: c.transparentStrokeInteractive,
       pressed: c.transparentStrokeInteractive,
     ),
   };
 
-  // The resting bottom rule. Only Outline draws one, and only while the field
-  // is live: Figma's Error, Disabled and Read-only variants carry a uniform
-  // four-sided border and no extra rule at all.
+  // The bottom side. Only a live, valid Outline field has its own; everywhere
+  // else the box border runs round all four sides — the error colour
+  // (`shorthands.borderColor`) and the disabled `border` both cover it.
   final underline =
-      !inert && !invalid && state.appearance == FluentTextareaAppearance.outline
+      !disabled &&
+          !invalid &&
+          state.appearance == FluentTextareaAppearance.outline
       ? FluentStateColor.tokens(
-          rest: c.neutralStrokeAccessible,
+          rest: focused ? c.compoundBrandStroke : c.neutralStrokeAccessible,
           hover: c.neutralStrokeAccessibleHover,
           pressed: c.neutralStrokeAccessiblePressed,
         )
       : null;
+
+  final (vertical, horizontal, height) = switch (state.size) {
+    FluentTextareaSize.small => (FluentSpacing.xs, FluentSpacing.sNudge, 44.0),
+    FluentTextareaSize.medium => (
+      FluentSpacing.sNudge,
+      FluentSpacing.mNudge,
+      56.0,
+    ),
+    FluentTextareaSize.large => (FluentSpacing.s, FluentSpacing.m, 68.0),
+  };
 
   return FluentTextareaStyle(
     backgroundColor: background,
@@ -263,16 +287,14 @@ FluentTextareaStyle resolveFluentTextareaStyle(
       FluentRadius.allMedium,
     ),
     underlineColor: underline,
-    // Figma's Pressed variants swap the 1px "Thin underline" for a 2px "Thick
-    // underline"; Rest and Hover keep 1. React declares a flat 1px
-    // border-bottom in every state, so this ramp is Figma's alone.
-    underlineThickness: const WidgetStateProperty<double?>.fromMap(
-      <WidgetStatesConstraint, double?>{
-        WidgetState.pressed: FluentStroke.thick,
-        WidgetState.any: FluentStroke.thin,
-      },
+    // 1px in every state: upstream recolours the bottom border on press, it
+    // never thickens it.
+    underlineThickness: const WidgetStatePropertyAll<double?>(
+      FluentStroke.thin,
     ),
-    focusUnderlineColor: inert && !state.readOnly
+    // Upstream drops `interactive` — the `::after` bar included — when
+    // disabled. Read only keeps it: it still takes focus.
+    focusUnderlineColor: disabled
         ? null
         : FluentStateColor.tokens(
             rest: c.compoundBrandStroke,
@@ -306,25 +328,25 @@ FluentTextareaStyle resolveFluentTextareaStyle(
       FluentTextareaSize.medium => mediumBody,
       FluentTextareaSize.large => largeBody,
     }),
-    // Figma splits this across two frames: `Contents` insets 6/10/12 with the
-    // size, and the nested `.Text` adds a flat 2 horizontally and 6 vertically
-    // at EVERY size. React's horizontal `calc(spacingHorizontal* + XXS)` agrees
-    // exactly; its vertical ramp (4/6/8) does not, and Figma's flat 6 wins.
+    // The `<textarea>`'s own padding — `spacingVertical{XS,SNudge,S}` and
+    // `calc(spacingHorizontal{SNudge,MNudge,M} + XXS)` — plus the root's
+    // `padding-bottom: strokeWidthThick`, which upstream sizes to the focus bar.
     padding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(
-      EdgeInsets.symmetric(
-        horizontal:
-            switch (state.size) {
-              FluentTextareaSize.small => FluentSpacing.sNudge,
-              FluentTextareaSize.medium => FluentSpacing.mNudge,
-              FluentTextareaSize.large => FluentSpacing.m,
-            } +
-            FluentSpacing.xxs,
-        vertical: FluentSpacing.sNudge,
+      EdgeInsets.fromLTRB(
+        horizontal + FluentSpacing.xxs,
+        vertical,
+        horizontal + FluentSpacing.xxs,
+        vertical + FluentStroke.thick,
       ),
     ),
+    // The `<textarea>`'s `min-height` (40 / 52 / 64) plus the 2px root padding
+    // and the 1px border above and below. Two lines of Large's 22px type need
+    // only 60, so on Large the floor, not the text, sets the height.
+    minimumSize: WidgetStatePropertyAll<Size?>(Size(0, height)),
+    // `textareaStyles.disabled` sets `cursor: not-allowed`.
     mouseCursor: const WidgetStateProperty<MouseCursor?>.fromMap(
       <WidgetStatesConstraint, MouseCursor?>{
-        WidgetState.disabled: SystemMouseCursors.basic,
+        WidgetState.disabled: SystemMouseCursors.forbidden,
         WidgetState.any: SystemMouseCursors.text,
       },
     ),
@@ -355,6 +377,7 @@ Widget buildFluentTextarea(
   final borderWidth = style.borderWidth?.resolve(states) ?? FluentStroke.none;
   final borderColor = style.borderColor?.resolve(states);
   final padding = style.padding?.resolve(states) ?? EdgeInsets.zero;
+  final minimumSize = style.minimumSize?.resolve(states) ?? Size.zero;
 
   final underlineColor = style.underlineColor?.resolve(states);
   final underlineThickness =
@@ -363,39 +386,48 @@ Widget buildFluentTextarea(
   final focusThickness =
       style.focusUnderlineThickness?.resolve(states) ?? FluentStroke.none;
 
-  final surface = DecoratedBox(
-    decoration: BoxDecoration(
-      color: style.backgroundColor?.resolve(states),
-      borderRadius: radius,
-      border: borderWidth > 0 && borderColor != null
-          ? Border.all(color: borderColor, width: borderWidth)
-          : null,
-    ),
-    child: Padding(padding: padding, child: field),
+  // CSS box model: a border that exists takes space, so the text sits inside
+  // it — 1px on every side, the filled appearances' transparent border
+  // included. A null colour is no border at all.
+  final side = borderColor == null ? FluentStroke.none : borderWidth;
+  final widths = EdgeInsets.fromLTRB(
+    side,
+    side,
+    side,
+    underlineColor == null ? side : underlineThickness,
   );
 
-  // Both rules paint OVER the bottom border rather than under it, which is
-  // Figma's arrangement: the underline rectangles are siblings of the bordered
-  // `Contents` frame, drawn last, at the full frame width. React's `::after`
-  // reaches 1px outside the border box to the same effect.
+  // Background, then border, then text, then the focus bar: CSS's paint order
+  // for a root and its positioned `::after`, which spans the border box.
   return Stack(
+    // Passthrough, so a parent's tight height stretches the box itself, as a
+    // CSS `height` would. A loose Stack laid the box out at its own height and
+    // pinned the bar to the bottom of the taller Stack, below it.
+    fit: StackFit.passthrough,
     children: <Widget>[
-      surface,
-      if (underlineColor != null && underlineThickness > 0)
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: IgnorePointer(
-            child: SizedBox(
-              height: underlineThickness,
-              child: ColoredBox(
-                key: fluentTextareaUnderlineKey,
-                color: underlineColor,
-              ),
+      ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: minimumSize.height,
+          minWidth: minimumSize.width,
+        ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: style.backgroundColor?.resolve(states),
+            borderRadius: radius,
+          ),
+          child: CustomPaint(
+            key: fluentTextareaUnderlineKey,
+            painter: FluentInputBorderPainter(
+              radius: radius,
+              borderColor: borderColor,
+              borderWidth: side,
+              bottomBorderColor: underlineColor,
+              bottomBorderWidth: widths.bottom,
             ),
+            child: Padding(padding: padding.add(widths), child: field),
           ),
         ),
+      ),
       if (focusColor != null && focusThickness > 0)
         Positioned(
           left: 0,
@@ -408,8 +440,8 @@ Widget buildFluentTextarea(
               focused: state.focused,
               color: focusColor,
               thickness: focusThickness,
-              // Figma's `InFocus` rectangle rounds its bottom corners to the
-              // field's own radius and leaves the top square.
+              // `::after` rounds its bottom corners to the field's own radius
+              // and leaves the top square.
               borderRadius: BorderRadius.only(
                 bottomLeft: radius.bottomLeft,
                 bottomRight: radius.bottomRight,
@@ -460,21 +492,20 @@ class FluentTextareaTheme extends InheritedTheme {
 ///
 /// ## No resize handle
 ///
-/// The Figma set this is ported from has three axes — `Style`, `Size` and
-/// `State` — and **no `Resize` axis**. Upstream's `resize` prop is a
-/// pass-through to the CSS `resize` property, which is a browser affordance
-/// with no counterpart in Flutter: there is no grippy in the corner of a
-/// Flutter text field to expose. Rather than fake one, this widget omits it.
+/// Upstream's `resize` prop is a pass-through to the CSS `resize` property.
+/// Its default, `'none'`, renders no handle, and that is what this widget
+/// draws. The other values show the browser's own drag grip, which has no
+/// counterpart in Flutter, so rather than fake one this widget omits the prop.
 /// Size the field with [minLines] and [maxLines], or wrap it in whatever your
 /// app already uses to make a box draggable.
 ///
 /// ## Disabled and read-only are different, and both are real states
 ///
 /// [enabled] `false` refuses focus, refuses edits, drops the appearance to the
-/// disabled ramp and greys the text. [readOnly] refuses edits and drops to the
-/// same chrome, but keeps the text at full contrast and stays focusable and
-/// selectable — that is Figma's `State=Read only`, which React has no styling
-/// for at all.
+/// disabled ramp and greys the text. [readOnly] only refuses edits: upstream
+/// passes it to the `<textarea>` and styles nothing, so a read-only field looks
+/// exactly like an editable one — hover, focus and all — and stays focusable
+/// and selectable.
 ///
 /// ## Built on [EditableText]
 ///
@@ -566,13 +597,22 @@ class FluentTextarea extends StatefulWidget {
   /// Whether to replace every glyph with a bullet. Requires `maxLines: 1`.
   final bool obscureText;
 
-  /// Smallest number of lines the field occupies.
+  /// Smallest number of lines the field occupies. Two by default: upstream
+  /// renders `<textarea rows="2">`.
   ///
-  /// Two by default, which is the height Figma's 52px medium frame draws.
+  /// The size's minimum height still applies, so two lines of Large's type
+  /// leave room below them, as upstream's `min-height` does.
   final int? minLines;
 
-  /// Largest number of lines before the field scrolls internally. Null grows
-  /// without bound.
+  /// Largest number of lines the field grows to before it scrolls internally.
+  /// Null holds it at [minLines], as `rows` does upstream: a `<textarea>` never
+  /// grows with its text, it scrolls.
+  ///
+  /// Null for both grows without bound, and so does a [minLines] of 1:
+  /// [EditableText]'s `maxLines: 1` is a single-line input that neither wraps
+  /// nor keeps a newline. The text scrolls inside the padding rather than
+  /// through it, and a mouse wheel over the padding does not scroll it, because
+  /// [EditableText] has no padding of its own.
   final int? maxLines;
 
   /// Hard cap on the number of characters, enforced by an input formatter.
@@ -628,6 +668,7 @@ class _FluentTextareaState extends State<FluentTextarea>
   FocusNode? _internalFocusNode;
   final WidgetStatesController _statesController = WidgetStatesController();
   bool _focused = false;
+  bool _showHandles = false;
 
   TextEditingController get _controller =>
       widget.controller ?? (_internalController ??= TextEditingController());
@@ -663,13 +704,6 @@ class _FluentTextareaState extends State<FluentTextarea>
       _focusNode.addListener(_onFocusChanged);
       _focused = _focusNode.hasFocus;
     }
-    if (!_enabled) {
-      // Clear the pointer states rather than leaving a stale hover behind when
-      // the field is disabled mid-gesture.
-      _statesController
-        ..update(WidgetState.hovered, false)
-        ..update(WidgetState.pressed, false);
-    }
     _statesController.update(WidgetState.disabled, !_enabled);
   }
 
@@ -692,9 +726,48 @@ class _FluentTextareaState extends State<FluentTextarea>
     setState(() => _focused = _focusNode.hasFocus);
   }
 
+  // TextField's rule: the builder records whether the gesture that moved the
+  // selection was a touch or a stylus, so a mouse and the keyboard never show
+  // the touch handles.
+  void _handleSelectionChanged(
+    TextSelection selection,
+    SelectionChangedCause? cause,
+  ) {
+    final show =
+        _gestures.shouldShowSelectionHandles &&
+        cause != SelectionChangedCause.keyboard &&
+        !(widget.readOnly && selection.isCollapsed) &&
+        (cause == SelectionChangedCause.longPress ||
+            cause == SelectionChangedCause.stylusHandwriting ||
+            _controller.text.isNotEmpty);
+    if (show != _showHandles) setState(() => _showHandles = show);
+  }
+
+  /// Hover and press are tracked while disabled too and filtered in [build],
+  /// because Chrome keeps a disabled root's `:hover` and `:active`: re-enabled
+  /// under a resting mouse, the field hovers at once. The release of a press
+  /// can land after [dispose], on the detached [Listener].
   void _set(WidgetState state, {required bool value}) {
-    if (!_enabled && value) return;
+    if (!mounted) return;
     _statesController.update(state, value);
+  }
+
+  /// Chrome focuses a `<textarea>` on mousedown — any button — with the caret
+  /// where the press landed, so the bar grows under a held press; Flutter's
+  /// tap-down never sees a middle press and waits for a contested arena. As
+  /// `FluentInput` does: through the field's own selection path, so desktop's
+  /// select-all-on-focus stays out, and only while unfocused, so a right press
+  /// keeps the selection it lands on.
+  void _focusOnPress(PointerDownEvent event) {
+    if (!_enabled ||
+        event.kind != PointerDeviceKind.mouse ||
+        _focusNode.hasFocus) {
+      return;
+    }
+    editableTextKey.currentState?.renderEditable.selectPositionAt(
+      from: event.position,
+      cause: SelectionChangedCause.tap,
+    );
   }
 
   @override
@@ -715,7 +788,15 @@ class _FluentTextareaState extends State<FluentTextarea>
       theme,
     ).merge(FluentTextareaTheme.maybeOf(context)).merge(widget.style);
 
-    final states = _statesController.value;
+    // A disabled field keeps its pointer states (see [_set]) but shows none.
+    final states = _enabled
+        ? _statesController.value
+        : const <WidgetState>{WidgetState.disabled};
+    // ponytail: a one-row field grows rather than scrolls. EditableText's
+    // `maxLines: 1` is a single-line input that cannot wrap and strips
+    // newlines; holding one wrapped row needs a height clamp in pixels.
+    final maxLines =
+        widget.maxLines ?? (widget.minLines == 1 ? null : widget.minLines);
     final textStyle = (resolved.textStyle?.resolve(states) ?? const TextStyle())
         .copyWith(color: resolved.foregroundColor?.resolve(states));
 
@@ -741,7 +822,8 @@ class _FluentTextareaState extends State<FluentTextarea>
           : null,
       selectionControls:
           widget.selectionControls ?? fluentTextSelectionControls,
-      showSelectionHandles: true,
+      showSelectionHandles: _showHandles,
+      onSelectionChanged: _handleSelectionChanged,
       contextMenuBuilder:
           widget.contextMenuBuilder ?? fluentTextContextMenuBuilder,
       autofocus: widget.autofocus,
@@ -749,10 +831,10 @@ class _FluentTextareaState extends State<FluentTextarea>
       obscureText: widget.obscureText,
       enableInteractiveSelection: _enabled,
       minLines: widget.minLines,
-      maxLines: widget.maxLines,
+      maxLines: maxLines,
       keyboardType:
           widget.keyboardType ??
-          (widget.maxLines == 1 ? TextInputType.text : TextInputType.multiline),
+          (maxLines == 1 ? TextInputType.text : TextInputType.multiline),
       textInputAction: widget.textInputAction,
       textCapitalization: widget.textCapitalization,
       inputFormatters: <TextInputFormatter>[
@@ -765,7 +847,8 @@ class _FluentTextareaState extends State<FluentTextarea>
       // The gesture detector below owns the pointer; without this the render
       // object would compete with it for taps.
       rendererIgnoresPointer: true,
-      cursorWidth: FluentStroke.thick,
+      // The browser's caret is 1px; `EditableText`'s default is 2.
+      cursorWidth: FluentStroke.thin,
     );
 
     final placeholder = widget.placeholder;
@@ -795,14 +878,12 @@ class _FluentTextareaState extends State<FluentTextarea>
             ],
           );
 
-    final chrome = buildFluentTextarea(
-      state,
-      resolved,
-      states,
-      _gestures.buildGestureDetector(
-        behavior: HitTestBehavior.translucent,
-        child: field,
-      ),
+    // The gesture detector wraps the whole chrome, as `FluentInput`'s does:
+    // the padding is part of the `<textarea>` upstream, so a click there
+    // focuses the field and places the caret.
+    final chrome = _gestures.buildGestureDetector(
+      behavior: HitTestBehavior.translucent,
+      child: buildFluentTextarea(state, resolved, states, field),
     );
 
     return Semantics(
@@ -814,8 +895,16 @@ class _FluentTextareaState extends State<FluentTextarea>
             resolved.mouseCursor?.resolve(states) ?? SystemMouseCursors.text,
         onEnter: (_) => _set(WidgetState.hovered, value: true),
         onExit: (_) => _set(WidgetState.hovered, value: false),
+        // Any button: a `<textarea>` takes `:active` from a right press too,
+        // unlike the Combobox family (Chrome).
         child: Listener(
-          onPointerDown: (_) => _set(WidgetState.pressed, value: true),
+          // Translucent so a disabled field, whose chrome ignores the pointer,
+          // still sees its press.
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (event) {
+            _set(WidgetState.pressed, value: true);
+            _focusOnPress(event);
+          },
           onPointerUp: (_) => _set(WidgetState.pressed, value: false),
           onPointerCancel: (_) => _set(WidgetState.pressed, value: false),
           // The chrome is built around the `EditableText`, so it falls outside

@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../internal/interaction.dart';
@@ -134,10 +137,16 @@ FluentLabelStyle resolveFluentLabelStyle(
       rest: c.neutralForeground1,
       disabled: c.neutralForegroundDisabled,
     ),
-    // Figma greys the asterisk along with the label; React leaves it red. See
-    // doc/token-divergences.md.
+    // Upstream's `colorPaletteRedForeground3`, which Chrome paints #d13438 in
+    // web-light and #e37d80 in web-dark. Figma binds
+    // `Status/Danger/Foreground/3` (#c50f1f); the rendered upstream wins. The
+    // palette layer knows nothing of high contrast, where the status token is
+    // the system text colour. Disabled greys it with the label, as upstream
+    // does.
     requiredColor: FluentStateColor.tokens(
-      rest: c.statusDangerForeground3,
+      rest: c is FluentHighContrastColors
+          ? c.statusDangerForeground3
+          : c.palette.foreground3Rest(FluentPaletteFamily.red)!,
       disabled: c.neutralForegroundDisabled,
     ),
     textStyle: WidgetStatePropertyAll<TextStyle?>(textStyle),
@@ -169,26 +178,24 @@ Widget buildFluentLabel(
   final gap = style.gap?.resolve(states) ?? FluentSpacing.xs;
 
   final label = state.label;
-
-  Widget content = Row(
-    mainAxisSize: MainAxisSize.min,
-    // Figma's auto-layout counter-axis alignment is MAX: the asterisk sits on
-    // the label's baseline-ish bottom edge, which matters the moment a caller
-    // overrides the asterisk to a different size.
-    crossAxisAlignment: CrossAxisAlignment.end,
-    spacing: label != null && state.required ? gap : 0,
-    children: <Widget>[
-      ?label,
-      if (state.required)
-        DefaultTextStyle.merge(
+  final asterisk = state.required
+      ? DefaultTextStyle.merge(
           style: TextStyle(color: requiredColor),
           // Excluded from semantics: "Label*" is not what a screen reader
           // should announce. Required-ness belongs to the field, which marks
           // itself, not to the text of its label.
           child: const ExcludeSemantics(child: Text('*')),
-        ),
-    ],
-  );
+        )
+      : null;
+
+  // Upstream's `<label>` is inline flow: its text wraps at the width it is
+  // given, and the `*` span flows on after the last word. So the label wraps
+  // as it would alone, and the asterisk is placed at the end of its last line.
+  // The label sits in the same slot either way, so toggling `required` keeps
+  // the caller's widget and its state.
+  var content = label == null
+      ? asterisk ?? const SizedBox.shrink()
+      : _TrailingAsterisk(gap: gap, label: label, asterisk: asterisk);
 
   if (textStyle != null || foreground != null) {
     content = DefaultTextStyle.merge(
@@ -197,6 +204,197 @@ Widget buildFluentLabel(
     );
   }
   return content;
+}
+
+enum _Slot { label, asterisk }
+
+/// Lays [label] out at the width it is given and flows [asterisk] on after the
+/// end of its last line, [gap] past the last glyph — where a browser puts
+/// upstream's inline `*` span with its `paddingLeft: spacingHorizontalXS`.
+///
+/// The line end is read off the last [RenderParagraph] inside [label], so the
+/// caller's own widget stays in the tree untouched. A label with no paragraph
+/// in it gets the asterisk after its box, bottom-aligned. With no [asterisk]
+/// it is the label alone.
+///
+/// ponytail: text in a fixed-size box of its own is a relayout boundary, so
+/// changing that text alone leaves the asterisk where it was until the label
+/// next lays out. Placing the asterisk at paint time would lift that.
+class _TrailingAsterisk
+    extends SlottedMultiChildRenderObjectWidget<_Slot, RenderBox> {
+  const _TrailingAsterisk({
+    required this.gap,
+    required this.label,
+    this.asterisk,
+  });
+
+  final double gap;
+  final Widget label;
+  final Widget? asterisk;
+
+  @override
+  Iterable<_Slot> get slots => _Slot.values;
+
+  @override
+  Widget? childForSlot(_Slot slot) => switch (slot) {
+    _Slot.label => label,
+    _Slot.asterisk => asterisk,
+  };
+
+  @override
+  _RenderTrailingAsterisk createRenderObject(BuildContext context) =>
+      _RenderTrailingAsterisk(gap);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderTrailingAsterisk renderObject,
+  ) => renderObject.gap = gap;
+}
+
+class _RenderTrailingAsterisk extends RenderBox
+    with SlottedContainerRenderObjectMixin<_Slot, RenderBox> {
+  _RenderTrailingAsterisk(this._gap);
+
+  double _gap;
+  set gap(double value) {
+    if (value == _gap) return;
+    _gap = value;
+    markNeedsLayout();
+  }
+
+  RenderBox get _label => childForSlot(_Slot.label)!;
+  RenderBox? get _asterisk => childForSlot(_Slot.asterisk);
+
+  static RenderParagraph? _lastParagraph(RenderObject node) {
+    if (node is RenderParagraph) return node;
+    RenderParagraph? last;
+    node.visitChildren((child) => last = _lastParagraph(child) ?? last);
+    return last;
+  }
+
+  static Offset _offsetOf(RenderBox child) =>
+      (child.parentData! as BoxParentData).offset;
+
+  @override
+  void performLayout() {
+    final label = _label
+      ..layout(constraints.copyWith(minHeight: 0), parentUsesSize: true);
+    final asterisk = _asterisk;
+    if (asterisk == null) {
+      (label.parentData! as BoxParentData).offset = Offset.zero;
+      size = constraints.constrain(label.size);
+      return;
+    }
+    asterisk.layout(const BoxConstraints(), parentUsesSize: true);
+    final star = asterisk.size;
+
+    // The end of the last line, and that line's bottom, in label coordinates.
+    var end = Offset(label.size.width, 0);
+    var bottom = label.size.height;
+    var ltr = true;
+    final paragraph = _lastParagraph(label);
+    if (paragraph != null) {
+      final position = TextPosition(
+        offset: paragraph.text
+            .toPlainText(includeSemanticsLabels: false)
+            .length,
+      );
+      end = MatrixUtils.transformPoint(
+        paragraph.getTransformTo(label),
+        paragraph.getOffsetForCaret(position, Rect.zero),
+      );
+      bottom = end.dy + paragraph.getFullHeightForCaret(position);
+      ltr = paragraph.textDirection == TextDirection.ltr;
+    }
+
+    var x = ltr ? end.dx + _gap : end.dx - _gap - star.width;
+    var y = bottom - star.height;
+    // Right to left, a label with room to spare moves right, so the asterisk
+    // has space on its left.
+    final shift = !ltr && x < 0 && label.size.width - x <= constraints.maxWidth
+        ? -x
+        : 0.0;
+    x += shift;
+    // ponytail: a last line too full for the asterisk sends the asterisk alone
+    // to a new line, where CSS would carry the last word down with it.
+    if (ltr ? x + star.width > constraints.maxWidth : x < 0) {
+      x = ltr ? 0 : label.size.width - star.width;
+      y = bottom;
+    }
+    (label.parentData! as BoxParentData).offset = Offset(shift, 0);
+    (asterisk.parentData! as BoxParentData).offset = Offset(x, y);
+    size = constraints.constrain(
+      Size(
+        math.max(shift + label.size.width, x + star.width),
+        math.max(label.size.height, y + star.height),
+      ),
+    );
+  }
+
+  // Intrinsics and dry layout assume the asterisk fits on the last line.
+  @override
+  double computeMinIntrinsicWidth(double height) => math.max(
+    _label.getMinIntrinsicWidth(height),
+    _asterisk?.getMinIntrinsicWidth(height) ?? 0,
+  );
+
+  @override
+  double computeMaxIntrinsicWidth(double height) =>
+      _label.getMaxIntrinsicWidth(height) +
+      (_asterisk == null ? 0 : _gap + _asterisk!.getMaxIntrinsicWidth(height));
+
+  @override
+  double computeMinIntrinsicHeight(double width) =>
+      _label.getMinIntrinsicHeight(width);
+
+  @override
+  double computeMaxIntrinsicHeight(double width) =>
+      _label.getMaxIntrinsicHeight(width);
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    final label = _label.getDryLayout(constraints.copyWith(minHeight: 0));
+    final star = _asterisk?.getDryLayout(const BoxConstraints());
+    return constraints.constrain(
+      Size(
+        star == null
+            ? label.width
+            : math.min(label.width + _gap + star.width, constraints.maxWidth),
+        label.height,
+      ),
+    );
+  }
+
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) =>
+      _label.getDistanceToActualBaseline(baseline);
+
+  @override
+  double? computeDryBaseline(
+    BoxConstraints constraints,
+    TextBaseline baseline,
+  ) => _label.getDryBaseline(constraints.copyWith(minHeight: 0), baseline);
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    for (final child in children) {
+      context.paintChild(child, offset + _offsetOf(child));
+    }
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
+    for (final child in [?_asterisk, _label]) {
+      final hit = result.addWithPaintOffset(
+        offset: _offsetOf(child),
+        position: position,
+        hitTest: (result, local) => child.hitTest(result, position: local),
+      );
+      if (hit) return true;
+    }
+    return false;
+  }
 }
 
 /// Overrides the label style for a subtree.

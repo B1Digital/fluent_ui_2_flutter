@@ -16,11 +16,14 @@ void main() {
   const trigger = Key('trigger');
   const tip = Key('tip');
 
+  /// [alignment] parks the trigger against an edge of the 800 x 600 test view;
+  /// the default centre leaves room on every side.
   Future<void> pump(
     WidgetTester tester,
     Widget tooltip, {
     FluentThemeData? theme,
     TextDirection? direction,
+    Alignment alignment = Alignment.center,
   }) => tester.pumpWidget(
     FluentApp(
       theme:
@@ -30,10 +33,10 @@ void main() {
       // here, which is exactly the case `Directionality` is not an
       // InheritedTheme guards against.
       home: direction == null
-          ? Center(child: tooltip)
+          ? Align(alignment: alignment, child: tooltip)
           : Directionality(
               textDirection: direction,
-              child: Center(child: tooltip),
+              child: Align(alignment: alignment, child: tooltip),
             ),
     ),
   );
@@ -853,6 +856,279 @@ void main() {
       final surface = surfaceRect(tester);
       expect(surface.center.dx, closeTo(target.center.dx, 0.01));
       expect(target.top - surface.bottom, 10, reason: 'offset 4 plus arrow 6');
+    });
+  });
+
+  group('staying inside the overlay', () {
+    // Fluent React v9's tooltip positions through `usePositioning`, whose
+    // middleware chain runs `flip` and then `shift` unless `pinned` is set
+    // (`react-positioning/.../usePositioningOptions.ts:159-168`), and
+    // `useTooltipBase.tsx:91-99` never pins. Both measure overflow against
+    // floating-ui's defaults — the clipping ancestors inside the viewport,
+    // padding 0 (`detectOverflow.ts:56-60`) — whose analogue is the Overlay.
+    // A 28px square is a toolbar button; the surface around this content is
+    // about 103 wide, so centring it on the square overhangs any edge.
+    const square = SizedBox.square(key: trigger, dimension: 28);
+    const content = Text('Toolbar tooltip', key: tip);
+
+    Rect overlayRect(WidgetTester tester) =>
+        Offset.zero & tester.view.physicalSize / tester.view.devicePixelRatio;
+
+    // Two probes inside the vertical arrow's 12 x 6 box, each falling inside
+    // exactly one triangle: the apex-up one spans x in [6 - y, 6 + y], the
+    // apex-down one x in [y, 12 - y].
+    const apexUp = Offset(2, 5);
+    const apexDown = Offset(2, 1);
+
+    testWidgets('a side with no room flips to the opposite side', (
+      tester,
+    ) async {
+      const cases = <(Alignment, FluentTooltipPosition)>[
+        (Alignment.topCenter, FluentTooltipPosition.above),
+        (Alignment.bottomCenter, FluentTooltipPosition.below),
+      ];
+      for (final (alignment, position) in cases) {
+        await pump(
+          tester,
+          FluentTooltip(position: position, content: content, child: square),
+          alignment: alignment,
+        );
+        await hover(tester, find.byKey(trigger));
+
+        final target = tester.getRect(find.byKey(trigger));
+        final surface = surfaceRect(tester);
+        final flippedBelow = position == FluentTooltipPosition.above;
+        expect(
+          flippedBelow
+              ? surface.top - target.bottom
+              : target.top - surface.bottom,
+          FluentSpacing.xs,
+          reason: '${position.name}: flipped, at the same 4px offset',
+        );
+        expect(
+          tester.binding.transientCallbackCount,
+          0,
+          reason: 'the flip is decided in layout, not over later frames',
+        );
+        await unhover(tester);
+      }
+    });
+
+    testWidgets('a short side is kept when the opposite side is shorter', (
+      tester,
+    ) async {
+      // floating-ui's `bestFit` fallback (`flip.ts:180-209`): when neither
+      // side fits, the one that overflows least wins. A 572-tall surface fits
+      // neither 515 above nor 57 below, so it stays above.
+      await pump(
+        tester,
+        const FluentTooltip(
+          content: SizedBox(key: tip, width: 40, height: 560),
+          child: square,
+        ),
+        alignment: const Alignment(0, 0.8),
+      );
+      await hover(tester, find.byKey(trigger));
+
+      final target = tester.getRect(find.byKey(trigger));
+      expect(target.top - surfaceRect(tester).bottom, FluentSpacing.xs);
+    });
+
+    testWidgets('the surface shifts along its edge to stay inside', (
+      tester,
+    ) async {
+      // A toolbar at y = 0 with its end buttons against the window edges —
+      // the case `below` alone does not fix.
+      for (final alignment in <Alignment>[
+        Alignment.topRight,
+        Alignment.topLeft,
+      ]) {
+        await pump(
+          tester,
+          const FluentTooltip(
+            position: FluentTooltipPosition.below,
+            content: content,
+            child: square,
+          ),
+          alignment: alignment,
+        );
+        await hover(tester, find.byKey(trigger));
+
+        final bounds = overlayRect(tester);
+        final target = tester.getRect(find.byKey(trigger));
+        final surface = surfaceRect(tester);
+        final label = '$alignment';
+        expect(
+          surface.top,
+          target.bottom + FluentSpacing.xs,
+          reason: '$label: still below',
+        );
+        expect(
+          surface.left,
+          greaterThanOrEqualTo(bounds.left),
+          reason: '$label: inside the left edge',
+        );
+        expect(
+          surface.right,
+          lessThanOrEqualTo(bounds.right),
+          reason: '$label: inside the right edge',
+        );
+        // `shift` clamps and no more: padding 0, so the surface lands flush.
+        expect(
+          alignment.x > 0 ? surface.right : surface.left,
+          alignment.x > 0 ? bounds.right : bounds.left,
+          reason: '$label: shifted exactly as far as needed',
+        );
+        await unhover(tester);
+      }
+    });
+
+    testWidgets('before and after flip to the other reading side', (
+      tester,
+    ) async {
+      const cases =
+          <
+            (
+              TextDirection,
+              Alignment,
+              FluentTooltipPosition,
+              FluentTooltipPosition,
+            )
+          >[
+            // (direction, edge, preferred, resolved)
+            (
+              TextDirection.ltr,
+              Alignment.centerLeft,
+              FluentTooltipPosition.before,
+              FluentTooltipPosition.after,
+            ),
+            (
+              TextDirection.ltr,
+              Alignment.centerRight,
+              FluentTooltipPosition.after,
+              FluentTooltipPosition.before,
+            ),
+            (
+              TextDirection.rtl,
+              Alignment.centerRight,
+              FluentTooltipPosition.before,
+              FluentTooltipPosition.after,
+            ),
+            (
+              TextDirection.rtl,
+              Alignment.centerLeft,
+              FluentTooltipPosition.after,
+              FluentTooltipPosition.before,
+            ),
+          ];
+
+      for (final (direction, alignment, preferred, resolved) in cases) {
+        await pump(
+          tester,
+          FluentTooltip(
+            position: preferred,
+            withArrow: true,
+            content: content,
+            child: square,
+          ),
+          direction: direction,
+          alignment: alignment,
+        );
+        await hover(tester, find.byKey(trigger));
+
+        final target = tester.getRect(find.byKey(trigger));
+        final surface = surfaceRect(tester);
+        final arrow = tester.getRect(arrowFinder);
+        final path = arrowPathOf(tester);
+        // Pushed off the right edge, so it lands on the trigger's left.
+        final onTheLeft = alignment.x > 0;
+        final label = '${direction.name}/${preferred.name}';
+
+        expect(
+          arrowOf(tester).position,
+          resolved,
+          reason: '$label: the arrow is drawn for the side it landed on',
+        );
+        expect(
+          onTheLeft ? arrow.right : arrow.left,
+          onTheLeft
+              ? target.left - FluentSpacing.xs
+              : target.right + FluentSpacing.xs,
+          reason: '$label: the arrow stands 4 off the trigger',
+        );
+        expect(
+          onTheLeft ? surface.right : surface.left,
+          onTheLeft ? arrow.left : arrow.right,
+          reason: '$label: the surface sits behind its arrow',
+        );
+        expect(
+          path.contains(onTheLeft ? apexRight : apexLeft),
+          isTrue,
+          reason: '$label: the apex must point at the trigger',
+        );
+        expect(
+          path.contains(onTheLeft ? apexLeft : apexRight),
+          isFalse,
+          reason: '$label: ...and not back into the surface',
+        );
+        await unhover(tester);
+      }
+    });
+
+    testWidgets('the arrow follows a flip and keeps pointing at the trigger', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const FluentTooltip(withArrow: true, content: content, child: square),
+        alignment: Alignment.topRight,
+      );
+      await hover(tester, find.byKey(trigger));
+
+      final target = tester.getRect(find.byKey(trigger));
+      final surface = surfaceRect(tester);
+      final arrow = tester.getRect(arrowFinder);
+      final path = arrowPathOf(tester);
+
+      expect(arrowOf(tester).position, FluentTooltipPosition.below);
+      expect(arrow.top, target.bottom + FluentSpacing.xs);
+      expect(surface.top, arrow.bottom, reason: 'the arrow sits on top');
+      expect(path.contains(apexUp), isTrue, reason: 'apex up, at the trigger');
+      expect(path.contains(apexDown), isFalse);
+      expect(surface.right, overlayRect(tester).right, reason: 'shifted');
+      // floating-ui's `arrow` middleware centres the arrow on the reference,
+      // not on the floating element (`arrow.ts:72-86`), so a shifted surface
+      // still points at its trigger.
+      expect(arrow.center.dx, target.center.dx);
+    });
+
+    testWidgets('the surface still follows a trigger that moves', (
+      tester,
+    ) async {
+      // The placement is decided against the trigger as the entry builds; the
+      // CompositedTransformFollower is what keeps it glued afterwards. The
+      // translate repaints only, so nothing rebuilds or relays the entry.
+      final nudge = ValueNotifier<Offset>(Offset.zero);
+      addTearDown(nudge.dispose);
+      await tester.pumpWidget(
+        FluentApp(
+          theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+          home: Center(
+            child: ValueListenableBuilder<Offset>(
+              valueListenable: nudge,
+              builder: (context, value, child) =>
+                  Transform.translate(offset: value, child: child),
+              child: const FluentTooltip(content: content, child: square),
+            ),
+          ),
+        ),
+      );
+      await hover(tester, find.byKey(trigger));
+      final before = surfaceRect(tester);
+
+      nudge.value = const Offset(30, 20);
+      await tester.pump();
+      expect(surfaceRect(tester), before.shift(const Offset(30, 20)));
     });
   });
 

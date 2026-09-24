@@ -71,10 +71,13 @@ class FluentDropdownStyle {
   /// Trigger corner radius.
   final WidgetStateProperty<BorderRadius?>? borderRadius;
 
-  /// The 1px rule along the bottom edge at rest.
+  /// The trigger's bottom border side, when it differs from [borderColor].
   ///
-  /// Null means the appearance draws none, which is a different claim from a
-  /// transparent one — `Fill lighter` and `Fill darker` genuinely have no rule.
+  /// A side of the box border that joins the others on the CSS corner
+  /// diagonal, not an overlay, and like every border it insets the content.
+  /// It is [borderWidth] wide, or 1px when the other sides have none.
+  /// Null means the bottom follows [borderColor] like the other three sides,
+  /// which is what the filled appearances do.
   final WidgetStateProperty<Color?>? underlineColor;
 
   /// The brand rule that grows across the bottom edge while the dropdown is
@@ -88,7 +91,7 @@ class FluentDropdownStyle {
   /// [foregroundColor] / [placeholderColor].
   final WidgetStateProperty<TextStyle?>? textStyle;
 
-  /// Horizontal inset of the value text inside the trigger.
+  /// Inset of the value text inside the trigger's border.
   final WidgetStateProperty<EdgeInsetsGeometry?>? padding;
 
   /// Space between the value text and the chevron slot.
@@ -103,8 +106,8 @@ class FluentDropdownStyle {
   /// Inset around the chevron inside its slot.
   final WidgetStateProperty<EdgeInsetsGeometry?>? chevronPadding;
 
-  /// Minimum trigger size. Only the height is meaningful; a dropdown takes its
-  /// width from its parent.
+  /// Minimum trigger size. The width is upstream's `minWidth: 250px`; past it a
+  /// dropdown takes its width from its parent.
   final WidgetStateProperty<Size?>? minimumSize;
 
   /// Cursor while hovering the trigger.
@@ -113,10 +116,11 @@ class FluentDropdownStyle {
   /// Popup fill.
   final WidgetStateProperty<Color?>? surfaceColor;
 
-  /// Popup border colour.
+  /// Popup outline colour, painted outside the surface like upstream's CSS
+  /// `outline`.
   final WidgetStateProperty<Color?>? surfaceBorderColor;
 
-  /// Popup border width.
+  /// Popup outline width.
   final WidgetStateProperty<double?>? surfaceBorderWidth;
 
   /// Popup corner radius.

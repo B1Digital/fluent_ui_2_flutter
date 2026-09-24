@@ -100,9 +100,12 @@ const DocsPage timePickerPage = DocsPage(
     ),
     PropRow(
       name: 'hourCycle',
-      type: 'FluentHourCycle',
-      defaultValue: 'FluentHourCycle.h12',
-      description: 'Which clock the options are written on.',
+      type: 'FluentHourCycle?',
+      defaultValue: 'null',
+      description:
+          'Which clock the options are written on, and typed text is parsed '
+          'on. Null writes the h12 clock but parses the 24-hour one, as '
+          "upstream's unset hourCycle does.",
     ),
     PropRow(
       name: 'showSeconds',
@@ -140,7 +143,9 @@ const DocsPage timePickerPage = DocsPage(
       name: 'freeform',
       type: 'bool',
       defaultValue: 'false',
-      description: 'Whether the field accepts typed times.',
+      description:
+          'Whether typed text is parsed as a time. Without it, typing only '
+          'moves the listbox to a matching row.',
     ),
     PropRow(
       name: 'clearable',
@@ -355,32 +360,34 @@ class _FreeformWithErrorHandlingState
     final String? message = _getErrorMessage(_errorType);
     return FluentField(
       required: true,
-      // The label carries its own width. FluentField lays its label out in a
-      // Row beside the required asterisk without a Flexible, so a long label
-      // takes its intrinsic width and overflows instead of wrapping.
-      label: const SizedBox(
-        width: 300,
-        child: Text(
-          'Type a time outside of 10:00 to 19:59, type an invalid time, or '
-          'leave the input empty and close the TimePicker.',
-        ),
+      label: const Text(
+        'Type a time outside of 10:00 to 19:59, type an invalid time, or '
+        'leave the input empty and close the TimePicker.',
       ),
       validationState: message == null
           ? FluentFieldValidationState.none
           : FluentFieldValidationState.error,
       validationMessage: message == null ? null : Text(message),
-      child: SizedBox(
-        width: 300,
-        child: FluentTimePicker(
-          freeform: true,
-          required: true,
-          startHour: 10,
-          endHour: 20,
-          selectedTime: _selectedTime,
-          onTimeChange: (FluentTimeSelectionData data) => setState(() {
-            _selectedTime = data.selectedTime;
-            _errorType = data.error;
-          }),
+      // `maxWidth: 300px` upstream: the Field spans the story, and the picker
+      // stops at 300 inside it rather than stretching with it.
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: SizedBox(
+          width: 300,
+          child: FluentTimePicker(
+            freeform: true,
+            required: true,
+            // Upstream's Field marks its control `aria-invalid`, which turns
+            // the Combobox border red.
+            error: message != null,
+            startHour: 10,
+            endHour: 20,
+            selectedTime: _selectedTime,
+            onTimeChange: (FluentTimeSelectionData data) => setState(() {
+              _selectedTime = data.selectedTime;
+              _errorType = data.error;
+            }),
+          ),
         ),
       ),
     );

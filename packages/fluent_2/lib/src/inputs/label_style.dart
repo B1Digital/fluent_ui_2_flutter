@@ -33,16 +33,16 @@ class FluentLabelStyle {
 
   /// Required-field asterisk colour.
   ///
-  /// A separate property rather than a tint of [foregroundColor]: Figma binds
-  /// the asterisk to `Status/Danger/Foreground/3/Rest` while enabled and to
-  /// `Neutral/Foreground/Disabled/Rest` while disabled, which is two unrelated
+  /// A separate property rather than a tint of [foregroundColor]: upstream
+  /// paints the asterisk `colorPaletteRedForeground3` while enabled and
+  /// `colorNeutralForegroundDisabled` while disabled, which is two unrelated
   /// tokens rather than one colour under two treatments.
   final WidgetStateProperty<Color?>? requiredColor;
 
   /// The type ramp step. Its colour is overridden by [foregroundColor].
   final WidgetStateProperty<TextStyle?>? textStyle;
 
-  /// Space between the label and the asterisk.
+  /// Space between the end of the label's last line and the asterisk.
   final WidgetStateProperty<double?>? gap;
 
   /// This style with the non-null properties of [other] layered on top.

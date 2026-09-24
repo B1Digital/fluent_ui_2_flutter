@@ -147,7 +147,17 @@ const DocsPage fieldPage = DocsPage(
       name: 'validationMessageIcon',
       type: 'Widget?',
       defaultValue: 'null',
-      description: 'The glyph beside validationMessage.',
+      description:
+          'Overrides the glyph validationState would otherwise draw beside '
+          'validationMessage.',
+    ),
+    PropRow(
+      name: 'showValidationMessageIcon',
+      type: 'bool',
+      defaultValue: 'true',
+      description:
+          'Whether a glyph is drawn beside validationMessage at all. False '
+          'removes it and its gutter.',
     ),
     PropRow(
       name: 'validationState',
@@ -184,8 +194,6 @@ const DocsPage fieldPage = DocsPage(
 );
 
 // #docregion components-field--default
-// FluentField supplies no default validation glyph — the icon set is not part
-// of the package — so the story passes upstream's success default explicitly.
 // The 400px box is upstream's story decorator, not part of Field.
 Widget _default(BuildContext context) => const SizedBox(
   width: 400,
@@ -193,7 +201,6 @@ Widget _default(BuildContext context) => const SizedBox(
     label: Text('Example field'),
     validationState: FluentFieldValidationState.success,
     validationMessage: Text('This is a success message.'),
-    validationMessageIcon: Icon(FluentIcons.checkmark_circle_12_filled),
     child: FluentInput(),
   ),
 );
@@ -306,9 +313,7 @@ Widget _size(BuildContext context) => const SizedBox(
 // #enddocregion components-field--size
 
 // #docregion components-field--validation-message
-// Upstream defaults the glyph per validation state; this port leaves the slot
-// empty because the icon set is not part of the package, so each state names
-// its own default here.
+// Each state draws upstream's default glyph; the custom one overrides it.
 Widget _validationMessage(BuildContext context) => const SizedBox(
   width: 400,
   child: Column(
@@ -320,21 +325,18 @@ Widget _validationMessage(BuildContext context) => const SizedBox(
         label: Text('Error state'),
         validationState: FluentFieldValidationState.error,
         validationMessage: Text('This is an error message.'),
-        validationMessageIcon: Icon(FluentIcons.error_circle_12_filled),
         child: FluentInput(error: true),
       ),
       FluentField(
         label: Text('Warning state'),
         validationState: FluentFieldValidationState.warning,
         validationMessage: Text('This is a warning message.'),
-        validationMessageIcon: Icon(FluentIcons.warning_12_filled),
         child: FluentInput(),
       ),
       FluentField(
         label: Text('Success state'),
         validationState: FluentFieldValidationState.success,
         validationMessage: Text('This is a success message.'),
-        validationMessageIcon: Icon(FluentIcons.checkmark_circle_12_filled),
         child: FluentInput(),
       ),
       FluentField(

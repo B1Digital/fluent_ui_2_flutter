@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:fluent_2/fluent_2.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -109,41 +112,224 @@ void main() {
       }
     });
 
-    testWidgets(
-      'the required asterisk is the danger token, XS from the label',
-      (tester) async {
-        final variant = spec.variant(const {
-          'Type': 'Regular',
-          'Size': 'Medium',
-          'Disabled': 'Off',
-        });
+    testWidgets('the required asterisk shares the ramp, XS from the label', (
+      tester,
+    ) async {
+      final variant = spec.variant(const {
+        'Type': 'Regular',
+        'Size': 'Medium',
+        'Disabled': 'Off',
+      });
 
-        await pump(
-          tester,
-          const FluentLabel(key: key, required: true, child: Text('Label')),
-        );
+      await pump(
+        tester,
+        const FluentLabel(key: key, required: true, child: Text('Label')),
+      );
 
-        final styles = stylesOf(tester);
-        expect(styles, hasLength(2), reason: 'label plus asterisk');
-        // Figma: the hidden `Required asterisk` layer binds fills to
-        // Status/Danger/Foreground/3/Rest, and shares the label's size, line
-        // height and weight.
-        expect(styles[1].color, light.colors.statusDangerForeground3);
-        expect(styles[1].fontSize, variant.text!.fontSize);
-        expect(styles[1].fontWeight, styles.first.fontWeight);
+      final styles = stylesOf(tester);
+      expect(styles, hasLength(2), reason: 'label plus asterisk');
+      // Figma: the hidden `Required asterisk` layer shares the label's
+      // size, line height and weight. Its fill, Status/Danger/Foreground/3,
+      // loses to the colorPaletteRedForeground3 Chrome paints — see the
+      // upstream group.
+      expect(styles[1].fontSize, variant.text!.fontSize);
+      expect(styles[1].fontWeight, styles.first.fontWeight);
 
-        final row = tester.widget<Row>(
-          find.descendant(of: find.byKey(key), matching: find.byType(Row)),
-        );
-        expect(row.spacing, variant.gap, reason: 'Spacing/Horizontal/XS');
-        expect(find.text('*'), findsOneWidget);
-      },
-    );
+      expect(
+        tester.getTopLeft(find.text('*')).dx -
+            tester.getTopRight(find.text('Label')).dx,
+        variant.gap,
+        reason: 'Spacing/Horizontal/XS',
+      );
+      expect(find.text('*'), findsOneWidget);
+    });
 
     testWidgets('no asterisk unless required', (tester) async {
       await pump(tester, const FluentLabel(key: key, child: Text('Label')));
       expect(find.text('*'), findsNothing);
       expect(stylesOf(tester), hasLength(1));
+    });
+  });
+
+  group('upstream in Chrome', () {
+    // components-label--required and components-field--required on
+    // storybooks.fluentui.dev, read in Chrome with the label's text swapped
+    // for a long one and its host narrowed to 250px. `<label>` is inline flow:
+    // the text wraps at the host's width, and the `*` span (paddingLeft
+    // spacingHorizontalXS) sits 4px after the END of the last line, on that
+    // line — not beside the paragraph's box.
+    const long =
+        'Type a time outside of 10:00 to 19:59, type an invalid time, or '
+        'leave the input empty and close the TimePicker.';
+
+    Future<void> pumpAt(WidgetTester tester, double width, Widget label) =>
+        tester.pumpWidget(
+          FluentApp(
+            theme: light,
+            home: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(width: width, child: label),
+            ),
+          ),
+        );
+
+    /// The last glyph of [text]'s paragraph, in global coordinates.
+    Rect lastGlyph(WidgetTester tester, String text) {
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.descendant(of: find.text(text), matching: find.byType(RichText)),
+      );
+      final box = paragraph
+          .getBoxesForSelection(
+            TextSelection(
+              baseOffset: text.length - 1,
+              extentOffset: text.length,
+            ),
+          )
+          .last
+          .toRect();
+      return box.shift(paragraph.localToGlobal(Offset.zero));
+    }
+
+    testWidgets('a long label wraps at its width', (tester) async {
+      for (final required in [false, true]) {
+        await pumpAt(
+          tester,
+          250,
+          FluentLabel(key: key, required: required, child: const Text(long)),
+        );
+        final size = tester.getSize(find.byKey(key));
+        expect(
+          size.width,
+          lessThanOrEqualTo(250),
+          reason: 'required=$required',
+        );
+        expect(
+          size.height,
+          greaterThanOrEqualTo(3 * 20),
+          reason: 'required=$required: 14/20 lines, wrapped rather than cut',
+        );
+      }
+    });
+
+    testWidgets('the asterisk ends the last line, 4px after its last glyph', (
+      tester,
+    ) async {
+      for (final (width, text) in [(400.0, 'Required field'), (250.0, long)]) {
+        await pumpAt(
+          tester,
+          width,
+          FluentLabel(key: key, required: true, child: Text(text)),
+        );
+        final end = lastGlyph(tester, text);
+        final star = lastGlyph(tester, '*');
+        expect(star.left, moreOrLessEquals(end.right + 4), reason: text);
+        expect(
+          star.top,
+          moreOrLessEquals(end.top),
+          reason: '$text: on the last line, sharing its baseline',
+        );
+        expect(
+          tester.getRect(find.text('*')).bottom,
+          tester.getRect(find.byKey(key)).bottom,
+          reason: '$text: the asterisk adds no line of its own',
+        );
+      }
+    });
+
+    testWidgets('right to left, the asterisk ends the line on its left', (
+      tester,
+    ) async {
+      // components-label--required under the storybook's RTL global: the
+      // span flips to paddingRight 4 and sits left of the line, whether the
+      // text is Latin or Hebrew.
+      for (final (width, text) in [(null, 'Label'), (250.0, long)]) {
+        await tester.pumpWidget(
+          FluentApp(
+            theme: light,
+            home: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Align(
+                alignment: Alignment.topRight,
+                child: SizedBox(
+                  width: width,
+                  child: FluentLabel(
+                    key: key,
+                    required: true,
+                    child: Text(text),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.descendant(of: find.text(text), matching: find.byType(RichText)),
+        );
+        final boxes = paragraph.getBoxesForSelection(
+          TextSelection(baseOffset: 0, extentOffset: text.length),
+        );
+        final lastTop = boxes.map((b) => b.top).reduce(math.max);
+        final lineLeft = paragraph.localToGlobal(
+          Offset(
+            boxes
+                .where((b) => b.top == lastTop)
+                .map((b) => b.left)
+                .reduce(math.min),
+            lastTop,
+          ),
+        );
+        final star = lastGlyph(tester, '*');
+        expect(star.right, moreOrLessEquals(lineLeft.dx - 4), reason: text);
+        expect(star.top, moreOrLessEquals(lineLeft.dy), reason: text);
+        if (width == null) {
+          expect(
+            tester.getRect(find.byKey(key)).left,
+            moreOrLessEquals(tester.getRect(find.text('*')).left),
+            reason: 'a loose label makes room on its left, spilling nothing',
+          );
+        }
+      }
+    });
+
+    testWidgets('a last line with no room left sends the asterisk down', (
+      tester,
+    ) async {
+      // ponytail: CSS would carry the last word down with it; the port moves
+      // the asterisk alone. Pinned so the fallback stays on the label's box.
+      await pump(tester, const FluentLabel(key: key, child: Text('A')));
+      final width = tester.getSize(find.byKey(key)).width;
+      await pumpAt(
+        tester,
+        width,
+        const FluentLabel(key: key, required: true, child: Text('A')),
+      );
+      final label = tester.getRect(find.byKey(key));
+      expect(
+        tester.getTopLeft(find.text('*')),
+        label.topLeft + const Offset(0, 20),
+      );
+      expect(label.size, Size(width, 40));
+    });
+
+    testWidgets('the asterisk is colorPaletteRedForeground3', (tester) async {
+      // getComputedStyle(.fui-Label__required).color: web-light #d13438,
+      // web-dark #e37d80, teams-high-contrast #ffffff.
+      final dark = FluentThemeData.dark(fontPlatform: FluentFontPlatform.web);
+      final hc = FluentThemeData.highContrast(
+        fontPlatform: FluentFontPlatform.web,
+      );
+      for (final (theme, expected) in [
+        (light, const Color(0xFFD13438)),
+        (dark, const Color(0xFFE37D80)),
+        (hc, const Color(0xFFFFFFFF)),
+      ]) {
+        await pump(
+          tester,
+          const FluentLabel(key: key, required: true, child: Text('Label')),
+          theme: theme,
+        );
+        expect(stylesOf(tester).last.color, expected);
+      }
     });
   });
 
@@ -218,10 +404,11 @@ void main() {
           child: const Text('Label'),
         ),
       );
-      final row = tester.widget<Row>(
-        find.descendant(of: find.byKey(key), matching: find.byType(Row)),
+      expect(
+        tester.getTopLeft(find.text('*')).dx -
+            tester.getTopRight(find.text('Label')).dx,
+        20,
       );
-      expect(row.spacing, 20);
       expect(
         stylesOf(tester).first.fontSize,
         16,
@@ -229,7 +416,7 @@ void main() {
       );
       expect(
         stylesOf(tester).last.color,
-        light.colors.statusDangerForeground3,
+        const Color(0xFFD13438),
         reason: 'overriding the gap must not drop the asterisk colour',
       );
     });
@@ -368,8 +555,9 @@ void main() {
       tester,
     ) async {
       // Figma: the Disabled=On variants bind the asterisk's fill to
-      // Neutral/Foreground/Disabled/Rest, not to the danger token. React keeps
-      // it red. Figma wins — see doc/token-divergences.md.
+      // Neutral/Foreground/Disabled/Rest, not to the danger token — and so does
+      // upstream's useLabelStyles, which applies `styles.disabled` to the
+      // required slot too.
       await pump(
         tester,
         const FluentLabel(
@@ -384,5 +572,37 @@ void main() {
         light.colors.neutralForegroundDisabled,
       );
     });
+
+    testWidgets('toggling required keeps the label child and its state', (
+      tester,
+    ) async {
+      // The asterisk comes and goes beside the caller's widget; the widget
+      // itself must not be torn down and rebuilt with fresh state.
+      Future<State> pumpRequired({required bool required}) async {
+        await pump(
+          tester,
+          FluentLabel(key: key, required: required, child: const _Stateful()),
+        );
+        return tester.state(find.byType(_Stateful));
+      }
+
+      final before = await pumpRequired(required: false);
+      expect(await pumpRequired(required: true), same(before));
+      expect(find.text('*'), findsOneWidget);
+      expect(await pumpRequired(required: false), same(before));
+      expect(find.text('*'), findsNothing);
+    });
   });
+}
+
+class _Stateful extends StatefulWidget {
+  const _Stateful();
+
+  @override
+  State<_Stateful> createState() => _StatefulState();
+}
+
+class _StatefulState extends State<_Stateful> {
+  @override
+  Widget build(BuildContext context) => const Text('Label');
 }

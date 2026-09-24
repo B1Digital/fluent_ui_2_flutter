@@ -305,16 +305,25 @@ void main() {
       final Finder spin = find.byType(FluentSpinButton);
       expect(spin, findsNWidgets(4));
 
+      // The border is painted over the content, not decorated on a box.
+      FluentInputBorderPainter borderUnder(Finder spinButton) => tester
+          .widgetList<CustomPaint>(
+            find.descendant(of: spinButton, matching: find.byType(CustomPaint)),
+          )
+          .map((CustomPaint paint) => paint.foregroundPainter)
+          .whereType<FluentInputBorderPainter>()
+          .single;
+
       // Declaration order: outline, underline, filled lighter, filled darker.
       expect(
-        decorationUnder(tester, spin.at(0)).border,
+        borderUnder(spin.at(0)).borderColor,
         isNotNull,
-        reason: 'outline is the only appearance with a box border',
+        reason: 'outline strokes its sides',
       );
       expect(
-        decorationUnder(tester, spin.at(1)).border,
+        borderUnder(spin.at(1)).borderColor,
         isNull,
-        reason: 'underline is a bottom rule and nothing else',
+        reason: 'underline is a bottom border and nothing else',
       );
       expect(
         decorationUnder(tester, spin.at(2)).color,

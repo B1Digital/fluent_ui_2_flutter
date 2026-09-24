@@ -1,6 +1,12 @@
 import 'package:fluent_2/fluent_2.dart';
 
-/// The themes offered by the docs toolbar's Theme dropdown.
+/// The themes offered by the toolbar's Theme menu and the docs toolbar's
+/// dropdown.
+///
+/// Exactly the Fluent addon's seven, in its order and under its labels
+/// (`react-storybook-addon/src/theme.ts`; live menu `theme.popover0`). The
+/// toolbar menu appends " (Default)" to [webLight] itself; the in-page dropdown
+/// shows the plain label, as upstream's does.
 ///
 /// `fluent_2_core` ships no named theme objects — [FluentThemeData] has
 /// factories and [FluentBrandRamp] has ramps, and a "variant" is a pairing of
@@ -8,44 +14,39 @@ import 'package:fluent_2/fluent_2.dart';
 /// the library because which combinations are worth showing is an editorial
 /// question, not a design-system one.
 enum ThemeVariant {
-  /// The default web theme.
+  /// `web-light`, the default.
   webLight('Web Light'),
 
-  /// The default web theme, dark.
+  /// `web-dark`.
   webDark('Web Dark'),
 
-  /// Teams' brand ramp on the light neutral table.
+  /// `teams-light`: Teams' brand ramp on the light neutral table.
   teamsLight('Teams Light'),
 
-  /// Teams' dark table, which overrides 20 neutrals beyond a ramp swap.
+  /// `teams-dark`: Teams' dark table, which overrides 20 neutrals beyond a
+  /// ramp swap.
   teamsDark('Teams Dark'),
 
-  /// The 2021 Teams refresh ramp.
-  teamsV21Light('Teams V21 Light'),
+  /// `teams-light-v21`: the 2021 Teams refresh ramp.
+  teamsV21Light('Teams Light V2.1'),
 
-  /// The 2021 Teams refresh ramp, dark.
-  teamsV21Dark('Teams V21 Dark'),
+  /// `teams-dark-v21`: the 2021 Teams refresh ramp, dark.
+  teamsV21Dark('Teams Dark V2.1'),
 
-  /// Office orange.
-  officeLight('Office Light'),
-
-  /// Office orange, dark.
-  officeDark('Office Dark'),
-
-  /// Windows high contrast. Collapses 205 of the 228 alias tokens onto eight
+  /// `teams-high-contrast`. Collapses 205 of the 228 alias tokens onto eight
   /// system colours and ignores brand ramps entirely.
-  highContrast('High Contrast');
+  highContrast('Teams High Contrast');
 
   const ThemeVariant(this.label);
 
-  /// The name the dropdown shows.
+  /// The name the menu and the dropdown show.
   final String label;
 
   /// The theme this variant resolves to.
   ///
   /// Not cached: [FluentThemeData] is immutable and its factories are cheap
-  /// table lookups, and holding nine live themes to avoid rebuilding one is the
-  /// wrong trade.
+  /// table lookups, and holding seven live themes to avoid rebuilding one is
+  /// the wrong trade.
   FluentThemeData get data => switch (this) {
     ThemeVariant.webLight => FluentThemeData.light(),
     ThemeVariant.webDark => FluentThemeData.dark(),
@@ -58,12 +59,6 @@ enum ThemeVariant {
     ),
     ThemeVariant.teamsV21Dark => FluentThemeData.teamsDark(
       brand: FluentBrandRamp.teamsV21,
-    ),
-    ThemeVariant.officeLight => FluentThemeData.light(
-      brand: FluentBrandRamp.office,
-    ),
-    ThemeVariant.officeDark => FluentThemeData.dark(
-      brand: FluentBrandRamp.office,
     ),
     ThemeVariant.highContrast => FluentThemeData.highContrast(),
   };

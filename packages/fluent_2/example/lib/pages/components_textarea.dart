@@ -110,15 +110,17 @@ const DocsPage textareaPage = DocsPage(
       name: 'minLines',
       type: 'int?',
       defaultValue: '2',
-      description: 'Smallest number of lines the field occupies.',
+      description:
+          'Smallest number of lines the field occupies. Two, as upstream '
+          'renders rows="2".',
     ),
     PropRow(
       name: 'maxLines',
       type: 'int?',
       defaultValue: 'null',
       description:
-          'Largest number of lines before the field scrolls internally. Null '
-          'grows without bound.',
+          'Largest number of lines the field grows to before it scrolls '
+          'internally. Null holds it at minLines, as a <textarea> does.',
     ),
     PropRow(
       name: 'maxLength',
@@ -219,9 +221,11 @@ Widget _placeholder(BuildContext context) => const FluentField(
 // #docregion components-textarea--resize
 // Upstream's `resize` prop toggles the browser's native drag-to-resize grip on
 // the `<textarea>`. Flutter has no such affordance, so each variant renders the
-// nearest behaviour our widget does have: `maxLines: 2` pins the height, and
-// the default `maxLines: null` lets the field grow as the text does. Nothing
-// here can be widened by dragging, so the two horizontal variants are pinned.
+// nearest behaviour our widget does have: the default holds two rows and
+// scrolls, as upstream's `resize: 'none'` does, and `maxLines: 12` lets the
+// field grow with its text up to upstream's medium `max-height` of 260px.
+// Nothing here can be widened by dragging, so the two horizontal variants are
+// pinned.
 Widget _resize(BuildContext context) => const Column(
   crossAxisAlignment: CrossAxisAlignment.stretch,
   mainAxisSize: MainAxisSize.min,
@@ -229,19 +233,19 @@ Widget _resize(BuildContext context) => const Column(
   children: <Widget>[
     FluentField(
       label: Text('Textarea with resize set to "none"'),
-      child: FluentTextarea(maxLines: 2),
+      child: FluentTextarea(),
     ),
     FluentField(
       label: Text('Textarea with resize set to "vertical"'),
-      child: FluentTextarea(),
+      child: FluentTextarea(maxLines: 12),
     ),
     FluentField(
       label: Text('Textarea with resize set to "horizontal"'),
-      child: FluentTextarea(maxLines: 2),
+      child: FluentTextarea(),
     ),
     FluentField(
       label: Text('Textarea with resize set to "both"'),
-      child: FluentTextarea(),
+      child: FluentTextarea(maxLines: 12),
     ),
   ],
 );

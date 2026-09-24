@@ -2,7 +2,8 @@
 ///
 /// The grid is, in reading order: the four appearances at Medium with a
 /// placeholder, then Medium / Large / Extra large carrying two chips, then a
-/// disabled control and one with a trailing secondary action. The popup is not
+/// disabled control, one with a trailing secondary action, an Extra large
+/// Filled darker one with an outline chip, and an invalid one. The popup is not
 /// captured — it lives in the [Overlay], which is outside the repaint boundary
 /// these images are cropped to.
 library;
@@ -26,12 +27,14 @@ void main() {
     FluentTagPickerSize size = FluentTagPickerSize.medium,
     List<String> selected = const <String>[],
     bool enabled = true,
+    bool error = false,
     Widget? secondaryAction,
   }) => cell(
     FluentTagPicker<String>(
       options: options,
       appearance: appearance,
       size: size,
+      error: error,
       selected: selected,
       placeholder: const Text('Select people'),
       secondaryAction: secondaryAction,
@@ -53,6 +56,7 @@ void main() {
         size: FluentTagPickerSize.extraLarge,
         selected: const <String>['kat'],
       ),
+      picker(error: true),
     ], columns: 4),
     surfaceSize: const Size(1200, 900),
   );

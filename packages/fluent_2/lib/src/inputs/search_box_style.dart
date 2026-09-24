@@ -3,8 +3,8 @@ import 'package:flutter/widgets.dart';
 /// The visual configuration of a `FluentSearchBox`.
 ///
 /// Shaped exactly like `FluentButtonStyle`: every visual property is a
-/// [WidgetStateProperty], so hover and disabled values live on the property
-/// rather than being branched on at build time.
+/// [WidgetStateProperty], so hover, pressed and disabled values live on the
+/// property rather than being branched on at build time.
 ///
 /// Every field is nullable and means "inherit". Resolution order, lowest to
 /// highest precedence:
@@ -15,11 +15,11 @@ import 'package:flutter/widgets.dart';
 ///
 /// ## Which states actually move
 ///
-/// Only **rest**, **hover** and **disabled** are resolved here. Figma's
-/// `SearchBox` set has a `State` axis of `Rest`, `Focus` and `Hover`, and its
-/// `Focus` variants bind the *rest* stroke tokens — focus is signalled by
-/// [focusUnderlineColor] alone, not by the border. There is no `Pressed`
-/// variant, and no `Selected` one.
+/// **Rest**, **hover**, **pressed** and **disabled** are resolved here, as
+/// upstream's `:hover` and `:active` rules. Focus is not a [WidgetState]: it is
+/// an axis of the state the defaults are resolved from, so a focused box
+/// resolves its Pressed border stop at rest as well, as upstream's
+/// `:active,:focus-within` rule does.
 @immutable
 class FluentSearchBoxStyle {
   /// Creates a style. Omitted properties inherit.
@@ -55,14 +55,12 @@ class FluentSearchBoxStyle {
   /// `transparentStroke` family, which becomes opaque in high contrast.
   final WidgetStateProperty<Color?>? borderColor;
 
-  /// Colour of the 1px rule Figma draws across the bottom edge, over
-  /// [borderColor].
+  /// Colour of the 1px bottom border, in place of [borderColor] on that side.
   ///
   /// A separate property because Fluent gives the bottom edge its own,
-  /// higher-contrast token (`neutralStrokeAccessible`) — and because Flutter
-  /// refuses to paint a rounded rectangle whose border sides disagree, so the
-  /// rule has to be an overlay rather than a `BorderSide`. Null on the filled
-  /// appearances, which draw no rule at all.
+  /// higher-contrast token (`neutralStrokeAccessible`). It meets the sides on
+  /// the CSS corner diagonal, painted by `FluentInputBorderPainter`. Null on
+  /// the filled appearances, whose [borderColor] runs round all four sides.
   final WidgetStateProperty<Color?>? bottomBorderColor;
 
   /// Colour of the 2px focus underline. `compoundBrandStroke`.
@@ -97,7 +95,8 @@ class FluentSearchBoxStyle {
   /// Padding inside the border.
   final WidgetStateProperty<EdgeInsetsGeometry?>? padding;
 
-  /// Space between the leading glyph and the text.
+  /// Space between the leading glyph and the text: upstream's `<input>`
+  /// padding-left, so it stays, and still takes clicks, without a glyph.
   final WidgetStateProperty<double?>? gap;
 
   /// Space between the text and the trailing clear button.
@@ -106,7 +105,8 @@ class FluentSearchBoxStyle {
   /// Leading glyph edge length.
   final WidgetStateProperty<double?>? iconSize;
 
-  /// Trailing clear glyph edge length. Not the same ramp as [iconSize].
+  /// Trailing clear glyph edge length. Upstream sizes it on the same 16 / 20 /
+  /// 24 ramp as [iconSize].
   final WidgetStateProperty<double?>? clearIconSize;
 
   /// Minimum size. Only the height is meaningful.
@@ -116,7 +116,10 @@ class FluentSearchBoxStyle {
   /// 468.
   final WidgetStateProperty<Size?>? maximumSize;
 
-  /// Cursor while hovering the field, outside the clear button.
+  /// Cursor over the text column: the `<input>`'s box, from the end of the
+  /// leading glyph to the clear button, or to the border while the clear
+  /// button is hidden. The root padding and the glyph show the arrow, or
+  /// `forbidden` when disabled.
   final WidgetStateProperty<MouseCursor?>? mouseCursor;
 
   /// This style with the non-null properties of [other] layered on top.

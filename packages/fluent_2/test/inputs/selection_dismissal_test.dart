@@ -344,21 +344,29 @@ void main() {
     testWidgets('FluentSpinButton stepper', (tester) async {
       final node = FocusNode();
       addTearDown(node.dispose);
+      final changes = <double?>[];
 
       await pump(
         tester,
-        FluentSpinButton(value: 42, focusNode: node, onChanged: (_) {}),
+        FluentSpinButton(value: 42, focusNode: node, onChanged: changes.add),
       );
       await selectAll(tester, 'FluentSpinButton');
 
-      // The steppers are the reason this one matters most: incrementing is a
-      // normal interaction, not an edge case.
-      await expectChromeHeld(
-        tester,
-        'FluentSpinButton',
+      // The stepper steps on the press, as upstream's `onMouseDown` does, and
+      // the new value replaces the selected text — so what the press must not
+      // do here is blur. Asserted mid-gesture, as above.
+      final press = await tester.startGesture(
         tester.getTopRight(find.byType(FluentSpinButton)) +
             const Offset(-10, 10),
+        kind: PointerDeviceKind.mouse,
       );
+      addTearDown(() async {
+        await press.up();
+      });
+      await tester.pump();
+
+      expect(changes, <double?>[43]);
+      expect(controllerOf(tester).text, '43');
       expect(node.hasFocus, isTrue);
     });
   });
