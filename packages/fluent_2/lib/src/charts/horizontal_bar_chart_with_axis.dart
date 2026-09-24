@@ -22,6 +22,7 @@ import 'internal/chart_utils.dart';
 import 'internal/d3/scale.dart';
 import 'internal/d3/stable_sort.dart';
 import 'internal/data_viz_palette.dart';
+import 'internal/vega/js_value.dart' show jsToString;
 import 'model/bar_data.dart';
 import 'model/chart_common.dart';
 import 'model/chart_value.dart';
@@ -789,6 +790,20 @@ class FluentHorizontalBarChartWithAxisDelegate
       !hideLabels &&
       barHeight >= style.minBarLabelHeight!.resolve(const <WidgetState>{})!;
 
+  /// Whether [point]'s bar is drawn at full opacity.
+  ///
+  /// `shouldHighlight` (`.tsx:404-407`, `:583-586`): every bar is lit until a
+  /// legend is hovered or selected, then only the highlighted legend's
+  /// (`_isLegendHighlighted`, `:743-749`). A hover alone leaves
+  /// [selectedLegends] empty and names its legend in [selectedLegendTitle].
+  bool _isHighlighted(FluentHorizontalBarChartWithAxisDataPoint point) =>
+      (selectedLegends.isEmpty && (selectedLegendTitle ?? '').isEmpty) ||
+      isLegendHighlightedMulti(
+        point.legend ?? '',
+        selectedLegends: selectedLegends,
+        activeLegend: selectedLegendTitle,
+      );
+
   /// The narration for one bar.
   ///
   /// Ports `_getAriaLabel` (`.tsx:776-781`), whose `||` chain means an empty
@@ -800,8 +815,8 @@ class FluentHorizontalBarChartWithAxisDelegate
     }
     final legend = point.legend;
     final prefix = legend == null || legend.isEmpty ? '' : '$legend, ';
-    final yValue = point.yAxisCalloutData ?? '${point.y}';
-    final xValue = point.xAxisCalloutData ?? '${point.x}';
+    final yValue = point.yAxisCalloutData ?? jsToString(point.y);
+    final xValue = point.xAxisCalloutData ?? jsToString(point.x);
     return '$yValue. $prefix$xValue.';
   }
 
@@ -826,13 +841,7 @@ class FluentHorizontalBarChartWithAxisDelegate
     final labelStyle = style.barLabelStyle?.resolve(states);
     final labelInset = style.barLabelInset?.resolve(states) ?? 0;
     for (final bar in placed) {
-      final highlighted =
-          selectedLegends.isEmpty ||
-          isLegendHighlightedMulti(
-            bar.point.legend ?? '',
-            selectedLegends: selectedLegends,
-            activeLegend: selectedLegendTitle,
-          );
+      final highlighted = _isHighlighted(bar.point);
       final paint = Paint()
         ..color = chartColors
             .flattenMark(barColour(bar.point, bar.indexInGroup))
@@ -883,30 +892,36 @@ class FluentHorizontalBarChartWithAxisDelegate
     final placed = placeBars(context, layout);
     return <FluentChartHitRegion>[
       for (final (index, bar) in placed.indexed)
-        FluentChartHitRegion(
-          bounds: bar.rect,
-          index: index,
-          legend: bar.point.legend ?? '',
-          popoverData: FluentChartPopoverData(
-            // `.tsx:259-260` — HBWA swaps the axes, so the popover's x line
-            // carries the category and its y line the bar length.
-            xValue: bar.point.yAxisCalloutData ?? '${bar.point.y}',
-            // `YValue={point.xAxisCalloutData || point.x.toString()}`
-            // (`.tsx:146`), formatted the way `ChartPopover.tsx:89` formats it.
-            // parity: the default calloutProps (`:880-896`) carry no `culture`,
-            // so upstream groups this in the runtime locale. Its own
-            // `_renderContentForOnlyBars` (`:143-150`) does pass
-            // `props.culture`, and the prop is documented as the popover's.
-            yValue:
-                bar.point.xAxisCalloutData ??
-                formatToLocaleString(bar.point.x, culture: culture),
-            legend: bar.point.legend,
-            color: barColour(bar.point, bar.indexInGroup),
+        // A dimmed bar has no tab index (`.tsx:490`, `:669`) and its hover
+        // opens nothing while another legend is selected (`.tsx:251`), so it
+        // is not an interactive area.
+        if (_isHighlighted(bar.point))
+          FluentChartHitRegion(
+            bounds: bar.rect,
+            index: index,
+            legend: bar.point.legend ?? '',
+            popoverData: FluentChartPopoverData(
+              // `.tsx:259-260` — HBWA swaps the axes, so the popover's x line
+              // carries the category and its y line the bar length. The x line
+              // is `point.y.toString()`, shown unformatted
+              // (`ChartPopover.tsx:63`).
+              xValue: bar.point.yAxisCalloutData ?? jsToString(bar.point.y),
+              // `YValue={point.xAxisCalloutData || point.x.toString()}`
+              // (`.tsx:146`), formatted the way `ChartPopover.tsx:89` formats
+              // it. parity: the default calloutProps (`:880-896`) carry no
+              // `culture`, so upstream groups this in the runtime locale. Its
+              // own `_renderContentForOnlyBars` (`:143-150`) does pass
+              // `props.culture`, and the prop is documented as the popover's.
+              yValue:
+                  bar.point.xAxisCalloutData ??
+                  formatToLocaleString(bar.point.x, culture: culture),
+              legend: bar.point.legend,
+              color: barColour(bar.point, bar.indexInGroup),
+            ),
+            semanticsLabel: ariaLabelFor(bar.point),
+            // `onClick={point.onClick}` on every bar (`.tsx:480`, `:662`).
+            onActivate: bar.point.onClick,
           ),
-          semanticsLabel: ariaLabelFor(bar.point),
-          // `onClick={point.onClick}` on every bar (`.tsx:480`, `:662`).
-          onActivate: bar.point.onClick,
-        ),
     ];
   }
 }
