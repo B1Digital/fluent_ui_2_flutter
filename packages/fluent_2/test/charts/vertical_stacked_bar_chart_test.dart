@@ -4,7 +4,9 @@ import 'package:fluent_2/src/charts/axis/axis_types.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_chart.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_chart_props.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_layout.dart';
+import 'package:fluent_2/src/charts/cartesian/cartesian_painter.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_series_delegate.dart';
+import 'package:fluent_2/src/charts/chrome/chart_popover.dart';
 import 'package:fluent_2/src/charts/internal/chart_colors.dart';
 import 'package:fluent_2/src/charts/internal/chart_text_measurer.dart';
 import 'package:fluent_2/src/charts/internal/chart_text_styles.dart';
@@ -12,6 +14,7 @@ import 'package:fluent_2/src/charts/internal/chart_utils.dart';
 import 'package:fluent_2/src/charts/internal/d3/scale.dart';
 import 'package:fluent_2/src/charts/internal/d3/scale_band.dart';
 import 'package:fluent_2/src/charts/internal/d3/scale_linear.dart';
+import 'package:fluent_2/src/charts/internal/d3/scale_time.dart';
 import 'package:fluent_2/src/charts/internal/data_viz_palette.dart';
 import 'package:fluent_2/src/charts/model/bar_data.dart';
 import 'package:fluent_2/src/charts/model/chart_common.dart';
@@ -20,6 +23,8 @@ import 'package:fluent_2/src/charts/model/line_options.dart';
 import 'package:fluent_2/src/charts/vertical_stacked_bar_chart.dart';
 import 'package:fluent_2/src/charts/vertical_stacked_bar_chart_style.dart';
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -1916,6 +1921,680 @@ void main() {
             'VerticalStackedBarChart.tsx:1038, which reads _selectedLegends',
       );
     });
+
+    testWidgets('the chart hands the shell its y bounds, rounding and follow', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentVerticalStackedBarChart(
+          data: _vsbcStacks(),
+          xAxisInnerPadding: 0.3,
+          props: const FluentCartesianChartProps(
+            yMinValue: -10,
+            yMaxValue: 120,
+          ),
+        ),
+      );
+      final shell = tester.widget<FluentCartesianChart>(
+        find.byType(FluentCartesianChart),
+      );
+      final d = shell.delegate as FluentVerticalStackedBarChartDelegate;
+      expect(
+        (d.yMinValue, d.yMaxValue),
+        (-10.0, 120.0),
+        reason:
+            '_getAxisData mixes props.yMinValue and props.yMaxValue into '
+            '_yMin/_yMax (VerticalStackedBarChart.tsx:403-404)',
+      );
+      expect(
+        shell.props.showRoundOffXTickValues,
+        isFalse,
+        reason:
+            'showRoundOffXTickValues={!isScalePaddingDefined(...)} at '
+            'VerticalStackedBarChart.tsx:1389 turns the axis rounding off once '
+            'an inner padding is given, as _getScales does for the bars '
+            '(:861-863)',
+      );
+      expect(
+        shell.props.popoverFollowsPointer,
+        isTrue,
+        reason:
+            'every rect and stack re-anchors the callout from onMouseMove '
+            '(VerticalStackedBarChart.tsx:1044-1045, :1147-1148)',
+      );
+    });
+  });
+
+  group('VSBC date x axis', () {
+    // Mid-month, so the axis's `.nice()` really moves both ends.
+    final dates = <DateTime>[
+      DateTime(2018, 3, 15),
+      DateTime(2018, 7, 10),
+      DateTime(2018, 12, 20),
+    ];
+
+    /// The shell's date axis: the same range as the bars, niced
+    /// (`utilities.ts:465-468`).
+    FluentCartesianChildContext axisContext(
+      FluentVerticalStackedBarChartDelegate d, {
+      bool isRtl = false,
+    }) {
+      final m = d.domainMargins(640, _margins)!;
+      return FluentCartesianChildContext(
+        xScale: scaleTime()
+          ..domainOfDates(
+            isRtl
+                ? <DateTime>[dates.last, dates.first]
+                : <DateTime>[dates.first, dates.last],
+          )
+          ..rangeOf(<double>[m.left!, 640 - m.right!])
+          ..nice(),
+        yScalePrimary: _magnitudeScale(domain: <double>[0, 100], span: 295),
+        containerWidth: 640,
+        containerHeight: 350,
+      );
+    }
+
+    double t(DateTime d) => d.millisecondsSinceEpoch.toDouble();
+
+    test('stacks span the data extent the axis nices past', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          for (final _ in dates) <double>[50],
+        ],
+        barGapMax: 0,
+        yMax: 100,
+        xPoints: dates,
+      );
+      expect(d.xAxisType, FluentChartAxisType.date, reason: 'arm guard');
+      final ctx = axisContext(d);
+      final m = d.domainMargins(640, _margins)!;
+      expect(
+        ctx.xScale(dates.first)! - m.left!,
+        greaterThan(1),
+        reason:
+            'the niced axis must put the first date inside its range, or '
+            'this test cannot tell the two scales apart',
+      );
+      final centres = <double>[
+        for (final s in d.segmentsFor(ctx, _layout(height: 350)))
+          s.rect.center.dx,
+      ];
+      final start = m.left!;
+      final end = 640 - m.right!;
+      expect(
+        centres,
+        <Matcher>[
+          closeTo(start, 1e-6),
+          closeTo(
+            start +
+                (end - start) *
+                    (t(dates[1]) - t(dates.first)) /
+                    (t(dates.last) - t(dates.first)),
+            1e-6,
+          ),
+          closeTo(end, 1e-6),
+        ],
+        reason:
+            '_getScales places date stacks on its own scaleTime over '
+            '[sDate, lDate] and [left + domainMargin, width - right - '
+            'domainMargin], with no .nice() (VerticalStackedBarChart.tsx:'
+            '866-879)',
+      );
+    });
+
+    test('RTL runs the stacks from the right', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          for (final _ in dates) <double>[50],
+        ],
+        barGapMax: 0,
+        yMax: 100,
+        xPoints: dates,
+      );
+      final m = d.domainMargins(640, _margins)!;
+      final segments = d.segmentsFor(
+        axisContext(d, isRtl: true),
+        FluentCartesianLayout.resolve(
+          size: const Size(640, 350),
+          margins: _margins,
+          xAxisLabelReserve: 0,
+          isRtl: true,
+          startFromX: 0,
+        ),
+      );
+      expect(
+        <double>[segments.first.rect.center.dx, segments.last.rect.center.dx],
+        <Matcher>[closeTo(640 - m.right!, 1e-6), closeTo(m.left!, 1e-6)],
+        reason: '`.domain(_isRtl ? [lDate, sDate] : [sDate, lDate])` (:875)',
+      );
+    });
+
+    test('the lines and the regions keep to their own scales', () {
+      final d = _vsbcWithLines(lineYs: <double>[10, 20, 30], xPoints: dates);
+      final ctx = axisContext(d);
+      final regions = d.buildHitRegions(ctx, _layout(height: 350));
+      final segments = d.segmentsFor(ctx, _layout(height: 350));
+      expect(
+        <Rect>[
+          for (final r in regions)
+            if (r.legend != 'line 0') r.bounds,
+        ],
+        <Rect>[for (final s in segments) s.rect],
+        reason: 'a stack is hovered where it is drawn',
+      );
+      expect(
+        <double>[
+          for (final r in regions)
+            if (r.legend == 'line 0') r.bounds.center.dx,
+        ],
+        <Matcher>[for (final date in dates) closeTo(ctx.xScale(date)!, 1e-6)],
+        reason:
+            '_createLines is handed the shell\'s xScale (:1410), so a line '
+            'keeps to the niced axis while its stacks do not',
+      );
+    });
+  });
+
+  group('VSBC plot content height', () {
+    // A 20px label reserve leaves 330 of the 350px plot to the stacks.
+    final reserved = FluentCartesianLayout.resolve(
+      size: const Size(640, 350),
+      margins: _margins,
+      xAxisLabelReserve: 20,
+      isRtl: false,
+      startFromX: 0,
+    );
+
+    test('a numeric stack stands above the x label reserve', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[50],
+        ],
+        barGapMax: 0,
+        yMax: 100,
+      );
+      final rect = d.segmentsFor(_vsbcContext(), reserved).single.rect;
+      expect(
+        <double>[rect.bottom, rect.height],
+        <Matcher>[
+          closeTo(330 - 35, 1e-9),
+          closeTo(0.5 * (330 - 35 - 20), 1e-9),
+        ],
+        reason:
+            '_getGraphData gets containerHeight - _removalValueForTextTuncate '
+            '(CartesianChart.tsx:421-428), which is both yBarScale\'s span '
+            '(VerticalStackedBarChart.tsx:853) and the baseline (:1026)',
+      );
+    });
+
+    test('a category stack stands above it too', () {
+      final d = _vsbcStringYDelegate(
+        labels: <String>['low', 'mid', 'high'],
+        stackLabelIndices: <List<int>>[
+          <int>[2],
+        ],
+      );
+      expect(
+        d.categorySegmentsFor(_vsbcBandYContext(), reserved).single.rect.bottom,
+        closeTo(330 - 35, 1e-9),
+        reason: '`containerHeight - _margins.bottom` at :1057-1060',
+      );
+    });
+  });
+
+  group('VSBC hover targets', () {
+    final ctx = _vsbcContext(yDomain: <double>[0, 50]);
+    final layout = _layout(height: 350);
+    Offset vertex(String x, double y) => Offset(
+      ctx.xScale(x)! + ctx.xScale.bandwidth / 2,
+      ctx.yScalePrimary(y)!,
+    );
+
+    test('a dot and its outgoing stroke are one region, after the bars', () {
+      final d = _vsbcWithLines(lineYs: <double>[10, 40]);
+      final regions = d.buildHitRegions(ctx, layout);
+      expect(
+        <String>[for (final r in regions) r.legend],
+        <String>['series 0', 'series 0', 'line 0', 'line 0'],
+        reason:
+            'the lines <g> follows the bars (VerticalStackedBarChart.tsx:'
+            '1407-1417), so the shell\'s backwards walk finds a line first',
+      );
+      expect(
+        <int>[for (final r in regions.skip(2)) r.index],
+        <int>[2, 3],
+        reason: 'past the stack indices, so the group pass never merges them',
+      );
+      final a = vertex('stack 0', 10);
+      final b = vertex('stack 1', 40);
+      final dot = regions[2].bounds;
+      expect(
+        <double>[(dot.center - a).distance, dot.width],
+        <Matcher>[lessThan(1e-9), closeTo(2 * (8 + 1.5), 1e-9)],
+        reason:
+            'r = 8 with nothing highlighted, hit out to the middle of its 3px '
+            'ring; the rectangle is the dot\'s, which is what a keyboard focus '
+            'centres on (_lineFocus, :233-236)',
+      );
+      final mid = Offset.lerp(a, b, 0.5)!;
+      final normal = Offset(a.dy - b.dy, b.dx - a.dx) / (b - a).distance;
+      expect(
+        <bool>[
+          dot.contains(mid),
+          dot.contains(mid + normal * 1.4),
+          dot.contains(mid + normal * 1.6),
+          regions[3].bounds.contains(mid),
+        ],
+        <bool>[true, true, false, false],
+        reason:
+            'the <line> from point i-1 to i calls _lineHover(point i-1) '
+            '(:622) and is hit within half its 3px stroke',
+      );
+    });
+
+    test("a line point's callout is its own single value", () {
+      final d = _vsbcWithLines(lineYs: <double>[10, 40]);
+      final region = d.buildHitRegions(ctx, layout)[2];
+      final data = region.popoverData;
+      expect(
+        (data.xValue, data.legend, data.yValue, data.color),
+        ('stack 0', 'line 0', '10', _palette[0]),
+        reason:
+            r'_lineHoverFocus: `${xAxisPoint}`, the line legend, '
+            '`yAxisCalloutData || data || y` and the line colour (:241-245)',
+      );
+      expect(data.isCalloutForStack, isFalse, reason: 'single-value body');
+      expect(region.semanticsLabel, 'stack 0. line 0, 10.', reason: ':459-472');
+    });
+
+    test('a dimmed legend has no line region', () {
+      final d = _vsbcWithLines(
+        lineYs: <double>[10, 40],
+        selectedLegends: const <String>['series 0'],
+      );
+      expect(
+        d.buildHitRegions(ctx, layout).where((r) => r.legend == 'line 0'),
+        isEmpty,
+        reason:
+            '_lineHoverFocus is gated on the legend (:238), tabIndex (:657)',
+      );
+    });
+
+    test('under a stack callout a line point shows its own stack', () {
+      final d = _vsbcWithLines(
+        lineYs: <double>[10, 40],
+        isCalloutForStack: true,
+      );
+      final regions = d.buildHitRegions(ctx, layout);
+      expect(regions.length, 4, reason: 'two stacks, then two points');
+      expect(
+        (
+          regions[3].popoverData.isCalloutForStack,
+          regions[3].popoverData.xValue,
+        ),
+        (true, 'stack 1'),
+        reason: 'isCalloutForStack picks the multi-value body (:1359)',
+      );
+    });
+
+    test('a stack and a line point make their x active; a segment does not', () {
+      final segmentMode = _vsbcWithLines(lineYs: <double>[10, 40]);
+      final stackMode = _vsbcWithLines(
+        lineYs: <double>[10, 40],
+        isCalloutForStack: true,
+      );
+      final bars = segmentMode.segmentsFor(ctx, layout);
+      // The segments are 50 tall and the line points sit at 10 and 40, so the
+      // top of each stack is clear of its dot.
+      final onBar = Offset(bars[1].rect.center.dx, bars[1].rect.top + 2);
+      expect(
+        segmentMode.activeXAt(_vsbcContext(), vertex('stack 0', 10)),
+        isNull,
+        reason:
+            'a context the shell never built regions with has no layout, so '
+            'nothing can be placed under the pointer',
+      );
+      segmentMode.buildHitRegions(ctx, layout);
+      stackMode.buildHitRegions(ctx, layout);
+      expect(
+        <Object?>[
+          segmentMode.activeXAt(ctx, onBar),
+          segmentMode.activeXAt(ctx, vertex('stack 0', 10)),
+          segmentMode.activeXAt(ctx, const Offset(1, 1)),
+          stackMode.activeXAt(ctx, onBar),
+          stackMode.activeXOfRegion(ctx, 0),
+          stackMode.activeXOfRegion(ctx, 3),
+        ],
+        <Object?>[null, 'stack 0', null, 'stack 1', 'stack 0', 'stack 1'],
+        reason:
+            '_onStackHoverFocus (:293) and _lineHoverFocus (:244) set '
+            'activeXAxisDataPoint; _onRectFocusHover (:727-768) and the empty '
+            'leave handlers (:802-804) do not',
+      );
+    });
+
+    test('the stack callout rules off its lines and groups a large x', () {
+      final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
+      FluentStackedBarLineDatum line(String legend, double y) =>
+          FluentStackedBarLineDatum(y: y, color: _palette[3], legend: legend);
+      final d = FluentVerticalStackedBarChartDelegate(
+        stacks: <FluentVerticalStackedBarGroup>[
+          FluentVerticalStackedBarGroup(
+            chartData: _segments(<double>[10, 20]),
+            xAxisPoint: 12000,
+            lineData: <FluentStackedBarLineDatum>[
+              line('low', 5),
+              line('high', 30),
+            ],
+          ),
+          FluentVerticalStackedBarGroup(
+            chartData: _segments(<double>[10]),
+            xAxisPoint: 20000,
+          ),
+        ],
+        style: resolveFluentVerticalStackedBarChartStyle(theme),
+        colors: _colours(),
+        measurer: FluentChartTextMeasurer(),
+        textStyles: FluentChartTextStyles.of(theme),
+        selectedLegends: const <String>[],
+        palette: _palette,
+        isCalloutForStack: true,
+        culture: 'en-US',
+      );
+      final numeric = FluentCartesianChildContext(
+        xScale: scaleLinear()
+          ..domainOf(<double>[12000, 20000])
+          ..rangeOf(<double>[100, 500]),
+        yScalePrimary: _magnitudeScale(domain: <double>[0, 50], span: 295),
+        containerWidth: 640,
+        containerHeight: 350,
+      );
+      final data = d.buildHitRegions(numeric, layout).first.popoverData;
+      expect(
+        data.xValue,
+        '12,000',
+        reason:
+            'ChartPopover.tsx:128 runs hoverXValue through '
+            'formatToLocaleString, which groups from 10000 (formatter.ts:40)',
+      );
+      expect(
+        <(String?, bool)>[
+          for (final row in data.yValues!)
+            (row.legend, row.shouldDrawBorderBottom),
+        ],
+        <(String?, bool)>[
+          ('high', true),
+          ('low', true),
+          ('series 1', false),
+          ('series 0', false),
+        ],
+        reason:
+            '_onStackHoverFocus sets shouldDrawBorderBottom on every line '
+            '(VerticalStackedBarChart.tsx:275-278); the bars carry none',
+      );
+    });
+
+    test('a numeric x reads as JavaScript prints it', () {
+      final d = _vsbcDelegate(
+        stacks: <List<double>>[
+          <double>[10],
+          <double>[10],
+        ],
+        barGapMax: 0,
+        yMax: 50,
+        xPoints: <Object>[0.0, 20.0],
+      );
+      final numeric = FluentCartesianChildContext(
+        xScale: scaleLinear()
+          ..domainOf(<double>[0, 20])
+          ..rangeOf(<double>[100, 500]),
+        yScalePrimary: _magnitudeScale(domain: <double>[0, 50], span: 295),
+        containerWidth: 640,
+        containerHeight: 350,
+      );
+      expect(
+        d.buildHitRegions(numeric, layout).last.popoverData.xValue,
+        '20',
+        reason: '`xAxisPoint.toString()` (:756) prints 20, not 20.0',
+      );
+    });
+  });
+
+  group('FluentVerticalStackedBarChart hover', () {
+    Future<void> pump(WidgetTester tester, Widget chart) => tester.pumpWidget(
+      FluentApp(
+        theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+        home: Center(child: SizedBox(width: 800, height: 350, child: chart)),
+      ),
+    );
+
+    /// The regions and paint of the chart as mounted, with the plot's origin
+    /// on screen.
+    ({
+      FluentVerticalStackedBarChartDelegate delegate,
+      List<FluentChartHitRegion> regions,
+      Offset origin,
+      FluentCartesianChartPainter painter,
+    })
+    mounted(WidgetTester tester) {
+      final plot = find
+          .descendant(
+            of: find.byType(FluentCartesianChart),
+            matching: find.byType(CustomPaint),
+          )
+          .first;
+      final painter =
+          tester.widget<CustomPaint>(plot).painter!
+              as FluentCartesianChartPainter;
+      final d = painter.delegate as FluentVerticalStackedBarChartDelegate;
+      return (
+        delegate: d,
+        regions: d.buildHitRegions(
+          FluentCartesianChildContext(
+            xScale: painter.xAxis.scale,
+            yScalePrimary: painter.yAxisPrimary.scale,
+            yScaleSecondary: painter.yAxisSecondary?.scale,
+            containerWidth: painter.layout.size.width,
+            containerHeight: painter.layout.size.height,
+          ),
+          painter.layout,
+        ),
+        origin: tester.getTopLeft(plot),
+        painter: painter,
+      );
+    }
+
+    Finder surface() => find.descendant(
+      of: find.byType(FluentChartPopover),
+      matching: find.byType(ExcludeFocus),
+    );
+
+    Future<TestGesture> mouse(WidgetTester tester) async {
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      return gesture;
+    }
+
+    testWidgets('a stack lights its line dot and the callout follows', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentVerticalStackedBarChart(
+          data: _vsbcLineOverlayStacks(),
+          isCalloutForStack: true,
+        ),
+      );
+      final before = mounted(tester);
+      final stack = before.regions.first.bounds;
+      final gesture = await mouse(tester);
+      // Low in the first stack, well clear of the line point at its middle.
+      final at = before.origin + Offset(stack.center.dx, stack.bottom - 4);
+      await gesture.moveTo(at);
+      await tester.pump();
+      final first = tester.getRect(surface());
+      await gesture.moveTo(at + const Offset(0, -6));
+      await tester.pump();
+      expect(
+        tester.getRect(surface()).topLeft - first.topLeft,
+        const Offset(0, -6),
+        reason:
+            'onMouseMove on the stack <g> re-anchors the callout '
+            '(VerticalStackedBarChart.tsx:1147-1148)',
+      );
+      final after = mounted(tester);
+      expect(
+        after.delegate.activeXAxisDataPoint,
+        'stack 0',
+        reason: 'setActiveXAxisDataPoint(stack.xAxisPoint) at :293',
+      );
+      final dot = after.regions
+          .firstWhere((r) => r.legend == 'line 0')
+          .bounds
+          .center;
+      final recorder = _VsbcRecorder();
+      after.painter.paint(recorder, after.painter.layout.size);
+      expect(
+        recorder.circles.where(
+          (c) => (c.centre - dot).distance < 1e-6 && c.radius == 8,
+        ),
+        isNotEmpty,
+        reason: 'the active x shows its dot at r = 8 (:694-697)',
+      );
+    });
+
+    testWidgets('a segment callout follows the pointer too', (tester) async {
+      await pump(tester, FluentVerticalStackedBarChart(data: _vsbcStacks()));
+      final geometry = mounted(tester);
+      final segment = geometry.regions.first.bounds;
+      final gesture = await mouse(tester);
+      final at = geometry.origin + segment.center;
+      await gesture.moveTo(at);
+      await tester.pump();
+      final first = tester.getRect(surface());
+      await gesture.moveTo(at + const Offset(0, 5));
+      await tester.pump();
+      expect(
+        tester.getRect(surface()).topLeft - first.topLeft,
+        const Offset(0, 5),
+        reason:
+            'the rect\'s onMouseMove passes the :744 gate again after every '
+            're-render, because _calloutAnchorPoint is a render-local let '
+            '(:113)',
+      );
+    });
+
+    testWidgets("a line stroke opens its start point's callout", (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentVerticalStackedBarChart(data: _vsbcLineOverlayStacks()),
+      );
+      final geometry = mounted(tester);
+      final dots = <Offset>[
+        for (final r in geometry.regions)
+          if (r.legend == 'line 0') r.bounds.center,
+      ];
+      final gesture = await mouse(tester);
+      // Halfway along the first stroke, in the gap between two stacks.
+      final at = geometry.origin + Offset.lerp(dots[0], dots[1], 0.5)!;
+      await gesture.moveTo(at);
+      await tester.pump();
+      await gesture.moveTo(at + const Offset(0.5, 0));
+      await tester.pump();
+      expect(
+        <Finder>[
+          find.descendant(
+            of: find.byType(FluentChartPopover),
+            matching: find.text('line 0'),
+          ),
+          find.descendant(
+            of: find.byType(FluentChartPopover),
+            matching: find.text('25'),
+          ),
+        ],
+        everyElement(findsOneWidget),
+        reason: '_lineHover(lineObject[item][i - 1]) on the <line> (:622)',
+      );
+      expect(mounted(tester).delegate.activeXAxisDataPoint, 'stack 0');
+    });
+
+    testWidgets('a lone segment leaves the lit dot where it was', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentVerticalStackedBarChart(data: _vsbcLineOverlayStacks()),
+      );
+      final geometry = mounted(tester);
+      final dot = geometry.regions
+          .where((r) => r.legend == 'line 0')
+          .elementAt(1)
+          .bounds
+          .center;
+      final segment = geometry.regions.first.bounds;
+      final gesture = await mouse(tester);
+      await gesture.moveTo(geometry.origin + dot);
+      await tester.pump();
+      await gesture.moveTo(
+        geometry.origin + Offset(segment.center.dx, segment.bottom - 4),
+      );
+      await tester.pump();
+      expect(
+        mounted(tester).delegate.activeXAxisDataPoint,
+        'stack 1',
+        reason: '_onRectFocusHover never touches activeXAxisDataPoint (:727)',
+      );
+      expect(
+        find.descendant(
+          of: find.byType(FluentChartPopover),
+          matching: find.text('series 0'),
+        ),
+        findsOneWidget,
+        reason: 'while the callout does move to the segment',
+      );
+    });
+
+    testWidgets('focus lights a stack; a line legend hover puts it out', (
+      tester,
+    ) async {
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(
+        tester,
+        FluentVerticalStackedBarChart(
+          data: _vsbcLineOverlayStacks(),
+          isCalloutForStack: true,
+          focusNode: node,
+        ),
+      );
+      node.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(
+        mounted(tester).delegate.activeXAxisDataPoint,
+        'stack 0',
+        reason: '_onStackFocus runs _onStackHoverFocus (:796-800)',
+      );
+      tester
+          .widget<FluentCartesianChart>(find.byType(FluentCartesianChart))
+          .legends
+          .last
+          .onHoverAction!();
+      await tester.pump();
+      expect(
+        mounted(tester).delegate.activeXAxisDataPoint,
+        isNull,
+        reason:
+            'a line legend\'s hoverAction runs _handleChartMouseLeave first '
+            '(VerticalStackedBarChart.tsx:197-200)',
+      );
+    });
   });
 }
 
@@ -2193,6 +2872,7 @@ FluentVerticalStackedBarChartDelegate _vsbcWithLines({
   List<String> selectedLegends = const <String>[],
   Object? activeXAxisDataPoint,
   FluentLineOptions? lineOptions,
+  bool isCalloutForStack = false,
 }) {
   final palette = colours ?? _palette;
   expect(
@@ -2224,6 +2904,7 @@ FluentVerticalStackedBarChartDelegate _vsbcWithLines({
     selectedLegends: selectedLegends,
     activeXAxisDataPoint: activeXAxisDataPoint,
     lineOptions: lineOptions,
+    isCalloutForStack: isCalloutForStack,
     palette: _palette,
   );
 }
