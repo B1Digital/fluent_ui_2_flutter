@@ -184,11 +184,16 @@ FluentTabStyle resolveFluentTabStyle(
               pressed: c.brandBackground2Pressed,
               disabled: c.neutralBackgroundDisabled,
             )
+          // Disabled keeps the transparent rest fill. Figma paints `#F0F0F0`
+          // here, but upstream's `useTabStyles.styles.ts` `subtleDisabled`
+          // binds `colorSubtleBackground`, and the live
+          // `components-tablist--appearance` page measures `rgba(0, 0, 0, 0)`
+          // on its disabled unselected pill. The storybook wins.
           : FluentStateColor.tokens(
               rest: c.subtleBackground,
               hover: c.subtleBackgroundHover,
               pressed: c.subtleBackgroundPressed,
-              disabled: c.neutralBackgroundDisabled,
+              disabled: c.subtleBackground,
             ),
     FluentTabAppearance.filledCircular =>
       selected
