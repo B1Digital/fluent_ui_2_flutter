@@ -1468,6 +1468,72 @@ void main() {
       }
     });
 
+    testWidgets('the anchor stays under the pointer in a scrolled plot', (
+      tester,
+    ) async {
+      for (final direction in TextDirection.values) {
+        await pump(
+          tester,
+          SizedBox(
+            width: 200,
+            height: 260,
+            child: FluentCartesianChart(
+              delegate: _TallCalloutStubDelegate(
+                xAxisType: FluentChartAxisType.category,
+                categories: const <String>[
+                  'January',
+                  'February',
+                  'March',
+                  'April',
+                  'May',
+                  'June',
+                  'July',
+                ],
+              ),
+              props: const FluentCartesianChartProps(
+                hideLegend: true,
+                hideTickOverlap: false,
+                reflowMode: FluentChartReflowMode.minWidth,
+              ),
+              legends: const <FluentChartLegendItem>[],
+            ),
+          ),
+          direction: direction,
+        );
+        final position = tester
+            .state<ScrollableState>(
+              find.descendant(
+                of: find.byType(FluentCartesianChart),
+                matching: find.byType(Scrollable),
+              ),
+            )
+            .position;
+        expect(position.maxScrollExtent, greaterThan(60));
+        position.jumpTo(30);
+        await tester.pump();
+        final gesture = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        await gesture.addPointer(location: Offset.zero);
+        await gesture.moveTo(
+          tester.getTopLeft(find.byType(FluentCartesianChart)) +
+              const Offset(100, 100),
+        );
+        await tester.pump();
+        expect(
+          popoverAnchor(tester),
+          const Offset(100, 100),
+          reason:
+              'the callout sits in fui-cart__root, outside the overflow: auto '
+              'chartWrapperMinWidth (CartesianChart.tsx:923, '
+              'useCartesianChartStyles.styles.ts:51-52), and anchors to the '
+              'client position, so the scroll offset never moves it off the '
+              'pointer (${direction.name})',
+        );
+        await gesture.removePointer();
+      }
+    });
+
     testWidgets('popoverBuilder replaces the popover body', (tester) async {
       await pump(
         tester,
@@ -1497,6 +1563,16 @@ void main() {
         findsNothing,
         reason:
             'and the two default bodies are both suppressed by it (:56, :60)',
+      );
+      // Positioned exactly as the default bodies are (ChartPopover.tsx:48):
+      // above the pointer at (50, 100), centred on it, 20px clear.
+      final body = tester
+          .getRect(find.text('custom'))
+          .shift(-tester.getTopLeft(find.byType(FluentCartesianChart)));
+      expect(body.center.dx, moreOrLessEquals(50, epsilon: 0.5));
+      expect(
+        body.bottom,
+        moreOrLessEquals(100 - kChartPopoverAnchorOffset, epsilon: 0.5),
       );
     });
 
@@ -1696,7 +1772,8 @@ class _StackedStubDelegate extends StubCartesianDelegate {
 /// fourteen-row stacked callout `charts-linechart--line-chart-multiple` shows —
 /// far taller than any 300px chart.
 class _TallCalloutStubDelegate extends StubCartesianDelegate {
-  _TallCalloutStubDelegate() : super(hitRegionCount: 0);
+  _TallCalloutStubDelegate({super.categories, super.xAxisType})
+    : super(hitRegionCount: 0);
 
   @override
   List<FluentChartHitRegion> buildHitRegions(
