@@ -895,6 +895,22 @@ void main() {
       expect(arrowOf(tester).position, FluentPopoverPosition.above);
     });
 
+    testWidgets('content taller than the overlay keeps its height', (
+      tester,
+    ) async {
+      // CSS caps an absolutely positioned surface's width at its containing
+      // block and never its height, so a tall one runs off the viewport. Laid
+      // out against the overlay's height, a Column in it overflowed instead.
+      await pump(
+        tester,
+        content: const SizedBox(key: body, width: 60, height: 900),
+      );
+      await open(tester);
+      await tester.pumpAndSettle();
+      expect(tester.getSize(find.byKey(body)).height, 900);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('a mouse click on the placed surface stays inside it', (
       tester,
     ) async {

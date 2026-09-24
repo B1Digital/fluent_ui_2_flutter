@@ -1129,9 +1129,13 @@ class _FluentPopoverLayout extends MultiChildLayoutDelegate {
 
   @override
   void performLayout(Size size) {
+    // Width only. The surface is absolutely positioned at `left: 0` upstream,
+    // so CSS shrink-to-fit caps it at the containing block's width, but
+    // nothing caps its height: a tall surface runs off the viewport rather
+    // than squeezing its content into a RenderFlex overflow.
     final surface = layoutChild(
       _PopoverSlot.surface,
-      BoxConstraints.loose(size),
+      BoxConstraints(maxWidth: size.width),
     );
     final hasArrow = hasChild(_PopoverSlot.arrow);
     final vertical =
