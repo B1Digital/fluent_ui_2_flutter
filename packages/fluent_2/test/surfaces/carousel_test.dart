@@ -681,12 +681,13 @@ void main() {
       );
     });
 
-    testWidgets('the autoplay toggle takes the secondary hover and press', (
-      tester,
-    ) async {
-      // Chrome, carousel--default Autoplay: rest rgba(255,255,255,.5) over a
-      // transparent border; hover #F5F5F5 over #C7C7C7; press #E0E0E0 over
-      // #B3B3B3 — the secondary button's own ramp.
+    testWidgets('the autoplay toggle is a secondary toggle, checked while it '
+        'plays', (tester) async {
+      // Chrome, carousel--default Autoplay: playing (aria-pressed) it rests
+      // #EBEBEB over #D1D1D1 with a #242424 glyph; paused, rgba(255,255,255,.5)
+      // over a transparent border with a #424242 one. Either way hover is
+      // #F5F5F5 over #C7C7C7 and press #E0E0E0 over #B3B3B3 — the secondary
+      // button's own ramp.
       final c = light.colors;
       await pump(
         tester,
@@ -698,9 +699,15 @@ void main() {
           .first;
       BoxDecoration decoration() =>
           tester.widget<DecoratedBox>(surface).decoration as BoxDecoration;
+      Color? glyph() => IconTheme.of(
+        tester.element(
+          find.descendant(of: control, matching: find.byType(Icon)),
+        ),
+      ).color;
 
-      expect(decoration().color, c.neutralBackgroundAlpha);
-      expect((decoration().border! as Border).top.color, c.transparentStroke);
+      expect(decoration().color, c.neutralBackground1Selected);
+      expect((decoration().border! as Border).top.color, c.neutralStroke1);
+      expect(glyph(), c.neutralForeground1Selected);
 
       final mouse = await hover(tester, control);
       await mouse.moveBy(const Offset(1, 0));
@@ -715,9 +722,13 @@ void main() {
         (decoration().border! as Border).top.color,
         c.neutralStroke1Pressed,
       );
+      // The click pauses it, and the unchecked toggle rests translucent.
       await mouse.up();
       await mouse.moveTo(Offset.zero);
       await tester.pumpAndSettle();
+      expect(decoration().color, c.neutralBackgroundAlpha);
+      expect((decoration().border! as Border).top.color, c.transparentStroke);
+      expect(glyph(), c.neutralForeground2);
     });
 
     testWidgets('the autoplay toggle keeps the secondary focus border', (

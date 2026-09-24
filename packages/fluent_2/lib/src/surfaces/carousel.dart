@@ -734,7 +734,11 @@ class _FluentCarouselMark extends StatelessWidget {
 /// `colorNeutralBackgroundAlpha` fill, a `colorTransparentStroke` border and a
 /// `colorNeutralForeground2` glyph; hovered and pressed, the secondary
 /// button's own ramp, which the rest overrides do not outrank (#F5F5F5 over
-/// #C7C7C7, then #E0E0E0 over #B3B3B3).
+/// #C7C7C7, then #E0E0E0 over #B3B3B3). While it plays the toggle is checked
+/// (`aria-pressed`), and those overrides give way to `useToggleButtonStyles`'
+/// checked secondary: `colorNeutralBackground1Selected` over
+/// `colorNeutralStroke1`, a `colorNeutralForeground1Selected` glyph (Chrome:
+/// #EBEBEB over #D1D1D1, #242424), with the same hover and press.
 class _FluentCarouselNavButton extends StatelessWidget {
   const _FluentCarouselNavButton({
     required this.icon,
@@ -742,6 +746,7 @@ class _FluentCarouselNavButton extends StatelessWidget {
     required this.iconSize,
     this.onPressed,
     this.autoplay = false,
+    this.checked = false,
   });
 
   final IconData icon;
@@ -750,11 +755,14 @@ class _FluentCarouselNavButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool autoplay;
 
+  /// Whether the autoplay toggle is on, i.e. the slides are playing.
+  final bool checked;
+
   @override
   Widget build(BuildContext context) {
     final c = FluentTheme.of(context).colors;
     final border = FluentStateColor.tokens(
-      rest: c.transparentStroke,
+      rest: checked ? c.neutralStroke1 : c.transparentStroke,
       hover: c.neutralStroke1Hover,
       pressed: c.neutralStroke1Pressed,
       disabled: c.neutralStrokeDisabled,
@@ -770,7 +778,9 @@ class _FluentCarouselNavButton extends StatelessWidget {
         iconSize: WidgetStatePropertyAll<double?>(iconSize),
         backgroundColor: autoplay
             ? FluentStateColor.tokens(
-                rest: c.neutralBackgroundAlpha,
+                rest: checked
+                    ? c.neutralBackground1Selected
+                    : c.neutralBackgroundAlpha,
                 hover: c.neutralBackground1Hover,
                 pressed: c.neutralBackground1Pressed,
                 disabled: c.neutralBackgroundDisabled,
@@ -778,7 +788,9 @@ class _FluentCarouselNavButton extends StatelessWidget {
             : null,
         foregroundColor: autoplay
             ? FluentStateColor.tokens(
-                rest: c.neutralForeground2,
+                rest: checked
+                    ? c.neutralForeground1Selected
+                    : c.neutralForeground2,
                 hover: c.neutralForeground1Hover,
                 pressed: c.neutralForeground1Pressed,
                 disabled: c.neutralForegroundDisabled,
@@ -1088,6 +1100,7 @@ class _FluentCarouselState extends State<FluentCarousel> {
                   ? () => _setPaused(() => _playing = !_playing)
                   : null,
               autoplay: true,
+              checked: _playing,
             )
           : null,
       onPrevious: _canGoBack ? _previous : null,
