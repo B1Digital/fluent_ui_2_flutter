@@ -213,9 +213,10 @@ Path fluentChartLegendShapePath(FluentChartLegendShape shape) {
 ///
 /// `shape.tsx:43-45` puts `transform="rotate(θ, 0, 0)"` on the `<svg>` element,
 /// not on the `<path>`, with θ = 45 for a diamond, 180 for a pyramid and 0
-/// otherwise. The centre of rotation is the viewBox corner rather than the
-/// shape's centre, so both are a translation as well as a spin — that is
-/// upstream behaviour, not a transcription slip.
+/// otherwise. The `0, 0` is relative to the element's `transform-origin`, which
+/// for an outermost `<svg>` in HTML flow is the CSS initial `50% 50%` — so the
+/// spin is about the box centre and neither shape moves off its box.
+/// `FluentChartLegendShapePainter` applies it there.
 double fluentChartLegendShapeRotation(FluentChartLegendShape shape) =>
     switch (shape) {
       // shape.tsx:44 — 45 degrees.
@@ -238,24 +239,15 @@ double fluentChartLegendShapeRotation(FluentChartLegendShape shape) =>
 /// a legend is filtered out, and it is the only visual difference between a
 /// dimmed swatch and an absent one.
 ///
-/// **The rotation origin is unverified against a live render.**
-/// `shape.tsx:43-45` sets the SVG `transform` attribute on an outermost `<svg>`
-/// in HTML flow. SVG 2 says the rotation origin is user-space (0, 0); a CSS
-/// `transform` on the same element would use `transform-origin: 50% 50%`.
-/// Browsers have historically differed. This painter follows the source, so a
-/// [FluentChartLegendShape.pyramid] swatch lands entirely outside the viewport
-/// and paints nothing.
-///
-/// The Oracle B probe the plan nominated to settle this —
-/// `charts-legends--legends-basic`, whose two svg swatches are a diamond and a
-/// triangle — **is** in the corpus and cannot settle it. It proves the
-/// transform is applied at all: that story's diamond swatch measures
-/// 19.799011 × 19.798988, which is 14 × √2, against 14 × 14 for the triangle.
-/// But a rotation's bounding-box *size* is independent of its origin, and
-/// `crawlers/storybooks-fluentui/capture_oracle.mjs:205-213` records only an
-/// svg's `width` and `height`, never its position, so the two candidate origins
-/// are indistinguishable in the capture. Settling it needs a re-capture that
-/// also stores `getBoundingClientRect().x`/`.y` for every swatch svg.
+/// The rotation is about the box centre. `shape.tsx:43-45` sets the SVG
+/// `transform` attribute on an outermost `<svg>` in HTML flow, which Chromium
+/// maps onto the CSS `transform` property and so rotates about
+/// `transform-origin: 50% 50%`. Measured in Chrome: a diamond and a pyramid
+/// swatch each ink the same 14 columns as an unrotated one, the diamond
+/// centred on the box and the pyramid an upward-pointing triangle. The
+/// `charts-legends--legends-basic` capture agrees: a diamond turned about the
+/// box corner put its centroid (-7.22, +2.93) from the capture's, where turning
+/// the centre (7, 7) about the corner predicts (-7, +2.9).
 class FluentChartLegendShapePainter extends CustomPainter {
   /// Creates a painter for one marker.
   const FluentChartLegendShapePainter({
@@ -286,8 +278,13 @@ class FluentChartLegendShapePainter extends CustomPainter {
     if (path.computeMetrics().isEmpty) return;
 
     canvas.save();
-    // The element transform, about the rendered box's own (0, 0).
-    canvas.rotate(fluentChartLegendShapeRotation(shape));
+    // The element transform, about the rendered box's centre
+    // (`transform-origin: 50% 50%`; see the class docs).
+    final centre = size.center(Offset.zero);
+    canvas
+      ..translate(centre.dx, centre.dy)
+      ..rotate(fluentChartLegendShapeRotation(shape))
+      ..translate(-centre.dx, -centre.dy);
     // The viewBox mapping (`shape.tsx:39-41`): a viewBox
     // [kLegendShapeViewportSize] units wide is scaled onto the rendered box and
     // its origin then shifted by [kLegendShapeViewBoxOrigin]. Upstream sizes

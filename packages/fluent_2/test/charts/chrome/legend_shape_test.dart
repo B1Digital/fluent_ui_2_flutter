@@ -405,8 +405,8 @@ void mainPart2() {
         // A kLegendShapeViewportSize square rotated by theta about any origin
         // has the axis-aligned extent size * (|cos theta| + |sin theta|); the
         // origin only moves it. So the captured 19.799 pins the angle the
-        // painter applies — and nothing more, which is why the painter's
-        // docstring still calls the origin unverified.
+        // painter applies and nothing more; the origin has its own test
+        // below.
         final extent =
             kLegendShapeViewportSize *
             (math
@@ -438,7 +438,7 @@ void mainPart2() {
       }
     });
 
-    test('the pyramid rotates a half turn about the viewport corner', () async {
+    test('the pyramid is the triangle turned about the box centre', () async {
       final pixel = await renderPainter(
         const FluentChartLegendShapePainter(
           shape: FluentChartLegendShape.pyramid,
@@ -447,22 +447,49 @@ void mainPart2() {
           strokeWidth: 0,
         ),
       );
-      final anyPainted = List<int>.generate(
-        kLegendShapeViewportSize.toInt() * kLegendShapeViewportSize.toInt(),
-        (i) => pixel(
-          i % kLegendShapeViewportSize.toInt(),
-          i ~/ kLegendShapeViewportSize.toInt(),
-        ),
-      ).any((argb) => argb != 0x00000000);
+      // The triangle's device corners are (7, 11), (1, 1) and (13, 1); half a
+      // turn about the centre (7, 7) makes them (7, 3), (13, 13) and (1, 13).
       expect(
-        anyPainted,
-        isFalse,
+        pixel(7, 11),
+        fill.toARGB32(),
         reason:
-            'rotate(180, 0, 0) at shape.tsx:44 maps the triangle, which spans '
-            'x 0..12 and y 0..10, into negative coordinates, so the whole '
-            'pyramid falls outside the 14x14 viewport and nothing is drawn. '
-            'This is upstream geometry, not a transcription error — see the '
-            'Oracle B probe named in the painter docstring.',
+            "shape.tsx:44's rotate(180, 0, 0) on an outermost <svg> turns about "
+            'transform-origin 50% 50%, so the pyramid is an upward triangle '
+            'whose wide base fills the bottom rows — Chrome draws it there. '
+            'Turned about the corner instead, it lands outside the box.',
+      );
+      expect(
+        pixel(7, 1),
+        0x00000000,
+        reason: 'Above the apex at y 3, so the top rows stay clear.',
+      );
+    });
+
+    test('the diamond turns about the box centre', () async {
+      final pixel = await renderPainter(
+        const FluentChartLegendShapePainter(
+          shape: FluentChartLegendShape.diamond,
+          fill: fill,
+          stroke: stroke,
+          strokeWidth: 0,
+        ),
+      );
+      expect(
+        pixel(7, 7),
+        fill.toARGB32(),
+        reason:
+            'The authored square is centred on device (7, 7) and turning '
+            'about that centre keeps it there. About the corner, the centre '
+            'moves to (0, 9.9) — the (-7, +2.9) offset the '
+            'charts-legends--legends-basic capture measured.',
+      );
+      expect(
+        <int>[pixel(0, 7), pixel(13, 7), pixel(7, 0), pixel(7, 13)],
+        everyElement(0x00000000),
+        reason:
+            'The rotated square reaches 4 * sqrt2 = 5.66 from the centre, so '
+            'the edge pixels, 6 to 7 away, stay clear on all four sides. '
+            'Turned about the corner, the square covers (0, 7).',
       );
     });
 
