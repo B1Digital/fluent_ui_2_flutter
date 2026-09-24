@@ -1278,39 +1278,49 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
           final needleTurn = Matrix4.rotationZ(needleDegrees * math.pi / 180);
           final valueMetrics = _measurer.measure(shownValue, chartValueStyle);
 
-          // Every element the callout can open on, in plot coordinates, as
-          // `getBoundingClientRect` reports it for `positioning.target`
-          // (GaugeChart.tsx:402): an SVG element's box is its local bbox
-          // mapped through its transform, so the needle's is the rotated
-          // rectangle's bounds, not the rotated outline's.
-          final targets = <String, Rect>{
-            for (final arc in arcs)
-              layout.segments[arc.segmentIndex].legend: _tightBounds(
-                arc.path,
-              ).shift(layout.origin),
-            // Measured upstream on the responsive story: the 135-degree
-            // needle's [-18,-4,22,8] bbox reports 21.21 square.
-            _kNeedleAnchor: MatrixUtils.transformRect(
-              needleTurn,
-              _tightBounds(needlePath),
-            ).shift(layout.origin),
-            // The chart value's text box (`:668-679`), whose alphabetic
-            // baseline is the origin. Measured upstream at 492.49,230
-            // 39.02x27 around the basic story's '50%'.
-            _kChartValueAnchor: Rect.fromLTWH(
-              layout.origin.dx - valueMetrics.width / 2,
-              layout.origin.dy - valueMetrics.ascent,
-              valueMetrics.width,
-              valueMetrics.height,
-            ),
-          };
+          // The needle's box in plot coordinates, as `getBoundingClientRect`
+          // reports it for `positioning.target` (GaugeChart.tsx:402): an SVG
+          // element's box is its local bbox mapped through its transform, so
+          // this is the rotated rectangle's bounds, not the rotated outline's.
+          // Measured upstream on the responsive story: the 135-degree
+          // needle's [-18,-4,22,8] bbox reports 21.21 square.
+          final needleBox = MatrixUtils.transformRect(
+            needleTurn,
+            _tightBounds(needlePath),
+          ).shift(layout.origin);
+          // The chart value's text box (`:668-679`), whose alphabetic
+          // baseline is the origin. Measured upstream at 492.49,230 39.02x27
+          // around the basic story's '50%'.
+          final valueBox = Rect.fromLTWH(
+            layout.origin.dx - valueMetrics.width / 2,
+            layout.origin.dy - valueMetrics.ascent,
+            valueMetrics.width,
+            valueMetrics.height,
+          );
+
+          /// The box the callout targets for [element], or null for none.
+          ///
+          /// A segment's is its path's tight box, measured only for the one
+          /// element the callout is open on: [_tightBounds] walks the whole
+          /// outline, too slow to run for every segment on every build.
+          Rect? targetOf(String element) {
+            if (element == _kNeedleAnchor) return needleBox;
+            if (element == _kChartValueAnchor) return valueBox;
+            for (final arc in arcs) {
+              if (layout.segments[arc.segmentIndex].legend == element) {
+                return _tightBounds(arc.path).shift(layout.origin);
+              }
+            }
+            return null;
+          }
+
           final turnedNeedle = needlePath.transform(needleTurn.storage);
 
           /// The element under [position], topmost first in the svg's paint
           /// order (`GaugeChart.tsx:640-697`). Hit-tested on the paths, so the
           /// hollow of an arc's bounding box is empty plot.
           String? elementAt(Offset position) {
-            if (targets[_kChartValueAnchor]!.contains(position)) {
+            if (valueBox.contains(position)) {
               return _kChartValueAnchor;
             }
             final local = position - layout.origin;
@@ -1451,7 +1461,11 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
                           Positioned.fill(child: CustomPaint(painter: painter)),
                           for (var i = 0; i < layout.segments.length; i++)
                             _hitTarget(
-                              bounds: targets[layout.segments[i].legend]!,
+                              bounds: arcs
+                                  .firstWhere((arc) => arc.segmentIndex == i)
+                                  .path
+                                  .getBounds()
+                                  .shift(layout.origin),
                               label: fluentGaugeSegmentLabel(
                                 layout.segments[i],
                                 layout.minValue,
@@ -1465,7 +1479,7 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
                               element: layout.segments[i].legend,
                             ),
                           _hitTarget(
-                            bounds: targets[_kNeedleAnchor]!,
+                            bounds: needleBox,
                             // GaugeChart.tsx:275-276 — the non-callout form.
                             label: l10n.gaugeCurrentValue(valueLabel),
                             focusable: true,
@@ -1533,7 +1547,7 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
                             OverlayPortal(
                               controller: _popoverPortal,
                               overlayChildBuilder: (context) => _buildCallout(
-                                targets[_calloutAnchor],
+                                targetOf(_calloutAnchor),
                                 layout,
                                 // GaugeChart.tsx:386-387 — the callout inverts
                                 // the painted form.

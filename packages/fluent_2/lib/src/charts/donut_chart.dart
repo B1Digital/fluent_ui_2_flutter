@@ -613,6 +613,11 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
   /// (`DonutChart.tsx:59`), which the popover targets (`:395-397`).
   Rect? _anchor;
 
+  /// The [Path.getBounds] of the arc [_anchor] was measured on. It is cheap to
+  /// take, so a move over the arc already targeted is told apart without
+  /// sampling its outline again.
+  Rect? _anchorArc;
+
   /// Owned by the state so its cache survives a rebuild.
   final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
 
@@ -631,11 +636,17 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
       _hovered != null &&
       (_highlighted.isEmpty || _isHighlighted(_hovered!.legend));
 
-  void _setHovered(FluentChartDataPoint? point, Rect? anchor) {
+  /// Targets the popover at [arc], or clears it when [arc] is null.
+  ///
+  /// Only the targeted arc is measured, and only when the target changes:
+  /// [_tightBounds] walks the whole outline, so measuring every arc on every
+  /// build cost a 30-slice, 900px donut 22ms a build in the test VM.
+  void _setHovered(FluentChartDataPoint? point, Path? arc) {
     if (point != null) _popoverPortal.show();
     setState(() {
       _hovered = point;
-      _anchor = anchor;
+      _anchorArc = arc?.getBounds();
+      _anchor = arc == null ? null : _tightBounds(arc);
     });
   }
 
@@ -848,9 +859,6 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
       layout,
       cornerRadius: resolved.cornerRadius!.resolve(states)!,
     );
-    // The arcs' own boxes: the focus and semantics targets, and what the
-    // popover targets (DonutChart.tsx:395-397).
-    final arcBoxes = <Rect>[for (final path in arcPaths) _tightBounds(path)];
     final dimmed = resolved.dimmedOpacity!.resolve(states)!;
     final opacities = <double>[
       // Arc.tsx:112-113.
@@ -882,7 +890,7 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
           ).donutChartDescription(layout.slices.length),
           child: MouseRegion(
             onHover: (event) =>
-                _handleHover(event.localPosition, layout, arcPaths, arcBoxes),
+                _handleHover(event.localPosition, layout, arcPaths),
             child: Stack(
               key: _plotKey,
               // useDonutChartStyles.styles.ts:40 — `overflow: visible` on
@@ -960,8 +968,8 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
                 ),
                 for (var i = 0; i < layout.slices.length; i++)
                   Positioned.fromRect(
-                    rect: arcBoxes[i],
-                    child: _buildArcTarget(layout.slices[i], i, arcBoxes[i]),
+                    rect: arcPaths[i].getBounds(),
+                    child: _buildArcTarget(layout.slices[i], i, arcPaths[i]),
                   ),
                 if (centreValue != null)
                   _buildCentreValue(centreValue, layout, resolved),
@@ -986,7 +994,7 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
   /// carry no gesture recogniser and no hit-testable render object of their
   /// own, which is why the pointer still reaches the [MouseRegion] underneath
   /// and the hover is resolved against the real path there.
-  Widget _buildArcTarget(FluentDonutSlice slice, int index, Rect anchor) {
+  Widget _buildArcTarget(FluentDonutSlice slice, int index, Path arc) {
     // Arc.tsx:148 — tabIndex 0 only for an arc the selection has not dimmed.
     final focusable = _shouldHighlightArc(slice.point.legend);
     final point = slice.point;
@@ -1003,7 +1011,7 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
         _focusedIndex = focused ? index : null;
         // DonutChart.tsx:155-169 — focus opens the popover on the focused
         // arc's own box.
-        _setHovered(focused ? point : null, focused ? anchor : null);
+        _setHovered(focused ? point : null, focused ? arc : null);
       },
       child: Semantics(
         container: true,
@@ -1021,7 +1029,6 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
     Offset position,
     FluentDonutLayout layout,
     List<Path> arcPaths,
-    List<Rect> arcBoxes,
   ) {
     for (var i = 0; i < arcPaths.length; i++) {
       if (!arcPaths[i].contains(position)) {
@@ -1032,9 +1039,8 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
       // moves nothing. An arc the selection has dimmed is recorded but opens
       // nothing ([_isPopoverOpen]). The slice's point is rebuilt with every
       // layout, so the arc is told apart by its box rather than by identity.
-      final bounds = arcBoxes[i];
-      if (bounds != _anchor) {
-        _setHovered(layout.slices[i].point, bounds);
+      if (arcPaths[i].getBounds() != _anchorArc) {
+        _setHovered(layout.slices[i].point, arcPaths[i]);
       }
       return;
     }
@@ -1252,6 +1258,7 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
             onHoverAction: () => setState(() {
               _hovered = null;
               _anchor = null;
+              _anchorArc = null;
               _activeLegend = point.legend;
             }),
             // DonutChart.tsx:122-124.

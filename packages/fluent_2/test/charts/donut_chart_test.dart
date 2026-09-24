@@ -588,6 +588,51 @@ void main() {
       );
     });
 
+    testWidgets('a legend hover closes the popover until an arc is hovered', (
+      tester,
+    ) async {
+      await pump(tester, chart, box: const Size(300, 400));
+      final legend = find.descendant(
+        of: find.byType(FluentChartLegend),
+        // capitalizeLegendLabel: the button reads 'First'.
+        matching: find.bySemanticsLabel('First'),
+      );
+      // Selected, so hovering its legend changes no highlight: nothing but the
+      // hover action itself can close the popover.
+      await tester.tap(legend);
+      await tester.pump();
+      final mouse = await hover(tester, arcPoint(tester, 0));
+      final rect = tester.getRect(surface);
+
+      await mouse.moveTo(tester.getCenter(legend));
+      await tester.pump();
+      expect(
+        surface,
+        findsNothing,
+        reason: 'DonutChart.tsx:118-119 — hovering a legend closes it.',
+      );
+
+      await mouse.moveTo(
+        tester.getTopLeft(plot) + painterOf(tester).layout.centre,
+      );
+      await tester.pump();
+      expect(
+        surface,
+        findsNothing,
+        reason: 'Nothing in the hole reopens it (DonutChart.tsx:193-195).',
+      );
+
+      await mouse.moveTo(arcPoint(tester, 0));
+      await tester.pump();
+      expect(
+        tester.getRect(surface),
+        rect,
+        reason:
+            'The arc it was last on opens it again, on the same box: the '
+            'legend hover forgot the target (DonutChart.tsx:197-199).',
+      );
+    });
+
     testWidgets('the popover is not confined to the plot band', (tester) async {
       // A short donut: its plot band is far shorter than the popover.
       await pump(tester, chart, box: const Size(300, 120));
