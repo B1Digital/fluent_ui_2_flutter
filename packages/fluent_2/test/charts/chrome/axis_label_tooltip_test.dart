@@ -58,6 +58,28 @@ void main() {
     );
   });
 
+  testWidgets('the chart tooltip box is getTooltipStyle at 0.9 opacity', (
+    tester,
+  ) async {
+    await pump(tester, const FluentChartTooltipBox(text: 'String One'));
+    expect(
+      tester.widget<Opacity>(find.byType(Opacity)).opacity,
+      0.9,
+      reason: 'utilities.ts:1318 shows the div at opacity 0.9',
+    );
+    final decoration =
+        tester.widget<DecoratedBox>(find.byType(DecoratedBox)).decoration
+            as BoxDecoration;
+    expect(decoration.color, theme.colors.neutralBackground1);
+    expect(decoration.borderRadius, BorderRadius.circular(2));
+    expect(decoration.boxShadow, isNull, reason: 'no shadow, no arrow');
+    expect(tester.getSize(find.byType(FluentChartTooltipBox)).height, 36);
+    final text = tester.widget<Text>(find.text('String One'));
+    expect(text.textAlign, TextAlign.center);
+    expect(text.style?.fontSize, 14);
+    expect(text.style?.color, theme.colors.neutralForeground1);
+  });
+
   testWidgets('the tooltip carries an arrow', (tester) async {
     await pump(
       tester,

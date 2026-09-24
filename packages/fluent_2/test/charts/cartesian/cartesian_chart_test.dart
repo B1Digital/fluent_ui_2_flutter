@@ -11,6 +11,7 @@ import 'package:fluent_2/src/charts/cartesian/cartesian_layout.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_painter.dart';
 import 'package:fluent_2/src/charts/cartesian/cartesian_series_delegate.dart';
 import 'package:fluent_2/src/charts/chrome/annotation_layer.dart';
+import 'package:fluent_2/src/charts/chrome/axis_label_tooltip.dart';
 import 'package:fluent_2/src/charts/chrome/chart_popover.dart';
 import 'package:fluent_2/src/charts/chrome/chart_popover_style.dart';
 import 'package:fluent_2/src/charts/chrome/legend.dart';
@@ -965,6 +966,154 @@ void main() {
             'CartesianChart.tsx:215 uses the prop only as a truth test and '
             'paints 5; the port hands the caller value to the x axis',
       );
+    });
+  });
+
+  group('axis-label tooltip', () {
+    const long = 'Large data, showing all text by tooltip';
+
+    /// A chart whose second band, near the right edge, carries [long].
+    Widget labelled(
+      FluentCartesianChartProps props, {
+      List<String> categories = const <String>['Data', long],
+    }) => chart(
+      delegate: StubCartesianDelegate(
+        xAxisType: FluentChartAxisType.category,
+        categories: categories,
+      ),
+      props: props,
+    );
+
+    Future<TestGesture> hover(WidgetTester tester, Offset local) async {
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      final origin = tester.getTopLeft(find.byType(FluentCartesianChart));
+      await gesture.moveTo(origin + local - const Offset(1, 1));
+      await gesture.moveTo(origin + local);
+      // No pump beyond the one frame: upstream shows it on `mouseover`.
+      await tester.pump();
+      return gesture;
+    }
+
+    testWidgets('hovering a cut-short x label shows its whole text', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        labelled(
+          const FluentCartesianChartProps(
+            hideLegend: true,
+            showXAxisLabelsTooltip: true,
+          ),
+          // First, so the box has the room to lie on one line.
+          categories: const <String>[long, 'Data'],
+        ),
+      );
+      final targets = painterOf(tester).axisLabelTooltipTargets;
+      expect(
+        targets.map((target) => target.fullText),
+        <String>[long],
+        reason:
+            'utilities.ts:1300-1304 skips a tick whose text is its data-full: '
+            '"Data" is four characters and stays whole',
+      );
+      final tick = targets.single.bounds;
+      final gesture = await hover(tester, tick.center);
+
+      final box = find.byType(FluentChartTooltipBox);
+      expect(tester.widget<FluentChartTooltipBox>(box).text, long);
+      final origin = tester.getTopLeft(find.byType(FluentCartesianChart));
+      final rect = tester.getRect(box).shift(-origin);
+      expect(
+        rect.center.dx,
+        moreOrLessEquals(tick.center.dx),
+        reason: '`left` at the tick centre and translateX(-50%) (:1312-1316)',
+      );
+      expect(
+        rect.bottom,
+        moreOrLessEquals(tick.top - 4),
+        reason: '`bottom` 4px above the tick top (:1311)',
+      );
+      expect(
+        rect.height,
+        36,
+        reason: 'body1 20px line and 8px padding (Common.styles.ts:36-49)',
+      );
+
+      await gesture.moveTo(
+        tester.getTopLeft(find.byType(FluentCartesianChart)) +
+            const Offset(200, 100),
+      );
+      await tester.pump();
+      expect(box, findsNothing, reason: '`mouseout` hides it (:1320-1322)');
+    });
+
+    testWidgets('an untruncated label shows nothing', (tester) async {
+      await pump(
+        tester,
+        labelled(const FluentCartesianChartProps(hideLegend: true)),
+      );
+      expect(
+        painterOf(tester).axisLabelTooltipTargets,
+        isEmpty,
+        reason:
+            'without showXAxisLablesTooltip or tickLayout auto no tooltip is '
+            'attached (CartesianChart.tsx:385)',
+      );
+    });
+
+    testWidgets('hovering a cut-short y label shows its whole text', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        chart(
+          props: const FluentCartesianChartProps(
+            hideLegend: true,
+            showYAxisLabelsTooltip: true,
+            noOfCharsToTruncate: 1,
+          ),
+        ),
+      );
+      final targets = painterOf(tester).axisLabelTooltipTargets;
+      expect(targets.map((target) => target.fullText), <String>['50', '100']);
+      await hover(tester, targets.first.bounds.center);
+      expect(
+        tester
+            .widget<FluentChartTooltipBox>(find.byType(FluentChartTooltipBox))
+            .text,
+        '50',
+        reason: 'CartesianChart.tsx:396-416 runs the same helper on y',
+      );
+    });
+
+    testWidgets('near the right edge it shrinks to the room left', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        labelled(
+          const FluentCartesianChartProps(
+            hideLegend: true,
+            showXAxisLabelsTooltip: true,
+          ),
+        ),
+      );
+      final tick = painterOf(tester).axisLabelTooltipTargets.single.bounds;
+      await hover(tester, tick.center);
+      final origin = tester.getTopLeft(find.byType(FluentCartesianChart));
+      final rect = tester
+          .getRect(find.byType(FluentChartTooltipBox))
+          .shift(-origin);
+      expect(
+        rect.width,
+        lessThanOrEqualTo(400 - tick.center.dx),
+        reason:
+            'an absolutely placed div with only `left` fits between that line '
+            'and the root edge before translateX(-50%) moves it',
+      );
+      expect(rect.height, greaterThan(36), reason: 'so the label wraps');
     });
   });
 

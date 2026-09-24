@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -7,6 +9,7 @@ import '../axis/axis_builders.dart';
 import '../axis/axis_label_layout.dart';
 import '../axis/axis_types.dart';
 import '../chrome/annotation_layer.dart';
+import '../chrome/axis_label_tooltip.dart';
 import '../chrome/chart_popover.dart';
 import '../chrome/chart_popover_style.dart';
 import '../chrome/legend.dart';
@@ -247,6 +250,13 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
   /// the chart root rather than the scrolled plot.
   final ScrollController _plotScroll = ScrollController();
 
+  /// The cut-short tick labels the last solve painted, in plot coordinates.
+  List<({Rect bounds, String fullText})> _axisLabels =
+      const <({Rect bounds, String fullText})>[];
+
+  /// The one of [_axisLabels] under the pointer, whose whole text shows.
+  ({Rect bounds, String fullText})? _hoveredAxisLabel;
+
   FocusNode get _focusNode =>
       widget.focusNode ?? (_internalFocusNode ??= FocusNode());
 
@@ -483,10 +493,54 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
     );
   }
 
+  /// The whole text of the hovered cut-short tick label, over the chart root.
+  ///
+  /// `tooltipOfAxislabels` appends its div to the root (`utilities.ts:1293`)
+  /// and, on `mouseover`, sets `bottom` 4px above the tick text's top, `left`
+  /// at its centre and `translateX(-50%)` (`:1310-1317`). Absolutely placed
+  /// from `left` with no width, the div shrinks to fit the room right of that
+  /// line, and the root's `overflow: hidden` clips it.
+  Widget _axisLabelTooltip(FluentCartesianChartStyle style) {
+    final label = _hoveredAxisLabel;
+    if (label == null) return const SizedBox.shrink();
+    const states = <WidgetState>{};
+    return IgnorePointer(
+      // The box repeats a label the axis already names.
+      child: ExcludeSemantics(
+        child: ClipRect(
+          child: CustomSingleChildLayout(
+            delegate: _AxisLabelTooltipLayout(label.bounds.shift(_plotOrigin)),
+            child: FluentChartTooltipBox(
+              text: label.fullText,
+              backgroundColor: style.tooltipBackgroundColor?.resolve(states),
+              borderRadius: style.tooltipBorderRadius?.resolve(states),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Shows the whole text of the cut-short tick label at [local], plot
+  /// coordinates, or hides it off every label.
+  ///
+  /// `mouseover` and `mouseout` on the tick text, with no delay either way
+  /// (`utilities.ts:1308-1322`).
+  void _hoverAxisLabel(Offset local) {
+    final label = _axisLabels
+        .where((label) => label.bounds.contains(local))
+        .firstOrNull;
+    if (label == _hoveredAxisLabel) return;
+    setState(() => _hoveredAxisLabel = label);
+  }
+
   void _clearHover() {
     _pointerRegion = -1;
-    if (_hoveredIndex == -1) return;
-    setState(() => _hoveredIndex = -1);
+    if (_hoveredIndex == -1 && _hoveredAxisLabel == null) return;
+    setState(() {
+      _hoveredIndex = -1;
+      _hoveredAxisLabel = null;
+    });
   }
 
   void _onFocusChange({required bool hasFocus}) {
@@ -580,6 +634,15 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
                   // A later sibling than the Column, so it is laid out, and
                   // its builder run, once the plot has solved its regions.
                   child: LayoutBuilder(builder: (context, _) => _popover()),
+                ),
+              // Appended to the root after the chart has rendered
+              // (`CartesianChart.tsx:384-416`), so over everything in it, and
+              // shown whatever `hideTooltip` says.
+              if (_hoveredAxisLabel != null)
+                Positioned.fill(
+                  child: LayoutBuilder(
+                    builder: (context, _) => _axisLabelTooltip(style),
+                  ),
                 ),
             ],
           ),
@@ -689,6 +752,29 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
         ? _regions[_focusedIndex]
         : null;
 
+    final painter = FluentCartesianChartPainter(
+      layout: geometry.layout,
+      delegate: widget.delegate,
+      xAxis: geometry.xAxis,
+      yAxisPrimary: geometry.yAxisPrimary,
+      yAxisSecondary: geometry.yAxisSecondary,
+      xLabelLayout: geometry.xLabelLayout,
+      style: style,
+      colors: colors,
+      textStyles: textStyles,
+      measurer: _measurer,
+      crispOffset: crispOffset,
+      props: widget.props,
+    );
+    _axisLabels = painter.axisLabelTooltipTargets;
+    // Upstream re-creates the div hidden on every render
+    // (`CartesianChart.tsx:378-383`), which blanks it under a pointer that has
+    // not moved off the label. Only a re-solve that moved or dropped the label
+    // hides it here.
+    if (!_axisLabels.contains(_hoveredAxisLabel)) {
+      _hoveredAxisLabel = null;
+    }
+
     return Focus(
       focusNode: _focusNode,
       onKeyEvent: _onKey,
@@ -704,6 +790,7 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
                   event.localPosition,
                   childContext,
                 );
+                _hoverAxisLabel(event.localPosition);
                 _onPointer(event.localPosition, event.position);
               },
               onExit: (_) => _clearHover(),
@@ -735,23 +822,7 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
                     _activate(_marks, _pressedIndex);
                   }
                 },
-                child: CustomPaint(
-                  size: size,
-                  painter: FluentCartesianChartPainter(
-                    layout: geometry.layout,
-                    delegate: widget.delegate,
-                    xAxis: geometry.xAxis,
-                    yAxisPrimary: geometry.yAxisPrimary,
-                    yAxisSecondary: geometry.yAxisSecondary,
-                    xLabelLayout: geometry.xLabelLayout,
-                    style: style,
-                    colors: colors,
-                    textStyles: textStyles,
-                    measurer: _measurer,
-                    crispOffset: crispOffset,
-                    props: widget.props,
-                  ),
-                ),
+                child: CustomPaint(size: size, painter: painter),
               ),
             ),
             // Inside the series `<g>` upstream (`LineChart.tsx:1954`), so above
@@ -1078,4 +1149,34 @@ class _FluentCartesianChartState extends State<FluentCartesianChart> {
       axisData: axisData,
     );
   }
+}
+
+/// Places the axis-label tooltip as `tooltipOfAxislabels` styles its div
+/// (`utilities.ts:1310-1317`): centred on the tick text, its bottom edge 4px
+/// above the text's top.
+///
+/// The div is absolutely positioned by `left` with no `width` or `right`, so
+/// CSS shrinks it to fit between that line and the root's right edge before
+/// `translateX(-50%)` moves it back by half.
+class _AxisLabelTooltipLayout extends SingleChildLayoutDelegate {
+  const _AxisLabelTooltipLayout(this.tick);
+
+  /// The tick text's box, in the root's coordinates.
+  final Rect tick;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      BoxConstraints(
+        maxWidth: math.max(0, constraints.maxWidth - tick.center.dx),
+      );
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) => Offset(
+    tick.center.dx - childSize.width / 2,
+    tick.top - 4 - childSize.height,
+  );
+
+  @override
+  bool shouldRelayout(_AxisLabelTooltipLayout oldDelegate) =>
+      oldDelegate.tick != tick;
 }
