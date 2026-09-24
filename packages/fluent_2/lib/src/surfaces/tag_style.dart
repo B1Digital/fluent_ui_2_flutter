@@ -24,6 +24,7 @@ class FluentTagStyle {
   const FluentTagStyle({
     this.backgroundColor,
     this.foregroundColor,
+    this.iconColor,
     this.dismissForegroundColor,
     this.borderColor,
     this.borderWidth,
@@ -46,12 +47,21 @@ class FluentTagStyle {
   /// Label and media colour.
   final WidgetStateProperty<Color?>? foregroundColor;
 
+  /// Leading icon colour. Null follows [foregroundColor].
+  ///
+  /// An outline interaction tag tints its active icon
+  /// `colorNeutralForeground2BrandHover` / `Pressed` while the label goes
+  /// neutral (`useInteractionTagPrimaryStyles.styles.ts`,
+  /// `.fui-Icon-filled`).
+  final WidgetStateProperty<Color?>? iconColor;
+
   /// Dismiss glyph colour.
   ///
   /// A separate ramp from [foregroundColor] rather than a duplicate of it: the
   /// dismiss glyph takes *brand* colour on hover and press
-  /// (`neutralForeground2BrandHover`), which is what marks it as the
-  /// interactive part of an otherwise inert tag.
+  /// (`colorCompoundBrandForeground1Hover` on a tag,
+  /// `colorNeutralForeground2BrandHover` on an interaction tag's dismiss
+  /// half), which is what marks it as the interactive part.
   final WidgetStateProperty<Color?>? dismissForegroundColor;
 
   /// Border colour. Null and transparent are different: Fluent's
@@ -105,6 +115,7 @@ class FluentTagStyle {
     return FluentTagStyle(
       backgroundColor: other.backgroundColor ?? backgroundColor,
       foregroundColor: other.foregroundColor ?? foregroundColor,
+      iconColor: other.iconColor ?? iconColor,
       dismissForegroundColor:
           other.dismissForegroundColor ?? dismissForegroundColor,
       borderColor: other.borderColor ?? borderColor,
@@ -126,6 +137,7 @@ class FluentTagStyle {
   FluentTagStyle copyWith({
     WidgetStateProperty<Color?>? backgroundColor,
     WidgetStateProperty<Color?>? foregroundColor,
+    WidgetStateProperty<Color?>? iconColor,
     WidgetStateProperty<Color?>? dismissForegroundColor,
     WidgetStateProperty<Color?>? borderColor,
     WidgetStateProperty<double?>? borderWidth,
@@ -142,6 +154,7 @@ class FluentTagStyle {
   }) => FluentTagStyle(
     backgroundColor: backgroundColor ?? this.backgroundColor,
     foregroundColor: foregroundColor ?? this.foregroundColor,
+    iconColor: iconColor ?? this.iconColor,
     dismissForegroundColor:
         dismissForegroundColor ?? this.dismissForegroundColor,
     borderColor: borderColor ?? this.borderColor,
@@ -165,6 +178,7 @@ class FluentTagStyle {
   static FluentTagStyle from({
     Color? backgroundColor,
     Color? foregroundColor,
+    Color? iconColor,
     Color? dismissForegroundColor,
     Color? borderColor,
     double? borderWidth,
@@ -181,6 +195,7 @@ class FluentTagStyle {
   }) => FluentTagStyle(
     backgroundColor: _all(backgroundColor),
     foregroundColor: _all(foregroundColor),
+    iconColor: _all(iconColor),
     dismissForegroundColor: _all(dismissForegroundColor),
     borderColor: _all(borderColor),
     borderWidth: _all(borderWidth),
@@ -204,6 +219,7 @@ class FluentTagStyle {
       other is FluentTagStyle &&
       other.backgroundColor == backgroundColor &&
       other.foregroundColor == foregroundColor &&
+      other.iconColor == iconColor &&
       other.dismissForegroundColor == dismissForegroundColor &&
       other.borderColor == borderColor &&
       other.borderWidth == borderWidth &&
@@ -222,6 +238,7 @@ class FluentTagStyle {
   int get hashCode => Object.hash(
     backgroundColor,
     foregroundColor,
+    iconColor,
     dismissForegroundColor,
     borderColor,
     borderWidth,
