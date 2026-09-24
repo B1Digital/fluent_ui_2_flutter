@@ -2,7 +2,6 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
-import '../internal/anchor_metrics.dart';
 import '../l10n/l10n.dart';
 import 'axis/tick_format.dart';
 import 'chrome/chart_popover.dart';
@@ -12,6 +11,7 @@ import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
 import 'internal/chart_utils.dart';
 import 'internal/d3/js_math.dart' as d3;
+import 'internal/overlay_chart_popover.dart';
 import 'model/bar_data.dart';
 import 'model/cartesian_series.dart';
 
@@ -696,19 +696,13 @@ class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
     if (widget.hideTooltip || point == null || anchor == null) {
       return const SizedBox.shrink();
     }
-    // The anchor is global, and the popover lays out in the overlay's space.
-    final origin =
-        fluentAnchorRect(Overlay.of(context).context)?.topLeft ?? Offset.zero;
-    // ponytail: placed as it opens, like FluentPopover's entry; a page
-    // scrolled under an open popover leaves it where it was. Re-measure
-    // during layout if that ever matters.
-    return IgnorePointer(
-      // Transparent to the pointer, so a surface laid over the bars neither
-      // swallows their hover nor reads as the pointer leaving the chart.
-      child: FluentChartPopover(
-        data: _popoverData(point),
-        anchor: anchor - origin,
-      ),
+    // The anchor is the pointer on the screen. Transparent to the pointer, so
+    // a surface laid over the bars neither swallows their hover nor reads as
+    // the pointer leaving the chart.
+    return buildFluentOverlayChartPopover(
+      context,
+      anchorRect: Rect.fromLTWH(anchor.dx, anchor.dy, 0, 0),
+      data: _popoverData(point),
     );
   }
 

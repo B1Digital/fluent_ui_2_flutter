@@ -21,6 +21,7 @@ import 'internal/d3/shape_radial.dart' as d3;
 import 'internal/d3/stable_sort.dart' as d3;
 import 'internal/data_viz_palette.dart';
 import 'internal/image_export.dart';
+import 'internal/overlay_chart_popover.dart';
 import 'model/chart_common.dart';
 import 'model/chart_value.dart';
 import 'model/line_options.dart';
@@ -1490,58 +1491,30 @@ class FluentPolarChartState extends State<FluentPolarChart> {
   /// overlay's coordinates.
   Widget _buildPopover(BuildContext context, FluentPolarLayout l) {
     final marker = _popoverMarker;
-    final plot = _boundaryKey.currentContext?.findRenderObject();
-    final overlay = Overlay.of(context).context.findRenderObject();
+    final plot = _boundaryKey.currentContext;
     // `:676` gates the whole popover on `!hideTooltip`.
-    if (widget.hideTooltip ||
-        marker == null ||
-        plot is! RenderBox ||
-        !plot.attached ||
-        overlay is! RenderBox) {
+    if (widget.hideTooltip || marker == null || plot == null) {
       return const SizedBox.shrink();
     }
-    final toOverlay = plot.getTransformTo(overlay);
-    final toPlot = Matrix4.tryInvert(toOverlay);
-    if (toPlot == null) {
-      return const SizedBox.shrink();
-    }
-    // Laid out in the overlay against the plot as it sits now. The follower
-    // paints in the plot's space as it sits when painted, and undoing the first
-    // leaves only how far the page has moved it since: a scroll under a
-    // resting pointer sends no hover, so nothing rebuilds this.
-    // ponytail: flip and shift are decided at build, as FluentPopover's are,
-    // so a popover scrolled to an edge is not pushed back in until the next
-    // marker rebuilds it.
-    return CompositedTransformFollower(
+    return buildFluentOverlayChartPopover(
+      context,
+      anchorContext: plot,
       link: _link,
-      showWhenUnlinked: false,
-      child: Transform(
-        transform: toPlot,
-        // Not interactive: a surface flipped over the plot would pull the
-        // pointer off the marker that opened it.
-        child: IgnorePointer(
-          child: FluentChartPopover(
-            data: FluentChartPopoverData(
-              xValue: marker.popoverXValue,
-              legend: marker.legend,
-              color: marker.color,
-              yValue: marker.popoverYValue,
-              // `:677-686` pass no isCartesian.
-              isCartesian: false,
-            ),
-            // `:504` and `:679-681` target the hovered <circle> itself, so the
-            // surface centres on the marker and clears its box, not its centre:
-            // the storybook's Mike/Math surface starts at the circle's bottom,
-            // 135.23, plus 20.
-            anchorRect: MatrixUtils.transformRect(
-              toOverlay,
-              Rect.fromCircle(
-                center: l.centre + marker.position,
-                radius: marker.radius,
-              ),
-            ),
-          ),
-        ),
+      data: FluentChartPopoverData(
+        xValue: marker.popoverXValue,
+        legend: marker.legend,
+        color: marker.color,
+        yValue: marker.popoverYValue,
+        // `:677-686` pass no isCartesian.
+        isCartesian: false,
+      ),
+      // `:504` and `:679-681` target the hovered <circle> itself, so the
+      // surface centres on the marker and clears its box, not its centre: the
+      // storybook's Mike/Math surface starts at the circle's bottom, 135.23,
+      // plus 20.
+      anchorRect: Rect.fromCircle(
+        center: l.centre + marker.position,
+        radius: marker.radius,
       ),
     );
   }

@@ -6,7 +6,6 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
-import '../internal/anchor_metrics.dart';
 import '../l10n/l10n.dart';
 import 'axis/axis_label_layout.dart';
 import 'axis/tick_format.dart';
@@ -25,6 +24,7 @@ import 'internal/d3/path_sink.dart' as d3;
 import 'internal/d3/shape_arc.dart' as d3;
 import 'internal/d3/shape_pie.dart' as d3;
 import 'internal/data_viz_palette.dart';
+import 'internal/overlay_chart_popover.dart';
 import 'model/bar_data.dart';
 import 'model/cartesian_series.dart';
 
@@ -280,31 +280,6 @@ Path _arcPathOf(
     sink,
   );
   return sink.path;
-}
-
-/// [path]'s tight bounding box: SVG's `getBBox`, which is what
-/// `getBoundingClientRect` hands a popover's `positioning.target`.
-///
-/// [Path.getBounds] also takes in the control points of the conics Skia
-/// splits an arc into, and those run far past any arc that does not start on
-/// an axis: the basic story's 229-degree 'second' slice measured 382..580 x
-/// 82..304 against Chrome's 420..581 x 82..266.
-///
-/// ponytail: sampled every half pixel along the outline, which is exact to
-/// well under a pixel for a popover anchor and costs O(perimeter).
-Rect _tightBounds(Path path) {
-  Rect? bounds;
-  for (final metric in path.computeMetrics()) {
-    for (var distance = 0.0; ; distance += 0.5) {
-      final point = metric
-          .getTangentForOffset(math.min(distance, metric.length))!
-          .position;
-      final dot = Rect.fromPoints(point, point);
-      bounds = bounds?.expandToInclude(dot) ?? dot;
-      if (distance >= metric.length) break;
-    }
-  }
-  return bounds ?? Rect.zero;
 }
 
 /// One arc label, already positioned and aligned.
@@ -639,14 +614,14 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
   /// Targets the popover at [arc], or clears it when [arc] is null.
   ///
   /// Only the targeted arc is measured, and only when the target changes:
-  /// [_tightBounds] walks the whole outline, so measuring every arc on every
-  /// build cost a 30-slice, 900px donut 22ms a build in the test VM.
+  /// [fluentTightPathBounds] walks the whole outline, so measuring every arc
+  /// on every build cost a 30-slice, 900px donut 22ms a build in the test VM.
   void _setHovered(FluentChartDataPoint? point, Path? arc) {
     if (point != null) _popoverPortal.show();
     setState(() {
       _hovered = point;
       _anchorArc = arc?.getBounds();
-      _anchor = arc == null ? null : _tightBounds(arc);
+      _anchor = arc == null ? null : fluentTightPathBounds(arc);
     });
   }
 
@@ -768,44 +743,42 @@ class _FluentDonutChartState extends State<FluentDonutChart> {
   Widget _buildPopover(BuildContext context) {
     final point = _hovered;
     final anchor = _anchor;
+    final plot = _plotKey.currentContext;
     // DonutChart.tsx:398-400.
-    if (widget.hideTooltip || !_isPopoverOpen || anchor == null) {
+    if (widget.hideTooltip ||
+        !_isPopoverOpen ||
+        anchor == null ||
+        plot == null) {
       return const SizedBox.shrink();
     }
     // ChartPopover.tsx:41 spreads these over the chart's props, then :43-44
     // still prefer the datum's callout values to the legend and the reading.
     final custom = widget.calloutPropsPerDataPoint?.call(point!);
     final culture = widget.culture;
-    // The popover takes no pointer, so the pointer stays over the chart that
-    // opened it rather than leaving it for the surface.
-    return IgnorePointer(
-      child: FluentChartPopover(
-        // Off the plot's render box rather than a leader layer, because the
-        // overlay is a screen-space tree — see [fluentAnchorRect].
-        anchorRect: anchor.shift(
-          fluentAnchorRect(_plotKey.currentContext!)?.topLeft ?? Offset.zero,
-        ),
-        data: FluentChartPopoverData(
-          xValue: custom?.xValue,
-          // ChartPopover.tsx:80 and :89 run both through formatToLocaleString,
-          // so a numeric reading groups: 20000 reads 20,000. The raw reading
-          // is `data.data!.toString()` (DonutChart.tsx:180).
-          legend: formatToLocaleString(
-            point!.xAxisCalloutData ?? custom?.legend ?? point.legend,
-            culture: culture,
-          ),
-          yValue: formatToLocaleString(
-            point.yAxisCalloutData ?? custom?.yValue ?? point.data,
-            culture: culture,
-          ),
-          color: custom?.color ?? point.color,
-          ratio: custom?.ratio,
-          descriptionMessage: custom?.descriptionMessage,
+    return buildFluentOverlayChartPopover(
+      context,
+      anchorContext: plot,
+      anchorRect: anchor,
+      data: FluentChartPopoverData(
+        xValue: custom?.xValue,
+        // ChartPopover.tsx:80 and :89 run both through formatToLocaleString,
+        // so a numeric reading groups: 20000 reads 20,000. The raw reading
+        // is `data.data!.toString()` (DonutChart.tsx:180).
+        legend: formatToLocaleString(
+          point!.xAxisCalloutData ?? custom?.legend ?? point.legend,
           culture: culture,
-          // DonutChart.tsx:413.
-          isCartesian: false,
-          customContentBuilder: _customPopoverBody(context),
         ),
+        yValue: formatToLocaleString(
+          point.yAxisCalloutData ?? custom?.yValue ?? point.data,
+          culture: culture,
+        ),
+        color: custom?.color ?? point.color,
+        ratio: custom?.ratio,
+        descriptionMessage: custom?.descriptionMessage,
+        culture: culture,
+        // DonutChart.tsx:413.
+        isCartesian: false,
+        customContentBuilder: _customPopoverBody(context),
       ),
     );
   }

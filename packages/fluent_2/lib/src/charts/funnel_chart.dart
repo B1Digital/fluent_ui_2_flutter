@@ -13,6 +13,7 @@ import 'internal/chart_colors.dart';
 import 'internal/chart_text_measurer.dart';
 import 'internal/chart_text_styles.dart';
 import 'internal/data_viz_palette.dart';
+import 'internal/overlay_chart_popover.dart';
 
 /// The direction a funnel's stages run in.
 ///
@@ -1039,45 +1040,16 @@ class _FluentFunnelChartState extends State<FluentFunnelChart> {
               controller: _portal,
               overlayChildBuilder: (context) {
                 final index = _callout;
-                final box = _plotKey.currentContext?.findRenderObject();
-                final overlay = Overlay.of(context).context.findRenderObject();
-                if (index == null ||
-                    index >= segments.length ||
-                    box is! RenderBox ||
-                    !box.attached ||
-                    overlay is! RenderBox) {
+                final plot = _plotKey.currentContext;
+                if (index == null || index >= segments.length || plot == null) {
                   return const SizedBox.shrink();
                 }
-                final toOverlay = box.getTransformTo(overlay);
-                final toFunnel = Matrix4.tryInvert(toOverlay);
-                if (toFunnel == null) {
-                  return const SizedBox.shrink();
-                }
-                // Laid out in the overlay against the funnel as it sits now.
-                // The follower paints in the funnel's space as it sits when
-                // painted, and undoing the first leaves only how far the page
-                // has moved it since: a scroll under a resting pointer sends
-                // no hover, so nothing rebuilds this.
-                // ponytail: flip and shift are decided at build, as
-                // FluentPopover's are, so a callout scrolled to an edge is not
-                // pushed back in until the next stage rebuilds it.
-                return CompositedTransformFollower(
+                return buildFluentOverlayChartPopover(
+                  context,
+                  anchorContext: plot,
                   link: _link,
-                  showWhenUnlinked: false,
-                  child: Transform(
-                    transform: toFunnel,
-                    // Not interactive: over its own segment the surface would
-                    // pull the pointer off the mark that opened it.
-                    child: IgnorePointer(
-                      child: FluentChartPopover(
-                        anchorRect: MatrixUtils.transformRect(
-                          toOverlay,
-                          segments[index].geometry.path!.getBounds(),
-                        ),
-                        data: callouts[index],
-                      ),
-                    ),
-                  ),
+                  anchorRect: segments[index].geometry.path!.getBounds(),
+                  data: callouts[index],
                 );
               },
               child: Stack(

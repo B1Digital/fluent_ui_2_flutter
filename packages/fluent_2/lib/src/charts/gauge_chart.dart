@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
-import '../internal/anchor_metrics.dart';
 import '../l10n/l10n.dart';
 import 'axis/axis_label_layout.dart';
 import 'axis/tick_format.dart';
@@ -20,6 +19,7 @@ import 'internal/d3/js_math.dart' as d3;
 import 'internal/d3/path_sink.dart' as d3;
 import 'internal/d3/shape_arc.dart' as d3;
 import 'internal/data_viz_palette.dart';
+import 'internal/overlay_chart_popover.dart';
 import 'model/chart_common.dart';
 
 /// Which of the two gauge layouts upstream's `variant` prop selects.
@@ -449,31 +449,6 @@ Path fluentGaugeNeedlePath({
         )
         ..close())
       .shift(Offset(dx, 0));
-}
-
-/// [path]'s tight bounding box: SVG's `getBBox`, which is what
-/// `getBoundingClientRect` hands a popover's `positioning.target`.
-///
-/// [Path.getBounds] also takes in the control points of the conics Skia
-/// splits an arc into, and those run far past any arc that does not start on
-/// an axis: DonutChart's basic story measured a 229-degree slice at 382..580 x
-/// 82..304 against Chrome's 420..581 x 82..266.
-///
-/// ponytail: sampled every half pixel along the outline, which is exact to
-/// well under a pixel for a popover anchor and costs O(perimeter).
-Rect _tightBounds(Path path) {
-  Rect? bounds;
-  for (final metric in path.computeMetrics()) {
-    for (var distance = 0.0; ; distance += 0.5) {
-      final point = metric
-          .getTangentForOffset(math.min(distance, metric.length))!
-          .position;
-      final dot = Rect.fromPoints(point, point);
-      bounds = bounds?.expandToInclude(dot) ?? dot;
-      if (distance >= metric.length) break;
-    }
-  }
-  return bounds ?? Rect.zero;
 }
 
 /// Paints a gauge: the limits, then the bands, then the needle, then the
@@ -1286,7 +1261,7 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
           // needle's [-18,-4,22,8] bbox reports 21.21 square.
           final needleBox = MatrixUtils.transformRect(
             needleTurn,
-            _tightBounds(needlePath),
+            fluentTightPathBounds(needlePath),
           ).shift(layout.origin);
           // The chart value's text box (`:668-679`), whose alphabetic
           // baseline is the origin. Measured upstream at 492.49,230 39.02x27
@@ -1301,14 +1276,14 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
           /// The box the callout targets for [element], or null for none.
           ///
           /// A segment's is its path's tight box, measured only for the one
-          /// element the callout is open on: [_tightBounds] walks the whole
-          /// outline, too slow to run for every segment on every build.
+          /// element the callout is open on: [fluentTightPathBounds] walks the
+          /// whole outline, too slow to run for every segment on every build.
           Rect? targetOf(String element) {
             if (element == _kNeedleAnchor) return needleBox;
             if (element == _kChartValueAnchor) return valueBox;
             for (final arc in arcs) {
               if (layout.segments[arc.segmentIndex].legend == element) {
-                return _tightBounds(arc.path).shift(layout.origin);
+                return fluentTightPathBounds(arc.path).shift(layout.origin);
               }
             }
             return null;
@@ -1547,6 +1522,7 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
                             OverlayPortal(
                               controller: _popoverPortal,
                               overlayChildBuilder: (context) => _buildCallout(
+                                context,
                                 targetOf(_calloutAnchor),
                                 layout,
                                 // GaugeChart.tsx:386-387 — the callout inverts
@@ -1688,28 +1664,28 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
 
   /// The overlay child: the callout on [target], or nothing while it is
   /// closed.
-  Widget _buildCallout(Rect? target, FluentGaugeLayout layout, String xValue) {
+  Widget _buildCallout(
+    BuildContext context,
+    Rect? target,
+    FluentGaugeLayout layout,
+    String xValue,
+  ) {
+    final plot = _plotKey.currentContext;
     // GaugeChart.tsx:399-401 — the needle and the chart value always open
     // it; a segment only while it is not dimmed.
     if (target == null ||
+        plot == null ||
         (_isSegment(_calloutAnchor) && _isDimmed(_calloutAnchor))) {
       return const SizedBox.shrink();
     }
-    // The popover takes no pointer, so the pointer stays over the plot that
-    // opened it rather than leaving it for the surface.
-    return IgnorePointer(
-      child: FluentChartPopover(
-        // Off the plot's render box rather than a leader layer, because the
-        // overlay is a screen-space tree and a gauge scrolled down a page has
-        // to anchor where it is drawn — see [fluentAnchorRect].
-        anchorRect: target.shift(
-          fluentAnchorRect(_plotKey.currentContext!)?.topLeft ?? Offset.zero,
-        ),
-        data: FluentChartPopoverData(
-          isCartesian: false,
-          customContentBuilder: (context) =>
-              _buildCalloutBody(context, xValue, layout),
-        ),
+    return buildFluentOverlayChartPopover(
+      context,
+      anchorContext: plot,
+      anchorRect: target,
+      data: FluentChartPopoverData(
+        isCartesian: false,
+        customContentBuilder: (context) =>
+            _buildCalloutBody(context, xValue, layout),
       ),
     );
   }
