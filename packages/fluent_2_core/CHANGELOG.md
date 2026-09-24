@@ -1,3 +1,15 @@
+## Unreleased
+
+### Fixed
+
+- **`FluentApp` remounted the whole app the first time it rebuilt after the
+  fonts loaded.** On a platform that loads fonts, `build()` returned a
+  `FutureBuilder` until they loaded and the app directly on any later rebuild,
+  so the root widget type changed and every `State` below was lost — a parent
+  toggling `themeMode` wiped routes, typed text and scroll positions. It now
+  always returns the one `FutureBuilder` and builds the app as soon as the
+  fonts are loaded.
+
 ## 0.0.3
 
 ### Added

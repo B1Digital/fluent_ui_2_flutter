@@ -297,7 +297,7 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/overlays/dialog.dart`
-- Tests: `packages/fluent_2/test/goldens/dialog_golden_test.dart`, `packages/fluent_2/test/l10n/localizations_test.dart`, `packages/fluent_2/test/overlays/dialog_test.dart`
+- Tests: `packages/fluent_2/test/goldens/dialog_golden_test.dart`, `packages/fluent_2/test/inputs/dropdown_test.dart`, `packages/fluent_2/test/l10n/localizations_test.dart`, `packages/fluent_2/test/overlays/dialog_test.dart`
 - Stories: `packages/fluent_2/example/lib/pages/components_carousel_carousel.dart`, `packages/fluent_2/example/lib/pages/components_dialog.dart`, `packages/fluent_2/example/lib/pages/components_drawer.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/dialog/usage/
 - Design decisions: `references/components-surfaces-feedback.md`

@@ -479,11 +479,12 @@ class _FilteringState extends State<_Filtering> {
           // picker filters the chosen ones out of the popup itself.
           if (_selected.contains(employee.name) || matches.contains(employee))
             _filteringOption(employee),
+        // An ordinary option upstream — it takes the active ring — whose pick
+        // the story's `onOptionSelect` ignores.
         if (matches.isEmpty)
           const FluentTagPickerOption<String>(
             value: 'no-matches',
             label: Text("We couldn't find any matches"),
-            enabled: false,
           ),
       ]);
   }
@@ -499,7 +500,11 @@ class _FilteringState extends State<_Filtering> {
         selected: _selected,
         options: _options,
         onChanged: (List<String> values) => setState(() {
+          if (values.contains('no-matches')) return;
           _selected = values;
+          // The story's `onOptionSelect` empties the query, for a pick and a
+          // dismissal alike: the picker leaves a caller's controller alone.
+          _query.clear();
           _filter();
         }),
       ),

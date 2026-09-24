@@ -44,6 +44,25 @@ void main() {
   group('default', () {
     final DocsSection section = sectionOf('components-searchbox--default');
 
+    testWidgets('the box keeps its 468 cap inside the stretching field', (
+      WidgetTester tester,
+    ) async {
+      // Chrome, 600px viewport: the Field's grid is 520 wide and stretches
+      // its items, but a grid stretch stops at the SearchBox's max-width, so
+      // the box is 468, flush left. The canvas's own layout: loose, top-start.
+      await pumpSection(
+        tester,
+        section,
+        size: const Size(600, 760),
+        loose: true,
+        inset: const EdgeInsets.all(24),
+      );
+
+      final Rect box = tester.getRect(find.byType(FluentSearchBox));
+      expect(box.width, 468);
+      expect(box.left, 24, reason: 'aligned to the start, as upstream');
+    });
+
     testWidgets('the clear button arrives with focus, not before', (
       WidgetTester tester,
     ) async {
@@ -306,7 +325,15 @@ void main() {
       // why it did.
       expect(editedText(tester, box), 'initial value');
       expect(find.text('Input is limited to 20 characters.'), findsOneWidget);
-      expect(find.byIcon(FluentIcons.warning_12_filled), findsOneWidget);
+      // Field's own default glyph for a warning: upstream's Warning12Filled.
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is FluentFieldValidationGlyph &&
+              w.state == FluentFieldValidationState.warning,
+        ),
+        findsOneWidget,
+      );
       expect(
         tester.widget<FluentField>(find.byType(FluentField)).validationState,
         FluentFieldValidationState.warning,

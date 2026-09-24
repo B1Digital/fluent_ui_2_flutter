@@ -150,7 +150,7 @@ const FluentDropdownBaseState({
 
 ### `FluentDropdownEdgeIntent`
 
-Jumps the active option to the first or last selectable row.
+Jumps the active option to the first or last option row.
 
 Source: `packages/fluent_2/lib/src/inputs/dropdown.dart`
 
@@ -491,7 +491,7 @@ signatures above and verify any new example with Dart analysis and a widget test
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/inputs/dropdown.dart`
-- Tests: `packages/fluent_2/test/goldens/dropdown_golden_test.dart`, `packages/fluent_2/test/goldens/time_picker_golden_test.dart`, `packages/fluent_2/test/inputs/dropdown_test.dart`, `packages/fluent_2/test/inputs/tag_picker_test.dart`, `packages/fluent_2/test/inputs/time_picker_test.dart`, `packages/fluent_2/test/navigation/toolbar_test.dart`, `packages/fluent_2/test/overlays/popover_test.dart`
+- Tests: `packages/fluent_2/test/goldens/dropdown_golden_test.dart`, `packages/fluent_2/test/goldens/time_picker_golden_test.dart`, `packages/fluent_2/test/inputs/dropdown_test.dart`, `packages/fluent_2/test/inputs/tag_picker_test.dart`, `packages/fluent_2/test/navigation/toolbar_test.dart`, `packages/fluent_2/test/overlays/popover_test.dart`
 - Stories: `packages/fluent_2/example/lib/pages/charts_declarativechart.dart`, `packages/fluent_2/example/lib/pages/charts_horizontalbarchartwithaxis.dart`, `packages/fluent_2/example/lib/pages/charts_vegadeclarativechart.dart`, `packages/fluent_2/example/lib/pages/charts_verticalstackedbarchart.dart`, `packages/fluent_2/example/lib/pages/compat_components_calendar.dart`, `packages/fluent_2/example/lib/pages/compat_components_datepicker.dart`, `packages/fluent_2/example/lib/pages/components_carousel_carousel.dart`, `packages/fluent_2/example/lib/pages/components_dropdown.dart`, `packages/fluent_2/example/lib/pages/components_field.dart`, `packages/fluent_2/example/lib/shell/widgets/docs_toolbar.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/select/usage/
 - Design decisions: `references/components-actions-inputs.md`

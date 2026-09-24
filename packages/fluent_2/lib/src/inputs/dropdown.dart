@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -649,7 +650,7 @@ class FluentDropdownMoveIntent extends Intent {
   final int delta;
 }
 
-/// Jumps the active option to the first or last selectable row.
+/// Jumps the active option to the first or last option row.
 class FluentDropdownEdgeIntent extends Intent {
   /// Creates an intent to jump to an end of the list.
   const FluentDropdownEdgeIntent({required this.last});
@@ -693,11 +694,18 @@ class FluentDropdownActivateIntent extends Intent {
 ///
 /// | Key | Closed | Open |
 /// |---|---|---|
-/// | Down / Up | opens, active on the selected option | moves the active option |
-/// | Home / End | opens, active on the first / last option | jumps to first / last |
-/// | Enter / Space | opens | selects the active option and closes |
+/// | Down / Up | opens, active on the selected option, else the first | moves the active option, disabled rows included |
+/// | Alt+Up | as Up | as Enter |
+/// | Home / End | — | jumps to first / last |
+/// | PageUp / PageDown | — | moves ten options, stopping at either end |
+/// | Enter (either) / Space | opens | selects the active option and closes; nothing on a disabled one |
 /// | Escape | — | closes, nothing selected |
 /// | Tab | moves on | closes, then moves on |
+///
+/// Shift, Ctrl, Meta and Alt change none of these keys but Up, as upstream
+/// reads the key alone. A key marked — is not taken at all, so it still
+/// reaches an ancestor: PageUp and PageDown scroll the page, as upstream leaves
+/// them to the browser, and Escape closes a dialog around the dropdown.
 ///
 /// Focus never leaves the trigger while the popup is open — the rows are
 /// deliberately outside the traversal order, so "focus returns to the trigger
@@ -881,6 +889,18 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
     if (!_enabled) {
       deferOrRun(_close);
     } else if (_open) {
+      // A list that changed under the popup can leave `_active` past its end
+      // or on a header. Upstream re-runs `first()` when the children change
+      // with nothing active, and a row gone from the DOM is not active.
+      // ponytail: by index, so a row removed ABOVE the active one shifts it;
+      // track the active value if that ever matters.
+      final active = _active;
+      if (active == null ||
+          active >= widget.options.length ||
+          widget.options[active].isHeader) {
+        _active = _seek(0, 1);
+        _revealActive();
+      }
       // Deferred for the same reason the close above is: `didUpdateWidget` runs
       // inside the parent's build, and the entry lives in the Overlay's branch,
       // which that build has already passed. A parent that rebuilds while the
@@ -951,27 +971,24 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
     return null;
   }
 
-  bool _selectable(int index) {
-    final option = widget.options[index];
-    return option.enabled && !option.isHeader;
-  }
-
-  /// The first selectable row at or after [from], walking by [delta].
+  /// The first option row at or after [from], walking by [delta]. Disabled
+  /// rows count: upstream's option walker visits them (Chrome), and only a
+  /// header is not an option.
   int? _seek(int from, int delta) {
     for (var i = from; i >= 0 && i < widget.options.length; i += delta) {
-      if (_selectable(i)) return i;
+      if (!widget.options[i].isHeader) return i;
     }
     return null;
   }
 
-  void _openPopup({int? active}) {
+  void _openPopup() {
     if (_open || !_enabled) return;
     final overlay = Overlay.of(context, debugRequiredFor: widget);
     // FluentTheme is an InheritedTheme, so this carries it — and any other
     // InheritedTheme between here and the overlay, including
     // FluentDropdownOptionTheme — across the boundary.
     final captured = InheritedTheme.capture(from: context, to: overlay.context);
-    _active = active ?? _selectedIndex ?? _seek(0, 1);
+    _active = _selectedIndex ?? _seek(0, 1);
     _entry = OverlayEntry(builder: (_) => captured.wrap(_buildPopup()));
     overlay.insert(_entry!);
     setState(() {});
@@ -1019,47 +1036,69 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
     _revealActive();
   }
 
-  /// Scrolls the active row into view on the next frame, once the popup has
-  /// rebuilt and the row's element exists.
+  /// Upstream's `scrollIntoView`, run on the next frame once the row exists:
+  /// nothing while the row is fully in view, else the least scroll that shows
+  /// it 2px clear of the edge it was past (Chrome: arrows, Home/End and
+  /// opening on a selection alike).
   void _revealActive() {
     final index = _active;
     if (index == null) return;
     SchedulerBinding.instance.addPostFrameCallback((_) {
       final target = _rowKeys[index]?.currentContext;
-      if (target != null) Scrollable.ensureVisible(target, alignment: 0.5);
+      final row = target?.findRenderObject();
+      if (row is! RenderBox || !row.attached) return;
+      final position = Scrollable.of(target!).position;
+      final top = RenderAbstractViewport.of(
+        row,
+      ).getOffsetToReveal(row, 0).offset;
+      final bottom = top + row.size.height;
+      const buffer = 2.0;
+      final double to;
+      if (top < position.pixels) {
+        to = top - buffer;
+      } else if (bottom > position.pixels + position.viewportDimension) {
+        to = bottom - position.viewportDimension + buffer;
+      } else {
+        return;
+      }
+      position.jumpTo(
+        to.clamp(position.minScrollExtent, position.maxScrollExtent),
+      );
     });
   }
 
   void _move(int delta) {
+    // Up opens exactly as Down does, on the selection or the first row.
     if (!_open) {
-      _openPopup(active: _selectedIndex ?? _seek(delta > 0 ? 0 : _last, delta));
+      _openPopup();
       return;
     }
-    final from = (_active ?? (delta > 0 ? -1 : widget.options.length)) + delta;
-    _setActive(_seek(from, delta));
+    // One option row at a time, each revealed in turn, staying put at an end:
+    // upstream's PageDown is `next()` ten times, each with its own
+    // `scrollIntoView`, and `next()` on the last row stays there (Chrome).
+    final step = delta.sign;
+    for (var i = 0; i < delta.abs(); i++) {
+      final from = _active ?? (step > 0 ? -1 : widget.options.length);
+      _setActive(_seek(from + step, step));
+    }
   }
 
   int get _last => widget.options.length - 1;
 
-  void _edge({required bool last}) {
-    final target = last ? _seek(_last, -1) : _seek(0, 1);
-    if (!_open) {
-      _openPopup(active: target);
-      return;
-    }
-    _setActive(target);
-  }
+  void _edge({required bool last}) =>
+      _setActive(last ? _seek(_last, -1) : _seek(0, 1));
 
   void _activate() {
     if (!_open) {
       _openPopup();
       return;
     }
+    // On a disabled row Enter and Space do nothing; the list stays open.
     final index = _active;
-    if (index != null && _selectable(index)) {
-      _select(index);
-    } else {
+    if (index == null) {
       _close();
+    } else if (widget.options[index].enabled) {
+      _select(index);
     }
   }
 
@@ -1098,18 +1137,26 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
     // Measured off the trigger's render box rather than the leader layer — see
     // [fluentAnchorRect] for why the layer lies once the page has scrolled.
     final anchor = fluentAnchorRect(context);
-    final surfaceStyle = style.surfaceMaxHeight != null
-        ? style
-        : style.copyWith(
-            surfaceMaxHeight: WidgetStatePropertyAll<double?>(
-              math.max(
-                MediaQuery.sizeOf(context).height -
-                    (anchor?.bottom ?? 0) -
-                    offset,
-                0,
-              ),
+    // The listbox's padding sits INSIDE its scroller upstream, so rows scroll
+    // through it and `scrollIntoView` measures its 2px from the listbox's own
+    // edge. Moved into the SingleChildScrollView below; the surface gets none.
+    final padding =
+        style.surfacePadding?.resolve(surfaceStates) ?? EdgeInsets.zero;
+    final surfaceStyle = style.copyWith(
+      surfacePadding: const WidgetStatePropertyAll<EdgeInsetsGeometry?>(
+        EdgeInsets.zero,
+      ),
+      surfaceMaxHeight:
+          style.surfaceMaxHeight ??
+          WidgetStatePropertyAll<double?>(
+            math.max(
+              MediaQuery.sizeOf(context).height -
+                  (anchor?.bottom ?? 0) -
+                  offset,
+              0,
             ),
-          );
+          ),
+    );
     final optionThemeStyle = FluentDropdownOptionTheme.maybeOf(context);
     final theme = FluentTheme.of(context);
 
@@ -1177,6 +1224,7 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
                     surfaceStyle,
                     surfaceStates,
                     SingleChildScrollView(
+                      padding: padding,
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1230,10 +1278,11 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
             buildFluentDropdownOption(state, style, <WidgetState>{
               ...states,
               // The active row is where the keyboard is, even though the
-              // framework's focus never leaves the trigger. `_active` is set by
-              // hover too, so on its own it means "active descendant" —
-              // upstream's `data-activedescendant`. The ring belongs to its
-              // focus-visible sibling, which is this AND.
+              // framework's focus never leaves the trigger. `_active` is
+              // upstream's `data-activedescendant`: only opening and the keys
+              // move it, never hover, which is the row's own state here as
+              // upstream. The ring belongs to its focus-visible sibling, which
+              // is this AND.
               if (index == _active && keyboard) WidgetState.focused,
             }),
       ),
@@ -1266,6 +1315,9 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
       focusNode: _focusNode,
       autofocus: widget.autofocus,
       mouseCursor: cursor,
+      // A held right press keeps the hover look in Chrome (#c7c7c7 sides,
+      // #0f6cbd bar); a middle one is `:active`.
+      pressedOnSecondary: false,
       // Here as well, because `FluentInteractive` shows the arrow while
       // disabled, and the resolved style's is upstream's `not-allowed`.
       builder: (context, states, _) => MouseRegion(
@@ -1312,19 +1364,32 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
           // option" while a tap still only toggles.
           child: Shortcuts(
             shortcuts: const <ShortcutActivator, Intent>{
-              SingleActivator(LogicalKeyboardKey.arrowDown):
+              // Alt+Up is upstream's 'CloseSelect', Enter's action, while open
+              // and 'Open', as Up, while closed (getDropdownActionFromKey,
+              // Chrome). First, so plain Up below never sees it.
+              _AnyModifiers(LogicalKeyboardKey.arrowUp, alt: true):
+                  FluentDropdownActivateIntent(),
+              _AnyModifiers(LogicalKeyboardKey.arrowDown):
                   FluentDropdownMoveIntent(1),
-              SingleActivator(LogicalKeyboardKey.arrowUp):
+              _AnyModifiers(LogicalKeyboardKey.arrowUp):
                   FluentDropdownMoveIntent(-1),
-              SingleActivator(LogicalKeyboardKey.home):
-                  FluentDropdownEdgeIntent(last: false),
-              SingleActivator(LogicalKeyboardKey.end): FluentDropdownEdgeIntent(
+              _AnyModifiers(LogicalKeyboardKey.home): FluentDropdownEdgeIntent(
+                last: false,
+              ),
+              _AnyModifiers(LogicalKeyboardKey.end): FluentDropdownEdgeIntent(
                 last: true,
               ),
-              SingleActivator(LogicalKeyboardKey.enter):
+              _AnyModifiers(LogicalKeyboardKey.pageUp): _PageIntent(-10),
+              _AnyModifiers(LogicalKeyboardKey.pageDown): _PageIntent(10),
+              // The keypad's Enter is `e.key` 'Enter' upstream too; left to
+              // the app's ActivateIntent it would only toggle, never commit.
+              _AnyModifiers(LogicalKeyboardKey.enter):
                   FluentDropdownActivateIntent(),
-              SingleActivator(LogicalKeyboardKey.space):
+              _AnyModifiers(LogicalKeyboardKey.numpadEnter):
                   FluentDropdownActivateIntent(),
+              _AnyModifiers(LogicalKeyboardKey.space):
+                  FluentDropdownActivateIntent(),
+              _AnyModifiers(LogicalKeyboardKey.escape): _CloseIntent(),
             },
             child: Actions(
               actions: <Type, Action<Intent>>{
@@ -1336,12 +1401,20 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
                       },
                     ),
                 FluentDropdownEdgeIntent:
-                    CallbackAction<FluentDropdownEdgeIntent>(
+                    _WhileOpenAction<FluentDropdownEdgeIntent>(
+                      this,
                       onInvoke: (intent) {
                         _edge(last: intent.last);
                         return null;
                       },
                     ),
+                _PageIntent: _WhileOpenAction<_PageIntent>(
+                  this,
+                  onInvoke: (intent) {
+                    _move(intent.delta);
+                    return null;
+                  },
+                ),
                 FluentDropdownActivateIntent:
                     CallbackAction<FluentDropdownActivateIntent>(
                       onInvoke: (_) {
@@ -1349,10 +1422,16 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
                         return null;
                       },
                     ),
-                // Only enabled while the popup is open, so Escape still reaches
-                // whatever an ancestor does with it when there is nothing to
-                // dismiss here.
-                DismissIntent: _DismissDropdownAction<T>(this),
+                // Not DismissIntent: `Actions.maybeFind` stops at the nearest
+                // action for an intent, enabled or not, so a closed trigger
+                // holding one hid a FluentDialog's own from the app's Escape.
+                _CloseIntent: _WhileOpenAction<_CloseIntent>(
+                  this,
+                  onInvoke: (_) {
+                    _close();
+                    return null;
+                  },
+                ),
               },
               // Chrome focuses a `<button>` on mousedown, whichever button, so
               // the bar grows while a press is still held; a tap would focus
@@ -1379,18 +1458,55 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
   }
 }
 
-/// Closes the popup on Escape, and only while there is one to close.
-class _DismissDropdownAction<T> extends Action<DismissIntent> {
-  _DismissDropdownAction(this.state);
+/// PageUp and PageDown: [delta] option rows, and only while open.
+class _PageIntent extends Intent {
+  const _PageIntent(this.delta);
 
-  final _FluentDropdownState<T> state;
+  final int delta;
+}
+
+/// Escape: closes the popup, and only while there is one.
+class _CloseIntent extends Intent {
+  const _CloseIntent();
+}
+
+/// [key] under any modifiers; with [alt], only while Alt is among them.
+///
+/// Upstream's `getDropdownActionFromKey` reads `e.key` alone: Shift, Ctrl,
+/// Meta and Alt change nothing but Up, where Alt commits (Chrome, the Default
+/// story). A [SingleActivator] wants its modifiers exact, so Shift+PageDown or
+/// Ctrl+Home slipped past the list.
+class _AnyModifiers extends ShortcutActivator {
+  const _AnyModifiers(this.key, {this.alt = false});
+
+  final LogicalKeyboardKey key;
+  final bool alt;
 
   @override
-  bool isEnabled(DismissIntent intent) => state._open;
+  Iterable<LogicalKeyboardKey> get triggers => <LogicalKeyboardKey>[key];
 
   @override
-  Object? invoke(DismissIntent intent) {
-    state._close();
-    return null;
-  }
+  bool accepts(KeyEvent event, HardwareKeyboard state) =>
+      event is! KeyUpEvent &&
+      event.logicalKey == key &&
+      (!alt || state.isAltPressed);
+
+  @override
+  String debugDescribeKeys() => '${alt ? 'Alt + ' : ''}${key.keyLabel}';
+}
+
+/// A key the popup takes only while it is up.
+///
+/// Closed, upstream's trigger maps Home, End, PageUp, PageDown and Escape to
+/// 'None' (`getDropdownActionFromKey`) and never calls preventDefault on them
+/// (Chrome), so the page still gets them. Reporting disabled rather than doing
+/// nothing is what lets them fall through here too: to WidgetsApp's page
+/// scroll, or its Escape -> DismissIntent and a dialog's action for it.
+class _WhileOpenAction<I extends Intent> extends CallbackAction<I> {
+  _WhileOpenAction(this.state, {required super.onInvoke});
+
+  final _FluentDropdownState<Object?> state;
+
+  @override
+  bool isEnabled(I intent) => state._open;
 }

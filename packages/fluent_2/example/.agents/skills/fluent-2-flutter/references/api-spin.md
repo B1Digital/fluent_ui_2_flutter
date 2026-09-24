@@ -385,7 +385,7 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/inputs/spin_button.dart`
-- Tests: `packages/fluent_2/test/goldens/spin_button_golden_test.dart`, `packages/fluent_2/test/inputs/selection_dismissal_test.dart`, `packages/fluent_2/test/inputs/spin_button_test.dart`, `packages/fluent_2/test/inputs/time_picker_test.dart`, `packages/fluent_2/test/internal/text_context_menu_test.dart`
+- Tests: `packages/fluent_2/test/goldens/spin_button_golden_test.dart`, `packages/fluent_2/test/inputs/dropdown_test.dart`, `packages/fluent_2/test/inputs/selection_dismissal_test.dart`, `packages/fluent_2/test/inputs/spin_button_test.dart`, `packages/fluent_2/test/inputs/time_picker_test.dart`, `packages/fluent_2/test/internal/text_context_menu_test.dart`
 - Stories: `packages/fluent_2/example/lib/pages/charts_verticalbarchart.dart`, `packages/fluent_2/example/lib/pages/charts_verticalstackedbarchart.dart`, `packages/fluent_2/example/lib/pages/components_carousel_carousel.dart`, `packages/fluent_2/example/lib/pages/components_colorpicker.dart`, `packages/fluent_2/example/lib/pages/components_field.dart`, `packages/fluent_2/example/lib/pages/components_spinbutton.dart`, `packages/fluent_2/example/lib/pages/components_toast.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/spin/usage/
 - Design decisions: `references/components-actions-inputs.md`

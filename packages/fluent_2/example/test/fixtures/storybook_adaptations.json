@@ -934,10 +934,6 @@
     "kind": "local-state",
     "why": "Every Fluent control in this port is controlled, while upstream's are uncontrolled (defaultValue). The story owns one piece of state per control so all eight demos stay interactive. Combobox has no port \u2014 FluentDropdown is the nearest select."
   },
-  "components-field--default": {
-    "kind": "slot",
-    "why": "FluentField ships no default validationMessageIcon (the icon set is not part of the package), so upstream's success default CheckmarkCircle12Filled is passed explicitly."
-  },
   "components-field--horizontal": {
     "kind": "composed",
     "why": "FluentField has no `orientation` \u2014 its label always sits above the control. Rebuilt as a Row with a 33/67 flex split, the label boxed to the 32px medium-input height so it centres on the control, and the field (hint only) as the second cell."
@@ -956,7 +952,7 @@
   },
   "components-field--validation-message": {
     "kind": "slot",
-    "why": "Same missing-default-glyph gap: error/warning/success each name upstream's default icon explicitly, and the error field sets FluentInput(error: true) for the red border upstream gets from aria-invalid."
+    "why": "The error field sets FluentInput(error: true) for the red border upstream gets from aria-invalid; Field does not reach into its control."
   },
   "components-infolabel--default": {
     "kind": "nearest-widget",
@@ -996,7 +992,7 @@
   },
   "components-label--required": {
     "kind": "slot",
-    "why": "Upstream's `required` prop is a bool-or-slot: `required=\"***\"` swaps the asterisk for a custom string or JSX. FluentLabel.required is a plain bool, so the second variant composes a Text('***') beside the label using the same statusDangerForeground3 token FluentLabel paints its own asterisk with."
+    "why": "Upstream's `required` prop is a bool-or-slot: `required=\"***\"` swaps the asterisk for a custom string or JSX. FluentLabel.required is a plain bool, so the second variant composes a Text('***') beside the label in the colour resolveFluentLabelStyle gives FluentLabel's own asterisk."
   },
   "components-link--appearance": {
     "kind": "nearest-widget",
@@ -1359,7 +1355,7 @@
   },
   "components-searchbox--controlled": {
     "kind": "local-state",
-    "why": "FluentSearchBox has no value prop \u2014 it is controller-driven. Refusing an over-long edit therefore means rolling the controller back to the last accepted value rather than simply not re-rendering, and FluentField takes the warning glyph (warning_12_filled) from the caller because it does not pick one per validation state."
+    "why": "FluentSearchBox has no value prop \u2014 it is controller-driven. Refusing an over-long edit therefore means rolling the controller back to the last accepted value rather than simply not re-rendering. FluentField draws the warning glyph itself, as upstream's Field does."
   },
   "components-searchbox--disabled": {
     "kind": "local-state",

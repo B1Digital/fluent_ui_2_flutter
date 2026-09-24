@@ -369,7 +369,7 @@ const FluentTagPickerMoveIntent(this.delta);
 
 ### `FluentTagPickerRemoveLastIntent`
 
-Removes the last chip. Only ever enabled while the field is empty.
+Moves focus from the field to the last chip, where a further Backspace or Delete removes it. Only enabled while the caret sits at the very start of the field.
 
 Source: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 

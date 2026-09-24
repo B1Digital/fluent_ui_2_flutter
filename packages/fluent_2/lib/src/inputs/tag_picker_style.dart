@@ -43,6 +43,9 @@ class FluentTagPickerStyle {
     this.padding,
     this.contentPadding,
     this.tagSpacing,
+    this.tagRunSpacing,
+    this.tagPadding,
+    this.fieldSpacing,
     this.fieldWidth,
     this.minimumSize,
     this.mouseCursor,
@@ -118,14 +121,30 @@ class FluentTagPickerStyle {
   /// chevron.
   final WidgetStateProperty<EdgeInsetsGeometry?>? padding;
 
-  /// Vertical inset around the tag strip and the field — upstream's
-  /// `TagPickerInput` padding, which is what sets the control's height.
+  /// Inset around the field — upstream's `TagPickerInput` padding, which is
+  /// what sets the control's height while it has no tags.
   final WidgetStateProperty<EdgeInsetsGeometry?>? contentPadding;
 
-  /// Space between the tags, and between a tag and the field.
+  /// Space between the tags on a row — upstream's `TagGroup` `columnGap`.
   final WidgetStateProperty<double?>? tagSpacing;
 
-  /// Width the text field takes once at least one tag is present.
+  /// Space between rows of tags — upstream's `TagPickerGroup` row `gap`.
+  /// Falls back to [tagSpacing].
+  final WidgetStateProperty<double?>? tagRunSpacing;
+
+  /// Inset around the tags — upstream's `TagPickerGroup` padding. Falls back
+  /// to [contentPadding].
+  final WidgetStateProperty<EdgeInsetsGeometry?>? tagPadding;
+
+  /// Space between the tags and a field on the same line — the control's
+  /// `columnGap`.
+  final WidgetStateProperty<double?>? fieldSpacing;
+
+  /// Narrowest the field may be beside the tags — upstream's `minWidth`.
+  ///
+  /// The field fills whatever the tags leave of their line, as upstream's
+  /// `flexGrow: 1` input does, while that is at least this wide and its text
+  /// fits; otherwise it takes a line of its own below them.
   final WidgetStateProperty<double?>? fieldWidth;
 
   /// Minimum size of the control.
@@ -214,6 +233,9 @@ class FluentTagPickerStyle {
       padding: other.padding ?? padding,
       contentPadding: other.contentPadding ?? contentPadding,
       tagSpacing: other.tagSpacing ?? tagSpacing,
+      tagRunSpacing: other.tagRunSpacing ?? tagRunSpacing,
+      tagPadding: other.tagPadding ?? tagPadding,
+      fieldSpacing: other.fieldSpacing ?? fieldSpacing,
       fieldWidth: other.fieldWidth ?? fieldWidth,
       minimumSize: other.minimumSize ?? minimumSize,
       mouseCursor: other.mouseCursor ?? mouseCursor,
@@ -250,6 +272,9 @@ class FluentTagPickerStyle {
     WidgetStateProperty<EdgeInsetsGeometry?>? padding,
     WidgetStateProperty<EdgeInsetsGeometry?>? contentPadding,
     WidgetStateProperty<double?>? tagSpacing,
+    WidgetStateProperty<double?>? tagRunSpacing,
+    WidgetStateProperty<EdgeInsetsGeometry?>? tagPadding,
+    WidgetStateProperty<double?>? fieldSpacing,
     WidgetStateProperty<double?>? fieldWidth,
     WidgetStateProperty<Size?>? minimumSize,
     WidgetStateProperty<MouseCursor?>? mouseCursor,
@@ -282,6 +307,9 @@ class FluentTagPickerStyle {
     padding: padding ?? this.padding,
     contentPadding: contentPadding ?? this.contentPadding,
     tagSpacing: tagSpacing ?? this.tagSpacing,
+    tagRunSpacing: tagRunSpacing ?? this.tagRunSpacing,
+    tagPadding: tagPadding ?? this.tagPadding,
+    fieldSpacing: fieldSpacing ?? this.fieldSpacing,
     fieldWidth: fieldWidth ?? this.fieldWidth,
     minimumSize: minimumSize ?? this.minimumSize,
     mouseCursor: mouseCursor ?? this.mouseCursor,
@@ -320,6 +348,9 @@ class FluentTagPickerStyle {
     EdgeInsetsGeometry? padding,
     EdgeInsetsGeometry? contentPadding,
     double? tagSpacing,
+    double? tagRunSpacing,
+    EdgeInsetsGeometry? tagPadding,
+    double? fieldSpacing,
     double? fieldWidth,
     Size? minimumSize,
     MouseCursor? mouseCursor,
@@ -352,6 +383,9 @@ class FluentTagPickerStyle {
     padding: _all(padding),
     contentPadding: _all(contentPadding),
     tagSpacing: _all(tagSpacing),
+    tagRunSpacing: _all(tagRunSpacing),
+    tagPadding: _all(tagPadding),
+    fieldSpacing: _all(fieldSpacing),
     fieldWidth: _all(fieldWidth),
     minimumSize: _all(minimumSize),
     mouseCursor: _all(mouseCursor),
@@ -391,6 +425,9 @@ class FluentTagPickerStyle {
       other.padding == padding &&
       other.contentPadding == contentPadding &&
       other.tagSpacing == tagSpacing &&
+      other.tagRunSpacing == tagRunSpacing &&
+      other.tagPadding == tagPadding &&
+      other.fieldSpacing == fieldSpacing &&
       other.fieldWidth == fieldWidth &&
       other.minimumSize == minimumSize &&
       other.mouseCursor == mouseCursor &&
@@ -425,6 +462,9 @@ class FluentTagPickerStyle {
     padding,
     contentPadding,
     tagSpacing,
+    tagRunSpacing,
+    tagPadding,
+    fieldSpacing,
     fieldWidth,
     minimumSize,
     mouseCursor,

@@ -18,6 +18,7 @@ void main() {
     bool enabled = true,
     VoidCallback? onPressed,
     FocusNode? focusNode,
+    bool pressedOnSecondary = true,
   }) async {
     var latest = <WidgetState>{};
     await tester.pumpWidget(
@@ -28,6 +29,7 @@ void main() {
             enabled: enabled,
             onPressed: onPressed ?? () {},
             focusNode: focusNode,
+            pressedOnSecondary: pressedOnSecondary,
             builder: (context, states, child) {
               latest = states;
               return const SizedBox(key: target, width: 60, height: 30);
@@ -85,6 +87,60 @@ void main() {
       await tester.pump();
       expect(fired, 1);
     });
+
+    // Chrome sets `:active` under whichever mouse button is held, so an
+    // upstream Button, MenuItem, Tab, Link and listbox Option all paint their
+    // pressed tokens under a middle or right press. Only the left button
+    // clicks: the others fire `auxclick`, which nothing handles.
+    for (final (name, buttons) in <(String, int)>[
+      ('middle', kMiddleMouseButton),
+      ('right', kSecondaryMouseButton),
+    ]) {
+      testWidgets('a $name press shows pressed but never activates', (
+        tester,
+      ) async {
+        var fired = 0;
+        final states = await pumpInteractive(tester, onPressed: () => fired++);
+        final mouse = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+          buttons: buttons,
+        );
+        await mouse.addPointer(location: Offset.zero);
+        addTearDown(mouse.removePointer);
+        await mouse.down(tester.getCenter(find.byKey(target)));
+        await tester.pump();
+        expect(states().contains(WidgetState.pressed), isTrue);
+
+        await mouse.up();
+        await tester.pump();
+        expect(states().contains(WidgetState.pressed), isFalse);
+        expect(fired, 0);
+      });
+    }
+
+    testWidgets('pressedOnSecondary: false leaves a right press unpressed', (
+      tester,
+    ) async {
+      // Upstream's Combobox-family roots (Dropdown's button) lose `:active` a
+      // task after a right press's `contextmenu`; a middle press keeps it.
+      final states = await pumpInteractive(tester, pressedOnSecondary: false);
+      for (final buttons in <int>[kSecondaryMouseButton, kMiddleMouseButton]) {
+        final mouse = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+          buttons: buttons,
+        );
+        await mouse.down(tester.getCenter(find.byKey(target)));
+        await tester.pump();
+        expect(
+          states().contains(WidgetState.pressed),
+          buttons == kMiddleMouseButton,
+          reason: 'buttons $buttons',
+        );
+        await mouse.up();
+        await mouse.removePointer();
+        await tester.pump();
+      }
+    });
   });
 
   group('disabled', () {
@@ -112,6 +168,67 @@ void main() {
       await tester.tap(find.byKey(target), warnIfMissed: false);
       await tester.pump();
       expect(fired, 0);
+      expect(states().contains(WidgetState.pressed), isFalse);
+    });
+
+    testWidgets('re-enabled under a resting mouse, it hovers at once', (
+      tester,
+    ) async {
+      // Chrome keeps `:hover` on a disabled element, so a control enabled
+      // under a still pointer shows its hover tokens without the mouse moving.
+      var states = await pumpInteractive(tester, enabled: false);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(find.byKey(target)));
+      addTearDown(mouse.removePointer);
+      await tester.pump();
+      expect(states().contains(WidgetState.hovered), isFalse);
+
+      states = await pumpInteractive(tester);
+      await tester.pump();
+      expect(states().contains(WidgetState.hovered), isTrue);
+    });
+
+    // Chrome, on a <button>: disabling it under a held press drops `:active`
+    // and re-enabling it under the same press does not bring it back, yet a
+    // press that lands while it is disabled is `:active` the moment it is
+    // enabled.
+    testWidgets('disabled under a held press, a re-enable stays unpressed', (
+      tester,
+    ) async {
+      var states = await pumpInteractive(tester);
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: kPrimaryMouseButton,
+      );
+      await mouse.down(tester.getCenter(find.byKey(target)));
+      await tester.pump();
+      expect(states().contains(WidgetState.pressed), isTrue);
+
+      await pumpInteractive(tester, enabled: false);
+      states = await pumpInteractive(tester);
+      await tester.pump();
+      expect(states().contains(WidgetState.pressed), isFalse);
+      await mouse.up();
+    });
+
+    testWidgets('pressed while disabled, it is pressed once enabled', (
+      tester,
+    ) async {
+      var states = await pumpInteractive(tester, enabled: false);
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: kPrimaryMouseButton,
+      );
+      await mouse.down(tester.getCenter(find.byKey(target)));
+      await tester.pump();
+      expect(states().contains(WidgetState.pressed), isFalse);
+
+      states = await pumpInteractive(tester);
+      await tester.pump();
+      expect(states().contains(WidgetState.pressed), isTrue);
+
+      await mouse.up();
+      await tester.pump();
       expect(states().contains(WidgetState.pressed), isFalse);
     });
 

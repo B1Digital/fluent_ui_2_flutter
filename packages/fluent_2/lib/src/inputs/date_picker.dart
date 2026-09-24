@@ -1,6 +1,10 @@
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/gestures.dart'
-    show PointerDeviceKind, TapDragEndDetails, TapDragUpDetails;
+    show
+        PointerDeviceKind,
+        TapDragDownDetails,
+        TapDragEndDetails,
+        TapDragUpDetails;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
@@ -567,25 +571,55 @@ class _DatePickerGestures extends TextSelectionGestureDetectorBuilder {
 
   final _FluentDatePickerState _owner;
 
+  /// Where the latest press went down, which is where the click that closes
+  /// lands its caret.
+  Offset? _downAt;
+
+  @override
+  void onTapDown(TapDragDownDetails details) {
+    _downAt = details.globalPosition;
+    super.onTapDown(details);
+  }
+
+  // Not while open: upstream traps focus in the popup, so a press on the
+  // input does not focus it — the base class's `requestKeyboard` would pull
+  // focus out of the calendar (Chrome).
   @override
   void onSingleTapUp(TapDragUpDetails details) {
-    super.onSingleTapUp(details);
-    _owner._handleFieldTap();
+    if (!_owner._open) super.onSingleTapUp(details);
   }
+
+  // Every click toggles: Chrome fires `click` for each one, and a second
+  // within the double-tap window is a double tap here, never a single tap up.
+  @override
+  bool get onUserTapAlwaysCalled => true;
+
+  @override
+  void onUserTap() => _owner._handleFieldTap(_downAt);
 
   // A press that drifts is not reported as a tap at all: the field's
   // `TapAndDragGestureRecognizer` gives a PRECISE pointer only
   // `kPrecisePointerHitSlop` — ONE pixel — before it re-reads the gesture as a
   // text-selection drag, and a hand moves the mouse two or three between press
-  // and release. Hanging the popup off `onSingleTapUp` alone left the faceplate
+  // and release. Hanging the popup off the tap alone left the faceplate
   // — the only affordance there is while `allowTextInput` is false — openable
-  // only by a pixel-perfect click. The browser fires `click` for any
-  // press/release pair over the input, drag-select included, which is what
-  // upstream's own toggle runs on, so this needs no travel threshold.
+  // only by a pixel-perfect click. The browser fires `click` for a
+  // press/release pair that both land on the input, drag-select included,
+  // which is what upstream's own toggle runs on, so this needs no travel
+  // threshold — only a release back on the field. Let go outside it, the
+  // `click` goes to a common ancestor and upstream neither opens nor closes
+  // (Chrome). Tested in the field's own coordinates, so a zoomed field is
+  // measured at the size it is painted.
+  //
+  // ponytail: the whole faceplate counts as the input, as it does for the
+  // press; Chrome's `<input>` stops short of the calendar glyph.
   @override
   void onDragSelectionEnd(TapDragEndDetails details) {
     super.onDragSelectionEnd(details);
-    _owner._handleFieldTap();
+    final box = _owner.context.findRenderObject()! as RenderBox;
+    if (box.size.contains(box.globalToLocal(details.globalPosition))) {
+      _owner._handleFieldTap(_downAt);
+    }
   }
 }
 
@@ -614,7 +648,9 @@ class _DatePickerGestures extends TextSelectionGestureDetectorBuilder {
 /// | Event | Effect |
 /// |---|---|
 /// | click, closed | open, when [openOnClick] |
-/// | click, open | close; the caret lands, so typing is possible |
+/// | click, open | with [allowTextInput], close; the caret lands at the press |
+/// | click, open, read-only | nothing; focus stays in the calendar |
+/// | press on the field, released off it | nothing |
 /// | Tab in | does not open |
 /// | Enter, closed | commit typed text if there is any, else open |
 /// | Escape | close, revert the text, focus the field |
@@ -630,9 +666,9 @@ class _DatePickerGestures extends TextSelectionGestureDetectorBuilder {
 /// [TapRegionSurface] above it. [WidgetsApp] installs one (`app.dart:1836`), so
 /// `FluentApp` and every test built on it are fine — but a consumer mounting
 /// this under a bare [Overlay] with no [WidgetsApp] gets **no click-outside
-/// dismissal at all**, silently. Escape, a second click on the field and focus
-/// leaving the picker still close it there. [inlinePopup] never light-dismisses
-/// on either path.
+/// dismissal at all**, silently. Escape, a second click on a text-input field
+/// and focus leaving the picker still close it there. [inlinePopup] never
+/// light-dismisses on either path.
 ///
 /// `disableAutoFocus` is deliberately **not** offered: its only non-default
 /// value is documented upstream as *"creates an accessibility violation and is
@@ -905,8 +941,12 @@ class _FluentDatePickerState extends State<FluentDatePicker>
   @override
   bool get forcePressEnabled => false;
 
+  // Off while open: upstream traps focus in the popup, and every text gesture
+  // here — the press that places the caret, a drag-select, a right click's
+  // word select — requests the keyboard, which pulls focus out of the
+  // calendar (Chrome).
   @override
-  bool get selectionEnabled => _enabled && widget.allowTextInput;
+  bool get selectionEnabled => _enabled && widget.allowTextInput && !_open;
 
   late final TextEditingController _controller = TextEditingController(
     text: _format(widget.value),
@@ -998,8 +1038,21 @@ class _FluentDatePickerState extends State<FluentDatePicker>
   /// Rewrites the field from [FluentDatePicker.value] in the current locale.
   void _reformat() {
     final text = _format(widget.value);
-    _controller.text = text;
+    _setText(text);
     _lastFormatted = text;
+  }
+
+  /// Writes [text] into the field as a browser sets an `<input>`'s `value`:
+  /// the caret goes after the new text, and unchanged text keeps its
+  /// selection — so a parent echoing back the day just picked leaves the
+  /// caret the pick put there (Chrome). A bare `text =` would drop the
+  /// selection instead.
+  void _setText(String text) {
+    if (_controller.text == text) return;
+    _controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
   }
 
   @override
@@ -1144,13 +1197,31 @@ class _FluentDatePickerState extends State<FluentDatePicker>
     if (changed) setState(() {});
   }
 
-  void _handleFieldTap() {
+  /// Hands focus back to the field with its caret where it was, as upstream's
+  /// `focus()` on the `<input>` does (Chrome). Through `requestKeyboard`: a
+  /// plain `requestFocus` is focus from outside, which on desktop selects the
+  /// whole value.
+  void _focusField() => editableTextKey.currentState?.requestKeyboard();
+
+  /// Upstream's `onInputClick`: a click opens a closed picker, and closes an
+  /// open one only when [FluentDatePicker.allowTextInput] is set.
+  ///
+  /// [downAt] is where the click's press went down. The trap takes focus from
+  /// that press but not the caret its mousedown lands in the `<input>`, so the
+  /// close shows the caret there — unless the press was on the glyph beside
+  /// the text, which moves nothing (Chrome).
+  void _handleFieldTap(Offset? downAt) {
     if (!_enabled) return;
-    if (_open) {
+    if (!_open) {
+      if (widget.openOnClick) _setOpen(next: true);
+    } else if (widget.allowTextInput) {
+      final text = editableTextKey.currentState?.renderEditable;
+      final x = downAt == null ? null : text?.globalToLocal(downAt).dx;
+      if (text != null && x != null && x >= 0 && x <= text.size.width) {
+        text.selectPositionAt(from: downAt!, cause: SelectionChangedCause.tap);
+      }
       _setOpen(next: false);
-      return;
     }
-    if (widget.openOnClick) _setOpen(next: true);
   }
 
   void _setOpen({required bool next}) {
@@ -1206,7 +1277,7 @@ class _FluentDatePickerState extends State<FluentDatePicker>
           restore != null &&
           restore.context != null &&
           restore.canRequestFocus) {
-        restore.requestFocus();
+        identical(restore, _focusNode) ? _focusField() : restore.requestFocus();
       }
     }
     _entry?.markNeedsBuild();
@@ -1282,7 +1353,7 @@ class _FluentDatePickerState extends State<FluentDatePicker>
 
   void _handleSelectDate(DateTime date) {
     final text = _format(date);
-    _controller.text = text;
+    _setText(text);
     _lastFormatted = text;
     if (_error != null) setState(() => _error = null);
     widget.onValidationResult?.call(const FluentDatePickerValidationResult());
@@ -1638,10 +1709,12 @@ class _DismissDatePickerAction extends Action<DismissIntent> {
 
   @override
   Object? invoke(DismissIntent intent) {
-    state._controller.text = state._format(state.widget.value);
-    state._lastFormatted = state._controller.text;
-    state._setOpen(next: false);
-    state._focusNode.requestFocus();
+    final text = state._format(state.widget.value);
+    state
+      .._setText(text)
+      .._lastFormatted = text
+      .._setOpen(next: false)
+      .._focusField();
     return null;
   }
 }

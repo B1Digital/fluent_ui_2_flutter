@@ -88,14 +88,20 @@ class _StoryCanvasState extends State<StoryCanvas> {
                     : const Color(0x00000000),
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24),
-                  child: Align(
-                    alignment: AlignmentDirectional.topStart,
-                    // Scaled about the top-left so the story does not walk off
-                    // the canvas as it grows.
-                    child: Transform.scale(
-                      scale: _zoom,
-                      alignment: Alignment.topLeft,
-                      child: story,
+                  // The story's own direction, not the shell's: an RTL story
+                  // narrower than the canvas sits at its right edge, as
+                  // Storybook's does.
+                  child: Directionality(
+                    textDirection: scope.textDirection,
+                    child: Align(
+                      alignment: AlignmentDirectional.topStart,
+                      // Scaled about the top start corner so the story does
+                      // not walk off the canvas as it grows.
+                      child: Transform.scale(
+                        scale: _zoom,
+                        alignment: AlignmentDirectional.topStart,
+                        child: story,
+                      ),
                     ),
                   ),
                 ),

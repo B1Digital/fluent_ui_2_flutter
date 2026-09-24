@@ -46,21 +46,16 @@ void main() {
       await expectCleanTeardown(tester, section.id);
     });
 
-    testWidgets('a second click on the field closes the calendar', (
+    testWidgets('a second click on the field leaves the calendar open', (
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
       await _open(tester);
 
-      // Not warnIfMissed: the open popup covers the page with its light-dismiss
-      // barrier, so the second click lands there rather than on the faceplate.
-      await tapAndSettle(
-        tester,
-        find.byType(FluentDatePicker),
-        what: 'the field, a second time',
-        warnIfMissed: false,
-      );
-      expect(find.byType(FluentCalendar), findsNothing);
+      // Upstream's `onInputClick` dismisses only when `allowTextInput` is set,
+      // so on this read-only picker the second click does nothing (Chrome).
+      await mouseClick(tester, find.byType(FluentDatePicker));
+      expect(find.byType(FluentCalendar), findsOneWidget);
       expect(_fieldText(tester), isEmpty);
     });
 
@@ -112,6 +107,18 @@ void main() {
       // the controller.
       await typeAndBlur(tester, find.byType(FluentDatePicker), '2026-03-05');
       expect(_fieldText(tester), fluentFormatDate(DateTime(2026, 3, 5)));
+    });
+
+    testWidgets('a second click on the field closes the calendar', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(tester, section);
+      await mouseClick(tester, find.byType(FluentDatePicker));
+      expect(find.byType(FluentCalendar), findsOneWidget);
+
+      // With `allowTextInput` upstream's `onInputClick` dismisses (Chrome).
+      await mouseClick(tester, find.byType(FluentDatePicker));
+      expect(find.byType(FluentCalendar), findsNothing);
     });
 
     testWidgets('Enter opens the calendar once the field holds focus', (

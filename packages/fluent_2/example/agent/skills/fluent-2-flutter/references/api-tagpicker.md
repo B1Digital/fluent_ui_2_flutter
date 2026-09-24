@@ -246,7 +246,7 @@ const FluentTagPickerOption.header({required this.label, this.text});
 
 ### `FluentTagPickerRemoveLastIntent`
 
-Removes the last chip. Only ever enabled while the field is empty.
+Moves focus from the field to the last chip, where a further Backspace or Delete removes it. Only enabled while the caret sits at the very start of the field.
 
 Source: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 
@@ -335,6 +335,9 @@ const FluentTagPickerStyle({
     this.padding,
     this.contentPadding,
     this.tagSpacing,
+    this.tagRunSpacing,
+    this.tagPadding,
+    this.fieldSpacing,
     this.fieldWidth,
     this.minimumSize,
     this.mouseCursor,
@@ -369,9 +372,12 @@ const FluentTagPickerStyle({
 | `expandIconSize` | `WidgetStateProperty<double?>?` | No | `null` | Edge length of the expand chevron. |
 | `expandIconPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around the expand chevron. Its vertical half centres the glyph in the control's first line, which is where upstream's aside pins it. |
 | `padding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset from the inside of the border to the content and the expand chevron. |
-| `contentPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Vertical inset around the tag strip and the field — upstream's `TagPickerInput` padding, which is what sets the control's height. |
-| `tagSpacing` | `WidgetStateProperty<double?>?` | No | `null` | Space between the tags, and between a tag and the field. |
-| `fieldWidth` | `WidgetStateProperty<double?>?` | No | `null` | Width the text field takes once at least one tag is present. |
+| `contentPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around the field — upstream's `TagPickerInput` padding, which is what sets the control's height while it has no tags. |
+| `tagSpacing` | `WidgetStateProperty<double?>?` | No | `null` | Space between the tags on a row — upstream's `TagGroup` `columnGap`. |
+| `tagRunSpacing` | `WidgetStateProperty<double?>?` | No | `null` | Space between rows of tags — upstream's `TagPickerGroup` row `gap`. Falls back to [tagSpacing]. |
+| `tagPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around the tags — upstream's `TagPickerGroup` padding. Falls back to [contentPadding]. |
+| `fieldSpacing` | `WidgetStateProperty<double?>?` | No | `null` | Space between the tags and a field on the same line — the control's `columnGap`. |
+| `fieldWidth` | `WidgetStateProperty<double?>?` | No | `null` | Narrowest the field may be beside the tags — upstream's `minWidth`. |
 | `minimumSize` | `WidgetStateProperty<Size?>?` | No | `null` | Minimum size of the control. |
 | `mouseCursor` | `WidgetStateProperty<MouseCursor?>?` | No | `null` | Cursor while hovering the control. |
 | `surfaceColor` | `WidgetStateProperty<Color?>?` | No | `null` | Popup surface fill. |

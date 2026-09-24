@@ -200,6 +200,32 @@ const FluentInputBaseState({
 - `onSubmitted` (`ValueChanged<String>?`): Invoked when the action key is pressed.
 - `autofocus` (`bool`): Whether to take focus on mount.
 
+### `FluentInputBorderPainter`
+
+Paints an input's box border the way a browser paints a CSS border whose bottom side differs in colour from the other three.
+
+Source: `packages/fluent_2/lib/src/inputs/input.dart`
+
+#### Constructor: `FluentInputBorderPainter`
+
+```dart
+const FluentInputBorderPainter({
+    required this.radius,
+    required this.borderColor,
+    required this.borderWidth,
+    required this.bottomBorderColor,
+    required this.bottomBorderWidth,
+  });
+```
+
+| Field | Type | Required | Default | Purpose |
+| --- | --- | --- | --- | --- |
+| `radius` | `BorderRadius` | Yes | — | The field's outer corner radii. |
+| `borderColor` | `Color?` | Yes | — | The top, left and right sides — and the bottom as well when [bottomBorderColor] is null. Null paints no sides. |
+| `borderWidth` | `double` | Yes | — | Width of the top, left and right sides. |
+| `bottomBorderColor` | `Color?` | Yes | — | The bottom side, or null when it matches [borderColor]. |
+| `bottomBorderWidth` | `double` | Yes | — | Width of the bottom side. |
+
 ### `FluentInputSize`
 
 Input height and type ramp. Figma's `Size` axis.
