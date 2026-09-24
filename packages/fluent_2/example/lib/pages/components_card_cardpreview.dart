@@ -70,9 +70,12 @@ Widget _default(BuildContext context) => const FluentCard(
       Positioned(
         left: 12,
         bottom: 12,
+        // Word blue in every theme, like `docx.png`: the image under it does
+        // not follow the theme, so a themed glyph would vanish in Web Dark.
         child: Icon(
           FluentIcons.document_20_regular,
           size: 32,
+          color: Color(0xFF185ABD),
           semanticLabel: 'Microsoft Word logo',
         ),
       ),

@@ -107,6 +107,24 @@ void main() {
     expect(_stageVariant(tester), ThemeVariant.webDark);
     expect(_stageDirection(tester), TextDirection.rtl);
   });
+
+  // A section builder that reads the theme itself, rather than inside a
+  // widget's build, must see the preview's theme and not the light chrome's:
+  // Card's Orientation story read `type.subtitle1` from the chrome and painted
+  // Web Dark headings #242424 on #1f1f1f.
+  testWidgets('a section builder reads the preview theme, not the chrome', (
+    WidgetTester tester,
+  ) async {
+    await _boot(tester);
+    await _go(tester, 'components-card-card');
+    await mouseClick(tester, find.byType(FluentDropdown<ThemeVariant>));
+    await mouseClick(tester, find.text('Web Dark').last);
+
+    expect(
+      tester.widget<Text>(find.text("'vertical' (Default)")).style?.color,
+      FluentThemeData.dark().colors.neutralForeground1,
+    );
+  });
 }
 
 Future<void> _boot(WidgetTester tester) async {

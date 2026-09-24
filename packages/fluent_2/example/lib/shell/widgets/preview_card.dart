@@ -111,7 +111,10 @@ class _PreviewCardState extends State<PreviewCard> {
                         _StoryStage(
                           variant: scope.variant,
                           zoom: _zoom,
-                          child: widget.section.builder(context),
+                          // A Builder, so the section builds under the stage's
+                          // FluentTheme. Called with this context, a builder
+                          // that reads the theme itself got the light chrome's.
+                          child: Builder(builder: widget.section.builder),
                         ),
                         Positioned(
                           right: 31,

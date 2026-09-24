@@ -501,6 +501,51 @@ void main() {
       expect(card(tester, 6).selected, isTrue);
       expect(card(tester, 4).selected, isFalse);
     });
+
+    testWidgets('a disabled card greys its header text, an enabled one not', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(tester, section);
+      final FluentColors colors = colorsOf(tester);
+      // The theme's ramp carries neutralForeground1, which outranks the card's
+      // disabled DefaultTextStyle, so the page has to pass the disabled colour.
+      Color? captionIn(int index) => tester
+          .widget<Text>(
+            find.descendant(
+              of: cardAt(index),
+              matching: find.text('5h ago · About us - Overview'),
+            ),
+          )
+          .style
+          ?.color;
+
+      expect(captionIn(0), colors.neutralForeground1);
+      for (final int index in <int>[1, 3, 5, 7, 9]) {
+        expect(
+          captionIn(index),
+          colors.neutralForegroundDisabled,
+          reason: 'card $index is disabled',
+        );
+      }
+    });
+
+    testWidgets('the floating checkboxes sit on the card, off the preview', (
+      WidgetTester tester,
+    ) async {
+      await pumpSection(tester, section);
+      // FluentCard puts the preview first, so a checkbox stacked in the corner
+      // landed on the light image: #adadad on #bcbec0 in Web Dark, invisible.
+      for (final int index in <int>[6, 7]) {
+        Rect rectOf(Type type) => tester.getRect(
+          find.descendant(of: cardAt(index), matching: find.byType(type)),
+        );
+        expect(
+          rectOf(FluentCheckbox).overlaps(rectOf(Image)),
+          isFalse,
+          reason: 'card $index',
+        );
+      }
+    });
   });
 
   group('with action', () {

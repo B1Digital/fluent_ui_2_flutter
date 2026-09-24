@@ -253,10 +253,17 @@ Widget _default(BuildContext context) {
             width: double.infinity,
             fit: BoxFit.cover,
           ),
+          // Word blue in every theme, like upstream's `docx.png`: the image
+          // under it does not follow the theme, so a themed glyph would turn
+          // white on it in Web Dark and vanish.
           Positioned(
             left: 12,
             bottom: 12,
-            child: Icon(FluentIcons.document_20_regular, size: 32),
+            child: Icon(
+              FluentIcons.document_20_regular,
+              size: 32,
+              color: Color(0xFF185ABD),
+            ),
           ),
         ],
       ),
@@ -528,12 +535,11 @@ Widget _appearanceExample(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     Text('App Name', style: type.body1Strong),
-                    Text(
-                      'Developer',
-                      style: type.caption1.copyWith(
-                        color: colors.neutralForeground3,
-                      ),
-                    ),
+                    // Not colorNeutralForeground3, which upstream's story asks
+                    // for: an interactive card's `.fui-Text { color:
+                    // currentcolor }` outranks it in Chrome, so the caption
+                    // renders in the card's own foreground.
+                    Text('Developer', style: type.caption1),
                   ],
                 ),
               ),
@@ -621,12 +627,7 @@ class _SelectableState extends State<_Selectable> {
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   Text('iOS App Prototype', style: type.body1Strong),
-                  Text(
-                    'You created 53m ago',
-                    style: type.caption1.copyWith(
-                      color: colors.neutralForeground3,
-                    ),
-                  ),
+                  Text('You created 53m ago', style: type.caption1),
                 ],
               ),
             ),
@@ -724,12 +725,7 @@ class _SelectableIndicatorState extends State<_SelectableIndicator> {
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   Text('iOS App Prototype', style: type.body1Strong),
-                  Text(
-                    'You created 53m ago',
-                    style: type.caption1.copyWith(
-                      color: colors.neutralForeground3,
-                    ),
-                  ),
+                  Text('You created 53m ago', style: type.caption1),
                 ],
               ),
             ),
@@ -752,9 +748,7 @@ class _SelectableIndicatorState extends State<_SelectableIndicator> {
     required String title,
     required String description,
   }) {
-    final FluentThemeData theme = FluentTheme.of(context);
-    final FluentTypography type = theme.typography;
-    final FluentColors colors = theme.colors;
+    final FluentTypography type = FluentTheme.of(context).typography;
 
     return SizedBox(
       width: 400,
@@ -771,12 +765,7 @@ class _SelectableIndicatorState extends State<_SelectableIndicator> {
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   Text(title, style: type.body1Strong),
-                  Text(
-                    description,
-                    style: type.caption1.copyWith(
-                      color: colors.neutralForeground3,
-                    ),
-                  ),
+                  Text(description, style: type.caption1),
                 ],
               ),
             ),
@@ -876,9 +865,15 @@ class _DisabledState extends State<_Disabled> {
     FluentCardAppearance appearance = FluentCardAppearance.filled,
     Widget? floatingAction,
   }) {
-    final FluentTypography type = FluentTheme.of(context).typography;
+    final FluentThemeData theme = FluentTheme.of(context);
+    final FluentTypography type = theme.typography;
+    // Upstream's Body1 and Caption1 inherit the disabled card's
+    // colorNeutralForegroundDisabled. The theme's ramp carries
+    // neutralForeground1, which outranks the card's DefaultTextStyle, so the
+    // disabled colour is passed explicitly; null keeps the ramp's.
+    final Color? fg = disabled ? theme.colors.neutralForegroundDisabled : null;
 
-    final Widget card = SizedBox(
+    return SizedBox(
       width: 400,
       child: FluentCard(
         disabled: disabled,
@@ -897,16 +892,28 @@ class _DisabledState extends State<_Disabled> {
                   Text.rich(
                     TextSpan(
                       children: <InlineSpan>[
-                        TextSpan(text: 'Elvia Atkins', style: type.body1Strong),
+                        TextSpan(
+                          text: 'Elvia Atkins',
+                          style: type.body1Strong.copyWith(color: fg),
+                        ),
                         const TextSpan(text: ' mentioned you'),
                       ],
                     ),
-                    style: type.body1,
+                    style: type.body1.copyWith(color: fg),
                   ),
-                  Text('5h ago · About us - Overview', style: type.caption1),
+                  Text(
+                    '5h ago · About us - Overview',
+                    style: type.caption1.copyWith(color: fg),
+                  ),
                 ],
               ),
             ),
+            // Upstream's floatingAction sits in the card's top-right corner,
+            // over the header, because its story puts the header first.
+            // FluentCard always puts the preview first, so a stacked checkbox
+            // would land on the light image and vanish in Web Dark; the end
+            // of the header row keeps it on the card surface.
+            ?floatingAction,
           ],
         ),
         preview: const Stack(
@@ -920,7 +927,11 @@ class _DisabledState extends State<_Disabled> {
             Positioned(
               left: 12,
               bottom: 12,
-              child: Icon(FluentIcons.document_20_regular, size: 32),
+              child: Icon(
+                FluentIcons.document_20_regular,
+                size: 32,
+                color: Color(0xFF185ABD),
+              ),
             ),
           ],
         ),
@@ -942,16 +953,6 @@ class _DisabledState extends State<_Disabled> {
           ],
         ),
       ),
-    );
-
-    if (floatingAction == null) {
-      return card;
-    }
-    return Stack(
-      children: <Widget>[
-        card,
-        Positioned(top: 8, right: 8, child: floatingAction),
-      ],
     );
   }
 
