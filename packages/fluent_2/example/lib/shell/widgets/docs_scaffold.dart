@@ -312,8 +312,15 @@ class _Section extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
+              // Storybook's h3 margins are 1.17em of 14, 16.38 each side, and
+              // Chrome paints the stage below on a whole pixel all the same.
+              // Flutter paints where layout lands, so 16.38 left every later
+              // stage at .76, .52, .28 and smeared each 1px stroke in a story
+              // across two rows. 16 over 17 keeps the 32.76 on whole pixels.
+              // ponytail: drifts 0.24px a section from Chrome's row; snap the
+              // stage's paint offset instead if a page ever lines up with it.
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16.38),
+                padding: const EdgeInsets.only(top: 16, bottom: 17),
                 child: Text(section.title, style: DocsMetrics.h3),
               ),
               if (section.description != null) DocsProse(section.description!),

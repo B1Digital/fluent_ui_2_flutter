@@ -452,9 +452,11 @@ class _Size extends StatefulWidget {
   State<_Size> createState() => _SizeState();
 }
 
+// Upstream's `<SpinButton />` with no value starts at useControllableState's
+// initialState 0, and shows it.
 class _SizeState extends State<_Size> {
-  double? _small;
-  double? _medium;
+  double? _small = 0;
+  double? _medium = 0;
 
   Widget _field(String label, Widget spinButton) => Column(
     // Stack the label above the field, with a 2px gap (per the design system)
@@ -509,8 +511,13 @@ class _Appearance extends StatefulWidget {
 }
 
 class _AppearanceState extends State<_Appearance> {
+  // Each `<SpinButton />` starts at upstream's initialState 0.
   final Map<FluentSpinButtonAppearance, double?> _values =
-      <FluentSpinButtonAppearance, double?>{};
+      <FluentSpinButtonAppearance, double?>{
+        for (final FluentSpinButtonAppearance appearance
+            in FluentSpinButtonAppearance.values)
+          appearance: 0,
+      };
 
   // Upstream paints the two filled fields onto an inverted surface so the
   // contrast note in the description is visible. Container is the griffel
@@ -587,7 +594,8 @@ Widget _disabled(BuildContext context) => ConstrainedBox(
     spacing: FluentSpacing.xxs,
     children: <Widget>[
       FluentLabel(child: Text('Disabled')),
-      FluentSpinButton(value: null, semanticLabel: 'Disabled'),
+      // Upstream's initialState 0.
+      FluentSpinButton(value: 0, semanticLabel: 'Disabled'),
     ],
   ),
 );
@@ -604,7 +612,8 @@ class _ReadOnly extends StatefulWidget {
 }
 
 class _ReadOnlyState extends State<_ReadOnly> {
-  double? _value;
+  // Upstream's initialState 0.
+  double? _value = 0;
 
   @override
   Widget build(BuildContext context) => ConstrainedBox(

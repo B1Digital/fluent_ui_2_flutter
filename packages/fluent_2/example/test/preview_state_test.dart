@@ -14,6 +14,31 @@ import 'package:flutter_test/flutter_test.dart';
 /// value and caret through all four, and focus through the toolbar's three
 /// (Chrome), because they only restyle a wrapper.
 void main() {
+  testWidgets('every preview stage starts on a whole pixel', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(const ShowroomApp());
+    await tester.pumpAndSettle();
+    DocsRouterScope.of(
+      tester.element(find.byType(DocsScaffold)),
+    ).go(DocsRoute.docs('components-spinbutton'));
+    await tester.pumpAndSettle();
+
+    // Chrome paints the stage below each 16.38px-margined h3 on a whole
+    // pixel; a fractional origin smears every 1px stroke of the story.
+    final List<double> tops = <double>[
+      for (final Element card in find.byType(PreviewCard).evaluate())
+        tester.getTopLeft(find.byWidget(card.widget)).dy,
+    ];
+    expect(tops.length, greaterThan(1));
+    for (final double top in tops) {
+      expect(top, top.roundToDouble(), reason: 'stages sit at $tops');
+    }
+  });
+
   testWidgets('grid, background, outline and zoom keep a story mounted', (
     WidgetTester tester,
   ) async {

@@ -275,16 +275,16 @@ void main() {
     testWidgets('each field steps on its own', (WidgetTester tester) async {
       await pumpSection(tester, section);
       final Finder spin = find.byType(FluentSpinButton);
-      // Both start empty, so a shared value would be immediately visible as
-      // the other field filling in too.
-      expect(editedText(tester, spin.at(0)), '');
-      expect(editedText(tester, spin.at(1)), '');
+      // Both start at upstream's initialState 0 (the storybook's inputs read
+      // "0"), so a shared value would show as the other field moving too.
+      expect(editedText(tester, spin.at(0)), '0');
+      expect(editedText(tester, spin.at(1)), '0');
 
       await mouseClick(tester, stepper(spin.at(0), up));
       expect(editedText(tester, spin.at(0)), '1');
       expect(
         editedText(tester, spin.at(1)),
-        '',
+        '0',
         reason: 'the demo keeps one value per row; they must not be shared',
       );
     });
@@ -340,12 +340,16 @@ void main() {
       await pumpSection(tester, section);
       final Finder spin = find.byType(FluentSpinButton);
 
+      // Every `<SpinButton />` starts at upstream's initialState 0.
+      for (int row = 0; row < 4; row++) {
+        expect(editedText(tester, spin.at(row)), '0');
+      }
       await mouseClick(tester, stepper(spin.at(1), up));
       expect(editedText(tester, spin.at(1)), '1');
       for (final int other in <int>[0, 2, 3]) {
         expect(
           editedText(tester, spin.at(other)),
-          '',
+          '0',
           reason: 'the demo keys its values by appearance; row $other moved',
         );
       }
@@ -369,8 +373,8 @@ void main() {
       await tapAndSettle(tester, stepper(spin, down), what: 'the down stepper');
       expect(
         editedText(tester, spin),
-        '',
-        reason: 'a disabled spin button must not step',
+        '0',
+        reason: "a disabled spin button must not step off upstream's 0",
       );
     });
 
@@ -405,10 +409,10 @@ void main() {
       await settle(tester);
       expect(
         editedText(tester, spin),
-        '',
+        '0',
         reason:
-            'neither the stepper nor the arrow keys may edit a read-only '
-            'value',
+            "neither the stepper nor the arrow keys may edit a read-only "
+            "value, which starts at upstream's 0",
       );
     });
 
