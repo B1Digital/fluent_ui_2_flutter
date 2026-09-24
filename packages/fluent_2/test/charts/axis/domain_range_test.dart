@@ -459,6 +459,32 @@ void main() {
       );
     });
 
+    test('keeps epoch-millisecond x values mixed with Dates', () {
+      final early = DateTime.utc(2020, 3).millisecondsSinceEpoch;
+      final late = DateTime.utc(2021).millisecondsSinceEpoch;
+      final range = domainRangeOfDateForAreaLineScatterVerticalBarCharts(
+        <Object>[
+          _series('ms', <(Object, double)>[(early, 10), (late, 20)]),
+          _series('date', <(Object, double)>[(DateTime.utc(2020, 3, 5), 30)]),
+        ],
+        margins,
+        700,
+        isRtl: false,
+        chartType: FluentChartType.lineChart,
+      );
+      expect(
+        <int>[
+          (range.dStartValue as DateTime).millisecondsSinceEpoch,
+          (range.dEndValue as DateTime).millisecondsSinceEpoch,
+        ],
+        <int>[early, late],
+        reason:
+            'x is number | Date upstream; d3Min/d3Max compare them by valueOf '
+            '(utilities.ts:2288-2297) and the time scale coerces the domain '
+            'with +d (d3-scale time.js:44), so the numbers set both ends.',
+      );
+    });
+
     test('ignores tick values for a bar chart', () {
       final range = domainRangeOfDateForAreaLineScatterVerticalBarCharts(
         <Object>[

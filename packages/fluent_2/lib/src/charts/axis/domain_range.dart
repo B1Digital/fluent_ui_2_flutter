@@ -411,6 +411,14 @@ FluentChartDomainRange domainRangeOfVerticalNumeric(
         );
 }
 
+/// The instant an x extent names: a [DateTime], or epoch milliseconds truncated
+/// as `new Date(ms)` does (ECMA-262 TimeClip). Anything else is no date.
+DateTime? _asDate(Object? v) => switch (v) {
+  DateTime() => v,
+  num() when v.isFinite => DateTime.fromMillisecondsSinceEpoch(v.toInt()),
+  _ => null,
+};
+
 /// The domain and range of a date x axis.
 ///
 /// Ports `domainRangeOfDateForAreaLineScatterVerticalBarCharts`
@@ -442,14 +450,11 @@ FluentChartDomainRange domainRangeOfDateForAreaLineScatterVerticalBarCharts(
     final extent = getScatterXDomainExtent(points);
     // `utilities.ts:1535-1536` unions the tick values into BOTH ends, so a
     // caller-supplied tick outside the data still falls inside the domain.
-    sDate = d3.min<DateTime>(<DateTime>[
-      ...tickValues,
-      if (extent.$1 is DateTime) extent.$1! as DateTime,
-    ]);
-    lDate = d3.max<DateTime>(<DateTime>[
-      ...tickValues,
-      if (extent.$2 is DateTime) extent.$2! as DateTime,
-    ]);
+    // An extent may be epoch milliseconds (`x: number | Date`, mixed in the
+    // LineChart large-data story); d3's time scale coerces the domain with
+    // `+d` (`d3-scale/src/time.js:44`), so it is the same instant.
+    sDate = d3.min<DateTime>(<DateTime>[...tickValues, ?_asDate(extent.$1)]);
+    lDate = d3.max<DateTime>(<DateTime>[...tickValues, ?_asDate(extent.$2)]);
 
     // `utilities.ts:1538` — markers mode, or a scatter chart whatever its mode.
     if ((hasMarkersMode || chartType == FluentChartType.scatterChart) &&

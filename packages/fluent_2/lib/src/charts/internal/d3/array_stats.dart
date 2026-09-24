@@ -1,19 +1,18 @@
 import 'dart:math' as math;
 
 /// JavaScript's `<` for the value kinds d3 is fed here: numbers, dates and
-/// strings. Returns `false` whenever either side is NaN or the kinds differ,
-/// which is what a JS relational comparison against a non-number does.
+/// strings.
+///
+/// Two strings compare by code unit; any other pair is coerced to numbers
+/// first, so a Date compares with a number by its `valueOf` (ECMA-262
+/// IsLessThan). Upstream's `x: number | Date` points mix the two, e.g. the
+/// LineChart large-data story. A NaN on either side answers `false`.
 bool _lessThan(Object a, Object b) {
-  if (a is num && b is num) {
-    return a < b;
-  }
-  if (a is DateTime && b is DateTime) {
-    return a.isBefore(b);
-  }
   if (a is String && b is String) {
     return a.compareTo(b) < 0;
   }
-  return false;
+  // `!` is safe: [_toNumber] returns null only for null, and both are objects.
+  return _toNumber(a)! < _toNumber(b)!;
 }
 
 /// Reproduces d3's `value >= value` self-test, which rejects NaN and anything
@@ -356,11 +355,9 @@ class Bisector<T> {
   /// is a bare subtraction and therefore only defined for numbers).
   double _delta(T d, Object x) {
     final key = accessor(d);
-    if (key is num && x is num) {
-      return key.toDouble() - x.toDouble();
-    }
-    if (key is DateTime && x is DateTime) {
-      return (key.millisecondsSinceEpoch - x.millisecondsSinceEpoch).toDouble();
+    // JS `-` coerces a Date to its epoch milliseconds, as [_lessThan] does.
+    if (key is! String && x is! String) {
+      return _toNumber(key)! - _toNumber(x)!;
     }
     return ascending(key, x).toDouble();
   }

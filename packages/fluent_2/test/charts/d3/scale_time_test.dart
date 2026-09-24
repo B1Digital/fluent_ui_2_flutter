@@ -29,6 +29,11 @@ void main() {
       reason: 'time.js:44 coerces each Date to its epoch milliseconds',
     );
     expect(
+      s(DateTime.utc(2024, 1, 1, 12).millisecondsSinceEpoch),
+      300.0,
+      reason: 'continuous.js:86 coerces with +x, so epoch ms maps as its Date',
+    );
+    expect(
       s.invert(300),
       DateTime.utc(2024, 1, 1, 12),
       reason: 'time.js:39-41 wraps the numeric invert back into a Date',

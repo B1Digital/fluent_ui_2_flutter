@@ -24,6 +24,22 @@ void main() {
     );
   });
 
+  test('min and max compare a number with a Date by valueOf', () {
+    // LineChart large-data mixes epoch-ms numbers with a Date on one axis.
+    final date = DateTime.utc(2020, 3, 5);
+    final early = DateTime.utc(2020, 3).millisecondsSinceEpoch;
+    final late = DateTime.utc(2021).millisecondsSinceEpoch;
+    // The Date comes first, so every later number is compared against it.
+    final values = <Object?>[date, early, late];
+    expect(
+      d3.min<Comparable<Object>>(values),
+      early,
+      reason: 'min.js:9 uses JS `>`, which coerces a Date via valueOf',
+    );
+    expect(d3.max<Comparable<Object>>(values), late, reason: 'max.js:9');
+    expect(d3.extent<Comparable<Object>>(values), (early, late));
+  });
+
   test('extent returns a pair and both halves are null on empty', () {
     expect(d3.extent<num>(<Object?>[]), (
       null,
