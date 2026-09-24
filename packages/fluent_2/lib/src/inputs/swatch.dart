@@ -228,63 +228,84 @@ FluentSwatchStyle resolveFluentSwatchStyle(
       states.contains(WidgetState.focused) &&
       !states.contains(WidgetState.disabled);
 
-  final band = FluentStateColor.tokens(
-    rest: restStroke,
-    hover: c.compoundBrandStroke,
-    pressed: c.compoundBrandStrokePressed,
-    selected: c.brandStroke1,
-    disabled: restStroke,
-  );
+  // The ring as the storybook draws it (swatchpicker--default and --size, box
+  // shadows read in Chrome): a brand band, and inside it a `strokeFocus1`
+  // hairline so the band never touches the swatch colour. React wins over
+  // Figma's Swatch set, which draws hover and pressed as the band alone, 2px
+  // #0F6CBD and 3px #0F548C, with Small pressed at 3 where upstream is 2.
+  //
+  //                band          band token                  hairline
+  //   hover        1 XS, else 2  brandStroke1                1
+  //   pressed      2 XS S, 3     compoundBrandStrokePressed  1
+  //   selected     2 XS S, 3     brandStroke1                1 XS S, 2
+  //     + hover    2 XS S, 4     compoundBrandStrokeHover    1 XS S, 2
+  //     + pressed  3 XS S, 4     compoundBrandStrokePressed  1 XS S, 3
+  bool live(Set<WidgetState> states, WidgetState state) =>
+      states.contains(state) && !states.contains(WidgetState.disabled);
 
   return FluentSwatchStyle(
     backgroundColor: FluentStateColor.tokens(rest: background),
-    borderColor: WidgetStateProperty.resolveWith<Color?>(
-      (states) => focused(states) ? c.strokeFocus2 : band.resolve(states),
-    ),
-    borderWidth: WidgetStateProperty.resolveWith<double?>((states) {
-      if (states.contains(WidgetState.disabled)) return FluentStroke.thin;
-      if (focused(states)) {
-        return states.contains(WidgetState.selected)
-            ? FluentStroke.thicker
-            : FluentStroke.thick;
-      }
+    borderColor: WidgetStateProperty.resolveWith<Color?>((states) {
+      if (states.contains(WidgetState.disabled)) return restStroke;
+      if (focused(states)) return c.strokeFocus2;
       if (states.contains(WidgetState.pressed)) {
-        return thinnest ? FluentStroke.thick : FluentStroke.thicker;
+        return c.compoundBrandStrokePressed;
       }
       if (states.contains(WidgetState.hovered)) {
-        return thinnest ? FluentStroke.thin : FluentStroke.thick;
+        return states.contains(WidgetState.selected)
+            ? c.compoundBrandStrokeHover
+            : c.brandStroke1;
       }
-      if (states.contains(WidgetState.selected)) {
+      if (states.contains(WidgetState.selected)) return c.brandStroke1;
+      return restStroke;
+    }),
+    borderWidth: WidgetStateProperty.resolveWith<double?>((states) {
+      if (states.contains(WidgetState.disabled)) return FluentStroke.thin;
+      final selected = states.contains(WidgetState.selected);
+      if (focused(states)) {
+        return selected ? FluentStroke.thicker : FluentStroke.thick;
+      }
+      if (states.contains(WidgetState.pressed)) {
+        if (selected) {
+          return compact ? FluentStroke.thicker : FluentStroke.thickest;
+        }
         return compact ? FluentStroke.thick : FluentStroke.thicker;
       }
+      if (states.contains(WidgetState.hovered)) {
+        if (selected) {
+          return compact ? FluentStroke.thick : FluentStroke.thickest;
+        }
+        return thinnest ? FluentStroke.thin : FluentStroke.thick;
+      }
+      if (selected) return compact ? FluentStroke.thick : FluentStroke.thicker;
       return FluentStroke.thin;
     }),
-    // Upstream stacks a second inset shadow under the selected ring so the
-    // brand band never touches the swatch colour. Figma has no Selected
-    // variant at all, so this band is the one part of the component the React
-    // source is the sole authority for — and the focus indicator above stacks
-    // its own hairline the same way.
     innerBorderColor: WidgetStateProperty.resolveWith<Color?>(
       (states) =>
-          (focused(states) ||
-              (states.contains(WidgetState.selected) &&
-                  !states.contains(WidgetState.disabled)))
+          focused(states) ||
+              live(states, WidgetState.selected) ||
+              live(states, WidgetState.hovered) ||
+              live(states, WidgetState.pressed)
           ? c.strokeFocus1
           : null,
     ),
     innerBorderWidth: WidgetStateProperty.resolveWith<double?>((states) {
+      final selected = states.contains(WidgetState.selected);
       if (focused(states)) {
         // 3px total minus the 2px focus band, and 5 minus 3 when selected.
-        return states.contains(WidgetState.selected)
-            ? FluentStroke.thick
-            : FluentStroke.thin;
+        return selected ? FluentStroke.thick : FluentStroke.thin;
       }
-      if (!states.contains(WidgetState.selected) ||
-          states.contains(WidgetState.disabled)) {
-        return FluentStroke.none;
+      if (states.contains(WidgetState.disabled)) return FluentStroke.none;
+      if (selected) {
+        if (compact) return FluentStroke.thin;
+        return states.contains(WidgetState.pressed)
+            ? FluentStroke.thicker
+            : FluentStroke.thick;
       }
-      // 5px total minus the 3px outer band, and 3 minus 2 when compact.
-      return compact ? FluentStroke.thin : FluentStroke.thick;
+      return states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.pressed)
+          ? FluentStroke.thin
+          : FluentStroke.none;
     }),
     borderRadius: WidgetStatePropertyAll<BorderRadius?>(radius),
     size: WidgetStatePropertyAll<Size?>(Size.square(dimension)),
