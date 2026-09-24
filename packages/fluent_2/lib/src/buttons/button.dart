@@ -74,7 +74,9 @@ class FluentButtonBaseState {
     required this.enabled,
     required this.iconPosition,
     this.icon,
+    this.activeIcon,
     this.label,
+    this.menuIcon,
   });
 
   /// Whether the button responds to input.
@@ -86,8 +88,24 @@ class FluentButtonBaseState {
   /// The icon, if any.
   final Widget? icon;
 
+  /// Shown in place of [icon] while the button is hovered or pressed, or null
+  /// to keep [icon] throughout.
+  ///
+  /// Upstream's `bundleIcon(Filled, Regular)`: a subtle or transparent button
+  /// displays the Filled glyph under `:hover` and `:hover:active`
+  /// (`useButtonStyles.styles.ts`, `iconFilledClassName`), so pass the filled
+  /// counterpart of [icon] here. [resolveFluentButtonState] keeps it on those
+  /// two appearances only, as upstream does.
+  final Widget? activeIcon;
+
   /// The label, if any. A button with no label is an icon-only button.
   final Widget? label;
+
+  /// A menu affordance after the label — upstream `MenuButton`'s `menuIcon`
+  /// slot, which `fluentMenuChevron` fills. Unlike [icon] it keeps the label's
+  /// colour and never swaps glyphs, since upstream styles it as neither
+  /// `.fui-Button__icon` nor a bundled icon.
+  final Widget? menuIcon;
 
   /// Whether this renders as an icon-only button.
   bool get iconOnly => label == null && icon != null;
@@ -107,7 +125,9 @@ class FluentButtonState extends FluentButtonBaseState {
     required this.size,
     required this.shape,
     super.icon,
+    super.activeIcon,
     super.label,
+    super.menuIcon,
   });
 
   /// Fill and outline treatment.
@@ -119,6 +139,15 @@ class FluentButtonState extends FluentButtonBaseState {
   /// Corner treatment.
   final FluentButtonShape shape;
 }
+
+/// Whether [appearance] swaps its icon for the active one on hover and press.
+///
+/// Only subtle and transparent do upstream: `useButtonStyles.styles.ts` hides
+/// `iconRegularClassName` and shows `iconFilledClassName` under their `:hover`
+/// and `:hover:active` rules and nowhere else.
+bool _swapsIcon(FluentButtonAppearance appearance) =>
+    appearance == FluentButtonAppearance.subtle ||
+    appearance == FluentButtonAppearance.transparent;
 
 /// Builds the state a button will be styled and rendered from.
 ///
@@ -132,7 +161,9 @@ FluentButtonState resolveFluentButtonState({
   FluentButtonShape shape = FluentButtonShape.rounded,
   FluentButtonIconPosition iconPosition = FluentButtonIconPosition.before,
   Widget? icon,
+  Widget? activeIcon,
   Widget? label,
+  Widget? menuIcon,
 }) => FluentButtonState(
   enabled: enabled,
   appearance: appearance,
@@ -140,7 +171,9 @@ FluentButtonState resolveFluentButtonState({
   shape: shape,
   iconPosition: iconPosition,
   icon: icon,
+  activeIcon: _swapsIcon(appearance) ? activeIcon : null,
   label: label,
+  menuIcon: menuIcon,
 );
 
 /// Resolves the default style for [state] against [theme].
@@ -228,6 +261,29 @@ FluentButtonStyle resolveFluentButtonStyle(
     ),
   };
 
+  // Subtle is the one appearance whose icon parts company with its label:
+  // `useButtonStyles.subtle` recolours `.fui-Button__icon` brand under `:hover`
+  // and `:hover:active` while the label stays neutral, and an open subtle
+  // MenuButton (`useIconExpandedStyles.subtle`) or a checked subtle
+  // ToggleButton (`useIconCheckedStyles`) holds it at BrandSelected. Anywhere
+  // else the icon inherits the label colour, so it resolves to null there and
+  // follows [FluentButtonStyle.foregroundColor] — an override included.
+  final icon = state.appearance == FluentButtonAppearance.subtle
+      ? WidgetStateProperty.resolveWith<Color?>((states) {
+          if (states.contains(WidgetState.disabled)) return null;
+          if (states.contains(WidgetState.pressed)) {
+            return c.neutralForeground2BrandPressed;
+          }
+          if (states.contains(WidgetState.hovered)) {
+            return c.neutralForeground2BrandHover;
+          }
+          if (states.contains(WidgetState.selected)) {
+            return c.neutralForeground2BrandSelected;
+          }
+          return null;
+        })
+      : null;
+
   final primary = state.appearance == FluentButtonAppearance.primary;
   final bordered =
       state.appearance == FluentButtonAppearance.secondary ||
@@ -301,6 +357,10 @@ FluentButtonStyle resolveFluentButtonStyle(
   };
   final padding = state.iconOnly ? EdgeInsets.all(iconOnlyInset) : inset;
   final minimumWidth = state.iconOnly ? height : floor;
+  // `useMenuIconStyles`: 12, 12 and 16, whatever the icon beside it.
+  final menuIconSize = state.size == FluentButtonSize.large
+      ? FluentSize.size160
+      : FluentSize.size120;
 
   // A keyboard-focused button takes the size's own radius — `useRootFocusStyles`
   // gives small `borderRadiusSmall` and large `borderRadiusLarge` — unless its
@@ -327,6 +387,7 @@ FluentButtonStyle resolveFluentButtonStyle(
   return FluentButtonStyle(
     backgroundColor: background,
     foregroundColor: foreground,
+    iconColor: icon,
     borderColor: border,
     // Selected outline thickens to `strokeWidthThicker`, as both an open
     // MenuButton and a checked ToggleButton do upstream.
@@ -343,6 +404,7 @@ FluentButtonStyle resolveFluentButtonStyle(
     padding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(padding),
     gap: WidgetStatePropertyAll<double?>(gap),
     iconSize: WidgetStatePropertyAll<double?>(iconSize),
+    menuIconSize: WidgetStatePropertyAll<double?>(menuIconSize),
     minimumSize: WidgetStatePropertyAll<Size?>(Size(minimumWidth, height)),
     // Primary's focus indicator (`useRootFocusStyles.primary`) adds `shadow2`
     // outside and a white 2px inset shadow under the 1px black one — seen as a
@@ -385,55 +447,100 @@ Widget buildFluentButton(
   FluentButtonStyle style,
   Set<WidgetState> states,
 ) {
+  const clear = Color(0x00000000);
   final radius = style.borderRadius?.resolve(states) ?? FluentRadius.allMedium;
   final borderWidth = style.borderWidth?.resolve(states) ?? FluentStroke.none;
   final borderColor = style.borderColor?.resolve(states);
-  final foreground = style.foregroundColor?.resolve(states);
   final padding = style.padding?.resolve(states) ?? EdgeInsets.zero;
   final gap = style.gap?.resolve(states) ?? FluentSpacing.sNudge;
   final iconSize = style.iconSize?.resolve(states) ?? FluentSize.size200;
+  final menuIconSize =
+      style.menuIconSize?.resolve(states) ?? FluentSize.size120;
   final minimumSize = style.minimumSize?.resolve(states) ?? Size.zero;
   final textStyle = style.textStyle?.resolve(states);
+  // Not animated: upstream sets it on the icon span, which declares no
+  // transition of its own, so it lands on the frame the state changes.
+  final iconColor = style.iconColor?.resolve(states);
+  final icon =
+      states.contains(WidgetState.hovered) ||
+          states.contains(WidgetState.pressed)
+      ? state.activeIcon ?? state.icon
+      : state.icon;
 
-  final children = <Widget>[
-    if (state.icon != null)
-      IconTheme.merge(
-        data: IconThemeData(color: foreground, size: iconSize),
-        child: state.icon!,
-      ),
-    if (state.label != null) state.label!,
-  ];
+  Widget buildContent(Color? foreground) {
+    final children = <Widget>[
+      if (icon != null)
+        IconTheme.merge(
+          data: IconThemeData(color: iconColor ?? foreground, size: iconSize),
+          child: icon,
+        ),
+      if (state.label != null) state.label!,
+    ];
 
-  Widget content = switch (state.iconPosition) {
-    FluentButtonIconPosition.before => Row(
+    Widget content = Row(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
-      spacing: state.icon != null && state.label != null ? gap : 0,
-      children: children,
-    ),
-    FluentButtonIconPosition.after => Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      spacing: state.icon != null && state.label != null ? gap : 0,
-      children: children.reversed.toList(),
-    ),
-  };
-
-  if (textStyle != null || foreground != null) {
-    content = DefaultTextStyle.merge(
-      style: (textStyle ?? const TextStyle()).copyWith(color: foreground),
-      child: content,
+      spacing: icon != null && state.label != null ? gap : 0,
+      children: switch (state.iconPosition) {
+        FluentButtonIconPosition.before => children,
+        FluentButtonIconPosition.after => children.reversed.toList(),
+      },
     );
+
+    final menuIcon = state.menuIcon;
+    if (menuIcon != null) {
+      content = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          content,
+          // `useMenuIconStyles.notIconOnly`: `marginLeft:
+          // spacingHorizontalXS`, beside a label only.
+          if (state.label != null) const SizedBox(width: FluentSpacing.xs),
+          IconTheme.merge(
+            // The label's colour: upstream's `menuIcon` span is not a
+            // `.fui-Button__icon`, so subtle's brand icon rule passes it by.
+            data: IconThemeData(color: foreground, size: menuIconSize),
+            // The span keeps a 16 (22) line height, and the inline svg in it
+            // sits on that line's baseline — 1px below the span at every size,
+            // as Chrome renders it. Painted, not laid out, lower, exactly as
+            // the overflowing svg is.
+            child: Transform.translate(
+              offset: const Offset(0, 1),
+              child: menuIcon,
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (textStyle != null || foreground != null) {
+      content = DefaultTextStyle.merge(
+        style: (textStyle ?? const TextStyle()).copyWith(color: foreground),
+        child: content,
+      );
+    }
+    return content;
   }
 
-  // The surface animates; the focus ring does not. Upstream's Button declares
-  // `transition: background, border, color` at durationFaster/curveEasyEase,
-  // and its focus indicator is a box-shadow, which that list leaves out.
-  return FluentAnimatedStyle<Color>(
-    value: style.backgroundColor?.resolve(states) ?? const Color(0x00000000),
-    spec: FluentMotionSpec.buttonSurface,
-    lerp: fluentLerpColor,
-    builder: (context, background) => FluentFocusRing.inset(
+  // The surface, its border and its label animate together; the focus ring
+  // does not. Upstream's Button declares `transition: background, border,
+  // color` at durationFaster/curveEasyEase, and its focus indicator is a
+  // box-shadow, which that list leaves out.
+  return FluentAnimatedStyle<_ButtonInk>(
+    value: (
+      style.backgroundColor?.resolve(states) ?? clear,
+      borderColor ?? clear,
+      style.foregroundColor?.resolve(states),
+    ),
+    spec: switch (style.animationDuration) {
+      null => FluentMotionSpec.buttonSurface,
+      final duration => FluentMotionSpec(
+        duration: duration,
+        curve: FluentMotionSpec.buttonSurface.curve,
+      ),
+    },
+    lerp: _lerpButtonInk,
+    builder: (context, ink) => FluentFocusRing.inset(
       visible: states.contains(WidgetState.focused),
       borderRadius: radius,
       insets:
@@ -447,17 +554,33 @@ Widget buildFluentButton(
         ),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: background,
+            color: ink.$1,
             borderRadius: radius,
             border: borderWidth > 0 && borderColor != null
-                ? Border.all(color: borderColor, width: borderWidth)
+                ? Border.all(color: ink.$2, width: borderWidth)
                 : null,
             boxShadow: style.shadow?.resolve(states),
           ),
-          child: Padding(padding: padding, child: content),
+          child: Padding(padding: padding, child: buildContent(ink.$3)),
         ),
       ),
     ),
+  );
+}
+
+/// The three colours upstream's `transition: background, border, color`
+/// moves together, as one value on one ticker. The foreground is nullable: a
+/// style without one leaves the label's own colour alone.
+typedef _ButtonInk = (Color background, Color border, Color? foreground);
+
+_ButtonInk? _lerpButtonInk(_ButtonInk? a, _ButtonInk? b, double t) {
+  if (a == null || b == null) return b ?? a;
+  return (
+    // fluentLerpColor, not Color.lerp: a subtle surface is transparent black at
+    // rest, and Color.lerp would drag its RGB through the fade.
+    fluentLerpColor(a.$1, b.$1, t)!,
+    fluentLerpColor(a.$2, b.$2, t)!,
+    fluentLerpColor(a.$3, b.$3, t),
   );
 }
 
@@ -521,6 +644,8 @@ class FluentButton extends StatelessWidget {
     this.shape = FluentButtonShape.rounded,
     this.iconPosition = FluentButtonIconPosition.before,
     this.icon,
+    this.activeIcon,
+    this.menuIcon,
     this.style,
     this.focusNode,
     this.autofocus = false,
@@ -536,6 +661,7 @@ class FluentButton extends StatelessWidget {
     super.key,
     required Widget this.icon,
     required String this.semanticLabel,
+    this.activeIcon,
     this.onPressed,
     this.appearance = FluentButtonAppearance.secondary,
     this.size = FluentButtonSize.medium,
@@ -544,6 +670,7 @@ class FluentButton extends StatelessWidget {
     this.focusNode,
     this.autofocus = false,
   }) : child = null,
+       menuIcon = null,
        iconPosition = FluentButtonIconPosition.before;
 
   /// The label. Null for an icon-only button.
@@ -566,6 +693,37 @@ class FluentButton extends StatelessWidget {
 
   /// Optional leading or trailing icon.
   final Widget? icon;
+
+  /// Shown in place of [icon] while a subtle or transparent button is hovered
+  /// or pressed — upstream's `bundleIcon`, which swaps the Regular glyph for
+  /// its Filled one there. Pass the filled counterpart of [icon]:
+  ///
+  /// ```dart
+  /// FluentButton(
+  ///   appearance: FluentButtonAppearance.subtle,
+  ///   icon: const Icon(FluentIcons.calendar_month_20_regular),
+  ///   activeIcon: const Icon(FluentIcons.calendar_month_20_filled),
+  ///   onPressed: () {},
+  ///   child: const Text('Schedule'),
+  /// )
+  /// ```
+  ///
+  /// Ignored on the other appearances, which never swap upstream.
+  final Widget? activeIcon;
+
+  /// A menu affordance after the label, which makes this upstream's
+  /// `MenuButton`:
+  ///
+  /// ```dart
+  /// FluentButton(
+  ///   menuIcon: fluentMenuChevron,
+  ///   onPressed: () {},
+  ///   child: const Text('Menu'),
+  /// )
+  /// ```
+  ///
+  /// Drawn 12 (16 at large) and 4 after the label, in the label's colour.
+  final Widget? menuIcon;
 
   /// Overrides layered over the theme defaults. Merged last, so it wins.
   final FluentButtonStyle? style;
@@ -597,9 +755,11 @@ class FluentButton extends StatelessWidget {
       shape: shape,
       iconPosition: iconPosition,
       icon: icon,
+      activeIcon: activeIcon,
       label: label != null && semanticLabel != null
           ? ExcludeSemantics(child: label)
           : label,
+      menuIcon: menuIcon,
     );
 
     // Lowest to highest: defaults, subtree theme, then the caller's own style.

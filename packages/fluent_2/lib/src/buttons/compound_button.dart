@@ -104,6 +104,7 @@ class FluentCompoundButtonBaseState extends FluentButtonBaseState {
     required super.enabled,
     required super.iconPosition,
     super.icon,
+    super.activeIcon,
     super.label,
     this.secondaryLabel,
   });
@@ -126,6 +127,7 @@ class FluentCompoundButtonState extends FluentCompoundButtonBaseState {
     required this.size,
     required this.shape,
     super.icon,
+    super.activeIcon,
     super.label,
     super.secondaryLabel,
   });
@@ -147,6 +149,7 @@ class FluentCompoundButtonState extends FluentCompoundButtonBaseState {
     size: size,
     shape: shape,
     icon: icon,
+    activeIcon: activeIcon,
     label: label,
   );
 }
@@ -159,6 +162,7 @@ FluentCompoundButtonState resolveFluentCompoundButtonState({
   FluentButtonShape shape = FluentButtonShape.rounded,
   FluentButtonIconPosition iconPosition = FluentButtonIconPosition.before,
   Widget? icon,
+  Widget? activeIcon,
   Widget? label,
   Widget? secondaryLabel,
 }) => FluentCompoundButtonState(
@@ -168,6 +172,12 @@ FluentCompoundButtonState resolveFluentCompoundButtonState({
   shape: shape,
   iconPosition: iconPosition,
   icon: icon,
+  // The button's own rule: only subtle and transparent swap their glyph.
+  activeIcon:
+      appearance == FluentButtonAppearance.subtle ||
+          appearance == FluentButtonAppearance.transparent
+      ? activeIcon
+      : null,
   label: label,
   secondaryLabel: secondaryLabel,
 );
@@ -186,39 +196,15 @@ FluentCompoundButtonStyle resolveFluentCompoundButtonStyle(
 ) {
   final c = theme.colors;
 
-  // A compound button's foreground table is NOT the button's, which is the one
-  // place the two components genuinely part company. The louder first line takes
-  // neutralForeground1 at rest even on subtle and transparent, where a plain
-  // button's label sits on neutralForeground2; and Selected resolves to the real
-  // `Selected` step rather than borrowing Pressed the way the button set does.
-  final primaryColor = switch (state.appearance) {
-    FluentButtonAppearance.primary => FluentStateColor.tokens(
-      rest: c.neutralForegroundOnBrand,
-      disabled: c.neutralForegroundDisabled,
-    ),
-    FluentButtonAppearance.secondary ||
-    FluentButtonAppearance.outline ||
-    FluentButtonAppearance.subtle => FluentStateColor.tokens(
-      rest: c.neutralForeground1,
-      hover: c.neutralForeground1Hover,
-      pressed: c.neutralForeground1Pressed,
-      selected: c.neutralForeground1Selected,
-      disabled: c.neutralForegroundDisabled,
-    ),
-    // Transparent is the odd one, as it is on the button: its label takes BRAND
-    // colour on interaction.
-    FluentButtonAppearance.transparent => FluentStateColor.tokens(
-      rest: c.neutralForeground1,
-      hover: c.neutralForeground2BrandHover,
-      pressed: c.neutralForeground2BrandPressed,
-      selected: c.neutralForeground2BrandSelected,
-      disabled: c.neutralForegroundDisabled,
-    ),
-  };
-
-  // The second line is the first line one step quieter — neutralForeground2*
-  // against neutralForeground1* — EXCEPT on primary, where both lines sit on the
-  // brand fill and share neutralForegroundOnBrand.
+  // The first line keeps the button's own foreground table. Figma's set puts
+  // it on neutralForeground1 at rest even on subtle and transparent, but the
+  // storybook renders those two at neutralForeground2 (#424242) and darkens
+  // them on hover exactly as a plain button's label does — measured with
+  // getComputedStyle on compoundbutton--appearance — and React wins.
+  //
+  // The second line sits on neutralForeground2* — one step quieter than the
+  // first on secondary and outline — EXCEPT on primary, where both lines sit on
+  // the brand fill and share neutralForegroundOnBrand.
   final secondary = switch (state.appearance) {
     FluentButtonAppearance.primary => FluentStateColor.tokens(
       rest: c.neutralForegroundOnBrand,
@@ -242,37 +228,64 @@ FluentCompoundButtonStyle resolveFluentCompoundButtonStyle(
     ),
   };
 
-  // Compound geometry is genuinely its own: the inset is uniform and equal to
-  // the icon gap, the icon is 40 rather than 20, and the height is
-  // content-driven because two lines do not fit a button's ramp. The type ramp
-  // is NOT its own — both lines hold body1Strong over caption1 at all three
-  // sizes, so only the inset moves.
-  final (inset, primaryStyle, secondaryStyle) = switch (state.size) {
+  // Compound geometry is genuinely its own: the icon is 40 rather than 20, and
+  // the height is content-driven because two lines do not fit a button's
+  // ramp. `useCompoundButtonStyles` pads `8px 8px 10px`, `14px 12px 16px` and
+  // `18px 16px 20px` — two more below than above — inside the 1px border every
+  // button keeps, which takes layout space here as it does on `FluentButton`,
+  // and spaces the icon `spacingHorizontalM` from the text at every size.
+  //
+  // The type moves with the size too: 14/20 over 12 at small and medium, 16/22
+  // over 14 at large, the first line regular at small (the button's own
+  // `small` weight, which the compound size rule leaves alone) and semibold
+  // otherwise, the second `lineHeight: 100%`. All of it is 60, 72 and 80 high
+  // round the 40px icon and 52, 64 and 76 without one, as Chrome renders
+  // compoundbutton--size. Figma's set holds 14/20 Semibold over 12/16 at every
+  // size with a uniform S/M/L inset doubling as the gap; React wins.
+  final t = theme.typography;
+  final (
+    side,
+    top,
+    bottom,
+    primaryStyle,
+    secondaryStyle,
+  ) = switch (state.size) {
     FluentButtonSize.small => (
       FluentSpacing.s,
-      theme.typography.body1Strong,
-      theme.typography.caption1,
+      FluentSpacing.s,
+      10.0,
+      t.body1,
+      t.caption1,
     ),
     FluentButtonSize.medium => (
       FluentSpacing.m,
-      theme.typography.body1Strong,
-      theme.typography.caption1,
+      14.0,
+      FluentSpacing.l,
+      t.body1Strong,
+      t.caption1,
     ),
     FluentButtonSize.large => (
       FluentSpacing.l,
-      theme.typography.body1Strong,
-      theme.typography.caption1,
+      18.0,
+      FluentSpacing.xl,
+      t.subtitle2,
+      t.body1,
     ),
   };
+  const border = FluentStroke.thin;
 
   return FluentCompoundButtonStyle(
     button: resolveFluentButtonStyle(state.buttonState, theme).copyWith(
-      foregroundColor: primaryColor,
       textStyle: WidgetStatePropertyAll<TextStyle?>(primaryStyle),
       padding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(
-        EdgeInsets.all(inset),
+        EdgeInsets.fromLTRB(
+          side + border,
+          top + border,
+          side + border,
+          bottom + border,
+        ),
       ),
-      gap: WidgetStatePropertyAll<double?>(inset),
+      gap: const WidgetStatePropertyAll<double?>(FluentSpacing.m),
       iconSize: const WidgetStatePropertyAll<double?>(FluentSize.size400),
       // `height: auto` upstream: two lines make the button's own height ramp
       // meaningless, so the content decides. The width is content-driven too,
@@ -281,7 +294,9 @@ FluentCompoundButtonStyle resolveFluentCompoundButtonStyle(
       minimumSize: const WidgetStatePropertyAll<Size?>(Size.zero),
     ),
     secondaryColor: secondary,
-    secondaryTextStyle: WidgetStatePropertyAll<TextStyle?>(secondaryStyle),
+    secondaryTextStyle: WidgetStatePropertyAll<TextStyle?>(
+      secondaryStyle.copyWith(height: 1),
+    ),
   );
 }
 
@@ -324,6 +339,7 @@ Widget buildFluentCompoundButton(
       enabled: state.enabled,
       iconPosition: state.iconPosition,
       icon: state.icon,
+      activeIcon: state.activeIcon,
       label: label,
     ),
     style.button ?? const FluentButtonStyle(),
@@ -399,6 +415,7 @@ class FluentCompoundButton extends StatelessWidget {
     this.shape = FluentButtonShape.rounded,
     this.iconPosition = FluentButtonIconPosition.before,
     this.icon,
+    this.activeIcon,
     this.style,
     this.focusNode,
     this.autofocus = false,
@@ -430,6 +447,11 @@ class FluentCompoundButton extends StatelessWidget {
   /// Optional leading or trailing icon, rendered at 40 logical pixels.
   final Widget? icon;
 
+  /// Shown in place of [icon] while a subtle or transparent compound button is
+  /// hovered or pressed — upstream's `bundleIcon` Filled glyph. See
+  /// `FluentButton.activeIcon`.
+  final Widget? activeIcon;
+
   /// Overrides layered over the theme defaults. Merged last, so it wins.
   final FluentCompoundButtonStyle? style;
 
@@ -454,6 +476,7 @@ class FluentCompoundButton extends StatelessWidget {
       shape: shape,
       iconPosition: iconPosition,
       icon: icon,
+      activeIcon: activeIcon,
       label: child,
       secondaryLabel: secondaryContent,
     );

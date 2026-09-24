@@ -17,15 +17,15 @@ import 'button_style.dart';
 ///
 /// ```dart
 /// FluentButton(
-///   icon: fluentMenuChevron,
-///   iconPosition: FluentButtonIconPosition.after,
+///   menuIcon: fluentMenuChevron,
 ///   onPressed: () {},
 ///   child: const Text('Menu'),
 /// )
 /// ```
 ///
-/// Deliberately sizeless, so it inherits the icon size the button's own size
-/// ramp resolved rather than pinning one of its own.
+/// Deliberately sizeless, so it inherits the menu icon size the button's own
+/// size ramp resolved — 12, or 16 at large — rather than pinning one of its
+/// own.
 const Widget fluentMenuChevron = Icon(FluentIcons.chevron_down_20_regular);
 
 /// The chevron half's minimum width, at every size.
@@ -136,14 +136,11 @@ class FluentSplitButtonBaseState extends FluentButtonBaseState {
     required this.menuEnabled,
     super.icon,
     super.label,
-    this.menuIcon,
+    super.menuIcon,
   });
 
   /// Whether the chevron half responds to input.
   final bool menuEnabled;
-
-  /// The chevron. Defaults to [fluentMenuChevron] when null.
-  final Widget? menuIcon;
 
   /// The base state of one [side], as `FluentButton` would see it.
   FluentButtonBaseState half(FluentSplitButtonSide side) => switch (side) {
@@ -153,17 +150,13 @@ class FluentSplitButtonBaseState extends FluentButtonBaseState {
       icon: icon,
       label: label,
     ),
+    // Upstream's chevron half is a `MenuButton` with no label and no icon, so
+    // the chevron is its `menuIcon` — in the label's colour, which keeps it
+    // out of subtle's brand icon ramp.
     FluentSplitButtonSide.menu => FluentButtonBaseState(
       enabled: menuEnabled,
       iconPosition: iconPosition,
-      // Upstream's `menuIcon` span is 12 (16) high but keeps a 16 (22) line
-      // height, and the inline svg in it sits on that line's baseline — 1px
-      // below the span at every size, as Chrome renders it. Painted, not laid
-      // out, lower, exactly as the overflowing svg is.
-      icon: Transform.translate(
-        offset: const Offset(0, 1),
-        child: menuIcon ?? fluentMenuChevron,
-      ),
+      menuIcon: menuIcon ?? fluentMenuChevron,
     ),
   };
 }
@@ -204,6 +197,7 @@ class FluentSplitButtonState extends FluentSplitButtonBaseState {
       shape: shape,
       icon: base.icon,
       label: base.label,
+      menuIcon: base.menuIcon,
     );
   }
 }
@@ -256,10 +250,10 @@ FluentSplitButtonStyle resolveFluentSplitButtonStyle(
     // It has no leading border (`borderLeftWidth: 0`), so only the other three
     // sides add a border to the inset — 1px, or the 3px an open outline menu
     // takes, which widens the half by the difference as it does upstream.
-    final (inset, glyph) = switch (state.size) {
-      FluentButtonSize.small => (1.0, FluentSize.size120),
-      FluentButtonSize.medium => (5.0, FluentSize.size120),
-      FluentButtonSize.large => (7.0, FluentSize.size160),
+    final inset = switch (state.size) {
+      FluentButtonSize.small => 1.0,
+      FluentButtonSize.medium => 5.0,
+      FluentButtonSize.large => 7.0,
     };
     final borderWidth = button.borderWidth;
     final minimumSize = button.minimumSize;
@@ -270,8 +264,6 @@ FluentSplitButtonStyle resolveFluentSplitButtonStyle(
             math.max(borderWidth?.resolve(states) ?? 0, FluentStroke.thin);
         return EdgeInsetsDirectional.fromSTEB(inset, edge, edge, edge);
       }),
-      gap: const WidgetStatePropertyAll<double?>(FluentSpacing.none),
-      iconSize: WidgetStatePropertyAll<double?>(glyph),
       // The focus ring is the border plus a 1px inset shadow, so on the seam,
       // where this half has no border, only the shadow's pixel is left.
       focusRingInsets: const WidgetStatePropertyAll<EdgeInsetsGeometry?>(
