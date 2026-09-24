@@ -2283,18 +2283,25 @@ void main() {
       );
     });
 
-    test('the active region takes in the pointer on its line', () {
+    test('the active region takes in the line the pointer is on', () {
+      void onLineClick() {}
+      void onDataPointClick() {}
       // Points 100px apart, so the line leaving the active one runs well past
       // its marker.
-      FluentLineChartDelegate wide({Offset? hoverPosition}) => _delegate(
-        const <FluentLineChartSeries>[
+      List<FluentChartHitRegion> regions({Offset? hoverPosition}) => _delegate(
+        <FluentLineChartSeries>[
           FluentLineChartSeries(
             legend: 'a',
+            onLineClick: onLineClick,
             data: <FluentLineChartDataPoint>[
-              FluentLineChartDataPoint(x: 0, y: 500),
-              FluentLineChartDataPoint(x: 100, y: 500),
-              FluentLineChartDataPoint(x: 200, y: 500),
-              FluentLineChartDataPoint(x: 300, y: 500),
+              const FluentLineChartDataPoint(x: 0, y: 500),
+              FluentLineChartDataPoint(
+                x: 100,
+                y: 500,
+                onDataPointClick: onDataPointClick,
+              ),
+              const FluentLineChartDataPoint(x: 200, y: 500),
+              const FluentLineChartDataPoint(x: 300, y: 500),
             ],
           ),
         ],
@@ -2302,26 +2309,29 @@ void main() {
         selectedLegend: '',
         activePointId: '0_1',
         hoverPosition: hoverPosition,
-      );
-      const drifted = Offset(151, 501);
+      ).buildHitRegions(_identityCtx(), _layout());
+      // Forty pixels on along the line, as a moving hand steps.
+      const next = Offset(190, 501);
+      final onLine = regions(hoverPosition: const Offset(150, 500))[1];
       expect(
-        wide(hoverPosition: const Offset(150, 500))
-            .buildHitRegions(_identityCtx(), _layout())[1]
-            .bounds
-            .contains(drifted),
+        onLine.bounds.contains(next),
         isTrue,
         reason:
             'the shell hovers rectangles, so the point the line resolved to '
-            'must own the spot the pointer drifts to next, or its callout '
-            'never opens',
+            'must own wherever the pointer moves next along that line, or its '
+            'callout never opens',
       );
       expect(
-        wide()
-            .buildHitRegions(_identityCtx(), _layout())[1]
-            .bounds
-            .contains(drifted),
-        isFalse,
+        onLine.onActivate,
+        onLineClick,
+        reason:
+            'a click there lands on the <line>, which carries onLineClick '
+            '(LineChart.tsx:1287), not on the marker',
       );
+      final onMarker = regions(hoverPosition: const Offset(100, 500))[1];
+      expect(onMarker.bounds.contains(next), isFalse);
+      expect(onMarker.onActivate, onDataPointClick);
+      expect(regions()[1].bounds.contains(next), isFalse);
     });
 
     test('the rule runs from the active point to a pixel below the axis', () {
@@ -2337,7 +2347,7 @@ void main() {
         isRtl: false,
         startFromX: 0,
       );
-      _LineRecorder paint({Offset? hoverPosition}) {
+      _LineRecorder paint({Offset? hoverPosition, bool hideCallout = false}) {
         final recorder = _LineRecorder();
         // y = 4.9 sits at 51, so the rule is 15 long and its last dash ends
         // exactly at its end.
@@ -2345,6 +2355,7 @@ void main() {
           ys: const <double>[4.9, 4.9, 4.9],
           activePointId: '0_1',
           hoverPosition: hoverPosition,
+          hideCallout: hideCallout,
         ).paintSeries(recorder, _ctx(), layout, FluentChartColors.of(_theme()));
         return recorder;
       }
@@ -2378,6 +2389,16 @@ void main() {
         paint().pathPaints.where((p) => p.colour.toARGB32() == 0xFF323130),
         isEmpty,
         reason: '_handleMouseOut hides the rule off every mark (:1710-1712)',
+      );
+      expect(
+        paint(
+          hoverPosition: const Offset(10, 51),
+          hideCallout: true,
+        ).pathPaints.where((p) => p.colour.toARGB32() == 0xFF323130),
+        isEmpty,
+        reason:
+            'the rule moves only `if (found)` (:1670): no series calls out '
+            'an x whose every point hides its callout (utilities.ts:1017)',
       );
     });
   });
@@ -2950,6 +2971,47 @@ void main() {
       );
     });
 
+    testWidgets('hovering a colour fill bar legend clears the hover', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        FluentLineChart(
+          data: _lineData(),
+          colorFillBars: const <FluentColorFillBar>[
+            FluentColorFillBar(
+              legend: 'band',
+              color: Color(0xFF0078D4),
+              data: <FluentColorFillBarRange>[
+                FluentColorFillBarRange(startX: 2, endX: 3),
+              ],
+            ),
+          ],
+        ),
+      );
+      final idle = mountedPlot(tester);
+      final gesture = await tester.createGesture(
+        kind: ui.PointerDeviceKind.mouse,
+      );
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(idle.origin + markOf(idle, 0, 1).centre);
+      await tester.pumpAndSettle();
+      expect(mountedPlot(tester).delegate.activePointId, '0_1');
+
+      // [capitalizeLegendLabel] title-cases the label.
+      await gesture.moveTo(tester.getCenter(find.text('Band')));
+      await tester.pumpAndSettle();
+      final plot = mountedPlot(tester);
+      expect(
+        (plot.delegate.activePointId, plot.delegate.hoverPosition),
+        (null, null),
+        reason:
+            "a band's hoverAction runs _handleChartMouseLeave first, as a "
+            "line's does (LineChart.tsx:409-412, :440-443)",
+      );
+    });
+
     testWidgets('the line between two points opens the earlier one', (
       tester,
     ) async {
@@ -2957,7 +3019,6 @@ void main() {
       final idle = mountedPlot(tester);
       final start = markOf(idle, 0, 1).centre;
       final end = markOf(idle, 0, 2).centre;
-      final along = (end - start) / (end - start).distance;
       // Nearer the end point than the start, and clear of both markers.
       final onLine = Offset.lerp(start, end, 0.6)!;
       final gesture = await tester.createGesture(
@@ -2974,7 +3035,8 @@ void main() {
             'a segment runs _handleHover for its START point '
             '(LineChart.tsx:1251-1278), so that marker grows at once',
       );
-      await gesture.moveTo(idle.origin + onLine + along);
+      // Tens of pixels on along the same line, as a moving hand steps.
+      await gesture.moveTo(idle.origin + Offset.lerp(start, end, 0.8)!);
       await tester.pumpAndSettle();
       final popover = tester.widget<FluentChartPopover>(
         find.byType(FluentChartPopover),
@@ -3155,6 +3217,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 90));
         await gesture.moveBy(const Offset(1.5, 0));
         await gesture.up();
+        await gesture.removePointer();
         await tester.pumpAndSettle();
       }
 
@@ -3176,6 +3239,24 @@ void main() {
       );
       await click(Offset.lerp(a, b, 0.5)! + const Offset(0, 20));
       expect(lineClicks, 1, reason: 'a click off the stroke is no line click');
+
+      // A real mouse hovers the line on its way to pressing it, which grows
+      // the start point and hands its region the line.
+      final mouse = await tester.createGesture(
+        kind: ui.PointerDeviceKind.mouse,
+      );
+      await mouse.addPointer(location: origin);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(origin + Offset.lerp(a, b, 0.5)!);
+      await tester.pump();
+      await mouse.down(origin + Offset.lerp(a, b, 0.5)!);
+      await mouse.up();
+      await tester.pumpAndSettle();
+      expect(
+        (pointClicks, lineClicks),
+        (1, 2),
+        reason: 'a hovered line is still the <line> that takes the click',
+      );
     });
 
     testWidgets('a date x reaches the callout formatted', (tester) async {
@@ -3618,6 +3699,7 @@ FluentLineChartDelegate _lineDelegate({
   Color? markerColor,
   double? markerSize,
   List<String?>? texts,
+  bool hideCallout = false,
 }) => _delegate(
   <FluentLineChartSeries>[
     for (final legend in legends)
@@ -3641,6 +3723,7 @@ FluentLineChartDelegate _lineDelegate({
               text: texts?[i],
               markerColor: markerColor,
               markerSize: markerSize,
+              hideCallout: hideCallout,
             ),
         ],
       ),

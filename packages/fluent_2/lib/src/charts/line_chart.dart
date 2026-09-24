@@ -290,7 +290,14 @@ class FluentLineChartState extends State<FluentLineChart> {
                   ? ''
                   : bar.legend,
             ),
-            onHoverAction: () => setState(() => _activeLegend = bar.legend),
+            // `_handleChartMouseLeave` first, as a line's legend does
+            // (`:409-412`, `:440-443`).
+            onHoverAction: () => setState(() {
+              _nearestPoint = null;
+              _activePointId = null;
+              _hoverPosition = null;
+              _activeLegend = bar.legend;
+            }),
             onMouseOutAction: ({required bool isLegendFocused}) =>
                 setState(() => _activeLegend = null),
           ),
@@ -1736,10 +1743,26 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     // under the bands and the lines. `_handleHover` moves it to the hovered
     // point and ends it at `lineHeight - 5`, where `lineHeight` is
     // `containerHeight - margins.bottom + 6` (`:542`, `:1669-1674`): one pixel
-    // below the x axis.
-    final ruleFrom = hoverPosition == null
+    // below the x axis. It moves only `if (found)` (`:1670`): a point that no
+    // series calls out at its x (`hideCallout`) activates without a rule.
+    final active = hoverPosition == null
         ? null
-        : allMarks.where(_isActive).map((mark) => mark.centre).firstOrNull;
+        : allMarks.where(_isActive).firstOrNull;
+    final x = active == null
+        ? null
+        : (series[active.seriesIndex].data[active.pointIndex]
+                  as FluentLineChartDataPoint)
+              .x;
+    final ruleFrom =
+        x == null ||
+            findCalloutPoints(
+                  calloutData(series),
+                  x,
+                  isXAxisDate: x is DateTime,
+                ) ==
+                null
+        ? null
+        : active!.centre;
     if (ruleFrom != null) {
       final ruleTo = Offset(
         ruleFrom.dx,
@@ -2205,14 +2228,17 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
   ///
   /// A pointer on a segment hovers its start point, which the chart resolves
   /// through [hoverTargetAt] from the shell's pointer moves. A region is a
-  /// rectangle and a keyboard stop, so a diagonal band cannot be one; instead
-  /// the active point's region also takes in the pointer's last position
-  /// ([hoverPosition]), which lets the shell open that point's callout from
-  /// the next move along the line.
+  /// rectangle and a keyboard stop, so a diagonal band cannot be one; instead,
+  /// while [hoverPosition] is on the line leaving the active point, that
+  /// point's region also takes in the line's bounding box, which lets the
+  /// shell open its callout from the next move anywhere along the line. A
+  /// click there lands on the `<line>`, so the region runs the line's
+  /// `onLineClick` (`:1287`) rather than the point's `onDataPointClick`.
   ///
   /// ponytail: the callout therefore opens one pointer move after the marker
-  /// grows. A shell hook that asks the delegate which region a position
-  /// hovers would open it on the first.
+  /// grows, and Enter on that stop runs `onLineClick` while the mouse rests on
+  /// its line. A shell hook that asks the delegate which region a position
+  /// hovers would open it on the first and drop both.
   ///
   /// // ponytail: engine B outside markers mode declares nothing, because
   /// [markersFor] emits nothing there (`:773`). Upstream covers it with
@@ -2268,14 +2294,29 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
           ? findCalloutPoints(points, point.x, isXAxisDate: point.x is DateTime)
           : null;
       final hitBounds = _hitBoundsOf(mark);
+      // The line [hoverTargetAt] resolved to this point: the one leaving it
+      // (`:1251-1278`).
+      final hovered =
+          _isActive(mark) &&
+              hoverPosition != null &&
+              !hitBounds.contains(hoverPosition!)
+          ? segmentsFor(context)
+                .where(
+                  (segment) =>
+                      segment.seriesIndex == mark.seriesIndex &&
+                      segment.pointIndex == mark.pointIndex + 1,
+                )
+                .firstOrNull
+          : null;
       return FluentChartHitRegion(
-        bounds: _isActive(mark) && hoverPosition != null
-            // A pixel of drift in any direction from where the pointer last
-            // was on this point's line.
-            ? hitBounds.expandToInclude(
-                Rect.fromCircle(center: hoverPosition!, radius: 2),
-              )
-            : hitBounds,
+        bounds: hovered == null
+            ? hitBounds
+            : hitBounds.expandToInclude(
+                Rect.fromPoints(
+                  hovered.start,
+                  hovered.end,
+                ).inflate(hovered.strokeWidth / 2),
+              ),
         popoverAnchor: _activeBoundsOf(mark),
         index: mark.pointIndex,
         legend: line.legend,
@@ -2319,8 +2360,9 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
         // `:1151`). `line.onLineClick` is deliberately NOT folded in: upstream
         // hangs it off the line `<path>` (`:731`, `:1287`), which the marker
         // circle sits on top of, so a click on a mark never reaches it. The
-        // stroke itself is hit-tested in [activationAt].
-        onActivate: point.onDataPointClick,
+        // stroke itself is hit-tested in [activationAt], except under the
+        // pointer on [hovered], which this region has taken over.
+        onActivate: hovered == null ? point.onDataPointClick : line.onLineClick,
       );
     }
 
