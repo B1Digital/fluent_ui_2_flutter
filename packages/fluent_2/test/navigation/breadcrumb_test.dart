@@ -369,8 +369,15 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('the label holds at Foreground/2 on hover and only moves on '
-        'press', (tester) async {
+    // The storybook, not Figma: all 51 Figma variants hold
+    // Neutral/Foreground/2/Rest on hover, but the crumb renders through the
+    // subtle Button (`useBreadcrumbButton` -> `appearance: 'subtle'`), whose
+    // `:hover` is colorNeutralForeground2Hover and `:hover:active`
+    // colorNeutralForeground2Pressed. `components-breadcrumb--default`
+    // measures #424242 at rest and #242424 on hover.
+    testWidgets('the label darkens on hover and press under a real mouse', (
+      tester,
+    ) async {
       final theme = light();
       await pump(tester, trail(), theme: theme);
       expect(textOf(tester, 'Reports').color, theme.colors.neutralForeground2);
@@ -378,15 +385,15 @@ void main() {
       final gesture = await hover(tester, find.text('Reports'));
       expect(
         textOf(tester, 'Reports').color,
-        theme.colors.neutralForeground2,
-        reason: 'all 51 variants bind Neutral/Foreground/2/Rest on hover',
+        theme.colors.neutralForeground2Hover,
+        reason: 'subtle Button :hover is colorNeutralForeground2Hover',
       );
 
       await gesture.down(tester.getCenter(find.text('Reports')));
       await tester.pumpAndSettle();
       expect(
         textOf(tester, 'Reports').color,
-        theme.colors.neutralForeground1Pressed,
+        theme.colors.neutralForeground2Pressed,
       );
       await gesture.up();
       await tester.pumpAndSettle();
@@ -407,8 +414,8 @@ void main() {
       );
       expect(
         textOf(tester, 'Home').color,
-        theme.colors.neutralForeground2,
-        reason: 'the icon goes brand, the label does not — two ramps',
+        theme.colors.neutralForeground2Hover,
+        reason: 'the icon goes brand, the label only darkens — two ramps',
       );
 
       await gesture.down(tester.getCenter(find.text('Home')));
