@@ -422,6 +422,29 @@ void main() {
       );
     });
 
+    test('strokeDashoffset moves where the dashes start', () {
+      final recorder = _LineRecorder();
+      // One flat line through (0, 90), (10, 90) and (20, 90) under [_ctx].
+      _lineDelegate(
+        ys: const <double>[1, 1, 1],
+        strokeDasharray: '2',
+        strokeDashoffset: -1,
+      ).paintSeries(
+        recorder,
+        _ctx(),
+        _layout(),
+        FluentChartColors.of(_theme()),
+      );
+      expect(
+        recorder.drawn.first,
+        (const Offset(1, 90), const Offset(3, 90)),
+        reason:
+            'stroke-dashoffset -1 on a 2-on 2-off pattern starts 1px into the '
+            'gap before the first dash (LineChart.tsx:1285); the gaps story '
+            'carries exactly this',
+      );
+    });
+
     test('high contrast flattens the fill and the border differently', () {
       final theme = FluentThemeData.highContrast(
         fontPlatform: FluentFontPlatform.web,
@@ -3131,6 +3154,7 @@ FluentLineChartDelegate _lineDelegate({
   double? lineBorderWidth,
   Color? lineBorderColor,
   String? strokeDasharray,
+  double? strokeDashoffset,
   FluentThemeData? withTheme,
   bool allowMultipleShapesForPoints = false,
   bool optimizeLargeData = false,
@@ -3152,6 +3176,7 @@ FluentLineChartDelegate _lineDelegate({
           lineBorderWidth: lineBorderWidth,
           lineBorderColor: lineBorderColor,
           strokeDasharray: strokeDasharray,
+          strokeDashoffset: strokeDashoffset,
         ),
         data: <FluentLineChartDataPoint>[
           for (var i = 0; i < ys.length; i++)

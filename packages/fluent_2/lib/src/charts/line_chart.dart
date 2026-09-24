@@ -505,6 +505,7 @@ class FluentLineSegment {
     required this.opacity,
     required this.strokeWidth,
     this.dashPattern,
+    this.dashOffset = 0,
     this.borderWidth,
     this.borderColour,
   });
@@ -534,6 +535,10 @@ class FluentLineSegment {
 
   /// Parsed `strokeDasharray`, or null.
   final List<double>? dashPattern;
+
+  /// `strokeDashoffset`: how far into [dashPattern] the segment's start sits,
+  /// so a negative offset opens with the tail of a gap (`LineChart.tsx:1285`).
+  final double dashOffset;
 
   /// Total width of the border stroke drawn underneath, or null when
   /// `lineBorderWidth` is zero (`LineChart.tsx:1222-1232`).
@@ -1279,6 +1284,8 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
             opacity: opacity,
             strokeWidth: strokeWidth,
             dashPattern: dashPattern,
+            // `:1285` and `:1305` — both arms carry the offset.
+            dashOffset: line.lineOptions?.strokeDashoffset ?? 0,
             borderWidth: borderWidth,
             borderColour: borderColour,
           ),
@@ -1925,6 +1932,11 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
   /// `Canvas` has no dash support, so a dashed segment is walked by hand. The
   /// border is never dashed: upstream puts `strokeDasharray` on the line only
   /// (`:1284`), so a dashed line shows its halo through the gaps.
+  ///
+  /// The walk starts [FluentLineSegment.dashOffset] into the pattern, as SVG's
+  /// `stroke-dashoffset` does (`:1285`), wrapped into one period so a negative
+  /// offset begins inside the gap before the first dash. A pattern whose runs
+  /// sum to zero draws solid, as [_dashedPath] does.
   static void _stroke(
     Canvas canvas,
     FluentLineSegment segment,
@@ -1932,7 +1944,8 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     required bool dashed,
   }) {
     final pattern = segment.dashPattern;
-    if (!dashed || pattern == null) {
+    final period = pattern?.fold<double>(0, (sum, run) => sum + run) ?? 0;
+    if (!dashed || pattern == null || period <= 0) {
       canvas.drawLine(segment.start, segment.end, paint);
       return;
     }
@@ -1941,12 +1954,17 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
       return;
     }
     final unit = (segment.end - segment.start) / total;
-    var travelled = 0.0;
+    // Dart's `%` is never negative for a positive divisor.
+    var phase = segment.dashOffset % period;
     var index = 0;
+    while (phase >= pattern[index % pattern.length]) {
+      phase -= pattern[index % pattern.length];
+      index++;
+    }
+    var run = pattern[index % pattern.length] - phase;
+    var travelled = 0.0;
     while (travelled < total) {
-      final remaining = total - travelled;
-      final dash = pattern[index % pattern.length];
-      final length = dash < remaining ? dash : remaining;
+      final length = math.min(run, total - travelled);
       if (index.isEven) {
         canvas.drawLine(
           segment.start + unit * travelled,
@@ -1956,6 +1974,7 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
       }
       travelled += length;
       index++;
+      run = pattern[index % pattern.length];
     }
   }
 
