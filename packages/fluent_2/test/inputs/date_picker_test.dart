@@ -1,5 +1,7 @@
 import 'package:fluent_2/fluent_2.dart';
 import 'package:fluent_2/src/internal/input_modality.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -81,27 +83,427 @@ BoxDecoration _faceplate(WidgetTester tester) => tester
     .whereType<BoxDecoration>()
     .firstWhere((decoration) => decoration.borderRadius != null);
 
+/// The faceplate's border, which `buildFluentInput` paints rather than
+/// decorates — the box above carries only the fill and the radius.
+FluentInputBorderPainter _border(WidgetTester tester) => tester
+    .widgetList<CustomPaint>(
+      find.descendant(
+        of: find.byType(FluentDatePicker),
+        matching: find.byType(CustomPaint),
+      ),
+    )
+    .map((paint) => paint.painter)
+    .whereType<FluentInputBorderPainter>()
+    .single;
+
 TextEditingController _controller(WidgetTester tester) =>
     tester.widget<EditableText>(find.byType(EditableText)).controller;
+
+/// Whether the primary focus sits inside the popup's calendar.
+bool _focusInCalendar() =>
+    FocusManager.instance.primaryFocus?.context
+        ?.findAncestorWidgetOfExactType<FluentCalendar>() !=
+    null;
+
+/// A left mouse press at [from], moved to [to] in steps, then released.
+Future<void> _drag(WidgetTester tester, Offset from, Offset to) async {
+  final mouse = await tester.startGesture(
+    from,
+    kind: PointerDeviceKind.mouse,
+    buttons: kPrimaryMouseButton,
+  );
+  await tester.pump(const Duration(milliseconds: 80));
+  for (var i = 1; i <= 5; i++) {
+    await mouse.moveTo(Offset.lerp(from, to, i / 5)!);
+    await tester.pump(const Duration(milliseconds: 16));
+  }
+  await mouse.up();
+  await tester.pumpAndSettle();
+}
+
+/// A left mouse click at [at], held 80ms as a hand holds it.
+Future<void> _click(WidgetTester tester, Offset at) => _drag(tester, at, at);
 
 void main() {
   setUp(FluentInputModality.debugReset);
 
   group('FluentDatePicker — the read-only ramp', () {
     // `allowTextInput` defaults to false, so a date picker is read-only by
-    // default. resolveFluentInputStyle folds readOnly into the DISABLED ramp
-    // (`inert = disabled || readOnly`), so passing it straight through would
-    // paint every default picker as greyed out.
+    // default. Upstream gives `readOnly` no styling at all, so a default picker
+    // must resolve the live ramp — only `enabled` may grey it out. The picker
+    // once had to hide its read-only flag from the style resolver to get this;
+    // this guards against the flag ever being styled again.
     testWidgets('a default picker is not painted as disabled', (tester) async {
       await _pump(tester);
       final live = _faceplate(tester);
+      final liveBorder = _border(tester).borderColor;
 
       await _pump(tester, onSelectDate: null);
       final disabled = _faceplate(tester);
 
       expect(live.color, isNot(disabled.color));
-      expect(live.border, isNot(disabled.border));
+      expect(liveBorder, isNot(_border(tester).borderColor));
     });
+  });
+
+  // Upstream's DatePicker is a `.fui-Input`: `useInputStyles` as it renders in
+  // Chrome on the live storybook, driven with a real mouse.
+  group('FluentDatePicker — upstream Input rules', () {
+    final colors = FluentThemeData.light(
+      fontPlatform: FluentFontPlatform.web,
+    ).colors;
+    final picker = find.byType(FluentDatePicker);
+    final bar = find.descendant(
+      of: picker,
+      matching: find.byType(FluentInputFocusUnderline),
+    );
+
+    testWidgets('hover ramps the border; any button presses and focuses it', (
+      tester,
+    ) async {
+      // Chrome sets `:active` on `.fui-Input` for the right button as well as
+      // the left and middle, and focuses the `<input>` on mousedown for all
+      // three, so `:focus-within:active::after` grows the bar Pressed under
+      // each of them. The focus outlives the press: #b3b3b3 sides and the
+      // #0f6cbd bar after a middle or right release (storybook).
+      await _pump(tester);
+      expect(_border(tester).borderColor, colors.neutralStroke1);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(picker));
+      await tester.pump();
+      expect(_border(tester).borderColor, colors.neutralStroke1Hover);
+      expect(
+        _border(tester).bottomBorderColor,
+        colors.neutralStrokeAccessibleHover,
+      );
+
+      for (final button in <int>[
+        kPrimaryMouseButton,
+        kMiddleMouseButton,
+        kSecondaryMouseButton,
+      ]) {
+        FocusManager.instance.primaryFocus?.unfocus();
+        await tester.pumpAndSettle();
+        expect(tester.widget<FluentInputFocusUnderline>(bar).focused, isFalse);
+        expect(_border(tester).borderColor, colors.neutralStroke1Hover);
+
+        final press = await tester.startGesture(
+          tester.getCenter(picker),
+          kind: PointerDeviceKind.mouse,
+          buttons: button,
+        );
+        await tester.pump();
+        await tester.pump();
+        expect(
+          _border(tester).borderColor,
+          colors.neutralStroke1Pressed,
+          reason: 'button $button: sides',
+        );
+        expect(
+          _border(tester).bottomBorderColor,
+          colors.neutralStrokeAccessiblePressed,
+          reason: 'button $button: bottom',
+        );
+        expect(
+          tester.widget<FluentInputFocusUnderline>(bar).focused,
+          isTrue,
+          reason: 'button $button: the bar grows while held',
+        );
+        expect(
+          tester.widget<FluentInputFocusUnderline>(bar).color,
+          colors.compoundBrandStrokePressed,
+          reason: 'button $button: bar, #0f548c',
+        );
+        // Cancelled rather than released, so no tap opens the popup.
+        await press.cancel();
+        await tester.pump();
+        expect(find.byType(FluentCalendar), findsNothing);
+        expect(
+          _border(tester).borderColor,
+          colors.neutralStroke1Pressed,
+          reason: 'button $button: focus holds the Pressed sides',
+        );
+        expect(
+          tester.widget<FluentInputFocusUnderline>(bar).color,
+          colors.compoundBrandStroke,
+          reason: 'button $button: bar, #0f6cbd',
+        );
+      }
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('a left press focuses at once; the click still opens', (
+      tester,
+    ) async {
+      // Chrome focuses the `<input>` on mousedown, so the #0f548c bar grows
+      // under a held press, and the popup opens on the click. Focus arrives
+      // the way the field's own tap brings it: a bare `requestFocus` on
+      // desktop selects the whole value, where a browser selects nothing.
+      await _pump(tester, value: DateTime(2026, 3, 14));
+      final press = await tester.startGesture(
+        tester.getCenter(picker),
+        kind: PointerDeviceKind.mouse,
+        buttons: kPrimaryMouseButton,
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(tester.widget<FluentInputFocusUnderline>(bar).focused, isTrue);
+      expect(
+        tester.widget<FluentInputFocusUnderline>(bar).color,
+        colors.compoundBrandStrokePressed,
+      );
+      expect(_controller(tester).selection.isCollapsed, isTrue);
+      expect(find.byType(FluentCalendar), findsNothing);
+
+      await press.up();
+      await tester.pumpAndSettle();
+      expect(find.byType(FluentCalendar), findsOneWidget);
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('focus in the open calendar is not focus in the field', (
+      tester,
+    ) async {
+      // The calendar takes focus, so `.fui-Input` loses `:focus-within`: no
+      // bar, and the resting mouse shows the Hover ramp, #c7c7c7 / #575757
+      // (Chrome). Escape hands focus back, and the bar with it.
+      await _pump(tester);
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: kPrimaryMouseButton,
+      );
+      await mouse.addPointer(location: tester.getCenter(picker));
+      addTearDown(mouse.removePointer);
+      await mouse.down(tester.getCenter(picker));
+      await tester.pump(const Duration(milliseconds: 80));
+      await mouse.up();
+      await tester.pumpAndSettle();
+      expect(find.byType(FluentCalendar), findsOneWidget);
+
+      expect(tester.widget<FluentInputFocusUnderline>(bar).focused, isFalse);
+      expect(_border(tester).borderColor, colors.neutralStroke1Hover);
+      expect(
+        _border(tester).bottomBorderColor,
+        colors.neutralStrokeAccessibleHover,
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(FluentCalendar), findsNothing);
+      expect(tester.widget<FluentInputFocusUnderline>(bar).focused, isTrue);
+      expect(_border(tester).borderColor, colors.neutralStroke1Pressed);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('a press while the calendar is open leaves focus in it', (
+      tester,
+    ) async {
+      // Upstream traps focus in the popup (`legacyTrapFocus`), so a mousedown
+      // on the `<input>` never focuses it while the calendar is open: any
+      // button, held, shows the Pressed sides (#b3b3b3) and no bar, and the
+      // popup keeps focus (Chrome).
+      await _pump(tester);
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: kPrimaryMouseButton,
+      );
+      await mouse.addPointer(location: tester.getCenter(picker));
+      addTearDown(mouse.removePointer);
+      await mouse.down(tester.getCenter(picker));
+      await mouse.up();
+      await tester.pumpAndSettle();
+      final calendar = find.byType(FluentCalendar);
+      expect(calendar, findsOneWidget);
+
+      for (final button in <int>[
+        kPrimaryMouseButton,
+        kMiddleMouseButton,
+        kSecondaryMouseButton,
+      ]) {
+        final press = await tester.startGesture(
+          tester.getCenter(picker),
+          kind: PointerDeviceKind.mouse,
+          buttons: button,
+        );
+        await tester.pump();
+        await tester.pump();
+        expect(
+          tester.widget<FluentInputFocusUnderline>(bar).focused,
+          isFalse,
+          reason: 'button $button: no bar',
+        );
+        expect(
+          _border(tester).borderColor,
+          colors.neutralStroke1Pressed,
+          reason: 'button $button: sides',
+        );
+        expect(
+          find.ancestor(
+            of: find.byWidgetPredicate(
+              (w) =>
+                  w is Focus &&
+                  w.focusNode == FocusManager.instance.primaryFocus,
+            ),
+            matching: calendar,
+          ),
+          findsOneWidget,
+          reason: 'button $button: focus stays in the calendar',
+        );
+        await press.cancel();
+        await tester.pumpAndSettle();
+        expect(calendar, findsOneWidget, reason: 'button $button: still open');
+      }
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('focus holds the Pressed stops through a hover', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        wrap: (_) => FluentDatePicker(
+          today: _today,
+          onSelectDate: _noop,
+          autofocus: true,
+        ),
+      );
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(picker));
+      await tester.pump();
+      expect(_border(tester).borderColor, colors.neutralStroke1Pressed);
+      expect(
+        _border(tester).bottomBorderColor,
+        colors.neutralStrokeAccessiblePressed,
+      );
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('the cursor is a pointer, or the arrow when disabled', (
+      tester,
+    ) async {
+      // Chrome: root, input and calendar glyph are all `pointer` — typing
+      // allowed or not — and all `default` when disabled, where Input's own
+      // `not-allowed` is overridden. A disabled picker does not ramp either.
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        pointer: 1,
+      );
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      for (final (enabled, allowTextInput) in <(bool, bool)>[
+        (true, false),
+        (true, true),
+        (false, false),
+      ]) {
+        await _pump(
+          tester,
+          onSelectDate: enabled ? _noop : null,
+          allowTextInput: allowTextInput,
+        );
+        final expected = enabled
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.basic;
+        for (final at in <Finder>[
+          find.byType(EditableText),
+          find.byIcon(fluentDatePickerIcon),
+        ]) {
+          await mouse.moveTo(tester.getCenter(at));
+          await tester.pump();
+          expect(
+            RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+            expected,
+            reason: 'enabled: $enabled, text: $allowTextInput, over $at',
+          );
+        }
+        if (!enabled) {
+          expect(_border(tester).borderColor, colors.neutralStrokeDisabled);
+          final press = await tester.startGesture(
+            tester.getCenter(picker),
+            kind: PointerDeviceKind.mouse,
+          );
+          await tester.pump();
+          expect(_border(tester).borderColor, colors.neutralStrokeDisabled);
+          await press.cancel();
+        }
+        await mouse.moveTo(Offset.zero);
+        await tester.pump();
+      }
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('a tight parent height stretches the box, bar and all', (
+      tester,
+    ) async {
+      // A CSS `height` sizes the border box, and `::after` sits on its bottom.
+      for (final inline in <bool>[false, true]) {
+        await _pump(
+          tester,
+          wrap: (_) => SizedBox(
+            height: 60,
+            child: FluentDatePicker(
+              today: _today,
+              onSelectDate: _noop,
+              inlinePopup: inline,
+            ),
+          ),
+        );
+        final painted = find.descendant(
+          of: picker,
+          matching: find.byWidgetPredicate(
+            (w) => w is CustomPaint && w.painter is FluentInputBorderPainter,
+          ),
+        );
+        expect(tester.getRect(painted).height, 60, reason: 'inline: $inline');
+        expect(
+          tester.getRect(bar).bottom,
+          tester.getRect(painted).bottom,
+          reason: 'inline: $inline',
+        );
+      }
+    });
+
+    testWidgets('re-enabled under a resting mouse, it hovers and presses', (
+      tester,
+    ) async {
+      // Chrome: a disabled root still matches `:hover`, and `:active` under a
+      // held press, so dropping `disabled` shows both at once, unmoved.
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await _pump(tester);
+      await mouse.moveTo(tester.getCenter(picker));
+      await tester.pump();
+      await _pump(tester, onSelectDate: null);
+      expect(_border(tester).borderColor, colors.neutralStrokeDisabled);
+      await _pump(tester);
+      expect(_border(tester).borderColor, colors.neutralStroke1Hover);
+
+      await _pump(tester, onSelectDate: null);
+      final press = await tester.startGesture(
+        tester.getCenter(picker),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await _pump(tester);
+      expect(_border(tester).borderColor, colors.neutralStroke1Pressed);
+      await press.cancel();
+      await tester.pump();
+      expect(_border(tester).borderColor, colors.neutralStroke1Hover);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('a picker removed mid-press takes the release quietly', (
+      tester,
+    ) async {
+      await _pump(tester);
+      final press = await tester.startGesture(
+        tester.getCenter(picker),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await _pump(tester, wrap: (_) => const SizedBox());
+      await press.up();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
   });
 
   // The picker owns its controller and does not rebuild on a keystroke, so a
@@ -307,19 +709,210 @@ void main() {
   });
 
   group('FluentDatePicker — open and close', () {
-    testWidgets('clicking opens, clicking again closes', (tester) async {
-      await _pump(tester);
-      expect(find.byType(FluentCalendar), findsNothing);
+    final picker = find.byType(FluentDatePicker);
+    final calendar = find.byType(FluentCalendar);
+    bool barFocused(WidgetTester tester) => tester
+        .widget<FluentInputFocusUnderline>(
+          find.descendant(
+            of: picker,
+            matching: find.byType(FluentInputFocusUnderline),
+          ),
+        )
+        .focused;
 
-      await tester.tap(find.byType(FluentDatePicker));
-      await tester.pumpAndSettle();
-      expect(find.byType(FluentCalendar), findsOneWidget);
+    testWidgets('clicking opens, clicking again leaves it open', (
+      tester,
+    ) async {
+      // Upstream's `onInputClick` dismisses only when `allowTextInput` is set;
+      // without it a click on the open picker's input does nothing, and the
+      // focus trap keeps focus in the calendar (Chrome).
+      final opens = <bool>[];
+      await _pump(tester, onOpenChange: opens.add);
+      expect(calendar, findsNothing);
+
+      await _click(tester, tester.getCenter(picker));
+      expect(calendar, findsOneWidget);
       expect(find.text('March 2026'), findsOneWidget);
 
-      await tester.tap(find.byType(FluentDatePicker));
-      await tester.pumpAndSettle();
-      expect(find.byType(FluentCalendar), findsNothing);
-    });
+      await _click(tester, tester.getCenter(picker));
+      expect(calendar, findsOneWidget);
+      expect(opens, <bool>[true]);
+      expect(_focusInCalendar(), isTrue);
+      expect(barFocused(tester), isFalse);
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('with allowTextInput, the click that closes it lands the caret '
+        'where it went down; one on the glyph keeps it', (tester) async {
+      // Chrome, text-input story with a value, opened by a click near the
+      // start: the trap takes focus from the closing press but not its caret,
+      // so the dismissing `focus()` shows the caret where that press went down
+      // — a drag's press included, and no range — never the select-all a
+      // tab-in gives. A click on the glyph beside the `<input>` moves nothing.
+      final opens = <bool>[];
+      await _pump(
+        tester,
+        allowTextInput: true,
+        value: DateTime(2026, 3, 14),
+        onOpenChange: opens.add,
+      );
+      final text = tester.getRect(find.byType(EditableText));
+      final near = Offset(text.left + 8, text.center.dy);
+      final far = Offset(text.left + 60, text.center.dy);
+      TextSelection caretAt(Offset at) => TextSelection.fromPosition(
+        tester
+            .state<EditableTextState>(find.byType(EditableText))
+            .renderEditable
+            .getPositionForPoint(at),
+      );
+      expect(caretAt(near), isNot(caretAt(far)));
+
+      await _click(tester, near);
+      expect(calendar, findsOneWidget);
+      expect(_controller(tester).selection, caretAt(near));
+
+      await _click(tester, far);
+      expect(calendar, findsNothing);
+      expect(opens, <bool>[true, false]);
+      expect(barFocused(tester), isTrue);
+      expect(_controller(tester).selection, caretAt(far), reason: 'click');
+
+      await _click(tester, near);
+      await _click(tester, tester.getCenter(find.byIcon(fluentDatePickerIcon)));
+      expect(calendar, findsNothing);
+      expect(_controller(tester).selection, caretAt(near), reason: 'glyph');
+
+      await _click(tester, near);
+      await _drag(tester, far, far + const Offset(40, 0));
+      expect(calendar, findsNothing);
+      expect(_controller(tester).selection, caretAt(far), reason: 'drag');
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('a quick second click counts, as Chrome fires one per click', (
+      tester,
+    ) async {
+      // Chrome, 50–250ms between two clicks or a native dblclick: text-input
+      // closes again with the input focused, default stays open. Flutter
+      // reports the second as a double tap, never a single tap up.
+      for (final allowTextInput in <bool>[false, true]) {
+        await tester.pumpWidget(const SizedBox());
+        final opens = <bool>[];
+        await _pump(
+          tester,
+          allowTextInput: allowTextInput,
+          onOpenChange: opens.add,
+        );
+        final center = tester.getCenter(picker);
+        for (var i = 0; i < 2; i++) {
+          final mouse = await tester.startGesture(
+            center,
+            kind: PointerDeviceKind.mouse,
+            buttons: kPrimaryMouseButton,
+          );
+          await tester.pump(const Duration(milliseconds: 60));
+          await mouse.up();
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        await tester.pumpAndSettle();
+        final mode = 'allowTextInput $allowTextInput';
+        if (allowTextInput) {
+          expect(opens, <bool>[true, false], reason: mode);
+          expect(barFocused(tester), isTrue, reason: mode);
+        } else {
+          expect(opens, <bool>[true], reason: mode);
+          expect(_focusInCalendar(), isTrue, reason: mode);
+        }
+      }
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('a drag released on a zoomed field still opens it', (
+      tester,
+    ) async {
+      // The example's preview zoom scales its story with a Transform.scale,
+      // so the release is tested in the field's own coordinates rather than
+      // against its unscaled rect. Pressed inside the unscaled box too, since
+      // the test's SizedBox parent only hit-tests that much; released past it,
+      // still on the field as painted.
+      await _pump(
+        tester,
+        wrap: (child) => Transform.scale(
+          scale: 2,
+          alignment: Alignment.topLeft,
+          child: child,
+        ),
+      );
+      final origin = tester.getTopLeft(picker);
+      await _drag(
+        tester,
+        origin + const Offset(150, 16),
+        origin + const Offset(350, 20),
+      );
+      expect(calendar, findsOneWidget);
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('with allowTextInput, a press on the open picker keeps focus '
+        'in the calendar', (tester) async {
+      // Chrome, text-input story, calendar open: every button, held, leaves
+      // focus in the popup and the bar down. A left release is the click that
+      // closes; a middle or right release fires no click and changes nothing.
+      await _pump(tester, allowTextInput: true, value: DateTime(2026, 3, 14));
+      final center = tester.getCenter(picker);
+      for (final button in <int>[
+        kPrimaryMouseButton,
+        kMiddleMouseButton,
+        kSecondaryMouseButton,
+      ]) {
+        if (calendar.evaluate().isEmpty) await _click(tester, center);
+        expect(calendar, findsOneWidget, reason: 'button $button: open');
+
+        final press = await tester.startGesture(
+          center,
+          kind: PointerDeviceKind.mouse,
+          buttons: button,
+        );
+        await tester.pump();
+        await tester.pump();
+        expect(_focusInCalendar(), isTrue, reason: 'button $button: held');
+        expect(barFocused(tester), isFalse, reason: 'button $button: held');
+
+        await press.up();
+        await tester.pumpAndSettle();
+        if (button == kPrimaryMouseButton) {
+          expect(calendar, findsNothing, reason: 'the left click closes');
+          expect(barFocused(tester), isTrue, reason: 'and focuses the field');
+        } else {
+          expect(calendar, findsOneWidget, reason: 'button $button: released');
+          expect(_focusInCalendar(), isTrue, reason: 'button $button: up');
+          expect(barFocused(tester), isFalse, reason: 'button $button: up');
+        }
+      }
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('a press dragged off the field and released outside does '
+        'nothing more', (tester) async {
+      // Chrome fires `click` on the common ancestor of the press and the
+      // release, so a press on the `<input>` let go above it never reaches
+      // `onInputClick`: closed, the field keeps the focus the press gave it
+      // and does not open; open, nothing changes. A drag that ends back on
+      // the field is still a click on it, and opens.
+      for (final allowTextInput in <bool>[false, true]) {
+        final mode = 'allowTextInput $allowTextInput';
+        await tester.pumpWidget(const SizedBox());
+        await _pump(tester, allowTextInput: allowTextInput);
+        final center = tester.getCenter(picker);
+        final above = Offset(center.dx, tester.getTopLeft(picker).dy - 20);
+
+        await _drag(tester, center, above);
+        expect(calendar, findsNothing, reason: '$mode: closed, released off');
+        expect(barFocused(tester), isTrue, reason: '$mode: focus kept');
+
+        await _drag(tester, center, center + const Offset(30, 0));
+        expect(calendar, findsOneWidget, reason: '$mode: released on it');
+
+        await _drag(tester, center, above);
+        expect(calendar, findsOneWidget, reason: '$mode: open, released off');
+        expect(_focusInCalendar(), isTrue, reason: '$mode: focus stays');
+      }
+    }, variant: TargetPlatformVariant.desktop());
 
     // Opening moves focus off the field on one frame and into the popup scope
     // on the next. A synchronous blur handler sees "neither has focus" in
@@ -439,12 +1032,13 @@ void main() {
     // Nothing covered this before: the barrier sat ABOVE the trigger, so the
     // field's own toggle could not fire while the calendar was open and this
     // path was dead. With the barrier gone the click reaches the field, and it
-    // has to close exactly once rather than close-then-reopen.
+    // has to close exactly once rather than close-then-reopen. Only with
+    // `allowTextInput`: without it upstream's click leaves the popup open.
     testWidgets('clicking the field while open closes it exactly once', (
       tester,
     ) async {
       final opens = <bool>[];
-      await _pump(tester, onOpenChange: opens.add);
+      await _pump(tester, allowTextInput: true, onOpenChange: opens.add);
 
       await tester.tap(find.byType(FluentDatePicker));
       await tester.pumpAndSettle();
@@ -518,6 +1112,68 @@ void main() {
 
       expect(find.byType(FluentCalendar), findsNothing);
     });
+
+    testWidgets('Escape hands focus back with the caret where it was', (
+      tester,
+    ) async {
+      // Chrome, text-input story: Escape `focus()`es the `<input>`, and its
+      // caret is where the opening click put it rather than select-all.
+      await _pump(tester, allowTextInput: true, value: DateTime(2026, 3, 14));
+      await _click(tester, tester.getCenter(find.byType(FluentDatePicker)));
+      final caret = _controller(tester).selection;
+      expect(caret.isCollapsed, isTrue);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(FluentCalendar), findsNothing);
+      expect(_controller(tester).selection, caret);
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('a picked day hands focus back with the caret after it', (
+      tester,
+    ) async {
+      // Chrome, text-input story: after a pick the `<input>` is focused with
+      // its caret after the new text. The parent echoing the value back must
+      // not wipe that caret — rewriting unchanged text drops the selection.
+      DateTime? value;
+      await _pump(
+        tester,
+        allowTextInput: true,
+        wrap: (_) => StatefulBuilder(
+          builder: (context, setState) => FluentDatePicker(
+            today: _today,
+            value: value,
+            allowTextInput: true,
+            onSelectDate: (date) => setState(() => value = date),
+          ),
+        ),
+      );
+      await _click(tester, tester.getCenter(find.byType(FluentDatePicker)));
+      await _click(tester, tester.getCenter(find.text('15').last));
+      expect(find.byType(FluentCalendar), findsNothing);
+      expect(value, DateTime(2026, 3, 15));
+      final text = _controller(tester).text;
+      expect(text, isNotEmpty);
+      expect(
+        _controller(tester).selection,
+        TextSelection.collapsed(offset: text.length),
+      );
+
+      // Typed text committed with Enter comes back reformatted, and a
+      // browser setting `value` leaves the caret after it.
+      _controller(tester).value = const TextEditingValue(
+        text: '2026-03-20',
+        selection: TextSelection.collapsed(offset: 2),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(value, DateTime(2026, 3, 20));
+      expect(_controller(tester).text, '3/20/2026');
+      expect(
+        _controller(tester).selection,
+        const TextSelection.collapsed(offset: 9),
+      );
+    }, variant: TargetPlatformVariant.desktop());
 
     testWidgets('ArrowDown opens the popup', (tester) async {
       await _pump(tester, openOnClick: false);

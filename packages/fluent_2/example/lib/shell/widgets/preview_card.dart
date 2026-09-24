@@ -178,7 +178,13 @@ class _StoryStage extends StatelessWidget {
                       // The toolbar's viewport menu caps the story's width, and
                       // its padlock freezes pointer input so a demo can be read
                       // without being driven.
-                      child: _Constrain(
+                      //
+                      // Every toggle restyles one fixed wrapper — a null width,
+                      // an empty decoration — rather than swapping it for a
+                      // bare child, which remounted the story and wiped what
+                      // was typed into it. Upstream keeps value, focus and
+                      // caret through all three (Chrome).
+                      child: SizedBox(
                         width: scope.viewport.width,
                         child: _Outline(
                           enabled: scope.outlines,
@@ -198,21 +204,22 @@ class _StoryStage extends StatelessWidget {
       ),
     );
 
-    if (zoom == 1) {
-      return Padding(padding: _stageInset, child: themed);
-    }
-
     // `Transform.scale` alone does not change layout, so the card would keep the
     // unscaled height and the preview would spill out of it. `Align`'s
     // heightFactor reports `child.height * zoom`, and handing the child
     // `maxWidth / zoom` makes it lay out at logical width and scale to fill.
     // Hit-testing is transformed too, so controls inside a zoomed preview still
     // work.
+    //
+    // The same tree at every zoom, 1 included — an identity scale and no clip
+    // paint exactly what a bare child does. A separate zoom-1 branch remounted
+    // the story on every step to or from 1, where upstream keeps its value.
     return Padding(
       padding: _stageInset,
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
           return ClipRect(
+            clipBehavior: zoom == 1 ? Clip.none : Clip.hardEdge,
             child: Align(
               alignment: Alignment.topLeft,
               heightFactor: zoom,
@@ -376,18 +383,6 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-/// Caps the story's width when the toolbar asks for a viewport size.
-class _Constrain extends StatelessWidget {
-  const _Constrain({required this.width, required this.child});
-
-  final double? width;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) =>
-      width == null ? child : SizedBox(width: width, child: child);
-}
-
 /// Draws a box around the story, which is what "apply outlines" can honestly
 /// mean here: Flutter has no DOM to outline element by element, and
 /// `debugPaintSizeEnabled` is a global that does nothing in a release build.
@@ -398,14 +393,14 @@ class _Outline extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => enabled
-      ? DecoratedBox(
-          decoration: BoxDecoration(
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: enabled
+        ? BoxDecoration(
             border: Border.all(
               color: DocsMetrics.railActive.withValues(alpha: 0.6),
             ),
-          ),
-          child: child,
-        )
-      : child;
+          )
+        : const BoxDecoration(),
+    child: child,
+  );
 }

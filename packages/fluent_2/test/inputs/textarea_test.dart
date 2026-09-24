@@ -1,6 +1,8 @@
+import 'dart:ui' as ui;
+
 import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/semantics.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,8 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/spec_fixture.dart';
 
 /// `FluentTextarea` is the package's first text input, so these tests cover the
-/// editing contract as well as the token table: focus, keyboard, selection and
-/// the two independent bottom rules.
+/// editing contract as well as the look of upstream's Textarea as it renders in
+/// Chrome: focus, keyboard, selection, the bottom border and the focus bar.
 void main() {
   const key = Key('textarea');
 
@@ -35,7 +37,7 @@ void main() {
   );
 
   /// The field's own decorated surface — the first `DecoratedBox` in the
-  /// subtree, which is the one carrying the fill and the four-sided border.
+  /// subtree, which is the one carrying the fill and the corner radius.
   BoxDecoration surfaceOf(WidgetTester tester) => tester
       .widgetList<DecoratedBox>(
         find.descendant(
@@ -47,10 +49,17 @@ void main() {
       .whereType<BoxDecoration>()
       .first;
 
-  ColoredBox? restingRuleOf(WidgetTester tester) {
-    final found = find.byKey(fluentTextareaUnderlineKey);
-    return found.evaluate().isEmpty ? null : tester.widget<ColoredBox>(found);
-  }
+  /// The field's border, read as the tones the painter was handed.
+  FluentInputBorderPainter borderOf(WidgetTester tester) =>
+      tester
+              .widget<CustomPaint>(
+                find.descendant(
+                  of: find.byKey(key),
+                  matching: find.byKey(fluentTextareaUnderlineKey),
+                ),
+              )
+              .painter!
+          as FluentInputBorderPainter;
 
   /// How far the brand focus rule has scaled in, 0 to 1.
   ///
@@ -77,15 +86,6 @@ void main() {
               .decoration
           as BoxDecoration;
 
-  EdgeInsets paddingOf(WidgetTester tester) => tester
-      .widget<Padding>(
-        find
-            .descendant(of: find.byKey(key), matching: find.byType(Padding))
-            .first,
-      )
-      .padding
-      .resolve(TextDirection.ltr);
-
   const styleNames = <FluentTextareaAppearance, String>{
     FluentTextareaAppearance.outline: 'Outline',
     FluentTextareaAppearance.filledDarker: 'Filled darker',
@@ -97,7 +97,11 @@ void main() {
     FluentTextareaSize.large: 'Large',
   };
 
-  group('pixel fidelity against Figma', () {
+  // The oracle is upstream's `useTextareaStyles.styles.ts` as it renders in
+  // Chrome on the live storybook. The Figma fixture supplies the numbers where
+  // the two agree; where they do not, the upstream value is asserted directly
+  // and the Figma one is noted beside it.
+  group('pixel fidelity against upstream', () {
     final spec = loadSpec('textarea');
 
     test('the fixture covers the whole component set', () {
@@ -114,58 +118,50 @@ void main() {
       ]);
     });
 
-    test('Figma has no Resize axis, so neither does the widget', () {
-      // The brief for this component named a fourth `Resize` axis. The file has
-      // three. Recorded as a test so a future reader does not go looking for a
-      // resize handle that was never specified.
-      expect(spec.properties.keys, <String>['Style', 'Size', 'State']);
-    });
-
-    testWidgets('inset and type ramp match every size', (tester) async {
+    testWidgets('height, text inset and type ramp match every size', (
+      tester,
+    ) async {
+      // Upstream's border box is 44 / 56 / 68: the `<textarea>`'s `min-height`
+      // 40 / 52 / 64, the root's 2px `padding-bottom` and the 1px border. The
+      // text starts at the 1px border plus the `<textarea>`'s padding. Figma
+      // draws Medium 52 tall with a flat 6 of vertical inset at every size.
+      const geometry = <FluentTextareaSize, (double, Offset)>{
+        FluentTextareaSize.small: (44, Offset(9, 5)),
+        FluentTextareaSize.medium: (56, Offset(13, 7)),
+        FluentTextareaSize.large: (68, Offset(15, 9)),
+      };
       for (final size in FluentTextareaSize.values) {
         final variant = spec.variant({
           'Style': 'Outline',
           'Size': sizeNames[size]!,
           'State': 'Rest',
         });
-        // Figma splits the inset across two frames; the widget applies the sum.
-        final outer = variant.part('Contents').padding!;
-        final inner = variant.part('.Text').padding!;
+        final (height, text) = geometry[size]!;
 
         await pump(tester, FluentTextarea(key: key, size: size));
         await tester.pumpAndSettle();
 
-        final padding = paddingOf(tester);
         expect(
-          padding.left,
-          outer.left + inner.left,
-          reason: '${size.name}: padding.left',
+          tester.getSize(find.byKey(key)).height,
+          height,
+          reason: '${size.name}: height',
         );
         expect(
-          padding.right,
-          outer.right + inner.right,
-          reason: '${size.name}: padding.right',
-        );
-        expect(
-          padding.top,
-          outer.top + inner.top,
-          reason: '${size.name}: padding.top',
-        );
-        expect(
-          padding.bottom,
-          outer.bottom + inner.bottom,
-          reason: '${size.name}: padding.bottom',
+          tester.getTopLeft(find.byType(EditableText)) -
+              tester.getTopLeft(find.byKey(key)),
+          text,
+          reason: '${size.name}: text inset',
         );
 
-        final text = variant.text!;
+        final type = variant.text!;
         final resolved = resolveFluentTextareaStyle(
           resolveFluentTextareaState(size: size),
           light(),
         ).textStyle!.resolve(const <WidgetState>{})!;
-        expect(resolved.fontSize, text.fontSize, reason: '${size.name}: size');
+        expect(resolved.fontSize, type.fontSize, reason: '${size.name}: size');
         expect(
           resolved.height! * resolved.fontSize!,
-          text.lineHeight,
+          type.lineHeight,
           reason: '${size.name}: line height',
         );
         expect(
@@ -174,6 +170,60 @@ void main() {
           reason: '${size.name}: radius',
         );
       }
+    });
+
+    testWidgets('the field holds two rows and scrolls, as upstream does', (
+      tester,
+    ) async {
+      // `<textarea rows="2">` never grows: six lines typed into the storybook
+      // field leave its root 56px tall and scroll the `<textarea>` instead.
+      final controller = TextEditingController();
+      addTearDown(controller.dispose);
+      await pump(tester, FluentTextarea(key: key, controller: controller));
+      await tester.pumpAndSettle();
+      controller.text = 'one\ntwo\nthree\nfour\nfive\nsix';
+      await tester.pumpAndSettle();
+      expect(tester.getSize(find.byKey(key)).height, 56);
+
+      // And a mouse wheel over it scrolls the text, as it does in Chrome.
+      final scrollable = tester.state<ScrollableState>(
+        find.descendant(of: find.byKey(key), matching: find.byType(Scrollable)),
+      );
+      final wheel = TestPointer(1, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(
+        wheel.hover(tester.getCenter(find.byKey(key))),
+      );
+      await tester.sendEventToBinding(wheel.scroll(const Offset(0, 30)));
+      await tester.pumpAndSettle();
+      expect(scrollable.position.pixels, greaterThan(0));
+
+      // An explicit maxLines is the opt-in to growth.
+      await pump(
+        tester,
+        FluentTextarea(key: key, controller: controller, maxLines: 4),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSize(find.byKey(key)).height,
+        1 + 6 + 4 * 20 + 6 + 2 + 1,
+      );
+    });
+
+    testWidgets('a tight parent height stretches the box, bar and all', (
+      tester,
+    ) async {
+      // A CSS `height` sizes the border box, and `::after` sits on its bottom.
+      await pump(
+        tester,
+        const SizedBox(height: 120, child: FluentTextarea(key: key)),
+      );
+      final painted = find.descendant(
+        of: find.byKey(key),
+        matching: find.byKey(fluentTextareaUnderlineKey),
+      );
+      final bar = find.byKey(fluentTextareaFocusUnderlineKey);
+      expect(tester.getRect(painted).height, 120);
+      expect(tester.getRect(bar).bottom, tester.getRect(painted).bottom);
     });
 
     testWidgets('resting fill and border match every appearance', (
@@ -198,133 +248,254 @@ void main() {
 
         final stroke = contents.stroke;
         if (stroke == null) {
-          // Figma paints no stroke on the filled appearances; we paint the
-          // transparent token instead so high contrast can outline them.
+          // Figma paints no stroke on the filled appearances; upstream paints
+          // the transparent token, which high contrast makes opaque.
           expect(
-            surfaceOf(tester).border!.top.color.a,
+            borderOf(tester).borderColor!.a,
             0,
             reason: '${entry.value}: border must be invisible in light',
           );
         } else {
           expect(
-            surfaceOf(tester).border!.top.color,
+            borderOf(tester).borderColor,
             stroke,
             reason: '${entry.value}: resting border',
           );
         }
+
+        // Only Outline gives its bottom side a colour of its own; the filled
+        // appearances' transparent border runs round all four.
+        final bottom = variant.parts.any((p) => p.name == 'Thin underline')
+            ? variant.part('Thin underline').fill
+            : null;
+        expect(
+          borderOf(tester).bottomBorderColor,
+          bottom,
+          reason: '${entry.value}: bottom side',
+        );
+        expect(borderOf(tester).bottomBorderWidth, FluentStroke.thin);
       }
     });
 
-    testWidgets('the outline border walks its ramp on hover and press', (
+    testWidgets('hover and press walk the outline ramp; the bottom stays 1px', (
       tester,
     ) async {
-      final theme = light();
+      final c = light().colors;
       await pump(tester, const FluentTextarea(key: key));
       await tester.pumpAndSettle();
-      expect(
-        surfaceOf(tester).border!.top.color,
-        spec
-            .variant({'Style': 'Outline', 'Size': 'Medium', 'State': 'Rest'})
-            .part('Contents')
-            .stroke,
-      );
 
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await mouse.addPointer(location: Offset.zero);
       addTearDown(mouse.removePointer);
       await mouse.moveTo(tester.getCenter(find.byKey(key)));
       await tester.pumpAndSettle();
+      expect(borderOf(tester).borderColor, c.neutralStroke1Hover);
       expect(
-        surfaceOf(tester).border!.top.color,
-        theme.colors.neutralStroke1Hover,
-        reason: 'hover',
-      );
-      expect(
-        surfaceOf(tester).border!.top.color,
-        spec
-            .variant({'Style': 'Outline', 'Size': 'Medium', 'State': 'Hover'})
-            .part('Contents')
-            .stroke,
+        borderOf(tester).bottomBorderColor,
+        c.neutralStrokeAccessibleHover,
       );
 
+      // Figma's Pressed variants swap to a 2px "Thick underline"; upstream's
+      // `:active` recolours the 1px bottom border and never thickens it.
       await mouse.down(tester.getCenter(find.byKey(key)));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      expect(borderOf(tester).borderColor, c.neutralStroke1Pressed);
       expect(
-        surfaceOf(tester).border!.top.color,
-        spec
-            .variant({'Style': 'Outline', 'Size': 'Medium', 'State': 'Pressed'})
-            .part('Contents')
-            .stroke,
-        reason: 'pressed',
+        borderOf(tester).bottomBorderColor,
+        c.neutralStrokeAccessiblePressed,
       );
+      expect(borderOf(tester).bottomBorderWidth, FluentStroke.thin);
       await mouse.up();
       await tester.pumpAndSettle();
     });
 
-    testWidgets('only Outline draws the resting bottom rule', (tester) async {
-      for (final entry in styleNames.entries) {
-        final variant = spec.variant({
-          'Style': entry.value,
-          'Size': 'Medium',
-          'State': 'Rest',
-        });
-        await pump(tester, FluentTextarea(key: key, appearance: entry.key));
-        await tester.pumpAndSettle();
-
-        final drawn = variant.parts.any((p) => p.name == 'Thin underline');
-        expect(
-          restingRuleOf(tester) != null,
-          drawn,
-          reason: '${entry.value}: resting rule',
-        );
-        if (drawn) {
-          expect(
-            restingRuleOf(tester)!.color,
-            variant.part('Thin underline').fill,
-            reason: '${entry.value}: rule colour',
-          );
-        }
-      }
-    });
-
-    testWidgets('the bottom rule thickens on press, as Figma has it', (
+    testWidgets('re-enabled under a resting mouse, it hovers and presses', (
       tester,
     ) async {
-      final rest = spec.variant({
-        'Style': 'Outline',
-        'Size': 'Medium',
-        'State': 'Rest',
-      });
-      final pressed = spec.variant({
-        'Style': 'Outline',
-        'Size': 'Medium',
-        'State': 'Pressed',
-      });
-      expect(rest.part('Thin underline').size.height, 1);
-      expect(pressed.part('Thick underline').size.height, 2);
-
+      // Chrome: a disabled root still matches `:hover`, and `:active` under a
+      // held press, so dropping `disabled` shows both at once, unmoved.
+      final c = light().colors;
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await pump(tester, const FluentTextarea(key: key, enabled: false));
+      await mouse.moveTo(tester.getCenter(find.byKey(key)));
+      await tester.pump();
+      expect(borderOf(tester).borderColor, c.neutralStrokeDisabled);
       await pump(tester, const FluentTextarea(key: key));
-      await tester.pumpAndSettle();
-      expect(
-        tester.getSize(find.byKey(fluentTextareaUnderlineKey)).height,
-        rest.part('Thin underline').size.height,
+      expect(borderOf(tester).borderColor, c.neutralStroke1Hover);
+
+      await pump(tester, const FluentTextarea(key: key, enabled: false));
+      final press = await tester.startGesture(
+        tester.getCenter(find.byKey(key)),
+        kind: PointerDeviceKind.mouse,
       );
+      await tester.pump();
+      expect(borderOf(tester).borderColor, c.neutralStrokeDisabled);
+      await pump(tester, const FluentTextarea(key: key));
+      expect(borderOf(tester).borderColor, c.neutralStroke1Pressed);
+      await press.cancel();
+      await tester.pump();
+      expect(borderOf(tester).borderColor, c.neutralStroke1Hover);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('a textarea removed mid-press takes the release quietly', (
+      tester,
+    ) async {
+      // The release still reaches the detached `Listener`, after `dispose`.
+      await pump(tester, const FluentTextarea(key: key));
+      final press = await tester.startGesture(
+        tester.getCenter(find.byKey(key)),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await pump(tester, const SizedBox());
+      await press.up();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('focus moves the outline border, and hover wins over it', (
+      tester,
+    ) async {
+      // Unlike Input, `outlineInteractive` writes `:focus-within` as its own
+      // rule, which Griffel sorts before `:hover` and `:active`. Measured:
+      // focused #b3b3b3 / #0f6cbd, focused and hovered #c7c7c7 / #575757,
+      // focused and pressed #b3b3b3 / #4d4d4d.
+      final c = light().colors;
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      await pump(tester, FluentTextarea(key: key, focusNode: node));
+      node.requestFocus();
+      await tester.pumpAndSettle();
+      expect(borderOf(tester).borderColor, c.neutralStroke1Pressed);
+      expect(borderOf(tester).bottomBorderColor, c.compoundBrandStroke);
 
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await mouse.addPointer(location: Offset.zero);
       addTearDown(mouse.removePointer);
-      await mouse.down(tester.getCenter(find.byKey(key)));
+      await mouse.moveTo(tester.getCenter(find.byKey(key)));
       await tester.pumpAndSettle();
+      expect(borderOf(tester).borderColor, c.neutralStroke1Hover);
       expect(
-        tester.getSize(find.byKey(fluentTextareaUnderlineKey)).height,
-        pressed.part('Thick underline').size.height,
+        borderOf(tester).bottomBorderColor,
+        c.neutralStrokeAccessibleHover,
       );
+
+      await mouse.down(tester.getCenter(find.byKey(key)));
+      await tester.pump();
+      expect(borderOf(tester).borderColor, c.neutralStroke1Pressed);
       expect(
-        restingRuleOf(tester)!.color,
-        pressed.part('Thick underline').fill,
+        borderOf(tester).bottomBorderColor,
+        c.neutralStrokeAccessiblePressed,
       );
+      expect(focusRuleOf(tester).color, c.compoundBrandStrokePressed);
       await mouse.up();
       await tester.pumpAndSettle();
+
+      // Unlike the Combobox family, a `<textarea>` takes `:active` from a
+      // right press too, focused or not (Chrome, every spot measured).
+      final right = await tester.startGesture(
+        tester.getCenter(find.byKey(key)),
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryMouseButton,
+      );
+      await tester.pump();
+      expect(borderOf(tester).borderColor, c.neutralStroke1Pressed);
+      expect(
+        borderOf(tester).bottomBorderColor,
+        c.neutralStrokeAccessiblePressed,
+      );
+      expect(focusRuleOf(tester).color, c.compoundBrandStrokePressed);
+      await right.up();
+      await tester.pumpAndSettle();
+    });
+
+    test('a focused filled field takes the Interactive stroke', () {
+      // `filled` writes `:hover,:focus-within` as one rule. Both tokens are
+      // transparent in light, so only high contrast shows the difference.
+      final theme = FluentThemeData.highContrast(
+        fontPlatform: FluentFontPlatform.web,
+      );
+      for (final appearance in <FluentTextareaAppearance>[
+        FluentTextareaAppearance.filledDarker,
+        FluentTextareaAppearance.filledLighter,
+      ]) {
+        Color border({required bool focused}) => resolveFluentTextareaStyle(
+          resolveFluentTextareaState(appearance: appearance, focused: focused),
+          theme,
+        ).borderColor!.resolve(const <WidgetState>{})!;
+        expect(border(focused: false), theme.colors.transparentStroke);
+        expect(
+          border(focused: true),
+          theme.colors.transparentStrokeInteractive,
+          reason: appearance.name,
+        );
+      }
+    });
+
+    testWidgets('the bottom colour meets the sides on the CSS corner diagonal', (
+      tester,
+    ) async {
+      // A browser splits two border colours along the line from the border
+      // box's corner to the padding box's: here (0, h) → (1, h − 1), 45°. The
+      // darker bottom colour therefore climbs half-way round each bottom arc
+      // (outer radius 4, inner 3). At DPR 4, device pixel (7, 4h − 6) covers
+      // CSS x 1.75–2, 1.25–1.5 above the bottom: wholly inside the ring, below
+      // the diagonal, and above the bottom 1px — where the old 1px strip over
+      // a uniform `#d1d1d1` border left the side colour. (4, 4h − 8), at CSS x
+      // 1–1.25, 1.75–2 up, is the same arc above the diagonal.
+      const boundary = Key('boundary');
+      await pump(
+        tester,
+        const RepaintBoundary(
+          key: boundary,
+          child: FluentTextarea(key: key),
+        ),
+      );
+      await tester.pumpAndSettle();
+      const ratio = 4.0;
+      final size = tester.getSize(find.byKey(boundary));
+      final width = (size.width * ratio).round();
+      final bottom = (size.height * ratio).round();
+
+      final pixels = (await tester.runAsync(() async {
+        final image = await tester
+            .renderObject<RenderRepaintBoundary>(find.byKey(boundary))
+            .toImage(pixelRatio: ratio);
+        final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+        image.dispose();
+        return data;
+      }))!;
+      void expectPixel(int x, int y, Color expected, String reason) {
+        final i = (y * width + x) * 4;
+        final actual = [for (var c = 0; c < 3; c++) pixels.getUint8(i + c)];
+        final want = [
+          for (final channel in [expected.r, expected.g, expected.b])
+            (channel * 255).round(),
+        ];
+        for (var c = 0; c < 3; c++) {
+          expect(
+            actual[c],
+            closeTo(want[c], 3),
+            reason: '$reason: got $actual, want $want',
+          );
+        }
+      }
+
+      final c = light().colors;
+      expectPixel(
+        7,
+        bottom - 6,
+        c.neutralStrokeAccessible,
+        'below the diagonal: the bottom colour, #616161',
+      );
+      expectPixel(
+        4,
+        bottom - 8,
+        c.neutralStroke1,
+        'above the diagonal: the side colour, #d1d1d1',
+      );
     });
 
     testWidgets('the focus rule is the compound brand stroke, 2px, on every '
@@ -363,9 +534,15 @@ void main() {
       }
     });
 
-    testWidgets('error paints the danger border and drops the bottom rule', (
+    testWidgets('error paints colorPaletteRedBorder2 on all four sides', (
       tester,
     ) async {
+      // Figma and the status token say `#c50f1f`; upstream renders
+      // `colorPaletteRedBorder2`, `#d13438`, at rest and on hover.
+      final danger = light().colors.palette.stroke2Rest(
+        FluentPaletteFamily.red,
+      )!;
+      expect(danger, const Color(0xFFD13438));
       for (final entry in styleNames.entries) {
         final variant = spec.variant({
           'Style': entry.value,
@@ -379,32 +556,49 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          surfaceOf(tester).border!.top.color,
-          variant.part('Contents').stroke,
+          borderOf(tester).borderColor,
+          danger,
           reason: '${entry.value}: error border',
+        );
+        expect(
+          borderOf(tester).bottomBorderColor,
+          isNull,
+          reason: '${entry.value}: the red runs round the bottom too',
         );
         expect(
           surfaceOf(tester).color,
           variant.part('Contents').fill,
           reason: '${entry.value}: error keeps its own fill',
         );
-        expect(restingRuleOf(tester), isNull, reason: entry.value);
       }
+      final style = resolveFluentTextareaStyle(
+        resolveFluentTextareaState(invalid: true),
+        light(),
+      );
+      expect(
+        style.borderColor!.resolve(const <WidgetState>{WidgetState.hovered}),
+        danger,
+        reason: 'red holds on hover',
+      );
+
+      // The palette knows nothing of high contrast; the status token does.
+      final hc = FluentThemeData.highContrast(
+        fontPlatform: FluentFontPlatform.web,
+      );
       expect(
         resolveFluentTextareaStyle(
           resolveFluentTextareaState(invalid: true),
-          light(),
+          hc,
         ).borderColor!.resolve(const <WidgetState>{}),
-        light().colors.statusDangerBorder2,
+        hc.colors.statusDangerBorder2,
       );
     });
 
-    test('focus drops the error border back to the resting ramp', () {
+    test('focus drops the error border back to the focus ramp', () {
       // `useTextareaStyles.styles.ts` scopes `colorPaletteRedBorder2` to
       // `':not(:focus-within),:hover:not(:focus-within)'`, so a focused invalid
-      // textarea is drawn like any other focused one and the brand rule is what
-      // marks it. Figma cannot disagree: Error and Focus are two values of a
-      // single `State` axis, so no variant is both.
+      // textarea is drawn like any other focused one and the brand bar is what
+      // marks it.
       final theme = light();
       final style = resolveFluentTextareaStyle(
         resolveFluentTextareaState(invalid: true, focused: true),
@@ -413,46 +607,113 @@ void main() {
 
       expect(
         style.borderColor!.resolve(const <WidgetState>{}),
-        theme.colors.neutralStroke1,
-        reason: 'focused invalid border falls back to Neutral/Stroke/1/Rest',
+        theme.colors.neutralStroke1Pressed,
       );
       expect(
         style.underlineColor!.resolve(const <WidgetState>{}),
-        theme.colors.neutralStrokeAccessible,
-        reason: 'and the resting rule comes back with it',
+        theme.colors.compoundBrandStroke,
       );
     });
 
-    testWidgets('disabled and read only erase the appearance', (tester) async {
-      for (final entry in styleNames.entries) {
-        for (final readOnly in <bool>[false, true]) {
-          final variant = spec.variant({
-            'Style': entry.value,
-            'Size': 'Medium',
-            'State': readOnly ? 'Read only' : 'Disabled',
-          });
-          final contents = variant.part('Contents');
-          await pump(
-            tester,
-            FluentTextarea(
-              key: key,
-              appearance: entry.key,
-              enabled: readOnly,
-              readOnly: readOnly,
-            ),
-          );
-          await tester.pumpAndSettle();
-
-          final reason = '${entry.value} ${variant.props['State']}';
-          expect(surfaceOf(tester).color!.a, contents.fill!.a, reason: reason);
-          expect(
-            surfaceOf(tester).border!.top.color,
-            contents.stroke,
-            reason: reason,
-          );
-          expect(restingRuleOf(tester), isNull, reason: reason);
+    test('read only is styled exactly like an editable field', () {
+      // Upstream passes `readOnly` to the `<textarea>` and styles nothing:
+      // `readonly` renders pixel-identical to `rest`, and `readonly_focused` to
+      // `focused`. Figma's `State=Read only` greys the chrome instead.
+      final theme = light();
+      const stateSets = <Set<WidgetState>>[
+        <WidgetState>{},
+        <WidgetState>{WidgetState.hovered},
+        <WidgetState>{WidgetState.hovered, WidgetState.pressed},
+      ];
+      for (final appearance in FluentTextareaAppearance.values) {
+        for (final focused in <bool>[false, true]) {
+          FluentTextareaStyle style({required bool readOnly}) =>
+              resolveFluentTextareaStyle(
+                resolveFluentTextareaState(
+                  appearance: appearance,
+                  focused: focused,
+                  readOnly: readOnly,
+                ),
+                theme,
+              );
+          final editable = style(readOnly: false);
+          final readOnly = style(readOnly: true);
+          for (final states in stateSets) {
+            final reason = '${appearance.name} focused: $focused $states';
+            expect(
+              readOnly.backgroundColor!.resolve(states),
+              editable.backgroundColor!.resolve(states),
+              reason: '$reason: fill',
+            );
+            expect(
+              readOnly.borderColor!.resolve(states),
+              editable.borderColor!.resolve(states),
+              reason: '$reason: border',
+            );
+            expect(
+              readOnly.underlineColor?.resolve(states),
+              editable.underlineColor?.resolve(states),
+              reason: '$reason: bottom',
+            );
+            expect(
+              readOnly.focusUnderlineColor?.resolve(states),
+              editable.focusUnderlineColor?.resolve(states),
+              reason: '$reason: focus bar',
+            );
+            expect(
+              readOnly.foregroundColor!.resolve(states),
+              editable.foregroundColor!.resolve(states),
+              reason: '$reason: text',
+            );
+          }
         }
       }
+    });
+
+    testWidgets('disabled erases the appearance and the focus bar', (
+      tester,
+    ) async {
+      for (final entry in styleNames.entries) {
+        final variant = spec.variant({
+          'Style': entry.value,
+          'Size': 'Medium',
+          'State': 'Disabled',
+        });
+        final contents = variant.part('Contents');
+        await pump(
+          tester,
+          FluentTextarea(key: key, appearance: entry.key, enabled: false),
+        );
+        await tester.pumpAndSettle();
+
+        final reason = entry.value;
+        expect(surfaceOf(tester).color!.a, contents.fill!.a, reason: reason);
+        expect(borderOf(tester).borderColor, contents.stroke, reason: reason);
+        expect(borderOf(tester).bottomBorderColor, isNull, reason: reason);
+        expect(
+          find.byKey(fluentTextareaFocusUnderlineKey),
+          findsNothing,
+          reason: '$reason: upstream drops the ::after bar',
+        );
+      }
+    });
+
+    test('a disabled field shows the not-allowed cursor', () {
+      final style = resolveFluentTextareaStyle(
+        resolveFluentTextareaState(enabled: false),
+        light(),
+      );
+      expect(
+        style.mouseCursor!.resolve(const <WidgetState>{WidgetState.disabled}),
+        SystemMouseCursors.forbidden,
+      );
+    });
+
+    testWidgets('the caret is 1px, in the text colour', (tester) async {
+      await pump(tester, const FluentTextarea(key: key));
+      final editable = tester.widget<EditableText>(find.byType(EditableText));
+      expect(editable.cursorWidth, FluentStroke.thin);
+      expect(editable.cursorColor, light().colors.neutralForeground1);
     });
 
     testWidgets('read only keeps full-contrast text, disabled does not', (
@@ -480,7 +741,7 @@ void main() {
 
       Color foreground({required bool enabled}) =>
           resolveFluentTextareaStyle(
-            resolveFluentTextareaState(enabled: enabled, readOnly: !enabled),
+            resolveFluentTextareaState(enabled: enabled, readOnly: enabled),
             theme,
           ).foregroundColor!.resolve(<WidgetState>{
             if (!enabled) WidgetState.disabled,
@@ -492,36 +753,22 @@ void main() {
         theme.colors.neutralForegroundDisabled,
       );
     });
-
-    testWidgets('a medium field is two lines tall, matching the 52px frame', (
-      tester,
-    ) async {
-      final variant = spec.variant({
-        'Style': 'Outline',
-        'Size': 'Medium',
-        'State': 'Rest',
-      });
-      await pump(tester, const FluentTextarea(key: key));
-      await tester.pumpAndSettle();
-      expect(tester.getSize(find.byKey(key)).height, variant.size.height);
-    });
   });
 
   group('motion', () {
-    // Verified in useTextareaStyles.styles.ts: the `::after` rule transitions
-    // `transform` at durationUltraFast/curveAccelerateMid, and
-    // `:focus-within::after` at durationNormal/curveDecelerateMid.
-    test('the two specs are the ones upstream declares', () {
+    // useTextareaStyles.styles.ts: the `::after` rule transitions `transform`
+    // at durationUltraFast, and `:focus-within::after` at durationNormal. The
+    // curve tokens sit in `transitionDelay`, which the browser drops, so Chrome
+    // runs both on CSS `ease` — `document.getAnimations()` on the live
+    // storybook reports exactly that.
+    test('the two specs are the ones upstream renders', () {
       expect(fluentTextareaFocusUnderlineEnter.duration, FluentDuration.normal);
-      expect(
-        fluentTextareaFocusUnderlineEnter.curve,
-        FluentCurve.decelerateMid,
-      );
+      expect(fluentTextareaFocusUnderlineEnter.curve, FluentCssCubic.ease);
       expect(
         fluentTextareaFocusUnderlineExit.duration,
         FluentDuration.ultraFast,
       );
-      expect(fluentTextareaFocusUnderlineExit.curve, FluentCurve.accelerateMid);
+      expect(fluentTextareaFocusUnderlineExit.curve, FluentCssCubic.ease);
     });
 
     testWidgets('the focus rule scales in over 200ms and back out over 50', (
@@ -742,12 +989,7 @@ void main() {
         // that is invisible in light must be opaque here — otherwise a filled
         // textarea has no outline at all.
         expect(
-          surfaceOf(tester).border,
-          isNotNull,
-          reason: '${appearance.name}: border',
-        );
-        expect(
-          surfaceOf(tester).border!.top.color.a,
+          borderOf(tester).borderColor!.a,
           1.0,
           reason: '${appearance.name}: border must be opaque in high contrast',
         );
@@ -773,6 +1015,78 @@ void main() {
       await tester.tap(find.byKey(key));
       await tester.pumpAndSettle();
       expect(node.hasFocus, isTrue);
+    });
+
+    testWidgets(
+      'a mouse press focuses at once, any button, caret at the press',
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+      (tester) async {
+        // Chrome focuses the <textarea> on mousedown for every button, caret
+        // where it landed, so the bar grows under a held press.
+        for (final button in <int>[
+          kPrimaryMouseButton,
+          kMiddleMouseButton,
+          kSecondaryMouseButton,
+        ]) {
+          final node = FocusNode();
+          final controller = TextEditingController(text: 'hello world');
+          await pump(
+            tester,
+            FluentTextarea(key: key, focusNode: node, controller: controller),
+          );
+          final press = await tester.startGesture(
+            tester.getTopLeft(find.byType(EditableText)) + const Offset(2, 8),
+            kind: PointerDeviceKind.mouse,
+            buttons: button,
+          );
+          await tester.pump();
+          expect(node.hasFocus, isTrue, reason: 'button $button: focused held');
+          expect(
+            controller.selection,
+            const TextSelection.collapsed(offset: 0),
+            reason: 'button $button: caret at the press, nothing selected',
+          );
+          await press.up();
+          await tester.pumpWidget(const SizedBox());
+          node.dispose();
+          controller.dispose();
+        }
+      },
+    );
+
+    testWidgets(
+      'a mouse click on the padding focuses the field',
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+      (tester) async {
+        // The padding belongs to the `<textarea>` upstream, so Chrome focuses
+        // it from there. `tester.tap` hits the centre, which is text.
+        final node = FocusNode();
+        addTearDown(node.dispose);
+        await pump(tester, FluentTextarea(key: key, focusNode: node));
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        addTearDown(mouse.removePointer);
+        await mouse.down(
+          tester.getTopLeft(find.byKey(key)) + const Offset(6, 4),
+        );
+        await mouse.up();
+        await tester.pumpAndSettle();
+        expect(node.hasFocus, isTrue);
+      },
+    );
+
+    testWidgets('a one-row field still wraps and keeps newlines', (
+      tester,
+    ) async {
+      // `rows="1"` is still a `<textarea>`. EditableText's `maxLines: 1` is a
+      // single-line input that strips newlines, so the field must not get it.
+      final changes = <String>[];
+      await pump(
+        tester,
+        FluentTextarea(key: key, minLines: 1, onChanged: changes.add),
+      );
+      await tester.enterText(find.byType(EditableText), 'one\ntwo');
+      await tester.pump();
+      expect(changes.last, 'one\ntwo');
     });
 
     testWidgets('onSubmitted fires from the keyboard action', (tester) async {
@@ -820,10 +1134,7 @@ void main() {
       addTearDown(mouse.removePointer);
       await mouse.moveTo(tester.getCenter(find.byKey(key)));
       await tester.pumpAndSettle();
-      expect(
-        surfaceOf(tester).border!.top.color,
-        theme.colors.neutralStrokeDisabled,
-      );
+      expect(borderOf(tester).borderColor, theme.colors.neutralStrokeDisabled);
       expect(changes, isEmpty);
     });
 
@@ -971,6 +1282,65 @@ void main() {
               as BoxDecoration;
       expect(decoration.color, light().colors.compoundBrandStroke);
       expect(decoration.shape, BoxShape.circle);
+    });
+
+    bool handlesShown(WidgetTester tester) =>
+        tester
+            .state<EditableTextState>(find.byType(EditableText))
+            .selectionOverlay
+            ?.handlesAreVisible ??
+        false;
+
+    testWidgets(
+      'a mouse never shows the touch handles',
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+      (tester) async {
+        final controller = TextEditingController(text: 'hello world again');
+        addTearDown(controller.dispose);
+        await pump(tester, FluentTextarea(key: key, controller: controller));
+        final text = tester.getTopLeft(find.byType(EditableText));
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        addTearDown(mouse.removePointer);
+
+        // Click.
+        await mouse.down(text + const Offset(20, 10));
+        await mouse.up();
+        await tester.pumpAndSettle();
+        expect(controller.selection.isCollapsed, isTrue);
+        expect(handlesShown(tester), isFalse, reason: 'click');
+
+        // Drag.
+        await mouse.down(text + const Offset(4, 10));
+        await tester.pump();
+        await mouse.moveTo(text + const Offset(80, 10));
+        await tester.pump();
+        await mouse.up();
+        await tester.pumpAndSettle();
+        expect(controller.selection.isCollapsed, isFalse);
+        expect(handlesShown(tester), isFalse, reason: 'drag');
+
+        // Double-click.
+        await tester.pump(const Duration(milliseconds: 500));
+        await mouse.down(text + const Offset(20, 10));
+        await mouse.up();
+        await tester.pump(const Duration(milliseconds: 50));
+        await mouse.down(text + const Offset(20, 10));
+        await mouse.up();
+        await tester.pumpAndSettle();
+        expect(controller.selection.textInside(controller.text), 'hello');
+        expect(handlesShown(tester), isFalse, reason: 'double-click');
+      },
+    );
+
+    testWidgets('a touch long-press shows the handles', (tester) async {
+      final controller = TextEditingController(text: 'hello world again');
+      addTearDown(controller.dispose);
+      await pump(tester, FluentTextarea(key: key, controller: controller));
+      await tester.longPressAt(
+        tester.getTopLeft(find.byType(EditableText)) + const Offset(20, 10),
+      );
+      await tester.pumpAndSettle();
+      expect(handlesShown(tester), isTrue);
     });
 
     testWidgets('the field wires them in', (tester) async {

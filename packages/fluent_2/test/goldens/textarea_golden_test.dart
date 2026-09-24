@@ -3,10 +3,11 @@ import 'package:flutter/widgets.dart';
 
 import '../support/golden.dart';
 
-/// Two grids. The first is the whole `Style` x `Size` matrix at rest and then
-/// the three states that replace the appearance wholesale — Error, Disabled and
-/// Read only — so a regression that drops the danger border or lets a disabled
-/// field keep its fill shows up as one changed cell.
+/// Two grids. The first is the whole `Style` x `Size` matrix at rest, then the
+/// two states that replace the appearance — Error and Disabled — so a
+/// regression that drops the danger border or lets a disabled field keep its
+/// fill shows up as one changed cell. The Read only row must look exactly like
+/// an editable field with content: upstream styles nothing for it.
 ///
 /// The second is focus, which needs a real focused field and therefore its own
 /// image. One appearance is enough: the brand rule is the same

@@ -19,7 +19,7 @@ Design decisions and best practices: [components-actions-inputs.md](./components
 
 Status: **implemented**. A purpose-built public Flutter widget exists. Use only the constructors documented below.
 
-Mapped Flutter API: `FluentField`.
+Mapped Flutter API: `FluentField`, `FluentFieldValidationGlyph`.
 
 The signatures below are extracted from the checked-out Dart source. React
 properties from the Microsoft site are design evidence, not Flutter fields.
@@ -42,6 +42,7 @@ const FluentField({
     this.hint,
     this.validationMessage,
     this.validationMessageIcon,
+    this.showValidationMessageIcon = true,
     this.validationState = FluentFieldValidationState.none,
     this.size = FluentFieldSize.medium,
     this.required = false,
@@ -57,7 +58,8 @@ const FluentField({
 | `label` | `Widget?` | No | `null` | The label content. Wrapped in a [FluentLabel] sized from [size]. |
 | `hint` | `Widget?` | No | `null` | The hint below the control. Upstream's `hint` slot. |
 | `validationMessage` | `Widget?` | No | `null` | The validation message below the control. |
-| `validationMessageIcon` | `Widget?` | No | `null` | The glyph beside [validationMessage]. Tinted and sized through [IconTheme]; see [FluentFieldBaseState.validationMessageIcon]. |
+| `validationMessageIcon` | `Widget?` | No | `null` | Overrides the glyph [validationState] would otherwise draw beside [validationMessage]. Tinted and sized through [IconTheme]; see [FluentFieldBaseState.validationMessageIcon]. |
+| `showValidationMessageIcon` | `bool` | No | `true` | Whether a glyph is drawn beside [validationMessage] at all. False removes it and its gutter, as `validationMessageIcon={null}` does upstream. |
 | `validationState` | `FluentFieldValidationState` | No | `FluentFieldValidationState.none` | What the field is reporting about [child]'s value. |
 | `size` | `FluentFieldSize` | No | `FluentFieldSize.medium` | Label ramp and label-to-control gap. |
 | `required` | `bool` | No | `false` | Whether to render the required-field asterisk after [label]. |
@@ -67,6 +69,23 @@ const FluentField({
 #### State, callback, and accessibility fields
 
 - `enabled` (`bool`): Whether the field renders in its enabled colours.
+
+### `FluentFieldValidationGlyph`
+
+Upstream's default validation glyph for [state], drawn rather than imported.
+
+Source: `packages/fluent_2/lib/src/inputs/field.dart`
+
+#### Constructor: `FluentFieldValidationGlyph`
+
+```dart
+const FluentFieldValidationGlyph({super.key, required this.state});
+```
+
+| Field | Type | Required | Default | Purpose |
+| --- | --- | --- | --- | --- |
+| `key` | `Key?` | No | `null` | Flutter widget identity. |
+| `state` | `FluentFieldValidationState` | Yes | — | Which of upstream's glyphs to draw. |
 
 ## Related public types
 
@@ -198,6 +217,26 @@ const FluentFieldTheme({
 | `style` | `FluentFieldStyle` | Yes | — | The style layered over the size and validation-state defaults. |
 | `child` | `Widget` | Yes | — | The widget subtree rendered or affected by this API. |
 
+### `FluentFieldValidationGlyphPainter`
+
+Paints [FluentFieldValidationGlyph].
+
+Source: `packages/fluent_2/lib/src/inputs/field.dart`
+
+#### Constructor: `FluentFieldValidationGlyphPainter`
+
+```dart
+const FluentFieldValidationGlyphPainter({
+    required this.state,
+    required this.color,
+  });
+```
+
+| Field | Type | Required | Default | Purpose |
+| --- | --- | --- | --- | --- |
+| `state` | `FluentFieldValidationState` | Yes | — | Which glyph to paint. `none` paints nothing. |
+| `color` | `Color` | Yes | — | The fill colour. |
+
 ### `FluentFieldValidationState`
 
 What the field is reporting about the value of the control it wraps.
@@ -228,6 +267,7 @@ FluentFieldState resolveFluentFieldState({
   Widget? hint,
   Widget? validationMessage,
   Widget? validationMessageIcon,
+  bool showValidationMessageIcon = true,
   Widget? child,
 });
 

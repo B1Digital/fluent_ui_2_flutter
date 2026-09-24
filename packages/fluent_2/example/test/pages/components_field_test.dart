@@ -36,8 +36,13 @@ void main() {
         reason: 'the validation message belongs under the control it judges',
       );
       expect(
-        find.byIcon(FluentIcons.checkmark_circle_12_filled),
-        findsOneWidget,
+        tester
+            .widget<FluentFieldValidationGlyph>(
+              find.byType(FluentFieldValidationGlyph),
+            )
+            .state,
+        FluentFieldValidationState.success,
+        reason: "upstream's default glyph, with no icon passed",
       );
     });
 
@@ -259,14 +264,25 @@ void main() {
     ) async {
       await pumpSection(tester, section);
 
+      final Finder defaults = find.byType(FluentFieldValidationGlyph);
+      expect(
+        <FluentFieldValidationState>[
+          for (final Element glyph in defaults.evaluate())
+            (glyph.widget as FluentFieldValidationGlyph).state,
+        ],
+        <FluentFieldValidationState>[
+          FluentFieldValidationState.error,
+          FluentFieldValidationState.warning,
+          FluentFieldValidationState.success,
+        ],
+        reason: "each state draws upstream's own glyph by default",
+      );
       final List<Color?> tints = <Color?>[
-        for (final IconData glyph in <IconData>[
-          FluentIcons.error_circle_12_filled,
-          FluentIcons.warning_12_filled,
-          FluentIcons.checkmark_circle_12_filled,
-          FluentIcons.sparkle_20_filled,
-        ])
-          IconTheme.of(tester.element(find.byIcon(glyph))).color,
+        for (final Element glyph in defaults.evaluate())
+          IconTheme.of(glyph).color,
+        IconTheme.of(
+          tester.element(find.byIcon(FluentIcons.sparkle_20_filled)),
+        ).color,
       ];
       expect(
         tints.toSet(),
@@ -306,9 +322,20 @@ void main() {
       final Finder inputs = find.byType(FluentInput);
       expect(tester.widget<FluentInput>(inputs.at(0)).error, isTrue);
 
+      // The input paints its border rather than decorating a box with it, so
+      // the tone is read off the painter.
+      Color? borderOf(Finder input) => tester
+          .widgetList<CustomPaint>(
+            find.descendant(of: input, matching: find.byType(CustomPaint)),
+          )
+          .map((CustomPaint paint) => paint.painter)
+          .whereType<FluentInputBorderPainter>()
+          .single
+          .borderColor;
+
       expect(
-        decorationUnder(tester, inputs.at(0)).border,
-        isNot(decorationUnder(tester, inputs.at(1)).border),
+        borderOf(inputs.at(0)),
+        isNot(borderOf(inputs.at(1))),
         reason:
             'the description promises aria-invalid "adds a red border to some '
             'field components (such as Input)"',

@@ -1,4 +1,4 @@
-import 'package:flutter/gestures.dart' show kPrimaryButton;
+import 'package:flutter/gestures.dart' show kSecondaryMouseButton;
 import 'package:flutter/widgets.dart';
 
 import 'input_modality.dart';
@@ -74,16 +74,18 @@ class FluentInteractive extends StatefulWidget {
     this.focusNode,
     this.autofocus = false,
     this.mouseCursor = SystemMouseCursors.click,
+    this.pressedOnSecondary = true,
     this.child,
   });
 
   /// Builds the visuals from the live state set.
   ///
-  /// The set is the controller's own, mutated in place by
+  /// While enabled, the set is the controller's own, mutated in place by
   /// [WidgetStatesController]. Every build therefore hands out the *same*
   /// `Set` instance, so a `oldStates != states` comparison in a
   /// `didUpdateWidget` downstream is silently always false. Read it during the
-  /// build; copy it if it has to outlive one.
+  /// build; copy it if it has to outlive one. While disabled it is just
+  /// `{WidgetState.disabled}`.
   final FluentInteractiveBuilder builder;
 
   /// Invoked on tap and on Space/Enter. Never invoked while disabled.
@@ -101,6 +103,15 @@ class FluentInteractive extends StatefulWidget {
 
   /// Cursor shown while hovering an enabled surface.
   final MouseCursor mouseCursor;
+
+  /// Whether a held right mouse press reports [WidgetState.pressed].
+  ///
+  /// Chrome sets `:active` under whichever button is held, and upstream's
+  /// buttons, menu items, tabs, links and listbox options all paint their
+  /// pressed tokens under a right press. Upstream's Combobox-family roots do
+  /// not — they lose `:active` a task after the press's `contextmenu` — so
+  /// pass false there. A middle press is pressed either way.
+  final bool pressedOnSecondary;
 
   /// Passed through to [builder] unchanged, for subtrees that do not depend on
   /// state and should not rebuild with it.
@@ -126,24 +137,19 @@ class _FluentInteractiveState extends State<FluentInteractive> {
   @override
   void initState() {
     super.initState();
-    _controller
-      ..update(WidgetState.disabled, !_enabled)
-      ..addListener(_onStatesChanged);
+    _controller.addListener(_onStatesChanged);
     FluentInputModality.keyboard.addListener(_syncFocusVisible);
   }
 
   @override
   void didUpdateWidget(FluentInteractive oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!_enabled) {
-      // Clear the interaction states rather than leaving a stale hover behind
-      // when a control is disabled mid-gesture.
-      _controller
-        ..update(WidgetState.hovered, false)
-        ..update(WidgetState.pressed, false)
-        ..update(WidgetState.focused, false);
+    // Chrome drops a held <button>'s `:active` as it is disabled, and a
+    // re-enable under the same press does not bring it back. Only on that
+    // edge: a press that lands while disabled is `:active` once enabled.
+    if (oldWidget.enabled && oldWidget.onPressed != null && !_enabled) {
+      _controller.update(WidgetState.pressed, false);
     }
-    _controller.update(WidgetState.disabled, !_enabled);
   }
 
   @override
@@ -158,9 +164,12 @@ class _FluentInteractiveState extends State<FluentInteractive> {
 
   void _onStatesChanged() => setState(() {});
 
+  /// States are tracked while disabled too and filtered in [build], because
+  /// Chrome keeps a disabled element's `:hover`: re-enabled under a resting
+  /// mouse, the control hovers at once. A press released after `dispose` still
+  /// reaches the detached `Listener`.
   void _set(WidgetState state, {required bool value}) {
-    if (!_enabled && value) return;
-    _controller.update(state, value);
+    if (mounted) _controller.update(state, value);
   }
 
   /// `focused` is the AND of "the framework wants a highlight" and "the last
@@ -214,14 +223,15 @@ class _FluentInteractiveState extends State<FluentInteractive> {
         onEnter: (_) => _set(WidgetState.hovered, value: true),
         onExit: (_) => _set(WidgetState.hovered, value: false),
         child: Listener(
-          // Primary button only. `Listener` reports every button, so an
-          // unfiltered handler paints the *Pressed token on a right-click —
-          // which then has no matching onPointerUp path in the gesture arena
-          // and can stick. `FluentPointerCapture` guards the same way.
-          onPointerDown: (event) {
-            if (event.buttons & kPrimaryButton == 0) return;
-            _set(WidgetState.pressed, value: true);
-          },
+          // Any button, as Chrome's `:active`; only the tap below is
+          // primary-only, so a middle or right click never activates. The
+          // release comes through here whatever the gesture arena decides.
+          onPointerDown: (event) => _set(
+            WidgetState.pressed,
+            value:
+                widget.pressedOnSecondary ||
+                event.buttons != kSecondaryMouseButton,
+          ),
           onPointerUp: (_) => _set(WidgetState.pressed, value: false),
           onPointerCancel: (_) => _set(WidgetState.pressed, value: false),
           child: GestureDetector(
@@ -230,7 +240,13 @@ class _FluentInteractiveState extends State<FluentInteractive> {
             // tap ACTION in the semantics tree, so a screen reader announces a
             // disabled control as activatable.
             onTap: _enabled ? _handleTap : null,
-            child: widget.builder(context, _controller.value, widget.child),
+            child: widget.builder(
+              context,
+              _enabled
+                  ? _controller.value
+                  : const <WidgetState>{WidgetState.disabled},
+              widget.child,
+            ),
           ),
         ),
       ),

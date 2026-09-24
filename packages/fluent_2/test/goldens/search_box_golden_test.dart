@@ -6,10 +6,12 @@ import '../support/golden.dart';
 /// Rows 1-3: every Style at every Size, at rest with a placeholder. Row 4: the
 /// disabled ramp across all four styles.
 ///
-/// The cells worth watching are Outline and Transparent, whose bottom rule is
-/// a higher-contrast `neutralStrokeAccessible` over (or instead of) the border
-/// — and the Filled pair, whose border is a *transparent* token that must turn
-/// opaque in the high contrast image and stay invisible in the other two.
+/// The cells worth watching are Outline, whose higher-contrast
+/// `neutralStrokeAccessible` bottom border meets the sides on the CSS corner
+/// diagonal; Transparent, square-cornered with a bottom border alone, disabled
+/// included; and the Filled pair, whose border is a *transparent* token that
+/// must turn opaque in the high contrast image and stay invisible in the other
+/// two.
 ///
 /// The second grid is the focus state, built through [buildFluentSearchBox]
 /// with `focused: true` rather than by driving real focus, because only one

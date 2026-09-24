@@ -236,9 +236,11 @@ class CanvasGrid extends StatelessWidget {
   /// The canvas content.
   final Widget child;
 
+  // One wrapper either way: swapping it for a bare [child] remounted the story
+  // and wiped what was typed into it, which upstream's toggle does not.
   @override
   Widget build(BuildContext context) =>
-      enabled ? CustomPaint(painter: _GridPainter(), child: child) : child;
+      CustomPaint(painter: enabled ? _GridPainter() : null, child: child);
 }
 
 class _GridPainter extends CustomPainter {

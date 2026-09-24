@@ -42,8 +42,10 @@ const FluentTagPicker({
     this.onChanged,
     this.placeholder,
     this.secondaryAction,
+    this.expandIcon = const Icon(fluentTagPickerChevron),
     this.appearance = FluentTagPickerAppearance.outline,
     this.size = FluentTagPickerSize.medium,
+    this.error = false,
     this.controller,
     this.focusNode,
     this.style,
@@ -62,15 +64,17 @@ const FluentTagPicker({
 | `onChanged` | `ValueChanged<List<T>>?` | No | `null` | Invoked with the new selection whenever a chip is added or removed. Null disables the picker. |
 | `placeholder` | `Widget?` | No | `null` | Shown while the field is empty. |
 | `secondaryAction` | `Widget?` | No | `null` | The trailing action — Fluent's `TagPicker/Secondary action`. |
+| `expandIcon` | `Widget?` | No | `const Icon(fluentTagPickerChevron)` | The chevron after the content, which toggles the popup. Pass null to draw none; upstream renders `ChevronDownRegular` unless told otherwise. |
 | `appearance` | `FluentTagPickerAppearance` | No | `FluentTagPickerAppearance.outline` | Fill and outline treatment. |
 | `size` | `FluentTagPickerSize` | No | `FluentTagPickerSize.medium` | Control height. |
+| `error` | `bool` | No | `false` | Whether to paint the validation-error treatment: a `colorPaletteRedBorder2` border while the control is not focused. Upstream takes it from the enclosing `Field`'s error state. |
 | `controller` | `TextEditingController?` | No | `null` | The query being typed. One is created internally when omitted. |
 | `focusNode` | `FocusNode?` | No | `null` | Focus node for the field. One is created internally when omitted. |
 | `style` | `FluentTagPickerStyle?` | No | `null` | Overrides layered over the theme defaults. Merged last, so it wins. |
 | `optionStyle` | `FluentDropdownOptionStyle?` | No | `null` | Row overrides layered over the theme defaults. Merged last, so it wins. |
 | `autofocus` | `bool` | No | `false` | Whether the field takes focus on mount. |
 | `semanticLabel` | `String?` | No | `null` | Announced by assistive technology. Use it when no visible label names the picker — a placeholder is not a label. |
-| `dismissSemanticLabel` | `String?` | No | `null` | Announced for a chip's dismiss half, which has no text of its own. |
+| `dismissSemanticLabel` | `String?` | No | `null` | Announced for a chip's dismiss glyph, which has no text of its own. |
 
 #### State, callback, and accessibility fields
 
@@ -159,8 +163,10 @@ const FluentTagPickerBaseState({
     required this.enabled,
     required this.focused,
     required this.field,
+    this.error = false,
     this.tags = const <Widget>[],
     this.secondaryAction,
+    this.expandIcon,
   });
 ```
 
@@ -169,8 +175,10 @@ const FluentTagPickerBaseState({
 | `enabled` | `bool` | Yes | — | Whether the control accepts input. |
 | `focused` | `bool` | Yes | — | Whether the control holds focus. |
 | `field` | `Widget` | Yes | — | The text field, already composed by the caller. |
+| `error` | `bool` | No | `false` | Whether the control shows the validation-error treatment. Upstream reads it from the enclosing `Field`'s `validationState === 'error'`. |
 | `tags` | `List<Widget>` | No | `const <Widget>[]` | The selected chips, in order. |
 | `secondaryAction` | `Widget?` | No | `null` | The trailing action — Fluent's `TagPicker/Secondary action`, normally a "Clear all" link. |
+| `expandIcon` | `Widget?` | No | `null` | The chevron after the content. It needs no tap of its own: a click on it lands on the control's, which toggles the popup. Null draws none. |
 
 #### State, callback, and accessibility fields
 
@@ -203,6 +211,7 @@ const FluentTagPickerOption({
     required T value,
     required this.label,
     this.media,
+    this.tagMedia,
     this.enabled = true,
     this.text,
     // An initializing formal cannot be written here: the field is private and a
@@ -216,6 +225,7 @@ const FluentTagPickerOption({
 | `value` | `T` | Yes | — | The value represented, selected, or supplied by this API. |
 | `label` | `Widget` | Yes | — | What the row renders. |
 | `media` | `Widget?` | No | `null` | Leading media — normally a `FluentAvatar`. Null leaves the slot out entirely rather than reserving it. |
+| `tagMedia` | `Widget?` | No | `null` | The chip's leading media once the option is chosen. Null reuses [media]. |
 | `enabled` | `bool` | No | `true` | Whether the option can be chosen. Headers never are. |
 | `text` | `String?` | No | `null` | Plain text for assistive technology. Supply it when [label] is a glyph or a rich widget rather than a `Text`. |
 
@@ -236,7 +246,7 @@ const FluentTagPickerOption.header({required this.label, this.text});
 
 ### `FluentTagPickerRemoveLastIntent`
 
-Removes the last chip. Only ever enabled while the field is empty.
+Moves focus from the field to the last chip, where a further Backspace or Delete removes it. Only enabled while the caret sits at the very start of the field.
 
 Source: `packages/fluent_2/lib/src/inputs/tag_picker.dart`
 
@@ -274,8 +284,10 @@ const FluentTagPickerState({
     required this.appearance,
     required this.size,
     required this.open,
+    super.error,
     super.tags,
     super.secondaryAction,
+    super.expandIcon,
   });
 ```
 
@@ -286,13 +298,15 @@ const FluentTagPickerState({
 | `field` | `Widget` | Yes | — | The text field, already composed by the caller. |
 | `appearance` | `FluentTagPickerAppearance` | Yes | — | Fill and outline treatment. |
 | `size` | `FluentTagPickerSize` | Yes | — | Control height. |
-| `open` | `bool` | Yes | — | Whether the popup is showing. Figma's `Expanded` axis, and the only thing that moves the box border to its Selected token. |
+| `open` | `bool` | Yes | — | Whether the popup is showing. Figma's `Expanded` axis. Styled exactly as focus is: upstream has no open rule, and an open picker holds focus. |
+| `error` | `bool` | No | `false` | Whether the control shows the validation-error treatment. Upstream reads it from the enclosing `Field`'s `validationState === 'error'`. |
 | `tags` | `List<Widget>` | No | `const <Widget>[]` | The selected chips, in order. |
 | `secondaryAction` | `Widget?` | No | `null` | The trailing action — Fluent's `TagPicker/Secondary action`, normally a "Clear all" link. |
+| `expandIcon` | `Widget?` | No | `null` | The chevron after the content. It needs no tap of its own: a click on it lands on the control's, which toggles the popup. Null draws none. |
 
 #### State, callback, and accessibility fields
 
-- `open` (`bool`): Whether the popup is showing. Figma's `Expanded` axis, and the only thing that moves the box border to its Selected token.
+- `open` (`bool`): Whether the popup is showing. Figma's `Expanded` axis. Styled exactly as focus is: upstream has no open rule, and an open picker holds focus.
 
 ### `FluentTagPickerStyle`
 
@@ -315,9 +329,15 @@ const FluentTagPickerStyle({
     this.secondaryColor,
     this.textStyle,
     this.secondaryTextStyle,
+    this.expandIconColor,
+    this.expandIconSize,
+    this.expandIconPadding,
     this.padding,
     this.contentPadding,
     this.tagSpacing,
+    this.tagRunSpacing,
+    this.tagPadding,
+    this.fieldSpacing,
     this.fieldWidth,
     this.minimumSize,
     this.mouseCursor,
@@ -339,24 +359,30 @@ const FluentTagPickerStyle({
 | `borderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Box border colour. Null and transparent are different: Fluent's `transparentStroke` becomes opaque in high contrast. |
 | `borderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Box border width. Zero means no border, which is not the same as a transparent one — a zero-width border cannot reappear in high contrast. |
 | `borderRadius` | `WidgetStateProperty<BorderRadius?>?` | No | `null` | Corner radius of the control. |
-| `underlineColor` | `WidgetStateProperty<Color?>?` | No | `null` | The resting rule along the bottom edge. Null on the filled appearances, which draw none. |
-| `underlineWidth` | `WidgetStateProperty<double?>?` | No | `null` | Thickness of the resting bottom rule. |
-| `accentColor` | `WidgetStateProperty<Color?>?` | No | `null` | The brand bar that grows across the bottom on focus. Null while disabled, matching upstream's `::after { content: unset }`. |
+| `underlineColor` | `WidgetStateProperty<Color?>?` | No | `null` | The control's bottom border side, when it differs from [borderColor]. |
+| `underlineWidth` | `WidgetStateProperty<double?>?` | No | `null` | Width of the bottom border side. Like [borderWidth], it insets the content. |
+| `accentColor` | `WidgetStateProperty<Color?>?` | No | `null` | The brand bar that grows across the bottom on focus. Null while disabled, because a disabled control cannot take focus. |
 | `accentWidth` | `WidgetStateProperty<double?>?` | No | `null` | Thickness of the brand bar. |
 | `foregroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Colour of the typed value. |
 | `placeholderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Colour of the placeholder. |
 | `secondaryColor` | `WidgetStateProperty<Color?>?` | No | `null` | Colour of the trailing secondary action. |
 | `textStyle` | `WidgetStateProperty<TextStyle?>?` | No | `null` | Type ramp of the typed value and the placeholder. |
 | `secondaryTextStyle` | `WidgetStateProperty<TextStyle?>?` | No | `null` | Type ramp of the trailing secondary action. |
-| `padding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Horizontal inset from the border to the content. |
-| `contentPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Vertical inset around the tag strip and the field. |
-| `tagSpacing` | `WidgetStateProperty<double?>?` | No | `null` | Space between the tags, and between a tag and the field. |
-| `fieldWidth` | `WidgetStateProperty<double?>?` | No | `null` | Width the text field takes once at least one tag is present. |
+| `expandIconColor` | `WidgetStateProperty<Color?>?` | No | `null` | Tone of the expand chevron. |
+| `expandIconSize` | `WidgetStateProperty<double?>?` | No | `null` | Edge length of the expand chevron. |
+| `expandIconPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around the expand chevron. Its vertical half centres the glyph in the control's first line, which is where upstream's aside pins it. |
+| `padding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset from the inside of the border to the content and the expand chevron. |
+| `contentPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around the field — upstream's `TagPickerInput` padding, which is what sets the control's height while it has no tags. |
+| `tagSpacing` | `WidgetStateProperty<double?>?` | No | `null` | Space between the tags on a row — upstream's `TagGroup` `columnGap`. |
+| `tagRunSpacing` | `WidgetStateProperty<double?>?` | No | `null` | Space between rows of tags — upstream's `TagPickerGroup` row `gap`. Falls back to [tagSpacing]. |
+| `tagPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around the tags — upstream's `TagPickerGroup` padding. Falls back to [contentPadding]. |
+| `fieldSpacing` | `WidgetStateProperty<double?>?` | No | `null` | Space between the tags and a field on the same line — the control's `columnGap`. |
+| `fieldWidth` | `WidgetStateProperty<double?>?` | No | `null` | Narrowest the field may be beside the tags — upstream's `minWidth`. |
 | `minimumSize` | `WidgetStateProperty<Size?>?` | No | `null` | Minimum size of the control. |
 | `mouseCursor` | `WidgetStateProperty<MouseCursor?>?` | No | `null` | Cursor while hovering the control. |
 | `surfaceColor` | `WidgetStateProperty<Color?>?` | No | `null` | Popup surface fill. |
-| `surfaceBorderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Popup surface border colour. |
-| `surfaceBorderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Popup surface border width. |
+| `surfaceBorderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Popup outline colour, painted outside the surface like upstream's CSS `outline`. |
+| `surfaceBorderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Popup outline width. |
 | `surfaceRadius` | `WidgetStateProperty<BorderRadius?>?` | No | `null` | Popup surface corner radius. |
 | `surfacePadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Popup surface padding. |
 | `surfaceGap` | `WidgetStateProperty<double?>?` | No | `null` | Space between popup rows. |
@@ -402,10 +428,12 @@ FluentTagPickerState resolveFluentTagPickerState({
   bool enabled = true,
   bool focused = false,
   bool open = false,
+  bool error = false,
   FluentTagPickerAppearance appearance = FluentTagPickerAppearance.outline,
   FluentTagPickerSize size = FluentTagPickerSize.medium,
   List<Widget> tags = const <Widget>[],
   Widget? secondaryAction,
+  Widget? expandIcon,
 });
 
 FluentTagPickerStyle resolveFluentTagPickerStyle(

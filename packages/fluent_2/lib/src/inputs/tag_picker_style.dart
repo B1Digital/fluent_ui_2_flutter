@@ -37,9 +37,15 @@ class FluentTagPickerStyle {
     this.secondaryColor,
     this.textStyle,
     this.secondaryTextStyle,
+    this.expandIconColor,
+    this.expandIconSize,
+    this.expandIconPadding,
     this.padding,
     this.contentPadding,
     this.tagSpacing,
+    this.tagRunSpacing,
+    this.tagPadding,
+    this.fieldSpacing,
     this.fieldWidth,
     this.minimumSize,
     this.mouseCursor,
@@ -68,15 +74,19 @@ class FluentTagPickerStyle {
   /// Corner radius of the control.
   final WidgetStateProperty<BorderRadius?>? borderRadius;
 
-  /// The resting rule along the bottom edge. Null on the filled appearances,
-  /// which draw none.
+  /// The control's bottom border side, when it differs from [borderColor].
+  ///
+  /// A side of the box border that joins the others on the CSS corner
+  /// diagonal, not an overlay. Null means the bottom follows [borderColor]
+  /// like the other three sides, which is what the filled appearances do.
   final WidgetStateProperty<Color?>? underlineColor;
 
-  /// Thickness of the resting bottom rule.
+  /// Width of the bottom border side. Like [borderWidth], it insets the
+  /// content.
   final WidgetStateProperty<double?>? underlineWidth;
 
   /// The brand bar that grows across the bottom on focus. Null while disabled,
-  /// matching upstream's `::after { content: unset }`.
+  /// because a disabled control cannot take focus.
   final WidgetStateProperty<Color?>? accentColor;
 
   /// Thickness of the brand bar.
@@ -97,16 +107,44 @@ class FluentTagPickerStyle {
   /// Type ramp of the trailing secondary action.
   final WidgetStateProperty<TextStyle?>? secondaryTextStyle;
 
-  /// Horizontal inset from the border to the content.
+  /// Tone of the expand chevron.
+  final WidgetStateProperty<Color?>? expandIconColor;
+
+  /// Edge length of the expand chevron.
+  final WidgetStateProperty<double?>? expandIconSize;
+
+  /// Inset around the expand chevron. Its vertical half centres the glyph in
+  /// the control's first line, which is where upstream's aside pins it.
+  final WidgetStateProperty<EdgeInsetsGeometry?>? expandIconPadding;
+
+  /// Inset from the inside of the border to the content and the expand
+  /// chevron.
   final WidgetStateProperty<EdgeInsetsGeometry?>? padding;
 
-  /// Vertical inset around the tag strip and the field.
+  /// Inset around the field — upstream's `TagPickerInput` padding, which is
+  /// what sets the control's height while it has no tags.
   final WidgetStateProperty<EdgeInsetsGeometry?>? contentPadding;
 
-  /// Space between the tags, and between a tag and the field.
+  /// Space between the tags on a row — upstream's `TagGroup` `columnGap`.
   final WidgetStateProperty<double?>? tagSpacing;
 
-  /// Width the text field takes once at least one tag is present.
+  /// Space between rows of tags — upstream's `TagPickerGroup` row `gap`.
+  /// Falls back to [tagSpacing].
+  final WidgetStateProperty<double?>? tagRunSpacing;
+
+  /// Inset around the tags — upstream's `TagPickerGroup` padding. Falls back
+  /// to [contentPadding].
+  final WidgetStateProperty<EdgeInsetsGeometry?>? tagPadding;
+
+  /// Space between the tags and a field on the same line — the control's
+  /// `columnGap`.
+  final WidgetStateProperty<double?>? fieldSpacing;
+
+  /// Narrowest the field may be beside the tags — upstream's `minWidth`.
+  ///
+  /// The field fills whatever the tags leave of their line, as upstream's
+  /// `flexGrow: 1` input does, while that is at least this wide and its text
+  /// fits; otherwise it takes a line of its own below them.
   final WidgetStateProperty<double?>? fieldWidth;
 
   /// Minimum size of the control.
@@ -118,10 +156,11 @@ class FluentTagPickerStyle {
   /// Popup surface fill.
   final WidgetStateProperty<Color?>? surfaceColor;
 
-  /// Popup surface border colour.
+  /// Popup outline colour, painted outside the surface like upstream's CSS
+  /// `outline`.
   final WidgetStateProperty<Color?>? surfaceBorderColor;
 
-  /// Popup surface border width.
+  /// Popup outline width.
   final WidgetStateProperty<double?>? surfaceBorderWidth;
 
   /// Popup surface corner radius.
@@ -146,8 +185,8 @@ class FluentTagPickerStyle {
   ///
   /// Every piece of chrome is explicitly switched **off** rather than left to
   /// inherit: a `WidgetStatePropertyAll<Color?>(null)` resolves to null, which
-  /// is how `buildFluentInput` is told to skip a fill, a border, the resting
-  /// rule and the focus bar. `FluentTagPicker` draws all four itself, because
+  /// is how `buildFluentInput` is told to skip a fill, a border, the bottom
+  /// border and the focus bar. `FluentTagPicker` draws all four itself, because
   /// its content is a wrapping tag strip rather than the single row an input
   /// lays out.
   ///
@@ -188,9 +227,15 @@ class FluentTagPickerStyle {
       secondaryColor: other.secondaryColor ?? secondaryColor,
       textStyle: other.textStyle ?? textStyle,
       secondaryTextStyle: other.secondaryTextStyle ?? secondaryTextStyle,
+      expandIconColor: other.expandIconColor ?? expandIconColor,
+      expandIconSize: other.expandIconSize ?? expandIconSize,
+      expandIconPadding: other.expandIconPadding ?? expandIconPadding,
       padding: other.padding ?? padding,
       contentPadding: other.contentPadding ?? contentPadding,
       tagSpacing: other.tagSpacing ?? tagSpacing,
+      tagRunSpacing: other.tagRunSpacing ?? tagRunSpacing,
+      tagPadding: other.tagPadding ?? tagPadding,
+      fieldSpacing: other.fieldSpacing ?? fieldSpacing,
       fieldWidth: other.fieldWidth ?? fieldWidth,
       minimumSize: other.minimumSize ?? minimumSize,
       mouseCursor: other.mouseCursor ?? mouseCursor,
@@ -221,9 +266,15 @@ class FluentTagPickerStyle {
     WidgetStateProperty<Color?>? secondaryColor,
     WidgetStateProperty<TextStyle?>? textStyle,
     WidgetStateProperty<TextStyle?>? secondaryTextStyle,
+    WidgetStateProperty<Color?>? expandIconColor,
+    WidgetStateProperty<double?>? expandIconSize,
+    WidgetStateProperty<EdgeInsetsGeometry?>? expandIconPadding,
     WidgetStateProperty<EdgeInsetsGeometry?>? padding,
     WidgetStateProperty<EdgeInsetsGeometry?>? contentPadding,
     WidgetStateProperty<double?>? tagSpacing,
+    WidgetStateProperty<double?>? tagRunSpacing,
+    WidgetStateProperty<EdgeInsetsGeometry?>? tagPadding,
+    WidgetStateProperty<double?>? fieldSpacing,
     WidgetStateProperty<double?>? fieldWidth,
     WidgetStateProperty<Size?>? minimumSize,
     WidgetStateProperty<MouseCursor?>? mouseCursor,
@@ -250,9 +301,15 @@ class FluentTagPickerStyle {
     secondaryColor: secondaryColor ?? this.secondaryColor,
     textStyle: textStyle ?? this.textStyle,
     secondaryTextStyle: secondaryTextStyle ?? this.secondaryTextStyle,
+    expandIconColor: expandIconColor ?? this.expandIconColor,
+    expandIconSize: expandIconSize ?? this.expandIconSize,
+    expandIconPadding: expandIconPadding ?? this.expandIconPadding,
     padding: padding ?? this.padding,
     contentPadding: contentPadding ?? this.contentPadding,
     tagSpacing: tagSpacing ?? this.tagSpacing,
+    tagRunSpacing: tagRunSpacing ?? this.tagRunSpacing,
+    tagPadding: tagPadding ?? this.tagPadding,
+    fieldSpacing: fieldSpacing ?? this.fieldSpacing,
     fieldWidth: fieldWidth ?? this.fieldWidth,
     minimumSize: minimumSize ?? this.minimumSize,
     mouseCursor: mouseCursor ?? this.mouseCursor,
@@ -285,9 +342,15 @@ class FluentTagPickerStyle {
     Color? secondaryColor,
     TextStyle? textStyle,
     TextStyle? secondaryTextStyle,
+    Color? expandIconColor,
+    double? expandIconSize,
+    EdgeInsetsGeometry? expandIconPadding,
     EdgeInsetsGeometry? padding,
     EdgeInsetsGeometry? contentPadding,
     double? tagSpacing,
+    double? tagRunSpacing,
+    EdgeInsetsGeometry? tagPadding,
+    double? fieldSpacing,
     double? fieldWidth,
     Size? minimumSize,
     MouseCursor? mouseCursor,
@@ -314,9 +377,15 @@ class FluentTagPickerStyle {
     secondaryColor: _all(secondaryColor),
     textStyle: _all(textStyle),
     secondaryTextStyle: _all(secondaryTextStyle),
+    expandIconColor: _all(expandIconColor),
+    expandIconSize: _all(expandIconSize),
+    expandIconPadding: _all(expandIconPadding),
     padding: _all(padding),
     contentPadding: _all(contentPadding),
     tagSpacing: _all(tagSpacing),
+    tagRunSpacing: _all(tagRunSpacing),
+    tagPadding: _all(tagPadding),
+    fieldSpacing: _all(fieldSpacing),
     fieldWidth: _all(fieldWidth),
     minimumSize: _all(minimumSize),
     mouseCursor: _all(mouseCursor),
@@ -350,9 +419,15 @@ class FluentTagPickerStyle {
       other.secondaryColor == secondaryColor &&
       other.textStyle == textStyle &&
       other.secondaryTextStyle == secondaryTextStyle &&
+      other.expandIconColor == expandIconColor &&
+      other.expandIconSize == expandIconSize &&
+      other.expandIconPadding == expandIconPadding &&
       other.padding == padding &&
       other.contentPadding == contentPadding &&
       other.tagSpacing == tagSpacing &&
+      other.tagRunSpacing == tagRunSpacing &&
+      other.tagPadding == tagPadding &&
+      other.fieldSpacing == fieldSpacing &&
       other.fieldWidth == fieldWidth &&
       other.minimumSize == minimumSize &&
       other.mouseCursor == mouseCursor &&
@@ -381,9 +456,15 @@ class FluentTagPickerStyle {
     secondaryColor,
     textStyle,
     secondaryTextStyle,
+    expandIconColor,
+    expandIconSize,
+    expandIconPadding,
     padding,
     contentPadding,
     tagSpacing,
+    tagRunSpacing,
+    tagPadding,
+    fieldSpacing,
     fieldWidth,
     minimumSize,
     mouseCursor,

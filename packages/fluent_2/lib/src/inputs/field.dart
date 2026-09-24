@@ -22,9 +22,9 @@ enum FluentFieldSize {
 ///
 /// **Upstream-only as an axis.** The Figma `Field` set has no validation
 /// property: all three variants draw one error message, bound to
-/// `Status/Danger/Foreground/1/Rest`. [error] is therefore design-verified and
-/// [warning] and [success] are transcribed from
-/// `useFieldStyles.styles.ts`, mapped onto this port's status alias layer.
+/// `Status/Danger/Foreground/1/Rest`. Every state's glyph and tint is
+/// therefore upstream's, as `useField` and `useFieldStyles.styles.ts` render it
+/// in Chrome.
 enum FluentFieldValidationState {
   /// No condition is being reported. The validation message, if any, reads as
   /// a second hint. The default.
@@ -84,11 +84,10 @@ class FluentFieldBaseState {
 
   /// The glyph beside [validationMessage], if any.
   ///
-  /// Supplied by the caller — Fluent's icon set is not part of this package,
-  /// the same call `FluentStatusIndicator` makes — and tinted and sized through
-  /// [IconTheme], so any [Icon]-shaped widget picks the right values up
-  /// automatically. Upstream defaults it to `ErrorCircle12Filled`,
-  /// `Warning12Filled` and `CheckmarkCircle12Filled` per validation state.
+  /// Tinted and sized through [IconTheme], so any [Icon]-shaped widget picks
+  /// the right values up automatically. [resolveFluentFieldState] fills it
+  /// with upstream's default, a [FluentFieldValidationGlyph], for every state
+  /// but `none`.
   final Widget? validationMessageIcon;
 
   /// The control being wrapped. Any widget: the field never inspects it.
@@ -126,6 +125,12 @@ class FluentFieldState extends FluentFieldBaseState {
 /// the label is composed: `label` goes in as its own content and comes out
 /// wrapped in a [FluentLabel] whose size and weight are read off [size].
 ///
+/// It is also where the default validation glyph is chosen, as upstream's
+/// `useField_unstable` does: `validationMessageIcon` overrides the
+/// [FluentFieldValidationGlyph] `validationState` would otherwise draw, and
+/// `showValidationMessageIcon: false` drops the glyph and its gutter — the
+/// counterpart of passing `validationMessageIcon={null}` to the React slot.
+///
 /// The weight is not a free choice. Figma's `Size=Large` variant draws its
 /// label 16/22 **semibold**, and upstream's `useLabelStyles` gives `large` the
 /// same `typographyStyles.subtitle2`. `FluentLabel` reaches that ramp step
@@ -140,6 +145,7 @@ FluentFieldState resolveFluentFieldState({
   Widget? hint,
   Widget? validationMessage,
   Widget? validationMessageIcon,
+  bool showValidationMessageIcon = true,
   Widget? child,
 }) {
   final (labelSize, labelWeight) = switch (size) {
@@ -169,7 +175,12 @@ FluentFieldState resolveFluentFieldState({
           ),
     hint: hint,
     validationMessage: validationMessage,
-    validationMessageIcon: validationMessageIcon,
+    validationMessageIcon: !showValidationMessageIcon
+        ? null
+        : validationMessageIcon ??
+              (validationState == FluentFieldValidationState.none
+                  ? null
+                  : FluentFieldValidationGlyph(state: validationState)),
     child: child,
   );
 }
@@ -181,22 +192,24 @@ FluentFieldState resolveFluentFieldState({
 /// here computes a colour.
 ///
 /// Token sources are the Figma `Field` component set, extracted into
-/// `test/fixtures/field.json` and asserted variant-by-variant in the tests.
-/// Two readings deserve to be stated out loud, because both look like bugs to
-/// anyone diffing against `useFieldStyles.styles.ts`:
+/// `test/fixtures/field.json` and asserted variant-by-variant in the tests,
+/// with colours measured off upstream as Chrome renders it. Two readings
+/// deserve to be stated out loud, because both look like bugs:
 ///
 /// * **Only `error` recolours the message text.** Upstream applies
 ///   `secondaryTextStyles.error` when `validationState === 'error'` and nothing
 ///   at all for `warning` and `success`, whose messages stay
 ///   `colorNeutralForeground3`. The *glyph* takes a tint in all three. That
 ///   asymmetry is reproduced verbatim below.
-/// * **Status, not palette.** Upstream names `colorPaletteRedForeground1`,
-///   `colorPaletteDarkOrangeForeground1` and `colorPaletteGreenForeground1`.
-///   Figma binds the error text to `Status/Danger/Foreground/1/Rest`, whose
-///   light value `#B10E1C` is exactly this port's `statusDangerForeground1`, so
-///   the status alias family is what the whole table selects. Only the alias
-///   layer is reached by `FluentThemeOverride` and replaced by the
-///   high-contrast palette.
+/// * **Palette, not status.** Upstream names `colorPaletteRedForeground1`,
+///   `colorPaletteDarkOrangeForeground1` and `colorPaletteGreenForeground1`,
+///   and Chrome paints them #bc2f32, #c43501 and #0e700e (web-light), #e37d80,
+///   #e9835e and #54b054 (web-dark). Figma binds the error text to
+///   `Status/Danger/Foreground/1/Rest` (#b10e1c) instead; the rendered upstream
+///   wins. They are read off the palette layer, as Input reads its red border,
+///   so a `FluentThemeOverride` of a status token does not reach them. High
+///   contrast maps all three to the system text colour, which is what the
+///   status tokens hold there.
 FluentFieldStyle resolveFluentFieldStyle(
   FluentFieldState state,
   FluentThemeData theme,
@@ -213,20 +226,38 @@ FluentFieldStyle resolveFluentFieldStyle(
     disabled: c.neutralForegroundDisabled,
   );
 
+  // `colorPalette{Red,DarkOrange,Green}Foreground1`. The palette layer knows
+  // nothing of high contrast, where the status token is the system text colour.
+  Color foreground1(FluentPaletteFamily family, Color highContrast) =>
+      c is FluentHighContrastColors
+      ? highContrast
+      : c.palette.foreground1Rest(family)!;
+
+  final tint = switch (state.validationState) {
+    FluentFieldValidationState.none => c.neutralForeground3,
+    FluentFieldValidationState.error => foreground1(
+      FluentPaletteFamily.red,
+      c.statusDangerForeground1,
+    ),
+    FluentFieldValidationState.warning => foreground1(
+      FluentPaletteFamily.darkOrange,
+      c.statusWarningForeground1,
+    ),
+    FluentFieldValidationState.success => foreground1(
+      FluentPaletteFamily.green,
+      c.statusSuccessForeground1,
+    ),
+  };
+
   final message = FluentStateColor.tokens(
     rest: state.validationState == FluentFieldValidationState.error
-        ? c.statusDangerForeground1
+        ? tint
         : c.neutralForeground3,
     disabled: c.neutralForegroundDisabled,
   );
 
   final icon = FluentStateColor.tokens(
-    rest: switch (state.validationState) {
-      FluentFieldValidationState.none => c.neutralForeground3,
-      FluentFieldValidationState.error => c.statusDangerForeground1,
-      FluentFieldValidationState.warning => c.statusWarningForeground1,
-      FluentFieldValidationState.success => c.statusSuccessForeground1,
-    },
+    rest: tint,
     disabled: c.neutralForegroundDisabled,
   );
 
@@ -356,12 +387,215 @@ Widget buildFluentField(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: <Widget>[
       if (state.label != null)
-        Padding(padding: labelPadding, child: state.label),
+        Padding(
+          padding: labelPadding,
+          // Upstream's label is `maxWidth: max-content` in the stretching
+          // grid: as wide as its text, wrapping at the field's width.
+          child: Align(
+            alignment: AlignmentDirectional.topStart,
+            child: state.label,
+          ),
+        ),
       ?state.child,
       ?validation,
       if (state.hint != null) secondary(state.hint!, hintColor),
     ],
   );
+}
+
+/// Upstream's default validation glyph for [state], drawn rather than imported.
+///
+/// `useField_unstable` renders `DiamondDismiss12Filled`, `Warning12Filled` and
+/// `CheckmarkCircle12Filled` for `error`, `warning` and `success`; the first is
+/// not in `fluentui_system_icons`, so all three are painted from their svg
+/// paths by [FluentFieldValidationGlyphPainter]. `none` paints nothing.
+///
+/// Takes its colour and its box from the ambient [IconTheme], exactly as an
+/// `Icon` would.
+class FluentFieldValidationGlyph extends StatelessWidget {
+  /// Creates the glyph for [state].
+  const FluentFieldValidationGlyph({super.key, required this.state});
+
+  /// Which of upstream's glyphs to draw.
+  final FluentFieldValidationState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = IconTheme.of(context);
+    return SizedBox.square(
+      dimension: icon.size ?? FluentSize.size120,
+      child: CustomPaint(
+        painter: FluentFieldValidationGlyphPainter(
+          state: state,
+          color: icon.color ?? const Color(0xFF000000),
+        ),
+      ),
+    );
+  }
+}
+
+/// Paints [FluentFieldValidationGlyph].
+///
+/// The 12-unit paths of `@fluentui/react-icons`' `DiamondDismiss12Filled`,
+/// `Warning12Filled` and `CheckmarkCircle12Filled`, transcribed command for
+/// command and scaled to the box as the browser scales the 12px svg.
+class FluentFieldValidationGlyphPainter extends CustomPainter {
+  /// Creates a painter for [state] in [color].
+  const FluentFieldValidationGlyphPainter({
+    required this.state,
+    required this.color,
+  });
+
+  /// Which glyph to paint. `none` paints nothing.
+  final FluentFieldValidationState state;
+
+  /// The fill colour.
+  final Color color;
+
+  static const Radius _r05 = Radius.circular(0.5);
+
+  static final Path _diamondDismiss = Path()
+    ..moveTo(4.58, 1.58)
+    ..relativeArcToPoint(
+      const Offset(2.83, 0),
+      radius: const Radius.circular(2),
+    )
+    ..relativeLineTo(3, 3)
+    ..relativeArcToPoint(
+      const Offset(0, 2.83),
+      radius: const Radius.circular(2),
+    )
+    ..relativeLineTo(-3, 3)
+    ..relativeArcToPoint(
+      const Offset(-2.83, 0),
+      radius: const Radius.circular(2),
+    )
+    ..relativeLineTo(-3, -3)
+    ..relativeArcToPoint(
+      const Offset(-0.14, -2.68),
+      radius: const Radius.circular(2),
+    )
+    ..relativeLineTo(0.14, -0.15)
+    ..relativeLineTo(3, -3)
+    ..close()
+    ..moveTo(7.85, 4.15)
+    ..relativeArcToPoint(const Offset(-0.7, 0), radius: _r05, clockwise: false)
+    ..lineTo(6, 5.29)
+    ..lineTo(4.85, 4.15)
+    ..relativeLineTo(-0.07, -0.07)
+    ..relativeArcToPoint(
+      const Offset(-0.7, 0.7),
+      radius: _r05,
+      clockwise: false,
+    )
+    ..relativeLineTo(0.07, 0.07)
+    ..lineTo(5.29, 6)
+    ..lineTo(4.15, 7.15)
+    ..relativeArcToPoint(const Offset(0.7, 0.7), radius: _r05, clockwise: false)
+    ..lineTo(6, 6.71)
+    ..relativeLineTo(1.15, 1.14)
+    ..relativeLineTo(0.07, 0.07)
+    ..relativeArcToPoint(
+      const Offset(0.7, -0.7),
+      radius: _r05,
+      clockwise: false,
+    )
+    ..relativeLineTo(-0.07, -0.07)
+    ..lineTo(6.71, 6)
+    ..relativeLineTo(1.14, -1.15)
+    ..relativeArcToPoint(const Offset(0, -0.7), radius: _r05, clockwise: false)
+    ..close();
+
+  static final Path _warning = Path()
+    ..moveTo(5.21, 1.46)
+    ..relativeArcToPoint(
+      const Offset(1.58, 0),
+      radius: const Radius.circular(0.9),
+    )
+    ..relativeLineTo(4.09, 7.17)
+    ..relativeArcToPoint(
+      const Offset(-0.79, 1.37),
+      radius: const Radius.circular(0.92),
+    )
+    ..lineTo(1.91, 10)
+    ..relativeArcToPoint(
+      const Offset(-0.79, -1.37),
+      radius: const Radius.circular(0.92),
+    )
+    ..relativeLineTo(4.1, -7.17)
+    ..close()
+    ..moveTo(5.5, 4.5)
+    ..relativeLineTo(0, 1)
+    ..relativeArcToPoint(const Offset(1, 0), radius: _r05, clockwise: false)
+    ..relativeLineTo(0, -1)
+    ..relativeArcToPoint(const Offset(-1, 0), radius: _r05, clockwise: false)
+    ..close()
+    ..moveTo(6, 6.75)
+    ..relativeArcToPoint(
+      const Offset(0, 1.5),
+      radius: const Radius.circular(0.75),
+      largeArc: true,
+      clockwise: false,
+    )
+    ..relativeArcToPoint(
+      const Offset(0, -1.5),
+      radius: const Radius.circular(0.75),
+      clockwise: false,
+    )
+    ..close();
+
+  static final Path _checkmarkCircle = Path()
+    ..moveTo(1, 6)
+    ..relativeArcToPoint(
+      const Offset(10, 0),
+      radius: const Radius.circular(5),
+      largeArc: true,
+    )
+    ..arcToPoint(const Offset(1, 6), radius: const Radius.circular(5))
+    ..close()
+    ..moveTo(8.35, 5.1)
+    ..relativeArcToPoint(
+      const Offset(-0.7, -0.7),
+      radius: _r05,
+      largeArc: true,
+      clockwise: false,
+    )
+    ..lineTo(5.5, 6.54)
+    ..lineTo(4.35, 5.4)
+    ..relativeArcToPoint(
+      const Offset(-0.7, 0.7),
+      radius: _r05,
+      largeArc: true,
+      clockwise: false,
+    )
+    ..relativeLineTo(1.5, 1.5)
+    ..relativeCubicTo(0.2, 0.2, 0.5, 0.2, 0.7, 0)
+    ..relativeLineTo(2.5, -2.5)
+    ..close();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = switch (state) {
+      FluentFieldValidationState.none => null,
+      FluentFieldValidationState.error => _diamondDismiss,
+      FluentFieldValidationState.warning => _warning,
+      FluentFieldValidationState.success => _checkmarkCircle,
+    };
+    if (path == null) return;
+    canvas
+      ..save()
+      ..translate(
+        (size.width - size.shortestSide) / 2,
+        (size.height - size.shortestSide) / 2,
+      )
+      ..scale(size.shortestSide / 12)
+      ..drawPath(path, Paint()..color = color)
+      ..restore();
+  }
+
+  @override
+  bool shouldRepaint(FluentFieldValidationGlyphPainter oldDelegate) =>
+      oldDelegate.state != state || oldDelegate.color != color;
 }
 
 /// Overrides the field style for a subtree.
@@ -400,7 +634,6 @@ class FluentFieldTheme extends InheritedTheme {
 ///   required: true,
 ///   validationState: FluentFieldValidationState.error,
 ///   validationMessage: const Text('That address is already registered'),
-///   validationMessageIcon: const Icon(FluentIcons.error_circle_12_filled),
 ///   child: myTextInput,
 /// )
 /// ```
@@ -411,9 +644,9 @@ class FluentFieldTheme extends InheritedTheme {
 /// field's own width, matching upstream's `display: grid` root — so give it a
 /// bounded width.
 ///
-/// [validationState] tints the message and its glyph; it does **not** touch the
-/// control. Wiring a red border onto an invalid input is the input's own job,
-/// which is exactly how upstream splits it.
+/// [validationState] picks upstream's glyph and tints it and the message; it
+/// does **not** touch the control. Wiring a red border onto an invalid input is
+/// the input's own job, which is exactly how upstream splits it.
 ///
 /// [enabled] is a real state rather than a visual treatment: every colour is
 /// resolved from `neutralForegroundDisabled` rather than faded, so it stays
@@ -438,6 +671,7 @@ class FluentField extends StatelessWidget {
     this.hint,
     this.validationMessage,
     this.validationMessageIcon,
+    this.showValidationMessageIcon = true,
     this.validationState = FluentFieldValidationState.none,
     this.size = FluentFieldSize.medium,
     this.required = false,
@@ -457,9 +691,14 @@ class FluentField extends StatelessWidget {
   /// The validation message below the control.
   final Widget? validationMessage;
 
-  /// The glyph beside [validationMessage]. Tinted and sized through
-  /// [IconTheme]; see [FluentFieldBaseState.validationMessageIcon].
+  /// Overrides the glyph [validationState] would otherwise draw beside
+  /// [validationMessage]. Tinted and sized through [IconTheme]; see
+  /// [FluentFieldBaseState.validationMessageIcon].
   final Widget? validationMessageIcon;
+
+  /// Whether a glyph is drawn beside [validationMessage] at all. False removes
+  /// it and its gutter, as `validationMessageIcon={null}` does upstream.
+  final bool showValidationMessageIcon;
 
   /// What the field is reporting about [child]'s value.
   final FluentFieldValidationState validationState;
@@ -491,6 +730,7 @@ class FluentField extends StatelessWidget {
       hint: hint,
       validationMessage: validationMessage,
       validationMessageIcon: validationMessageIcon,
+      showValidationMessageIcon: showValidationMessageIcon,
       child: child,
     );
 

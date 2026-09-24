@@ -140,7 +140,7 @@ const FluentLabelStyle({
 | `foregroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Label text colour. |
 | `requiredColor` | `WidgetStateProperty<Color?>?` | No | `null` | Required-field asterisk colour. |
 | `textStyle` | `WidgetStateProperty<TextStyle?>?` | No | `null` | The type ramp step. Its colour is overridden by [foregroundColor]. |
-| `gap` | `WidgetStateProperty<double?>?` | No | `null` | Space between the label and the asterisk. |
+| `gap` | `WidgetStateProperty<double?>?` | No | `null` | Space between the end of the label's last line and the asterisk. |
 
 ### `FluentLabelTheme`
 

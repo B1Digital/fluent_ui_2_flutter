@@ -15,10 +15,10 @@ import 'package:flutter/widgets.dart';
 ///
 /// Three properties have no counterpart on a plain button and are worth calling
 /// out, because they are how Fluent's input chrome is actually assembled:
-/// [bottomRuleColor] is the *darker bottom edge* an Outline or Underline input
-/// carries in addition to (Outline) or instead of (Underline) its border, and
-/// [focusUnderlineColor] with [focusUnderlineWidth] is the brand rule that
-/// grows out of the centre on focus.
+/// [bottomRuleColor] is the *darker bottom side* of the border — beside the
+/// others on Outline, the only side on Underline — and [focusUnderlineColor]
+/// with [focusUnderlineWidth] is the brand rule that grows out of the centre
+/// on focus.
 @immutable
 class FluentSpinButtonStyle {
   /// Creates a style. Omitted properties inherit.
@@ -50,26 +50,35 @@ class FluentSpinButtonStyle {
   /// Surface fill behind the text and the steppers.
   final WidgetStateProperty<Color?>? backgroundColor;
 
-  /// Border colour, uniform on all four sides. Null and transparent are
-  /// different: Fluent's `transparentStroke` family becomes opaque in high
-  /// contrast, which is the only thing outlining a filled input there.
+  /// Colour of the border's top, left and right sides — and of the bottom too
+  /// when [bottomRuleColor] is null. Null is no side border at all, which is
+  /// not the same as transparent: Fluent's `transparentStroke` family becomes
+  /// opaque in high contrast, which is the only thing outlining a filled input
+  /// there.
   final WidgetStateProperty<Color?>? borderColor;
 
-  /// Border width. Zero means no border, which is not the same as a transparent
-  /// one — a zero-width border cannot become visible in high contrast.
+  /// Width of the border's top, left and right sides. Zero means no side
+  /// border, which is not the same as a transparent one — a zero-width border
+  /// cannot become visible in high contrast.
+  ///
+  /// The border is painted over the content and does not inset it, as
+  /// upstream's `::before` overlay does not.
   final WidgetStateProperty<double?>? borderWidth;
 
-  /// Corner radius.
+  /// Corner radius of the fill and of the steppers' outer corners. The border
+  /// and the focus bar take it too, unless there is no side border: a
+  /// bottom-only border is square, as upstream's underline is.
   final WidgetStateProperty<BorderRadius?>? borderRadius;
 
-  /// The rule along the bottom edge, drawn over the border.
+  /// Colour of the border's bottom side, joined to [borderColor] on the corner
+  /// diagonal the way a browser joins two border colours.
   ///
-  /// Null means the border alone carries the bottom edge — which is what a
-  /// disabled or filled input does. Outline draws it in the
-  /// `neutralStrokeAccessible` ramp; Underline draws it *as* the whole border.
+  /// Null means [borderColor] carries the bottom as well — which is what a
+  /// filled input does. Outline takes the `neutralStrokeAccessible` ramp;
+  /// Underline has no other side.
   final WidgetStateProperty<Color?>? bottomRuleColor;
 
-  /// Thickness of [bottomRuleColor]'s rule.
+  /// Width of the border's bottom side.
   final WidgetStateProperty<double?>? bottomRuleWidth;
 
   /// The brand rule that grows from the centre when the field takes focus.
@@ -101,8 +110,8 @@ class FluentSpinButtonStyle {
   /// Text ramp of the value and the placeholder alike.
   final WidgetStateProperty<TextStyle?>? textStyle;
 
-  /// Inset from the control's edge to the content row. Left only in Fluent —
-  /// the stepper column sits flush against the right edge.
+  /// Inset from the control's edge to the content row. Start only in Fluent —
+  /// the stepper column sits flush against the end edge.
   final WidgetStateProperty<EdgeInsetsGeometry?>? padding;
 
   /// Inset around the editable text itself, inside [padding].
@@ -112,20 +121,20 @@ class FluentSpinButtonStyle {
   /// of them stacked.
   final WidgetStateProperty<Size?>? stepperSize;
 
-  /// Inset from one stepper's box to its chevron glyph box. Asymmetric: the
-  /// increase half is padded at the top, the decrease half at the bottom, so
-  /// the value given here is applied to whichever edge faces away from the
-  /// middle.
+  /// Inset from one stepper's box to the box its chevron is centred in, stated
+  /// for the increase half. The decrease half mirrors it top to bottom, so the
+  /// larger inset always faces away from the middle of the column.
   final WidgetStateProperty<EdgeInsetsGeometry?>? stepperPadding;
 
-  /// Edge length of a chevron's glyph box.
+  /// Size of the chevron icon. It may be taller than the box [stepperPadding]
+  /// leaves, and overflows it evenly, as upstream's svg does.
   final WidgetStateProperty<double?>? glyphSize;
 
   /// Minimum size of the whole control. Only the height is a Fluent number; the
   /// width is whatever the caller gives it.
   final WidgetStateProperty<Size?>? minimumSize;
 
-  /// Cursor while hovering the text area.
+  /// Cursor over the text column, the full height of the control.
   final WidgetStateProperty<MouseCursor?>? mouseCursor;
 
   /// This style with the non-null properties of [other] layered on top.

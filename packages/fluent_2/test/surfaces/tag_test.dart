@@ -1,3 +1,5 @@
+import 'dart:ui' show PictureRecorder;
+
 import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -176,7 +178,7 @@ void main() {
       }
     });
 
-    testWidgets('the item gap and glyph size match every size', (tester) async {
+    testWidgets('the item gap and glyph box match every size', (tester) async {
       for (final size in FluentTagSize.values) {
         final variant = spec.variant({
           'Style': 'Filled',
@@ -199,14 +201,18 @@ void main() {
         );
         expect(row.spacing, variant.part('Content').gap, reason: size.name);
 
-        // Figma draws the glyph's INK at 0.67 of its box; the box is what the
-        // component sizes, and 12 / 16 / 20 is React's dismiss ramp too.
-        final ink = variant.part('Shape').size.width;
-        final box = tester.getSize(find.byType(FluentTagDismissGlyph));
+        // The box is what the component sizes: 12 / 16 / 20, React's dismiss
+        // ramp too. The ink inside it is upstream's, below.
         expect(
-          box.width * FluentTagDismissPainter.inkRatio,
-          closeTo(ink, 1.5),
-          reason: '${size.name}: glyph ink',
+          tester.getSize(find.byType(FluentTagDismissGlyph)),
+          Size.square(
+            const {
+              FluentTagSize.extraSmall: 12.0,
+              FluentTagSize.small: 16.0,
+              FluentTagSize.medium: 20.0,
+            }[size]!,
+          ),
+          reason: size.name,
         );
       }
     });
@@ -448,6 +454,177 @@ void main() {
         variant.part('Shape').fill!,
         reason: 'and it does not report hover either',
       );
+    });
+  });
+
+  // Measured on the live storybook in Chrome at DPR 4
+  // (`components-tag-tag--size`, `--icon`, `--dismiss`), from the border box's
+  // top-left. Upstream's media sits 1px inside the border with S / SNudge
+  // after it, where an icon sits at the content inset with XS / XXS after it;
+  // a one-line label carries a 2px bottom pad, which lifts it 1px.
+  group('FluentTag against upstream', () {
+    const inset = {
+      FluentTagSize.extraSmall: 6.0,
+      FluentTagSize.small: 6.0,
+      FluentTagSize.medium: 8.0,
+    };
+    const gap = {
+      FluentTagSize.extraSmall: 2.0,
+      FluentTagSize.small: 2.0,
+      FluentTagSize.medium: 4.0,
+    };
+    const height = {
+      FluentTagSize.extraSmall: 20.0,
+      FluentTagSize.small: 24.0,
+      FluentTagSize.medium: 32.0,
+    };
+    // The avatar upstream's Tag hands its media slot, and the glyph box.
+    const avatar = {
+      FluentTagSize.extraSmall: 16.0,
+      FluentTagSize.small: 20.0,
+      FluentTagSize.medium: 28.0,
+    };
+    const labelTop = {
+      FluentTagSize.extraSmall: 1.0,
+      FluentTagSize.small: 3.0,
+      FluentTagSize.medium: 5.0,
+    };
+    const glyph = {
+      FluentTagSize.extraSmall: 12.0,
+      FluentTagSize.small: 16.0,
+      FluentTagSize.medium: 20.0,
+    };
+    const slotKey = Key('slot');
+    final label = find.descendant(
+      of: find.byKey(key),
+      matching: find.byType(RichText),
+    );
+
+    Offset at(WidgetTester tester, Finder finder) =>
+        tester.getTopLeft(finder) - tester.getTopLeft(find.byKey(key));
+
+    testWidgets('media sits 2px in; the label and dismiss follow it', (
+      tester,
+    ) async {
+      for (final size in FluentTagSize.values) {
+        final w = avatar[size]!;
+        await pump(
+          tester,
+          FluentTag(
+            key: key,
+            size: size,
+            media: SizedBox.square(key: slotKey, dimension: w),
+            onDismiss: () {},
+            child: const Text('Tag'),
+          ),
+        );
+        final h = height[size]!;
+        expect(tester.getSize(find.byKey(key)).height, h, reason: size.name);
+        expect(
+          at(tester, find.byKey(slotKey)),
+          Offset(2, (h - w) / 2),
+          reason: '${size.name}: media',
+        );
+        // The label slot starts S / SNudge past the media and pads 2 inside.
+        expect(
+          at(tester, label),
+          Offset(2 + w + inset[size]! + 2, labelTop[size]!),
+          reason: '${size.name}: label',
+        );
+        final dismiss = tester.getRect(find.byType(FluentTagDismissGlyph));
+        expect(
+          dismiss.left - tester.getTopRight(label).dx,
+          2 + gap[size]!,
+          reason: '${size.name}: label to dismiss',
+        );
+        expect(
+          tester.getTopRight(find.byKey(key)).dx - dismiss.right,
+          inset[size]!,
+          reason: '${size.name}: dismiss to edge',
+        );
+      }
+    });
+
+    testWidgets('an icon sits at the inset; the label lifts 1px', (
+      tester,
+    ) async {
+      for (final size in FluentTagSize.values) {
+        final w = glyph[size]!;
+        await pump(
+          tester,
+          FluentTag(
+            key: key,
+            size: size,
+            icon: SizedBox.square(key: slotKey, dimension: w),
+            child: const Text('Tag'),
+          ),
+        );
+        expect(
+          at(tester, find.byKey(slotKey)).dx,
+          inset[size]!,
+          reason: '${size.name}: icon',
+        );
+        expect(
+          at(tester, label),
+          Offset(inset[size]! + w + gap[size]! + 2, labelTop[size]!),
+          reason: '${size.name}: label',
+        );
+
+        await pump(
+          tester,
+          FluentTag(key: key, size: size, child: const Text('Tag')),
+        );
+        expect(
+          at(tester, label),
+          Offset(inset[size]! + 2, labelTop[size]!),
+          reason: '${size.name}: label alone',
+        );
+      }
+    });
+
+    testWidgets("the dismiss glyph inks as upstream's DismissRegular", (
+      tester,
+    ) async {
+      // Black on white at DPR 4 in Chrome: the ink's width, and its area in
+      // CSS px², for the 12 / 16 / 20 boxes.
+      const dpr = 4.0;
+      for (final (box, width, area) in const [
+        (12.0, 7.5, 11.71),
+        (16.0, 10.0, 19.36),
+        (20.0, 12.0, 33.23),
+      ]) {
+        final px = (box * dpr).round();
+        final recorder = PictureRecorder();
+        const FluentTagDismissPainter(
+          color: Color(0xFF000000),
+        ).paint(Canvas(recorder)..scale(dpr), Size.square(box));
+        final bytes = (await tester.runAsync(() async {
+          final image = await recorder.endRecording().toImage(px, px);
+          return image.toByteData();
+        }))!;
+        var minX = px, maxX = -1;
+        var ink = 0.0;
+        for (var y = 0; y < px; y++) {
+          for (var x = 0; x < px; x++) {
+            final alpha = bytes.getUint8((y * px + x) * 4 + 3) / 255;
+            ink += alpha;
+            if (alpha > .1) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+            }
+          }
+        }
+        expect(
+          (maxX + 1 - minX) / dpr,
+          closeTo(width, .5),
+          reason: '$box: ink width',
+        );
+        expect(
+          ink / dpr / dpr,
+          closeTo(area, area * .12),
+          reason: '$box: ink area',
+        );
+      }
     });
   });
 

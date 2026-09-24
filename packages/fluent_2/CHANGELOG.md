@@ -10,6 +10,200 @@
   else paints as `BoxDecoration`. The CarouselNav and Carousel demos use it,
   which is what stopped the CarouselNav card rendering solid grey.
 
+### Changed
+
+- **BREAKING (custom styles): `FluentInputStyle.borderWidth`,
+  `bottomBorderColor` and `bottomBorderWidth` now describe a real CSS-style
+  border.** The border takes space and the content row sits inside it, on top
+  of `padding` — the bottom side used to be a rule overlaid on the box's bottom
+  edge that cost no layout. A null `borderColor` means no border and no inset
+  whatever `borderWidth` says; a null `bottomBorderColor` means the bottom
+  follows `borderColor`. A custom style that set a wide bottom rule, or relied
+  on the border not moving the text, will lay out differently. The same holds
+  for the bottom-side fields of `FluentSearchBoxStyle`, `FluentTextareaStyle`,
+  `FluentSpinButtonStyle`, `FluentDropdownStyle`, `FluentTagPickerStyle`,
+  `FluentDatePickerStyle` and `FluentTimePickerStyle`.
+- **BREAKING (sibling APIs), each to match upstream:**
+  - `FluentSpinButtonBaseState.inert` is gone — read-only no longer styles the
+    surface, only the steppers go inert;
+  - `FluentSpinButtonChevronPainter` no longer takes `glyphSize` or
+    `strokeWidth`: it fills upstream's 14px svg path;
+  - `FluentTextarea.maxLines: null` holds the field at `minLines` rows and
+    scrolls, as upstream's `rows` does; pass `maxLines` to let it grow;
+  - `FluentTimePickerStyle.trailingGap` is now the space between the text
+    field and the trailing glyph, and `trailingPadding` the inset around the
+    text field;
+  - `FluentDropdown` and `FluentTimePicker` take upstream's 250px minimum
+    width;
+  - `FluentTagPicker` draws upstream's expand chevron by default (`expandIcon`,
+    `fluentTagPickerChevron`), is 34/42/46 tall, and has 32px option rows and
+    upstream-sized tags;
+  - `FluentTagDismissPainter.inkRatio` is gone: the dismiss glyph fills
+    upstream's `DismissRegular` path instead of a scaled cross;
+  - `FluentSpinButtonStepper` is now a `StatefulWidget` (it repeats while
+    held).
+- **`FluentTag.media` is new** — upstream's `media` slot, for an avatar, 1px
+  inside the border; `icon` stays at the content inset. A `FluentTagPicker`
+  chip puts its avatar there (new `FluentTagPickerOption.tagMedia`, which
+  falls back to `media`).
+- **`FluentInputBorderPainter` is new** and is what paints the border. Where the
+  bottom colour differs from the sides, the two meet along each bottom corner's
+  diagonal the way a browser joins adjacent border colours, instead of the
+  bottom colour stopping a pixel up the arc. Public with its fields, so tests
+  read the resolved tones off it, as with `FluentRadioIndicatorPainter`.
+- **The focus bar eases on CSS `ease` and reverses the way CSS does.** Upstream
+  writes the curve tokens into `transitionDelay` — a typo for
+  `transitionTimingFunction` — so every browser drops them and runs `ease`,
+  which the port had been reading as intent and replacing with
+  `curveDecelerateMid` / `curveAccelerateMid` (45% of the bar drawn 20ms in,
+  against upstream's 9.5%). `fluentInputFocusUnderlineEnter` / `Exit` are now
+  `FluentCssCubic.ease` — new, a `cubic-bezier()` solved to 1e-7 as Chromium
+  solves it, where Flutter's `Cubic` stops at 1e-3 and drew the bar's ends up
+  to 0.4px off Chrome's — and a focus change mid-flight starts a fresh `ease`
+  from the current scale over the direction's duration times the distance
+  left, instead of retracing the old curve. Every field sharing the bar picks
+  this up: `FluentInput`, `FluentTextarea`, `FluentSearchBox`,
+  `FluentDropdown`, `FluentTagPicker`, `FluentSpinButton`, `FluentDatePicker`
+  and `FluentTimePicker`, whose alias constants follow.
+- **`FluentInput` matches upstream as rendered in Chrome rather than the Figma
+  set**, and so does `FluentDatePicker`, which is `.fui-Input` upstream and
+  derives its faceplate from it:
+  - a focused outline field keeps `neutralStroke1Pressed` /
+    `neutralStrokeAccessiblePressed` even while hovered;
+  - a read-only `FluentInput` is styled exactly like rest — it was on the
+    disabled ramp;
+  - invalid is `colorPaletteRedBorder2` (`#d13438` light), not
+    `statusDangerBorder2`; high contrast keeps the status token;
+  - underline has square corners, on the root and the focus bar;
+  - the bottom border stays 1px while pressed — it was 2px;
+  - text and slots sit inside the border: 1px further in on outline and filled,
+    and 0.5px higher on underline, whose only border is the bottom one;
+  - large's text inset is 18 (12 + `SNudge`), not Figma's 14;
+  - the caret is 1px, a browser's width, not `EditableText`'s 2 (also in
+    `FluentTagPicker`, which composes `FluentInput`).
+- **`FluentSearchBox`, `FluentTextarea`, `FluentSpinButton`, `FluentDropdown`,
+  `FluentTagPicker` and `FluentTimePicker` match upstream as rendered in
+  Chrome**, each measured across its appearances, sizes and states at a pixel
+  ratio of 4:
+  - read-only is styled like rest on all of them — it was on the disabled
+    ramp;
+  - invalid is `colorPaletteRedBorder2`, with new `error` parameters on
+    `FluentSearchBox`, `FluentDropdown` and `FluentTagPicker`;
+  - the bottom border is 1px in every state, joins the sides on the corner
+    diagonal and, like the rest of the border, sits outside the content;
+  - the caret is 1px, and a disabled field shows `not-allowed`;
+  - focus follows each component's own cascade. SearchBox and SpinButton write
+    `:active,:focus-within` as one rule, so a focused field keeps the Pressed
+    stop through a hover, as Input does. Textarea, Dropdown, TagPicker and
+    TimePicker write `:focus-within` alone, which Griffel sorts before
+    `:hover`, so hover wins there; a focused Textarea's bottom border is
+    `compoundBrandStroke`;
+  - Textarea is 44/56/68 tall (new `FluentTextareaStyle.minimumSize`);
+    SpinButton's border is drawn over its steppers, whose fills follow the
+    appearance; TimePicker follows Combobox's padding and ramp rather than
+    Input's, and gained hover and press states; Dropdown's fill no longer
+    ramps on hover and press — only Outline's border does, as upstream.
+- **`FluentDatePicker` and `FluentTimePicker` pass their real `readOnly` to the
+  style resolver.** They used to hide it so a default, read-only picker did not
+  render greyed out; with read-only unstyled there is nothing left to hide.
+
+- **Every text field focuses on mouse-down, as Chrome does, so the focus bar
+  grows under a held press.** Flutter's text gestures focus on tap-down, which
+  a middle press never reaches and which waits for the gesture arena whenever
+  it is contested: the bar started a whole click late. `FluentInput` (and so
+  `FluentTagPicker`), `FluentTextarea`, `FluentSearchBox`, `FluentSpinButton`,
+  `FluentDatePicker`, `FluentTimePicker` and `FluentDropdown` now focus on a
+  mouse press of any button, with the caret where it landed, through the
+  field's own selection path so desktop's select-all-on-focus stays out.
+  SearchBox focuses only from its `<input>` box, not the icon or padding, and a
+  right press that moves focus there is not `:active` (Chrome).
+- **Behaviour now follows upstream in Chrome:**
+  - SpinButton steppers step on press and repeat while held (305 / 541 /
+    725ms…, within a frame of upstream); a stepper whose value equals its
+    bound goes inert — greyed glyph, no fill, `not-allowed` — and a press
+    there takes focus away;
+  - TagPicker keeps its field (and focus) when the first tag appears, so
+    typing continues after a pick; a printable key reopens the list and
+    highlights the first option starting with the text, which Enter adds; the
+    list refreshes while typing; a click anywhere on a chip removes it; the
+    secondary-action aside stretches to the full height;
+  - DatePicker gained hover and press, and shows the hover ramp rather than
+    the focused one while the calendar holds focus;
+  - a right press shows `:active` on Input, DatePicker, Textarea, SearchBox and
+    SpinButton's text, but not on a live stepper or the Combobox family;
+  - Textarea shows touch selection handles for touch only;
+  - a disabled field shows `not-allowed` over its text, and a disabled
+    Dropdown over its whole trigger.
+- **A fixed parent height stretches every text field**, with the focus bar on
+  its bottom edge, as CSS `height` does — it used to draw the box at its
+  natural height and the bar below it.
+- **BREAKING (behaviour), to match upstream's Combobox family:**
+  - `FluentTagPickerRemoveLastIntent` (Backspace in an empty field) focuses
+    the last chip instead of removing it; Delete, Backspace, Enter or Space
+    (on release) then removes the focused chip;
+  - `FluentTagPickerStyle.fieldWidth` is a minimum (24) rather than a fixed
+    96: the field takes the rest of the chips' last line and wraps below it
+    or when its text no longer fits; `contentPadding` changed meaning, and
+    `tagRunSpacing`, `tagPadding` and `fieldSpacing` are new;
+  - a non-freeform `FluentTimePicker` takes a caret and typing (type-ahead;
+    its text reverts on close or picks an exact match), and
+    `resolveFluentTimePickerState(readOnly:)` defaults to false; `hourCycle`
+    is nullable; the default parser accepts upstream's formats only (`8` is
+    no longer a time); the 416px `surfaceMaxHeight` default is gone — the
+    list takes the room below the field;
+  - `FluentInteractive` reports `pressed` for middle and right presses (new
+    `pressedOnSecondary`, which the Dropdown trigger turns off) and tracks
+    hover while disabled.
+- **Pickers behave as upstream's in Chrome** (each measured there first):
+  - TimePicker: freeform typing rings the matching option; typed text is kept
+    after Tab, blur and Escape instead of being reformatted; Enter with a
+    typed match only opens, with none it commits and opens on the committed
+    time; Space picks on an open list not being typed into; a chevron press
+    toggles on mousedown for any button and leaves the caret; a click that
+    drifts still counts; the list keeps its scroll across a reopen;
+  - TagPicker: typed text is cleared on blur or close; chips are focusable,
+    and a press on one while open removes it and moves focus to the next; a
+    click on the field toggles the list (primary button only), and a press on
+    the chevron, padding or aside toggles on mousedown; Up opens on the first
+    row, disabled rows are visited, and a pick leaves a caller's controller
+    alone;
+  - Dropdown: PageUp/PageDown move ten rows, Alt+Up selects and closes,
+    Alt+Down opens or moves on, keypad Enter commits, and every key but Alt+Up
+    reads the same under Shift, Ctrl or Meta; disabled rows are reachable;
+    Escape on a shut list reaches a dialog around it;
+  - DatePicker: a click while the calendar is open leaves it open unless text
+    input is on; with text input the popup keeps focus under a held press and
+    the closing click puts the caret where it landed; a press dragged off the
+    field opens nothing;
+  - lists scroll their active row just into view, 2px clear, instead of
+    centring it.
+- **`FluentField` takes upstream's validation colours and glyphs:** the message
+  and glyph are `colorPalette*Foreground1` per state (error `#bc2f32`), and a
+  default glyph is drawn per state (new `FluentFieldValidationGlyph`) unless
+  one is passed. `FluentLabel` wraps a long label with the required asterisk
+  inline after the last word.
+
+### Fixed
+
+- **Turning reduced motion off again left the focus bar snapping.** The bar
+  zeroed its durations when `MediaQuery.disableAnimations` came on and never
+  restored them; they are now set on every dependency change.
+- **Pressing another field while a `FluentDropdown` held focus focused
+  nothing until release.** The Dropdown's outside-tap blur ran on the same
+  pointer-down and parked focus on the route's scope, cancelling the pressed
+  field's own request. It now blurs only if focus is still its own once that
+  event has settled, as a click on the page body does.
+- **A field removed mid-press threw on the release.** `FluentInteractive`,
+  `FluentInput`, `FluentTextarea`, `FluentSearchBox`, `FluentSpinButton`,
+  `FluentDatePicker`, `FluentTimePicker` and `FluentTagPicker` ignore a press
+  that ends after they are gone.
+- **Hover and press were lost when a field was re-enabled under the mouse.**
+  `FluentDatePicker`, `FluentTimePicker`, `FluentTagPicker`, `FluentTextarea`
+  and `FluentSearchBox` track them while disabled and filter them in the
+  build, as Chrome keeps a disabled root's `:hover` and `:active`.
+- **A `FluentDropdown` whose options shrank under the open list threw** on
+  Enter; the active row now falls back to the first option.
+
 ## 0.0.5
 
 ### Fixed

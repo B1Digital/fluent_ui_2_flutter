@@ -36,6 +36,48 @@ void main() {
   group('default', () {
     final DocsSection section = sectionOf('components-dropdown--default');
 
+    testWidgets('the trigger is 250 wide, not the 400 its column allows', (
+      WidgetTester tester,
+    ) async {
+      // Chrome, 600px viewport: the story's grid is 400 wide with
+      // `justify-items: start`, so the Dropdown takes its content width,
+      // floored by its own `min-width: 250px` — 250, as is the listbox under
+      // it — and the label only its own. The canvas's layout: loose, top-start.
+      await pumpSection(
+        tester,
+        section,
+        size: const Size(600, 760),
+        loose: true,
+        inset: const EdgeInsets.all(24),
+      );
+
+      // The test font's square glyphs set the placeholder wider than Segoe
+      // UI does, so here it is the content that decides, not the floor.
+      final RenderBox trigger = tester.renderObject(theDropdown());
+      expect(
+        trigger.size.width,
+        trigger.getMaxIntrinsicWidth(double.infinity),
+        reason: 'the content width, not the column',
+      );
+      expect(trigger.size.width, lessThan(400));
+      expect(
+        tester.getSize(find.text('Best pet')).width,
+        lessThan(250),
+        reason: 'the label is not stretched either',
+      );
+
+      // Cat is narrow in any font: the floor holds, and the listbox follows.
+      await mouseClick(tester, theDropdown());
+      await mouseClick(tester, find.text('Cat').last);
+      expect(valueAt(tester, 0), 'Cat');
+      expect(tester.getSize(theDropdown()).width, 250);
+      await mouseClick(tester, theDropdown());
+      expect(
+        tester.getSize(find.byType(CompositedTransformFollower)).width,
+        250,
+      );
+    });
+
     testWidgets('picking a row replaces the placeholder with the value', (
       WidgetTester tester,
     ) async {

@@ -52,6 +52,7 @@ const FluentDropdown({
     this.placeholder,
     this.appearance = FluentDropdownAppearance.outline,
     this.size = FluentDropdownSize.medium,
+    this.error = false,
     this.style,
     this.optionStyle,
     this.focusNode,
@@ -69,6 +70,7 @@ const FluentDropdown({
 | `placeholder` | `Widget?` | No | `null` | What the trigger shows while [value] selects nothing. |
 | `appearance` | `FluentDropdownAppearance` | No | `FluentDropdownAppearance.outline` | Fill and outline treatment. |
 | `size` | `FluentDropdownSize` | No | `FluentDropdownSize.medium` | Height and type ramp. |
+| `error` | `bool` | No | `false` | Whether to paint the validation-error treatment: a `colorPaletteRedBorder2` border while the trigger is not focused. |
 | `style` | `FluentDropdownStyle?` | No | `null` | Overrides layered over the theme defaults. Merged last, so it wins. |
 | `optionStyle` | `FluentDropdownOptionStyle?` | No | `null` | Row overrides layered over the theme defaults. Merged last, so it wins. |
 | `focusNode` | `FocusNode?` | No | `null` | Focus node to use. One is created internally when omitted. |
@@ -123,6 +125,8 @@ const FluentDropdownBaseState({
     required this.enabled,
     required this.open,
     required this.chevron,
+    this.focused = false,
+    this.error = false,
     this.value,
     this.placeholder,
   });
@@ -131,20 +135,22 @@ const FluentDropdownBaseState({
 | Field | Type | Required | Default | Purpose |
 | --- | --- | --- | --- | --- |
 | `enabled` | `bool` | Yes | — | Whether the trigger responds to input. |
-| `open` | `bool` | Yes | — | Whether the popup is showing. Drives the accent rule exactly as keyboard focus does, because upstream's selector is `:focus-within` and an open dropdown always contains focus. |
+| `open` | `bool` | Yes | — | Whether the popup is showing. Drives the accent rule exactly as focus does, because upstream's selector is `:focus-within` and an open dropdown always contains focus. |
 | `chevron` | `Widget` | Yes | — | The chevron widget. |
+| `focused` | `bool` | No | `false` | Whether the trigger holds focus, however it arrived. |
+| `error` | `bool` | No | `false` | Whether the trigger shows the validation-error treatment. Upstream's `aria-invalid="true"` on the button. |
 | `value` | `Widget?` | No | `null` | The selected option's label, or null when nothing is selected. |
 | `placeholder` | `Widget?` | No | `null` | What to show while [value] is null. |
 
 #### State, callback, and accessibility fields
 
 - `enabled` (`bool`): Whether the trigger responds to input.
-- `open` (`bool`): Whether the popup is showing. Drives the accent rule exactly as keyboard focus does, because upstream's selector is `:focus-within` and an open dropdown always contains focus.
+- `open` (`bool`): Whether the popup is showing. Drives the accent rule exactly as focus does, because upstream's selector is `:focus-within` and an open dropdown always contains focus.
 - `value` (`Widget?`): The selected option's label, or null when nothing is selected.
 
 ### `FluentDropdownEdgeIntent`
 
-Jumps the active option to the first or last selectable row.
+Jumps the active option to the first or last option row.
 
 Source: `packages/fluent_2/lib/src/inputs/dropdown.dart`
 
@@ -334,6 +340,8 @@ const FluentDropdownState({
     required super.chevron,
     required this.appearance,
     required this.size,
+    super.focused,
+    super.error,
     super.value,
     super.placeholder,
   });
@@ -342,10 +350,12 @@ const FluentDropdownState({
 | Field | Type | Required | Default | Purpose |
 | --- | --- | --- | --- | --- |
 | `enabled` | `bool` | Yes | — | Whether the trigger responds to input. |
-| `open` | `bool` | Yes | — | Whether the popup is showing. Drives the accent rule exactly as keyboard focus does, because upstream's selector is `:focus-within` and an open dropdown always contains focus. |
+| `open` | `bool` | Yes | — | Whether the popup is showing. Drives the accent rule exactly as focus does, because upstream's selector is `:focus-within` and an open dropdown always contains focus. |
 | `chevron` | `Widget` | Yes | — | The chevron widget. |
 | `appearance` | `FluentDropdownAppearance` | Yes | — | Fill and outline treatment. |
 | `size` | `FluentDropdownSize` | Yes | — | Height and type ramp. |
+| `focused` | `bool` | No | `false` | Whether the trigger holds focus, however it arrived. |
+| `error` | `bool` | No | `false` | Whether the trigger shows the validation-error treatment. Upstream's `aria-invalid="true"` on the button. |
 | `value` | `Widget?` | No | `null` | The selected option's label, or null when nothing is selected. |
 | `placeholder` | `Widget?` | No | `null` | What to show while [value] is null. |
 
@@ -394,20 +404,20 @@ const FluentDropdownStyle({
 | `borderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Trigger border colour. Null and transparent are different: Fluent's `transparentStroke` becomes opaque in high contrast. |
 | `borderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Trigger border width. |
 | `borderRadius` | `WidgetStateProperty<BorderRadius?>?` | No | `null` | Trigger corner radius. |
-| `underlineColor` | `WidgetStateProperty<Color?>?` | No | `null` | The 1px rule along the bottom edge at rest. |
+| `underlineColor` | `WidgetStateProperty<Color?>?` | No | `null` | The trigger's bottom border side, when it differs from [borderColor]. |
 | `accentColor` | `WidgetStateProperty<Color?>?` | No | `null` | The brand rule that grows across the bottom edge while the dropdown is focused or open. Upstream's `::after`, Figma's `InFocus` rectangle. |
 | `accentWidth` | `WidgetStateProperty<double?>?` | No | `null` | Height of the accent rule. `FluentStroke.thick` (2) per Figma and React. |
 | `textStyle` | `WidgetStateProperty<TextStyle?>?` | No | `null` | Value and placeholder text style. Its colour is overridden by [foregroundColor] / [placeholderColor]. |
-| `padding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Horizontal inset of the value text inside the trigger. |
+| `padding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset of the value text inside the trigger's border. |
 | `gap` | `WidgetStateProperty<double?>?` | No | `null` | Space between the value text and the chevron slot. |
 | `chevronColor` | `WidgetStateProperty<Color?>?` | No | `null` | Chevron tone. |
 | `chevronSize` | `WidgetStateProperty<double?>?` | No | `null` | Chevron edge length. |
 | `chevronPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around the chevron inside its slot. |
-| `minimumSize` | `WidgetStateProperty<Size?>?` | No | `null` | Minimum trigger size. Only the height is meaningful; a dropdown takes its width from its parent. |
+| `minimumSize` | `WidgetStateProperty<Size?>?` | No | `null` | Minimum trigger size. The width is upstream's `minWidth: 250px`; past it a dropdown takes its width from its parent. |
 | `mouseCursor` | `WidgetStateProperty<MouseCursor?>?` | No | `null` | Cursor while hovering the trigger. |
 | `surfaceColor` | `WidgetStateProperty<Color?>?` | No | `null` | Popup fill. |
-| `surfaceBorderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Popup border colour. |
-| `surfaceBorderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Popup border width. |
+| `surfaceBorderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Popup outline colour, painted outside the surface like upstream's CSS `outline`. |
+| `surfaceBorderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Popup outline width. |
 | `surfaceRadius` | `WidgetStateProperty<BorderRadius?>?` | No | `null` | Popup corner radius. |
 | `surfacePadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset between the popup edge and its options. |
 | `surfaceGap` | `WidgetStateProperty<double?>?` | No | `null` | Space between two options. |
@@ -446,6 +456,8 @@ meet the requirement. Preserve semantics, focus, states, and motion.
 FluentDropdownState resolveFluentDropdownState({
   bool enabled = true,
   bool open = false,
+  bool focused = false,
+  bool error = false,
   FluentDropdownAppearance appearance = FluentDropdownAppearance.outline,
   FluentDropdownSize size = FluentDropdownSize.medium,
   Widget chevron = const Icon(fluentDropdownChevron),
@@ -479,7 +491,7 @@ signatures above and verify any new example with Dart analysis and a widget test
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/inputs/dropdown.dart`
-- Tests: `packages/fluent_2/test/goldens/dropdown_golden_test.dart`, `packages/fluent_2/test/goldens/time_picker_golden_test.dart`, `packages/fluent_2/test/inputs/dropdown_test.dart`, `packages/fluent_2/test/inputs/tag_picker_test.dart`, `packages/fluent_2/test/inputs/time_picker_test.dart`, `packages/fluent_2/test/navigation/toolbar_test.dart`, `packages/fluent_2/test/overlays/popover_test.dart`
+- Tests: `packages/fluent_2/test/goldens/dropdown_golden_test.dart`, `packages/fluent_2/test/goldens/time_picker_golden_test.dart`, `packages/fluent_2/test/inputs/dropdown_test.dart`, `packages/fluent_2/test/inputs/tag_picker_test.dart`, `packages/fluent_2/test/navigation/toolbar_test.dart`, `packages/fluent_2/test/overlays/popover_test.dart`
 - Stories: `packages/fluent_2/example/lib/pages/charts_declarativechart.dart`, `packages/fluent_2/example/lib/pages/charts_horizontalbarchartwithaxis.dart`, `packages/fluent_2/example/lib/pages/charts_vegadeclarativechart.dart`, `packages/fluent_2/example/lib/pages/charts_verticalstackedbarchart.dart`, `packages/fluent_2/example/lib/pages/compat_components_calendar.dart`, `packages/fluent_2/example/lib/pages/compat_components_datepicker.dart`, `packages/fluent_2/example/lib/pages/components_carousel_carousel.dart`, `packages/fluent_2/example/lib/pages/components_dropdown.dart`, `packages/fluent_2/example/lib/pages/components_field.dart`, `packages/fluent_2/example/lib/shell/widgets/docs_toolbar.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/select/usage/
 - Design decisions: `references/components-actions-inputs.md`

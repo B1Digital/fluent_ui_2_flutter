@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -23,6 +26,12 @@ const double _triggerMinWidth = 250;
 /// `useListboxStyles.styles.ts` — `minWidth: '160px'` on the popup, which only
 /// bites once the trigger it matches is narrower than 160.
 const double _listboxMinWidth = 160;
+
+/// The focus bar's own corners: `::after`'s `borderBottom*Radius:
+/// borderRadiusMedium`, whatever the root's radius is.
+const BorderRadius _accentRadius = BorderRadius.vertical(
+  bottom: FluentRadius.medium,
+);
 
 /// How a dropdown trigger is filled and outlined.
 ///
@@ -73,21 +82,20 @@ enum FluentDropdownSize {
 ///
 /// Upstream puts the curve in `transitionDelay` rather than
 /// `transitionTimingFunction` — a cubic-bezier is not a valid delay value, so a
-/// browser drops it and runs the transition linearly. The curve upstream
-/// *names* is honoured here rather than the one it accidentally ships; a linear
-/// accent is not a design decision anybody made.
+/// browser drops it and runs the transition on the CSS default `ease`
+/// ([FluentCssCubic.ease]) with no delay, which is what the live storybook
+/// samples. The port ports what renders, not what the typo suggests was meant.
 ///
-/// The bar itself is [FluentInputFocusUnderline], whose spec carries the same
-/// two tokens off the same `::after` rule — so this is an alias rather than a
-/// second copy of them.
+/// The bar itself is [FluentInputFocusUnderline], whose spec comes off the same
+/// `::after` rule — so this is an alias rather than a second copy of it.
 const FluentMotionSpec fluentDropdownAccentEnter =
     fluentInputFocusUnderlineEnter;
 
 /// The accent rule collapsing as the dropdown closes.
 ///
-/// `durationUltraFast` with `curveAccelerateMid`, from the same `::after` rule.
-/// Four times faster than [fluentDropdownAccentEnter], which is upstream's
-/// asymmetry, not a typo.
+/// `durationUltraFast` from the same `::after` rule, on `ease` for the same
+/// reason. Four times faster than [fluentDropdownAccentEnter], which is
+/// upstream's asymmetry, not a typo.
 ///
 /// An alias of [fluentInputFocusUnderlineExit], for the reason given on
 /// [fluentDropdownAccentEnter].
@@ -109,6 +117,8 @@ class FluentDropdownBaseState {
     required this.enabled,
     required this.open,
     required this.chevron,
+    this.focused = false,
+    this.error = false,
     this.value,
     this.placeholder,
   });
@@ -116,10 +126,24 @@ class FluentDropdownBaseState {
   /// Whether the trigger responds to input.
   final bool enabled;
 
-  /// Whether the popup is showing. Drives the accent rule exactly as keyboard
-  /// focus does, because upstream's selector is `:focus-within` and an open
-  /// dropdown always contains focus.
+  /// Whether the popup is showing. Drives the accent rule exactly as focus
+  /// does, because upstream's selector is `:focus-within` and an open dropdown
+  /// always contains focus.
   final bool open;
+
+  /// Whether the trigger holds focus, however it arrived.
+  ///
+  /// **Not** `WidgetState.focused`, which in this package means
+  /// *keyboard-visible* focus. Upstream hangs the bar and the focused border
+  /// off `:focus-within`, which a click satisfies too — the trigger is a
+  /// `<button>`, and a browser focuses a button on mousedown — so the bar stays
+  /// after a pointer open and close, until focus leaves. The same call
+  /// `FluentInput` makes.
+  final bool focused;
+
+  /// Whether the trigger shows the validation-error treatment. Upstream's
+  /// `aria-invalid="true"` on the button.
+  final bool error;
 
   /// The chevron widget.
   final Widget chevron;
@@ -141,6 +165,8 @@ class FluentDropdownState extends FluentDropdownBaseState {
     required super.chevron,
     required this.appearance,
     required this.size,
+    super.focused,
+    super.error,
     super.value,
     super.placeholder,
   });
@@ -158,6 +184,8 @@ class FluentDropdownState extends FluentDropdownBaseState {
 FluentDropdownState resolveFluentDropdownState({
   bool enabled = true,
   bool open = false,
+  bool focused = false,
+  bool error = false,
   FluentDropdownAppearance appearance = FluentDropdownAppearance.outline,
   FluentDropdownSize size = FluentDropdownSize.medium,
   Widget chevron = const Icon(fluentDropdownChevron),
@@ -166,6 +194,8 @@ FluentDropdownState resolveFluentDropdownState({
 }) => FluentDropdownState(
   enabled: enabled,
   open: open,
+  focused: focused,
+  error: error,
   appearance: appearance,
   size: size,
   chevron: chevron,
@@ -179,124 +209,139 @@ FluentDropdownState resolveFluentDropdownState({
 /// that reads the design axes. Every value comes from a Fluent token; nothing
 /// here computes a colour.
 ///
-/// Token sources are the Figma `Dropdown` set, extracted into
-/// `test/fixtures/dropdown.json`. That set has **no State axis** — its 24
-/// variants are `Appearance` x `Size` x `Expanded` only — so every hover,
-/// pressed and disabled value below comes from `useDropdownStyles.styles.ts`
-/// instead, and only the Rest column is design-verified.
+/// The oracle is upstream as it renders — `useDropdownStyles.styles.ts`
+/// measured in Chrome on the live storybook — not the Figma `Dropdown` set,
+/// which has no State axis at all. Where the two disagree, upstream wins:
 ///
-/// Two things the fixture does settle, and they agree with upstream:
-///
-/// * the **bottom rule is two rules**. Every collapsed `Outline` and
-///   `Transparent` variant carries a 1px `Neutral/Stroke/Accessible/Rest`
-///   rectangle; every expanded variant of all four appearances replaces it with
-///   a 2px `Brand/Stroke/Compound/Rest` one carrying the box's own bottom
-///   corner radii. The filled appearances have no rule at all when collapsed.
-/// * `Fill lighter` and `Fill darker` bind a **transparent** border rather than
-///   none, which is what keeps them outlined in high contrast.
+/// * **Only the outline moves.** The fill is fixed per appearance and the
+///   chevron is `colorNeutralStrokeAccessible` in every state: no rule touches
+///   either on `:hover` or `:active`. Of the borders, only `outlineInteractive`
+///   has interaction rules; Underline's bottom border and the filled
+///   appearances' `colorTransparentStroke` never change.
+/// * **Hover beats focus.** `outlineInteractive` writes `:focus-within` as a
+///   rule of its own, which Griffel sorts *before* `:hover`, so a focused
+///   trigger shows `Stroke1Pressed` / `StrokeAccessiblePressed` until the
+///   pointer is over it, and the Hover stops then. `FluentInput` differs:
+///   there `:active,:focus-within` is one rule and focus holds through a hover.
+/// * **The bar turns Pressed only under `:focus-within:active`.**
+/// * **Disabled** is a transparent fill with `colorNeutralStrokeDisabled` on
+///   every side that has a width, for every appearance.
+/// * **Invalid is `colorPaletteRedBorder2`**, on all four sides (the bottom
+///   only on Transparent), and only while focus is elsewhere. It outranks
+///   Disabled: unlike Input's, the class is not dropped on a disabled trigger,
+///   and its `:not(:focus-within)` selector out-specifies the disabled one, so
+///   a disabled invalid trigger renders red in Chrome.
 FluentDropdownStyle resolveFluentDropdownStyle(
   FluentDropdownState state,
   FluentThemeData theme,
 ) {
   final c = theme.colors;
+  final disabled = !state.enabled;
+  final focused = state.focused || state.open;
+  final transparent = state.appearance == FluentDropdownAppearance.transparent;
+  final filled =
+      state.appearance == FluentDropdownAppearance.fillLighter ||
+      state.appearance == FluentDropdownAppearance.fillDarker;
+  // `colorPaletteRedBorder2`. The palette layer knows nothing of high contrast,
+  // where the status token is the system text colour instead — the same
+  // expression `resolveFluentInputStyle` uses.
+  final danger = c is FluentHighContrastColors
+      ? c.statusDangerBorder2
+      : c.palette.stroke2Rest(FluentPaletteFamily.red)!;
 
   final background = switch (state.appearance) {
+    _ when disabled => c.transparentBackground,
+    FluentDropdownAppearance.transparent => c.transparentBackground,
+    FluentDropdownAppearance.fillDarker => c.neutralBackground3,
     FluentDropdownAppearance.outline ||
-    FluentDropdownAppearance.fillLighter => FluentStateColor.tokens(
-      rest: c.neutralBackground1,
-      hover: c.neutralBackground1Hover,
-      pressed: c.neutralBackground1Pressed,
-      disabled: c.neutralBackgroundDisabled,
-    ),
-    FluentDropdownAppearance.fillDarker => FluentStateColor.tokens(
-      rest: c.neutralBackground3,
-      hover: c.neutralBackground3Hover,
-      pressed: c.neutralBackground3Pressed,
-      disabled: c.neutralBackgroundDisabled,
-    ),
-    FluentDropdownAppearance.transparent => FluentStateColor.tokens(
-      rest: c.transparentBackground,
-      hover: c.transparentBackgroundHover,
-      pressed: c.transparentBackgroundPressed,
-      disabled: c.transparentBackground,
-    ),
+    FluentDropdownAppearance.fillLighter => c.neutralBackground1,
   };
 
-  // Transparent is the one appearance with no box border at all: Figma paints
-  // no stroke on it, where the two filled appearances paint an invisible one.
-  // The distinction is load-bearing — `transparentStrokeInteractive` turns
-  // opaque in high contrast, and a fill-only trigger with no outline would
-  // vanish into the surface there.
-  final border = switch (state.appearance) {
-    FluentDropdownAppearance.outline => FluentStateColor.tokens(
-      rest: c.neutralStroke1,
+  // Transparent is the one appearance with no box border at all — upstream's
+  // `underline` sets only `borderBottom`. The filled appearances keep a
+  // `colorTransparentStroke` border rather than none, which is what outlines
+  // them in high contrast.
+  //
+  // The error branch is gated on focus because upstream gates it: `invalid`
+  // is written under `:not(:focus-within),:hover:not(:focus-within)`. It
+  // comes before disabled for the same reason: that selector out-specifies
+  // `disabled`'s plain class.
+  final WidgetStateProperty<Color>? border;
+  if (transparent) {
+    border = null;
+  } else if (state.error && !focused) {
+    border = FluentStateColor.tokens(rest: danger);
+  } else if (disabled) {
+    border = FluentStateColor.tokens(rest: c.neutralStrokeDisabled);
+  } else if (filled) {
+    border = FluentStateColor.tokens(rest: c.transparentStroke);
+  } else {
+    // Hover wins over focus: see the doc comment.
+    border = FluentStateColor.tokens(
+      rest: focused ? c.neutralStroke1Pressed : c.neutralStroke1,
       hover: c.neutralStroke1Hover,
       pressed: c.neutralStroke1Pressed,
-      disabled: c.neutralStrokeDisabled,
-    ),
-    FluentDropdownAppearance.fillLighter ||
-    FluentDropdownAppearance.fillDarker => FluentStateColor.tokens(
-      rest: c.transparentStrokeInteractive,
-      disabled: c.transparentStrokeDisabled,
-    ),
-    FluentDropdownAppearance.transparent => null,
-  };
+    );
+  }
 
-  final underline = switch (state.appearance) {
-    FluentDropdownAppearance.outline ||
-    FluentDropdownAppearance.transparent => FluentStateColor.tokens(
-      rest: c.neutralStrokeAccessible,
+  // The bottom border side. The filled appearances have none of their own:
+  // their box border runs round all four sides.
+  final WidgetStateProperty<Color>? underline;
+  if (filled) {
+    underline = null;
+  } else if (state.error && !focused) {
+    underline = FluentStateColor.tokens(rest: danger);
+  } else if (disabled) {
+    underline = FluentStateColor.tokens(rest: c.neutralStrokeDisabled);
+  } else if (transparent) {
+    underline = FluentStateColor.tokens(rest: c.neutralStrokeAccessible);
+  } else {
+    underline = FluentStateColor.tokens(
+      rest: focused
+          ? c.neutralStrokeAccessiblePressed
+          : c.neutralStrokeAccessible,
       hover: c.neutralStrokeAccessibleHover,
       pressed: c.neutralStrokeAccessiblePressed,
-      disabled: c.neutralStrokeDisabled,
-    ),
-    FluentDropdownAppearance.fillLighter ||
-    FluentDropdownAppearance.fillDarker => null,
-  };
+    );
+  }
 
-  // Geometry, verbatim from the Figma `Input` instance under each variant. The
-  // chevron slot's width is its own padding plus the glyph — 2 + 16 + 6 = 24 at
-  // small, 2 + 20 + 10 = 32 at medium, 2 + 24 + 12 = 38 at large — and the
-  // trigger's height is the glyph plus the slot's vertical inset.
-  final (
-    height,
-    inset,
-    chevronInset,
-    chevronSize,
-    textStyle,
-  ) = switch (state.size) {
+  // Upstream's button padding is `3px 6px 3px 8px` / `5px 10px 5px 12px` /
+  // `7px 12px 7px 18px` inside the 1px border — the left side is the right
+  // side plus the column gap — with `columnGap` XXS / XXS / SNudge between the
+  // text and the chevron, and the chevron's own `marginLeft` the same again.
+  // The vertical inset is what centres a 16 / 20 / 24 glyph in 24 / 32 / 40.
+  final (height, inset, gap, chevronSize, textStyle) = switch (state.size) {
     FluentDropdownSize.small => (
       24.0,
       FluentSpacing.sNudge,
-      FluentSpacing.xs,
+      FluentSpacing.xxs,
       FluentSize.size160,
       theme.typography.caption1,
     ),
     FluentDropdownSize.medium => (
       32.0,
       FluentSpacing.mNudge,
-      FluentSpacing.sNudge,
+      FluentSpacing.xxs,
       FluentSize.size200,
       theme.typography.body1,
     ),
     FluentDropdownSize.large => (
       40.0,
       FluentSpacing.m,
-      FluentSpacing.s,
+      FluentSpacing.sNudge,
       FluentSize.size240,
       theme.typography.body2,
     ),
   };
+  final vertical = (height - 2 * FluentStroke.thin - chevronSize) / 2;
 
   return FluentDropdownStyle(
-    backgroundColor: background,
+    backgroundColor: WidgetStatePropertyAll<Color?>(background),
     foregroundColor: FluentStateColor.tokens(
       rest: c.neutralForeground1,
       disabled: c.neutralForegroundDisabled,
     ),
-    // Figma binds the trigger's own text to `Neutral/Foreground/4/Rest` in all
-    // 24 variants — that text is the placeholder, and upstream's `.placeholder`
-    // rule names the same token.
+    // Upstream's `.placeholder` rule, which the Figma trigger text agrees with.
     placeholderColor: FluentStateColor.tokens(
       rest: c.neutralForeground4,
       disabled: c.neutralForegroundDisabled,
@@ -305,42 +350,55 @@ FluentDropdownStyle resolveFluentDropdownStyle(
     borderWidth: WidgetStatePropertyAll<double?>(
       border == null ? FluentStroke.none : FluentStroke.thin,
     ),
-    borderRadius: const WidgetStatePropertyAll<BorderRadius?>(
-      FluentRadius.allMedium,
+    // `underline: { borderRadius: '0' }` — a flat rule with square ends.
+    borderRadius: WidgetStatePropertyAll<BorderRadius?>(
+      transparent ? BorderRadius.zero : FluentRadius.allMedium,
     ),
     underlineColor: underline,
-    accentColor: FluentStateColor.tokens(
-      rest: c.compoundBrandStroke,
-      hover: c.compoundBrandStrokeHover,
-      pressed: c.compoundBrandStrokePressed,
-      disabled: c.neutralStrokeDisabled,
-    ),
+    // Upstream's `::after` has no disabled rule, but a disabled `<button>`
+    // cannot hold focus, so the bar never shows. Null says so directly.
+    accentColor: disabled
+        ? null
+        : FluentStateColor.tokens(
+            rest: c.compoundBrandStroke,
+            pressed: c.compoundBrandStrokePressed,
+          ),
     accentWidth: const WidgetStatePropertyAll<double?>(FluentStroke.thick),
     textStyle: WidgetStatePropertyAll<TextStyle?>(textStyle),
+    // No vertical inset on the text: the chevron's sets the height, and the
+    // text centres in it as upstream's grid centres it. Padding the text too
+    // would let a taller platform type ramp grow the trigger past 24/32/40,
+    // which `FluentInput` does not do either.
     padding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(
-      EdgeInsets.symmetric(horizontal: inset),
+      EdgeInsetsDirectional.only(start: inset + gap),
     ),
-    gap: const WidgetStatePropertyAll<double?>(FluentSpacing.mNudge),
-    // Figma stops at the chevron's frame, so its tone is upstream's:
-    // `useDropdownStyles.expandIcon` paints `colorNeutralStrokeAccessible`.
+    gap: WidgetStatePropertyAll<double?>(gap),
+    // `useDropdownStyles.expandIcon`: `colorNeutralStrokeAccessible`, with no
+    // hover or press rule; `colorNeutralForegroundDisabled` when disabled.
     chevronColor: FluentStateColor.tokens(
-      rest: c.neutralStrokeAccessible,
-      hover: c.neutralStrokeAccessibleHover,
-      pressed: c.neutralStrokeAccessiblePressed,
-      disabled: c.neutralForegroundDisabled,
+      rest: disabled ? c.neutralForegroundDisabled : c.neutralStrokeAccessible,
     ),
     chevronSize: WidgetStatePropertyAll<double?>(chevronSize),
     chevronPadding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(
-      EdgeInsets.fromLTRB(FluentSpacing.xxs, chevronInset, inset, chevronInset),
+      EdgeInsetsDirectional.fromSTEB(gap, vertical, inset, vertical),
     ),
     // `useDropdownStyles.styles.ts` puts `minWidth: '250px'` on the root, and a
     // live probe reads 250 at all three sizes. Without it the trigger collapses
     // to its content, which is the most visible way this diverges from React.
-    minimumSize: WidgetStatePropertyAll<Size?>(Size(_triggerMinWidth, height)),
-    mouseCursor: const WidgetStatePropertyAll<MouseCursor?>(
-      SystemMouseCursors.click,
+    // The root states no height: 22 / 30 / 38 of button plus its borders, so
+    // Transparent, with a bottom border only, is a pixel shorter.
+    minimumSize: WidgetStatePropertyAll<Size?>(
+      Size(_triggerMinWidth, transparent ? height - FluentStroke.thin : height),
+    ),
+    // `cursor: 'pointer'` on the button; `disabled` makes it `not-allowed`.
+    mouseCursor: WidgetStatePropertyAll<MouseCursor?>(
+      disabled ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
     ),
     surfaceColor: FluentStateColor.tokens(rest: c.neutralBackground1),
+    // `useListboxStyles`: `outline: 1px solid colorTransparentStroke`. Invisible
+    // in light and dark; it is what outlines the popup in high contrast.
+    // [buildFluentDropdownSurface] paints it outside the box, as an outline
+    // sits, so it takes no room from the rows.
     surfaceBorderColor: FluentStateColor.tokens(rest: c.transparentStroke),
     surfaceBorderWidth: const WidgetStatePropertyAll<double?>(
       FluentStroke.thin,
@@ -386,9 +444,8 @@ FluentDropdownStyle resolveFluentDropdownStyle(
 /// is `transform: scaleX(0)` at rest and `scaleX(1)` under `:focus-within`, so
 /// the brand rule grows from the centre outwards. See
 /// [fluentDropdownAccentEnter] and [fluentDropdownAccentExit] for the two
-/// durations. Nothing else moves — the fill, the border and the chevron all
-/// change on the frame the pointer arrives, because `useDropdownStyles`
-/// declares no transition on any of them.
+/// durations. Nothing else moves — the border changes on the frame the pointer
+/// arrives, because `useDropdownStyles` declares no transition on it.
 ///
 /// [states] is the live interaction set from [FluentInteractive].
 Widget buildFluentDropdown(
@@ -447,68 +504,71 @@ Widget buildFluentDropdown(
     ],
   );
 
-  // The rule at rest, and the brand rule that grows over it. Figma draws both
-  // as rules pinned to the bottom edge — 1px for the resting one, 2px for the
-  // accent — and BOTH carry the box's bottom radii, so neither runs past the
-  // curve at the ends.
-  final rules = <Widget>[
-    if (underlineColor != null)
-      Positioned(
-        left: 0,
-        right: 0,
-        bottom: 0,
-        child: SizedBox(
-          height: FluentStroke.thin,
-          // Rounded, not a bare rectangle. Upstream draws this as the field's
-          // own `border-bottom`, so it follows the corner radius for free; we
-          // draw it as a separate rule because Figma's `Thin underline` is its
-          // own rect (the Transparent appearance has no border yet still shows
-          // it) and Flutter asserts on a non-uniform border under a
-          // borderRadius. FluentInputUnderline is how a 1px rule keeps a 4px
-          // corner anyway.
-          child: FluentInputUnderline(
-            color: underlineColor,
-            thickness: FluentStroke.thin,
-            borderRadius: BorderRadius.only(
-              bottomLeft: radius.bottomLeft,
-              bottomRight: radius.bottomRight,
-            ),
-          ),
-        ),
-      ),
-    if (accentColor != null)
-      Positioned(
-        left: 0,
-        right: 0,
-        bottom: 0,
-        height: accentWidth,
-        child: FluentInputFocusUnderline(
-          focused: state.open || states.contains(WidgetState.focused),
-          color: accentColor,
-          thickness: accentWidth,
-          borderRadius: BorderRadius.only(
-            bottomLeft: radius.bottomLeft,
-            bottomRight: radius.bottomRight,
-          ),
-        ),
-      ),
-  ];
+  // CSS box model: a border that exists takes space, so the content sits inside
+  // it — 1px on every side for Outline and the filled appearances (whose
+  // transparent border still counts), the bottom only for Transparent. A null
+  // colour is no border at all. The bottom side is as wide as the others, as a
+  // CSS `border-width` makes it; 1px when there are no others.
+  final side = borderColor == null ? FluentStroke.none : borderWidth;
+  final widths = EdgeInsets.fromLTRB(
+    side,
+    side,
+    side,
+    underlineColor == null || side > 0 ? side : FluentStroke.thin,
+  );
 
-  return ConstrainedBox(
-    constraints: BoxConstraints(
-      minHeight: minimumSize.height,
-      minWidth: minimumSize.width,
-    ),
-    child: DecoratedBox(
-      decoration: BoxDecoration(
-        color: style.backgroundColor?.resolve(states),
-        borderRadius: radius,
-        border: borderWidth > 0 && borderColor != null
-            ? Border.all(color: borderColor, width: borderWidth)
-            : null,
+  return Stack(
+    // The bar overhangs a borderless root: see below.
+    clipBehavior: Clip.none,
+    // Passthrough, so a parent's tight height stretches the box itself, as a
+    // CSS `height` would. A loose Stack laid the box out at its own 24 / 32 /
+    // 40 and pinned the bar to the bottom of the taller Stack, below it.
+    fit: StackFit.passthrough,
+    children: <Widget>[
+      ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: minimumSize.height,
+          minWidth: minimumSize.width,
+        ),
+        // Background, then border, then content, then the bar: CSS's paint
+        // order for a root and its positioned `::after`. The border is the
+        // painter `FluentInput` uses, which joins the darker bottom side to the
+        // others on the CSS corner diagonal.
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: style.backgroundColor?.resolve(states),
+            borderRadius: radius,
+          ),
+          child: CustomPaint(
+            painter: FluentInputBorderPainter(
+              radius: radius,
+              borderColor: borderColor,
+              borderWidth: side,
+              bottomBorderColor: underlineColor,
+              bottomBorderWidth: widths.bottom,
+            ),
+            child: Padding(padding: widths, child: content),
+          ),
+        ),
       ),
-      child: Stack(children: <Widget>[content, ...rules]),
-    ),
+      // `::after { left: -1px; right: -1px; bottom: -1px }` against the padding
+      // box: flush with the border box when the sides are 1px, a pixel past it
+      // each side on Transparent, which has none. Its 4px bottom radii are its
+      // own, not the root's, so they stay rounded on Transparent's square root.
+      if (accentColor != null)
+        Positioned(
+          left: side - FluentStroke.thin,
+          right: side - FluentStroke.thin,
+          bottom: 0,
+          height: accentWidth,
+          child: FluentInputFocusUnderline(
+            focused: state.focused || state.open,
+            color: accentColor,
+            thickness: accentWidth,
+            borderRadius: _accentRadius,
+          ),
+        ),
+    ],
   );
 }
 
@@ -534,8 +594,14 @@ Widget buildFluentDropdownSurface(
       decoration: BoxDecoration(
         color: style.surfaceColor?.resolve(states),
         borderRadius: radius,
+        // Outside the box, like the CSS `outline` it ports: it takes no room
+        // from the rows, which sit at the surface padding exactly.
         border: borderWidth > 0 && borderColor != null
-            ? Border.all(color: borderColor, width: borderWidth)
+            ? Border.all(
+                color: borderColor,
+                width: borderWidth,
+                strokeAlign: BorderSide.strokeAlignOutside,
+              )
             : null,
         boxShadow: style.surfaceShadow?.resolve(states),
       ),
@@ -584,7 +650,7 @@ class FluentDropdownMoveIntent extends Intent {
   final int delta;
 }
 
-/// Jumps the active option to the first or last selectable row.
+/// Jumps the active option to the first or last option row.
 class FluentDropdownEdgeIntent extends Intent {
   /// Creates an intent to jump to an end of the list.
   const FluentDropdownEdgeIntent({required this.last});
@@ -628,11 +694,18 @@ class FluentDropdownActivateIntent extends Intent {
 ///
 /// | Key | Closed | Open |
 /// |---|---|---|
-/// | Down / Up | opens, active on the selected option | moves the active option |
-/// | Home / End | opens, active on the first / last option | jumps to first / last |
-/// | Enter / Space | opens | selects the active option and closes |
+/// | Down / Up | opens, active on the selected option, else the first | moves the active option, disabled rows included |
+/// | Alt+Up | as Up | as Enter |
+/// | Home / End | — | jumps to first / last |
+/// | PageUp / PageDown | — | moves ten options, stopping at either end |
+/// | Enter (either) / Space | opens | selects the active option and closes; nothing on a disabled one |
 /// | Escape | — | closes, nothing selected |
 /// | Tab | moves on | closes, then moves on |
+///
+/// Shift, Ctrl, Meta and Alt change none of these keys but Up, as upstream
+/// reads the key alone. A key marked — is not taken at all, so it still
+/// reaches an ancestor: PageUp and PageDown scroll the page, as upstream leaves
+/// them to the browser, and Escape closes a dialog around the dropdown.
 ///
 /// Focus never leaves the trigger while the popup is open — the rows are
 /// deliberately outside the traversal order, so "focus returns to the trigger
@@ -670,6 +743,7 @@ class FluentDropdown<T> extends StatefulWidget {
     this.placeholder,
     this.appearance = FluentDropdownAppearance.outline,
     this.size = FluentDropdownSize.medium,
+    this.error = false,
     this.style,
     this.optionStyle,
     this.focusNode,
@@ -699,6 +773,10 @@ class FluentDropdown<T> extends StatefulWidget {
   /// Height and type ramp.
   final FluentDropdownSize size;
 
+  /// Whether to paint the validation-error treatment: a
+  /// `colorPaletteRedBorder2` border while the trigger is not focused.
+  final bool error;
+
   /// Overrides layered over the theme defaults. Merged last, so it wins.
   final FluentDropdownStyle? style;
 
@@ -726,6 +804,9 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
   int? _active;
   ScrollPosition? _scrollPosition;
 
+  /// Mirrors the node, so a property-only notification is not read as a blur.
+  bool _focused = false;
+
   FocusNode get _focusNode =>
       widget.focusNode ?? (_internalNode ??= FocusNode());
 
@@ -737,6 +818,7 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
   void initState() {
     super.initState();
     _focusNode.addListener(_handleFocusChange);
+    _focused = _focusNode.hasFocus;
   }
 
   /// The enclosing popup chain's group, or null when this popup is top-level.
@@ -802,10 +884,23 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
     if (widget.focusNode != oldWidget.focusNode) {
       oldWidget.focusNode?.removeListener(_handleFocusChange);
       _focusNode.addListener(_handleFocusChange);
+      _focused = _focusNode.hasFocus;
     }
     if (!_enabled) {
       deferOrRun(_close);
     } else if (_open) {
+      // A list that changed under the popup can leave `_active` past its end
+      // or on a header. Upstream re-runs `first()` when the children change
+      // with nothing active, and a row gone from the DOM is not active.
+      // ponytail: by index, so a row removed ABOVE the active one shifts it;
+      // track the active value if that ever matters.
+      final active = _active;
+      if (active == null ||
+          active >= widget.options.length ||
+          widget.options[active].isHeader) {
+        _active = _seek(0, 1);
+        _revealActive();
+      }
       // Deferred for the same reason the close above is: `didUpdateWidget` runs
       // inside the parent's build, and the entry lives in the Overlay's branch,
       // which that build has already passed. A parent that rebuilds while the
@@ -830,10 +925,42 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
     super.dispose();
   }
 
+  /// Latched on a real transition, because a [FocusNode] notifies for property
+  /// writes too; see `FluentInput`'s own listener.
   void _handleFocusChange() {
+    if (_focused == _focusNode.hasFocus) return;
+    // The bar and the focused border follow focus itself, not just the popup.
+    setState(() => _focused = _focusNode.hasFocus);
     // Tab, or a click on something else, takes focus away; the popup must not
     // outlive it.
-    if (!_focusNode.hasFocus && _open) deferOrRun(_close);
+    if (!_focused && _open) deferOrRun(_close);
+  }
+
+  /// A press anywhere outside the dropdown and its popup.
+  ///
+  /// Closes the popup and gives up focus, which is what a browser does to a
+  /// focused `<button>` when the page is clicked elsewhere — and therefore what
+  /// retracts upstream's bar. Flutter keeps a button's focus through an outside
+  /// tap, so without this the bar would outlive the click.
+  void _handleTapOutside() {
+    _close();
+    // Blur only if nothing else took focus. The press may have landed on a
+    // field that focuses itself on pointer-down, as Chrome's mousedown does —
+    // synchronously, or a microtask later (TimePicker, another Dropdown).
+    // Blurring on this same event parked focus on the route's scope and
+    // cancelled that request, so a held press on another field focused
+    // nothing. Two microtasks on, the FocusManager has applied every such
+    // request; if focus is still here, the press hit the page body, which
+    // blurs in a browser too. Still inside this event, so the bar's exit
+    // starts on the same frame as before.
+    //
+    // ponytail: assumes a requester defers at most one microtask; a later one
+    // would lose to this blur. Move the check to a post-frame callback then.
+    scheduleMicrotask(
+      () => scheduleMicrotask(() {
+        if (mounted && _focusNode.hasFocus) _focusNode.unfocus();
+      }),
+    );
   }
 
   int? get _selectedIndex {
@@ -844,27 +971,24 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
     return null;
   }
 
-  bool _selectable(int index) {
-    final option = widget.options[index];
-    return option.enabled && !option.isHeader;
-  }
-
-  /// The first selectable row at or after [from], walking by [delta].
+  /// The first option row at or after [from], walking by [delta]. Disabled
+  /// rows count: upstream's option walker visits them (Chrome), and only a
+  /// header is not an option.
   int? _seek(int from, int delta) {
     for (var i = from; i >= 0 && i < widget.options.length; i += delta) {
-      if (_selectable(i)) return i;
+      if (!widget.options[i].isHeader) return i;
     }
     return null;
   }
 
-  void _openPopup({int? active}) {
+  void _openPopup() {
     if (_open || !_enabled) return;
     final overlay = Overlay.of(context, debugRequiredFor: widget);
     // FluentTheme is an InheritedTheme, so this carries it — and any other
     // InheritedTheme between here and the overlay, including
     // FluentDropdownOptionTheme — across the boundary.
     final captured = InheritedTheme.capture(from: context, to: overlay.context);
-    _active = active ?? _selectedIndex ?? _seek(0, 1);
+    _active = _selectedIndex ?? _seek(0, 1);
     _entry = OverlayEntry(builder: (_) => captured.wrap(_buildPopup()));
     overlay.insert(_entry!);
     setState(() {});
@@ -912,47 +1036,69 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
     _revealActive();
   }
 
-  /// Scrolls the active row into view on the next frame, once the popup has
-  /// rebuilt and the row's element exists.
+  /// Upstream's `scrollIntoView`, run on the next frame once the row exists:
+  /// nothing while the row is fully in view, else the least scroll that shows
+  /// it 2px clear of the edge it was past (Chrome: arrows, Home/End and
+  /// opening on a selection alike).
   void _revealActive() {
     final index = _active;
     if (index == null) return;
     SchedulerBinding.instance.addPostFrameCallback((_) {
       final target = _rowKeys[index]?.currentContext;
-      if (target != null) Scrollable.ensureVisible(target, alignment: 0.5);
+      final row = target?.findRenderObject();
+      if (row is! RenderBox || !row.attached) return;
+      final position = Scrollable.of(target!).position;
+      final top = RenderAbstractViewport.of(
+        row,
+      ).getOffsetToReveal(row, 0).offset;
+      final bottom = top + row.size.height;
+      const buffer = 2.0;
+      final double to;
+      if (top < position.pixels) {
+        to = top - buffer;
+      } else if (bottom > position.pixels + position.viewportDimension) {
+        to = bottom - position.viewportDimension + buffer;
+      } else {
+        return;
+      }
+      position.jumpTo(
+        to.clamp(position.minScrollExtent, position.maxScrollExtent),
+      );
     });
   }
 
   void _move(int delta) {
+    // Up opens exactly as Down does, on the selection or the first row.
     if (!_open) {
-      _openPopup(active: _selectedIndex ?? _seek(delta > 0 ? 0 : _last, delta));
+      _openPopup();
       return;
     }
-    final from = (_active ?? (delta > 0 ? -1 : widget.options.length)) + delta;
-    _setActive(_seek(from, delta));
+    // One option row at a time, each revealed in turn, staying put at an end:
+    // upstream's PageDown is `next()` ten times, each with its own
+    // `scrollIntoView`, and `next()` on the last row stays there (Chrome).
+    final step = delta.sign;
+    for (var i = 0; i < delta.abs(); i++) {
+      final from = _active ?? (step > 0 ? -1 : widget.options.length);
+      _setActive(_seek(from + step, step));
+    }
   }
 
   int get _last => widget.options.length - 1;
 
-  void _edge({required bool last}) {
-    final target = last ? _seek(_last, -1) : _seek(0, 1);
-    if (!_open) {
-      _openPopup(active: target);
-      return;
-    }
-    _setActive(target);
-  }
+  void _edge({required bool last}) =>
+      _setActive(last ? _seek(_last, -1) : _seek(0, 1));
 
   void _activate() {
     if (!_open) {
       _openPopup();
       return;
     }
+    // On a disabled row Enter and Space do nothing; the list stays open.
     final index = _active;
-    if (index != null && _selectable(index)) {
-      _select(index);
-    } else {
+    if (index == null) {
       _close();
+    } else if (widget.options[index].enabled) {
+      _select(index);
     }
   }
 
@@ -967,6 +1113,8 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
     return resolveFluentDropdownState(
       enabled: _enabled,
       open: _open,
+      focused: _focused,
+      error: widget.error,
       appearance: widget.appearance,
       size: widget.size,
       value: selected == null ? null : widget.options[selected].label,
@@ -989,18 +1137,26 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
     // Measured off the trigger's render box rather than the leader layer — see
     // [fluentAnchorRect] for why the layer lies once the page has scrolled.
     final anchor = fluentAnchorRect(context);
-    final surfaceStyle = style.surfaceMaxHeight != null
-        ? style
-        : style.copyWith(
-            surfaceMaxHeight: WidgetStatePropertyAll<double?>(
-              math.max(
-                MediaQuery.sizeOf(context).height -
-                    (anchor?.bottom ?? 0) -
-                    offset,
-                0,
-              ),
+    // The listbox's padding sits INSIDE its scroller upstream, so rows scroll
+    // through it and `scrollIntoView` measures its 2px from the listbox's own
+    // edge. Moved into the SingleChildScrollView below; the surface gets none.
+    final padding =
+        style.surfacePadding?.resolve(surfaceStates) ?? EdgeInsets.zero;
+    final surfaceStyle = style.copyWith(
+      surfacePadding: const WidgetStatePropertyAll<EdgeInsetsGeometry?>(
+        EdgeInsets.zero,
+      ),
+      surfaceMaxHeight:
+          style.surfaceMaxHeight ??
+          WidgetStatePropertyAll<double?>(
+            math.max(
+              MediaQuery.sizeOf(context).height -
+                  (anchor?.bottom ?? 0) -
+                  offset,
+              0,
             ),
-          );
+          ),
+    );
     final optionThemeStyle = FluentDropdownOptionTheme.maybeOf(context);
     final theme = FluentTheme.of(context);
 
@@ -1068,6 +1224,7 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
                     surfaceStyle,
                     surfaceStates,
                     SingleChildScrollView(
+                      padding: padding,
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1121,10 +1278,11 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
             buildFluentDropdownOption(state, style, <WidgetState>{
               ...states,
               // The active row is where the keyboard is, even though the
-              // framework's focus never leaves the trigger. `_active` is set by
-              // hover too, so on its own it means "active descendant" —
-              // upstream's `data-activedescendant`. The ring belongs to its
-              // focus-visible sibling, which is this AND.
+              // framework's focus never leaves the trigger. `_active` is
+              // upstream's `data-activedescendant`: only opening and the keys
+              // move it, never hover, which is the row's own state here as
+              // upstream. The ring belongs to its focus-visible sibling, which
+              // is this AND.
               if (index == _active && keyboard) WidgetState.focused,
             }),
       ),
@@ -1145,6 +1303,9 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
     final state = _state();
     final style = _resolvedStyle(state);
 
+    final cursor =
+        style.mouseCursor?.resolve(const <WidgetState>{}) ??
+        SystemMouseCursors.click;
     final trigger = FluentInteractive(
       // Tapping an open trigger closes it; it never commits, because a pointer
       // user has not chosen anything yet. Enter and Space go through
@@ -1153,11 +1314,16 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
       enabled: _enabled,
       focusNode: _focusNode,
       autofocus: widget.autofocus,
-      mouseCursor:
-          style.mouseCursor?.resolve(const <WidgetState>{}) ??
-          SystemMouseCursors.click,
-      builder: (context, states, _) =>
-          buildFluentDropdown(state, style, states),
+      mouseCursor: cursor,
+      // A held right press keeps the hover look in Chrome (#c7c7c7 sides,
+      // #0f6cbd bar); a middle one is `:active`.
+      pressedOnSecondary: false,
+      // Here as well, because `FluentInteractive` shows the arrow while
+      // disabled, and the resolved style's is upstream's `not-allowed`.
+      builder: (context, states, _) => MouseRegion(
+        cursor: cursor,
+        child: buildFluentDropdown(state, style, states),
+      ),
     );
 
     // No `value:` here on purpose. The selected option's own label is already
@@ -1171,8 +1337,9 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
       label: widget.semanticLabel,
       child: TapRegion(
         groupId: this,
-        // Registered only while the popup is up, so nothing is listening for
-        // outside taps the rest of the time.
+        // Registered only while the popup is up or the trigger holds focus, so
+        // nothing is listening for outside taps the rest of the time. See
+        // [_handleTapOutside] for why focus alone is enough.
         //
         // This replaced a full-screen `HitTestBehavior.opaque` barrier drawn
         // over the page. The barrier swallowed the click that dismissed: a
@@ -1188,7 +1355,7 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
         // wheel is not a pointer-down, and `FluentScrollBehavior` deliberately
         // keeps the mouse out of `dragDevices`. Left as is; the browser does
         // the same thing.
-        onTapOutside: _open ? (_) => _close() : null,
+        onTapOutside: _open || _focused ? (_) => _handleTapOutside() : null,
         child: CompositedTransformTarget(
           link: _link,
           // Bound here rather than on the focus node so they sit *below* the
@@ -1197,19 +1364,32 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
           // option" while a tap still only toggles.
           child: Shortcuts(
             shortcuts: const <ShortcutActivator, Intent>{
-              SingleActivator(LogicalKeyboardKey.arrowDown):
+              // Alt+Up is upstream's 'CloseSelect', Enter's action, while open
+              // and 'Open', as Up, while closed (getDropdownActionFromKey,
+              // Chrome). First, so plain Up below never sees it.
+              _AnyModifiers(LogicalKeyboardKey.arrowUp, alt: true):
+                  FluentDropdownActivateIntent(),
+              _AnyModifiers(LogicalKeyboardKey.arrowDown):
                   FluentDropdownMoveIntent(1),
-              SingleActivator(LogicalKeyboardKey.arrowUp):
+              _AnyModifiers(LogicalKeyboardKey.arrowUp):
                   FluentDropdownMoveIntent(-1),
-              SingleActivator(LogicalKeyboardKey.home):
-                  FluentDropdownEdgeIntent(last: false),
-              SingleActivator(LogicalKeyboardKey.end): FluentDropdownEdgeIntent(
+              _AnyModifiers(LogicalKeyboardKey.home): FluentDropdownEdgeIntent(
+                last: false,
+              ),
+              _AnyModifiers(LogicalKeyboardKey.end): FluentDropdownEdgeIntent(
                 last: true,
               ),
-              SingleActivator(LogicalKeyboardKey.enter):
+              _AnyModifiers(LogicalKeyboardKey.pageUp): _PageIntent(-10),
+              _AnyModifiers(LogicalKeyboardKey.pageDown): _PageIntent(10),
+              // The keypad's Enter is `e.key` 'Enter' upstream too; left to
+              // the app's ActivateIntent it would only toggle, never commit.
+              _AnyModifiers(LogicalKeyboardKey.enter):
                   FluentDropdownActivateIntent(),
-              SingleActivator(LogicalKeyboardKey.space):
+              _AnyModifiers(LogicalKeyboardKey.numpadEnter):
                   FluentDropdownActivateIntent(),
+              _AnyModifiers(LogicalKeyboardKey.space):
+                  FluentDropdownActivateIntent(),
+              _AnyModifiers(LogicalKeyboardKey.escape): _CloseIntent(),
             },
             child: Actions(
               actions: <Type, Action<Intent>>{
@@ -1221,12 +1401,20 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
                       },
                     ),
                 FluentDropdownEdgeIntent:
-                    CallbackAction<FluentDropdownEdgeIntent>(
+                    _WhileOpenAction<FluentDropdownEdgeIntent>(
+                      this,
                       onInvoke: (intent) {
                         _edge(last: intent.last);
                         return null;
                       },
                     ),
+                _PageIntent: _WhileOpenAction<_PageIntent>(
+                  this,
+                  onInvoke: (intent) {
+                    _move(intent.delta);
+                    return null;
+                  },
+                ),
                 FluentDropdownActivateIntent:
                     CallbackAction<FluentDropdownActivateIntent>(
                       onInvoke: (_) {
@@ -1234,12 +1422,34 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
                         return null;
                       },
                     ),
-                // Only enabled while the popup is open, so Escape still reaches
-                // whatever an ancestor does with it when there is nothing to
-                // dismiss here.
-                DismissIntent: _DismissDropdownAction<T>(this),
+                // Not DismissIntent: `Actions.maybeFind` stops at the nearest
+                // action for an intent, enabled or not, so a closed trigger
+                // holding one hid a FluentDialog's own from the app's Escape.
+                _CloseIntent: _WhileOpenAction<_CloseIntent>(
+                  this,
+                  onInvoke: (_) {
+                    _close();
+                    return null;
+                  },
+                ),
               },
-              child: trigger,
+              // Chrome focuses a `<button>` on mousedown, whichever button, so
+              // the bar grows while a press is still held; a tap would focus
+              // only on release. A microtask later, so an outside-press blur
+              // dispatched after this on the same event — another focused
+              // dropdown's, a text field's — cannot undo it. Touch focuses on
+              // the tap, as a browser's does.
+              child: Listener(
+                onPointerDown: (event) {
+                  if (!_enabled || event.kind != PointerDeviceKind.mouse) {
+                    return;
+                  }
+                  scheduleMicrotask(() {
+                    if (mounted && _enabled) _focusNode.requestFocus();
+                  });
+                },
+                child: trigger,
+              ),
             ),
           ),
         ),
@@ -1248,18 +1458,55 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>> {
   }
 }
 
-/// Closes the popup on Escape, and only while there is one to close.
-class _DismissDropdownAction<T> extends Action<DismissIntent> {
-  _DismissDropdownAction(this.state);
+/// PageUp and PageDown: [delta] option rows, and only while open.
+class _PageIntent extends Intent {
+  const _PageIntent(this.delta);
 
-  final _FluentDropdownState<T> state;
+  final int delta;
+}
+
+/// Escape: closes the popup, and only while there is one.
+class _CloseIntent extends Intent {
+  const _CloseIntent();
+}
+
+/// [key] under any modifiers; with [alt], only while Alt is among them.
+///
+/// Upstream's `getDropdownActionFromKey` reads `e.key` alone: Shift, Ctrl,
+/// Meta and Alt change nothing but Up, where Alt commits (Chrome, the Default
+/// story). A [SingleActivator] wants its modifiers exact, so Shift+PageDown or
+/// Ctrl+Home slipped past the list.
+class _AnyModifiers extends ShortcutActivator {
+  const _AnyModifiers(this.key, {this.alt = false});
+
+  final LogicalKeyboardKey key;
+  final bool alt;
 
   @override
-  bool isEnabled(DismissIntent intent) => state._open;
+  Iterable<LogicalKeyboardKey> get triggers => <LogicalKeyboardKey>[key];
 
   @override
-  Object? invoke(DismissIntent intent) {
-    state._close();
-    return null;
-  }
+  bool accepts(KeyEvent event, HardwareKeyboard state) =>
+      event is! KeyUpEvent &&
+      event.logicalKey == key &&
+      (!alt || state.isAltPressed);
+
+  @override
+  String debugDescribeKeys() => '${alt ? 'Alt + ' : ''}${key.keyLabel}';
+}
+
+/// A key the popup takes only while it is up.
+///
+/// Closed, upstream's trigger maps Home, End, PageUp, PageDown and Escape to
+/// 'None' (`getDropdownActionFromKey`) and never calls preventDefault on them
+/// (Chrome), so the page still gets them. Reporting disabled rather than doing
+/// nothing is what lets them fall through here too: to WidgetsApp's page
+/// scroll, or its Escape -> DismissIntent and a dialog's action for it.
+class _WhileOpenAction<I extends Intent> extends CallbackAction<I> {
+  _WhileOpenAction(this.state, {required super.onInvoke});
+
+  final _FluentDropdownState<Object?> state;
+
+  @override
+  bool isEnabled(I intent) => state._open;
 }
