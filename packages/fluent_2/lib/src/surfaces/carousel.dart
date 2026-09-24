@@ -709,6 +709,9 @@ class FluentCarouselStep extends StatelessWidget {
         borderRadius: resolved.stepBorderRadius,
         padding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(padding),
         minimumSize: const WidgetStatePropertyAll<Size?>(Size.zero),
+        // CarouselNavButton declares `transition: all` at 0s, so the mark
+        // snaps to each state's colour instead of the Button's 100ms tween.
+        animationDuration: Duration.zero,
       ),
     );
   }
