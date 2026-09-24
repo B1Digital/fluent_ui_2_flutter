@@ -32,14 +32,25 @@
 /// are 10px/600, so a chart whose margins are solved from the widest tick label
 /// can sit up to a fraction of a pixel out. That is the residual this harness
 /// cannot remove without shipping a proprietary font, and it is why
-/// [kDefaultMismatchTolerance] is not zero.
+/// [kDefaultMismatchTolerance] is not zero. Selawik's digits are also tabular
+/// where Segoe UI's are proportional, so a right-anchored "111" grows a few
+/// pixels left out of its mask. And Selawik has no U+2212 MINUS SIGN at all;
+/// [loadParityFonts] gives it a real fallback glyph (see there).
 ///
 /// Text pixels are excluded regardless. Even with identical metrics, Skia and
-/// Chromium hint and rasterise glyphs differently, so every `<text>` bbox the
-/// capture recorded is painted out on **both** images before they are compared.
-/// The mask is the reference's own text rectangles, so a Flutter chart that
-/// draws a label somewhere upstream does not is *not* excused by it — the extra
-/// glyphs land outside the mask and count as mismatch.
+/// Chromium hint and rasterise glyphs differently, so every text rectangle the
+/// capture recorded is painted out on **both** images, one pixel of slop on
+/// each side, before they are compared. Those rectangles are the svg `<text>`
+/// and `<tspan>` boxes, the leaf `fui-` HTML labels, and every other rendered
+/// text node's line boxes — ChartTable's cells inside a `<foreignObject>`, the
+/// legend's `+N more` button, annotation HTML, nested bar titles, story prose
+/// inside the clip. The last kind was re-measured on 2026-09-24 without
+/// re-capturing a pixel, and adopted only where the live render provably is
+/// the committed one; `test/fixtures/charts/react_png/README.md` says which
+/// stories and how. The mask is the reference's own text rectangles, so a
+/// Flutter chart that draws a label somewhere upstream does not is *not*
+/// excused by it — the extra glyphs land outside the mask and count as
+/// mismatch.
 ///
 /// ### Cause 2: antialiasing — absorbed by a tolerance, not by equality
 ///
@@ -48,6 +59,13 @@
 /// few levels between the two rasterisers; a mark in the wrong place, the wrong
 /// colour or missing differs by hundreds. The threshold is on the *count* of
 /// such pixels, expressed as a percentage of the unmasked area.
+///
+/// ### What else the render is held to
+///
+/// Shadows are real: the test binding's `debugDisableShadows` paints every
+/// BoxShadow as a hard slab Chromium never draws, so [expectReactParity] turns
+/// it off for the pump and the capture. The surface under the chart is white,
+/// not the capture page's #FAFAFA, on purpose — see `_pumpChart`.
 ///
 /// ## Using it
 ///
@@ -203,8 +221,9 @@ class ReactReference {
   /// comparison of two different layouts.
   final Size size;
 
-  /// Every `<text>` and HTML label box, relative to [size]. Masked on both
-  /// images before comparing.
+  /// Every recorded run of text — svg `<text>`, HTML labels, and any other
+  /// text node the capture found inside the clip — relative to [size]. Masked
+  /// on both images before comparing.
   final List<Rect> textRects;
 }
 

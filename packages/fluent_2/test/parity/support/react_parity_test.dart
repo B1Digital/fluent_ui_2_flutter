@@ -28,6 +28,21 @@ void main() {
     expect(painter.width, closeTo(5.56, 0.5));
   });
 
+  test('the manifest masks HTML text, not only svg <text>', () {
+    // ChartTable's cells are a <table> inside a <foreignObject>, and the
+    // legend's '+10 Overflow Items' is a text node beside the MenuButton's
+    // icon. The capture used to record neither, so their glyphs were compared
+    // pixel for pixel (ChartTable measured 4.07% on text alone).
+    expect(
+      loadReactReference('charts-charttable--chart-table-basic').textRects,
+      hasLength(30),
+    );
+    final overflowLabel = loadReactReference(
+      'charts-legends--legends-overflow',
+    ).textRects.where((r) => r.contains(const Offset(755, 15)));
+    expect(overflowLabel, isNotEmpty);
+  });
+
   testWidgets('paints real shadows while measuring, then restores the flag', (
     tester,
   ) async {

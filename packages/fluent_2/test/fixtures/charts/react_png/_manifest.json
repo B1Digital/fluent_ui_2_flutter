@@ -8,6 +8,37 @@
  "capturedCount": 90,
  "storyCount": 90,
  "skipped": [],
+ "textRectsRemeasured": {
+  "date": "2026-09-24",
+  "storybook": "https://storybooks.fluentui.dev/charts deployed 2026-09-23T19:03:57Z (latest @fluentui/react-charts on npm then: 9.3.27)",
+  "browser": "Chrome 153.0.8010.53",
+  "pngsUnchanged": true,
+  "wholeImage": [
+   "charts-charttable--chart-table-basic",
+   "charts-legends--legends-wrap-lines"
+  ],
+  "perRect": [
+   "charts-heatmapchart--heat-map-chart-basic",
+   "charts-horizontalbarchart--horizontal-bar-absolute-scale",
+   "charts-horizontalbarchart--horizontal-bar-basic",
+   "charts-horizontalbarchart--horizontal-bar-benchmark",
+   "charts-horizontalbarchart--horizontal-bar-custom-accessibility",
+   "charts-horizontalbarchart--horizontal-bar-custom-callout",
+   "charts-horizontalbarchart--horizontal-bar-stacked",
+   "charts-horizontalbarchart--horizontal-bar-stacked-annotated-inline-legend",
+   "charts-legends--legends-overflow",
+   "charts-legends--legends-styled",
+   "charts-linechart--line-chart-annotations-example",
+   "charts-linechart--line-chart-multiple",
+   "charts-sparkline--sparkline-basic",
+   "charts-verticalbarchart--vertical-bar-all-negative",
+   "charts-verticalbarchart--vertical-bar-default",
+   "charts-verticalbarchart--vertical-bar-negative",
+   "charts-verticalbarchart--vertical-bar-secondary-y-axis",
+   "charts-verticalstackedbarchart--vertical-stacked-bar-default",
+   "charts-verticalstackedbarchart--vertical-stacked-bar-negative"
+  ]
+ },
  "stories": [
   {
    "id": "charts-areachart--area-chart-all-negative",
@@ -1172,7 +1203,188 @@
     "width": 700,
     "height": 200
    },
-   "textRects": [],
+   "textRects": [
+    [
+     10,
+     10,
+     42.84375,
+     16
+    ],
+    [
+     139.09375,
+     10,
+     44.6875,
+     16
+    ],
+    [
+     252.921875,
+     10,
+     46.515625,
+     16
+    ],
+    [
+     370.0625,
+     10,
+     46.515625,
+     16
+    ],
+    [
+     487.203125,
+     10,
+     46.765625,
+     16
+    ],
+    [
+     604.796875,
+     10,
+     27.53125,
+     16
+    ],
+    [
+     10,
+     44,
+     52.421875,
+     16
+    ],
+    [
+     139.09375,
+     44,
+     32.34375,
+     16
+    ],
+    [
+     252.921875,
+     44,
+     32.34375,
+     16
+    ],
+    [
+     370.0625,
+     44,
+     32.34375,
+     16
+    ],
+    [
+     487.203125,
+     44,
+     32.34375,
+     16
+    ],
+    [
+     604.796875,
+     44,
+     38.8125,
+     16
+    ],
+    [
+     10,
+     78,
+     51.5625,
+     16
+    ],
+    [
+     139.09375,
+     78,
+     32.34375,
+     16
+    ],
+    [
+     252.921875,
+     78,
+     32.34375,
+     16
+    ],
+    [
+     370.0625,
+     78,
+     32.34375,
+     16
+    ],
+    [
+     487.203125,
+     78,
+     32.34375,
+     16
+    ],
+    [
+     604.796875,
+     78,
+     32.34375,
+     16
+    ],
+    [
+     10,
+     112,
+     52.109375,
+     16
+    ],
+    [
+     139.09375,
+     112,
+     32.34375,
+     16
+    ],
+    [
+     252.921875,
+     112,
+     32.34375,
+     16
+    ],
+    [
+     370.0625,
+     112,
+     32.34375,
+     16
+    ],
+    [
+     487.203125,
+     112,
+     32.34375,
+     16
+    ],
+    [
+     604.796875,
+     112,
+     38.8125,
+     16
+    ],
+    [
+     10,
+     146,
+     53.09375,
+     16
+    ],
+    [
+     139.09375,
+     146,
+     32.34375,
+     16
+    ],
+    [
+     252.921875,
+     146,
+     32.34375,
+     16
+    ],
+    [
+     370.0625,
+     146,
+     32.34375,
+     16
+    ],
+    [
+     487.203125,
+     146,
+     32.34375,
+     16
+    ],
+    [
+     604.796875,
+     146,
+     32.34375,
+     16
+    ]
+   ],
    "sourceFile": "../../packages/charts/react-charts/stories/src/ChartTable/index.stories.tsx"
   },
   {
@@ -3232,6 +3444,12 @@
      326.21875,
      83.515625,
      16
+    ],
+    [
+     280.0625,
+     324.21875,
+     54.734375,
+     19
     ]
    ],
    "sourceFile": "../../packages/charts/react-charts/stories/src/HeatMapChart/index.stories.tsx"
@@ -3538,6 +3756,54 @@
      354,
      22.798828,
      16
+    ],
+    [
+     0,
+     0,
+     20.109375,
+     16
+    ],
+    [
+     0,
+     48,
+     19.78125,
+     16
+    ],
+    [
+     0,
+     96,
+     27.59375,
+     16
+    ],
+    [
+     0,
+     144,
+     21.75,
+     16
+    ],
+    [
+     0,
+     192,
+     18.6875,
+     16
+    ],
+    [
+     0,
+     240,
+     13.515625,
+     16
+    ],
+    [
+     0,
+     288,
+     30.1875,
+     16
+    ],
+    [
+     0,
+     336,
+     27.109375,
+     16
     ]
    ],
    "sourceFile": "../../packages/charts/react-charts/stories/src/HorizontalBarChart/index.stories.tsx"
@@ -3700,6 +3966,24 @@
      92,
      28.21875,
      19
+    ],
+    [
+     0,
+     0,
+     20.109375,
+     16
+    ],
+    [
+     0,
+     46,
+     19.78125,
+     16
+    ],
+    [
+     0,
+     92,
+     27.59375,
+     16
     ]
    ],
    "sourceFile": "../../packages/charts/react-charts/stories/src/HorizontalBarChart/index.stories.tsx"
@@ -3763,6 +4047,54 @@
      301,
      31.390625,
      21
+    ],
+    [
+     0,
+     0,
+     20.109375,
+     16
+    ],
+    [
+     0,
+     43,
+     19.78125,
+     16
+    ],
+    [
+     0,
+     86,
+     27.59375,
+     16
+    ],
+    [
+     0,
+     129,
+     21.75,
+     16
+    ],
+    [
+     0,
+     172,
+     18.6875,
+     16
+    ],
+    [
+     0,
+     215,
+     13.515625,
+     16
+    ],
+    [
+     0,
+     258,
+     30.1875,
+     16
+    ],
+    [
+     0,
+     301,
+     27.109375,
+     16
     ]
    ],
    "sourceFile": "../../packages/charts/react-charts/stories/src/HorizontalBarChart/index.stories.tsx"
@@ -3832,6 +4164,54 @@
      301,
      31.390625,
      21
+    ],
+    [
+     0,
+     0,
+     20.109375,
+     16
+    ],
+    [
+     0,
+     43,
+     19.78125,
+     16
+    ],
+    [
+     0,
+     86,
+     27.59375,
+     16
+    ],
+    [
+     0,
+     129,
+     21.75,
+     16
+    ],
+    [
+     0,
+     172,
+     18.6875,
+     16
+    ],
+    [
+     0,
+     215,
+     13.515625,
+     16
+    ],
+    [
+     0,
+     258,
+     30.1875,
+     16
+    ],
+    [
+     0,
+     301,
+     27.109375,
+     16
     ]
    ],
    "sourceFile": "../../packages/charts/react-charts/stories/src/HorizontalBarChart/index.stories.tsx"
@@ -3895,6 +4275,30 @@
      153,
      46.59375,
      16
+    ],
+    [
+     0,
+     0,
+     20.109375,
+     16
+    ],
+    [
+     0,
+     43,
+     19.78125,
+     16
+    ],
+    [
+     0,
+     86,
+     27.59375,
+     16
+    ],
+    [
+     480.3125,
+     151,
+     54.734375,
+     19
     ]
    ],
    "sourceFile": "../../packages/charts/react-charts/stories/src/HorizontalBarChart/index.stories.tsx"
@@ -3928,6 +4332,54 @@
      170,
      46.59375,
      16
+    ],
+    [
+     0,
+     0,
+     20.109375,
+     16
+    ],
+    [
+     92.828125,
+     69,
+     22.640625,
+     19
+    ],
+    [
+     115.46875,
+     69,
+     11.46875,
+     19
+    ],
+    [
+     0,
+     99,
+     19.78125,
+     16
+    ],
+    [
+     92.71875,
+     168,
+     15.09375,
+     19
+    ],
+    [
+     107.8125,
+     168,
+     11.46875,
+     19
+    ],
+    [
+     235.875,
+     168,
+     15.09375,
+     19
+    ],
+    [
+     250.96875,
+     168,
+     11.46875,
+     19
     ]
    ],
    "sourceFile": "../../packages/charts/react-charts/stories/src/HorizontalBarChart/index.stories.tsx"
@@ -4816,6 +5268,12 @@
      8,
      48.890625,
      16
+    ],
+    [
+     693.234375,
+     6,
+     123.578125,
+     19
     ]
    ],
    "sourceFile": "../../packages/charts/react-charts/stories/src/Legends/index.stories.tsx"
@@ -4873,6 +5331,12 @@
      8,
      48.890625,
      16
+    ],
+    [
+     693.234375,
+     6,
+     123.578125,
+     19
     ]
    ],
    "sourceFile": "../../packages/charts/react-charts/stories/src/Legends/index.stories.tsx"
@@ -4886,6 +5350,108 @@
    "height": 120,
    "svgSize": null,
    "textRects": [
+    [
+     106,
+     12,
+     48.890625,
+     16
+    ],
+    [
+     200.890625,
+     12,
+     48.890625,
+     16
+    ],
+    [
+     295.78125,
+     12,
+     48.890625,
+     16
+    ],
+    [
+     390.671875,
+     12,
+     48.890625,
+     16
+    ],
+    [
+     485.5625,
+     12,
+     48.890625,
+     16
+    ],
+    [
+     580.453125,
+     12,
+     48.890625,
+     16
+    ],
+    [
+     675.34375,
+     12,
+     48.890625,
+     16
+    ],
+    [
+     770.234375,
+     12,
+     48.890625,
+     16
+    ],
+    [
+     106,
+     52,
+     48.890625,
+     16
+    ],
+    [
+     200.890625,
+     52,
+     55.359375,
+     16
+    ],
+    [
+     302.25,
+     52,
+     55.359375,
+     16
+    ],
+    [
+     403.609375,
+     52,
+     55.359375,
+     16
+    ],
+    [
+     504.96875,
+     52,
+     55.359375,
+     16
+    ],
+    [
+     606.328125,
+     52,
+     55.359375,
+     16
+    ],
+    [
+     707.6875,
+     52,
+     55.359375,
+     16
+    ],
+    [
+     106,
+     92,
+     55.359375,
+     16
+    ],
+    [
+     207.359375,
+     92,
+     55.359375,
+     16
+    ],
     [
      106,
      12,
@@ -5244,6 +5810,42 @@
      120,
      496,
      42.078125,
+     16
+    ],
+    [
+     231.109375,
+     103.5,
+     203.765625,
+     16
+    ],
+    [
+     234.96875,
+     119.5,
+     196.0625,
+     16
+    ],
+    [
+     431.03125,
+     119.5,
+     3.3125,
+     16
+    ],
+    [
+     258.125,
+     135.5,
+     149.75,
+     16
+    ],
+    [
+     755.484375,
+     114.59375,
+     3.296875,
+     16
+    ],
+    [
+     77,
+     53,
+     423.25,
      16
     ]
    ],
@@ -6181,6 +6783,12 @@
      276,
      26.90625,
      16
+    ],
+    [
+     578.4375,
+     274,
+     54.765625,
+     19
     ]
    ],
    "sourceFile": "../../packages/charts/react-charts/stories/src/LineChart/index.stories.tsx"
@@ -7486,6 +8094,24 @@
      340.5,
      34.953125,
      16
+    ],
+    [
+     172.859375,
+     5,
+     55.140625,
+     19
+    ],
+    [
+     0,
+     30,
+     147.65625,
+     19
+    ],
+    [
+     0,
+     70,
+     228,
+     19
     ]
    ],
    "sourceFile": "../../packages/charts/react-charts/stories/src/Sparkline/index.stories.tsx"
@@ -7897,6 +8523,12 @@
      326,
      40.296875,
      16
+    ],
+    [
+     498.609375,
+     324,
+     54.734375,
+     19
     ]
    ],
    "sourceFile": "../../packages/charts/react-charts/stories/src/VerticalBarChart/index.stories.tsx"
@@ -8656,6 +9288,12 @@
      326,
      40.296875,
      16
+    ],
+    [
+     498.609375,
+     324,
+     54.734375,
+     19
     ]
    ],
    "sourceFile": "../../packages/charts/react-charts/stories/src/VerticalBarChart/index.stories.tsx"
@@ -9058,6 +9696,12 @@
      326,
      40.296875,
      16
+    ],
+    [
+     498.609375,
+     324,
+     54.734375,
+     19
     ]
    ],
    "sourceFile": "../../packages/charts/react-charts/stories/src/VerticalBarChart/index.stories.tsx"
@@ -9394,6 +10038,12 @@
      276,
      22.703125,
      16
+    ],
+    [
+     559.3125,
+     274,
+     54.734375,
+     19
     ]
    ],
    "sourceFile": "../../packages/charts/react-charts/stories/src/VerticalBarChart/index.stories.tsx"
@@ -10621,6 +11271,12 @@
      326,
      57.046875,
      16
+    ],
+    [
+     508.234375,
+     324,
+     54.46875,
+     19
     ]
    ],
    "sourceFile": "../../packages/charts/react-charts/stories/src/VerticalStackedBarChart/index.stories.tsx"
@@ -10834,6 +11490,12 @@
      326,
      57.046875,
      16
+    ],
+    [
+     508.234375,
+     324,
+     54.46875,
+     19
     ]
    ],
    "sourceFile": "../../packages/charts/react-charts/stories/src/VerticalStackedBarChart/index.stories.tsx"
