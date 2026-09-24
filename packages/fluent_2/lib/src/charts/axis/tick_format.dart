@@ -234,6 +234,15 @@ String formatDateToLocaleString(
   return '$formatted $zone';
 }
 
+/// The number formats [formatToLocaleString] has built, by locale and
+/// grouping.
+///
+/// A [NumberFormat] parses its locale's pattern as it is built, and every
+/// callout reading and aria label goes through here, so a chart that rebuilt
+/// its hit regions on a hover move spent most of that move building formats.
+final Map<(String, bool), NumberFormat> _numberFormats =
+    <(String, bool), NumberFormat>{};
+
 /// Formats a number, numeric string or date for display.
 ///
 /// Ports `formatToLocaleString` (`chart-utilities/formatter.ts:30-51`). The
@@ -268,8 +277,10 @@ String formatToLocaleString(
     // 10000 is the grouping threshold at formatter.ts:40 and :44.
     final grouped = asNumber.abs() >= 10000;
     final snapped = handleFloatingPointPrecisionError(asNumber);
-    final locale = _resolveCulture(effectiveCulture, NumberFormat.localeExists);
-    final format = grouped
+    final locale =
+        _resolveCulture(effectiveCulture, NumberFormat.localeExists) ??
+        Intl.getCurrentLocale();
+    final format = _numberFormats[(locale, grouped)] ??= grouped
         ? NumberFormat.decimalPattern(locale)
         : (NumberFormat.decimalPattern(locale)..turnOffGrouping());
     return format.format(snapped);

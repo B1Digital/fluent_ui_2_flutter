@@ -1,5 +1,6 @@
 import 'package:fluent_2/src/charts/axis/tick_format.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 
 import '../../support/oracle_fixture.dart';
 
@@ -247,6 +248,22 @@ void main() {
         reason:
             'formatter.ts:40 routes through handleFloatingPointPrecisionError.',
       );
+    });
+
+    test('follows the default locale from one call to the next', () {
+      final previous = Intl.defaultLocale;
+      addTearDown(() => Intl.defaultLocale = previous);
+      Intl.defaultLocale = 'en_US';
+      expect(formatToLocaleString(12345.5), '12,345.5');
+      Intl.defaultLocale = 'de_DE';
+      expect(
+        formatToLocaleString(12345.5),
+        '12.345,5',
+        reason:
+            'an undefined culture is the runtime locale (formatter.ts:38), '
+            'whichever format the last call built',
+      );
+      expect(formatToLocaleString(12345.5, culture: 'en_US'), '12,345.5');
     });
 
     test('formats a numeric string like a number', () {
