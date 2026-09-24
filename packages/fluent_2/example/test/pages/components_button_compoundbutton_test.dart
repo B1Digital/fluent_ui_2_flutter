@@ -490,9 +490,10 @@ void main() {
 
       // 280 exactly: the label is boxed at 280 less the medium inset and the
       // 1px border on either side (upstream's `border-box`), so the button
-      // lands on upstream's width rather than merely under it. A Row hands its children unbounded width, so a label that was not
-      // boxed would overflow instead of wrapping — which pumpSection's
-      // clean-tree check catches from the other side.
+      // lands on upstream's width rather than merely under it. A Row hands its
+      // children unbounded width, so a label that was not boxed would
+      // overflow instead of wrapping — which pumpSection's clean-tree check
+      // catches from the other side.
       final Size wrapped = tester.getSize(buttonWith(long));
       expect(wrapped.width, closeTo(280, 0.01));
       expect(

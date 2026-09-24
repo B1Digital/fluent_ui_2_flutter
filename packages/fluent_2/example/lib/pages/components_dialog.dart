@@ -275,9 +275,11 @@ const DocsPage dialogPage = DocsPage(
     ),
     PropRow(
       name: 'showCloseButton',
-      type: 'bool',
-      defaultValue: 'true',
-      description: 'Whether the header carries a close button.',
+      type: 'bool?',
+      defaultValue: 'null (true only for nonModal)',
+      description:
+          'Whether the header carries a close button. Null follows upstream, '
+          'which draws one on a non-modal dialog only.',
     ),
     PropRow(
       name: 'modalType',
@@ -951,10 +953,9 @@ class _NoFocusableElementState extends State<_NoFocusableElement> {
       FluentDialog(
         open: _modalOpen,
         onOpenChange: (bool open) => setState(() => _modalOpen = open),
-        // FluentDialog draws a header close button by default; it is switched
-        // off here so the dialog genuinely has nothing focusable, which is the
-        // whole point of the story.
-        showCloseButton: false,
+        // A modal dialog draws no header close button by default, so it
+        // genuinely has nothing focusable, which is the whole point of the
+        // story.
         title: const Text('Dialog Title'),
         content: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -978,6 +979,7 @@ class _NoFocusableElementState extends State<_NoFocusableElement> {
         modalType: FluentDialogModalType.nonModal,
         open: _nonModalOpen,
         onOpenChange: (bool open) => setState(() => _nonModalOpen = open),
+        // Upstream's `action={null}`: a non-modal dialog draws one otherwise.
         showCloseButton: false,
         title: const Text('Dialog Title'),
         content: const Column(
@@ -1289,10 +1291,10 @@ class _TitleCustomActionState extends State<_TitleCustomAction> {
   Widget build(BuildContext context) => FluentDialog(
     open: _open,
     onOpenChange: (bool open) => setState(() => _open = open),
-    // There is no `action` slot to swap: FluentDialog's header close button
-    // already *is* a subtle icon FluentButton carrying the dismiss glyph, in
-    // every modalType. Only its accessible name is the caller's to set, so
-    // upstream's `aria-label="close"` maps to `closeButtonSemanticLabel`.
+    // There is no `action` slot to swap, so upstream's custom action is the
+    // header close button, which a modal dialog draws only when asked.
+    // Upstream's `aria-label="close"` maps to `closeButtonSemanticLabel`.
+    showCloseButton: true,
     closeButtonSemanticLabel: 'close',
     title: const Text('Dialog title'),
     content: const Text(

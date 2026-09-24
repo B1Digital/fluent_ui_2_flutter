@@ -358,12 +358,14 @@ void main() {
         tester.element(steps.first),
       ).colors;
 
-      // `appearance="brand"` has no Dart axis, so the demo tints the selected
-      // step through `FluentCarouselStyle.stepColor`. That override reaches the
-      // mark through the button's IconTheme — several hops — and a step that
-      // grew the pill without taking the tint is the failure that leaves.
-      // Upstream's brand pill is `colorCompoundBrandBackground`, which parts
-      // from `brandBackground` in dark themes.
+      // The story's `appearance="brand"` reaches the mark through the
+      // button's IconTheme — several hops — and a step that grew the pill
+      // without taking the tint is the failure that leaves. Upstream's brand
+      // pill is `colorCompoundBrandBackground`, which parts from
+      // `brandBackground` in dark themes; every other dot rests at
+      // Foreground1 under `opacity: 0.6` (useCarouselNavButtonStyles,
+      // #7B7B7B in Chrome).
+      final Color dot = colors.neutralForeground1.withValues(alpha: 0.6);
       expect(
         markOf(tester, steps.at(0))!.color,
         colors.compoundBrandBackground,
@@ -371,7 +373,7 @@ void main() {
       for (int i = 1; i < 5; i++) {
         expect(
           markOf(tester, steps.at(i))!.color,
-          colors.neutralForeground2,
+          dot,
           reason: 'step $i is not the selected one and must stay neutral',
         );
       }
@@ -381,7 +383,7 @@ void main() {
         markOf(tester, steps.at(2))!.color,
         colors.compoundBrandBackground,
       );
-      expect(markOf(tester, steps.at(0))!.color, colors.neutralForeground2);
+      expect(markOf(tester, steps.at(0))!.color, dot);
     });
 
     testWidgets('a real mouse press selects a step too', (
@@ -402,26 +404,29 @@ void main() {
       final FluentColors colors = FluentTheme.of(
         tester.element(steps.first),
       ).colors;
-      expect(markOf(tester, steps.at(2))!.color, colors.neutralForeground2);
+      final Color dot = colors.neutralForeground1.withValues(alpha: 0.6);
+      expect(markOf(tester, steps.at(2))!.color, dot);
 
       // The step tracks no state of its own — the mark reads whatever the
       // button's IconTheme resolved — so hover is the one axis that cannot be
       // reached with `tester.tap`, and an unreachable hover is a strip that
-      // gives no feedback at all under a pointer.
+      // gives no feedback at all under a pointer. A brand nav's dot hovers at
+      // the compound brand hover under `opacity: 0.75`
+      // (useCarouselNavButtonStyles, `brand` `:hover`).
       final TestGesture mouse = await mouseHover(tester, steps.at(2));
       expect(
         markOf(tester, steps.at(2))!.color,
-        colors.neutralForeground2Hover,
+        colors.compoundBrandBackgroundHover.withValues(alpha: 0.75),
         reason: 'the mark must ramp while the pointer rests on it',
       );
       expect(
         markOf(tester, steps.at(3))!.color,
-        colors.neutralForeground2,
+        dot,
         reason: 'only the step under the pointer may ramp',
       );
 
       await mouseAway(tester, mouse);
-      expect(markOf(tester, steps.at(2))!.color, colors.neutralForeground2);
+      expect(markOf(tester, steps.at(2))!.color, dot);
     });
 
     testWidgets('Tab walks the strip and Space activates a step', (

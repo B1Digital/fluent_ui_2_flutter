@@ -800,7 +800,7 @@
   },
   "components-dialog--no-focusable-element": {
     "kind": "slot",
-    "why": "FluentDialog draws a header close button by default in every modalType, which would give both dialogs a focusable element and defeat the story. showCloseButton:false on both is upstream's `action={null}` plus modal's no-action default."
+    "why": "A modal FluentDialog draws no header close button by default, as upstream's DialogTitle does, so the modal dialog has nothing focusable. showCloseButton:false on the non-modal one is upstream's `action={null}`."
   },
   "components-dialog--scrolling-long-content": {
     "kind": "nearest-widget",
@@ -808,7 +808,7 @@
   },
   "components-dialog--title-custom-action": {
     "kind": "slot",
-    "why": "There is no `action` slot to replace. FluentDialog's header close button already is a subtle icon FluentButton carrying the dismiss glyph, in every modalType; only its accessible name is the caller's, so aria-label=\"close\" maps to closeButtonSemanticLabel."
+    "why": "There is no `action` slot to replace, so the custom action is the header close button, which a modal dialog draws only with showCloseButton:true. It is FluentDialog's bare dismiss glyph rather than upstream's subtle Button with Dismiss24Regular; only its accessible name is the caller's, so aria-label=\"close\" maps to closeButtonSemanticLabel."
   },
   "components-dialog--title-no-action": {
     "kind": "slot",

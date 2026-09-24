@@ -361,9 +361,10 @@ Widget _withLongText(BuildContext context) => Wrap(
       onPressed: () {},
       // Upstream sets width: 280px on the button. A Row hands its children
       // unbounded width, so the wrap has to be asked for on the label itself:
-      // 280 less the medium compound button's 12px inset on either side.
+      // 280 less the medium compound button's 12px inset and 1px border on
+      // either side (upstream sizes the button `border-box`).
       child: const SizedBox(
-        width: 280 - FluentSpacing.m * 2,
+        width: 280 - (FluentSpacing.m + FluentStroke.thin) * 2,
         child: Text(
           'Long text wraps after it hits the max width of the component',
         ),
