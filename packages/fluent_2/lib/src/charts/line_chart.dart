@@ -837,10 +837,12 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
   /// Identifier of the active point, `"<series>_<point>"`.
   final String? activePointId;
 
-  /// The pointer, in plot coordinates, while it is on [activePointId]'s marker
-  /// or on the line leaving it, or null when it is on neither.
+  /// Where the pointer arrived on a marker or a line, in plot coordinates,
+  /// while it stays on one, or null when it is on neither.
   ///
-  /// Non-null draws the dashed hover rule under that point
+  /// Only whether it is null is read, so it is not the live pointer: the chart
+  /// keeps the first position rather than rebuilding on every move. Non-null
+  /// draws the dashed hover rule under that point
   /// (`LineChart.tsx:1669-1674`); null is `_handleMouseOut` hiding it
   /// (`:1710-1712`).
   final Offset? hoverPosition;
