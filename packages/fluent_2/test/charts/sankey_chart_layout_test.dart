@@ -870,6 +870,68 @@ void main() {
       );
     });
 
+    test('a name is measured and drawn with its white space collapsed', () {
+      // The inbox story's node 11, verbatim.
+      const raw = ' No further action  required';
+      const data = FluentSankeyChartData(
+        nodes: <FluentSankeyNode>[
+          FluentSankeyNode(nodeId: 0, name: 'Source'),
+          FluentSankeyNode(nodeId: 1, name: raw),
+        ],
+        links: <FluentSankeyLink>[
+          FluentSankeyLink(source: 0, target: 1, value: 500),
+        ],
+      );
+      final layout = computeFluentSankeyLayout(
+        data: data,
+        size: const Size(912, 468),
+        titleHeight: 36,
+        isRtl: false,
+      );
+      final visuals = computeSankeyNodeVisuals(
+        layout: layout,
+        measurer: measurer,
+        nameStyle: nameStyle,
+        weightMeasurementStyle: weightStyle,
+        formatNumber: (v) => v.toStringAsFixed(0),
+        nodeSemanticLabel: (name, weight) => name,
+      );
+      expect(
+        visuals[1].name,
+        truncateSankeyText(
+          'No further action required',
+          kSankeyNodeWidth - 16,
+          measurer: measurer,
+          style: nameStyle,
+        ),
+        reason:
+            'truncateText (SankeyChart.tsx:389-419) measures the rendered '
+            'tspan, and SVG drops the leading space and folds the double one: '
+            'the storybook draws "No further action requi..." where the raw '
+            'string left room for "No further action  req..."',
+      );
+      expect(
+        visuals[1].semanticLabel,
+        raw,
+        reason: 'the aria-label is an attribute, not rendered text (:1055)',
+      );
+    });
+
+    test('SVG white space collapses to single inner spaces', () {
+      expect(
+        collapseSvgWhiteSpace('\t a \n\n b  c '),
+        'a b c',
+        reason:
+            'tabs and line breaks become spaces, runs of spaces fold to one '
+            'and the ends are stripped',
+      );
+      expect(
+        collapseSvgWhiteSpace('a  b'),
+        'a  b',
+        reason: 'a no-break space is not collapsible white space',
+      );
+    });
+
     test('a short node subtracts the measured weight from the name budget', () {
       const data = FluentSankeyChartData(
         nodes: <FluentSankeyNode>[

@@ -597,6 +597,89 @@ void main() {
       );
     });
 
+    testWidgets('the stream callout stays where the pointer came in', (
+      tester,
+    ) async {
+      await pump(tester, const FluentSankeyChart(data: graph));
+      final state = tester.state<FluentSankeyChartState>(
+        find.byType(FluentSankeyChart),
+      );
+      final link = state.layout.links[0];
+      final origin = tester.getTopLeft(find.byType(FluentSankeyChart));
+      final entry =
+          origin +
+          Offset(
+            (link.source.x1 + link.target.x0) / 2,
+            (link.y0 + link.y1) / 2,
+          );
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(entry);
+      await tester.pump();
+      Offset anchor() => tester
+          .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+          .anchor;
+      final entered = anchor();
+      await gesture.moveTo(entry.translate(12, 1));
+      await tester.pump();
+      expect(
+        anchor(),
+        entered,
+        reason:
+            'a stream listens for onMouseOver alone (SankeyChart.tsx:766), so '
+            'the storybook keeps its surface at [297,166] after the pointer '
+            'moves 12px along the ribbon',
+      );
+      expect(
+        tester
+            .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+            .data
+            .isCartesian,
+        isFalse,
+        reason: 'SankeyChart.tsx:1133-1141 pass no isCartesian',
+      );
+    });
+
+    testWidgets('the ground drops the highlight and keeps the callout', (
+      tester,
+    ) async {
+      await pump(tester, const FluentSankeyChart(data: graph));
+      final state = tester.state<FluentSankeyChartState>(
+        find.byType(FluentSankeyChart),
+      );
+      final link = state.layout.links[0];
+      final origin = tester.getTopLeft(find.byType(FluentSankeyChart));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(
+        origin +
+            Offset(
+              (link.source.x1 + link.target.x0) / 2,
+              (link.y0 + link.y1) / 2,
+            ),
+      );
+      await tester.pump();
+      // The top-left corner of the diagram: inside the chart, over no node
+      // and no stream.
+      await gesture.moveTo(origin + const Offset(4, 4));
+      await tester.pump();
+      expect(
+        state.selection.active,
+        isFalse,
+        reason: '_onStreamLeave (SankeyChart.tsx:902-908) clears the highlight',
+      );
+      expect(
+        find.byType(FluentChartPopover),
+        findsOneWidget,
+        reason:
+            'and nothing else closes the callout until the root mouseleave '
+            '(:1143): the storybook keeps it up with the pointer on the svg '
+            'ground at (45, 491)',
+      );
+    });
+
     testWidgets('a number format is applied to weights and aria labels', (
       tester,
     ) async {
