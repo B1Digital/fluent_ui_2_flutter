@@ -177,19 +177,30 @@ void main() {
       await pumpSection(tester, section);
       final Finder line = find.byType(FluentCheckbox).at(0);
       expect(tester.widget<FluentCheckbox>(line).checked, isTrue);
-      expect(_dots(tester), greaterThan(0));
+      // The dots stay hidden until a bar is hovered
+      // (VerticalBarChart.tsx:286-290), so the stroke is what shows the line.
+      expect(_paths(tester), greaterThan(0));
+      expect(_dots(tester), 0);
+      final TestGesture mouse = await mouseHoverAt(
+        tester,
+        tester.getTopLeft(_canvas.first) + _bars(tester).first.center,
+        what: 'the first bar',
+      );
+      expect(
+        _dots(tester),
+        2,
+        reason:
+            'hovering a bar shows the line dot at its x, a fill and a ring '
+            '(VerticalBarChart.tsx:489)',
+      );
+      await mouseAway(tester, mouse);
 
       await mouseClick(tester, line);
       expect(tester.widget<FluentCheckbox>(line).checked, isFalse);
-      expect(
-        _dots(tester),
-        0,
-        reason: 'clearing lineData must remove the dots as well as the stroke',
-      );
-      expect(_paths(tester), 0);
+      expect(_paths(tester), 0, reason: 'clearing lineData removes the stroke');
 
       await mouseClick(tester, line);
-      expect(_dots(tester), greaterThan(0));
+      expect(_paths(tester), greaterThan(0));
     });
 
     testWidgets('the single-colour checkbox restores the custom ramp', (
@@ -402,13 +413,15 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpSection(tester, section);
-      expect(_dots(tester), greaterThan(0));
+      // The dots stay hidden until a bar is hovered
+      // (VerticalBarChart.tsx:286-290), so the stroke is what shows the line.
+      expect(_paths(tester), greaterThan(0));
 
       await mouseClick(tester, find.byType(FluentCheckbox).at(0));
-      expect(_dots(tester), 0);
+      expect(_paths(tester), 0);
 
       await mouseClick(tester, find.byType(FluentCheckbox).at(0));
-      expect(_dots(tester), greaterThan(0));
+      expect(_paths(tester), greaterThan(0));
     });
 
     testWidgets('the single-colour checkbox restores the custom ramp', (
