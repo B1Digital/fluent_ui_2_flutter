@@ -132,7 +132,16 @@ class FluentLineChartState extends State<FluentLineChart> {
   String _selectedLegend = '';
   String? _activeLegend;
   String? _activePointId;
+
+  /// The pointer, while it is on the active point's marker or on the line
+  /// leaving it; null once it is on neither.
+  ///
+  /// `_handleMouseOut` hides the hover rule and leaves `activePoint` alone
+  /// (`LineChart.tsx:1710-1712`), so the two are tracked apart: this shows the
+  /// rule, and only a chart or legend leave clears [_activePointId].
+  Offset? _hoverPosition;
   (int, int)? _nearestPoint;
+  late FluentLineChartDelegate _delegate;
   late final FluentChartTextMeasurer _measurer = FluentChartTextMeasurer();
 
   List<FluentLineChartSeries> get _series =>
@@ -151,6 +160,25 @@ class FluentLineChartState extends State<FluentLineChart> {
     super.dispose();
   }
 
+  /// `_handleHover` (`LineChart.tsx:1642-1692`), which every marker and every
+  /// selected segment runs on mouse over and move: it activates the point the
+  /// mark names and shows the rule. Off every mark `_handleMouseOut`
+  /// (`:1710-1712`) hides the rule and keeps the active point.
+  void _handlePointerMove(Offset local, FluentCartesianChildContext context) {
+    final target = _delegate.hoverTargetAt(context, local);
+    final id = target == null
+        ? _activePointId
+        : '${target.seriesIndex}_${target.pointIndex}';
+    final position = target == null ? null : local;
+    if (id == _activePointId && position == _hoverPosition) {
+      return;
+    }
+    setState(() {
+      _activePointId = id;
+      _hoverPosition = position;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
@@ -165,7 +193,7 @@ class FluentLineChartState extends State<FluentLineChart> {
         : style.eventLabelHeight!.resolve(<WidgetState>{})!;
     // Built ahead of the shell so `props` can read `isScatterPolar` off it,
     // which is the only thing `:1922` needs that lives on the delegate.
-    final delegate = FluentLineChartDelegate(
+    final delegate = _delegate = FluentLineChartDelegate(
       series: _series,
       style: style,
       colors: FluentChartColors.of(theme),
@@ -174,6 +202,7 @@ class FluentLineChartState extends State<FluentLineChart> {
       selectedLegend: _selectedLegend,
       activeLegend: _activeLegend,
       activePointId: _activePointId,
+      hoverPosition: _hoverPosition,
       nearestPoint: _nearestPoint,
       optimizeLargeData: widget.optimizeLargeData,
       allowMultipleShapesForPoints: widget.allowMultipleShapesForPoints,
@@ -242,6 +271,7 @@ class FluentLineChartState extends State<FluentLineChart> {
               // `hoverAction` clears the hover first (`:432-435`).
               _nearestPoint = null;
               _activePointId = null;
+              _hoverPosition = null;
               _activeLegend = _series[i].legend;
             }),
             onMouseOutAction: ({required bool isLegendFocused}) =>
@@ -282,9 +312,12 @@ class FluentLineChartState extends State<FluentLineChart> {
               labelColor: widget.eventAnnotationLabelColor,
               labelWidth: widget.eventAnnotationLabelWidth,
             ),
+      onPointerMoveInPlot: _handlePointerMove,
       onChartMouseLeave: () => setState(() {
-        // `_handleChartMouseLeave` clears the hover (`:1195-1200`).
+        // `_handleChartMouseLeave` clears the hover (`:1714-1720`), and the
+        // mark the pointer left through hid the rule (`:1710-1712`).
         _activePointId = null;
+        _hoverPosition = null;
         _nearestPoint = null;
       }),
     );
@@ -298,15 +331,13 @@ class FluentLineChartState extends State<FluentLineChart> {
 /// container, which is the same 35.
 const double kFluentLineEventAnnotationBottomInset = 35;
 
-/// The radius of a data point's hover target.
+/// The radius of the hover latch on the last point of an engine-A line.
 ///
-/// Upstream's own magnetic latch, the invisible `r={8}` circle it puts under
-/// the last callout point (`LineChart.tsx:1162-1168`). The visible circles
-/// carry `onMouseOver` at their painted size, which is `invisibleSize` 1
-/// (`:65`) — half a pixel of radius — for every point that is neither active
-/// nor an endpoint, so the latch is what makes an idle point hittable at all.
-/// `grouped_vertical_bar_chart.dart:805-816` settled the same question the same
-/// way for its 0.3px line dots.
+/// Upstream's magnetic latch, the invisible `r={8}` circle it puts over the
+/// last point only (`LineChart.tsx:1162-1205`). Every other marker is hovered
+/// at its painted size: an idle one is an `invisibleSize` 1 box (`:65`) under
+/// the line's 4px stroke, 2.5px of radius, and the line between two points
+/// hovers its start point, so no idle point needs a latch of its own.
 const double kFluentLineHoverLatchRadius = 8;
 
 /// The eight LineChart marker shapes.
@@ -756,6 +787,7 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     required this.selectedLegend,
     this.activeLegend,
     this.activePointId,
+    this.hoverPosition,
     this.nearestPoint,
     this.optimizeLargeData = false,
     this.allowMultipleShapesForPoints = false,
@@ -795,6 +827,14 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
 
   /// Identifier of the active point, `"<series>_<point>"`.
   final String? activePointId;
+
+  /// The pointer, in plot coordinates, while it is on [activePointId]'s marker
+  /// or on the line leaving it, or null when it is on neither.
+  ///
+  /// Non-null draws the dashed hover rule under that point
+  /// (`LineChart.tsx:1669-1674`); null is `_handleMouseOut` hiding it
+  /// (`:1710-1712`).
+  final Offset? hoverPosition;
 
   /// `(seriesIndex, pointIndex)` nearest the pointer under engine B.
   final (int, int)? nearestPoint;
@@ -1691,6 +1731,36 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     FluentCartesianLayout layout,
     FluentChartColors colors,
   ) {
+    final allMarks = markersFor(context);
+    // The hover rule is the first child of the plot `<g>` (`:1935-1944`),
+    // under the bands and the lines. `_handleHover` moves it to the hovered
+    // point and ends it at `lineHeight - 5`, where `lineHeight` is
+    // `containerHeight - margins.bottom + 6` (`:542`, `:1669-1674`): one pixel
+    // below the x axis.
+    final ruleFrom = hoverPosition == null
+        ? null
+        : allMarks.where(_isActive).map((mark) => mark.centre).firstOrNull;
+    if (ruleFrom != null) {
+      final ruleTo = Offset(
+        ruleFrom.dx,
+        layout.xAxisTranslateY +
+            6 -
+            style.hoverLineTailOffset!.resolve(<WidgetState>{})!,
+      );
+      canvas.drawPath(
+        _dashedPath(
+          Path()
+            ..moveTo(ruleFrom.dx, ruleFrom.dy)
+            ..lineTo(ruleTo.dx, ruleTo.dy),
+          style.hoverLineDashPattern!.resolve(<WidgetState>{})!,
+        ),
+        Paint()
+          ..style = PaintingStyle.stroke
+          // No `strokeWidth` on the `<line>`: SVG's default 1.
+          ..strokeWidth = 1
+          ..color = style.hoverLineColor!.resolve(<WidgetState>{})!,
+      );
+    }
     // `:1950-1953` puts `_renderedColorFillBars` ahead of `{lines}` inside one
     // `<g>`, so every band is behind every halo, segment, area and marker the
     // series loop below paints.
@@ -1715,7 +1785,7 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     // `series` is a handful long, so the scan is cheaper than the map.
     final singles = singlePathsFor(context);
     final marks = <int, List<FluentLineMark>>{};
-    for (final mark in markersFor(context)) {
+    for (final mark in allMarks) {
       (marks[mark.seriesIndex] ??= <FluentLineMark>[]).add(mark);
     }
     // `:1331` pushes the scatterpolar area onto `linesForLine`, so it sits
@@ -2014,16 +2084,135 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     return out;
   }
 
+  bool _isActive(FluentLineMark mark) =>
+      activePointId == '${mark.seriesIndex}_${mark.pointIndex}';
+
   /// `isLegendSelected` (`:838-839`): the arm a segment is drawn on.
   bool _selected(int seriesIndex) =>
       highlighted(series[seriesIndex].legend) || _noneHighlighted;
+
+  /// The box a pointer hovers [mark] in.
+  ///
+  /// SVG hit-tests a marker's fill and stroke, so this is the painted outline
+  /// widened by half its stroke: 2.5px of radius for an idle engine-A marker
+  /// (a 1px box under a 4px stroke, `:65`), 7.5 for the active one. Measured in
+  /// Chrome on charts-linechart--line-chart-basic: `elementFromPoint` finds the
+  /// idle marker 2.4px above its centre and the halo under it at 2.6. The last
+  /// point of an engine-A line also carries the invisible `r={8}` latch
+  /// (`:1161-1205`).
+  ///
+  /// ponytail: a box where SVG tests the circle, so that [hoverTargetAt] and
+  /// the shell, which hovers rectangles, name the same point; the corners add
+  /// under a pixel at each side of an idle marker.
+  Rect _hitBoundsOf(FluentLineMark mark) {
+    final painted = mark.path.getBounds().inflate(mark.strokeWidth / 2);
+    final data = series[mark.seriesIndex].data;
+    final latched =
+        !usesSinglePathEngine &&
+        data.length > 1 &&
+        mark.pointIndex == data.length - 1;
+    return latched
+        ? painted.expandToInclude(
+            Rect.fromCircle(
+              center: mark.centre,
+              radius: kFluentLineHoverLatchRadius,
+            ),
+          )
+        : painted;
+  }
+
+  /// The box [mark] paints while it is active, which is what the callout
+  /// places itself against: `positioning.target` is the hovered marker element
+  /// (`:1678`, `:1888-1892`), measured once it has grown to `hoverSize`.
+  ///
+  /// ponytail: a markers-mode circle with its own `markerSize` keeps that size
+  /// while active (`calculateMarkerRadius`); it is anchored at `hoverSize` all
+  /// the same. No story sizes one.
+  static Rect _activeBoundsOf(FluentLineMark mark) {
+    final shape = mark.shapeIndex ?? 0;
+    final ratio = FluentLineMarkerPainter.kWidthRatios[shape];
+    const box = FluentLineMarkerPainter.kHoverSize;
+    return FluentLineMarkerPainter.pathFor(
+      shape,
+      mark.centre,
+      ratio > 1 ? box / ratio : box,
+    ).getBounds();
+  }
+
+  /// The point a pointer at [position] hovers, or null.
+  ///
+  /// Ports the SVG hit test upstream leans on. Every marker runs
+  /// `_handleHover` for its own point, and every segment on the selected arm
+  /// runs it for its START point (`_handleHover(x1, y1, …, circleId)`,
+  /// `:1251-1278`), so a pointer on the line between two points shows the
+  /// earlier one. Series 0's `<g>` is last in the document (`:535`) and so on
+  /// top, and inside a group the points sit over the lines, which sit over the
+  /// halos (`:1362-1364`); later siblings sit over earlier ones. A dimmed
+  /// segment (`:1292-1307`) and a halo (`:1222-1234`) carry no handler but
+  /// still take the hit, so they hide whatever lies under them: Chrome finds
+  /// the halo, not the series below, 2.1px off a 4px line with a 4px border.
+  ///
+  /// A stroke is hit within half its width of the centreline, round caps
+  /// included; Chrome answers the line at 1.9px and the halo at 2.1px.
+  ///
+  /// ponytail: an engine-B path is not hit-tested (see [buildHitRegions]); its
+  /// markers are.
+  ({int seriesIndex, int pointIndex})? hoverTargetAt(
+    FluentCartesianChildContext context,
+    Offset position,
+  ) {
+    final marks = <int, List<FluentLineMark>>{};
+    for (final mark in markersFor(context)) {
+      (marks[mark.seriesIndex] ??= <FluentLineMark>[]).add(mark);
+    }
+    final segments = <int, List<FluentLineSegment>>{};
+    for (final segment in segmentsFor(context)) {
+      (segments[segment.seriesIndex] ??= <FluentLineSegment>[]).add(segment);
+    }
+    for (var i = 0; i < series.length; i++) {
+      for (final mark in (marks[i] ?? const <FluentLineMark>[]).reversed) {
+        if (_hitBoundsOf(mark).contains(position)) {
+          return (seriesIndex: i, pointIndex: mark.pointIndex);
+        }
+      }
+      final lines = (segments[i] ?? const <FluentLineSegment>[]).reversed;
+      for (final segment in lines) {
+        if (_distanceToSegment(position, segment.start, segment.end) <=
+            segment.strokeWidth / 2) {
+          return _selected(i)
+              ? (seriesIndex: i, pointIndex: segment.pointIndex - 1)
+              : null;
+        }
+      }
+      for (final segment in lines) {
+        if (segment.borderWidth != null &&
+            _distanceToSegment(position, segment.start, segment.end) <=
+                segment.borderWidth! / 2) {
+          return null;
+        }
+      }
+    }
+    return null;
+  }
 
   /// One hover target, keyboard stop and popover per marker.
   ///
   /// Engine A hangs `_handleHover` off every circle it draws (`:593`, `:865`,
   /// `:943`, `:1031`, `:1108`, `:1251`) and backs the last one with an
   /// invisible `r={8}` latch (`:1162-1168`); [markersFor] resolves exactly that
-  /// set of circles, so it is what the regions are cut from.
+  /// set of circles, so it is what the regions are cut from, each at the size
+  /// [_hitBoundsOf] hovers it.
+  ///
+  /// A pointer on a segment hovers its start point, which the chart resolves
+  /// through [hoverTargetAt] from the shell's pointer moves. A region is a
+  /// rectangle and a keyboard stop, so a diagonal band cannot be one; instead
+  /// the active point's region also takes in the pointer's last position
+  /// ([hoverPosition]), which lets the shell open that point's callout from
+  /// the next move along the line.
+  ///
+  /// ponytail: the callout therefore opens one pointer move after the marker
+  /// grows. A shell hook that asks the delegate which region a position
+  /// hovers would open it on the first.
   ///
   /// // ponytail: engine B outside markers mode declares nothing, because
   /// [markersFor] emits nothing there (`:773`). Upstream covers it with
@@ -2078,11 +2267,16 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
       final stack = isCalloutForStack
           ? findCalloutPoints(points, point.x, isXAxisDate: point.x is DateTime)
           : null;
+      final hitBounds = _hitBoundsOf(mark);
       return FluentChartHitRegion(
-        bounds: Rect.fromCircle(
-          center: mark.centre,
-          radius: kFluentLineHoverLatchRadius,
-        ),
+        bounds: _isActive(mark) && hoverPosition != null
+            // A pixel of drift in any direction from where the pointer last
+            // was on this point's line.
+            ? hitBounds.expandToInclude(
+                Rect.fromCircle(center: hoverPosition!, radius: 2),
+              )
+            : hitBounds,
+        popoverAnchor: _activeBoundsOf(mark),
         index: mark.pointIndex,
         legend: line.legend,
         popoverData: FluentChartPopoverData(
