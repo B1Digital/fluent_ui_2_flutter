@@ -109,6 +109,13 @@ The fifth, area chart secondary y-axis, is one of the 64. None of the five has
 HTML text to recover. The record, with both lists, is `textRectsRemeasured` in
 the manifest.
 
+Two stories changed while the re-measure was in flight, and were checked again
+against their new state. HorizontalBarChart basic's eight row-title rects
+had been added by hand from Oracle B's `fui-hbc__chartTitleLeft` boxes; pass 3
+measures the same eight to the last digit. ScatterChart date's PNG had been
+re-captured in UTC (see Ceilings); measured live in a UTC browser, its 19 text
+rects are exactly the ones in the manifest, and pass 3 finds nothing to add.
+
 ## Regenerating
 
 ```sh
@@ -125,6 +132,10 @@ The script launches the installed Chrome (`channel: 'chrome'`); Playwright's
 bundled browsers are not installed on the capture machine. A full run rewrites
 every PNG and its `textRects` together, so it drops `textRectsRemeasured`: the
 new corpus is measured with all three passes from the start.
+
+The browser context is pinned to `timezoneId: 'UTC'`. A story that leaves
+`useUTC` unset draws a local time scale, so an unpinned capture bakes in the
+capture machine's zone, and CI runs in UTC.
 
 Story ids are enumerated from the live `index.json` and never constructed: five
 naming conventions are in use upstream, and a constructed id renders
@@ -143,8 +154,17 @@ be for a consumer who sized the chart that way.
 - **Light theme only.** The capture pins `colorScheme: 'light'`.
 - **Not reproducible without the network.** CI can compare against the
   committed PNGs but cannot regenerate them, exactly as with Oracle B.
+- **Captured in +03:00.** Every PNG but ScatterChart date's predates the UTC
+  pin and was captured in Europe/Istanbul. Six of those stories draw a local
+  time scale, and the live storybook in UTC differs from their PNG (measured
+  2026-09-24): line chart events, gaps, large data, styled, custom locale date
+  axis and, by a few pixels, negative. A Flutter render in any other zone, or
+  with `useUTC` set, is compared against a different picture until they are
+  re-captured. ScatterChart date's was re-captured with the pin; its tick
+  labels, and so its `textRects`, came out identical.
 - **Version-locked.** These PNGs are 9.3.23 (the re-measure above changed
-  rectangles only, never a pixel). Re-capturing against a different
+  rectangles only, never a pixel), except ScatterChart date's, captured later
+  from the live storybook. Re-capturing against a different
   upstream and not bumping `kPinnedUpstreamVersion` will fail Oracle B's corpus
   test, which is the intended tripwire for both corpora.
 - 90 images, ~1.9 MB.
