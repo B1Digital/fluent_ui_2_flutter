@@ -160,6 +160,37 @@ def gen_status(mode):
 
 # ------------------------------------------------------------------- palette
 
+# Palette variables where the Figma file disagrees with Fluent UI React v9.
+# React wins — it is what renders, and test/token_parity_test.dart pins every
+# palette value to it. Each maps to the shared-ramp stop React uses; the
+# comment says what Figma holds instead.
+PALETTE_CORRECTIONS = {
+    # Navy's Tint 40: lavender avatars rendered navy (#73).
+    ("Palette/Lavender/Background/2/Rest", "Light"): "Lavender/Tint 40",
+    # Dark red's Primary.
+    ("Palette/Red/Background/3/Rest", "Dark"): "Red/Primary",
+    # Cranberry's Tint 40.
+    ("Palette/Red/Foreground/2/Rest", "Dark"): "Red/Tint 40",
+    # Tint 30; React overrides both to Tint 40 in dark.
+    ("Palette/Green/Foreground/3/Rest", "Dark"): "Green/Tint 40",
+    ("Palette/Green/Stroke/2/Rest", "Dark"): "Green/Tint 40",
+    # Tint 20.
+    ("Palette/Dark red/Stroke/Active/Rest", "Dark"): "Dark red/Tint 30",
+    # Magenta's Primary and Tint 30.
+    ("Palette/Plum/Stroke/Active/Rest", "Light"): "Plum/Primary",
+    ("Palette/Plum/Stroke/Active/Rest", "Dark"): "Plum/Tint 30",
+}
+
+
+def correct_palette(mode, g):
+    for (key, brightness), stop in PALETTE_CORRECTIONS.items():
+        want = g[f"Colors/Shared/{stop}"]["Value"]
+        if mode[key][brightness].lower() == want.lower():
+            sys.exit(f"{key} ({brightness}) already matches React; "
+                     "drop it from PALETTE_CORRECTIONS")
+        mode[key][brightness] = want
+
+
 def gen_palette(mode):
     entries = {}
     for k in mode:
@@ -188,6 +219,9 @@ def gen_palette(mode):
               "/// for every family upstream — only the extended families carry the",
               "/// full background/foreground/stroke set. Returning null rather than",
               "/// inventing a value keeps the port honest.",
+              "///",
+              "/// Where the Figma file disagrees with Fluent UI React v9, React's",
+              "/// value is used; see `PALETTE_CORRECTIONS` in the generator.",
               "@immutable",
               "class FluentPaletteColors {",
               "  /// Creates the palette layer for [brightness].",
@@ -271,6 +305,7 @@ def gen_materials(mode):
 def main():
     d = load()
     mode, g = d["Mode"], d[" Global"]
+    correct_palette(mode, g)  # may exit, so before any file is written
 
     shared, nfam = gen_shared(g)
     (LIB / "shared_colors.dart").write_text(shared)

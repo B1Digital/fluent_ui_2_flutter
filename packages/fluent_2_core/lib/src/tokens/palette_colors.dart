@@ -125,6 +125,9 @@ enum FluentPaletteFamily {
 /// for every family upstream — only the extended families carry the
 /// full background/foreground/stroke set. Returning null rather than
 /// inventing a value keeps the port honest.
+///
+/// Where the Figma file disagrees with Fluent UI React v9, React's
+/// value is used; see `PALETTE_CORRECTIONS` in the generator.
 @immutable
 class FluentPaletteColors {
   /// Creates the palette layer for [brightness].
@@ -155,7 +158,7 @@ class FluentPaletteColors {
     FluentPaletteFamily.gold: Color(0xFFECDFA5),
     FluentPaletteFamily.grape: Color(0xFFD9A7E0),
     FluentPaletteFamily.green: Color(0xFF9FD89F),
-    FluentPaletteFamily.lavender: Color(0xFFA3B2E8),
+    FluentPaletteFamily.lavender: Color(0xFFD2CCF8),
     FluentPaletteFamily.lightGreen: Color(0xFFA7E3A5),
     FluentPaletteFamily.lightTeal: Color(0xFFA6E9ED),
     FluentPaletteFamily.lilac: Color(0xFFE6BFED),
@@ -287,7 +290,7 @@ class FluentPaletteColors {
     FluentPaletteFamily.plum: Color(0xFFD696C0),
     FluentPaletteFamily.pumpkin: Color(0xFFEFC4AD),
     FluentPaletteFamily.purple: Color(0xFFC6B1DE),
-    FluentPaletteFamily.red: Color(0xFFEEACB2),
+    FluentPaletteFamily.red: Color(0xFFF1BBBC),
     FluentPaletteFamily.royalBlue: Color(0xFF9ABFDC),
     FluentPaletteFamily.seafoam: Color(0xFFA8F0CD),
     FluentPaletteFamily.steel: Color(0xFF94C8D4),
@@ -326,7 +329,7 @@ class FluentPaletteColors {
     FluentPaletteFamily.peach: Color(0xFFFF8C00),
     FluentPaletteFamily.pink: Color(0xFFE43BA6),
     FluentPaletteFamily.platinum: Color(0xFF69797E),
-    FluentPaletteFamily.plum: Color(0xFFBF0077),
+    FluentPaletteFamily.plum: Color(0xFF77004D),
     FluentPaletteFamily.pumpkin: Color(0xFFCA5010),
     FluentPaletteFamily.purple: Color(0xFF5C2E91),
     FluentPaletteFamily.red: Color(0xFFD13438),
@@ -348,7 +351,7 @@ class FluentPaletteColors {
     FluentPaletteFamily.cranberry: Color(0xFFDC626D),
     FluentPaletteFamily.darkGreen: Color(0xFF4DA64D),
     FluentPaletteFamily.darkOrange: Color(0xFFE9835E),
-    FluentPaletteFamily.darkRed: Color(0xFF962F3F),
+    FluentPaletteFamily.darkRed: Color(0xFFAC4F5E),
     FluentPaletteFamily.forest: Color(0xFF85B44C),
     FluentPaletteFamily.gold: Color(0xFFDAC157),
     FluentPaletteFamily.grape: Color(0xFFB55FC1),
@@ -364,7 +367,7 @@ class FluentPaletteColors {
     FluentPaletteFamily.peach: Color(0xFFFFBA66),
     FluentPaletteFamily.pink: Color(0xFFEF85C8),
     FluentPaletteFamily.platinum: Color(0xFFA0ADB2),
-    FluentPaletteFamily.plum: Color(0xFFD957A8),
+    FluentPaletteFamily.plum: Color(0xFFAD4589),
     FluentPaletteFamily.pumpkin: Color(0xFFDF8E64),
     FluentPaletteFamily.purple: Color(0xFF9470BD),
     FluentPaletteFamily.red: Color(0xFFE37D80),
@@ -419,7 +422,7 @@ class FluentPaletteColors {
     FluentPaletteFamily.green: Color(0xFF107C10),
     FluentPaletteFamily.lightGreen: Color(0xFF13A10E),
     FluentPaletteFamily.marigold: Color(0xFFEAA300),
-    FluentPaletteFamily.red: Color(0xFF750B1C),
+    FluentPaletteFamily.red: Color(0xFFD13438),
     FluentPaletteFamily.yellow: Color(0xFFFDE300),
   };
 
@@ -476,7 +479,7 @@ class FluentPaletteColors {
   static const Map<FluentPaletteFamily, Color> _foreground3RestDark = {
     FluentPaletteFamily.berry: Color(0xFFD161C4),
     FluentPaletteFamily.darkOrange: Color(0xFFE9835E),
-    FluentPaletteFamily.green: Color(0xFF54B054),
+    FluentPaletteFamily.green: Color(0xFF9FD89F),
     FluentPaletteFamily.lightGreen: Color(0xFF3DB838),
     FluentPaletteFamily.marigold: Color(0xFFEFB839),
     FluentPaletteFamily.red: Color(0xFFE37D80),
@@ -540,7 +543,7 @@ class FluentPaletteColors {
   static const Map<FluentPaletteFamily, Color> _stroke2RestDark = {
     FluentPaletteFamily.berry: Color(0xFFD161C4),
     FluentPaletteFamily.darkOrange: Color(0xFFE9835E),
-    FluentPaletteFamily.green: Color(0xFF54B054),
+    FluentPaletteFamily.green: Color(0xFF9FD89F),
     FluentPaletteFamily.lightGreen: Color(0xFF3DB838),
     FluentPaletteFamily.marigold: Color(0xFFEFB839),
     FluentPaletteFamily.red: Color(0xFFE37D80),
