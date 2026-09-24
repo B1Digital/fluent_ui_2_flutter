@@ -124,4 +124,158 @@ void main() {
       maxMismatch: 0.93,
     );
   });
+
+  testWidgets('LegendsControlled', (tester) async {
+    // `const legends: Legend[]` in charts-legends--legends-controlled.tsx — the
+    // same four rows as legends-basic, including the diamond and triangle.
+    final legends = <FluentChartLegendItem>[
+      FluentChartLegendItem(
+        title: 'Legend 1',
+        color: FluentDataVizPalette.resolve(FluentDataVizToken.color1),
+      ),
+      FluentChartLegendItem(
+        title: 'Legend 2',
+        color: FluentDataVizPalette.resolve(FluentDataVizToken.color2),
+      ),
+      FluentChartLegendItem(
+        title: 'Legend 3',
+        color: FluentDataVizPalette.resolve(FluentDataVizToken.color3),
+        shape: FluentChartLegendShape.diamond,
+      ),
+      FluentChartLegendItem(
+        title: 'Legend 4',
+        color: FluentDataVizPalette.resolve(FluentDataVizToken.color4),
+        shape: FluentChartLegendShape.triangle,
+      ),
+    ];
+
+    await expectReactParity(
+      tester,
+      'charts-legends--legends-controlled',
+      // The three "Select …" buttons and the "Selected legends:" line are the
+      // story's own chrome outside `fui-legend__root`, so the 944x32 clip
+      // holds the strip alone; see LegendsBasic for the OverflowBox.
+      OverflowBox(
+        alignment: Alignment.topLeft,
+        maxHeight: double.infinity,
+        child: FluentChartLegend(
+          legends: legends,
+          // `canSelectMultipleLegends`, and `selectedLegends` from
+          // `React.useState<string[]>([])` — controlled, nothing selected.
+          selectionMode: FluentChartLegendSelectionMode.multiple,
+          selectedLegends: const <String>[],
+          onChange: (_, _) {},
+        ),
+      ),
+      // Measured 0.838% — 222 pixels of 26,482, the same picture and the same
+      // three causes as LegendsBasic above: 184 px the Legend 3 diamond
+      // (rotated about the svg's (0, 0) where Chromium rotates about its
+      // centre), 24 px the triangle's diagonal edges, 14 px the right-edge
+      // column of Legend 2's swatch at fractional x 166.891, which Chromium
+      // snaps to a whole pixel and Skia does not.
+      maxMismatch: 0.93,
+    );
+  });
+
+  // legends-overflow, -styled and -wrap-lines pass
+  // `overflowText="Overflow Items"`, `allowFocusOnLegends` and
+  // `canSelectMultipleLegends={false}` (the port's defaults for the last two)
+  // over seventeen plain rectangles. Their `action`/`hoverAction`/
+  // `onMouseOutAction` are console/alert side effects that change no pixel.
+  List<FluentChartLegendItem> seventeen(int firstColor) =>
+      <FluentChartLegendItem>[
+        for (var i = 0; i < 17; i++)
+          FluentChartLegendItem(
+            title: 'Legend ${i + 1}',
+            color: FluentDataVizPalette.resolve(
+              FluentDataVizToken.values[firstColor - 1 + i],
+            ),
+          ),
+      ];
+
+  testWidgets('LegendsOverflow', (tester) async {
+    await expectReactParity(
+      tester,
+      'charts-legends--legends-overflow',
+      OverflowBox(
+        alignment: Alignment.topLeft,
+        maxHeight: double.infinity,
+        child: FluentChartLegend(
+          // charts-legends--legends-overflow.tsx: Legend N is
+          // `DataVizPalette.color(N + 4)`, color5 .. color21.
+          legends: seventeen(5),
+          overflowText: 'Overflow Items',
+        ),
+      ),
+      // Measured 4.401% — 1,042 pixels of 23,674. 140 are ten 14px columns:
+      // the edges of the Legend 3-7 swatches, which sit at fractional x
+      // (253.78, 340.67, 427.56, 514.45, 601.34) where Chromium snaps a border
+      // box to whole pixels and Skia paints partial coverage.
+      // The other 902 px are the "+10 Overflow Items" trigger (x 680-850),
+      // which the capture does not mask: its label is the MenuButton's HTML
+      // text, not a `fui-legend__text`, so the manifest records no rect for
+      // it. 818 of them are the label's glyphs; 84 are its chevron and right
+      // border, 4.6 px to the right of the reference's because Selawik
+      // Semibold sets the label 127.63 wide against Segoe UI Semibold's 123.0
+      // (the reference button is 165 wide: 13 + 123 + 4 + 12 + 13). The row
+      // count and the trigger's left edge (680) match.
+      maxMismatch: 4.5,
+    );
+  });
+
+  testWidgets('LegendsStyled', (tester) async {
+    await expectReactParity(
+      tester,
+      'charts-legends--legends-styled',
+      OverflowBox(
+        alignment: Alignment.topLeft,
+        maxHeight: double.infinity,
+        child: FluentChartLegend(
+          // charts-legends--legends-styled.tsx: Legend N is `colorN`. Despite
+          // the name, the story passes no `styles`.
+          legends: seventeen(1),
+          overflowText: 'Overflow Items',
+        ),
+      ),
+      // Measured 4.461% — 1,056 pixels of 23,674. 154 are eleven 14px
+      // columns: the fractional-x swatch edges of LegendsOverflow plus Legend
+      // 2's right edge (x 166), which the lighter color2 fringe trips here.
+      // The other 902 px are the "+10 Overflow Items" trigger (x 680-850),
+      // which the capture does not mask: its label is the MenuButton's HTML
+      // text, not a `fui-legend__text`, so the manifest records no rect for
+      // it. 818 of them are the label's glyphs; 84 are its chevron and right
+      // border, 4.6 px to the right of the reference's because Selawik
+      // Semibold sets the label 127.63 wide against Segoe UI Semibold's 123.0
+      // (the reference button is 165 wide: 13 + 123 + 4 + 12 + 13). The row
+      // count and the trigger's left edge (680) match.
+      maxMismatch: 4.5,
+    );
+  });
+
+  testWidgets('LegendsWrapLines', (tester) async {
+    await expectReactParity(
+      tester,
+      'charts-legends--legends-wrap-lines',
+      OverflowBox(
+        alignment: Alignment.topLeft,
+        maxHeight: double.infinity,
+        child: FluentChartLegend(
+          // charts-legends--legends-wrap-lines.tsx: Legend N is `colorN`,
+          // with `enabledWrapLines`.
+          legends: seventeen(1),
+          overflowText: 'Overflow Items',
+          enabledWrapLines: true,
+        ),
+      ),
+      // Measured 0.336% — 324 pixels of 96,486, and every one of them is a
+      // 14px column at a swatch's left or right edge. Oracle B puts fourteen
+      // of the seventeen swatches at fractional x (178.89, 273.78, ... 685.69
+      // inside the clip); Chromium snaps each border box to whole pixels and
+      // Skia paints the fraction, so a fractional edge is one column of
+      // partial coverage (482.97 is close enough to whole to pass). Line
+      // breaks, row pitch (40), the 800px resizable area and every swatch
+      // colour match.
+      maxMismatch: 0.35,
+    );
+  });
 }
