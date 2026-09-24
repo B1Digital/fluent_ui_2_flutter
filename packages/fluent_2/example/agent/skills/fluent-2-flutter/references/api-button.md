@@ -44,6 +44,8 @@ const FluentButton({
     this.shape = FluentButtonShape.rounded,
     this.iconPosition = FluentButtonIconPosition.before,
     this.icon,
+    this.activeIcon,
+    this.menuIcon,
     this.style,
     this.focusNode,
     this.autofocus = false,
@@ -61,6 +63,8 @@ const FluentButton({
 | `shape` | `FluentButtonShape` | No | `FluentButtonShape.rounded` | Corner treatment. |
 | `iconPosition` | `FluentButtonIconPosition` | No | `FluentButtonIconPosition.before` | Which side of the label the icon sits on. |
 | `icon` | `Widget?` | No | `null` | Optional leading or trailing icon. |
+| `activeIcon` | `Widget?` | No | `null` | Shown in place of [icon] while a subtle or transparent button is hovered or pressed — upstream's `bundleIcon`, which swaps the Regular glyph for its Filled one there. Pass the filled counterpart of [icon]: |
+| `menuIcon` | `Widget?` | No | `null` | A menu affordance after the label, which makes this upstream's `MenuButton`: |
 | `style` | `FluentButtonStyle?` | No | `null` | Overrides layered over the theme defaults. Merged last, so it wins. |
 | `focusNode` | `FocusNode?` | No | `null` | Focus node to use. One is created internally when omitted. |
 | `autofocus` | `bool` | No | `false` | Whether to take focus on mount. |
@@ -73,6 +77,7 @@ const FluentButton.icon({
     super.key,
     required Widget this.icon,
     required String this.semanticLabel,
+    this.activeIcon,
     this.onPressed,
     this.appearance = FluentButtonAppearance.secondary,
     this.size = FluentButtonSize.medium,
@@ -88,6 +93,7 @@ const FluentButton.icon({
 | `key` | `Key?` | No | `null` | Flutter widget identity. |
 | `icon` | `Widget` | Yes | — | Optional leading or trailing icon. |
 | `semanticLabel` | `String` | Yes | — | Announced by assistive technology. |
+| `activeIcon` | `Widget?` | No | `null` | Shown in place of [icon] while a subtle or transparent button is hovered or pressed — upstream's `bundleIcon`, which swaps the Regular glyph for its Filled one there. Pass the filled counterpart of [icon]: |
 | `onPressed` | `VoidCallback?` | No | `null` | Invoked on tap and on Space or Enter. Null disables the button. |
 | `appearance` | `FluentButtonAppearance` | No | `FluentButtonAppearance.secondary` | Fill and outline treatment. |
 | `size` | `FluentButtonSize` | No | `FluentButtonSize.medium` | Height and type ramp. |
@@ -122,6 +128,7 @@ const FluentCompoundButton({
     this.shape = FluentButtonShape.rounded,
     this.iconPosition = FluentButtonIconPosition.before,
     this.icon,
+    this.activeIcon,
     this.style,
     this.focusNode,
     this.autofocus = false,
@@ -140,6 +147,7 @@ const FluentCompoundButton({
 | `shape` | `FluentButtonShape` | No | `FluentButtonShape.rounded` | Corner treatment. |
 | `iconPosition` | `FluentButtonIconPosition` | No | `FluentButtonIconPosition.before` | Which side of the label the icon sits on. |
 | `icon` | `Widget?` | No | `null` | Optional leading or trailing icon, rendered at 40 logical pixels. |
+| `activeIcon` | `Widget?` | No | `null` | Shown in place of [icon] while a subtle or transparent compound button is hovered or pressed — upstream's `bundleIcon` Filled glyph. See `FluentButton.activeIcon`. |
 | `style` | `FluentCompoundButtonStyle?` | No | `null` | Overrides layered over the theme defaults. Merged last, so it wins. |
 | `focusNode` | `FocusNode?` | No | `null` | Focus node to use. One is created internally when omitted. |
 | `autofocus` | `bool` | No | `false` | Whether to take focus on mount. |
@@ -239,7 +247,9 @@ const FluentButtonBaseState({
     required this.enabled,
     required this.iconPosition,
     this.icon,
+    this.activeIcon,
     this.label,
+    this.menuIcon,
   });
 ```
 
@@ -248,7 +258,9 @@ const FluentButtonBaseState({
 | `enabled` | `bool` | Yes | — | Whether the button responds to input. |
 | `iconPosition` | `FluentButtonIconPosition` | Yes | — | Which side the icon sits on. |
 | `icon` | `Widget?` | No | `null` | The icon, if any. |
+| `activeIcon` | `Widget?` | No | `null` | Shown in place of [icon] while the button is hovered or pressed, or null to keep [icon] throughout. |
 | `label` | `Widget?` | No | `null` | The label, if any. A button with no label is an icon-only button. |
+| `menuIcon` | `Widget?` | No | `null` | A menu affordance after the label — upstream `MenuButton`'s `menuIcon` slot, which `fluentMenuChevron` fills. Unlike [icon] it keeps the label's colour and never swaps glyphs, since upstream styles it as neither `.fui-Button__icon` nor a bundled icon. |
 
 #### State, callback, and accessibility fields
 
@@ -309,7 +321,9 @@ const FluentButtonState({
     required this.size,
     required this.shape,
     super.icon,
+    super.activeIcon,
     super.label,
+    super.menuIcon,
   });
 ```
 
@@ -321,7 +335,9 @@ const FluentButtonState({
 | `size` | `FluentButtonSize` | Yes | — | Height and type ramp. |
 | `shape` | `FluentButtonShape` | Yes | — | Corner treatment. |
 | `icon` | `Widget?` | No | `null` | The icon, if any. |
+| `activeIcon` | `Widget?` | No | `null` | Shown in place of [icon] while the button is hovered or pressed, or null to keep [icon] throughout. |
 | `label` | `Widget?` | No | `null` | The label, if any. A button with no label is an icon-only button. |
+| `menuIcon` | `Widget?` | No | `null` | A menu affordance after the label — upstream `MenuButton`'s `menuIcon` slot, which `fluentMenuChevron` fills. Unlike [icon] it keeps the label's colour and never swaps glyphs, since upstream styles it as neither `.fui-Button__icon` nor a bundled icon. |
 
 ### `FluentButtonStyle`
 
@@ -333,6 +349,7 @@ Source: `packages/fluent_2/lib/src/buttons/button_style.dart`
 const FluentButtonStyle({
     this.backgroundColor,
     this.foregroundColor,
+    this.iconColor,
     this.borderColor,
     this.borderWidth,
     this.borderRadius,
@@ -340,18 +357,21 @@ const FluentButtonStyle({
     this.padding,
     this.gap,
     this.iconSize,
+    this.menuIconSize,
     this.minimumSize,
     this.mouseCursor,
     this.focusRingInsets,
     this.focusRingInnerColor,
     this.shadow,
+    this.animationDuration,
   });
 ```
 
 | Field | Type | Required | Default | Purpose |
 | --- | --- | --- | --- | --- |
 | `backgroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Surface fill. |
-| `foregroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Label and icon colour. |
+| `foregroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Label colour, and the icon's unless [iconColor] says otherwise. |
+| `iconColor` | `WidgetStateProperty<Color?>?` | No | `null` | Icon colour, or null for the icon to follow [foregroundColor]. |
 | `borderColor` | `WidgetStateProperty<Color?>?` | No | `null` | Border colour. Null and transparent are different: Fluent's `transparentStroke` becomes opaque in high contrast. |
 | `borderWidth` | `WidgetStateProperty<double?>?` | No | `null` | Border width. Zero means no border, which is not the same as a transparent one — a zero-width border cannot become visible in high contrast. |
 | `borderRadius` | `WidgetStateProperty<BorderRadius?>?` | No | `null` | Corner radius. |
@@ -359,11 +379,13 @@ const FluentButtonStyle({
 | `padding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Padding inside the border. |
 | `gap` | `WidgetStateProperty<double?>?` | No | `null` | Space between icon and label. |
 | `iconSize` | `WidgetStateProperty<double?>?` | No | `null` | Icon edge length. |
+| `menuIconSize` | `WidgetStateProperty<double?>?` | No | `null` | Edge length of the menu icon after the label, which upstream sizes apart from the icon: 12, or 16 at large, beside a 20 or 24 icon. |
 | `minimumSize` | `WidgetStateProperty<Size?>?` | No | `null` | Minimum tap target. |
 | `mouseCursor` | `WidgetStateProperty<MouseCursor?>?` | No | `null` | Cursor while hovering. |
 | `focusRingInsets` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | How deep the keyboard focus ring reaches in from each edge. |
 | `focusRingInnerColor` | `WidgetStateProperty<Color?>?` | No | `null` | A second, 1px ring just inside the focus ring, or null for none. |
 | `shadow` | `WidgetStateProperty<List<BoxShadow>?>?` | No | `null` | Drop shadow. Upstream gives a focused primary button `shadow2`. |
+| `animationDuration` | `Duration?` | No | `null` | How long the fill, border and label take to reach a new state's colours. |
 
 ### `FluentButtonTheme`
 
@@ -398,6 +420,7 @@ const FluentCompoundButtonBaseState({
     required super.enabled,
     required super.iconPosition,
     super.icon,
+    super.activeIcon,
     super.label,
     this.secondaryLabel,
   });
@@ -408,6 +431,7 @@ const FluentCompoundButtonBaseState({
 | `enabled` | `bool` | Yes | — | Whether the button responds to input. |
 | `iconPosition` | `FluentButtonIconPosition` | Yes | — | Which side the icon sits on. |
 | `icon` | `Widget?` | No | `null` | The icon, if any. |
+| `activeIcon` | `Widget?` | No | `null` | Shown in place of [icon] while the button is hovered or pressed, or null to keep [icon] throughout. |
 | `label` | `Widget?` | No | `null` | The label, if any. A button with no label is an icon-only button. |
 | `secondaryLabel` | `Widget?` | No | `null` | The second, quieter line under [FluentButtonBaseState.label]. |
 
@@ -425,6 +449,7 @@ const FluentCompoundButtonState({
     required this.size,
     required this.shape,
     super.icon,
+    super.activeIcon,
     super.label,
     super.secondaryLabel,
   });
@@ -438,6 +463,7 @@ const FluentCompoundButtonState({
 | `size` | `FluentButtonSize` | Yes | — | Height and type ramp. Shared verbatim with `FluentButton`. |
 | `shape` | `FluentButtonShape` | Yes | — | Corner treatment. Shared verbatim with `FluentButton`. |
 | `icon` | `Widget?` | No | `null` | The icon, if any. |
+| `activeIcon` | `Widget?` | No | `null` | Shown in place of [icon] while the button is hovered or pressed, or null to keep [icon] throughout. |
 | `label` | `Widget?` | No | `null` | The label, if any. A button with no label is an icon-only button. |
 | `secondaryLabel` | `Widget?` | No | `null` | The second, quieter line under [FluentButtonBaseState.label]. |
 
@@ -496,7 +522,7 @@ const FluentSplitButtonBaseState({
     required this.menuEnabled,
     super.icon,
     super.label,
-    this.menuIcon,
+    super.menuIcon,
   });
 ```
 
@@ -507,7 +533,7 @@ const FluentSplitButtonBaseState({
 | `menuEnabled` | `bool` | Yes | — | Whether the chevron half responds to input. |
 | `icon` | `Widget?` | No | `null` | The icon, if any. |
 | `label` | `Widget?` | No | `null` | The label, if any. A button with no label is an icon-only button. |
-| `menuIcon` | `Widget?` | No | `null` | The chevron. Defaults to [fluentMenuChevron] when null. |
+| `menuIcon` | `Widget?` | No | `null` | A menu affordance after the label — upstream `MenuButton`'s `menuIcon` slot, which `fluentMenuChevron` fills. Unlike [icon] it keeps the label's colour and never swaps glyphs, since upstream styles it as neither `.fui-Button__icon` nor a bundled icon. |
 
 ### `FluentSplitButtonEdgeColors`
 
@@ -587,7 +613,7 @@ const FluentSplitButtonState({
 | `shape` | `FluentButtonShape` | Yes | — | Corner treatment. Shared verbatim with `FluentButton`. |
 | `icon` | `Widget?` | No | `null` | The icon, if any. |
 | `label` | `Widget?` | No | `null` | The label, if any. A button with no label is an icon-only button. |
-| `menuIcon` | `Widget?` | No | `null` | The chevron. Defaults to [fluentMenuChevron] when null. |
+| `menuIcon` | `Widget?` | No | `null` | A menu affordance after the label — upstream `MenuButton`'s `menuIcon` slot, which `fluentMenuChevron` fills. Unlike [icon] it keeps the label's colour and never swaps glyphs, since upstream styles it as neither `.fui-Button__icon` nor a bundled icon. |
 
 ### `FluentSplitButtonStyle`
 
@@ -639,7 +665,9 @@ FluentButtonState resolveFluentButtonState({
   FluentButtonShape shape = FluentButtonShape.rounded,
   FluentButtonIconPosition iconPosition = FluentButtonIconPosition.before,
   Widget? icon,
+  Widget? activeIcon,
   Widget? label,
+  Widget? menuIcon,
 });
 
 FluentButtonStyle resolveFluentButtonStyle(
@@ -654,6 +682,7 @@ FluentCompoundButtonState resolveFluentCompoundButtonState({
   FluentButtonShape shape = FluentButtonShape.rounded,
   FluentButtonIconPosition iconPosition = FluentButtonIconPosition.before,
   Widget? icon,
+  Widget? activeIcon,
   Widget? label,
   Widget? secondaryLabel,
 });
@@ -722,7 +751,7 @@ copying it into a standalone application.
 ## Source and test evidence
 
 - Implementation: `packages/fluent_2/lib/src/buttons/button.dart`, `packages/fluent_2/lib/src/buttons/compound_button.dart`, `packages/fluent_2/lib/src/buttons/split_button.dart`
-- Tests: `packages/fluent_2/test/buttons/button_test.dart`, `packages/fluent_2/test/buttons/split_compound_button_test.dart`, `packages/fluent_2/test/goldens/button_golden_test.dart`, `packages/fluent_2/test/goldens/dialog_golden_test.dart`, `packages/fluent_2/test/goldens/field_golden_test.dart`, `packages/fluent_2/test/goldens/message_bar_golden_test.dart`, `packages/fluent_2/test/goldens/nav_golden_test.dart`, `packages/fluent_2/test/goldens/split_compound_button_golden_test.dart`, `packages/fluent_2/test/goldens/teaching_popover_golden_test.dart`, `packages/fluent_2/test/goldens/toolbar_golden_test.dart`, `packages/fluent_2/test/goldens/tree_golden_test.dart`, `packages/fluent_2/test/inputs/field_test.dart`
+- Tests: `packages/fluent_2/test/buttons/button_test.dart`, `packages/fluent_2/test/buttons/split_compound_button_test.dart`, `packages/fluent_2/test/charts/chrome/legend_test.dart`, `packages/fluent_2/test/goldens/button_golden_test.dart`, `packages/fluent_2/test/goldens/dialog_golden_test.dart`, `packages/fluent_2/test/goldens/field_golden_test.dart`, `packages/fluent_2/test/goldens/message_bar_golden_test.dart`, `packages/fluent_2/test/goldens/nav_golden_test.dart`, `packages/fluent_2/test/goldens/split_compound_button_golden_test.dart`, `packages/fluent_2/test/goldens/teaching_popover_golden_test.dart`, `packages/fluent_2/test/goldens/toolbar_golden_test.dart`, `packages/fluent_2/test/goldens/tree_golden_test.dart`
 - Stories: `packages/fluent_2/example/lib/pages/charts_declarativechart.dart`, `packages/fluent_2/example/lib/pages/charts_donutchart.dart`, `packages/fluent_2/example/lib/pages/charts_horizontalbarchartwithaxis.dart`, `packages/fluent_2/example/lib/pages/charts_legends.dart`, `packages/fluent_2/example/lib/pages/charts_verticalbarchart.dart`, `packages/fluent_2/example/lib/pages/charts_verticalstackedbarchart.dart`, `packages/fluent_2/example/lib/pages/compat_components_calendar.dart`, `packages/fluent_2/example/lib/pages/compat_components_datepicker.dart`, `packages/fluent_2/example/lib/pages/components_button_button.dart`, `packages/fluent_2/example/lib/pages/components_button_compoundbutton.dart`, `packages/fluent_2/example/lib/pages/components_button_menubutton.dart`, `packages/fluent_2/example/lib/pages/components_button_splitbutton.dart`
 - Official usage: https://fluent2.microsoft.design/components/web/react/core/button/usage/
 - Design decisions: `references/components-actions-inputs.md`

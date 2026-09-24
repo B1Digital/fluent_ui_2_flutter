@@ -164,6 +164,7 @@ const FluentTreeItem({
     required this.label,
     this.icon,
     this.actions,
+    this.aside,
     this.searchLabel,
     this.children = const <FluentTreeItem>[],
     this.enabled = true,
@@ -176,6 +177,7 @@ const FluentTreeItem({
 | `label` | `Widget` | Yes | — | The row's label. |
 | `icon` | `Widget?` | No | `null` | Optional leading icon, drawn between the chevron and the label. |
 | `actions` | `Widget?` | No | `null` | Optional trailing controls. Figma's `Quick actions` slot, which holds a 24px subtle icon button — pass a `FluentButton.icon` to reproduce it. |
+| `aside` | `Widget?` | No | `null` | Optional trailing content that is always shown — a badge, a status icon. |
 | `searchLabel` | `String?` | No | `null` | Plain text used for typeahead, since [label] is a widget and cannot be read. Null opts this row out of typeahead. |
 | `children` | `List<FluentTreeItem>` | No | `const <FluentTreeItem>[]` | The subtree. Empty makes this a leaf, which draws no chevron and takes one extra indent step so its label lines up with its siblings'. |
 | `enabled` | `bool` | No | `true` | Whether the row responds to input. Disabled is a real state: it swaps the whole colour ramp, refuses focus, and is skipped by the arrow keys. |
@@ -202,6 +204,7 @@ const FluentTreeItemBaseState({
     this.icon,
     this.label,
     this.actions,
+    this.aside,
     this.onSelectionChanged,
   });
 ```
@@ -216,7 +219,8 @@ const FluentTreeItemBaseState({
 | `selected` | `bool` | Yes | — | Whether the row is selected. Drives both the control and Figma's `Selected` state. |
 | `icon` | `Widget?` | No | `null` | Optional leading icon. |
 | `label` | `Widget?` | No | `null` | The row's label. |
-| `actions` | `Widget?` | No | `null` | Optional trailing controls. |
+| `actions` | `Widget?` | No | `null` | Optional trailing controls, shown while the row is in use. |
+| `aside` | `Widget?` | No | `null` | Optional trailing content, shown whenever [actions] are not. |
 | `onSelectionChanged` | `ValueChanged<bool>?` | No | `null` | Invoked by the selection control with the next value. Null renders the control disabled. |
 
 #### State, callback, and accessibility fields
@@ -245,6 +249,7 @@ const FluentTreeItemState({
     super.icon,
     super.label,
     super.actions,
+    super.aside,
     super.onSelectionChanged,
   });
 ```
@@ -261,7 +266,8 @@ const FluentTreeItemState({
 | `size` | `FluentTreeSize` | Yes | — | Row height and type ramp. |
 | `icon` | `Widget?` | No | `null` | Optional leading icon. |
 | `label` | `Widget?` | No | `null` | The row's label. |
-| `actions` | `Widget?` | No | `null` | Optional trailing controls. |
+| `actions` | `Widget?` | No | `null` | Optional trailing controls, shown while the row is in use. |
+| `aside` | `Widget?` | No | `null` | Optional trailing content, shown whenever [actions] are not. |
 | `onSelectionChanged` | `ValueChanged<bool>?` | No | `null` | Invoked by the selection control with the next value. Null renders the control disabled. |
 
 ### `FluentTreeItemStyle`
@@ -302,7 +308,7 @@ const FluentTreeItemStyle({
 | `padding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around the whole row, before the per-level indent is added. |
 | `innerPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Vertical inset around the icon-and-label group. Figma's `Start content`, which is what actually sets the row height: 6 + 20 + 6 = 32 medium, 4 + 16 + 4 = 24 small. The row frame itself carries no vertical padding. |
 | `contentPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around the label alone. Figma's `Content slot`. |
-| `actionsPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around the trailing actions slot. Figma's `Quick actions`. |
+| `actionsPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around the trailing actions and aside slots. Figma's `Quick actions`. |
 | `gap` | `WidgetStateProperty<double?>?` | No | `null` | Space between the leading icon, the selector and the label. |
 | `iconSize` | `WidgetStateProperty<double?>?` | No | `null` | Leading icon box. |
 | `expandIconSize` | `WidgetStateProperty<double?>?` | No | `null` | Chevron glyph box. |
@@ -373,6 +379,7 @@ FluentTreeItemState resolveFluentTreeItemState({
   Widget? icon,
   Widget? label,
   Widget? actions,
+  Widget? aside,
   ValueChanged<bool>? onSelectionChanged,
 });
 

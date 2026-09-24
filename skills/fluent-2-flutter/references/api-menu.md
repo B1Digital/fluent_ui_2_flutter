@@ -383,8 +383,7 @@ FluentMenu(
   ],
   builder: (BuildContext context, VoidCallback toggle) => FluentButton(
     onPressed: toggle,
-    icon: fluentMenuChevron,
-    iconPosition: FluentButtonIconPosition.after,
+    menuIcon: fluentMenuChevron,
     child: const Text('Example'),
   ),
 )

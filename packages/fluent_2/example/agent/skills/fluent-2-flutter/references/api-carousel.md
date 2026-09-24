@@ -49,6 +49,7 @@ const FluentCarousel({
     this.layout = FluentCarouselLayout.outsideContent,
     this.chevronPlacement = FluentCarouselChevronPlacement.flexibleToEdges,
     this.pauseButton = FluentCarouselPauseButton.onContentClick,
+    this.navAppearance = FluentCarouselNavAppearance.neutral,
     this.style,
     this.semanticLabel,
     this.previousLabel,
@@ -74,6 +75,7 @@ const FluentCarousel({
 | `layout` | `FluentCarouselLayout` | No | `FluentCarouselLayout.outsideContent` | Where the nav strip sits. |
 | `chevronPlacement` | `FluentCarouselChevronPlacement` | No | `FluentCarouselChevronPlacement.flexibleToEdges` | Where the chevrons sit. |
 | `pauseButton` | `FluentCarouselPauseButton` | No | `FluentCarouselPauseButton.onContentClick` | Where the autoplay affordance lives. |
+| `navAppearance` | `FluentCarouselNavAppearance` | No | `FluentCarouselNavAppearance.neutral` | How the step marks are tinted. Upstream's `CarouselNav` `appearance`. |
 | `style` | `FluentCarouselStyle?` | No | `null` | Overrides layered over the theme defaults. Merged last, so it wins. |
 | `semanticLabel` | `String?` | No | `null` | Announced by assistive technology for the carousel as a whole. |
 | `previousLabel` | `String?` | No | `null` | Announced for the previous-slide chevron. |
@@ -103,6 +105,7 @@ const FluentCarouselStep({
     required this.semanticLabel,
     this.onPressed,
     this.preview,
+    this.appearance = FluentCarouselNavAppearance.neutral,
     this.style,
   });
 ```
@@ -114,6 +117,7 @@ const FluentCarouselStep({
 | `semanticLabel` | `String` | Yes | — | Announced by assistive technology. A step has no text of its own. |
 | `onPressed` | `VoidCallback?` | No | `null` | Invoked on tap and on Space or Enter. Null disables the step. |
 | `preview` | `Widget?` | No | `null` | The thumbnail for the image-preview indicator. Null draws a dot or pill. |
+| `appearance` | `FluentCarouselNavAppearance` | No | `FluentCarouselNavAppearance.neutral` | How the mark is tinted. |
 | `style` | `FluentCarouselStyle?` | No | `null` | Overrides layered over the theme defaults. Merged last, so it wins. |
 
 #### State, callback, and accessibility fields
@@ -202,6 +206,19 @@ enum FluentCarouselLayout {
 }
 ```
 
+### `FluentCarouselNavAppearance`
+
+How the step marks are tinted. Upstream's `CarouselNav` `appearance` prop; Figma has no counterpart axis.
+
+Source: `packages/fluent_2/lib/src/surfaces/carousel.dart`
+
+```dart
+enum FluentCarouselNavAppearance {
+  neutral,
+  brand,
+}
+```
+
 ### `FluentCarouselPauseButton`
 
 Where the autoplay affordance lives. Figma's `Pause Button` axis.
@@ -233,6 +250,7 @@ const FluentCarouselState({
     required super.nextLabel,
     required super.stepLabel,
     required this.navType,
+    this.navAppearance = FluentCarouselNavAppearance.neutral,
     super.header,
     super.previews,
     super.autoplayControl,
@@ -254,6 +272,7 @@ const FluentCarouselState({
 | `nextLabel` | `String` | Yes | — | Announced by assistive technology for the next-slide chevron. |
 | `stepLabel` | `String Function(int index, int count)` | Yes | — | Announced by assistive technology for the step at a given index. |
 | `navType` | `FluentCarouselNavType` | Yes | — | Which indicator the strip shows. |
+| `navAppearance` | `FluentCarouselNavAppearance` | No | `FluentCarouselNavAppearance.neutral` | How the step marks are tinted. |
 | `header` | `Widget?` | No | `null` | Optional title/description block above the slide. |
 | `previews` | `List<Widget>?` | No | `null` | Thumbnails for the image-preview indicator, one per slide. Null renders the dot indicator instead. |
 | `autoplayControl` | `Widget?` | No | `null` | The already-built play/pause button, or null when the carousel has no autoplay affordance in the nav. |
@@ -292,7 +311,7 @@ const FluentCarouselStyle({
 
 | Field | Type | Required | Default | Purpose |
 | --- | --- | --- | --- | --- |
-| `stepColor` | `WidgetStateProperty<Color?>?` | No | `null` | The dot or pill mark itself. Ramped rest/hover/pressed/disabled. |
+| `stepColor` | `WidgetStateProperty<Color?>?` | No | `null` | The dot or pill mark itself. Ramped rest/hover/pressed/disabled, and resolved with [WidgetState.selected] for the current step's pill, whose ramp upstream runs the other way: the dot darkens under the pointer, the pill lightens. |
 | `stepBackgroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | The step's 24x24 hit target. Fluent's transparent ramp, which is invisible in light and dark and **opaque** in high contrast. |
 | `stepBorderRadius` | `WidgetStateProperty<BorderRadius?>?` | No | `null` | Corner radius of the step's hit target. |
 | `stepPadding` | `WidgetStateProperty<EdgeInsetsGeometry?>?` | No | `null` | Inset around an inactive step's dot. |
@@ -352,6 +371,8 @@ FluentCarouselState resolveFluentCarouselState({
   FluentCarouselChevronPlacement chevronPlacement =
       FluentCarouselChevronPlacement.flexibleToEdges,
   FluentCarouselNavType navType = FluentCarouselNavType.steps,
+  FluentCarouselNavAppearance navAppearance =
+      FluentCarouselNavAppearance.neutral,
   String? previousLabel,
   String? nextLabel,
   String Function(int index, int count)? stepLabel,

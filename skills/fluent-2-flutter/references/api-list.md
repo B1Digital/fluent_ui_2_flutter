@@ -146,7 +146,7 @@ const FluentListItemBaseState({
 | Field | Type | Required | Default | Purpose |
 | --- | --- | --- | --- | --- |
 | `enabled` | `bool` | Yes | — | Whether the row responds to input. |
-| `selected` | `bool` | Yes | — | Whether the row is selected. Figma's `Active` axis, which moves both the fill and the title's weight. |
+| `selected` | `bool` | Yes | — | Whether the row is selected. Figma's `Active` axis, which this port carries on the title's weight (the storybook paints no selected fill). |
 | `indicator` | `Widget?` | No | `null` | The selection affordance, already built and made inert. Null when the list is [FluentListSelection.none]. |
 | `media` | `Widget?` | No | `null` | The leading media slot — an avatar, an icon, a thumbnail. |
 | `primary` | `Widget?` | No | `null` | The title. |
@@ -157,7 +157,7 @@ const FluentListItemBaseState({
 #### State, callback, and accessibility fields
 
 - `enabled` (`bool`): Whether the row responds to input.
-- `selected` (`bool`): Whether the row is selected. Figma's `Active` axis, which moves both the fill and the title's weight.
+- `selected` (`bool`): Whether the row is selected. Figma's `Active` axis, which this port carries on the title's weight (the storybook paints no selected fill).
 
 ### `FluentListItemSize`
 
@@ -195,7 +195,7 @@ const FluentListItemState({
 | Field | Type | Required | Default | Purpose |
 | --- | --- | --- | --- | --- |
 | `enabled` | `bool` | Yes | — | Whether the row responds to input. |
-| `selected` | `bool` | Yes | — | Whether the row is selected. Figma's `Active` axis, which moves both the fill and the title's weight. |
+| `selected` | `bool` | Yes | — | Whether the row is selected. Figma's `Active` axis, which this port carries on the title's weight (the storybook paints no selected fill). |
 | `size` | `FluentListItemSize` | Yes | — | Row height and title type ramp. |
 | `indicator` | `Widget?` | No | `null` | The selection affordance, already built and made inert. Null when the list is [FluentListSelection.none]. |
 | `media` | `Widget?` | No | `null` | The leading media slot — an avatar, an icon, a thumbnail. |
@@ -233,7 +233,7 @@ const FluentListItemStyle({
 
 | Field | Type | Required | Default | Purpose |
 | --- | --- | --- | --- | --- |
-| `backgroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Row fill. `Neutral/Background/Subtle/*`, or `Neutral/Background/Disabled/Rest` while disabled. |
+| `backgroundColor` | `WidgetStateProperty<Color?>?` | No | `null` | Row fill. `Neutral/Background/Subtle/Rest` (transparent) in every state by default: upstream's `useListItemStyles.styles.ts` paints none. |
 | `primaryTextColor` | `WidgetStateProperty<Color?>?` | No | `null` | Title colour. |
 | `secondaryTextColor` | `WidgetStateProperty<Color?>?` | No | `null` | Second-line colour. |
 | `tertiaryTextColor` | `WidgetStateProperty<Color?>?` | No | `null` | Trailing-metadata colour. |

@@ -10,6 +10,30 @@
   else paints as `BoxDecoration`. The CarouselNav and Carousel demos use it,
   which is what stopped the CarouselNav card rendering solid grey.
 
+- **Charts:**
+  - `calloutPropsPerDataPoint` on `FluentHorizontalBarChart` and
+    `FluentDonutChart`, spread over the built-in reading as ChartPopover does,
+    and `legends` / `enabledWrapLines` on `FluentHorizontalBarChart`
+    (upstream's `legendProps`), whose wrapped rows render each legend's
+    `annotationBuilder`.
+  - `FluentChartTooltipBox`, the box a cut-short axis label shows its whole
+    text in on hover or a touch tap.
+  - `FluentChartPopover.anchorRect`, `FluentChartPopoverData.isCartesian` and
+    `contentMaxWidth`, `FluentChartHitRegion.popoverAnchor`,
+    `FluentCartesianChartProps.popoverFollowsPointer` and
+    `FluentYValueHover.shouldDrawBorderBottom`.
+- **Components:**
+  - `FluentButton.activeIcon` (upstream's `bundleIcon` filled glyph, shown
+    while a subtle or transparent button is hovered or pressed; also on
+    `FluentCompoundButton`) and `FluentButton.menuIcon` (MenuButton's chevron
+    slot: 12, or 16 at large, 4 after the label, in the label colour).
+  - `FluentButtonStyle.iconColor`, `menuIconSize` and `animationDuration`.
+  - `FluentLinkUnderline`, which paints a link's underline as a crisp 1px
+    line under every line of the label.
+  - `FluentCarouselNavAppearance`, `FluentCarousel.navAppearance` and
+    `FluentCarouselStep.appearance` (upstream's brand CarouselNav).
+  - `FluentTreeItem.aside`, the always-visible trailing slot.
+
 ### Changed
 
 - **BREAKING (custom styles): `FluentInputStyle.borderWidth`,
@@ -187,6 +211,40 @@
   `FluentTooltip`. `buildFluentTooltip` is unchanged and still stacks the
   arrow on exactly the side its state names.
 
+- **BREAKING (charts):**
+  - `FluentChartPopoverLayoutDelegate` is replaced by `FluentChartPopoverLayout`
+    (and `RenderFluentChartPopoverLayout`), which places the surface as
+    upstream's ChartPopover does: above and centred, flipped, shifted into the
+    chart root and height-capped with its body clipped.
+  - `FluentVerticalBarChartDelegate.barDomain` is now
+    `barDomainFor(FluentCartesianChildContext)`, and
+    `FluentScatterChartDelegate.popoverFor` returns `FluentChartPopoverData?`
+    (null where no point at that x shows a callout).
+  - The HorizontalBar, Donut, Funnel and Polar popovers float in the app's
+    `Overlay`, as upstream's overhang their chart, so hovering one needs an
+    `Overlay` ancestor (`FluentApp` and `WidgetsApp` provide it).
+- **BREAKING (components), each to match the storybook:**
+  - `FluentDialog.showCloseButton` is nullable; null draws the header close
+    button on a non-modal dialog only, and the close is a bare 20px glyph;
+  - every popover surface lays out its 1px border (2px larger, content 1px
+    further in), flips and shifts to stay in the viewport, and
+    `FluentPopoverStyle.arrowInset` defaults to 8;
+  - tree item actions show only while the row is hovered, pressed or focused,
+    over a 32px row; list items paint no fill; carousel previous, next and
+    autoplay are 32x32;
+  - compound button padding, type and icon gap follow upstream (60/72/80 high
+    with an icon).
+- **Charts match the storybook's hover** (each measured against the live
+  storybook): line, area, scatter, vertical, stacked, grouped and horizontal
+  bar charts, donut, gauge, funnel, heat map, gantt, polar, sankey and
+  sparkline open, place, follow and close their callouts as upstream does, and
+  grow markers and draw hover rules where upstream does.
+- **Components match the storybook's hover and press:** buttons tween border
+  and label colour, subtle icons turn brand on their own, checked toggles
+  draw upstream's border and icon, radio labels ramp, nav, tree, data grid,
+  list item, breadcrumb and carousel dots follow React's ramps where Figma
+  disagreed, and swatch rings keep their white hairline.
+
 ### Fixed
 
 - **Turning reduced motion off again left the focus bar snapping.** The bar
@@ -222,6 +280,30 @@
   layout pass — no frame shows the surface on the wrong side, and nothing is
   scheduled while it is open — and the surface still follows a trigger that
   moves.
+
+- **Charts:**
+  - an unknown `culture` (such as `'rs-ss'`) falls back to the default locale
+    instead of throwing during build;
+  - a log y axis draws its default log ticks; mixed number and `Date` x values
+    compare by value, and a `Date` extent on a numeric axis no longer throws;
+  - annotation boxes lay out and paint as the CSS container (max-width,
+    border, outer shadows, dashed and dotted borders);
+  - legend swatches snap to device pixels and rotate about their centre, line
+    swatches in a bar chart are 14x6, wrapped legend rows start at the
+    leading edge, and the overflow chevron sits in the menu icon slot;
+  - VerticalBar and VerticalStackedBar place date bars on upstream's un-niced
+    time scale and stand on the height above the label reserve; the
+    HorizontalBarChart benchmark triangle sits where upstream draws it;
+  - a secondary y axis fills areas to zero; line segments honour
+    `strokeDashoffset`; colour fill bars top out at the data maximum; the
+    sparkline stroke is clipped to its plot; a sankey node name collapses its
+    white space;
+  - a stack callout with two or more line rows no longer throws
+    'Duplicate keys found'.
+- **Components:** the toast clips only while its height animates; a popover's
+  surface is capped only in width, so a tall one no longer squeezes its
+  content; the teaching popover dismiss is upstream's bare 12px glyph; a
+  labelled list item announces its label once.
 
 ## 0.0.5
 
