@@ -711,27 +711,107 @@ void main() {
       expect(reported, isEmpty);
     });
 
-    // Space must stay free to type a space so a user can write "12 PM".
-    // FluentDropdown binds Space to activate; a combobox must not, or the key
-    // would commit a row instead of reaching the field.
-    testWidgets('Space is not bound, so it cannot commit a row', (
+    // Chrome (tail_timepicker/up_tail.out, T3_*), freeform or not: upstream's
+    // `isTyping` lets Space type while the list is shut or the last key typed
+    // a character; after a click, an arrow, Home, End or an Enter that opened
+    // it, Space picks the active row and closes, as Enter does.
+    testWidgets('Space picks the active row unless the user is typing', (
       tester,
     ) async {
-      final reported = <FluentTimeSelectionData>[];
-      await _pump(tester, freeform: true, onTimeChange: reported.add);
+      for (final freeform in <bool>[false, true]) {
+        final reason = 'freeform $freeform';
+        final reported = <FluentTimeSelectionData>[];
+        await tester.pumpWidget(const SizedBox());
+        await _pump(tester, freeform: freeform, onTimeChange: reported.add);
 
-      await tester.tap(find.byType(FluentTimePicker));
-      await tester.pumpAndSettle();
-      expect(find.text('09:00'), findsOneWidget);
+        // Opened by a click: Space picks the first row.
+        await _click(tester, tester.getCenter(find.byType(EditableText)));
+        expect(_row('08:00'), findsOneWidget, reason: reason);
+        expect(
+          await tester.sendKeyEvent(LogicalKeyboardKey.space),
+          isTrue,
+          reason: '$reason: the key is spent, no space goes in',
+        );
+        await tester.pumpAndSettle();
+        expect(_row('09:00'), findsNothing, reason: '$reason: closed');
+        expect(reported.last.selectedTime, DateTime(2026, 3, 10, 8));
+        expect(_text(tester), '08:00', reason: reason);
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
-      await tester.pumpAndSettle();
-      await tester.sendKeyEvent(LogicalKeyboardKey.space);
-      await tester.pumpAndSettle();
+        // Typing: Space goes to the field, and a typed space keeps it open.
+        tester.testTextInput.enterText('');
+        await tester.pumpAndSettle();
+        tester.testTextInput.enterText('0');
+        await tester.pumpAndSettle();
+        expect(_row('08:00'), findsOneWidget, reason: '$reason: typed open');
+        reported.clear();
+        expect(
+          await tester.sendKeyEvent(LogicalKeyboardKey.space),
+          isFalse,
+          reason: '$reason: typing, the space goes in',
+        );
+        tester.testTextInput.enterText('0 ');
+        await tester.pumpAndSettle();
+        expect(_row('08:00'), findsOneWidget, reason: '$reason: still open');
+        expect(reported, isEmpty, reason: reason);
 
-      // Still open, nothing committed: Space did not reach an activate action.
-      expect(find.text('09:00'), findsOneWidget);
-      expect(reported, isEmpty);
+        // An arrow ends the typing: Space picks the row it moved to.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.space);
+        await tester.pumpAndSettle();
+        expect(_row('10:00'), findsNothing, reason: '$reason: closed');
+        expect(reported.last.selectedTime, isNotNull, reason: reason);
+
+        // Shut: Space goes to the field and does not open the list.
+        expect(
+          await tester.sendKeyEvent(LogicalKeyboardKey.space),
+          isFalse,
+          reason: '$reason: shut, the space goes in',
+        );
+        tester.testTextInput.enterText('${_text(tester)} ');
+        await tester.pumpAndSettle();
+        expect(
+          _row('10:00'),
+          findsNothing,
+          reason: '$reason: a space opens nothing',
+        );
+
+        // End on the open list ends typing too: Space picks the last row.
+        tester.testTextInput.enterText('');
+        await tester.pumpAndSettle();
+        tester.testTextInput.enterText('1');
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.end);
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.space);
+        await tester.pumpAndSettle();
+        expect(reported.last.selectedTime, DateTime(2026, 3, 10, 10));
+        expect(_text(tester), '10:00', reason: reason);
+      }
+    });
+
+    testWidgets('freeform: a typed space unrings a match the text has left', (
+      tester,
+    ) async {
+      // Chrome (T3_freeform-with-error-handling_type_space): '1' rings
+      // 10:00 AM, '1 ' rings nothing, since upstream's freeform check reads
+      // the text untrimmed; a non-freeform picker keeps the row.
+      for (final freeform in <bool>[false, true]) {
+        await _pumpLive(tester, freeform: freeform, startHour: 10, endHour: 20);
+        await _click(tester, tester.getCenter(find.byType(EditableText)));
+        tester.testTextInput.enterText('1');
+        await tester.pumpAndSettle();
+        expect(_rung(tester), <String>[
+          '10:00 AM',
+        ], reason: 'freeform $freeform');
+        tester.testTextInput.enterText('1 ');
+        await tester.pumpAndSettle();
+        expect(
+          _rung(tester),
+          freeform ? isEmpty : <String>['10:00 AM'],
+          reason: 'freeform $freeform',
+        );
+      }
     });
   });
 
@@ -2157,6 +2237,345 @@ void main() {
         0,
       );
       expect(find.bySemanticsLabel('Open'), findsOneWidget);
+    });
+  });
+
+  // Evidence for this group: the session scratchpad's tail_timepicker.
+  group('FluentTimePicker — presses as Chrome delivers them', () {
+    /// A mouse press at [from], moved by [by] and released there.
+    Future<void> drag(
+      WidgetTester tester,
+      Offset from,
+      Offset by, {
+      int buttons = kPrimaryButton,
+    }) async {
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: buttons,
+      );
+      await mouse.addPointer(location: from);
+      await mouse.down(from);
+      await tester.pump(const Duration(milliseconds: 16));
+      await mouse.moveBy(by);
+      await tester.pump(const Duration(milliseconds: 16));
+      await mouse.up();
+      await tester.pumpAndSettle();
+      await mouse.removePointer();
+      // Past the double-click window, so the next press is a click of its own.
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+
+    testWidgets('a chevron press toggles the list as any button goes down', (
+      tester,
+    ) async {
+      // Chrome (T1_*): upstream's `onExpandIconMouseDown` opens a shut list
+      // and shuts an open one as the left, middle or right button goes down,
+      // focuses the input and leaves its caret; the release adds nothing —
+      // freeform or not.
+      for (final freeform in <bool>[false, true]) {
+        for (final buttons in <int>[
+          kPrimaryButton,
+          kMiddleMouseButton,
+          kSecondaryMouseButton,
+        ]) {
+          final reason = 'freeform $freeform, buttons $buttons';
+          await _pumpLive(
+            tester,
+            freeform: freeform,
+            selectedTime: DateTime(2026, 3, 10, 11),
+          );
+          final editable = tester.state<EditableTextState>(
+            find.byType(EditableText),
+          );
+          await _click(tester, tester.getCenter(find.byType(EditableText)));
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+          await tester.pumpAndSettle();
+          tester.testTextInput.updateEditingValue(
+            editable.textEditingValue.copyWith(
+              selection: const TextSelection.collapsed(offset: 2),
+            ),
+          );
+          await tester.pump();
+
+          final chevron = tester.getCenter(
+            find.byIcon(fluentTimePickerChevron),
+          );
+          final mouse = await tester.createGesture(
+            kind: PointerDeviceKind.mouse,
+            buttons: buttons,
+          );
+          await mouse.addPointer(location: chevron);
+          for (final open in <bool>[true, false]) {
+            final state = '$reason, ${open ? 'opening' : 'shutting'}';
+            await mouse.down(chevron);
+            await tester.pumpAndSettle();
+            expect(
+              _row('1:00 AM'),
+              open ? findsOneWidget : findsNothing,
+              reason: '$state, held',
+            );
+            await mouse.up();
+            await tester.pumpAndSettle();
+            expect(
+              _row('1:00 AM'),
+              open ? findsOneWidget : findsNothing,
+              reason: '$state, released',
+            );
+            expect(editable.widget.focusNode.hasFocus, isTrue, reason: state);
+            expect(
+              editable.textEditingValue.selection,
+              const TextSelection.collapsed(offset: 2),
+              reason: state,
+            );
+            await tester.pump(const Duration(milliseconds: 500));
+          }
+          await mouse.removePointer();
+        }
+      }
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('a blurred picker opens on a chevron press, and focuses', (
+      tester,
+    ) async {
+      await _pump(tester);
+      final chevron = tester.getCenter(find.byIcon(fluentTimePickerChevron));
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryMouseButton,
+      );
+      await mouse.addPointer(location: chevron);
+      await mouse.down(chevron);
+      await tester.pumpAndSettle();
+      expect(_row('08:00'), findsOneWidget);
+      expect(
+        tester
+            .state<EditableTextState>(find.byType(EditableText))
+            .widget
+            .focusNode
+            .hasFocus,
+        isTrue,
+      );
+      await mouse.up();
+      await tester.pumpAndSettle();
+      await mouse.removePointer();
+      expect(_row('08:00'), findsOneWidget);
+    });
+
+    testWidgets('a click that drifts still opens, shuts and clears', (
+      tester,
+    ) async {
+      // Chrome (T2_*) fires `click` when press and release land on the same
+      // element, drag or not: the text toggles after 2, 6 or 40px of travel,
+      // a press dragged from the text onto the chevron toggles nothing, one
+      // from the chevron toggles once, and the clear glyph clears after 3px
+      // but not when dragged off it — freeform or not.
+      for (final freeform in <bool>[false, true]) {
+        await tester.pumpWidget(const SizedBox());
+        await _pump(tester, freeform: freeform);
+        final text =
+            tester.getRect(find.byType(EditableText)).centerLeft +
+            const Offset(8, 0);
+        for (final by in const <Offset>[
+          Offset(2, 2),
+          Offset(6, 0),
+          Offset(40, 0),
+        ]) {
+          final reason = 'freeform $freeform, text $by';
+          await drag(tester, text, by);
+          expect(_row('10:00'), findsOneWidget, reason: '$reason, opened');
+          await drag(tester, text, by);
+          expect(_row('10:00'), findsNothing, reason: '$reason, shut');
+        }
+
+        final reason = 'freeform $freeform';
+        final chevron = tester.getCenter(find.byIcon(fluentTimePickerChevron));
+        await drag(tester, text, chevron - text);
+        expect(_row('10:00'), findsNothing, reason: '$reason, to the chevron');
+        await drag(tester, chevron, const Offset(3, 2));
+        expect(_row('10:00'), findsOneWidget, reason: '$reason, chevron 3px');
+        await drag(tester, chevron, text - chevron);
+        expect(_row('10:00'), findsNothing, reason: '$reason, chevron to text');
+
+        final reported = <FluentTimeSelectionData>[];
+        await tester.pumpWidget(const SizedBox());
+        await _pump(
+          tester,
+          freeform: freeform,
+          clearable: true,
+          selectedTime: DateTime(2026, 3, 10, 9),
+          onTimeChange: reported.add,
+        );
+        final clear = tester.getCenter(find.byIcon(fluentTimePickerClear));
+        await drag(tester, clear, const Offset(-80, 0));
+        expect(reported, isEmpty, reason: '$reason, dragged off the glyph');
+        expect(_row('10:00'), findsNothing, reason: '$reason, nor toggled');
+        await drag(tester, clear, const Offset(3, 2));
+        expect(reported.single.selectedTime, isNull, reason: reason);
+        expect(reported.single.selectedTimeText, '', reason: reason);
+        expect(_text(tester), isEmpty, reason: reason);
+        expect(_row('10:00'), findsNothing, reason: '$reason, no toggle');
+      }
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets(
+      'a press taken from the text onto the clear glyph does nothing',
+      (tester) async {
+        // Chrome (tail_timepicker/up_adv.out, U1*): the click lands on the
+        // root, the common ancestor of the input and the glyph, so the list
+        // neither opens nor shuts and nothing clears.
+        for (final freeform in <bool>[false, true]) {
+          final reason = 'freeform $freeform';
+          final reported = <FluentTimeSelectionData>[];
+          await tester.pumpWidget(const SizedBox());
+          await _pump(
+            tester,
+            freeform: freeform,
+            clearable: true,
+            selectedTime: DateTime(2026, 3, 10, 9),
+            onTimeChange: reported.add,
+          );
+          final text =
+              tester.getRect(find.byType(EditableText)).centerLeft +
+              const Offset(8, 0);
+          final clear = tester.getCenter(find.byIcon(fluentTimePickerClear));
+          await drag(tester, text, clear - text);
+          expect(
+            _row('10:00'),
+            findsNothing,
+            reason: '$reason, shut stays shut',
+          );
+          await _click(tester, text);
+          await tester.pump(const Duration(milliseconds: 500));
+          expect(_row('10:00'), findsOneWidget, reason: reason);
+          await drag(tester, text, clear - text);
+          expect(
+            _row('10:00'),
+            findsOneWidget,
+            reason: '$reason, open stays open',
+          );
+          expect(reported, isEmpty, reason: '$reason, nothing cleared');
+        }
+      },
+      variant: TargetPlatformVariant.desktop(),
+    );
+
+    testWidgets('a touch dragged across the text toggles nothing', (
+      tester,
+    ) async {
+      // Chrome (U3*): a touch that travels is no click, so the list stays as
+      // it was; a touch tap still opens it.
+      for (final freeform in <bool>[false, true]) {
+        final reason = 'freeform $freeform';
+        await tester.pumpWidget(const SizedBox());
+        await _pump(tester, freeform: freeform);
+        final text =
+            tester.getRect(find.byType(EditableText)).centerLeft +
+            const Offset(8, 0);
+        await tester.dragFrom(text, const Offset(40, 0));
+        await tester.pumpAndSettle();
+        expect(_row('10:00'), findsNothing, reason: '$reason, shut');
+        await tester.pump(const Duration(milliseconds: 500));
+        await tester.tapAt(text);
+        await tester.pumpAndSettle();
+        expect(_row('10:00'), findsOneWidget, reason: '$reason, tapped');
+        await tester.pump(const Duration(milliseconds: 500));
+        await tester.dragFrom(text, const Offset(40, 0));
+        await tester.pumpAndSettle();
+        expect(_row('10:00'), findsOneWidget, reason: '$reason, still open');
+      }
+    }, variant: TargetPlatformVariant.all());
+
+    testWidgets('Shift+Space picks as Space does', (tester) async {
+      // Chrome (U2_shift_space): upstream reads the key, not its modifiers.
+      final reported = <FluentTimeSelectionData>[];
+      await _pump(tester, onTimeChange: reported.add);
+      await _click(tester, tester.getCenter(find.byType(EditableText)));
+      expect(_row('08:00'), findsOneWidget);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.space), isTrue);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pumpAndSettle();
+      expect(reported.single.selectedTime, DateTime(2026, 3, 10, 8));
+      expect(_row('09:00'), findsNothing);
+    });
+
+    testWidgets('the list keeps its scroll while the field keeps focus', (
+      tester,
+    ) async {
+      // Chrome (T4_*): upstream keeps the listbox mounted while the input is
+      // focused, so '11:00', Escape, Enter reopens with the first row only
+      // just scrolled back in — 2px down, not the 4px of a fresh list — and
+      // a click that shuts and reopens it keeps a wheel scroll. A blur
+      // unmounts it: a click after Tab opens at the top.
+      await _pumpLive(tester);
+      final field = tester.getCenter(find.byType(EditableText));
+      await _click(tester, field);
+      tester.testTextInput.enterText('11:00');
+      await tester.pumpAndSettle();
+      expect(_list(tester).pixels, greaterThan(100));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(_clearance(tester, '12:00 AM').top, 2, reason: 'Enter reopens');
+
+      _list(tester).jumpTo(300);
+      await tester.pumpAndSettle();
+      await _click(tester, field);
+      expect(_row('12:00 AM'), findsNothing, reason: 'shut');
+      await _click(tester, field);
+      expect(_clearance(tester, '12:00 AM').top, 2, reason: 'a click reopens');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      await _click(tester, field);
+      expect(_list(tester).pixels, 0, reason: 'after a blur');
+      expect(_clearance(tester, '12:00 AM').top, 4, reason: 'after a blur');
+    });
+
+    testWidgets('freeform: an empty field reports only once typed into', (
+      tester,
+    ) async {
+      // Chrome (T5_*, the freeform-with-error-handling story): opening and
+      // closing, Escape, Tab or a click away never report a field nothing
+      // was typed into; '1' then Backspace reports the empty text on Tab,
+      // once — upstream compares the text with what it last submitted, and
+      // an untouched empty field has submitted nothing and holds nothing.
+      final reported = await _pumpLive(
+        tester,
+        freeform: true,
+        startHour: 10,
+        endHour: 20,
+      );
+      final field = tester.getCenter(find.byType(EditableText));
+      await _click(tester, field);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      await _click(tester, field);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(reported, isEmpty, reason: 'never typed into');
+
+      await _click(tester, field);
+      tester.testTextInput.enterText('1');
+      await tester.pumpAndSettle();
+      tester.testTextInput.enterText('');
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(reported.single.selectedTimeText, '');
+      expect(reported.single.selectedTime, isNull);
+
+      await _click(tester, field);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(reported, hasLength(1), reason: 'reported once');
     });
   });
 }

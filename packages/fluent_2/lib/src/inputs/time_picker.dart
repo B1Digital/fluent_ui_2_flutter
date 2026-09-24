@@ -6,9 +6,11 @@ import 'package:flutter/gestures.dart'
     show
         PointerDeviceKind,
         TapDragDownDetails,
+        TapDragEndDetails,
         TapDragStartDetails,
         TapDragUpDetails,
         TapDragUpdateDetails,
+        TapDownDetails,
         kMiddleMouseButton,
         kSecondaryMouseButton;
 import 'package:flutter/services.dart'
@@ -821,6 +823,9 @@ class FluentTimePickerActivateIntent extends Intent {
   const FluentTimePickerActivateIntent();
 }
 
+/// The two glyphs a press can begin on.
+enum _Glyph { expand, clear }
+
 /// Places the caret *and* toggles the listbox on a tap.
 ///
 /// Subclassed rather than nesting a second [GestureDetector]: two competing
@@ -833,16 +838,17 @@ class _TimePickerGestures extends TextSelectionGestureDetectorBuilder {
 
   // The glyphs never place the caret or select: upstream's icons prevent
   // their mousedown's default.
+  bool get _onGlyph => _owner._glyphPress != null;
 
   @override
   void onTapDown(TapDragDownDetails details) {
-    if (!_owner._glyphPress) super.onTapDown(details);
+    if (!_onGlyph) super.onTapDown(details);
   }
 
   @override
   void onSingleTapUp(TapDragUpDetails details) {
-    if (!_owner._glyphPress) super.onSingleTapUp(details);
-    _owner._handleFieldTap();
+    if (!_onGlyph) super.onSingleTapUp(details);
+    _owner._handleFieldClick();
   }
 
   // Every click of a double or triple click toggles the list upstream, as the
@@ -850,24 +856,56 @@ class _TimePickerGestures extends TextSelectionGestureDetectorBuilder {
 
   @override
   void onDoubleTapDown(TapDragDownDetails details) {
-    if (!_owner._glyphPress) super.onDoubleTapDown(details);
-    _owner._handleFieldTap();
+    if (!_onGlyph) super.onDoubleTapDown(details);
+    _owner._handleFieldClick();
   }
 
   @override
   void onTripleTapDown(TapDragDownDetails details) {
-    if (!_owner._glyphPress) super.onTripleTapDown(details);
-    _owner._handleFieldTap();
+    if (!_onGlyph) super.onTripleTapDown(details);
+    _owner._handleFieldClick();
+  }
+
+  // Nor does a right press on a glyph select the word beside it, as macOS
+  // would: the context menu opens on the glyph, not the text (Chrome).
+
+  @override
+  void onSecondaryTapDown(TapDownDetails details) {
+    if (!_onGlyph) super.onSecondaryTapDown(details);
   }
 
   @override
+  void onSecondaryTap() {
+    if (!_onGlyph) super.onSecondaryTap();
+  }
+
+  /// Whether the drag under way is a mouse's: a touch that travels is no
+  /// click in Chrome, and toggles nothing.
+  bool _mouseDrag = false;
+
+  @override
   void onDragSelectionStart(TapDragStartDetails details) {
-    if (!_owner._glyphPress) super.onDragSelectionStart(details);
+    _mouseDrag = details.kind == PointerDeviceKind.mouse;
+    if (!_onGlyph) super.onDragSelectionStart(details);
   }
 
   @override
   void onDragSelectionUpdate(TapDragUpdateDetails details) {
-    if (!_owner._glyphPress) super.onDragSelectionUpdate(details);
+    if (!_onGlyph) super.onDragSelectionUpdate(details);
+  }
+
+  // The recogniser reads a precise pointer's press as a drag after ONE pixel
+  // (`kPrecisePointerHitSlop`), and a hand moves a mouse two or three between
+  // press and release, so a click that drifts arrives here rather than as a
+  // tap. Chrome fires `click` whenever the press and the release land on the
+  // same element, drag-select included. A double or triple click already
+  // toggled as it went down.
+  @override
+  void onDragSelectionEnd(TapDragEndDetails details) {
+    if (!_onGlyph) super.onDragSelectionEnd(details);
+    if (_mouseDrag && details.consecutiveTapCount == 1) {
+      _owner._handleDragEnd(details.globalPosition);
+    }
   }
 }
 
@@ -883,24 +921,38 @@ class _TimePickerGestures extends TextSelectionGestureDetectorBuilder {
 ///
 /// ## Keyboard
 ///
-/// What is bound matters less than what is not. `Space` types a space, so a
-/// user can write `12 PM`; `Backspace` deletes a character; `Home` and `End`
-/// move the caret while the listbox is closed, and jump it while it is open,
-/// [freeform] or not. Each of those falls through by reporting
-/// `isEnabled: false` rather than doing nothing, which is what lets
-/// `DefaultTextEditingShortcuts` see the key.
+/// What is bound matters less than what is not. `Space` types a space while
+/// the listbox is shut or the last key typed a character, so a user can write
+/// `12 PM`; `Backspace` deletes a character; `Home` and `End` move the caret
+/// while the listbox is closed, and jump it while it is open, [freeform] or
+/// not. Each of those falls through by reporting `isEnabled: false` rather
+/// than doing nothing, which is what lets `DefaultTextEditingShortcuts` see
+/// the key.
 ///
 /// | Key | Effect |
 /// |---|---|
 /// | Down / Up | open on the selection, a typed match or the first; or move |
 /// | Home / End | jump the open listbox |
 /// | Enter | pick the active row; with none, commit the text; open or close |
+/// | Space | on an open list not being typed into, pick the active row |
 /// | Escape | close; a non-freeform picker's typed text reverts |
+///
+/// That is upstream's `isTyping`, which only a key press changes: until
+/// something is typed, or after an arrow, `Home`, `End` or an `Enter` that
+/// opened the list, `Space` picks as `Enter` does, but never commits typed
+/// text. A click leaves it as it was.
 ///
 /// Typing, freeform or not, makes the first row whose text starts with what
 /// was typed active, with its ring showing. A freeform picker keeps its text
 /// as typed when it commits; a non-freeform one only types ahead, and its text
 /// reverts to the selection when the listbox closes.
+///
+/// ## Mouse
+///
+/// A press on the chevron opens or shuts the listbox as the button goes down,
+/// whichever button, and focuses the field without moving its caret. A click
+/// on the text toggles it on release, even one that drifted into a drag, as
+/// long as it is let go on the field rather than on a glyph.
 ///
 /// ## Light dismiss needs a [TapRegionSurface]
 ///
@@ -987,6 +1039,10 @@ class FluentTimePicker extends StatefulWidget {
   final bool clearable;
 
   /// Whether an empty field is an error.
+  ///
+  /// Reported as upstream reports it: once the field has been typed into and
+  /// emptied, never for a field nobody typed into, however often it opens and
+  /// closes.
   final bool required;
 
   /// Whether to paint the danger ramp. Set it directly when an application does
@@ -1079,11 +1135,33 @@ class _FluentTimePickerState extends State<FluentTimePicker>
   final Set<WidgetState> _interaction = <WidgetState>{};
   String? _committedText;
 
-  /// Whether the latest press began on the chevron or the clear glyph, which
-  /// focus the field and leave its caret alone. [_glyphDown] is the glyph's
-  /// own report, which the faceplate's [Listener] — reached after it — takes.
-  bool _glyphPress = false;
-  bool _glyphDown = false;
+  /// Which glyph, if either, the latest press began on: both focus the field
+  /// and leave its caret alone. [_glyphDown] is the glyph's own report, which
+  /// the faceplate's [Listener] — reached after it — takes.
+  _Glyph? _glyphPress;
+  _Glyph? _glyphDown;
+
+  /// Whether the latest press toggled the list as it went down — a mouse on
+  /// the chevron — so its click must not toggle it back.
+  bool _toggledOnPress = false;
+
+  final GlobalKey _expandKey = GlobalKey();
+  final GlobalKey _clearKey = GlobalKey();
+
+  /// Upstream's `isTyping`: whether the last key typed a character rather
+  /// than moving the active row. Space types while it holds or the list is
+  /// shut, and picks the active row otherwise.
+  bool _typing = false;
+
+  /// Whether the text was typed into since a pick or the parent last set it:
+  /// upstream's `value` is only the text once typed, and is the selection's
+  /// text — none, with no selection — until then.
+  bool _typed = false;
+
+  /// The open listbox's scroll offset, which outlives a close while the field
+  /// keeps focus: upstream keeps the listbox mounted, hidden, until the input
+  /// blurs (Chrome).
+  PageStorageBucket _listStorage = PageStorageBucket();
 
   /// Whether typing chose [_active]. Upstream's type-ahead match is
   /// focus-visible whatever opened the list, so it rings after a mouse open.
@@ -1131,7 +1209,7 @@ class _FluentTimePickerState extends State<FluentTimePicker>
   void initState() {
     super.initState();
     _uncontrolledOpen = widget.defaultOpen;
-    _committedText = _controller.text;
+    _committedText = _controller.text.isEmpty ? null : _controller.text;
     _valueNow = _controller.value;
     _focusNode.addListener(_handleFocusChange);
     _controller.addListener(_trackText);
@@ -1302,6 +1380,9 @@ class _FluentTimePickerState extends State<FluentTimePicker>
     if (focused == _focused) return;
     setState(() => _focused = focused);
     if (!focused) {
+      // The listbox upstream keeps mounted while focused goes with the focus,
+      // and its scroll with it.
+      _listStorage = PageStorageBucket();
       _commitText();
       // Upstream's collapsed blur: a non-freeform field left holding exactly
       // the active option's text, edited with the list shut, picks it — '11:00
@@ -1331,6 +1412,41 @@ class _FluentTimePickerState extends State<FluentTimePicker>
     // whole value on desktop and the web.
     editableTextKey.currentState?.requestKeyboard();
     _setOpen(next: !_open);
+  }
+
+  /// A click on the faceplate: the `<input>`'s `click` toggles the list,
+  /// unless the chevron already toggled it as the button went down.
+  void _handleFieldClick() {
+    if (!_toggledOnPress) _handleFieldTap();
+  }
+
+  /// A drifting mouse press let go at [at], which Chrome still delivers as a
+  /// `click` when it lands on the element the press began on: the clear
+  /// glyph clears, the field toggles, and one taken from the text onto the
+  /// chevron goes to their common ancestor and does nothing (Chrome). The
+  /// clear glyph, when shown, sits over the hidden chevron, so a press taken
+  /// onto it does nothing too (up_adv U1).
+  ///
+  /// ponytail: the whole faceplate but the glyph counts as the `<input>`, as
+  /// it does for the press.
+  void _handleDragEnd(Offset at) {
+    bool lands(BuildContext? context) {
+      final box = context?.findRenderObject();
+      return box is RenderBox &&
+          box.attached &&
+          box.size.contains(box.globalToLocal(at));
+    }
+
+    switch (_glyphPress) {
+      case _Glyph.clear:
+        if (_enabled && lands(_clearKey.currentContext)) _clear();
+      case _Glyph.expand:
+        break;
+      case null:
+        if (lands(context) && !lands(_expandKey.currentContext)) {
+          _handleFieldClick();
+        }
+    }
   }
 
   /// [committed] is what the same event just reported — a pick or typed text —
@@ -1388,6 +1504,7 @@ class _FluentTimePickerState extends State<FluentTimePicker>
   }
 
   void _moveActive(int delta) {
+    _typing = false;
     final options = _options;
     if (options.isEmpty) return;
     // Down or Up on a shut list only opens it, on the selection or the first
@@ -1404,6 +1521,7 @@ class _FluentTimePickerState extends State<FluentTimePicker>
   }
 
   void _edge({required bool last}) {
+    _typing = false;
     final options = _options;
     if (options.isEmpty) return;
     _active = last ? options.length - 1 : 0;
@@ -1431,7 +1549,8 @@ class _FluentTimePickerState extends State<FluentTimePicker>
   /// `EditableText` on desktop and the web turns into the whole value selected,
   /// so the next key replaced a picked time instead of adding to it (Chrome).
   void _setText(String text) {
-    _committedText = text;
+    _committedText = text.isEmpty ? null : text;
+    _typed = false;
     if (_controller.text == text) return;
     _controller.value = TextEditingValue(
       text: text,
@@ -1460,21 +1579,39 @@ class _FluentTimePickerState extends State<FluentTimePicker>
   /// field falls back to the first too: upstream's freeform check skips empty
   /// text (Chrome).
   void _handleTyped(String text) {
+    _typed = true;
     final options = _options;
     final query = text.trim().toLowerCase();
-    final found = query.isEmpty
+    var found = query.isEmpty
         ? -1
         : options.indexWhere(
             (option) => _format(option).toLowerCase().startsWith(query),
           );
+    // Upstream's freeform check then reads the text untrimmed: '1 ' leaves
+    // nothing active where '1' made 10:00 AM active (Chrome).
+    if (widget.freeform &&
+        found >= 0 &&
+        !_format(options[found]).toLowerCase().startsWith(text.toLowerCase())) {
+      found = -1;
+    }
     // A key typed over a selection replaces it, so a character went in when
-    // the text outgrew what the old value kept outside its selection.
+    // the text outgrew what the old value kept outside its selection. A space
+    // is not upstream's `Type`: it opens nothing and does not start typing.
     // ponytail: stands in for upstream's printable-keydown test, so a paste
     // opens the list here and not there.
     final before = _valueBefore;
     final kept =
         before.text.length - (before.selection.end - before.selection.start);
-    if (!_open && text.length > kept) _setOpen(next: true);
+    final at = before.selection.isValid
+        ? before.selection.start
+        : before.text.length;
+    final added = text.length - kept;
+    if (added > 0 &&
+        at + added <= text.length &&
+        text.substring(at, at + added).trim().isNotEmpty) {
+      _typing = true;
+      if (!_open) _setOpen(next: true);
+    }
     // The first-row fallback is the open list's: `useComboboxBaseState` runs
     // it only while open, so a deletion on a shut list leaves none active.
     _active = found >= 0
@@ -1493,19 +1630,19 @@ class _FluentTimePickerState extends State<FluentTimePicker>
   }
 
   /// Commits typed text, mirroring a browser's `change` event: on blur and on
-  /// Enter, never per keystroke, and only when the text actually moved — or
-  /// when the field is empty, which is reported however long it has been so.
+  /// Enter, never per keystroke, and only when the text actually moved.
   /// Returns what it reported, or null when it reported nothing.
   (DateTime?,)? _commitText() {
     if (!_enabled || !widget.freeform) return null;
     final text = _controller.text;
-    // An empty field is checked even when the text has not moved: it is an
-    // assertion about absence rather than about what was typed, so a required
-    // picker that was never typed into still has to report on blur — the
-    // section's own "leave the input empty and close the TimePicker" case.
-    // `FluentDatePicker._commitText` orders its guards the same way.
-    if (text.trim().isNotEmpty && text == _committedText) return null;
-    _committedText = text;
+    // Upstream's `useSelectTimeFromValue` compares its `value` with the text
+    // it last submitted, and `value` is nothing at all until typed into when
+    // there is no selection. So a field nobody typed into reports nothing
+    // however often it opens and closes, and one typed into and emptied
+    // reports the empty text once (Chrome, freeform-with-error-handling).
+    final value = _typed || text.isNotEmpty ? text : null;
+    if (value == _committedText) return null;
+    _committedText = value;
     final result =
         (widget.parseTime ??
         (String value) => fluentParseTime(
@@ -1548,13 +1685,29 @@ class _FluentTimePickerState extends State<FluentTimePicker>
       _select(options[index]);
       return;
     }
+    // Enter on a shut list is upstream's `Open`, which ends typing.
+    if (!_open) _typing = false;
     // `_commitText` skips unmoved text itself.
     _setOpen(next: !_open, committed: active ? null : _commitText());
   }
 
+  /// Space on an open list the user is not typing into: upstream's
+  /// `CloseSelect`, which picks the active row — or, with none, only closes;
+  /// unlike Enter it never commits typed text.
+  void _pick() {
+    final index = _active;
+    final options = _options;
+    if (index != null && index >= 0 && index < options.length) {
+      _select(options[index]);
+    } else {
+      _setOpen(next: false);
+    }
+  }
+
   void _clear() {
     _controller.clear();
-    _committedText = '';
+    _committedText = null;
+    _typed = false;
     widget.onTimeChange?.call(
       const FluentTimeSelectionData(selectedTimeText: ''),
     );
@@ -1661,23 +1814,26 @@ class _FluentTimePickerState extends State<FluentTimePicker>
                       states,
                       ValueListenableBuilder<bool>(
                         valueListenable: FluentInputModality.keyboard,
-                        builder: (context, keyboard, _) =>
-                            SingleChildScrollView(
-                              padding: style.surfacePadding?.resolve(states),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                spacing: gap,
-                                children: <Widget>[
-                                  for (var i = 0; i < options.length; i++)
-                                    _buildRow(
-                                      theme,
-                                      options[i],
-                                      i,
-                                      keyboard: keyboard,
-                                    ),
-                                ],
-                              ),
+                        builder: (context, keyboard, _) => PageStorage(
+                          bucket: _listStorage,
+                          child: SingleChildScrollView(
+                            key: const PageStorageKey<String>('listbox'),
+                            padding: style.surfacePadding?.resolve(states),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              spacing: gap,
+                              children: <Widget>[
+                                for (var i = 0; i < options.length; i++)
+                                  _buildRow(
+                                    theme,
+                                    options[i],
+                                    i,
+                                    keyboard: keyboard,
+                                  ),
+                              ],
                             ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -1747,8 +1903,12 @@ class _FluentTimePickerState extends State<FluentTimePicker>
     //
     // Both glyphs carry upstream's `cursor: pointer`; disabled, the faceplate's
     // `not-allowed` shows through.
-    Widget glyph(Widget child) {
-      child = Listener(onPointerDown: (_) => _glyphDown = true, child: child);
+    Widget glyph(_Glyph which, Widget child) {
+      child = Listener(
+        key: which == _Glyph.expand ? _expandKey : _clearKey,
+        onPointerDown: (_) => _glyphDown = which,
+        child: child,
+      );
       if (_enabled) {
         child = MouseRegion(cursor: SystemMouseCursors.click, child: child);
       }
@@ -1775,6 +1935,7 @@ class _FluentTimePickerState extends State<FluentTimePicker>
         autofocus: widget.autofocus,
         onChanged: _handleTyped,
         expandIcon: glyph(
+          _Glyph.expand,
           Semantics(
             button: true,
             label: widget.expandSemanticLabel ?? fluentL10n(context).open,
@@ -1787,6 +1948,7 @@ class _FluentTimePickerState extends State<FluentTimePicker>
         ),
         clearIcon: showClear
             ? glyph(
+                _Glyph.clear,
                 _ClearButton(
                   semanticLabel:
                       widget.clearSemanticLabel ?? fluentL10n(context).clear,
@@ -1813,15 +1975,21 @@ class _FluentTimePickerState extends State<FluentTimePicker>
       child: Listener(
         onPointerDown: (event) {
           final glyph = _glyphPress = _glyphDown;
-          _glyphDown = false;
+          _glyphDown = null;
           _setInteraction(
             WidgetState.pressed,
             value: event.buttons != kSecondaryMouseButton,
           );
+          final mouse = _enabled && event.kind == PointerDeviceKind.mouse;
+          // Upstream's `onExpandIconMouseDown`: the chevron toggles the list
+          // as any button goes down, then focuses the input (Chrome). A touch
+          // still toggles on its tap.
+          _toggledOnPress = mouse && glyph == _Glyph.expand;
+          if (_toggledOnPress) _setOpen(next: !_open);
           // A microtask later, so an outside-press blur dispatched after this
           // on the same event — another field's — cannot undo it.
-          if (_enabled && event.kind == PointerDeviceKind.mouse) {
-            scheduleMicrotask(() => _focusOnPress(event, glyph: glyph));
+          if (mouse) {
+            scheduleMicrotask(() => _focusOnPress(event, glyph: glyph != null));
           }
         },
         onPointerUp: (_) => _setInteraction(WidgetState.pressed, value: false),
@@ -1874,6 +2042,10 @@ class _FluentTimePickerState extends State<FluentTimePicker>
                   FluentTimePickerActivateIntent(),
               SingleActivator(LogicalKeyboardKey.numpadEnter):
                   FluentTimePickerActivateIntent(),
+              // Upstream reads the key, not Shift (Chrome).
+              SingleActivator(LogicalKeyboardKey.space): _PickIntent(),
+              SingleActivator(LogicalKeyboardKey.space, shift: true):
+                  _PickIntent(),
             },
             child: Actions(
               actions: <Type, Action<Intent>>{
@@ -1893,26 +2065,15 @@ class _FluentTimePickerState extends State<FluentTimePicker>
                       },
                     ),
                 DismissIntent: _DismissTimePickerAction(this),
+                _PickIntent: _PickAction(this),
               },
-              // A picker that cannot select text has nothing for the
-              // text-selection detector to do — with `selectionEnabled` false
-              // every one of its handlers returns early, leaving only the
-              // keyboard request — while the `TapAndPanGestureRecognizer` it
-              // inherits still claims a precise pointer's gesture as a drag after
-              // one logical pixel. A real mouse click wanders two or three, so
-              // the faceplate never saw a tap, and the arena sweep took the clear
-              // glyph's own recogniser down with it. Freeform keeps the detector:
-              // there the drag *is* the text selection.
-              child: selectionEnabled
-                  ? _gestures.buildGestureDetector(child: field)
-                  : GestureDetector(
-                      // Excluded because the detector it stands in for is:
-                      // announcing a tap action here as well would add a node to
-                      // the tree that the freeform picker does not have.
-                      excludeFromSemantics: true,
-                      onTap: _handleFieldTap,
-                      child: field,
-                    ),
+              // Freeform or not: with `selectionEnabled` false the builder's
+              // own handlers return early, and a press that drifts past the
+              // `TapAndPanGestureRecognizer`'s one-pixel slop still reaches
+              // [_TimePickerGestures.onDragSelectionEnd] as a click. A plain
+              // tap recogniser gave up after 18px, where Chrome's click on the
+              // default story still toggles after 40.
+              child: _gestures.buildGestureDetector(child: field),
             ),
           ),
         ),
@@ -1938,6 +2099,31 @@ class _EdgeAction extends Action<FluentTimePickerEdgeIntent> {
   @override
   Object? invoke(FluentTimePickerEdgeIntent intent) {
     state._edge(last: intent.last);
+    return null;
+  }
+}
+
+/// Space on the field.
+class _PickIntent extends Intent {
+  const _PickIntent();
+}
+
+/// Picks with Space while the list is open and the user is not typing —
+/// nothing typed yet, or an arrow, Home, End or an Enter opened or moved it
+/// since (a click changes nothing). Otherwise it
+/// reports `isEnabled: false`, so the key falls through and types a space,
+/// shut list or not, freeform or not (Chrome).
+class _PickAction extends Action<_PickIntent> {
+  _PickAction(this.state);
+
+  final _FluentTimePickerState state;
+
+  @override
+  bool isEnabled(_PickIntent intent) => state._open && !state._typing;
+
+  @override
+  Object? invoke(_PickIntent intent) {
+    state._pick();
     return null;
   }
 }

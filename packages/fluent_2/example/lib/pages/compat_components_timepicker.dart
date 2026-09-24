@@ -360,24 +360,14 @@ class _FreeformWithErrorHandlingState
     final String? message = _getErrorMessage(_errorType);
     return FluentField(
       required: true,
-      // The label carries its own width. FluentField lays its label out in a
-      // Row beside the required asterisk without a Flexible, so a long label
-      // takes its intrinsic width and overflows instead of wrapping.
-      label: const SizedBox(
-        width: 300,
-        child: Text(
-          'Type a time outside of 10:00 to 19:59, type an invalid time, or '
-          'leave the input empty and close the TimePicker.',
-        ),
+      label: const Text(
+        'Type a time outside of 10:00 to 19:59, type an invalid time, or '
+        'leave the input empty and close the TimePicker.',
       ),
       validationState: message == null
           ? FluentFieldValidationState.none
           : FluentFieldValidationState.error,
       validationMessage: message == null ? null : Text(message),
-      // Upstream's Field draws this glyph for an error by default.
-      validationMessageIcon: message == null
-          ? null
-          : const Icon(FluentIcons.error_circle_12_filled),
       // `maxWidth: 300px` upstream: the Field spans the story, and the picker
       // stops at 300 inside it rather than stretching with it.
       child: Align(
@@ -387,6 +377,9 @@ class _FreeformWithErrorHandlingState
           child: FluentTimePicker(
             freeform: true,
             required: true,
+            // Upstream's Field marks its control `aria-invalid`, which turns
+            // the Combobox border red.
+            error: message != null,
             startHour: 10,
             endHour: 20,
             selectedTime: _selectedTime,
