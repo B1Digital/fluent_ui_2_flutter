@@ -294,6 +294,10 @@
   - VerticalBar and VerticalStackedBar place date bars on upstream's un-niced
     time scale and stand on the height above the label reserve; the
     HorizontalBarChart benchmark triangle sits where upstream draws it;
+  - the funnel legend sits right under its `height`-tall plot and each stage
+    paints on its own, so the seam between categories shows; the heat map
+    callout body is capped at upstream's 238px, and heat map and gantt
+    readings take title2 as non-cartesian callouts;
   - a secondary y axis fills areas to zero; line segments honour
     `strokeDashoffset`; colour fill bars top out at the data maximum; the
     sparkline stroke is clipped to its plot; a sankey node name collapses its
