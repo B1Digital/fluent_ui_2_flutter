@@ -122,20 +122,16 @@ void main() {
       tester,
       'charts-verticalbarchart--vertical-bar-all-negative',
       _negativeChart(_negativePoints(List<int>.filled(8, -1))),
-      // Measured 0.331% — 679 of 205,432 px. The bars and line land exactly;
-      // what is left is chrome and text:
-      //   * 315 px on the `+3 more` overflow trigger. Its label is not in the
-      //     capture's textRects, so the glyphs are compared unmasked, and its
-      //     right border sits a column off (x 581..582).
-      //   * 140 px of legend swatches. Chromium snaps each swatch div to whole
-      //     pixels (Dogs at x 193.70 paints 194..207); the port paints it at
-      //     193.70 and antialiases both edges — 8 columns x 14 rows. The other
-      //     28 are the `just line` swatch, 4px tall here against upstream's
-      //     4px content box plus a 1px border each side (Oracle B: 14x6).
-      //   * ~130 px of U+2212: Selawik has no MINUS SIGN glyph, so `flutter
-      //     test` draws the FlutterTest fallback box, wider than the mask.
-      //   * the rest is antialiasing at the line's vertices.
-      maxMismatch: 0.35,
+      // Measured 0.040% — 82 of 204,214 px, best shift (0,0). Was 0.331%
+      // before the `+N more` label was masked, the swatches snapped to
+      // Chromium's pixels (the `just line` one at 14x6) and U+2212 got a real
+      // glyph. Bars, line, gridlines, axes and swatches are pixel-identical.
+      // What is left:
+      //   * 79 px on the `+3 more` trigger: its 14px/600 Selawik label runs
+      //     wide of Segoe UI Semibold, so the right border sits a column off
+      //     (x 582 against 581, 54 px) and the chevron a pixel right (25 px).
+      //   * 3 px of antialiasing along the brown line.
+      maxMismatch: 0.05,
     );
   });
 
@@ -146,18 +142,16 @@ void main() {
       // Oranges +, Dogs -, Apples +, Bananas -, Giraffes +, Cats -,
       // Elephants +, Monkeys - (:84-178); each line y shares its bar's sign.
       _negativeChart(_negativePoints(const <int>[1, -1, 1, -1, 1, -1, 1, -1])),
-      // Measured 2.345% — 4,805 of 204,919 px, and most of it is a defect:
-      // every bar is measured against the wrong domain. `_getAxisData`
-      // (`VerticalBarChart.tsx:894-899`) resets `_yMin`/`_yMax` to the y
-      // AXIS domain, [-69.75k, 46.5k] here, before the bars are built, so
-      // the zero baseline sits where the zero gridline is (y 114). The port's
-      // `barDomain` (`vertical_bar_chart.dart:751`) keeps the raw data extent
-      // [-50k, 43k], so every bar hangs from y 128 at the wrong scale. Passing
-      // the shell's `yScalePrimary.domain` instead measured 0.302% in a
-      // scratch copy. The remainder is what the all-negative story above
-      // documents: overflow trigger, swatch snapping, the short line swatch,
-      // U+2212 fallback boxes, and line-join antialiasing.
-      maxMismatch: 2.4,
+      // Measured 0.048% — 97 of 203,701 px, best shift (0,0). Was 2.345%
+      // while the bars were scaled to the raw data extent [-50k, 43k] rather
+      // than the y axis domain `_getAxisData` hands them
+      // (`VerticalBarChart.tsx:894-899`), which hung every bar from y 128
+      // instead of the zero gridline at 114; the legend and U+2212 fixes the
+      // story above lists took the rest. What is left is that story's: 79 px
+      // on the `+3 more` trigger (right border a column off, chevron a pixel
+      // right, from the wide Selawik Semibold label) and 18 px of
+      // antialiasing along the brown line.
+      maxMismatch: 0.05,
     );
   });
 
@@ -247,21 +241,24 @@ void main() {
           rotateXAxisLables: true,
         ),
       ),
-      // Measured 2.043% — 5,970 of 292,282 px. Two causes:
-      //   * A defect: the bars ignore the rotated-label reserve and run 137px
-      //     past the x axis, down to y 465. Upstream builds them in
-      //     `_getGraphData`, which `CartesianChart.tsx:421-428` calls with
-      //     `containerHeight - _removalValueForTextTuncate`. The port's
-      //     `barsFor` and `_magnitudeScale` (`vertical_bar_chart.dart:948`,
-      //     `:1093`) use `layout.size.height`, not `plotContentHeight`.
-      //     Swapping them measured 0.960% in a scratch copy.
-      //   * The rest (2,806 px) is one row: every gridline and bar top sits 1px
-      //     high because the reserve is 138 against upstream's 137.
-      //     `floor(maxHeight / 1.414)` sees Selawik Semibold measure the
-      //     widest label at 181.54 against Segoe UI's 179.19 (Oracle B), which
-      //     tips 102.66 over to 103.39. That is the documented weight-600 font
-      //     residual, not a defect.
-      maxMismatch: 2.1,
+      // Measured 0.960% — 2,806 of 292,282 px, best shift (0,0). Was 2.043%
+      // while the bars ignored the rotated-label reserve and ran 137px past
+      // the x axis; they now stand on the height `CartesianChart.tsx:421-428`
+      // hands `_getGraphData`.
+      //
+      // All 2,806 px are the documented weight-600 font residual, not a
+      // defect: the label reserve is 138 against upstream's 137, so the plot
+      // is one pixel shorter. Selawik Semibold measures the widest label,
+      // "This label is as long as the previous one" at 10px, 181.54 wide
+      // against Segoe UI Semibold's 179.19 (Oracle B's getBBox), which lifts
+      // `floor(maxHeight / 1.414)` (`utilities.ts:1845`) from 102.66 to
+      // 103.39, i.e. 102 to 103, before the 35px bottom margin is added. The
+      // x axis line and the bar bases move from y 328 to 327 (1,180 px), the
+      // gridlines at y 251 and 174 split across two rows as the scale
+      // compresses in proportion (1,578 px; the one at 97 moves too little to
+      // count), and three bar tops land a row high (48 px). The top gridline
+      // at y 20 and every x position are exact.
+      maxMismatch: 1.0,
     );
   });
 
@@ -341,13 +338,17 @@ void main() {
           secondaryYScaleOptions: FluentSecondaryYScaleOptions(),
         ),
       ),
-      // Measured 0.282% — 530 of 187,964 px. Both y axes, every bar and the
-      // secondary-scale line land exactly. What is left is legend chrome:
-      // 324 px on the `+2 more` trigger (label unmasked by the capture,
-      // right border a column off at x 642..643) and 168 on the swatches (10
-      // subpixel-snapped edges, plus the `just line` swatch 2px short). The
-      // last 38 px are antialiasing at the line's vertices.
-      maxMismatch: 0.3,
+      // Measured 0.037% — 70 of 186,746 px, best shift (0,0). Was 0.282%
+      // before the `+N more` label was masked and the swatches (the
+      // `just line` one at 14x6) snapped to Chromium's pixels. Both y axes,
+      // every bar, the secondary-scale line and every swatch land exactly.
+      // What is left:
+      //   * 67 px on the `+2 more` trigger: its 14px/600 Selawik label runs
+      //     wide, so the right border straddles 642..643 where the capture's
+      //     is crisp at 642 (48 px) and the chevron sits a pixel right (19).
+      //   * 2 px of one secondary-axis tick label's "k", 10px/600 and wide in
+      //     Selawik, one column past its mask; 1 px of line antialiasing.
+      maxMismatch: 0.04,
     );
   });
 }

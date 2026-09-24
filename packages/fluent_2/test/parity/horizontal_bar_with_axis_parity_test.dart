@@ -105,16 +105,17 @@ void main() {
           showYAxisLables: true,
         ),
       ),
-      // Measured 0.228% — 504 pixels, best shift (0,0). The plot's left edge
-      // sits 0.4px right of upstream's: the margin is the widest y label plus
-      // 20 (`CartesianChart.tsx:679`), and Selawik Semibold measures "Label 3"
-      // at 32.79px at 10px where the capture's Segoe UI Semibold measured
-      // 32.37. That moves the zero gridline (315 px, the whole column), the
-      // tick stubs and every bar edge in proportion to its distance from the
-      // right end (166 px); 20 px more are the "121"/"117" bar labels, set
-      // 600-weight too, spilling past their masks. Every bar value, colour and
-      // band position is otherwise exact.
-      maxMismatch: 0.25,
+      // Measured 0.228% — 504 of 221,153 px, best shift (0,0). The plot's left
+      // edge sits 0.4px right of upstream's: the margin is the widest y label
+      // plus 20 (`CartesianChart.tsx:679`), and Selawik Semibold measures
+      // "Label 3" at 32.79px at 10px where the capture's Segoe UI Semibold
+      // measured 32.37. That moves the zero gridline (315 px, the whole
+      // column), three y tick stubs (3 px) and every bar end in proportion to
+      // its distance from the right end (166 px); 20 px more are the
+      // "121"/"117" bar labels, set 600-weight too, spilling past their
+      // masks. Every bar value, colour and band position is otherwise exact:
+      // all 504 px are the documented weight-600 font residual, not a defect.
+      maxMismatch: 0.23,
     );
   });
 

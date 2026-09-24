@@ -157,17 +157,12 @@ void main() {
         // `const lineOptions = { lineBorderWidth: '2' }` (:88).
         lineOptions: const FluentLineOptions(lineBorderWidth: 2),
       ),
-      // Measured 0.066% — 208 pixels of 313,014, all of it legend and line AA:
-      //   * 140 px: five legend swatches sit at fractional x (149.625,
-      //     232.1875, 297.797, 453.797, 592.797). Chromium pixel-snaps each
-      //     HTML box's edges (150..164), the port antialiases the fraction, so
-      //     both edge columns of each 14px swatch differ.
-      //   * 28 px: the "Line" swatch is 4px tall here and 6 in the capture —
-      //     `Legends.tsx:376`'s 4px is the content box and the 1px border
-      //     (`useLegendsStyles.styles.ts:82`) adds two rows (Oracle B: 14x6).
-      //   * 40 px: Skia-vs-Chromium AA on the square caps and joins of the 3px
-      //     line and its 7px halo.
-      maxMismatch: 0.07,
+      // Measured 0.002% — 6 pixels of 313,014, best shift (0,0), all
+      // Skia-vs-Chromium antialiasing along the 3px brown line. Was 0.066%
+      // while the legend painted its swatches at fractional x (Chromium snaps
+      // them to whole pixels) and the "Line" swatch 14x4 instead of 14x6.
+      // Bars, gridlines, axes and every swatch are pixel-identical.
+      maxMismatch: 0.002,
     );
   });
 
@@ -222,9 +217,12 @@ void main() {
         lineLegendColor: _olive,
         props: FluentCartesianChartProps(yAxisTickCount: 6, hideLegend: true),
       ),
-      // Measured 0.008% — 25 pixels of 314,861, all Skia-vs-Chromium AA at the
-      // four vertices of the 3px square-capped line. Bars and grid are exact.
-      maxMismatch: 0.01,
+      // Measured 0.000% — not one of 314,861 unmasked pixels differs: bars,
+      // grid and the 3px olive line all land on the capture's pixels. Was
+      // 0.008% (25 px of antialiasing at the line's four vertices) before the
+      // VerticalBarChart bar-and-hover fix. Pinned at 0: the floor check admits
+      // nothing else.
+      maxMismatch: 0,
     );
   });
 
@@ -270,14 +268,13 @@ void main() {
           hideTickOverlap: true,
         ),
       ),
-      // Measured 3.648% — 8,073 pixels of 221,320, every one of them a single
-      // defect: the bars are measured against the data extent [0, 89] instead
-      // of upstream's `_yMax = max(yAxisDomain.last, yMaxValue)` [0, 100]
-      // (`VerticalBarChart.tsx:895-899`, `:1124`). The 89 bar reaches the 100
-      // gridline, every bar is 100/89 too tall, and the colour ramp is spread
-      // over 89 instead of 100 — the 89 bar paints color3 (42,160,164) where
-      // the capture interpolates (83,125,159). x, widths and axes are exact.
-      maxMismatch: 3.7,
+      // Measured 0.000% — not one of 221,320 unmasked pixels differs. Was
+      // 3.648% while the bars and their colour ramp were measured against the
+      // data extent [0, 89] instead of upstream's
+      // `_yMax = max(yAxisDomain.last, yMaxValue)` [0, 100]
+      // (`VerticalBarChart.tsx:895-899`, `:1124`). Pinned at 0: the floor
+      // check admits nothing else.
+      maxMismatch: 0,
     );
   });
 
@@ -344,9 +341,11 @@ void main() {
         lineLegendColor: _olive,
         props: FluentCartesianChartProps(yAxisTickCount: 6, hideLegend: true),
       ),
-      // Measured 0.012% — 37 pixels of 307,905, all Skia-vs-Chromium AA at the
-      // ten vertices of the 3px square-capped line. Bars and grid are exact.
-      maxMismatch: 0.015,
+      // Measured 0.001% — 2 pixels of 307,905, best shift (0,0): two
+      // Skia-vs-Chromium antialiased pixels on the 3px olive line near
+      // x 210. Bars and grid are exact. Was 0.012% (37 px at the line's ten
+      // vertices) before the VerticalBarChart bar-and-hover fix.
+      maxMismatch: 0.001,
     );
   });
 }

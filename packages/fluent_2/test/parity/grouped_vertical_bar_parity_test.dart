@@ -91,22 +91,15 @@ void main() {
           reflowMode: FluentChartReflowMode.minWidth,
         ),
       ),
-      // Measured 0.178% — 467 pixels of 262,094, best shift (0,0). Bars, lines,
-      // markers, gridlines and axes all land where upstream's do; the residual
-      // is three things:
-      //   * 244 px: both line legends draw a 14x14 square. Upstream flags them
-      //     `isLineLegendInBarChart` (`GroupedVerticalBarChart.tsx:239`,
-      //     `:252`) and draws a 14x6 bar (Oracle B `fui-legend__rect`
-      //     [52, 601, 14, 6]); `grouped_vertical_bar_chart.dart` never sets the
-      //     flag on its line legend items.
-      //   * 128 px: every negative label is "−" (U+2212, what d3-format emits),
-      //     which Selawik lacks. Under `flutter test` the first fallback family,
-      //     `-apple-system`, resolves to the test font's filled box, which is
-      //     wider than Segoe's minus and pokes out of the reference text masks.
-      //   * 72 px: 1px fringe columns either side of four bar-legend swatches
-      //     at fractional x, which Chromium snaps to whole pixels; ~23 px of
-      //     antialiasing where the 3px lines cross.
-      maxMismatch: 0.19,
+      // Measured 0.006% — 15 pixels of 262,094, best shift (0,0), all
+      // Skia-vs-Chromium antialiasing along the two 3px lines. Bars, markers,
+      // gridlines, axes and every swatch are pixel-identical. Was 0.178%
+      // while the line legends drew 14x14 squares instead of the 14x6
+      // `isLineLegendInBarChart` bar (`GroupedVerticalBarChart.tsx:239`,
+      // `:252`), the bar swatches sat at fractional x where Chromium snaps
+      // them to whole pixels, and U+2212 (which Selawik lacks) drew as the
+      // test font's box, wider than the text mask.
+      maxMismatch: 0.006,
     );
   });
 
@@ -318,12 +311,11 @@ void main() {
           reflowMode: FluentChartReflowMode.minWidth,
         ),
       ),
-      // Measured 0.076% — 201 pixels of 264,317, best shift (0,0). The bars,
-      // gridlines and axes are pixel-identical. 145 px are the U+2212 minus
-      // sign on every negative bar and tick label drawing as the test font's
-      // box (see the line story above); 56 px are 1px fringe columns either
-      // side of two legend swatches at fractional x.
-      maxMismatch: 0.08,
+      // Measured 0.000% — not one of 264,317 unmasked pixels differs. Was
+      // 0.076% from the same U+2212 box (every negative bar and tick label)
+      // and swatch fringes the line story above lists, both fixed since.
+      // Pinned at 0: the floor check admits nothing else.
+      maxMismatch: 0,
     );
   });
 
@@ -372,10 +364,12 @@ void main() {
           secondaryYScaleOptions: FluentSecondaryYScaleOptions(),
         ),
       ),
-      // Measured 0.008% — 16 pixels of 200,194, best shift (0,0). 14 are one
-      // fringe column of the "2022" legend swatch at fractional x; 2 are a
-      // secondary-axis tick label's antialiased edge past its mask.
-      maxMismatch: 0.01,
+      // Measured 0.001% — 2 pixels of 200,194, best shift (0,0): one
+      // secondary-axis tick label's "k", 10px/600 and wide in Selawik
+      // Semibold, antialiasing one column past its mask. Bars, both axes,
+      // gridlines and swatches are pixel-identical. Was 0.008% while the
+      // "2022" swatch sat at fractional x (14 px of fringe column).
+      maxMismatch: 0.0015,
     );
   });
 }

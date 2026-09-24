@@ -106,12 +106,12 @@ void main() {
           yMaxValue: 43,
         ),
       ),
-      // Measured 0.064% — 144 px, all of it the y tick labels −47/−94/−141/
-      // −188 and the "−99" total: d3 formats negatives with U+2212, the
-      // bundled Selawik has no such glyph, and `flutter test` draws its tofu
-      // box, which is wider than the minus and pokes out of the text mask.
-      // Every mark, gridline and axis line matches to the pixel.
-      maxMismatch: 0.07,
+      // Measured 0.000% — not one of 223,646 unmasked pixels differs. Was
+      // 0.064% while the harness drew U+2212 (which Selawik lacks) as the test
+      // font's box, wider than the minus, on the −47/−94/−141/−188 ticks and
+      // the "−99" total; it now falls back to a real glyph that stays inside
+      // the mask. Pinned at 0: the floor check admits nothing else.
+      maxMismatch: 0,
     );
   });
 
@@ -265,13 +265,13 @@ void main() {
           margins: FluentChartMargins(left: 50),
         ),
       ),
-      // Measured 0.059% — 125 px. 84 of them are the three line-legend
-      // swatches drawn 14x4 where upstream's are 14x6: `height: 4px`
-      // (`Legends.tsx:376`) is a content box and the 1px border
-      // (`useLegendsStyles.styles.ts:82`) adds two rows. 16 are the line3 and
-      // line2 swatches painted at x 379.23 / 445.33 where Chromium snaps the
-      // div to whole pixels. The last 25 are antialiasing along the lines.
-      maxMismatch: 0.07,
+      // Measured 0.012% — 25 of 212,423 px, best shift (0,0), all
+      // Skia-vs-Chromium antialiasing along the three 3px lines. Stacks,
+      // gridlines, axes and swatches are pixel-identical. Was 0.059% while
+      // the three line-legend swatches were drawn 14x4 instead of 14x6
+      // (`Legends.tsx:376`'s 4px is the content box inside a 1px border) and
+      // at fractional x where Chromium snaps the div to whole pixels.
+      maxMismatch: 0.015,
     );
   });
 
@@ -437,11 +437,13 @@ void main() {
         data: data,
         lineOptions: const FluentLineOptions(lineBorderWidth: 2),
       ),
-      // Measured 0.067% — 144 px. 56 are the two line-legend swatches drawn
-      // 4px tall against upstream's 6 (content box plus 1px border). The
-      // other 88 are antialiasing along the shallow "Supported Builds" line,
-      // whose centre agrees with Oracle B's to 0.1px.
-      maxMismatch: 0.08,
+      // Measured 0.041% — 88 of 215,574 px, best shift (0,0), all
+      // Skia-vs-Chromium antialiasing along the two 3px lines: 83 on the
+      // shallow green "Supported Builds" line, whose centre agrees with
+      // Oracle B's to 0.1px, and 5 on "Recommended Builds". Stacks, gridlines,
+      // axes and swatches are pixel-identical. Was 0.067% while the two
+      // line-legend swatches were drawn 14x4 instead of 14x6.
+      maxMismatch: 0.05,
     );
   });
 
@@ -529,16 +531,13 @@ void main() {
           useUTC: true,
         ),
       ),
-      // Measured 15.248% — every stack sits at its tick instead of where
-      // upstream draws it. `_getScales` (`VerticalStackedBarChart.tsx:866-879`)
-      // places bars on a private time scale over [first, last date] and
-      // [left + domainMargin, width - right - domainMargin] with NO `.nice()`,
-      // so the capture's bars run 51..634 while its ticks run 105..607 on the
-      // shell's niced axis (`utilities.ts:465-468`). The port reads the
-      // shell's scale (`vertical_stacked_bar_chart.dart`, `segmentsFor`).
-      // With the bars moved onto the un-niced scale in a scratch run the
-      // story measured 0.000%, so this is the whole of the residual.
-      maxMismatch: 15.3,
+      // Measured 0.000% — not one of 210,150 unmasked pixels differs. Was
+      // 15.248% while every stack sat on its tick of the shell's niced axis;
+      // `_getScales` (`VerticalStackedBarChart.tsx:866-879`) places them on a
+      // private time scale over [first, last date] with no `.nice()`, so the
+      // capture's bars run 51..634 while its ticks run 105..607, and the port
+      // now does the same. Pinned at 0: the floor check admits nothing else.
+      maxMismatch: 0,
     );
   });
 
@@ -653,15 +652,16 @@ void main() {
           roundedTicks: true,
         ),
       ),
-      // Measured 0.166% — 351 px. 241 are the "+7 more" overflow trigger:
-      // its label is not in the manifest's text mask (the capture only masks
-      // leaf elements and the MenuButton label has an icon sibling), so 195
-      // px are Skia-vs-Chromium glyphs; the Selawik Semibold label runs wide,
-      // pushing the chevron (22) and the right border (24) about a pixel. 67
-      // are U+2212 tofu boxes (the −50/−100 ticks and the "−90" total), 14
-      // the Metadata5 swatch painted at x 408.19 where Chromium snaps to 408,
-      // and the last 29 antialiasing along the lines.
-      maxMismatch: 0.18,
+      // Measured 0.034% — 71 of 210,040 px, best shift (0,0). Was 0.166%
+      // before the `+N more` label was masked, U+2212 got a real glyph and
+      // the swatches snapped to Chromium's whole pixels. Stacks, gridlines,
+      // axes and swatches are pixel-identical. What is left:
+      //   * 42 px on the "+7 more" trigger: its 14px/600 Selawik label runs
+      //     wide of Segoe UI Semibold, so the right border straddles 591..592
+      //     where the capture's is crisp at 591 (24 px) and the chevron sits
+      //     half a pixel right (18 px).
+      //   * 29 px of Skia-vs-Chromium antialiasing along the two lines.
+      maxMismatch: 0.04,
     );
   });
 
@@ -747,12 +747,13 @@ void main() {
           secondaryYScaleOptions: FluentSecondaryYScaleOptions(),
         ),
       ),
-      // Measured 0.083% — 160 px. 56 are the Furniture and Clothing swatches
-      // painted at x 122.41 / 208.23 where Chromium snaps the div to whole
-      // pixels, 28 the "Sales Target" line swatch drawn 4px tall against
-      // upstream's 6, and 76 antialiasing along the secondary-scale line,
-      // whose centre agrees with Oracle B's to 0.1px.
-      maxMismatch: 0.09,
+      // Measured 0.039% — 76 of 193,694 px, best shift (0,0), all
+      // Skia-vs-Chromium antialiasing along the secondary-scale "Sales
+      // Target" line, whose centre agrees with Oracle B's to 0.1px. Stacks,
+      // both y axes and swatches are pixel-identical. Was 0.083% while the
+      // Furniture and Clothing swatches sat at fractional x and the line
+      // swatch was drawn 14x4 instead of 14x6.
+      maxMismatch: 0.04,
     );
   });
 }
