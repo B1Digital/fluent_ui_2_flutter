@@ -249,14 +249,12 @@ void main() {
       FluentLineChart(
         data: data,
         // Upstream passes `culture={"rs-ss"}`, a well-formed tag no runtime
-        // has data for. ECMA-402's `toLocaleString` (`formatter.ts:78-95`)
-        // falls back to the default locale for it; the port's
-        // `formatDateToLocaleString` (`tick_format.dart:199`) hands it to
-        // `DateFormat`, which throws `LocaleDataException` while
-        // `buildHitRegions` formats every point's popover reading at paint
-        // time (`line_chart.dart:2003`) — so the whole chart fails to build.
-        // Left at the default until that fallback exists; culture reaches
-        // only the popover text, never a pixel of this still render.
+        // has data for. ECMA-402's `toLocaleString` (`formatter.ts:95`) falls
+        // back to the default locale for it, and so does the port's
+        // `formatDateToLocaleString` (`tick_format.dart`, `_resolveCulture`).
+        // It reaches only the popover text, never a pixel of this still
+        // render; passing it proves the chart builds and hit-tests with it.
+        culture: 'rs-ss',
         props: const FluentCartesianChartProps(
           yMinValue: 200,
           yMaxValue: 301,

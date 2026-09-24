@@ -271,6 +271,28 @@ void main() {
       );
     });
 
+    test('falls back to the default locale for a culture intl lacks', () {
+      expect(
+        formatToLocaleString(12345, culture: 'rs-ss'),
+        '12,345',
+        reason:
+            'formatter.ts:41 calls toLocaleString(culture), and ECMA-402 '
+            'lookup falls back to the default locale for a well-formed tag '
+            'it has no data for; intl would throw ArgumentError.',
+      );
+      expect(
+        formatToLocaleString(
+          DateTime.utc(2020, 3, 4, 5, 6, 7),
+          culture: 'rs-ss',
+          useUtc: true,
+        ),
+        '03/04/2020, 05:06:07 AM UTC',
+        reason:
+            'formatter.ts:95, the same lookup for a Date; intl would throw '
+            'LocaleDataException (date data uninitialised) or ArgumentError.',
+      );
+    });
+
     test('leaves a non-numeric string alone', () {
       expect(
         formatToLocaleString('Monday'),

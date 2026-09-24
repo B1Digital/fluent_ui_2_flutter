@@ -176,6 +176,30 @@ const FluentDateTimeFormatOptions kDefaultDateTimeFormatOptions =
       hour12: true,
     );
 
+/// The intl locale [culture] formats in, or null for the default locale.
+///
+/// `toLocaleString(culture, …)` (`chart-utilities/formatter.ts:41`, `:45` and
+/// `:95`) runs ECMA-402 lookup, which falls back to the default locale for a
+/// well-formed tag it has no data for — the custom-locale LineChart story
+/// passes `'rs-ss'`. intl's formatters throw there instead: `ArgumentError`
+/// for a name it has no data for, and `LocaleDataException` for any date
+/// locale but `en_US` until `initializeDateFormatting` has run. A chart
+/// formats inside build and hit-testing, so either would take it down.
+String? _resolveCulture(
+  String? culture,
+  bool Function(String locale) localeExists,
+) {
+  if (culture == null || culture.isEmpty) {
+    return null;
+  }
+  try {
+    return Intl.verifiedLocale(culture, localeExists, onFailure: (_) => null);
+  } on Exception {
+    // intl's LocaleDataException, which it does not export.
+    return null;
+  }
+}
+
 /// Formats a date for display on an axis or in a popover.
 ///
 /// Ports `formatDateToLocaleString` (`chart-utilities/formatter.ts:78-95`).
@@ -196,7 +220,10 @@ String formatDateToLocaleString(
   // selects — so a caller-supplied `DateTime.utc` would keep printing UTC
   // wall-clock with useUtc off. `toLocal` is what makes the flag off mean local.
   final subject = useUtc ? date.toUtc() : date.toLocal();
-  final formatted = DateFormat(bag.pattern, culture).format(subject);
+  final formatted = DateFormat(
+    bag.pattern,
+    _resolveCulture(culture, DateFormat.localeExists),
+  ).format(subject);
   if (!showTZname) {
     return formatted;
   }
@@ -241,9 +268,10 @@ String formatToLocaleString(
     // 10000 is the grouping threshold at formatter.ts:40 and :44.
     final grouped = asNumber.abs() >= 10000;
     final snapped = handleFloatingPointPrecisionError(asNumber);
+    final locale = _resolveCulture(effectiveCulture, NumberFormat.localeExists);
     final format = grouped
-        ? NumberFormat.decimalPattern(effectiveCulture)
-        : (NumberFormat.decimalPattern(effectiveCulture)..turnOffGrouping());
+        ? NumberFormat.decimalPattern(locale)
+        : (NumberFormat.decimalPattern(locale)..turnOffGrouping());
     return format.format(snapped);
   }
   if (data is DateTime) {
