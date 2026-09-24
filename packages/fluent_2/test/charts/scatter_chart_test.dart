@@ -460,6 +460,165 @@ void main() {
       );
     });
 
+    test('a callout lists every series at the hovered x on the accent bar', () {
+      final delegate = _delegateOf(<FluentScatterChartSeries>[
+        _series(
+          'Region 1',
+          <Object>['Electronics', 'Toys'],
+          <Object>[50000, 15000],
+        ),
+        _series(
+          'Region 2',
+          <Object>['Electronics', 'Toys'],
+          <Object>[60000, 12000],
+          colour: const Color(0xFF9373C0),
+        ),
+      ]);
+      final marks = delegate.marksFor(
+        _bandXContext(<String>['Electronics', 'Toys']),
+      );
+      // Region 2's Electronics circle, painted first because :399 counts down.
+      final reading = delegate.popoverFor(marks.first)!;
+      expect(
+        reading.yValues!.map((row) => (row.legend, row.y)),
+        <(String?, double?)>[('Region 1', 50000), ('Region 2', 60000)],
+        reason:
+            'ScatterChart.tsx:569 reads findCalloutPoints(calloutPointsRef, x)'
+            '.values, every series at that x; the live string story shows '
+            'both regions under Electronics',
+      );
+      expect(
+        reading.yValues!.map((row) => row.index),
+        everyElement(-1),
+        reason:
+            '_injectIndexPropertyInScatterChartData sets index -1 on every '
+            'series (ScatterChart.tsx:161), so ChartPopover.tsx:188 draws the '
+            '4px accent bar, never a legend shape',
+      );
+      expect(reading.yValues!.map((row) => row.color), <Color>[
+        FluentDataVizPalette.next(0),
+        const Color(0xFF9373C0),
+      ], reason: 'each row takes its own series colour, as its circle does');
+      expect(reading.xValue, 'Electronics');
+    });
+
+    test('an x whose every point hides its callout has no reading', () {
+      final delegate = _delegateOf(<FluentScatterChartSeries>[
+        const FluentScatterChartSeries(
+          legend: 'S0',
+          data: <FluentScatterChartDataPoint>[
+            FluentScatterChartDataPoint(x: 1, y: 10, hideCallout: true),
+            FluentScatterChartDataPoint(x: 2, y: 20),
+          ],
+        ),
+      ]);
+      final marks = delegate.marksFor(_numericContext());
+      expect(
+        delegate.popoverFor(marks.first),
+        isNull,
+        reason:
+            'calloutData drops a hideCallout point (utilities.ts:1017), so '
+            'findCalloutPoints finds nothing and ScatterChart.tsx:587-588 only '
+            'grows the circle',
+      );
+      expect(delegate.popoverFor(marks.last), isNotNull);
+    });
+
+    test('the hover rule runs dashed from the circle to 6px past the axis', () {
+      final ctx = _numericContext();
+      final layout = _layout();
+      final canvas = _RuleCanvas();
+      _delegateOf(
+        <FluentScatterChartSeries>[
+          _series('S0', <Object>[4], <Object>[50]),
+        ],
+        hoverRule: (x: 4, y: 50, lengthY: 50),
+      ).paintSeries(canvas, ctx, layout, FluentChartColors.of(theme));
+      final x = ctx.xScale(4)!;
+      final top = ctx.yScalePrimary(50)!;
+      // `verticaLineHeight = containerHeight - margins.bottom + 6` (:404).
+      const bottom = 310 - 55 + 6.0;
+      expect(
+        canvas.lines.first.from,
+        Offset(x, top),
+        reason:
+            'translate(xScale(x), yScale(y)) (ScatterChart.tsx:574) starts the '
+            'rule at the hovered circle',
+      );
+      expect(canvas.lines.first.to, Offset(x, top + 5), reason: 'dash 5');
+      expect(
+        canvas.lines[1].from,
+        Offset(x, top + 10),
+        reason: 'then a gap of 5',
+      );
+      expect(
+        canvas.lines.last.to.dy,
+        moreOrLessEquals(bottom),
+        reason: 'y2 = lineHeight - yScale(y) (:576) ends it at lineHeight',
+      );
+      expect(canvas.lines.map((line) => line.colour), everyElement(0xFF323130));
+      expect(canvas.lines.map((line) => line.width), everyElement(1.0));
+      expect(
+        canvas.calls.indexOf('circle'),
+        greaterThan(canvas.calls.lastIndexOf('line')),
+        reason:
+            'the <line> precedes the series <g> (ScatterChart.tsx:750-761), '
+            'so the circles cover it',
+      );
+    });
+
+    test('a focused rule starts at the top and keeps the last length', () {
+      final ctx = _numericContext();
+      final fresh = _RuleCanvas();
+      _delegateOf(
+        <FluentScatterChartSeries>[
+          _series('S0', <Object>[4], <Object>[50]),
+        ],
+        hoverRule: (x: 4, y: null, lengthY: null),
+      ).paintSeries(fresh, ctx, _layout(), FluentChartColors.of(theme));
+      expect(
+        fresh.lines.first.from,
+        Offset(ctx.xScale(4)!, 0),
+        reason: 'focus writes translate(x, 0) (ScatterChart.tsx:541)',
+      );
+      expect(
+        fresh.lines,
+        hasLength(31),
+        reason:
+            'before any hover, y2 is still containerHeight (:755): 310px of '
+            '5 on, 5 off, the last gap ending on it',
+      );
+      final stale = _RuleCanvas();
+      _delegateOf(
+        <FluentScatterChartSeries>[
+          _series('S0', <Object>[4], <Object>[50]),
+        ],
+        hoverRule: (x: 4, y: null, lengthY: 80),
+      ).paintSeries(stale, ctx, _layout(), FluentChartColors.of(theme));
+      expect(
+        stale.lines.last.to.dy,
+        moreOrLessEquals(310 - 55 + 6 - ctx.yScalePrimary(80)!),
+        reason:
+            'focus leaves y2 alone, so the rule keeps the length the last '
+            'hover gave it (:576)',
+      );
+    });
+
+    test('no rule is painted while it is hidden', () {
+      final canvas = _RuleCanvas();
+      _delegate(xValues: <Object>[1], yValues: <Object>[10]).paintSeries(
+        canvas,
+        _numericContext(),
+        _layout(),
+        FluentChartColors.of(theme),
+      );
+      expect(
+        canvas.lines,
+        isEmpty,
+        reason: "visibility='hidden' (ScatterChart.tsx:758)",
+      );
+    });
+
     test('high contrast flattens the fill and the halo to different slots', () {
       final hc = FluentThemeData.highContrast(
         fontPlatform: FluentFontPlatform.web,
@@ -629,57 +788,205 @@ void main() {
       );
     });
 
-    testWidgets('keyboard focus never opens the popover', (tester) async {
-      await pump(tester, FluentScatterChart(data: _fixtureData()));
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.pumpAndSettle();
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-      await tester.pumpAndSettle();
-      expect(
-        find.byType(FluentChartPopover),
-        findsNothing,
-        reason:
-            'parity: ScatterChart.tsx:543-552 gates on _refArray, which is '
-            'never pushed to (:81), so focus only sets activePoint',
+    /// Every mark, resolved against the scales the chart just painted with.
+    List<FluentScatterMark> marksOf(WidgetTester tester) {
+      final painter = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((paint) => paint.painter)
+          .whereType<FluentCartesianChartPainter>()
+          .single;
+      return delegateOf(tester).marksFor(
+        FluentCartesianChildContext(
+          xScale: painter.xAxis.scale,
+          yScalePrimary: painter.yAxisPrimary.scale,
+          containerWidth: painter.layout.size.width,
+          containerHeight: painter.layout.size.height,
+        ),
       );
-    });
+    }
 
-    testWidgets('focus grows the marker under the roving index', (
+    /// Point `0_2`, the big circle at the chart's centre.
+    FluentScatterMark centreMark(WidgetTester tester) => marksOf(
+      tester,
+    ).singleWhere((mark) => mark.seriesIndex == 0 && mark.pointIndex == 2);
+
+    Future<TestGesture> hover(WidgetTester tester, Offset local) async {
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      // Come in a pixel off and drift onto the target, as a hand does.
+      final origin = tester.getTopLeft(find.byType(FluentCartesianChart));
+      await gesture.moveTo(origin + local + const Offset(1, 1));
+      await tester.pump();
+      await gesture.moveTo(origin + local);
+      await tester.pump();
+      return gesture;
+    }
+
+    Rect popoverTarget(WidgetTester tester) => tester
+        .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+        .anchorRect!;
+
+    testWidgets('hover lays the callout out against the whole chart root', (
       tester,
     ) async {
       await pump(tester, FluentScatterChart(data: _fixtureData()));
+      await hover(tester, centreMark(tester).centre);
+      expect(
+        tester.getRect(find.byType(FluentChartPopoverLayout)),
+        tester.getRect(find.byType(FluentCartesianChart)),
+        reason:
+            'fui-cart__root, legend included, is the callout\'s boundary '
+            '(useCartesianChartStyles.styles.ts:38-46); a callout hosted in '
+            'the plot stopped 40px short of it',
+      );
+      expect(
+        find.descendant(
+          of: find.byType(FluentChartPopover),
+          matching: find.byKey(
+            const ValueKey<String>('popover-row-accent-bar'),
+          ),
+        ),
+        findsOneWidget,
+        reason:
+            'index -1 on every scatter series (ScatterChart.tsx:161) gives '
+            'the row the 4px accent bar (ChartPopover.tsx:188, :205)',
+      );
+      expect(
+        find.descendant(
+          of: find.byType(FluentChartPopover),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is CustomPaint &&
+                widget.painter is FluentChartLegendShapePainter,
+          ),
+        ),
+        findsNothing,
+        reason: 'and no 14px legend shape',
+      );
+    });
+
+    testWidgets('the callout follows the pointer inside a circle', (
+      tester,
+    ) async {
+      await pump(tester, FluentScatterChart(data: _fixtureData()));
+      final mark = centreMark(tester);
+      expect(mark.radius, greaterThan(6), reason: 'room to move inside');
+      final gesture = await hover(tester, mark.centre);
+      final before = popoverTarget(tester);
+      await gesture.moveBy(const Offset(3, 2));
+      await tester.pump();
+      expect(
+        popoverTarget(tester).topLeft - before.topLeft,
+        const Offset(3, 2),
+        reason:
+            '_uniqueCallOutID is reset every render (ScatterChart.tsx:80), so '
+            'updatePosition(clientX, clientY) runs on every move (:578-580)',
+      );
+    });
+
+    testWidgets(
+      'hovering a circle shows the rule, leaving it hides only that',
+      (tester) async {
+        await pump(tester, FluentScatterChart(data: _fixtureData()));
+        final mark = centreMark(tester);
+        final gesture = await hover(tester, mark.centre);
+        expect(
+          delegateOf(tester).hoverRule,
+          (x: 34, y: 25, lengthY: 25),
+          reason:
+              'ScatterChart.tsx:573-576 translates the rule to the hovered '
+              'point and sets its y2 from the same y',
+        );
+        // Off every circle, into the empty top-left corner of the plot.
+        await gesture.moveTo(
+          tester.getTopLeft(find.byType(FluentCartesianChart)) +
+              Offset(mark.centre.dx - 60, 40),
+        );
+        await tester.pump();
+        expect(
+          delegateOf(tester).hoverRule,
+          isNull,
+          reason: "_handleMouseOut (:606-608) sets visibility 'hidden'",
+        );
+        expect(
+          find.byType(FluentChartPopover),
+          findsOneWidget,
+          reason: 'and leaves the callout open',
+        );
+        expect(delegateOf(tester).activePointId, '0_2');
+      },
+    );
+
+    testWidgets(
+      'keyboard focus opens the callout on the circle, grows nothing',
+      (tester) async {
+        await pump(tester, FluentScatterChart(data: _fixtureData()));
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+        expect(find.byType(FluentChartPopover), findsNothing);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        await tester.pumpAndSettle();
+        // The first stop is the LAST series' first point: :399 counts down.
+        final mark = marksOf(tester).first;
+        expect((mark.seriesIndex, mark.pointIndex), (1, 0));
+        expect(
+          popoverTarget(tester),
+          Rect.fromCenter(center: mark.centre, width: 0, height: 0),
+          reason:
+              'updatePosition(cx, cy) at the circle\'s centre opens the callout '
+              '(ScatterChart.tsx:530-533)',
+        );
+        expect(
+          delegateOf(tester).activePointId,
+          isNull,
+          reason:
+              'the setActivePoint at :550 sits in a forEach over _refArray, '
+              'which is never pushed to (:81); the live story grows no circle',
+        );
+        expect(
+          delegateOf(tester).hoverRule,
+          (x: 15, y: null, lengthY: null),
+          reason:
+              'translate(x, 0) (:541) with the containerHeight y2 it renders '
+              'with (:755)',
+        );
+        FocusManager.instance.primaryFocus!.unfocus();
+        await tester.pumpAndSettle();
+        expect(
+          delegateOf(tester).hoverRule,
+          isNull,
+          reason: 'onBlur is _handleMouseOut (:471)',
+        );
+      },
+    );
+
+    testWidgets('a focused circle shows the last reading a hover left', (
+      tester,
+    ) async {
+      await pump(tester, FluentScatterChart(data: _fixtureData()));
+      final gesture = await hover(tester, centreMark(tester).centre);
+      await gesture.moveTo(Offset.zero);
+      await tester.pump();
+      expect(find.byType(FluentChartPopover), findsNothing);
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.pumpAndSettle();
-      expect(
-        delegateOf(tester).activePointId,
-        isNull,
-        reason:
-            'the Tab lands on the plot, not on a marker, so nothing grows '
-            'until an arrow picks one',
-      );
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
       await tester.pumpAndSettle();
       expect(
-        delegateOf(tester).activePointId,
-        '1_0',
+        find.descendant(
+          of: find.byType(FluentChartPopover),
+          matching: find.text('34'),
+        ),
+        findsOneWidget,
         reason:
-            'ScatterChart.tsx:554 grows the focused circle, and the first stop '
-            'is the LAST series\' first point because :399 counts down',
+            'hoverXValue and yValueHover are state only a hover writes '
+            '(ScatterChart.tsx:581-584); focus reopens them as they were',
       );
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-      await tester.pumpAndSettle();
-      expect(
-        delegateOf(tester).activePointId,
-        '1_1',
-        reason: 'the next arrow grows the next marker',
-      );
-      FocusManager.instance.primaryFocus!.unfocus();
-      await tester.pumpAndSettle();
-      expect(
-        delegateOf(tester).activePointId,
-        isNull,
-        reason: 'blur drops the roving stop, and the grown marker with it',
-      );
+      expect(delegateOf(tester).hoverRule, (
+        x: 15,
+        y: null,
+        lengthY: 25,
+      ), reason: 'and the rule keeps the y2 that hover wrote (:576)');
     });
 
     testWidgets('hover opens the stack popover', (tester) async {
@@ -860,6 +1167,7 @@ FluentScatterChartDelegate _delegateOf(
   List<FluentScatterChartSeries> series, {
   FluentChartColors? colors,
   FluentAxisCategoryOrder order = FluentAxisCategoryOrder.defaultOrder,
+  ({Object x, Object? y, Object? lengthY})? hoverRule,
 }) {
   final theme = FluentThemeData.light(fontPlatform: FluentFontPlatform.web);
   return FluentScatterChartDelegate(
@@ -870,7 +1178,32 @@ FluentScatterChartDelegate _delegateOf(
     measurer: FluentChartTextMeasurer(),
     selectedLegends: const <String>[],
     yAxisCategoryOrder: order,
+    hoverRule: hoverRule,
   );
+}
+
+/// Records the lines and circles a scatter delegate paints, in order.
+class _RuleCanvas implements Canvas {
+  final List<String> calls = <String>[];
+  final List<({Offset from, Offset to, int colour, double width})> lines =
+      <({Offset from, Offset to, int colour, double width})>[];
+
+  @override
+  void drawLine(Offset p1, Offset p2, Paint paint) {
+    calls.add('line');
+    lines.add((
+      from: p1,
+      to: p2,
+      colour: paint.color.toARGB32(),
+      width: paint.strokeWidth,
+    ));
+  }
+
+  @override
+  void drawCircle(Offset c, double radius, Paint paint) => calls.add('circle');
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }
 
 FluentScatterChartDelegate _delegate({

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fluent_2_core/fluent_2_core.dart';
 import 'package:flutter/widgets.dart';
 
@@ -83,8 +85,36 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
   List<String> _selectedLegends = const <String>[];
   String? _activeLegend;
   String? _activePointId;
-  FluentChartPopoverData? _popoverData;
-  Offset? _popoverAnchor;
+
+  /// `hoverXValue` and `yValueHover` (`ScatterChart.tsx:90-92`): the reading
+  /// the callout shows, whichever circle it opens over.
+  ///
+  /// Upstream keeps it in state that only a hovered circle writes (`:581-584`)
+  /// and nothing clears, so a keyboard focus (`:533`) or a pointer that leaves
+  /// and comes back shows the last circle hovered.
+  ///
+  /// Null until a circle is hovered, which hands every region its own
+  /// reading. parity: upstream starts from `hoverXValue: ''` and no rows
+  /// (`:90`, `:92`), so a focus before any hover opens an empty 34px surface
+  /// there; here it opens on the focused circle's reading, and a pointer that
+  /// meets a region's square corner before its circle shows no empty card
+  /// either.
+  FluentChartPopoverData? _reading;
+
+  /// Where d3 last left `#verticalLine`, or null while it is hidden.
+  ///
+  /// A hovered circle writes `translate(x, yScale(y))` (`ScatterChart.tsx:574`)
+  /// and a focused one `translate(x, 0)` (`:541`), so a null `y` is the focus
+  /// placement.
+  ({Object x, Object? y})? _rule;
+
+  /// The y whose `lineHeight - yScale(y)` is the rule's `y2` (`:576`), or null
+  /// before any hover, when `y2` is still the `containerHeight` it renders
+  /// with (`:755`).
+  ///
+  /// d3 writes `y2` on hover only, and React never resets it because the prop
+  /// never changes, so a focused rule keeps the last hover's length.
+  Object? _ruleLengthY;
   FluentScatterChartDelegate? _delegate;
   late FluentChartTextMeasurer _measurer;
 
@@ -106,42 +136,59 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
     super.dispose();
   }
 
-  /// `_handleFocus` (`ScatterChart.tsx:519-556`).
+  /// `_handleFocus` (`ScatterChart.tsx:519-556`), for the circle under the
+  /// shell's roving index, or `onBlur` (`:471`) when [index] is null.
   ///
-  /// Upstream's every-circle `onFocus` runs the callout branch at `:543-552`
-  /// under `_refArray.forEach`, and `_refArray` is declared at `:81` and never
-  /// pushed to — so the loop body is dead and focus reaches only the
-  /// `setActivePoint(circleId)` at `:554`. The popover therefore never opens on
-  /// focus, which the widget reproduces by suppressing the shell's popover
-  /// layer outright and rendering its own on hover instead.
+  /// Focus opens the callout: `updatePosition(cx, cy)` (`:533`) sets
+  /// `isPopoverOpen` at the circle's centre, which is where the shell puts a
+  /// focused region's callout, over [_reading]. When the x has callout points
+  /// it shows the rule from the top of the chart (`:540-542`) and grows
+  /// nothing, because the `setActivePoint` at `:550` sits in a
+  /// `_refArray.forEach` whose array is never pushed to (`:81`); only an x
+  /// without callout points grows the circle (`:554`). Blur hides the rule and
+  /// nothing else.
   ///
-  /// The grown marker follows the shell's roving index. Its regions are built
-  /// one per mark by [FluentScatterChartDelegate.buildHitRegions], so region i
-  /// is mark i, and the first stop is the last series' first point, as the
-  /// circles render from `ScatterChart.tsx:399`. Upstream makes every circle a
-  /// tab stop, so a Tab alone grows one; here a Tab lands on the plot and
-  /// nothing grows until an arrow picks a marker, the moment the shell starts
-  /// narrating one. Blur shrinks it again, because the shell drops its stop
-  /// there, where upstream's `onBlur` (`:471`) only hides the hover rule.
+  /// Region i is mark i ([FluentScatterChartDelegate.buildHitRegions]), so the
+  /// first stop is the last series' first point, as the circles render from
+  /// `:399`. A Tab lands on the plot and an arrow picks a circle.
   void _handleFocusedRegionChange(
     int? index,
     FluentCartesianChildContext context,
   ) {
-    final mark = index == null ? null : _delegate?.marksFor(context)[index];
-    setState(
-      () => _activePointId = mark == null
-          ? null
-          : '${mark.seriesIndex}_${mark.pointIndex}',
-    );
+    final delegate = _delegate;
+    if (delegate == null) {
+      return;
+    }
+    if (index == null) {
+      if (_rule != null) {
+        setState(() => _rule = null);
+      }
+      return;
+    }
+    final mark = delegate.marksFor(context)[index];
+    final point = _pointOf(mark);
+    final found = delegate.popoverFor(mark) != null;
+    setState(() {
+      if (found) {
+        _rule = (x: point.x, y: null);
+      } else {
+        _activePointId = '${mark.seriesIndex}_${mark.pointIndex}';
+      }
+    });
   }
 
   /// `_handleHover` (`ScatterChart.tsx:558-590`), bound to the circle's own
-  /// `onMouseMove`/`onMouseOver` (`:465-466`) rather than to the plot, so it
-  /// resolves the marker under the pointer first and does nothing in the gaps.
+  /// `onMouseMove`/`onMouseOver` (`:445-466`) rather than to the plot, so it
+  /// resolves the circle under the pointer first.
   ///
-  /// Leaving a marker is deliberately not a reset: `_handleMouseOut` (`:606`)
-  /// only hides the vertical rule, so the callout stays where the last marker
-  /// put it until the pointer leaves the chart entirely (`:610-616`).
+  /// The callout's placement is the shell's: it follows the pointer
+  /// ([FluentCartesianChartProps.popoverFollowsPointer]) because
+  /// `_uniqueCallOutID` is a `let` in the component body (`:80`), reset on the
+  /// render every hover triggers, so `updatePosition` runs on every move
+  /// (`:578-580`). What this sets is the rest: the reading, the grown circle
+  /// and the rule. Leaving a circle is `_handleMouseOut` (`:606-608`), which
+  /// only hides the rule, so the callout keeps the last circle's reading until
+  /// the pointer leaves the chart (`:610-616`).
   void _handlePointerMove(Offset local, FluentCartesianChildContext context) {
     final delegate = _delegate;
     if (delegate == null) {
@@ -155,26 +202,44 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
         continue;
       }
       final id = '${mark.seriesIndex}_${mark.pointIndex}';
-      // `if (_uniqueCallOutID !== circleId)` (`:577`) — re-entering the same
-      // circle changes nothing.
-      if (id == _activePointId && _popoverData != null) {
+      // Nothing but the position changes while the pointer stays on the
+      // circle, and the shell moves the callout itself.
+      if (id == _activePointId && _rule?.y != null) {
         return;
       }
+      final point = _pointOf(mark);
+      // `findCalloutPoints` (`:569`): an x whose every point hides its callout
+      // grows the circle and nothing else (`:587-588`).
+      final reading = delegate.popoverFor(mark);
       setState(() {
         _activePointId = id;
-        _popoverAnchor = local;
-        _popoverData = delegate.popoverFor(mark);
+        if (reading != null) {
+          _reading = reading;
+          _rule = (x: point.x, y: point.y);
+          _ruleLengthY = point.y;
+        }
       });
       return;
+    }
+    if (_rule?.y != null) {
+      setState(() => _rule = null);
     }
   }
 
   /// `_handleChartMouseLeave` (`ScatterChart.tsx:610-616`).
+  ///
+  /// Upstream leaves the rule to the circle's `onMouseOut`, which has always
+  /// fired by now; a hovered rule the pointer outran goes here instead. A
+  /// focused rule stays, as upstream's does.
   void _handleChartMouseLeave() => setState(() {
     _activePointId = null;
-    _popoverData = null;
-    _popoverAnchor = null;
+    if (_rule?.y != null) {
+      _rule = null;
+    }
   });
+
+  FluentScatterChartDataPoint _pointOf(FluentScatterMark mark) =>
+      widget.data.scatterChartData![mark.seriesIndex].data[mark.pointIndex];
 
   @override
   Widget build(BuildContext context) {
@@ -205,6 +270,11 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
       selectedLegends: _selectedLegends,
       activeLegend: _activeLegend,
       activePointId: _activePointId,
+      popoverReading: _reading,
+      hoverRule: switch (_rule) {
+        final rule? => (x: rule.x, y: rule.y, lengthY: _ruleLengthY),
+        null => null,
+      },
       xScaleType: widget.props.xScaleType,
       yScaleType: widget.props.yScaleType,
       xMinValue: widget.props.xMinValue,
@@ -223,13 +293,9 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
       // prefix in buildFluentCartesianChartDescription.
       props: widget.props.copyWith(
         chartTitleForSemantics: widget.data.chartTitle,
-        // The shell opens its popover for the focused region as readily as for
-        // the hovered one, and upstream's focus path cannot open one at all
-        // (see [_handleFocusedRegionChange]). Replacing the shell's layer with
-        // an empty one leaves this widget the only thing that can raise a
-        // popover, which it does from [_handlePointerMove] through
-        // `overlayBuilder`.
-        popoverBuilder: (context) => const SizedBox.shrink(),
+        // `updatePosition(mouseEvent.clientX, clientY)` on every move over a
+        // circle (`ScatterChart.tsx:578-580`); see [_handlePointerMove].
+        popoverFollowsPointer: true,
         // `{...(_isScatterPolarRef.current ? { yMaxValue: 1, yMinValue: -1 }
         // : {})}` (`ScatterChart.tsx:742`), spread after `{...props}` at `:723`
         // so it overrides a caller's own bounds. The polar transform writes
@@ -262,30 +328,10 @@ class _FluentScatterChartState extends State<FluentScatterChart> {
                       setState(() => _activeLegend = null),
                 ),
             ],
-      delegate: _delegate!,
-      overlayBuilder: _buildPopoverLayer,
+      delegate: delegate,
       onPointerMoveInPlot: _handlePointerMove,
       onFocusedRegionChange: _handleFocusedRegionChange,
       onChartMouseLeave: _handleChartMouseLeave,
-    );
-  }
-
-  Widget _buildPopoverLayer(
-    BuildContext context,
-    FluentCartesianChildContext childContext,
-    FluentCartesianLayout layout,
-  ) {
-    final data = _popoverData;
-    final anchor = _popoverAnchor;
-    if (data == null || anchor == null || widget.props.hideTooltip) {
-      return const SizedBox.shrink();
-    }
-    // The shell narrates the focused hit region on its own Semantics node, so
-    // the popover's text would be read a second time if it were not excluded.
-    return IgnorePointer(
-      child: ExcludeSemantics(
-        child: FluentChartPopover(data: data, anchor: anchor),
-      ),
     );
   }
 }
@@ -372,6 +418,8 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
     required this.selectedLegends,
     this.activeLegend,
     this.activePointId,
+    this.popoverReading,
+    this.hoverRule,
     this.xScaleType,
     this.yScaleType,
     this.xMinValue,
@@ -404,6 +452,23 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
 
   /// Identifier of the active point, `"<series>_<point>"`.
   final String? activePointId;
+
+  /// The reading every region's callout shows, or null for each circle's own
+  /// [popoverFor].
+  ///
+  /// Upstream's callout reads chart state, not the circle it opens over
+  /// (`ScatterChart.tsx:683-704`), so a chart that has been hovered hands the
+  /// last reading to a focused circle too.
+  final FluentChartPopoverData? popoverReading;
+
+  /// The dashed rule `#verticalLine` (`ScatterChart.tsx:751-760`), or null
+  /// while it is hidden.
+  ///
+  /// It stands at `xScale(x) + bandwidth / 2` and starts at `yScale(y)`, or at
+  /// the top when `y` is null (`:541`, `:574`). It runs `lineHeight -
+  /// yScale(lengthY)` down from there (`:576`), or `containerHeight` when
+  /// `lengthY` is null (`:755`).
+  final ({Object x, Object? y, Object? lengthY})? hoverRule;
 
   /// Optional log scaling on x.
   final FluentAxisScaleType? xScaleType;
@@ -794,6 +859,9 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
     FluentCartesianLayout layout,
     FluentChartColors colours,
   ) {
+    // The rule's `<line>` comes before the series `<g>` (`ScatterChart.tsx:750-
+    // 761`), so the circles paint over it.
+    _paintHoverRule(canvas, context, layout);
     final strokeWidth = style.markerStrokeWidth!.resolve(<WidgetState>{})!;
     final activeFill = style.activeMarkerFillColor!.resolve(<WidgetState>{})!;
     final labelStyle = style.markerLabelStyle!.resolve(<WidgetState>{})!;
@@ -859,6 +927,63 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
     }
   }
 
+  /// Paints [hoverRule]: `stroke="#323130"`, `strokeDasharray="5,5"` and the
+  /// SVG default width of 1 (`ScatterChart.tsx:751-760`).
+  void _paintHoverRule(
+    Canvas canvas,
+    FluentCartesianChildContext context,
+    FluentCartesianLayout layout,
+  ) {
+    final rule = hoverRule;
+    if (rule == null) {
+      return;
+    }
+    const states = <WidgetState>{};
+    final xBandwidth = xAxisType == FluentChartAxisType.category
+        ? context.xScale.bandwidth / 2
+        : 0.0;
+    final x = context.xScale(rule.x);
+    // `_yAxisScale(y)` with no half band (`:574`), unlike the circle's own
+    // centre at `:410-412`.
+    final y = rule.y;
+    final top = y == null ? 0.0 : context.yScalePrimary(y);
+    // `verticaLineHeight` (`:404`): 6px past the x axis.
+    final lineHeight =
+        context.containerHeight - (layout.margins.bottom ?? 0) + 6;
+    final lengthY = rule.lengthY;
+    final length = lengthY == null
+        ? context.containerHeight
+        : lineHeight - (context.yScalePrimary(lengthY) ?? double.nan);
+    if (x == null || top == null || !(x + top + length).isFinite) {
+      return;
+    }
+    final paint = Paint()
+      ..color = style.hoverLineColor!.resolve(states)!
+      ..strokeWidth = style.hoverLineWidth!.resolve(states)!;
+    final from = Offset(x + xBandwidth, top);
+    final to = from.translate(0, length);
+    final dashes = style.hoverLineDashPattern!.resolve(states) ?? <double>[];
+    if (dashes.fold<double>(0, (sum, run) => sum + run) <= 0) {
+      canvas.drawLine(from, to, paint);
+      return;
+    }
+    // SVG starts the dash at the line's own start, `y1 = 0`, and a negative
+    // `y2` runs it upwards.
+    final direction = length.sign;
+    var travelled = 0.0;
+    for (var i = 0; travelled < length.abs(); i++) {
+      final run = math.min(dashes[i % dashes.length], length.abs() - travelled);
+      if (i.isEven) {
+        canvas.drawLine(
+          from.translate(0, direction * travelled),
+          from.translate(0, direction * (travelled + run)),
+          paint,
+        );
+      }
+      travelled += run;
+    }
+  }
+
   @override
   List<FluentChartHitRegion> buildHitRegions(
     FluentCartesianChildContext context,
@@ -869,7 +994,7 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
         bounds: Rect.fromCircle(center: mark.centre, radius: mark.radius),
         index: mark.pointIndex,
         legend: _series[mark.seriesIndex].legend,
-        popoverData: popoverFor(mark),
+        popoverData: popoverReading ?? popoverFor(mark) ?? _emptyReading,
         semanticsLabel: mark.semanticsLabel,
         // `_getClickHandler(onDataPointClick)` (`ScatterChart.tsx:472`).
         onActivate:
@@ -877,14 +1002,42 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
       ),
   ];
 
-  /// The popover reading for [mark] (`ScatterChart.tsx:686-698`).
-  FluentChartPopoverData popoverFor(FluentScatterMark mark) {
-    final series = _series[mark.seriesIndex];
-    final point = series.data[mark.pointIndex];
+  /// `hoverXValue: ''` and `yValueHover: []` (`ScatterChart.tsx:90-92`), the
+  /// callout before any circle has written it.
+  ///
+  /// ponytail: only reached by a circle whose x hides every callout point
+  /// before any other circle has been hovered, where upstream opens nothing.
+  static const FluentChartPopoverData _emptyReading = FluentChartPopoverData(
+    isCalloutForStack: true,
+  );
+
+  /// The callout reading for [mark] (`ScatterChart.tsx:568-586`, read at
+  /// `:683-704`), or null when no point at its x shows a callout.
+  ///
+  /// The rows are `findCalloutPoints(calloutPointsRef.current, x).values`
+  /// (`:569`): every series' point at the hovered x, not the hovered point
+  /// alone, which is two rows on the string and date stories.
+  FluentChartPopoverData? popoverFor(FluentScatterMark mark) {
+    final point = _series[mark.seriesIndex].data[mark.pointIndex];
+    // `calloutData(pointsRef.current)` (`:144`), over every series whatever
+    // the legend selection, because `selectedLegendPoints` is never set
+    // (`:94`, `:249`).
+    final rows = findCalloutPoints(
+      calloutData(<FluentLineChartSeries>[
+        for (final series in _series)
+          FluentLineChartSeries(legend: series.legend, data: series.data),
+      ]),
+      point.x,
+      isXAxisDate: point.x is DateTime,
+    );
+    if (rows == null) {
+      return null;
+    }
     return FluentChartPopoverData(
-      // `formatDateToLocaleString(x, props.culture, props.useUTC)`
-      // (`ScatterChart.tsx:535`), then `ChartPopover.tsx:128` formats the
-      // reading once more, which is what groups a numeric x.
+      // `xAxisCalloutData ? … : '' + formattedData` (`:581`), a date going
+      // through `formatDateToLocaleString(x, props.culture, props.useUTC)`
+      // (`:568`), then `ChartPopover.tsx:128` formats the reading once more,
+      // which is what groups a numeric x.
       xValue:
           point.xAxisCalloutData ??
           formatToLocaleString(point.x, culture: culture, useUtc: useUtc),
@@ -893,17 +1046,24 @@ class FluentScatterChartDelegate extends FluentCartesianSeriesDelegate {
       isCalloutForStack: true,
       culture: culture,
       yValues: <FluentYValueHover>[
-        FluentYValueHover(
-          legend: series.legend,
-          y: point.y is num ? (point.y as num).toDouble() : null,
-          color: mark.colour,
-          yAxisCalloutText:
-              point.yAxisCalloutText ??
-              (point.y is String ? point.y as String : null),
-          yAxisCalloutBreakdown: point.yAxisCalloutBreakdown,
-          index: mark.seriesIndex,
-          shape: series.legendShape,
-        ),
+        for (final row in rows)
+          FluentYValueHover(
+            legend: row.legend,
+            // `calloutData` carries a category y as NaN beside its text.
+            y: row.y.isNaN ? null : row.y,
+            // The series colour `_injectIndexPropertyInScatterChartData`
+            // resolves (`:153-158`), as the circle is painted.
+            color: colors.flattenMark(
+              _series[row.index!].color ??
+                  FluentDataVizPalette.next(row.index!),
+            ),
+            yAxisCalloutText: row.yAxisCalloutText,
+            yAxisCalloutBreakdown: row.yAxisCalloutBreakdown,
+            // `_injectIndexPropertyInScatterChartData` sets `index: -1` on
+            // every series (`:161`), so ChartPopover.tsx:188 draws the 4px
+            // accent bar rather than a legend shape.
+            index: -1,
+          ),
       ],
     );
   }
