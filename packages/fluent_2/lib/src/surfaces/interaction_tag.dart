@@ -174,13 +174,17 @@ FluentTagStyle resolveFluentInteractionTagStyle(
 
   // The Filled glyph an outline tag swaps in goes brand while the label goes
   // neutral (`.fui-Icon-filled`, #0F6CBD / #115EA3 in the storybook). Selected
-  // leaves it on the label's `colorNeutralForegroundOnBrand`.
+  // leaves it on the label's `colorNeutralForegroundOnBrand`. Null elsewhere,
+  // so the resting Regular glyph keeps following the label's colour.
   final iconColor = state.activeIcon != null && !state.selected
-      ? FluentStateColor.tokens(
-          rest: c.neutralForeground2,
-          hover: c.neutralForeground2BrandHover,
-          pressed: c.neutralForeground2BrandPressed,
-          disabled: c.neutralForegroundDisabled,
+      ? WidgetStateProperty.resolveWith<Color?>(
+          (states) => states.contains(WidgetState.disabled)
+              ? null
+              : states.contains(WidgetState.pressed)
+              ? c.neutralForeground2BrandPressed
+              : states.contains(WidgetState.hovered)
+              ? c.neutralForeground2BrandHover
+              : null,
         )
       : null;
 

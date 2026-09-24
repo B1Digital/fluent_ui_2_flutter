@@ -664,12 +664,17 @@ class FluentTag extends StatelessWidget {
             ),
     );
 
+    final tag = buildFluentTag(state, resolved, states);
     return Semantics(
       container: true,
       selected: selected,
       enabled: enabled,
       label: semanticLabel,
-      child: buildFluentTag(state, resolved, states),
+      // `useTagStyles.styles.ts` useRootDisabledStyles: the whole disabled tag
+      // is `cursor: 'not-allowed'` (tag--disabled), not only its dismiss glyph.
+      child: enabled
+          ? tag
+          : MouseRegion(cursor: SystemMouseCursors.forbidden, child: tag),
     );
   }
 }

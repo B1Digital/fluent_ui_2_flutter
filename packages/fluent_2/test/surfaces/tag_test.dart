@@ -2,6 +2,7 @@ import 'dart:ui' show PictureRecorder;
 
 import 'package:fluent_2/fluent_2.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -466,6 +467,47 @@ void main() {
         reason: 'and it does not report hover either',
       );
     });
+
+    testWidgets('a disabled tag is not-allowed across its whole surface', (
+      tester,
+    ) async {
+      // tag--disabled in Chrome: `.fui-Tag` and its text read `not-allowed`
+      // (useTagStyles.styles.ts useRootDisabledStyles), dismissible or not.
+      final pointer = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        pointer: 1,
+      );
+      await pointer.addPointer(location: Offset.zero);
+      addTearDown(pointer.removePointer);
+      MouseCursor? cursor() =>
+          RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1);
+      for (final onDismiss in <VoidCallback?>[null, () {}]) {
+        for (final enabled in <bool>[true, false]) {
+          await pump(
+            tester,
+            FluentTag(
+              key: key,
+              enabled: enabled,
+              onDismiss: onDismiss,
+              child: const Text('Tag'),
+            ),
+          );
+          await pointer.moveTo(
+            tester.getTopLeft(find.byKey(key)) + const Offset(4, 4),
+          );
+          await tester.pump();
+          await pointer.moveBy(const Offset(1, 0));
+          await tester.pump();
+          expect(
+            cursor(),
+            enabled ? SystemMouseCursors.basic : SystemMouseCursors.forbidden,
+            reason: 'dismissible: ${onDismiss != null}, enabled: $enabled',
+          );
+          await pointer.moveTo(Offset.zero);
+          await tester.pump();
+        }
+      }
+    });
   });
 
   // Measured on the live storybook in Chrome at DPR 4
@@ -794,6 +836,28 @@ void main() {
         await pointer.up();
         await tester.pump();
       }
+
+      // The brand tint is the Filled glyph's alone: at rest the Regular one
+      // still follows the label, including a caller's own colour.
+      const custom = Color(0xFF00AA00);
+      await pump(
+        tester,
+        FluentInteractionTag(
+          key: key,
+          appearance: FluentTagAppearance.outline,
+          icon: const Icon(regular),
+          activeIcon: const Icon(filled),
+          style: FluentTagStyle.from(foregroundColor: custom),
+          onPressed: () {},
+          child: const Text('Tag'),
+        ),
+      );
+      await pointer.moveTo(Offset.zero);
+      await tester.pump();
+      expect(glyph(regular), custom, reason: 'rest follows foregroundColor');
+      await pointer.moveTo(tester.getCenter(find.byKey(key)));
+      await tester.pump();
+      expect(glyph(filled), c.neutralForeground2BrandHover);
     });
 
     testWidgets('selected ramps on the brand fill in all three styles', (
