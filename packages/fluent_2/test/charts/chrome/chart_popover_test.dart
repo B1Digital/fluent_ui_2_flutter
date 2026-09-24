@@ -5,6 +5,7 @@ import 'package:fluent_2/src/charts/chrome/chart_popover_style.dart';
 import 'package:fluent_2/src/charts/chrome/legend_shape.dart';
 import 'package:fluent_2/src/charts/model/callout_data.dart';
 import 'package:fluent_2_core/fluent_2_core.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -513,6 +514,85 @@ void main() {
           ),
         ),
       );
+
+  group('row shape pixel snapping', () {
+    // The row's marker is the legend's `<Shape>` svg (ChartPopover.tsx:211-217),
+    // which Chromium paints from its origin rounded to a whole device pixel,
+    // as it paints the legend's swatches.
+    const boundaryKey = Key('snap-boundary');
+
+    /// The first 20 columns of a one-row stacked body placed at [at]: the
+    /// 14px marker and none of the label 8px after it.
+    Future<List<int>> render(WidgetTester tester, Offset at) async {
+      tester.view.physicalSize = const Size(200, 100);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: RepaintBoundary(
+              key: boundaryKey,
+              child: SizedBox(
+                width: 120,
+                height: 60,
+                child: Stack(
+                  children: <Widget>[
+                    Positioned(
+                      left: at.dx,
+                      top: at.dy,
+                      child: buildFluentChartPopoverMultiValue(
+                        const FluentChartPopoverData(
+                          isCalloutForStack: true,
+                          yValues: <FluentYValueHover>[
+                            FluentYValueHover(
+                              legend: 'a',
+                              y: 1,
+                              color: Color(0xFF637CEF),
+                              index: 3,
+                            ),
+                          ],
+                        ),
+                        resolveFluentChartPopoverStyle(theme),
+                        theme.colors.neutralForeground1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final boundary = tester.renderObject<RenderRepaintBoundary>(
+        find.byKey(boundaryKey),
+      );
+      final bytes = await tester.runAsync(() async {
+        final image = await boundary.toImage();
+        final data = await image.toByteData();
+        final width = image.width;
+        image.dispose();
+        final all = data!.buffer.asUint8List();
+        return <int>[
+          for (var y = 0; y < 60; y++)
+            ...all.sublist(y * width * 4, (y * width + 20) * 4),
+        ];
+      });
+      return bytes!;
+    }
+
+    testWidgets('a row marker paints on whole pixels', (tester) async {
+      final snapped = await render(tester, const Offset(3, 7));
+      expect(
+        await render(tester, const Offset(2.6, 7.4)),
+        snapped,
+        reason:
+            'At (2.6, 7.4) the marker is painted as Chromium paints it: from '
+            '(3, 7), exactly as a body placed there.',
+      );
+    });
+  });
 
   group('fluentChartPopoverShapeForIndex', () {
     test('the modulus is 8, so dottedLine is unreachable', () {

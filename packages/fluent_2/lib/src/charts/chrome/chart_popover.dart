@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import '../../overlays/popover.dart';
 import '../../overlays/popover_style.dart';
 import '../axis/tick_format.dart';
+import '../internal/snap_to_device_pixels.dart';
 import '../model/callout_data.dart';
 import 'chart_popover_style.dart';
 import 'legend_shape.dart';
@@ -441,24 +442,28 @@ Widget _popoverRow(
     mainAxisSize: MainAxisSize.min,
     children: <Widget>[
       if (toDrawShape)
-        SizedBox(
-          // `ChartPopover.tsx:211-217` renders the same `<Shape>` the legend
-          // does, and that component sizes its own svg (`shape.tsx:39-40`,
-          // `:46-49`) — so the box is the shape viewport, not the legend row's
-          // border box. The two coincide at 14 only because
-          // `useLegendsStyles.styles.ts:14` makes the swatch border 1px.
-          width: kLegendShapeViewportSize,
-          height: kLegendShapeViewportSize,
-          child: CustomPaint(
-            painter: FluentChartLegendShapePainter(
-              // ChartPopover.tsx:216 derives the marker from the index alone
-              // and never consults `yValue.shape`.
-              shape: fluentChartPopoverShapeForIndex(value.index!),
-              fill: colour,
-              stroke: colour,
-              // ChartPopover.tsx:215 passes fill only — no stroke, unlike the
-              // legend swatch at Legends.tsx:365.
-              strokeWidth: 0,
+        // A replaced svg, so Chromium paints it from a whole device pixel, as
+        // it does the legend's.
+        SnapToDevicePixels(
+          child: SizedBox(
+            // `ChartPopover.tsx:211-217` renders the same `<Shape>` the legend
+            // does, and that component sizes its own svg (`shape.tsx:39-40`,
+            // `:46-49`) — so the box is the shape viewport, not the legend
+            // row's border box. The two coincide at 14 only because
+            // `useLegendsStyles.styles.ts:14` makes the swatch border 1px.
+            width: kLegendShapeViewportSize,
+            height: kLegendShapeViewportSize,
+            child: CustomPaint(
+              painter: FluentChartLegendShapePainter(
+                // ChartPopover.tsx:216 derives the marker from the index alone
+                // and never consults `yValue.shape`.
+                shape: fluentChartPopoverShapeForIndex(value.index!),
+                fill: colour,
+                stroke: colour,
+                // ChartPopover.tsx:215 passes fill only — no stroke, unlike the
+                // legend swatch at Legends.tsx:365.
+                strokeWidth: 0,
+              ),
             ),
           ),
         )

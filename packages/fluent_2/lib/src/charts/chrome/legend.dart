@@ -4,7 +4,6 @@ import 'package:fluent_2_core/fluent_2_core.dart';
 // `listEquals` is not in the `show` list `widgets.dart` re-exports foundation
 // with, so it has to be imported directly.
 import 'package:flutter/foundation.dart';
-import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter/services.dart'
     show KeyDownEvent, KeyEvent, KeyRepeatEvent, LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
@@ -19,6 +18,7 @@ import '../../overlays/menu_item.dart';
 import '../internal/chart_export_scope.dart';
 import '../internal/chart_text_measurer.dart';
 import '../internal/chart_utils.dart';
+import '../internal/snap_to_device_pixels.dart';
 import 'legend_shape.dart';
 import 'legend_style.dart';
 
@@ -474,9 +474,7 @@ class FluentChartLegendRow extends StatelessWidget {
                   // Outside the Opacity, which is a repaint boundary: a row
                   // that moves repaints this box but only re-offsets that
                   // layer, so a snap taken below it would go stale.
-                  _SnapToDevicePixels(
-                    devicePixelRatio:
-                        MediaQuery.maybeDevicePixelRatioOf(context) ?? 1,
+                  SnapToDevicePixels(
                     child: Opacity(
                       opacity: swatchOpacity,
                       child: SizedBox(
@@ -536,67 +534,6 @@ class FluentChartLegendRow extends StatelessWidget {
               )
             : null,
       );
-}
-
-/// Paints its child moved onto the nearest whole device pixel, leaving its
-/// layout where it is.
-///
-/// Chromium paints a box's background and border, and a replaced `<svg>`'s
-/// content, from its pixel-snapped origin — `round(x)`, `round(y)` in device
-/// space — while text keeps its fractional pen position. Both swatch kinds are
-/// such boxes (`shape.tsx:35`, `:38`), so upstream draws every swatch on whole
-/// pixels even when the labels before it have left it at a fraction. Measured
-/// in Chrome, a rect, a line bar, a stripe and five of the svg shapes placed
-/// at x .19, .33, .5, .625 and .75 each ink exactly the columns of the rounded
-/// x — and at `--force-device-scale-factor=2`, the columns of `round(2x)`: the
-/// device grid, not the CSS one. The label and every later row stay put,
-/// keeping Chromium's fractional pitch.
-///
-/// ponytail: the offset is taken at paint time, so a move that does not
-/// repaint this box — an ancestor repaint boundary shifted as a layer, such as
-/// a fractional scroll — keeps the previous snap until the next paint, a
-/// sub-pixel shift. Upgrade path, if that ever shows: snap in a layer that
-/// re-reads its global offset on composite.
-class _SnapToDevicePixels extends SingleChildRenderObjectWidget {
-  const _SnapToDevicePixels({required this.devicePixelRatio, super.child});
-
-  final double devicePixelRatio;
-
-  @override
-  _RenderSnapToDevicePixels createRenderObject(BuildContext context) =>
-      _RenderSnapToDevicePixels(devicePixelRatio);
-
-  @override
-  void updateRenderObject(
-    BuildContext context,
-    _RenderSnapToDevicePixels renderObject,
-  ) => renderObject.devicePixelRatio = devicePixelRatio;
-}
-
-class _RenderSnapToDevicePixels extends RenderProxyBox {
-  _RenderSnapToDevicePixels(this._devicePixelRatio);
-
-  double _devicePixelRatio;
-  set devicePixelRatio(double value) {
-    if (value == _devicePixelRatio) return;
-    _devicePixelRatio = value;
-    markNeedsPaint();
-  }
-
-  @override
-  void paint(PaintingContext context, Offset offset) {
-    final child = this.child;
-    if (child == null) return;
-    final device = localToGlobal(Offset.zero) * _devicePixelRatio;
-    // Mapped back through this box's transform rather than added as a global
-    // delta, so the origin still lands on the device grid under an ancestor
-    // scale. A singular transform maps it to the origin: no snap.
-    final snapped = globalToLocal(
-      Offset(device.dx.roundToDouble(), device.dy.roundToDouble()) /
-          _devicePixelRatio,
-    );
-    context.paintChild(child, offset + snapped);
-  }
 }
 
 /// Applies a [FluentChartLegendStyle] to every [FluentChartLegend] below it.
