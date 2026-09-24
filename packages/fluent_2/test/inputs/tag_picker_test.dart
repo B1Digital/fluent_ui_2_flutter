@@ -945,6 +945,130 @@ void main() {
       }
     });
 
+    testWidgets('any mouse button toggles as it goes down, focusing the field', (
+      tester,
+    ) async {
+      // `useTagPickerControl`'s `handleMouseDown` runs for every button whose
+      // target is the root, the tag group, the aside or the expand icon: it
+      // toggles the list and focuses the input with the button still down,
+      // and the release changes nothing. Chrome, components-tagpicker--default,
+      // a fresh page per press; scratchpad `tail_tagpicker/up_press.json`.
+      for (final buttons in <int>[
+        kPrimaryMouseButton,
+        kMiddleMouseButton,
+        kSecondaryMouseButton,
+      ]) {
+        for (final where in <String>['chevron', 'padding', 'aside', 'group']) {
+          final why = '$where, buttons $buttons';
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pumpWidget(
+            app(
+              const FluentTagPicker<String>(
+                key: key,
+                options: options,
+                selected: <String>['kat'],
+                onChanged: _noop,
+              ),
+            ),
+          );
+          final chevron = tester.getRect(find.byIcon(fluentTagPickerChevron));
+          final box = tester.getRect(find.byKey(key));
+          final chip = tester.getRect(find.byType(FluentTag));
+          final at = switch (where) {
+            'chevron' => chevron.center,
+            'padding' => Offset(box.left + 6, box.center.dy),
+            // The icon's 2px `marginLeft`, still the aside; the field runs
+            // under it until the aside is reserved.
+            'aside' => Offset(chevron.left - 1, chevron.center.dy),
+            _ => Offset(chip.center.dx, chip.top - 3),
+          };
+          final mouse = await tester.createGesture(
+            kind: PointerDeviceKind.mouse,
+            buttons: buttons,
+          );
+          await mouse.addPointer(location: at);
+          await tester.pump();
+          for (final opens in <bool>[true, false]) {
+            await mouse.down(at);
+            await tester.pump();
+            expect(
+              find.text('Ben'),
+              opens ? findsOneWidget : findsNothing,
+              reason: '$why: ${opens ? 'opens' : 'closes'} while held',
+            );
+            expect(fieldFocused(tester), isTrue, reason: '$why: focused');
+            await mouse.up();
+            await tester.pumpAndSettle();
+            expect(
+              find.text('Ben'),
+              opens ? findsOneWidget : findsNothing,
+              reason: '$why: the release changes nothing',
+            );
+          }
+          await mouse.removePointer();
+        }
+      }
+
+      // A touch is no mousedown until the tap ends, which is when Chrome
+      // sends the compatibility mouse events.
+      final touch = await tester.createGesture();
+      final box = tester.getRect(find.byKey(key));
+      await touch.down(Offset(box.left + 6, box.center.dy));
+      await tester.pump();
+      expect(find.text('Ben'), findsNothing, reason: 'touch: shut while held');
+      await touch.up();
+      await tester.pumpAndSettle();
+      expect(find.text('Ben'), findsOneWidget, reason: 'touch: the tap opens');
+
+      // Disabled, nothing opens.
+      await tester.pumpWidget(
+        app(const FluentTagPicker<String>(key: key, options: options)),
+      );
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.down(tester.getCenter(find.byIcon(fluentTagPickerChevron)));
+      await tester.pump();
+      await mouse.up();
+      await tester.pumpAndSettle();
+      expect(find.text('Ben'), findsNothing, reason: 'disabled');
+    });
+
+    testWidgets("the band round the field's text is the field's", (
+      tester,
+    ) async {
+      // `TagPickerInput` pads its own line, so a press just above the text is
+      // on the input: a middle press focuses it and leaves the list shut, a
+      // left click opens it on the release (Chrome).
+      await tester.pumpWidget(
+        app(
+          const FluentTagPicker<String>(
+            key: key,
+            options: options,
+            onChanged: _noop,
+          ),
+        ),
+      );
+      final field = tester.getRect(find.byType(EditableText));
+      final at = Offset(field.center.dx, field.top - 3);
+      final middle = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: kMiddleMouseButton,
+      );
+      await middle.down(at);
+      await tester.pump();
+      expect(fieldFocused(tester), isTrue, reason: 'middle: focused');
+      await middle.up();
+      await tester.pumpAndSettle();
+      expect(find.text('Ben'), findsNothing, reason: 'middle: shut');
+
+      final left = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await left.down(at);
+      await tester.pump();
+      expect(find.text('Ben'), findsNothing, reason: 'left: shut while held');
+      await left.up();
+      await tester.pumpAndSettle();
+      expect(find.text('Ben'), findsOneWidget, reason: 'left: the click opens');
+    });
+
     testWidgets('a real mouse: hover wins over focus, press moves the bar', (
       tester,
     ) async {
@@ -1198,6 +1322,8 @@ void main() {
         FluentTagPickerSize size,
         int count, {
         TextDirection direction = TextDirection.ltr,
+        double? height,
+        Widget expandIcon = const Icon(fluentTagPickerChevron),
       }) => FluentApp(
         theme: light,
         debugShowCheckedModeBanner: false,
@@ -1206,9 +1332,11 @@ void main() {
           child: Center(
             child: SizedBox(
               width: 400,
+              height: height,
               child: FluentTagPicker<String>(
                 key: key,
                 size: size,
+                expandIcon: expandIcon,
                 selected: <String>[for (final p in people.take(count)) p.$1],
                 onChanged: _noop,
                 options: <FluentTagPickerOption<String>>[
@@ -1400,6 +1528,110 @@ void main() {
             );
           }
         }
+      });
+
+      testWidgets('a parent that fixes the height never reserves the aside', (
+        tester,
+      ) async {
+        // The ResizeObserver watches the aside, which is the root's height:
+        // a root whose height never changes never reserves it, so the lines
+        // run under the chevron however many tags wrap. A taller root
+        // stretches each flex line by an equal share and centres its items
+        // in it; a shorter one lets them overflow from the top. Chrome,
+        // components-tagpicker--default with the control held to 120 and to
+        // 34 from the first render (scratchpad `tail_tagpicker/up_aside.json`).
+        const m = FluentTagPickerSize.medium;
+        for (final (height, steps)
+            in <
+              (
+                double,
+                List<
+                  (List<(double, double, double)>, (double, double, double))
+                >,
+              )
+            >[
+              (
+                120,
+                [
+                  ([], (13, 44, 387)),
+                  ([(13, 50, 110.91)], (112.91, 44, 387)),
+                  ([(13, 50, 110.91), (114.91, 50, 211.38)], (213.38, 44, 387)),
+                  (
+                    [
+                      (13, 50, 110.91),
+                      (114.91, 50, 211.38),
+                      (215.38, 50, 356.25),
+                    ],
+                    (358.25, 44, 387),
+                  ),
+                  (
+                    [
+                      (13, 14.5, 110.91),
+                      (114.91, 14.5, 211.38),
+                      (215.38, 14.5, 356.25),
+                      (13, 38.5, 156.7),
+                    ],
+                    (13, 79.5, 387),
+                  ),
+                ],
+              ),
+              (
+                34,
+                [
+                  (
+                    [
+                      (13, 7, 110.91),
+                      (114.91, 7, 211.38),
+                      (215.38, 7, 356.25),
+                      (13, 31, 156.7),
+                    ],
+                    (13, 57, 387),
+                  ),
+                ],
+              ),
+            ]) {
+          await tester.pumpWidget(const SizedBox.shrink());
+          for (final (tags, field) in steps) {
+            final count = steps.length == 1 ? 4 : tags.length;
+            await tester.pumpWidget(flow(m, count, height: height));
+            expect(tester.takeException(), isNull);
+            expectFlow(
+              tester,
+              why: 'held to $height, $count tags',
+              height: height,
+              tags: tags,
+              field: field,
+              inset: 6,
+            );
+          }
+        }
+      });
+
+      testWidgets('a custom expand icon reserves its own width', (
+        tester,
+      ) async {
+        // The aside is measured, not assumed: a 30px icon and its 2px margin
+        // reserve 32 once the control grows (Chrome, a real TagPicker with a
+        // 30px `expandIcon`; scratchpad `tail_tagpicker/up_icon30.json`).
+        const icon = SizedBox(width: 30, height: 16);
+        await tester.pumpWidget(
+          flow(FluentTagPickerSize.medium, 3, expandIcon: icon),
+        );
+        final box = tester.getRect(find.byKey(key));
+        expect(
+          tester.getRect(find.byType(EditableText)).right - box.left,
+          387,
+          reason: 'unreserved, under the icon',
+        );
+        await tester.pumpWidget(
+          flow(FluentTagPickerSize.medium, 4, expandIcon: icon),
+        );
+        expect(tester.getRect(find.byKey(key)).height, greaterThan(34));
+        expect(
+          tester.getRect(find.byType(EditableText)).right - box.left,
+          400 - 13 - 32,
+          reason: 'reserved: the icon and its margin',
+        );
       });
 
       testWidgets('right to left mirrors the flow and the overhang', (
@@ -2892,6 +3124,487 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Ben'), findsNothing);
       expect(selected, isEmpty);
+    });
+
+    testWidgets('Up on a closed list opens on the first row, as Down does', (
+      tester,
+    ) async {
+      // `getDropdownActionFromKey` makes Up on a closed list 'Open', and the
+      // open list falls back to `activeDescendantController.first()`.
+      // components-tagpicker--default: John Doe, never the last row
+      // (scratchpad `tail_tagpicker/up_keys.json`).
+      var selected = <String>[];
+      await tester.pumpWidget(
+        app(
+          StatefulBuilder(
+            builder: (context, setState) => FluentTagPicker<String>(
+              key: key,
+              options: options,
+              selected: selected,
+              autofocus: true,
+              onChanged: (value) => setState(() => selected = value),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(selected, <String>['kat']);
+    });
+
+    testWidgets('a disabled row is walked; Enter or Space on it adds nothing', (
+      tester,
+    ) async {
+      // The active-descendant walker matches every `fui-Option`, disabled or
+      // not, so the arrows, the open list's first row and type-ahead all
+      // land on one. `selectOption` then ignores it, and `TagPickerInput`
+      // closes the list on Enter, as on Space when no text was being typed.
+      // Chrome, a real TagPicker whose first and third rows are disabled
+      // (scratchpad `tail_tagpicker/up_disabled.json`).
+      const rows = <FluentTagPickerOption<String>>[
+        FluentTagPickerOption<String>(
+          value: 'kat',
+          label: Text('Katri'),
+          text: 'Katri',
+          enabled: false,
+        ),
+        FluentTagPickerOption<String>(
+          value: 'ben',
+          label: Text('Ben'),
+          text: 'Ben',
+        ),
+        FluentTagPickerOption<String>(
+          value: 'ola',
+          label: Text('Ola'),
+          text: 'Ola',
+          enabled: false,
+        ),
+        FluentTagPickerOption<String>(
+          value: 'max',
+          label: Text('Max'),
+          text: 'Max',
+        ),
+      ];
+      bool ringOn(String label) => tester
+          .widget<FluentFocusRing>(
+            find
+                .ancestor(
+                  of: find.text(label),
+                  matching: find.byType(FluentFocusRing),
+                )
+                .first,
+          )
+          .visible;
+      for (final (why, keys, commit, ring)
+          in <(String, List<LogicalKeyboardKey>, LogicalKeyboardKey, String)>[
+            (
+              'Enter, third row',
+              [LogicalKeyboardKey.arrowDown, LogicalKeyboardKey.arrowDown],
+              LogicalKeyboardKey.enter,
+              'Ola',
+            ),
+            (
+              'Space, third row',
+              [LogicalKeyboardKey.arrowDown, LogicalKeyboardKey.arrowDown],
+              LogicalKeyboardKey.space,
+              'Ola',
+            ),
+            ('Enter, first row', [], LogicalKeyboardKey.enter, 'Katri'),
+            ('Space, first row', [], LogicalKeyboardKey.space, 'Katri'),
+            (
+              'Enter, back up',
+              [
+                LogicalKeyboardKey.arrowDown,
+                LogicalKeyboardKey.arrowDown,
+                LogicalKeyboardKey.arrowDown,
+                LogicalKeyboardKey.arrowUp,
+                LogicalKeyboardKey.arrowUp,
+              ],
+              LogicalKeyboardKey.enter,
+              'Ben',
+            ),
+          ]) {
+        var selected = <String>[];
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpWidget(
+          app(
+            StatefulBuilder(
+              builder: (context, setState) => FluentTagPicker<String>(
+                key: key,
+                options: rows,
+                selected: selected,
+                autofocus: true,
+                onChanged: (value) => setState(() => selected = value),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        for (final k in keys) {
+          await tester.sendKeyEvent(k);
+        }
+        await tester.pumpAndSettle();
+        expect(ringOn(ring), isTrue, reason: '$why: $ring is active');
+        await tester.sendKeyEvent(commit);
+        await tester.pumpAndSettle();
+        expect(find.text('Max'), findsNothing, reason: '$why: closed');
+        expect(
+          selected,
+          ring == 'Ben' ? <String>['ben'] : isEmpty,
+          reason: '$why: added',
+        );
+        expect(editable(tester).controller.text, isEmpty, reason: why);
+      }
+
+      // Type-ahead matches a disabled row as well.
+      var selected = <String>[];
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(
+        app(
+          StatefulBuilder(
+            builder: (context, setState) => FluentTagPicker<String>(
+              key: key,
+              options: rows,
+              selected: selected,
+              autofocus: true,
+              onChanged: (value) => setState(() => selected = value),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyO);
+      tester.testTextInput.enterText('o');
+      await tester.pumpAndSettle();
+      expect(ringOn('Ola'), isTrue, reason: 'typed: Ola is active');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(selected, isEmpty, reason: 'typed: nothing added');
+      expect(find.text('Max'), findsNothing, reason: 'typed: closed');
+    });
+
+    testWidgets('Space adds the active row, unless text was being typed', (
+      tester,
+    ) async {
+      // `useTriggerKeydown` makes Space 'Select' on an open multiselect list
+      // and `TagPickerInput` closes it — unless the last action was typing,
+      // when the space goes into the text. Arrows end the typing. Closed,
+      // Space is a character. components-tagpicker--default and a real
+      // TagPicker in Chrome (scratchpad `tail_tagpicker/up_keys.json`,
+      // `up_disabled.json`).
+      var selected = <String>[];
+      await tester.pumpWidget(
+        app(
+          StatefulBuilder(
+            builder: (context, setState) => FluentTagPicker<String>(
+              key: key,
+              options: options,
+              selected: selected,
+              autofocus: true,
+              onChanged: (value) => setState(() => selected = value),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pumpAndSettle();
+      expect(selected, <String>['ben']);
+      expect(find.text('Katri'), findsNothing, reason: 'closed');
+      expect(editable(tester).controller.text, isEmpty);
+
+      // Typing, then Space: a space, the list open and the match kept.
+      selected = <String>[];
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(
+        app(
+          StatefulBuilder(
+            builder: (context, setState) => FluentTagPicker<String>(
+              key: key,
+              options: options,
+              selected: selected,
+              autofocus: true,
+              onChanged: (value) => setState(() => selected = value),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
+      tester.testTextInput.enterText('k');
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      tester.testTextInput.enterText('k ');
+      await tester.pumpAndSettle();
+      expect(selected, isEmpty, reason: 'typing: nothing added');
+      expect(editable(tester).controller.text, 'k ');
+      expect(find.text('Ben'), findsOneWidget, reason: 'typing: still open');
+
+      // An arrow ends the typing; Space adds the row it reached.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pumpAndSettle();
+      expect(selected, <String>['ben'], reason: 'after an arrow');
+      expect(find.text('Ben'), findsOneWidget, reason: 'only as the chip');
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('Space right after a space adds the row and keeps the list', (
+      tester,
+    ) async {
+      // `TagPickerInput` closes on Space only when the key before it was not
+      // a character, and it counts Space as one (`event.code !== ' '`). So a
+      // space typed on the closed list, a click that opens it, then Space:
+      // 'Select' adds the active row and clears the text, the list stays
+      // open on its first row, and the next Space adds that one (Chrome,
+      // components-tagpicker--default; scratchpad
+      // `verify_tagpicker/up_edge.json`).
+      var selected = <String>[];
+      await tester.pumpWidget(
+        app(
+          StatefulBuilder(
+            builder: (context, setState) => FluentTagPicker<String>(
+              key: key,
+              options: options,
+              selected: selected,
+              autofocus: true,
+              onChanged: (value) => setState(() => selected = value),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      tester.testTextInput.enterText(' ');
+      await tester.pumpAndSettle();
+      expect(find.text('Katri'), findsNothing, reason: 'closed: a space');
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.down(tester.getCenter(find.byIcon(fluentTagPickerChevron)));
+      await mouse.up();
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pumpAndSettle();
+      expect(selected, <String>['kat']);
+      expect(find.text('Ben'), findsOneWidget, reason: 'still open');
+      expect(editable(tester).controller.text, isEmpty);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pumpAndSettle();
+      expect(selected, <String>['kat', 'ben'], reason: 'the first row next');
+      expect(find.text('Ola'), findsOneWidget, reason: 'open yet');
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('Home, End and the pages walk under any modifier', (
+      tester,
+    ) async {
+      // `getDropdownActionFromKey` reads `event.key` alone, so Shift+End is
+      // 'Last' on an open list and Control+PageDown 'PageDown'; closed, they
+      // are the field's (Chrome, components-tagpicker--default; scratchpad
+      // `verify_tagpicker/up_edge.json`).
+      var selected = <String>[];
+      await tester.pumpWidget(
+        app(
+          StatefulBuilder(
+            builder: (context, setState) => FluentTagPicker<String>(
+              key: key,
+              selected: selected,
+              autofocus: true,
+              options: <FluentTagPickerOption<String>>[
+                for (var i = 0; i < 12; i++)
+                  FluentTagPickerOption<String>(
+                    value: 'n$i',
+                    label: Text('n$i'),
+                  ),
+              ],
+              onChanged: (value) => setState(() => selected = value),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      Future<void> press(
+        LogicalKeyboardKey k, [
+        LogicalKeyboardKey? modifier,
+      ]) async {
+        if (modifier != null) await tester.sendKeyDownEvent(modifier);
+        await tester.sendKeyEvent(k);
+        if (modifier != null) await tester.sendKeyUpEvent(modifier);
+        await tester.pumpAndSettle();
+      }
+
+      await press(LogicalKeyboardKey.end, LogicalKeyboardKey.shiftLeft);
+      expect(find.text('n0'), findsNothing, reason: 'closed: the field');
+      await press(LogicalKeyboardKey.arrowDown);
+      await press(LogicalKeyboardKey.end, LogicalKeyboardKey.shiftLeft);
+      await press(LogicalKeyboardKey.enter);
+      expect(selected, <String>['n11'], reason: 'Shift+End');
+      await press(LogicalKeyboardKey.arrowDown);
+      await press(LogicalKeyboardKey.pageDown, LogicalKeyboardKey.controlLeft);
+      await press(LogicalKeyboardKey.enter);
+      expect(selected, <String>['n11', 'n10'], reason: 'Control+PageDown');
+      await press(LogicalKeyboardKey.arrowDown);
+      await press(LogicalKeyboardKey.arrowDown);
+      await press(LogicalKeyboardKey.arrowDown);
+      await press(LogicalKeyboardKey.home, LogicalKeyboardKey.shiftLeft);
+      await press(LogicalKeyboardKey.enter);
+      expect(selected, <String>['n11', 'n10', 'n0'], reason: 'Shift+Home');
+      await press(LogicalKeyboardKey.arrowDown);
+      await press(LogicalKeyboardKey.end);
+      await press(LogicalKeyboardKey.pageUp, LogicalKeyboardKey.shiftLeft);
+      await press(LogicalKeyboardKey.enter);
+      expect(selected, <String>[
+        'n11',
+        'n10',
+        'n0',
+        'n1',
+      ], reason: 'Shift+PageUp');
+    });
+
+    testWidgets('the list scrolls the least, 2px clear, padding and all', (
+      tester,
+    ) async {
+      // react-aria's `scrollIntoView`: nothing while the active row is in
+      // view, else the least scroll that shows it 2px clear of the edge it
+      // was past. The listbox's 4px padding sits inside its scroller, so the
+      // first row comes back at 2, not 0. Chrome, components-tagpicker--default
+      // in a 300px viewport — a 240px list of eight 44px rows, 374 tall —
+      // walked with the arrows, End, Home, PageDown and PageUp; closed, those
+      // four are the field's (scratchpad `tail_tagpicker/up_keys.json`).
+      const names = <String>[
+        'John Doe',
+        'Jane Doe',
+        'Max Mustermann',
+        'Erika Mustermann',
+        'Pierre Dupont',
+        'Amelie Dupont',
+        'Mario Rossi',
+        'Maria Rossi',
+      ];
+      var selected = <String>[];
+      await tester.pumpWidget(
+        app(
+          StatefulBuilder(
+            builder: (context, setState) => FluentTagPicker<String>(
+              key: key,
+              selected: selected,
+              autofocus: true,
+              style: const FluentTagPickerStyle(
+                surfaceMaxHeight: WidgetStatePropertyAll<double?>(240),
+              ),
+              options: <FluentTagPickerOption<String>>[
+                for (final name in names)
+                  FluentTagPickerOption<String>(
+                    value: name,
+                    label: Text(name),
+                    media: const SizedBox.square(dimension: 32),
+                  ),
+              ],
+              onChanged: (value) => setState(() => selected = value),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      final list = find.byType(SingleChildScrollView);
+      double scrollTop() => tester
+          .state<ScrollableState>(
+            find.descendant(of: list, matching: find.byType(Scrollable)),
+          )
+          .position
+          .pixels;
+      Future<void> press(LogicalKeyboardKey k) async {
+        await tester.sendKeyEvent(k);
+        await tester.pumpAndSettle();
+      }
+
+      for (final k in <LogicalKeyboardKey>[
+        LogicalKeyboardKey.home,
+        LogicalKeyboardKey.end,
+        LogicalKeyboardKey.pageDown,
+        LogicalKeyboardKey.pageUp,
+      ]) {
+        await press(k);
+        expect(list, findsNothing, reason: '$k on a closed list');
+      }
+
+      await press(LogicalKeyboardKey.arrowDown);
+      expect(tester.getSize(list).height, 240);
+      expect(scrollTop(), 0);
+      final down = <double>[];
+      for (var i = 0; i < 8; i++) {
+        await press(LogicalKeyboardKey.arrowDown);
+        down.add(scrollTop());
+      }
+      // 132, not the 134 the list can scroll: the last row 2px clear, with
+      // half its padding below.
+      expect(down, <double>[0, 0, 0, 0, 40, 86, 132, 132]);
+      final up = <double>[];
+      for (var i = 0; i < 8; i++) {
+        await press(LogicalKeyboardKey.arrowUp);
+        up.add(scrollTop());
+      }
+      expect(up, <double>[132, 132, 132, 132, 94, 48, 2, 2]);
+      await press(LogicalKeyboardKey.end);
+      expect(scrollTop(), 132, reason: 'End');
+      await press(LogicalKeyboardKey.home);
+      expect(scrollTop(), 2, reason: 'Home');
+      await press(LogicalKeyboardKey.pageDown);
+      expect(scrollTop(), 132, reason: 'PageDown');
+      await press(LogicalKeyboardKey.enter);
+      expect(selected, <String>['Maria Rossi'], reason: 'PageDown: the last');
+
+      await press(LogicalKeyboardKey.arrowDown);
+      await press(LogicalKeyboardKey.end);
+      await press(LogicalKeyboardKey.pageUp);
+      expect(scrollTop(), 2, reason: 'PageUp');
+      await press(LogicalKeyboardKey.enter);
+      expect(selected, <String>['Maria Rossi', 'John Doe']);
+    });
+
+    testWidgets("a pick leaves a caller's controller to the caller", (
+      tester,
+    ) async {
+      // `selectOption` resets the uncontrolled value; a controlled one is
+      // the caller's, and the Filtering story clears its query itself. The
+      // text the picker owns is cleared.
+      for (final controlled in <bool>[true, false]) {
+        final controller = controlled ? TextEditingController() : null;
+        if (controller != null) addTearDown(controller.dispose);
+        var selected = <String>[];
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpWidget(
+          app(
+            StatefulBuilder(
+              builder: (context, setState) => FluentTagPicker<String>(
+                key: key,
+                options: options,
+                controller: controller,
+                selected: selected,
+                autofocus: true,
+                onChanged: (value) => setState(() => selected = value),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
+        tester.testTextInput.enterText('ka');
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(selected, <String>['kat'], reason: 'controlled $controlled');
+        expect(
+          editable(tester).controller.text,
+          controlled ? 'ka' : isEmpty,
+          reason: 'controlled $controlled',
+        );
+      }
     });
 
     testWidgets('closing or leaving clears the text the picker owns', (

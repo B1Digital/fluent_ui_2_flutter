@@ -306,6 +306,34 @@ void main() {
       expect(find.text('John Doe'), findsNothing);
     });
 
+    testWidgets('a pick or a dismissal clears the query, as the story does', (
+      WidgetTester tester,
+    ) async {
+      // The story holds the query in state and its `onOptionSelect` empties
+      // it, for a row and for a chip alike (Chrome: 'ja' then Enter, 'ma'
+      // then a click on the chip). The picker leaves a caller's controller
+      // to the caller.
+      await pumpSection(tester, section);
+      await tester.enterText(_field(), 'ja');
+      await settle(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await settle(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await settle(tester);
+      expect(find.byType(FluentTag), findsOneWidget);
+      expect(tester.widget<EditableText>(_field()).controller.text, isEmpty);
+
+      await tester.enterText(_field(), 'ma');
+      await settle(tester);
+      await tapAndSettle(
+        tester,
+        find.byType(FluentTagDismissGlyph),
+        what: "the chip's dismiss glyph",
+      );
+      expect(find.byType(FluentTag), findsNothing);
+      expect(tester.widget<EditableText>(_field()).controller.text, isEmpty);
+    });
+
     testWidgets('a query with no matches says so, and offers nothing to pick', (
       WidgetTester tester,
     ) async {

@@ -13,8 +13,8 @@ import 'package:flutter/rendering.dart'
         ChildLayouter,
         ContainerBoxParentData,
         ContainerRenderObjectMixin,
-        RenderBoxContainerDefaultsMixin,
-        RenderProxyBox;
+        RenderAbstractViewport,
+        RenderBoxContainerDefaultsMixin;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -672,12 +672,6 @@ Widget buildFluentTagPicker(
     fieldSpacing: fieldSpacing,
     fieldPadding: contentPadding,
     fieldMinWidth: fieldWidth,
-    // The chevron's column, glyph and margin: the aside upstream's lines run
-    // under until it is reserved. A secondary action is reserved from the
-    // start, as its label's web font arriving resizes the aside in Chrome.
-    overhang: state.secondaryAction == null && state.expandIcon != null
-        ? expandIconPadding.horizontal + expandIconSize
-        : 0,
     children: <Widget>[...state.tags, state.field],
   );
 
@@ -752,27 +746,11 @@ Widget buildFluentTagPicker(
               // downwards past a chevron that stays on the first line. The
               // content is the root's `alignItems: center`.
               child: secondary == null
-                  // With no secondary action nothing has to stretch: a
-                  // start-aligned Row pins the chevron, and the content
-                  // centres only when a tight parent or the minimum height
-                  // makes the row taller than it. No intrinsic pass runs, so a
-                  // `LayoutBuilder` in a chip, which cannot answer one, lays
-                  // out.
-                  ? _NaturalThenTight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Expanded(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: <Widget>[content],
-                            ),
-                          ),
-                          ?expandIcon,
-                        ],
-                      ),
-                    )
+                  // With no secondary action nothing has to stretch: the
+                  // chevron is pinned to the top of an aside laid over the
+                  // content. No intrinsic pass runs, so a `LayoutBuilder` in a
+                  // chip, which cannot answer one, lays out.
+                  ? _Control(children: <Widget>[content, ?expandIcon])
                   // ponytail: IntrinsicHeight is what lets the aside stretch to
                   // the content under an unbounded parent; it costs a second
                   // measuring pass of a handful of chips, and it asserts on a
@@ -832,16 +810,11 @@ Widget buildFluentTagPicker(
 /// tags fit one row and leave [fieldMinWidth], and its text fits what they
 /// leave; otherwise the tags wrap across the whole width and the field takes
 /// the next line, however much the last row leaves. The two keep their own
-/// vertical padding, and a shared line centres them (`alignItems: center`).
-/// The children are the tags, then the field.
-///
-/// [overhang] is the aside, which is absolutely positioned: the root reserves
-/// it only as `paddingRight: calc(M + var(--aside-width))`, and the
-/// ResizeObserver that writes the variable loses its first report (the frame
-/// it schedules is cancelled by an effect that runs after mount). So in Chrome
-/// the lines run under the chevron until the control first changes height,
-/// and stop short of it from then on, even once the tags that grew it are gone.
-/// This box does the same with its own height.
+/// vertical padding, and a line centres them (`alignItems: center`). A box
+/// taller than the lines stretches each by an equal share, `alignContent`'s
+/// `normal`; a shorter one lets them overflow from the top. The children are
+/// the tags, then the field, whose padding is its own to a pointer, as the
+/// input's is.
 class _TagFlow extends MultiChildRenderObjectWidget {
   const _TagFlow({
     required this.tagSpacing,
@@ -850,7 +823,6 @@ class _TagFlow extends MultiChildRenderObjectWidget {
     required this.fieldSpacing,
     required this.fieldPadding,
     required this.fieldMinWidth,
-    required this.overhang,
     required super.children,
   });
 
@@ -860,7 +832,6 @@ class _TagFlow extends MultiChildRenderObjectWidget {
   final double fieldSpacing;
   final EdgeInsetsGeometry fieldPadding;
   final double fieldMinWidth;
-  final double overhang;
 
   _TagFlowSpec _spec(BuildContext context) {
     final direction = Directionality.of(context);
@@ -871,7 +842,6 @@ class _TagFlow extends MultiChildRenderObjectWidget {
       fieldSpacing: fieldSpacing,
       fieldPadding: fieldPadding.resolve(direction),
       fieldMinWidth: fieldMinWidth,
-      overhang: overhang,
       direction: direction,
     );
   }
@@ -893,7 +863,6 @@ typedef _TagFlowSpec = ({
   double fieldSpacing,
   EdgeInsets fieldPadding,
   double fieldMinWidth,
-  double overhang,
   TextDirection direction,
 });
 
@@ -919,11 +888,6 @@ class _RenderTagFlow extends RenderBox
     markNeedsLayout();
   }
 
-  /// Whether the aside is reserved: once set, it stays, as upstream's
-  /// variable does.
-  bool _reserved = false;
-  double? _height;
-
   @override
   void setupParentData(RenderBox child) {
     if (child.parentData is! _TagFlowParentData) {
@@ -934,7 +898,7 @@ class _RenderTagFlow extends RenderBox
   _Flow _flow(BoxConstraints constraints, ChildLayouter layoutChild) {
     final s = _spec;
     final ltr = s.direction == TextDirection.ltr;
-    final limit = constraints.maxWidth + (_reserved ? 0 : s.overhang);
+    final limit = constraints.maxWidth;
     final tagConstraints = BoxConstraints(
       maxWidth: math.max(0, limit - s.tagPadding.horizontal),
     );
@@ -998,19 +962,22 @@ class _RenderTagFlow extends RenderBox
     final lineHeight = shared
         ? math.max(groupHeight, fieldHeight)
         : groupHeight;
+    final natural = shared ? lineHeight : groupHeight + fieldHeight;
     final size = constraints.constrain(
       Size(
         limit.isFinite
             ? constraints.maxWidth
             : math.max(fieldStart + fieldWidth, lead),
-        shared ? lineHeight : groupHeight + fieldHeight,
+        natural,
       ),
     );
+    // Each line's share of a taller box (Chrome, a control held to 120).
+    final share = math.max(0.0, size.height - natural) / (shared ? 1 : 2);
 
     double at(double start, double width) =>
         ltr ? start : size.width - start - width;
     final offsets = <Offset>[];
-    final groupTop = (lineHeight - groupHeight) / 2 + s.tagPadding.top;
+    final groupTop = (lineHeight + share - groupHeight) / 2 + s.tagPadding.top;
     final tagStart = ltr ? s.tagPadding.left : s.tagPadding.right;
     for (final (i, tag) in tags.indexed) {
       var top = groupTop;
@@ -1030,7 +997,9 @@ class _RenderTagFlow extends RenderBox
           fieldStart + (ltr ? s.fieldPadding.left : s.fieldPadding.right),
           fieldConstraints.maxWidth,
         ),
-        (shared ? (lineHeight - fieldHeight) / 2 : groupHeight) +
+        (shared
+                ? (lineHeight + share - fieldHeight) / 2
+                : groupHeight + share * 1.5) +
             s.fieldPadding.top,
       ),
     );
@@ -1044,18 +1013,7 @@ class _RenderTagFlow extends RenderBox
 
   @override
   void performLayout() {
-    var flow = _flow(constraints, ChildLayoutHelper.layoutChild);
-    // ponytail: the box's own height stands in for the control's. They differ
-    // only under a parent that fixes the control's height, where upstream's
-    // aside never resizes and so is never reserved.
-    if (!_reserved &&
-        _spec.overhang > 0 &&
-        _height != null &&
-        flow.size.height != _height) {
-      _reserved = true;
-      flow = _flow(constraints, ChildLayoutHelper.layoutChild);
-    }
-    _height = flow.size.height;
+    final flow = _flow(constraints, ChildLayoutHelper.layoutChild);
     size = flow.size;
     var child = firstChild;
     for (final offset in flow.offsets) {
@@ -1125,62 +1083,245 @@ class _RenderTagFlow extends RenderBox
       defaultComputeDistanceToHighestActualBaseline(baseline);
 
   @override
-  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
-      defaultHitTestChildren(result, position: position);
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
+    if (defaultHitTestChildren(result, position: position)) return true;
+    // The input pads its own line, so a press in that band is on the input:
+    // the field is hit, from the nearest point inside it.
+    final field = lastChild;
+    if (field == null) return false;
+    final offset = (field.parentData! as _TagFlowParentData).offset;
+    final box = offset & field.size;
+    if (!_spec.fieldPadding.inflateRect(box).contains(position)) return false;
+    return result.addWithPaintOffset(
+      offset: offset,
+      position: Offset(
+        position.dx.clamp(box.left, math.max(box.left, box.right - 1)),
+        position.dy.clamp(box.top, math.max(box.top, box.bottom - 1)),
+      ),
+      hitTest: (result, transformed) =>
+          field.hitTest(result, position: transformed),
+    );
+  }
 
   @override
   void paint(PaintingContext context, Offset offset) =>
       defaultPaint(context, offset);
 }
 
-/// Lays [child] out at its own height, then again at the height the parent
-/// forces when that is taller — so a `MainAxisAlignment.center` column inside
-/// centres only then.
+/// Upstream's root around its content and the aside, which is absolutely
+/// positioned over the root's right padding, as tall as the root, with the
+/// expand icon at its top. It adds no height; the lines reserve its width only
+/// as `paddingRight: calc(M + var(--aside-width))`, a variable a
+/// ResizeObserver on the aside writes — and loses the first report of, the
+/// frame it schedules being cancelled by an effect that runs after mount. So
+/// in Chrome the lines run under the aside until it first changes size, the
+/// root's height or the icon's width, and stop short of it from then on, even
+/// once the root is back to its old height; a root whose height a parent
+/// fixes never reserves it. The aside is laid out first, so what is reserved
+/// is its real width.
 ///
-/// What `IntrinsicHeight` did for the control, without the intrinsic pass a
-/// `LayoutBuilder` in a chip cannot answer. The first pass is unbounded, so
-/// nothing in [child] may expand to fill it.
-class _NaturalThenTight extends SingleChildRenderObjectWidget {
-  const _NaturalThenTight({required Widget super.child});
+/// The children are the content, then the aside when there is one. The content
+/// is laid out at the root's final height, so it can centre in a taller root.
+class _Control extends MultiChildRenderObjectWidget {
+  const _Control({required super.children});
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
-      _RenderNaturalThenTight();
+      _RenderControl(Directionality.of(context));
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderControl renderObject) {
+    renderObject.direction = Directionality.of(context);
+  }
 }
 
-class _RenderNaturalThenTight extends RenderProxyBox {
-  static BoxConstraints _natural(BoxConstraints constraints) =>
-      constraints.copyWith(minHeight: 0, maxHeight: double.infinity);
+class _ControlParentData extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderControl extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _ControlParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _ControlParentData> {
+  _RenderControl(this._direction);
+
+  TextDirection _direction;
+  set direction(TextDirection value) {
+    if (value == _direction) return;
+    _direction = value;
+    markNeedsLayout();
+  }
+
+  /// Whether the aside is reserved: once set, it stays, as upstream's
+  /// variable does.
+  bool _reserved = false;
+
+  /// The aside's size as the observer last saw it: its width, the root's
+  /// height.
+  Size? _observed;
+
+  RenderBox get _content => firstChild!;
+  RenderBox? get _aside => firstChild == lastChild ? null : lastChild;
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _ControlParentData) {
+      child.parentData = _ControlParentData();
+    }
+  }
+
+  double _asideWidth(BoxConstraints constraints, ChildLayouter layoutChild) {
+    final aside = _aside;
+    return aside == null
+        ? 0
+        : layoutChild(
+            aside,
+            BoxConstraints(maxWidth: constraints.maxWidth),
+          ).width;
+  }
+
+  /// The content's width beside the aside, and the root's final height once
+  /// the content's own is known.
+  BoxConstraints _contentConstraints(
+    BoxConstraints constraints,
+    double asideWidth,
+    ChildLayouter layoutChild,
+  ) {
+    final column = constraints.hasBoundedWidth
+        ? BoxConstraints.tightFor(
+            width: math.max(
+              0,
+              constraints.maxWidth - (_reserved ? asideWidth : 0),
+            ),
+          )
+        : const BoxConstraints();
+    final natural = layoutChild(_content, column).height;
+    final height = constraints.constrainHeight(natural);
+    return height == natural ? column : column.tighten(height: height);
+  }
+
+  Size _size(BoxConstraints constraints, Size content, double asideWidth) =>
+      constraints.constrain(
+        Size(
+          constraints.hasBoundedWidth
+              ? constraints.maxWidth
+              : content.width + asideWidth,
+          content.height,
+        ),
+      );
 
   @override
   void performLayout() {
-    final child = this.child!;
-    child.layout(_natural(constraints), parentUsesSize: true);
-    final height = constraints.constrainHeight(child.size.height);
-    if (height != child.size.height) {
-      child.layout(constraints.tighten(height: height), parentUsesSize: true);
+    const layoutChild = ChildLayoutHelper.layoutChild;
+    final asideWidth = _asideWidth(constraints, layoutChild);
+    final content = _content
+      ..layout(
+        _contentConstraints(constraints, asideWidth, layoutChild),
+        parentUsesSize: true,
+      );
+    if (_aside != null) {
+      if (!_reserved &&
+          _observed != null &&
+          _observed != Size(asideWidth, content.size.height)) {
+        _reserved = true;
+        content.layout(
+          _contentConstraints(constraints, asideWidth, layoutChild),
+          parentUsesSize: true,
+        );
+      }
+      _observed = Size(asideWidth, content.size.height);
     }
-    size = constraints.constrain(child.size);
+    size = _size(constraints, content.size, asideWidth);
+    final ltr = _direction == TextDirection.ltr;
+    (content.parentData! as _ControlParentData).offset = Offset(
+      ltr || !_reserved ? 0 : asideWidth,
+      0,
+    );
+    if (_aside case final aside?) {
+      (aside.parentData! as _ControlParentData).offset = Offset(
+        ltr ? size.width - asideWidth : 0,
+        0,
+      );
+    }
   }
 
   @override
-  Size computeDryLayout(BoxConstraints constraints) =>
-      constraints.constrain(child!.getDryLayout(_natural(constraints)));
+  Size computeDryLayout(covariant BoxConstraints constraints) {
+    const layoutChild = ChildLayoutHelper.dryLayoutChild;
+    final asideWidth = _asideWidth(constraints, layoutChild);
+    final content = _content.getDryLayout(
+      _contentConstraints(constraints, asideWidth, layoutChild),
+    );
+    return _size(constraints, content, asideWidth);
+  }
 
   @override
   double? computeDryBaseline(
-    BoxConstraints constraints,
+    covariant BoxConstraints constraints,
     TextBaseline baseline,
   ) {
-    final natural = child!.getDryLayout(_natural(constraints)).height;
-    final height = constraints.constrainHeight(natural);
-    return child!.getDryBaseline(
-      height == natural
-          ? _natural(constraints)
-          : constraints.tighten(height: height),
-      baseline,
+    const layoutChild = ChildLayoutHelper.dryLayoutChild;
+    final asideWidth = _asideWidth(constraints, layoutChild);
+    final content = BaselineOffset(
+      _content.getDryBaseline(
+        _contentConstraints(constraints, asideWidth, layoutChild),
+        baseline,
+      ),
+    );
+    final aside = BaselineOffset(
+      _aside?.getDryBaseline(
+        BoxConstraints(maxWidth: constraints.maxWidth),
+        baseline,
+      ),
+    );
+    return content.minOf(aside).offset;
+  }
+
+  @override
+  double computeMinIntrinsicWidth(double height) =>
+      _content.getMinIntrinsicWidth(height) +
+      (_aside?.getMinIntrinsicWidth(height) ?? 0);
+
+  @override
+  double computeMaxIntrinsicWidth(double height) =>
+      _content.getMaxIntrinsicWidth(height) +
+      (_aside?.getMaxIntrinsicWidth(height) ?? 0);
+
+  @override
+  double computeMinIntrinsicHeight(double width) =>
+      getDryLayout(BoxConstraints(maxWidth: width)).height;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) =>
+      getDryLayout(BoxConstraints(maxWidth: width)).height;
+
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) =>
+      defaultComputeDistanceToHighestActualBaseline(baseline);
+
+  /// The aside spans the root's height, over the content.
+  bool _overAside(Offset position) {
+    final aside = _aside;
+    if (aside == null) return false;
+    final left = (aside.parentData! as _ControlParentData).offset.dx;
+    return position.dx >= left && position.dx < left + aside.size.width;
+  }
+
+  @override
+  bool hitTestSelf(Offset position) => _overAside(position);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
+    final child = _overAside(position) ? _aside! : _content;
+    return result.addWithPaintOffset(
+      offset: (child.parentData! as _ControlParentData).offset,
+      position: position,
+      hitTest: (result, transformed) =>
+          child.hitTest(result, position: transformed),
     );
   }
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
 }
 
 /// Renders the popup surface [child] sits on.
@@ -1308,19 +1449,26 @@ class FluentTagPickerRemoveLastIntent extends Intent {
 /// drawn here, because the tag picker wraps its content where an input lays
 /// out a single row.
 ///
-/// A click on the control outside its text field — the padding, the space
-/// around the chips, the chevron and the band above and below it — toggles the
-/// popup, as upstream's mousedown handler does. A click in the text field
-/// toggles it as well, as upstream's input `onClick` does — on the release,
-/// and only for a left press released on the field or a touch that stays
-/// within the slop; a middle or right press leaves the list be.
+/// A mouse press on the control outside its text field, its chips and its
+/// secondary action — the padding, the space around the chips, the chevron
+/// and the band above and below it — toggles the popup and focuses the field
+/// as it goes down, whichever the button, as upstream's mousedown handler
+/// does; a touch toggles on the tap. A click in the text field, its padding
+/// included, toggles it as well, as upstream's input `onClick` does — on the
+/// release, and only for a left press released on the field or a touch that
+/// stays within the slop; a middle or right press leaves the list be.
 ///
 /// ## Keyboard
+///
+/// Disabled options are walked like any other, as upstream's active
+/// descendant is; Enter or Space on one closes the list and adds nothing.
 ///
 /// | Key | Closed | Open |
 /// |---|---|---|
 /// | Down / Up | opens on the first option | moves the active option |
-/// | Enter | opens | selects the active option |
+/// | Home / End, PageUp / PageDown, under any modifier | the field's | first / last, ten options |
+/// | Enter | opens | adds the active option and closes |
+/// | Space | a space | adds the active option and closes, unless text was being typed; right after a space it adds and stays open |
 /// | Escape | — | closes, nothing selected |
 /// | Backspace or Left at the start of the field | focuses the last chip | closes, focuses the last chip |
 ///
@@ -1490,6 +1638,25 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
   /// input's `click` that toggles upstream's list; a touch reports primary
   /// too. Null for another button, and once a touch passes the slop.
   Offset? _fieldPress;
+
+  /// Whether the press going down is on the field, a chip or the secondary
+  /// action, which the control's toggle skips; set by their own listeners,
+  /// which the pointer reaches first.
+  bool _partPressed = false;
+
+  /// Whether the last press landed on the control itself — the root, the tag
+  /// group, the aside or the expand icon — which is what a touch tap toggles.
+  bool _pressOnControl = false;
+
+  /// Whether text is being typed: `useInputTriggerSlot`'s `isTyping`, set by
+  /// a character and cleared by the keys that open or walk the list. Space
+  /// adds the active row only while it is clear.
+  bool _typing = false;
+
+  /// Whether the last key down was a character, Space included:
+  /// `TagPickerInput`'s own `isTypingRef`. Space closes the list only while
+  /// it is clear.
+  bool _lastCharacter = false;
 
   OverlayEntry? _entry;
   TextEditingController? _internalController;
@@ -1714,7 +1881,7 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
             final label = rows[i].label;
             final optionText =
                 rows[i].text ?? (label is Text ? label.data : null);
-            if (_selectable(rows, i) &&
+            if (!rows[i].isHeader &&
                 (optionText?.toLowerCase().startsWith(query) ?? false)) {
               match = i;
             }
@@ -1745,7 +1912,7 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     _listed = rows;
     int? next;
     for (var i = 0; was != null && i < rows.length && next == null; i++) {
-      if (_selectable(rows, i) && rows[i].value == was.value) next = i;
+      if (!rows[i].isHeader && rows[i].value == was.value) next = i;
     }
     if (next == null && (was != null || _typed.trim().isNotEmpty)) {
       next = _seek(rows, 0, 1);
@@ -1762,17 +1929,17 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
       if (option.isHeader || !widget.selected.contains(option.value)) option,
   ];
 
-  bool _selectable(List<FluentTagPickerOption<T>> rows, int index) =>
-      rows[index].enabled && !rows[index].isHeader;
-
+  /// The first option row at or after [from], walking by [delta]. Disabled
+  /// rows count: upstream's active-descendant walker visits every option
+  /// (Chrome), and only a header is not one.
   int? _seek(List<FluentTagPickerOption<T>> rows, int from, int delta) {
     for (var i = from; i >= 0 && i < rows.length; i += delta) {
-      if (_selectable(rows, i)) return i;
+      if (!rows[i].isHeader) return i;
     }
     return null;
   }
 
-  void _openPopup({int? active}) {
+  void _openPopup() {
     // Unmounted: the field's release can land after [dispose].
     if (_open || !_enabled || !mounted) return;
     final overlay = Overlay.of(context, debugRequiredFor: widget);
@@ -1782,7 +1949,7 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     // why the popup rows animate nothing.
     final captured = InheritedTheme.capture(from: context, to: overlay.context);
     _listed = _rows;
-    _active = active ?? _seek(_listed, 0, 1);
+    _active = _seek(_listed, 0, 1);
     _typedActive = false;
     _entry = OverlayEntry(builder: (_) => captured.wrap(_buildPopup()));
     overlay.insert(_entry!);
@@ -1803,12 +1970,36 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     if (mounted) setState(() {});
   }
 
+  /// react-aria's `scrollIntoView`, once the row exists: nothing while it is
+  /// in view, else the least scroll that shows it 2px clear of the edge it
+  /// was past (Chrome: the arrows, Home, End and the pages alike).
+  ///
+  /// ponytail: `FluentDropdown` carries the same rule; one shared helper if a
+  /// third copy appears.
   void _revealActive() {
     final index = _active;
     if (index == null) return;
     SchedulerBinding.instance.addPostFrameCallback((_) {
       final target = _rowKeys[index]?.currentContext;
-      if (target != null) Scrollable.ensureVisible(target, alignment: 0.5);
+      final row = target?.findRenderObject();
+      if (row is! RenderBox || !row.attached) return;
+      final position = Scrollable.of(target!).position;
+      final top = RenderAbstractViewport.of(
+        row,
+      ).getOffsetToReveal(row, 0).offset;
+      final bottom = top + row.size.height;
+      const buffer = 2.0;
+      final double to;
+      if (top < position.pixels) {
+        to = top - buffer;
+      } else if (bottom > position.pixels + position.viewportDimension) {
+        to = bottom - position.viewportDimension + buffer;
+      } else {
+        return;
+      }
+      position.jumpTo(
+        to.clamp(position.minScrollExtent, position.maxScrollExtent),
+      );
     });
   }
 
@@ -1820,19 +2011,24 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     _revealActive();
   }
 
+  /// Down and Up: a closed list opens on its first row whichever it was, as
+  /// upstream's open list falls back to `first()`.
   void _move(int delta) {
-    final rows = _rows;
+    _typing = false;
     if (!_open) {
-      _openPopup(active: _seek(rows, delta > 0 ? 0 : rows.length - 1, delta));
+      _openPopup();
       return;
     }
+    final rows = _rows;
     final from = (_active ?? (delta > 0 ? -1 : rows.length)) + delta;
     _setActive(_seek(rows, from, delta));
   }
 
-  void _handleTap() {
-    _focusField();
-    _openPopup();
+  /// Home and End on an open list: the first and the last row.
+  void _edge({required bool last}) {
+    final rows = _rows;
+    _typing = false;
+    _setActive(last ? _seek(rows, rows.length - 1, -1) : _seek(rows, 0, 1));
   }
 
   void _focusField() {
@@ -1845,38 +2041,55 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     field == null ? _focusNode.requestFocus() : field.requestKeyboard();
   }
 
-  /// A click on the control outside the field: `useTagPickerControl`'s
-  /// mousedown handler runs `setOpen(!open)` for the root, the tag group, the
-  /// aside and the expand icon, and focuses the field.
+  /// `useTagPickerControl`'s mousedown handler, which runs `setOpen(!open)`
+  /// for the root, the tag group, the aside and the expand icon and focuses
+  /// the input; and the input's own click.
   void _toggle() {
-    if (_open) {
-      _close();
-      return;
-    }
-    _handleTap();
+    _focusField();
+    _open ? _close() : _openPopup();
   }
 
+  /// Enter, or Space when no text is being typed: the active row is added
+  /// unless it is disabled, and the list closes either way (Chrome).
   void _activate() {
     if (!_open) {
+      _typing = false;
       _openPopup();
       return;
     }
     final rows = _rows;
     final index = _active;
-    if (index != null && index < rows.length && _selectable(rows, index)) {
+    if (index != null && index < rows.length && rows[index].enabled) {
       _select(rows[index]);
     } else {
       _close();
     }
   }
 
+  /// Space's 'Select' on a list `TagPickerInput` leaves open, the key before
+  /// having been a character: the active row is added unless it is disabled
+  /// and the text the picker owns cleared, and [_relist] then makes the first
+  /// row active (Chrome).
+  void _add() {
+    final rows = _rows;
+    final index = _active;
+    if (index == null || index >= rows.length || !rows[index].enabled) return;
+    if (widget.controller == null) {
+      // Cleared as no keystroke: type-ahead would leave nothing active.
+      _typed = '';
+      _internalController?.clear();
+    }
+    widget.onChanged!(<T>[...widget.selected, rows[index].value]);
+  }
+
+  /// Closing clears the text the picker owns; a caller's controller is the
+  /// controlled value, upstream's to leave alone.
   void _select(FluentTagPickerOption<T> option) {
-    _controller.clear();
     _close();
     widget.onChanged!(<T>[...widget.selected, option.value]);
     // The popup lists what is left, so committing one row invalidates the
     // active index; reopening starts from the top.
-    _focusNode.requestFocus();
+    _focusField();
   }
 
   /// The values drawn as chips, in order.
@@ -2077,10 +2290,19 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
                   // The rows are outside the traversal order on purpose: focus
                   // stays on the field the whole time the popup is open.
                   child: ExcludeFocus(
+                    // The listbox's padding sits inside its scroller
+                    // upstream, so the rows scroll through it and
+                    // `scrollIntoView` measures from the listbox's own edge.
                     child: buildFluentTagPickerSurface(
-                      style,
+                      style.copyWith(
+                        surfacePadding:
+                            const WidgetStatePropertyAll<EdgeInsetsGeometry?>(
+                              EdgeInsets.zero,
+                            ),
+                      ),
                       surfaceStates,
                       SingleChildScrollView(
+                        padding: style.surfacePadding?.resolve(surfaceStates),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2191,7 +2413,13 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
       for (final value in widget.selected)
         if (_optionFor(value) case final option?) _buildChip(value, option),
     ],
-    secondaryAction: widget.secondaryAction,
+    // Its own, not the control's: a press on it toggles nothing.
+    secondaryAction: widget.secondaryAction == null
+        ? null
+        : Listener(
+            onPointerDown: (_) => _partPressed = true,
+            child: widget.secondaryAction,
+          ),
     expandIcon: widget.expandIcon == null
         ? null
         // No tap of its own: a click falls through to the control's, which
@@ -2232,12 +2460,12 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
       // A touch focuses it on the tap instead, so a held finger or a scroll
       // leaves the list open.
       child: Listener(
-        onPointerDown: _enabled
-            ? (event) {
-                _chipByKey = false;
-                if (event.kind == PointerDeviceKind.mouse) node.requestFocus();
-              }
-            : null,
+        onPointerDown: (event) {
+          _partPressed = true;
+          if (!_enabled) return;
+          _chipByKey = false;
+          if (event.kind == PointerDeviceKind.mouse) node.requestFocus();
+        },
         child: GestureDetector(
           // The glyph is the chip's announced dismiss action.
           excludeFromSemantics: true,
@@ -2301,11 +2529,20 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
     // closes an open list too, clearing typed text as every close does. Only
     // a click: a middle or right press focuses the input and leaves the list
     // be, a mouse released off the field clicks something else, and a touch
-    // past the slop is a scroll, not a tap (Chrome).
+    // past the slop is a scroll, not a tap (Chrome). The input's own padding
+    // is the input's: `_TagFlow` hands a press there to the field.
+    final fieldPadding =
+        (style.contentPadding?.resolve(states) ?? EdgeInsets.zero).resolve(
+          Directionality.of(context),
+        );
     final field = Builder(
       builder: (fieldContext) => Listener(
-        onPointerDown: (event) => _fieldPress =
-            event.buttons & kPrimaryButton != 0 ? event.position : null,
+        onPointerDown: (event) {
+          _partPressed = true;
+          _fieldPress = event.buttons & kPrimaryButton != 0
+              ? event.position
+              : null;
+        },
         onPointerMove: (event) {
           final from = _fieldPress;
           if (from != null &&
@@ -2321,7 +2558,11 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
           // Unmounted: the release can land after [dispose].
           if (!click || !mounted || !_enabled) return;
           final box = fieldContext.findRenderObject()! as RenderBox;
-          if (box.size.contains(event.localPosition)) _toggle();
+          if (fieldPadding
+              .inflateRect(Offset.zero & box.size)
+              .contains(event.localPosition)) {
+            _toggle();
+          }
         },
         // Typing opens the list, as upstream's input does after a pick or an
         // Escape has closed it — on the key, not the edit: its
@@ -2329,23 +2570,36 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
         // that is not Space, with no Alt, Ctrl or Meta, so Space, Backspace and
         // a paste change the text and leave the list shut (Chrome). A desktop
         // embedder reports Escape, Backspace, Enter and Tab as control
-        // characters, which are not typing either. Ignored either way, so the
-        // key still reaches the field.
+        // characters, which are not typing either. Ignored, so the key still
+        // reaches the field — except a Space that adds the active row.
         child: Focus(
           canRequestFocus: false,
           skipTraversal: true,
           includeSemantics: false,
           onKeyEvent: (_, event) {
+            if (event is! KeyDownEvent) return KeyEventResult.ignored;
             final character = event.character;
             final keyboard = HardwareKeyboard.instance;
-            if (event is KeyDownEvent &&
+            final isCharacter =
                 character != null &&
                 character.length == 1 &&
-                character.trim().isNotEmpty &&
                 !LogicalKeyboardKey.isControlCharacter(character) &&
                 !keyboard.isAltPressed &&
                 !keyboard.isControlPressed &&
-                !keyboard.isMetaPressed) {
+                !keyboard.isMetaPressed;
+            final afterCharacter = _lastCharacter;
+            _lastCharacter = isCharacter;
+            // On an open list Space is `useTriggerKeydown`'s 'Select' unless
+            // text was being typed, and `TagPickerInput` closes the list
+            // unless the key before it was a character (Chrome).
+            if (event.logicalKey == LogicalKeyboardKey.space && _open) {
+              if (!_typing) {
+                afterCharacter ? _add() : _activate();
+                return KeyEventResult.handled;
+              }
+              if (!afterCharacter) _close();
+            } else if (isCharacter && character.trim().isNotEmpty) {
+              _typing = true;
               _openPopup();
             }
             return KeyEventResult.ignored;
@@ -2371,25 +2625,38 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
       onExit: (_) => _set(WidgetState.hovered, value: false),
       // Chrome sets `:active` for the primary and middle buttons, not for a
       // right press (storybook).
+      // The press on the control itself — the padding, the gaps around the
+      // chips, the aside and the chevron, not the field, a chip or the
+      // secondary action, whose own listeners run first — focuses the field
+      // and toggles the list as it goes down, whichever the button, as
+      // upstream's mousedown handler does (Chrome). Never `_activate`: a
+      // pointer user has chosen nothing yet, so a second press must never
+      // commit the active row. A touch sends its mousedown only once the tap
+      // ends, so it toggles on the tap below.
       child: Listener(
-        onPointerDown: (event) => _set(
-          WidgetState.pressed,
-          value: event.buttons != kSecondaryMouseButton,
-        ),
+        onPointerDown: (event) {
+          _set(
+            WidgetState.pressed,
+            value: event.buttons != kSecondaryMouseButton,
+          );
+          _pressOnControl = !_partPressed;
+          _partPressed = false;
+          if (_pressOnControl &&
+              _enabled &&
+              event.kind != PointerDeviceKind.touch) {
+            _toggle();
+          }
+        },
         onPointerUp: (_) => _set(WidgetState.pressed, value: false),
         onPointerCancel: (_) => _set(WidgetState.pressed, value: false),
         child: GestureDetector(
-          // A tap on the control but not on the field — the padding, the gaps
-          // around the chips, the chevron — focuses the field and toggles the
-          // list, as upstream's mousedown handler does. Never `_activate`: a
-          // pointer user has chosen nothing yet, so a second press must never
-          // commit the active row. Anything in the control that claims taps for
-          // itself — the field, a chip, a `secondaryAction` button — wins the
-          // arena over this and so still does its own thing; a bare
-          // `secondaryAction` chevron, which claims nothing, falls through to
-          // here and toggles, which is the only meaning it has.
           behavior: HitTestBehavior.opaque,
-          onTap: _enabled ? _toggle : null,
+          supportedDevices: const <PointerDeviceKind>{PointerDeviceKind.touch},
+          onTap: _enabled
+              ? () {
+                  if (_pressOnControl) _toggle();
+                }
+              : null,
           child: buildFluentTagPicker(state, style, states),
         ),
       ),
@@ -2468,6 +2735,10 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
               FluentTagPickerMoveIntent(-1),
           SingleActivator(LogicalKeyboardKey.enter):
               FluentTagPickerActivateIntent(),
+          _AnyModifiers(LogicalKeyboardKey.home): _EdgeIntent(last: false),
+          _AnyModifiers(LogicalKeyboardKey.end): _EdgeIntent(last: true),
+          _AnyModifiers(LogicalKeyboardKey.pageUp): _PageIntent(-1),
+          _AnyModifiers(LogicalKeyboardKey.pageDown): _PageIntent(1),
           _AnyModifiers(LogicalKeyboardKey.backspace):
               FluentTagPickerRemoveLastIntent(),
           _AnyModifiers(LogicalKeyboardKey.arrowLeft):
@@ -2490,6 +2761,23 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
                   },
                 ),
             FluentTagPickerRemoveLastIntent: _RemoveLastAction<T>(this),
+            _EdgeIntent: _WhileOpenAction<_EdgeIntent>(
+              this,
+              onInvoke: (intent) {
+                _edge(last: intent.last);
+                return null;
+              },
+            ),
+            // `useTriggerKeydown`'s ten `next()` or `prev()` calls.
+            _PageIntent: _WhileOpenAction<_PageIntent>(
+              this,
+              onInvoke: (intent) {
+                for (var i = 0; i < 10; i++) {
+                  _move(intent.direction);
+                }
+                return null;
+              },
+            ),
             // Only enabled while the popup is open, so Escape still reaches
             // whatever an ancestor does with it when there is nothing to
             // dismiss here.
@@ -2502,9 +2790,10 @@ class _FluentTagPickerState<T> extends State<FluentTagPicker<T>> {
   }
 }
 
-/// [key] pressed or repeating under any modifiers, or none: the check
-/// `useTagPickerInput` makes, which reads `event.key` alone (Chrome: Shift,
-/// Alt, Control or Meta with Backspace or Left at the start all move focus).
+/// [key] pressed or repeating under any modifiers, or none: upstream's checks
+/// read `event.key` alone (Chrome: Shift, Alt, Control or Meta with Backspace
+/// or Left at the start all move focus, and Shift+End on an open list is
+/// 'Last').
 class _AnyModifiers extends ShortcutActivator {
   const _AnyModifiers(this.key);
 
@@ -2550,6 +2839,32 @@ class _RemoveLastAction<T> extends Action<FluentTagPickerRemoveLastIntent> {
     state._focusLastChip();
     return null;
   }
+}
+
+/// Home or End: the first or the last row.
+class _EdgeIntent extends Intent {
+  const _EdgeIntent({required this.last});
+
+  final bool last;
+}
+
+/// PageUp or PageDown: ten rows towards [direction].
+class _PageIntent extends Intent {
+  const _PageIntent(this.direction);
+
+  final int direction;
+}
+
+/// A key the open list takes. Closed, `getDropdownActionFromKey` says 'None'
+/// for Home, End, PageUp and PageDown, so reporting disabled lets them fall
+/// through to the field's own caret movement (Chrome).
+class _WhileOpenAction<I extends Intent> extends CallbackAction<I> {
+  _WhileOpenAction(this.state, {required super.onInvoke});
+
+  final _FluentTagPickerState<Object?> state;
+
+  @override
+  bool isEnabled(I intent) => state._open;
 }
 
 /// Closes the popup on Escape, and only while there is one to close.
