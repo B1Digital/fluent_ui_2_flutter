@@ -52,6 +52,16 @@ enum FluentCarouselPauseButton {
   onContentClick,
 }
 
+/// How the step marks are tinted. Upstream's `CarouselNav` `appearance` prop;
+/// Figma has no counterpart axis.
+enum FluentCarouselNavAppearance {
+  /// Neutral marks. The default.
+  neutral,
+
+  /// A brand pill, and brand under the pointer on every other dot.
+  brand,
+}
+
 /// The slide transition.
 ///
 /// **Transcribed, not chosen.** `react-carousel` declares no CSS transition and
@@ -179,6 +189,7 @@ class FluentCarouselState extends FluentCarouselBaseState {
     required super.nextLabel,
     required super.stepLabel,
     required this.navType,
+    this.navAppearance = FluentCarouselNavAppearance.neutral,
     super.header,
     super.previews,
     super.autoplayControl,
@@ -189,6 +200,9 @@ class FluentCarouselState extends FluentCarouselBaseState {
 
   /// Which indicator the strip shows.
   final FluentCarouselNavType navType;
+
+  /// How the step marks are tinted.
+  final FluentCarouselNavAppearance navAppearance;
 }
 
 /// Builds the state a carousel will be styled and rendered from.
@@ -209,6 +223,8 @@ FluentCarouselState resolveFluentCarouselState({
   FluentCarouselChevronPlacement chevronPlacement =
       FluentCarouselChevronPlacement.flexibleToEdges,
   FluentCarouselNavType navType = FluentCarouselNavType.steps,
+  FluentCarouselNavAppearance navAppearance =
+      FluentCarouselNavAppearance.neutral,
   String? previousLabel,
   String? nextLabel,
   String Function(int index, int count)? stepLabel,
@@ -232,6 +248,7 @@ FluentCarouselState resolveFluentCarouselState({
     layout: layout,
     chevronPlacement: chevronPlacement,
     navType: navType,
+    navAppearance: navAppearance,
     previousLabel: previousLabel ?? messages.previousSlide,
     nextLabel: nextLabel ?? messages.nextSlide,
     // `index` is zero-based here and one-based in the announcement.
@@ -261,17 +278,46 @@ FluentCarouselStyle resolveFluentCarouselStyle(
 ) {
   final c = theme.colors;
 
-  // `.Carousel step` binds the mark to the component-scoped `Carousel nav
-  // theme` collection. Its `Default` mode is what every shipped variant pins:
-  // Rest/Hover/Pressed alias Neutral/Foreground/2/{Rest,Hover,Pressed}. The
-  // collection's other two modes (`On brand`, `Brand`) have no counterpart on
-  // the component set's axes — all 15 Carousel variants pin `Default` — so
-  // they are deliberately not exposed as a Dart axis.
-  final stepColor = FluentStateColor.tokens(
-    rest: c.neutralForeground2,
-    hover: c.neutralForeground2Hover,
-    pressed: c.neutralForeground2Pressed,
+  // The storybook's ramps, not Figma's single Neutral/Foreground/2 one.
+  // `useCarouselNavButtonStyles.styles.ts` paints the mark as the button's
+  // `::after` in `colorNeutralForeground1` under an `opacity`: 0.6, 0.75 and 1
+  // across rest/hover/press while unselected, and the other way round — 1,
+  // 0.75, 0.65 — on the selected pill. `appearance="brand"` fills the pill
+  // `colorCompoundBrandBackground` and its Hover/Pressed steps, and takes an
+  // unselected dot to those same brand steps under the pointer. Opacity over
+  // a solid fill is that fill's alpha, so it is carried as alpha. Chrome:
+  // #7B7B7B/#5A5A5A/#242424 and #242424/#5A5A5A/#707070 neutral,
+  // #7B7B7B/#4C86B9/#0F548C and #0F6CBD/#115EA3/#0F548C brand.
+  //
+  // One property for both: the selected step resolves it with
+  // `WidgetState.selected` added, so an override passed to that step alone
+  // still reaches its pill.
+  final mark = c.neutralForeground1;
+  final brand = state.navAppearance == FluentCarouselNavAppearance.brand;
+  final dot = FluentStateColor.tokens(
+    rest: mark.withValues(alpha: 0.6),
+    hover: (brand ? c.compoundBrandBackgroundHover : mark).withValues(
+      alpha: 0.75,
+    ),
+    pressed: brand ? c.compoundBrandBackgroundPressed : mark,
     disabled: c.neutralForegroundDisabled,
+  );
+  final pill = brand
+      ? FluentStateColor.tokens(
+          rest: c.compoundBrandBackground,
+          hover: c.compoundBrandBackgroundHover,
+          pressed: c.compoundBrandBackgroundPressed,
+          disabled: c.neutralForegroundDisabled,
+        )
+      : FluentStateColor.tokens(
+          rest: mark,
+          hover: mark.withValues(alpha: 0.75),
+          pressed: mark.withValues(alpha: 0.65),
+          disabled: c.neutralForegroundDisabled,
+        );
+  final stepColor = WidgetStateProperty.resolveWith<Color?>(
+    (states) =>
+        (states.contains(WidgetState.selected) ? pill : dot).resolve(states),
   );
 
   // The 24x24 hit target. Never Colors.transparent: these four tokens turn
@@ -566,6 +612,7 @@ class FluentCarouselStep extends StatelessWidget {
     required this.semanticLabel,
     this.onPressed,
     this.preview,
+    this.appearance = FluentCarouselNavAppearance.neutral,
     this.style,
   });
 
@@ -581,6 +628,9 @@ class FluentCarouselStep extends StatelessWidget {
   /// The thumbnail for the image-preview indicator. Null draws a dot or pill.
   final Widget? preview;
 
+  /// How the mark is tinted.
+  final FluentCarouselNavAppearance appearance;
+
   /// Overrides layered over the theme defaults. Merged last, so it wins.
   final FluentCarouselStyle? style;
 
@@ -591,6 +641,7 @@ class FluentCarouselStep extends StatelessWidget {
         navType: preview == null
             ? FluentCarouselNavType.steps
             : FluentCarouselNavType.imagePreview,
+        navAppearance: appearance,
       ),
       FluentTheme.of(context),
     ).merge(FluentCarouselTheme.maybeOf(context)).merge(style);
@@ -625,17 +676,26 @@ class FluentCarouselStep extends StatelessWidget {
       );
     }
 
+    // The button reports no selection of its own, so the pill adds it.
+    final stepColor = resolved.stepColor;
     return FluentButton.icon(
       icon: mark,
       semanticLabel: semanticLabel,
       onPressed: onPressed,
       // Transparent is the appearance whose background ramp Figma binds on the
-      // step frame. Its brand-on-hover foreground table is overridden below,
-      // because a step's mark stays neutral.
+      // step frame. Its brand-on-hover foreground table is overridden below by
+      // the step's own ramps.
       appearance: FluentButtonAppearance.transparent,
       style: FluentButtonStyle(
         backgroundColor: resolved.stepBackgroundColor,
-        foregroundColor: resolved.stepColor,
+        foregroundColor: selected && stepColor != null
+            ? WidgetStateProperty.resolveWith<Color?>(
+                (states) => stepColor.resolve(<WidgetState>{
+                  ...states,
+                  WidgetState.selected,
+                }),
+              )
+            : stepColor,
         borderRadius: resolved.stepBorderRadius,
         padding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(padding),
         minimumSize: const WidgetStatePropertyAll<Size?>(Size.zero),
@@ -663,43 +723,78 @@ class _FluentCarouselMark extends StatelessWidget {
   );
 }
 
-/// A 24x24 chevron or autoplay button.
+/// A 32x32 chevron or autoplay button.
 ///
-/// `FluentButton.icon` with Figma's icon-only inset. The button's own small
-/// ramp keeps the horizontal padding at 8, which is a pre-existing divergence
-/// recorded in `doc/token-divergences.md`; the carousel's nav is 24 square in
-/// every one of the four `.CarouselNav` variants, so the inset is overridden
-/// here rather than left to drift.
+/// `FluentButton.icon` at its medium size, which is upstream's: Chrome renders
+/// `CarouselButton` and `CarouselAutoplayButton` 32 square around a 20 glyph.
+/// Figma's four `.CarouselNav` variants pin 24; the storybook wins.
+///
+/// The chevrons are subtle. The autoplay toggle is upstream's secondary
+/// `ToggleButton` under `useCarouselAutoplayButtonStyles`: at rest a
+/// `colorNeutralBackgroundAlpha` fill, a `colorTransparentStroke` border and a
+/// `colorNeutralForeground2` glyph; hovered and pressed, the secondary
+/// button's own ramp, which the rest overrides do not outrank (#F5F5F5 over
+/// #C7C7C7, then #E0E0E0 over #B3B3B3).
 class _FluentCarouselNavButton extends StatelessWidget {
   const _FluentCarouselNavButton({
     required this.icon,
     required this.semanticLabel,
     required this.iconSize,
     this.onPressed,
+    this.autoplay = false,
   });
 
   final IconData icon;
   final String semanticLabel;
   final double iconSize;
   final VoidCallback? onPressed;
+  final bool autoplay;
 
   @override
-  Widget build(BuildContext context) => FluentButton.icon(
-    icon: Icon(icon),
-    semanticLabel: semanticLabel,
-    onPressed: onPressed,
-    appearance: FluentButtonAppearance.subtle,
-    size: FluentButtonSize.small,
-    style: FluentButtonStyle(
-      padding: const WidgetStatePropertyAll<EdgeInsetsGeometry?>(
-        EdgeInsets.all(FluentSpacing.xxs),
+  Widget build(BuildContext context) {
+    final c = FluentTheme.of(context).colors;
+    final border = FluentStateColor.tokens(
+      rest: c.transparentStroke,
+      hover: c.neutralStroke1Hover,
+      pressed: c.neutralStroke1Pressed,
+      disabled: c.neutralStrokeDisabled,
+    );
+    return FluentButton.icon(
+      icon: Icon(icon),
+      semanticLabel: semanticLabel,
+      onPressed: onPressed,
+      appearance: autoplay
+          ? FluentButtonAppearance.secondary
+          : FluentButtonAppearance.subtle,
+      style: FluentButtonStyle(
+        iconSize: WidgetStatePropertyAll<double?>(iconSize),
+        backgroundColor: autoplay
+            ? FluentStateColor.tokens(
+                rest: c.neutralBackgroundAlpha,
+                hover: c.neutralBackground1Hover,
+                pressed: c.neutralBackground1Pressed,
+                disabled: c.neutralBackgroundDisabled,
+              )
+            : null,
+        foregroundColor: autoplay
+            ? FluentStateColor.tokens(
+                rest: c.neutralForeground2,
+                hover: c.neutralForeground1Hover,
+                pressed: c.neutralForeground1Pressed,
+                disabled: c.neutralForegroundDisabled,
+              )
+            : null,
+        // The secondary button's focus border, kept.
+        borderColor: autoplay
+            ? WidgetStateProperty.resolveWith<Color?>(
+                (states) => states.contains(WidgetState.focused)
+                    ? c.strokeFocus2
+                    : border.resolve(states),
+              )
+            : null,
       ),
-      iconSize: WidgetStatePropertyAll<double?>(iconSize),
-      minimumSize: const WidgetStatePropertyAll<Size?>(
-        Size(FluentSize.size240, FluentSize.size240),
-      ),
-    ),
-  );
+    );
+  }
 }
 
 /// A Fluent 2 carousel: slides with previous/next chevrons, a step indicator
@@ -748,6 +843,7 @@ class FluentCarousel extends StatefulWidget {
     this.layout = FluentCarouselLayout.outsideContent,
     this.chevronPlacement = FluentCarouselChevronPlacement.flexibleToEdges,
     this.pauseButton = FluentCarouselPauseButton.onContentClick,
+    this.navAppearance = FluentCarouselNavAppearance.neutral,
     this.style,
     this.semanticLabel,
     this.previousLabel,
@@ -800,6 +896,9 @@ class FluentCarousel extends StatefulWidget {
 
   /// Where the autoplay affordance lives.
   final FluentCarouselPauseButton pauseButton;
+
+  /// How the step marks are tinted. Upstream's `CarouselNav` `appearance`.
+  final FluentCarouselNavAppearance navAppearance;
 
   /// Overrides layered over the theme defaults. Merged last, so it wins.
   final FluentCarouselStyle? style;
@@ -967,6 +1066,7 @@ class _FluentCarouselState extends State<FluentCarousel> {
       navType: widget.previews == null
           ? FluentCarouselNavType.steps
           : FluentCarouselNavType.imagePreview,
+      navAppearance: widget.navAppearance,
       previews: widget.previews,
       previousLabel: widget.previousLabel ?? l10n.previousSlide,
       nextLabel: widget.nextLabel ?? l10n.nextSlide,
@@ -987,6 +1087,7 @@ class _FluentCarouselState extends State<FluentCarousel> {
               onPressed: widget.enabled
                   ? () => _setPaused(() => _playing = !_playing)
                   : null,
+              autoplay: true,
             )
           : null,
       onPrevious: _canGoBack ? _previous : null,
