@@ -175,6 +175,16 @@ const Map<String, String> kChartOrphanAllowlist = <String, String>{
       'lib/ by construction — the same reason FluentAreaChart has no lib/ '
       'caller. It is the non-throwing query for whether toImage will '
       'succeed, versus the StateError at image_export.dart:455.',
+  'kMinLegendContainerHeight':
+      'Published: lib/fluent_2.dart exports axis/axis_types.dart, so its '
+      'callers can be consumers outside lib/. It ports CartesianChart.tsx:54, '
+      'and its last lib/ caller was FluentFunnelChart, which reserved it under '
+      'the plot. FunnelChart.tsx:481-486 and :528 reserve nothing: the legend '
+      'div follows the height-tall svg at its own 32px, and the storybook puts '
+      'fui-legend__root 500 below a funnel root at 190. The cartesian shell '
+      'reserves its 40 as the legend margin plus the strip '
+      '(cartesian_chart.dart, CartesianChart.tsx:505-508). Removing this entry '
+      'means deleting the export, a breaking change for a release to schedule.',
 
   // --- Retired: the blocker did not exist ---------------------------------
   // `tokenFromUpstreamName` was here, the one entry excused as blocked on an

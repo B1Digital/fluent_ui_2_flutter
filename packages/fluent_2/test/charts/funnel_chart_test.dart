@@ -1,4 +1,5 @@
 import 'package:fluent_2/fluent_2.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -384,6 +385,239 @@ void main() {
           'must hand the painter its resolved FluentChartColors, or the '
           'forty-colour palette survives and the funnel is invisible.',
     );
+  });
+
+  group('storybook page', () {
+    // charts-funnelchart--funnel-chart-basic and --funnel-chart-stacked at
+    // their initial controls, mounted where the storybook lays the root out in
+    // a 1024 x 768 page: (40, 190), 600 wide, the 500px svg plus the legend.
+    const origin = Offset(40, 190);
+    const basic = FluentFunnelChart(
+      key: key,
+      chartTitle: 'Basic Funnel Chart',
+      width: 600,
+      height: 500,
+      orientation: FluentFunnelOrientation.horizontal,
+      data: <FluentFunnelDataPoint>[
+        FluentFunnelDataPoint(stage: 'Visitors', value: 1000),
+        FluentFunnelDataPoint(stage: 'Signups', value: 600),
+        FluentFunnelDataPoint(stage: 'Trials', value: 300),
+        FluentFunnelDataPoint(stage: 'Customers', value: 250),
+      ],
+    );
+    FluentFunnelDataPoint stacked(String stage, List<double> values) =>
+        FluentFunnelDataPoint(
+          stage: stage,
+          subValues: <FluentFunnelSubValue>[
+            for (var i = 0; i < 4; i++)
+              FluentFunnelSubValue(
+                category: 'ABCD'[i],
+                value: values[i],
+                color: <Color>[
+                  const Color(0xFF13A10E),
+                  const Color(0xFF3A96DD),
+                  const Color(0xFFAE8C00),
+                  const Color(0xFF2AA0A4),
+                ][i],
+              ),
+          ],
+        );
+
+    Future<void> pumpPage(WidgetTester tester, Widget chart) async {
+      tester.view.physicalSize = const Size(1024, 768);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: Padding(
+              padding: EdgeInsets.only(left: origin.dx, top: origin.dy),
+              child: SizedBox(width: 600, height: 532, child: chart),
+            ),
+          ),
+        ),
+      );
+    }
+
+    Future<TestGesture> mouseAt(WidgetTester tester, Offset position) async {
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      // In from a pixel off, as a real pointer arrives.
+      await gesture.moveTo(position.translate(-1, -1));
+      await gesture.moveTo(position);
+      await tester.pump();
+      return gesture;
+    }
+
+    Rect stage(WidgetTester tester, String segment) =>
+        tester.getRect(find.byKey(ValueKey<String>('funnel-segment-$segment')));
+
+    Rect surface(WidgetTester tester) => tester.getRect(
+      find.descendant(
+        of: find.byType(FluentChartPopover),
+        matching: find.byType(ExcludeFocus),
+      ),
+    );
+
+    testWidgets('the legend follows the 500px svg at its own height', (
+      tester,
+    ) async {
+      await pumpPage(tester, basic);
+      expect(
+        tester.getRect(find.byType(FluentChartLegend)).top,
+        origin.dy + 500,
+        reason:
+            'FunnelChart.tsx:481-486 makes the svg exactly `height` tall and '
+            'the legend div follows it (:528); the storybook measures '
+            'fui-legend__root at y 690 under a root at 190. Reserving a 40px '
+            'strip under the plot put it at 682.',
+      );
+    });
+
+    testWidgets('a stage callout sits above the stage in the page, centred', (
+      tester,
+    ) async {
+      await pumpPage(tester, basic);
+      await mouseAt(tester, const Offset(160, 422));
+      final visitors = stage(tester, '0');
+      expect(
+        visitors,
+        const Rect.fromLTWH(100, 230, 120, 368),
+        reason: 'the storybook measures the Visitors path at [100,230,120,368]',
+      );
+      final rect = surface(tester);
+      expect(
+        rect.bottom,
+        closeTo(visitors.top - 20, 0.5),
+        reason:
+            'ChartPopover targets the stage path (FunnelChart.tsx:520-523) '
+            'and clears it by 20 above: upstream [108,109,103.91,101] ends '
+            'at y 210 = 230 - 20.',
+      );
+      expect(
+        rect.center.dx,
+        closeTo(visitors.center.dx, 0.5),
+        reason: 'centred on the stage: upstream 108 + 103.91 / 2 = 160',
+      );
+      expect(
+        rect.top,
+        lessThan(origin.dy),
+        reason:
+            'the funnel root clips nothing, so the surface is laid out in the '
+            'viewport and sits above the chart. Inside the chart box there is '
+            'only 20px over the stage, and it flipped below it.',
+      );
+      expect(
+        tester
+            .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+            .data
+            .isCartesian,
+        isFalse,
+        reason: 'FunnelChart.tsx:525 passes isCartesian={false}',
+      );
+    });
+
+    testWidgets('moving inside a stage leaves the callout where it is', (
+      tester,
+    ) async {
+      await pumpPage(tester, basic);
+      final gesture = await mouseAt(tester, const Offset(160, 422));
+      final before = surface(tester);
+      await gesture.moveTo(const Offset(200, 320));
+      await tester.pump();
+      expect(
+        surface(tester),
+        before,
+        reason:
+            'the callout targets the stage element, not the pointer: the '
+            'storybook keeps it at (108, 109) after the pointer moves on to '
+            '(200, 320) inside Visitors',
+      );
+    });
+
+    testWidgets('leaving the stages for the ground closes the callout', (
+      tester,
+    ) async {
+      await pumpPage(tester, basic);
+      final gesture = await mouseAt(tester, const Offset(160, 422));
+      expect(find.byType(FluentChartPopover), findsOneWidget);
+      await gesture.moveTo(const Offset(60, 422));
+      await tester.pump();
+      expect(
+        find.byType(FluentChartPopover),
+        findsNothing,
+        reason:
+            'every segment closes the callout on mouseout (FunnelChart.tsx:173, '
+            ':183), and the ground beside the funnel opens none',
+      );
+    });
+
+    testWidgets('a stacked segment reports its own category', (tester) async {
+      await pumpPage(
+        tester,
+        FluentFunnelChart(
+          key: key,
+          chartTitle: 'Stacked Funnel Chart',
+          width: 600,
+          height: 500,
+          orientation: FluentFunnelOrientation.horizontal,
+          data: <FluentFunnelDataPoint>[
+            stacked('Visit', const <double>[100, 80, 50, 30]),
+            stacked('Sign-Up', const <double>[60, 40, 20, 10]),
+            stacked('Purchase', const <double>[30, 20, 10, 5]),
+          ],
+        ),
+      );
+      await mouseAt(tester, const Offset(188, 429));
+      final data = tester
+          .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+          .data;
+      expect(
+        (data.xValue, data.yValue, data.color),
+        ('Visit', '80', const Color(0xFF3A96DD)),
+        reason:
+            '_handleStackedHover (FunnelChart.tsx:68-84) hands the popover the '
+            "stage with the SUB-value's value and colour; the storybook reads "
+            "'Visit' / '80' over a rgb(58,150,221) bar on Visit B",
+      );
+      final segment = stage(tester, '0-1');
+      expect(
+        surface(tester).bottom,
+        closeTo(segment.top - 20, 0.5),
+        reason:
+            "upstream's surface [141,251,77.09,101] clears the Visit B path "
+            '(top 371.54) by 20',
+      );
+    });
+
+    testWidgets('keyboard focus opens the callout on the focused stage', (
+      tester,
+    ) async {
+      await pumpPage(tester, basic);
+      Focus.of(
+        tester.element(
+          find
+              .descendant(
+                of: find.byKey(const ValueKey<String>('funnel-segment-3')),
+                matching: find.byType(Semantics),
+              )
+              .first,
+        ),
+      ).requestFocus();
+      await tester.pump();
+      expect(
+        tester
+            .widget<FluentChartPopover>(find.byType(FluentChartPopover))
+            .anchorRect,
+        stage(tester, '3'),
+        reason:
+            '_handleFocus (FunnelChart.tsx:57-66) targets the focused path '
+            'element as a hover does',
+      );
+    });
   });
 
   group('Oracle B', () {
