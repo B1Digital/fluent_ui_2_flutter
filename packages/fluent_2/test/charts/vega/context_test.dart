@@ -233,6 +233,30 @@ void main() {
     expect(annotations.single.style!.borderWidth, 1, reason: 'ts:723.');
   });
 
+  test('a dashed rule squares its label box and keeps the border solid', () {
+    final style = extractVegaAnnotations(<String, Object?>{
+      'layer': <Object?>[
+        <String, Object?>{
+          'mark': <String, Object?>{
+            'type': 'rule',
+            'strokeDash': <Object?>[4, 2],
+          },
+          'encoding': <String, Object?>{
+            'y': <String, Object?>{'datum': 10},
+          },
+        },
+      ],
+    }).single.style!;
+    expect(style.borderRadius, 0, reason: 'ts:754-756.');
+    expect(
+      style.borderStyle,
+      isNull,
+      reason:
+          'ts:754-756 sets only borderRadius, so the layer draws its default '
+          'solid border.',
+    );
+  });
+
   test(
     'a rule takes its label from a companion text layer at the same value',
     () {

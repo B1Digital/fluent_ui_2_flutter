@@ -735,13 +735,10 @@ List<FluentChartAnnotation> extractVegaAnnotations(Map<String, Object?> spec) {
                   ? null
                   : parseCssColour(markColour),
               borderWidth: markStrokeWidth,
-              // `:754-756`: a stroke dash sets `borderRadius: 0` as a marker.
-              // `FluentChartAnnotationStyle.borderStyle` says the same thing
-              // properly, so the dashed intent is carried there instead of
-              // through a radius that means nothing.
-              borderStyle: markStrokeDash is List<Object?>
-                  ? FluentChartAnnotationBorderStyle.dashed
-                  : null,
+              // `:754-756`: a stroke dash sets `borderRadius: 0` and nothing
+              // else. The comment there calls it the dashed style, but no
+              // `borderStyle` is set, so upstream draws a solid square box.
+              borderRadius: markStrokeDash is List<Object?> ? 0 : null,
             ),
           ),
         );
