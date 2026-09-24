@@ -1494,14 +1494,16 @@ class _CalendarPanelView extends StatelessWidget {
                       style: style,
                     ),
                   ),
+                  // `calendarNavigationIcons.tsx`: ArrowUpRegular and
+                  // ArrowDownRegular, not chevrons.
                   _CalendarNavButton(
-                    icon: FluentIcons.chevron_up_20_regular,
+                    icon: FluentIcons.arrow_up_20_regular,
                     semanticLabel: panel.previousLabel,
                     onPressed: state.enabled ? panel.onPrevious : null,
                     style: style,
                   ),
                   _CalendarNavButton(
-                    icon: FluentIcons.chevron_down_20_regular,
+                    icon: FluentIcons.arrow_down_20_regular,
                     semanticLabel: panel.nextLabel,
                     onPressed: state.enabled ? panel.onNext : null,
                     style: style,

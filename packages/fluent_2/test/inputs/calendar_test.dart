@@ -477,6 +477,17 @@ void main() {
   });
 
   group('FluentCalendar — navigation', () {
+    testWidgets('the page buttons draw upstream\'s arrows, not chevrons', (
+      tester,
+    ) async {
+      // `calendarNavigationIcons.tsx`: ArrowUpRegular / ArrowDownRegular on
+      // every panel.
+      await _pump(tester, isMonthPickerVisible: true);
+      expect(find.byIcon(FluentIcons.arrow_up_20_regular), findsNWidgets(2));
+      expect(find.byIcon(FluentIcons.arrow_down_20_regular), findsNWidgets(2));
+      expect(find.byIcon(FluentIcons.chevron_up_20_regular), findsNothing);
+    });
+
     testWidgets('the chevrons page the month', (tester) async {
       await _pump(tester);
 
