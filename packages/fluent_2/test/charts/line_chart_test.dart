@@ -422,6 +422,28 @@ void main() {
       );
     });
 
+    test('a dimmed series lays no halo over the highlighted line', () {
+      final segments = _lineDelegate(
+        legends: const <String>['a', 'b'],
+        selectedLegend: 'a',
+        lineBorderWidth: 4,
+      ).segmentsFor(_ctx());
+      expect(
+        segments.where((s) => s.seriesIndex == 0).map((s) => s.borderWidth),
+        everyElement(8),
+        reason:
+            'the selected arm strokes strokeWidth + lineBorderWidth (:1224)',
+      );
+      expect(
+        segments.where((s) => s.seriesIndex == 1).map((s) => s.borderWidth),
+        everyElement(isNull),
+        reason:
+            'bordersForLine is only pushed on the isLegendSelected arm '
+            '(:1215-1234); an opaque 8px halo under the dimmed line cut a white '
+            'gap through the highlighted one where they crossed',
+      );
+    });
+
     test('strokeDashoffset moves where the dashes start', () {
       final recorder = _LineRecorder();
       // One flat line through (0, 90), (10, 90) and (20, 90) under [_ctx].

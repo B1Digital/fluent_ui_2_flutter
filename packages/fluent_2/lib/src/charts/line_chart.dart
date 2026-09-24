@@ -1251,9 +1251,13 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
           line.lineOptions?.strokeWidth ??
           strokeWidthOverride ??
           style.strokeWidth!.resolve(<WidgetState>{})!;
+      final selected = _selected(i);
       final lineBorderWidth = line.lineOptions?.lineBorderWidth ?? 0;
-      // `:1222` — a zero border is no border at all, not a hairline.
-      final borderWidth = lineBorderWidth > 0
+      // `:1222` — a zero border is no border at all, not a hairline — and
+      // only the selected arm has one: the dimmed arm (`:1291-1307`) pushes
+      // the line alone, so a dimmed series cuts no gap through the highlighted
+      // line it crosses. Engine B draws the same split at `:703`.
+      final borderWidth = selected && lineBorderWidth > 0
           ? strokeWidth + lineBorderWidth
           : null;
       final borderColour = borderWidth == null
@@ -1265,7 +1269,7 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
                   style.lineBorderColor!.resolve(<WidgetState>{})!,
             );
       final dashPattern = _parseDashArray(line.lineOptions?.strokeDasharray);
-      final opacity = highlighted(line.legend) || _noneHighlighted ? 1.0 : dim;
+      final opacity = selected ? 1.0 : dim;
       // `:817` — j is the index of the segment's END point.
       for (var j = 1; j < data.length; j++) {
         if (isInGap(i, j)) {
@@ -1754,7 +1758,7 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
             ..style = PaintingStyle.stroke
             ..strokeCap = cap
             ..strokeWidth = segment.borderWidth!
-            // `:1234` — the border is opaque even under a dimmed line.
+            // `:1233` — the border is opaque; only a selected line has one.
             ..color = segment.borderColour!,
           dashed: false,
         );
@@ -2010,6 +2014,10 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     return out;
   }
 
+  /// `isLegendSelected` (`:838-839`): the arm a segment is drawn on.
+  bool _selected(int seriesIndex) =>
+      highlighted(series[seriesIndex].legend) || _noneHighlighted;
+
   /// One hover target, keyboard stop and popover per marker.
   ///
   /// Engine A hangs `_handleHover` off every circle it draws (`:593`, `:865`,
@@ -2146,18 +2154,16 @@ class FluentLineChartDelegate extends FluentCartesianSeriesDelegate {
     FluentCartesianChildContext context,
     Offset position,
   ) {
-    bool selected(int seriesIndex) =>
-        highlighted(series[seriesIndex].legend) || _noneHighlighted;
     VoidCallback? hit;
     for (final segment in segmentsFor(context)) {
-      if (selected(segment.seriesIndex) &&
+      if (_selected(segment.seriesIndex) &&
           _distanceToSegment(position, segment.start, segment.end) <=
               segment.strokeWidth / 2) {
         hit = series[segment.seriesIndex].onLineClick;
       }
     }
     for (final single in singlePathsFor(context)) {
-      if (selected(single.seriesIndex) &&
+      if (_selected(single.seriesIndex) &&
           _strokeContains(single.path, position, single.strokeWidth / 2)) {
         hit = series[single.seriesIndex].onLineClick;
       }
