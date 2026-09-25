@@ -1025,4 +1025,34 @@ void main() {
       );
     });
   });
+
+  testWidgets(
+    'an unbounded height sizes the arc from height instead of throwing',
+    (tester) async {
+      // A scroll view (or FluentDeclarativeChart's own Column) hands the gauge
+      // an unbounded height. Upstream sizes the `<svg>` from the `height` prop
+      // (GaugeChart.tsx:593-594) whatever its container does, so the arc box
+      // takes that height and the legend stacks below it.
+      await tester.pumpWidget(
+        FluentApp(
+          theme: theme,
+          home: const SingleChildScrollView(
+            child: SizedBox(
+              width: 400,
+              child: FluentGaugeChart(
+                key: key,
+                segments: segments,
+                chartValue: 30,
+                height: 220,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(tester.getSize(find.byKey(key)).height, greaterThanOrEqualTo(220));
+    },
+  );
 }

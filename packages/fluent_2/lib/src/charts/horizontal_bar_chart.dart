@@ -906,27 +906,34 @@ class _FluentHorizontalBarChartState extends State<FluentHorizontalBarChart> {
       );
     }
 
+    // hardened: HorizontalBarChart.tsx:127-131 builds one legend per POINT,
+    // so a series repeated across rows — the stacked shape every row shares —
+    // repeats its legend; React only warns about the duplicate key, Flutter's
+    // Row throws on it. One item per legend title, first-seen, keeps every
+    // distinct legend and the name-keyed select/hover behaviour.
+    final seenLegends = <String>{};
     final legendItems = <FluentChartLegendItem>[
       for (final row in widget.data)
         for (final point in row.chartData ?? const <FluentChartDataPoint>[])
-          FluentChartLegendItem(
-            title: point.legend ?? '',
-            color: point.color ?? const Color(0x00000000),
-            onAction: () => setState(() {
-              // HorizontalBarChart.tsx:127 — toggle.
-              _selectedLegend = _selectedLegend == point.legend
-                  ? ''
-                  : point.legend ?? '';
-            }),
-            onHoverAction: () => setState(() {
-              // HorizontalBarChart.tsx:128-131 — the hover action closes the
-              // popover first, then records the active legend.
-              _closePopover();
-              _activeLegend = point.legend ?? '';
-            }),
-            onMouseOutAction: ({required bool isLegendFocused}) =>
-                setState(() => _activeLegend = ''),
-          ),
+          if (seenLegends.add(point.legend ?? ''))
+            FluentChartLegendItem(
+              title: point.legend ?? '',
+              color: point.color ?? const Color(0x00000000),
+              onAction: () => setState(() {
+                // HorizontalBarChart.tsx:127 — toggle.
+                _selectedLegend = _selectedLegend == point.legend
+                    ? ''
+                    : point.legend ?? '';
+              }),
+              onHoverAction: () => setState(() {
+                // HorizontalBarChart.tsx:128-131 — the hover action closes the
+                // popover first, then records the active legend.
+                _closePopover();
+                _activeLegend = point.legend ?? '';
+              }),
+              onMouseOutAction: ({required bool isLegendFocused}) =>
+                  setState(() => _activeLegend = ''),
+            ),
     ];
 
     return Semantics(

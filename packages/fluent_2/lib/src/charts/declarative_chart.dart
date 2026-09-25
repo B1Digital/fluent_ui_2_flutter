@@ -20,6 +20,7 @@ import 'internal/plotly/legends.dart';
 import 'internal/plotly/predicates.dart';
 import 'internal/plotly/router.dart';
 import 'internal/plotly/transform_bar.dart';
+import 'internal/plotly/transform_extensions.dart';
 import 'internal/plotly/transform_pie.dart';
 import 'internal/plotly/transform_xy.dart';
 import 'model/chart_common.dart';
@@ -557,6 +558,21 @@ class _FluentDeclarativeChartState extends State<FluentDeclarativeChart> {
           colorwayType: colorwayType,
           isDark: isDark,
         );
+      // Extension, not upstream: see `fluentChartExtensionKind`.
+      case FluentPlotlyChartKind.sparkline:
+        return transformPlotlyToSparkline(
+          group,
+          colorMap: colorMap,
+          colorwayType: colorwayType,
+          isDark: isDark,
+        );
+      case FluentPlotlyChartKind.horizontalBarChart:
+        return transformPlotlyToHorizontalBarChart(
+          group,
+          colorMap: colorMap,
+          colorwayType: colorwayType,
+          isDark: isDark,
+        );
       case FluentPlotlyChartKind.gantt:
         return transformPlotlyToGantt(
           group,
@@ -691,8 +707,11 @@ class _FluentDeclarativeChartState extends State<FluentDeclarativeChart> {
                 'schema',
       );
     }
-    // `:367-371`.
-    final plotlyInput = decodeBase64Fields(schema);
+    // `:367-371`, then the DOM's entity decode: every string below ends in a
+    // Flutter `Text`, which would otherwise draw `&amp;` literally.
+    final plotlyInput =
+        decodePlotlyJsonStrings(decodeBase64Fields(schema))!
+            as Map<String, Object?>;
 
     // `:372-380`: the data list is reduced to the valid traces, and the trace
     // info is re-indexed against that reduced list.

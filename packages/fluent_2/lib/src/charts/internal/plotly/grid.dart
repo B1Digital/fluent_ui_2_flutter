@@ -189,6 +189,8 @@ const Set<String> _nonPlotTypeNames = <String>{
   'table',
   'gauge',
   'funnel',
+  // Extension, not upstream: one sparkline per trace, like a donut.
+  'sparkline',
 };
 
 /// Whether [kind] is laid out from its own `domain` rather than from an axis

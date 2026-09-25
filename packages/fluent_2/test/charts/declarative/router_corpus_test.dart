@@ -180,6 +180,35 @@ void main() {
       kind: FluentPlotlyChartKind.horizontalBar,
     ),
     (
+      name: 'a meta.fluentChart sparkline scatter is a sparkline (extension)',
+      figure: fig(<Map<String, Object?>>[
+        <String, Object?>{
+          'type': 'scatter',
+          'mode': 'lines',
+          'x': numX,
+          'y': numY,
+          'meta': <String, Object?>{'fluentChart': 'sparkline'},
+        },
+      ]),
+      // Not upstream: `fluentChartExtensionKind` in router.dart.
+      kind: FluentPlotlyChartKind.sparkline,
+    ),
+    (
+      name:
+          'a meta.fluentChart horizontal bar is the axis-free bar (extension)',
+      figure: fig(<Map<String, Object?>>[
+        <String, Object?>{
+          'type': 'bar',
+          'orientation': 'h',
+          'x': numY,
+          'y': strY,
+          'meta': <String, Object?>{'fluentChart': 'horizontalBarChart'},
+        },
+      ]),
+      // Not upstream: `fluentChartExtensionKind` in router.dart.
+      kind: FluentPlotlyChartKind.horizontalBarChart,
+    ),
+    (
       name: 'a histogram routes to the vertical bar chart',
       figure: fig(<Map<String, Object?>>[
         <String, Object?>{'type': 'histogram', 'x': numX},

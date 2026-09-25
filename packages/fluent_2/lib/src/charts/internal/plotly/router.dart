@@ -4,11 +4,13 @@ import 'base64_data.dart';
 import 'json_guard.dart';
 import 'predicates.dart';
 
-/// The 18 chart kinds a Plotly figure can route to.
+/// The 20 chart kinds a Plotly figure can route to.
 ///
 /// The 16 of the `FluentChart` union at `PlotlySchemaConverter.ts:4-20`, plus
 /// [funnel] and [verticalBar] — which the union omits but `:546` and `:518`
-/// return; see their docs.
+/// return; see their docs — plus this port's two extension kinds,
+/// [sparkline] and [horizontalBarChart], which upstream has no route to at all
+/// (see [fluentChartExtensionKind]).
 enum FluentPlotlyChartKind {
   /// Layout annotations with no traces (`PlotlySchemaConverter.ts:499`).
   annotation,
@@ -79,6 +81,17 @@ enum FluentPlotlyChartKind {
   /// Horizontal bars with a `base`, or the plotly.py scatter form
   /// (`PlotlySchemaConverter.ts:527`, `:553`).
   gantt,
+
+  /// Extension, not upstream: a `scatter` whose `meta.fluentChart` is
+  /// `sparkline`, rendered as `FluentSparkline` (see
+  /// [fluentChartExtensionKind]).
+  sparkline,
+
+  /// Extension, not upstream: horizontal `bar` traces whose `meta.fluentChart`
+  /// is `horizontalBarChart`, rendered as the axis-free part-to-whole
+  /// `FluentHorizontalBarChart` rather than [horizontalBar]'s
+  /// `FluentHorizontalBarChartWithAxis` (see [fluentChartExtensionKind]).
+  horizontalBarChart,
 }
 
 /// The lower-case wire name upstream uses for [kind].
@@ -104,7 +117,37 @@ String plotlyChartKindName(FluentPlotlyChartKind kind) => switch (kind) {
   FluentPlotlyChartKind.verticalBar => 'verticalbar',
   FluentPlotlyChartKind.verticalStackedBar => 'verticalstackedbar',
   FluentPlotlyChartKind.gantt => 'gantt',
+  FluentPlotlyChartKind.sparkline => 'sparkline',
+  FluentPlotlyChartKind.horizontalBarChart => 'horizontalbarchart',
 };
+
+/// The extension kind a trace asks for through Plotly's own free-form `meta`
+/// attribute, or null to route it exactly as upstream does.
+///
+/// Extension, not upstream: `PlotlySchemaConverter.ts` has no arm that reaches
+/// `Sparkline` or `HorizontalBarChart`, so no Plotly figure could render
+/// either. `meta` is a documented Plotly attribute that Plotly itself never
+/// interprets (plotly.com/javascript/reference/scatter/#scatter-meta), so the
+/// marker costs a figure nothing anywhere else it is drawn:
+///
+/// * `{"fluentChart": "sparkline"}` on a `scatter`/`scattergl` →
+///   [FluentPlotlyChartKind.sparkline];
+/// * `{"fluentChart": "horizontalBarChart"}` on a `bar` with
+///   `orientation: "h"` → [FluentPlotlyChartKind.horizontalBarChart].
+///
+/// A marker on a trace type it cannot describe is ignored, never an error.
+FluentPlotlyChartKind? fluentChartExtensionKind(Map<String, Object?> trace) {
+  final meta = trace['meta'];
+  if (meta is! Map<String, Object?>) return null;
+  final type = trace['type'];
+  return switch (meta['fluentChart']) {
+    'sparkline' when type == 'scatter' || type == 'scattergl' =>
+      FluentPlotlyChartKind.sparkline,
+    'horizontalBarChart' when type == 'bar' && trace['orientation'] == 'h' =>
+      FluentPlotlyChartKind.horizontalBarChart,
+    _ => null,
+  };
+}
 
 /// `UNSUPPORTED_MSG_PREFIX` at `PlotlySchemaConverter.ts:38`.
 const String _unsupportedPrefix = 'Unsupported chart - type :';
@@ -706,46 +749,51 @@ FluentPlotlyRoute mapFluentChart(Object? input) {
   final mapErrors = <String>[];
   for (final (index, trace) in valid) {
     final FluentPlotlyChartKind? kind;
-    switch (trace['type']) {
-      case 'pie':
-        kind = FluentPlotlyChartKind.donut;
-      case 'histogram2d':
-      case 'heatmap':
-        kind = FluentPlotlyChartKind.heatmap;
-      case 'sankey':
-        kind = FluentPlotlyChartKind.sankey;
-      case 'indicator':
-      case 'gauge':
-        kind = FluentPlotlyChartKind.gauge;
-      case 'histogram':
-        // `PlotlySchemaConverter.ts:518`. The kind is absent from the
-        // `FluentChart` union at `:4-20` but carries its own `chartMap` entry
-        // and its own binning transformer (`DeclarativeChart.tsx:303-306`),
-        // and it is the only route to that transformer.
-        kind = FluentPlotlyChartKind.verticalBar;
-      case 'scatterpolar':
-        kind = FluentPlotlyChartKind.scatterPolar;
-      case 'table':
-        kind = FluentPlotlyChartKind.table;
-      case 'bar':
-        kind = _mapBar(trace, layout);
-        if (kind == null) {
-          mapErrors.add('GVBC does not support string y-axis.');
-        }
-      case 'funnel':
-      case 'funnelarea':
-        kind = FluentPlotlyChartKind.funnel;
-      case 'scatter':
-      case 'scattergl':
-        kind = _mapScatter(
-          trace,
-          layout,
-          foundScatterGantt: foundScatterGantt,
-          onScatterGantt: () => foundScatterGantt = true,
-        );
-      default:
-        kind = null;
-        mapErrors.add('$_unsupportedPrefix ${trace['type']}');
+    final extension = fluentChartExtensionKind(trace);
+    if (extension != null) {
+      kind = extension;
+    } else {
+      switch (trace['type']) {
+        case 'pie':
+          kind = FluentPlotlyChartKind.donut;
+        case 'histogram2d':
+        case 'heatmap':
+          kind = FluentPlotlyChartKind.heatmap;
+        case 'sankey':
+          kind = FluentPlotlyChartKind.sankey;
+        case 'indicator':
+        case 'gauge':
+          kind = FluentPlotlyChartKind.gauge;
+        case 'histogram':
+          // `PlotlySchemaConverter.ts:518`. The kind is absent from the
+          // `FluentChart` union at `:4-20` but carries its own `chartMap` entry
+          // and its own binning transformer (`DeclarativeChart.tsx:303-306`),
+          // and it is the only route to that transformer.
+          kind = FluentPlotlyChartKind.verticalBar;
+        case 'scatterpolar':
+          kind = FluentPlotlyChartKind.scatterPolar;
+        case 'table':
+          kind = FluentPlotlyChartKind.table;
+        case 'bar':
+          kind = _mapBar(trace, layout);
+          if (kind == null) {
+            mapErrors.add('GVBC does not support string y-axis.');
+          }
+        case 'funnel':
+        case 'funnelarea':
+          kind = FluentPlotlyChartKind.funnel;
+        case 'scatter':
+        case 'scattergl':
+          kind = _mapScatter(
+            trace,
+            layout,
+            foundScatterGantt: foundScatterGantt,
+            onScatterGantt: () => foundScatterGantt = true,
+          );
+        default:
+          kind = null;
+          mapErrors.add('$_unsupportedPrefix ${trace['type']}');
+      }
     }
     if (kind != null) {
       mapped.add(FluentPlotlyTraceInfo(index: index, kind: kind));
