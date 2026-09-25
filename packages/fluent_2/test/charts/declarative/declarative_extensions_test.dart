@@ -145,6 +145,35 @@ void main() {
       expect(chart.showLegend, isTrue);
     });
 
+    testWidgets('a date-string x becomes a DateTime point', (tester) async {
+      await pump(
+        tester,
+        figure(<Map<String, Object?>>[
+          <String, Object?>{
+            'type': 'scatter',
+            'mode': 'lines',
+            'x': <Object?>['2026-09-01', '2026-09-02'],
+            'y': <Object?>[3, 5],
+            'meta': <String, Object?>{'fluentChart': 'sparkline'},
+          },
+        ]),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      final points = tester
+          .widget<FluentSparkline>(find.byType(FluentSparkline))
+          .data
+          .lineChartData!
+          .single
+          .data
+          .cast<dynamic>();
+      expect(
+        <Object?>[for (final p in points) p.x],
+        <Object?>[DateTime(2026, 9, 1), DateTime(2026, 9, 2)],
+      );
+    });
+
     testWidgets('sparkline defaults to 80 x 20 with no legend', (tester) async {
       await pump(
         tester,
