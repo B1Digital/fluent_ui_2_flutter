@@ -4,7 +4,6 @@ import 'package:flutter/widgets.dart';
 
 import '../../model/chart_annotation.dart';
 import '../d3/color.dart' as d3;
-import 'json_guard.dart';
 
 /// How one coordinate of a Plotly annotation is referenced.
 ///
@@ -532,11 +531,11 @@ FluentChartAnnotation? convertPlotlyAnnotation(
   }
 
   final rawText = annotation['text'];
-  // The text arrives already entity-encoded because sanitizePlotlyJson ran on
-  // the whole schema. Decode it here, once, at the only place the string
-  // reaches a Flutter Text widget — `:907` encodes instead, because its
-  // consumer is the DOM, which decodes on the way in.
-  final text = decodePlotlyHtmlEntities(rawText == null ? '' : '$rawText');
+  // The text arrives already decoded: FluentDeclarativeChart runs
+  // decodePlotlyJsonStrings over the whole figure before any transformer, the
+  // step `:907`'s DOM consumer performs on the way in. Decoding it again here
+  // would turn a typed `&amp;` into `&`.
+  final text = rawText == null ? '' : '$rawText';
 
   const layoutDefaults = FluentChartAnnotationLayout();
   const styleDefaults = FluentChartAnnotationStyle();

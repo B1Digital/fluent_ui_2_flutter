@@ -21,6 +21,15 @@
   layout was computed at (`height`, else the intrinsic one), as upstream sizes
   the svg from the `height` prop; a bounded height still expands as before.
 
+- **Plotly labels drew their HTML entities** — `R&D`, `TK'nin` and `a<b`
+  rendered as `R&amp;D`, `TK&#39;nin`, `a&lt;b` in every
+  `FluentDeclarativeChart` chart but annotations. `sanitizePlotlyJson` encodes
+  every string as upstream does for the DOM, which decodes on the way in;
+  Flutter's `Text` does not, and only annotations decoded. The figure is now
+  decoded once after routing, before any transformer
+  (`decodePlotlyJsonStrings`), and annotations no longer decode a second time,
+  so a typed `&amp;` stays `&amp;`.
+
 - **`FluentHorizontalBarChart` with a series repeated across rows** threw a
   duplicate-key error: upstream builds a legend per point and React only warns.
   One legend per title now, first-seen.

@@ -1,5 +1,6 @@
 import 'package:fluent_2/fluent_2.dart';
 import 'package:fluent_2/src/charts/internal/plotly/annotations.dart';
+import 'package:fluent_2/src/charts/internal/plotly/json_guard.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -352,19 +353,36 @@ void main() {
 
   test('annotation text arrives decoded, because Flutter Text cannot parse '
       'entities', () {
-    final annotation = convertPlotlyAnnotation(
-      <String, Object?>{'text': '&lt;b&gt;', 'x': 1, 'y': 2},
-      0,
-      layout: null,
-    );
-    expect(
-      annotation!.text,
-      '<b>',
-      reason:
-          'PlotlySchemaAdapter.ts:542-548 entity-encodes for the DOM; a '
-          'Flutter Text widget renders entities literally, so the port '
-          'decodes again.',
-    );
+    // The figure is sanitised (entity-encoded, PlotlySchemaAdapter.ts:542-548)
+    // and then decoded once before any transformer, the step the DOM performs
+    // on the way in; the annotation parser receives the decoded text.
+    final figure =
+        decodePlotlyJsonStrings(
+              sanitizePlotlyJson(<String, Object?>{
+                'text': '<b>',
+                'x': 1,
+                'y': 2,
+              }),
+            )!
+            as Map<String, Object?>;
+    final annotation = convertPlotlyAnnotation(figure, 0, layout: null);
+    expect(annotation!.text, '<b>');
+  });
+
+  test('a typed entity is decoded once, not twice', () {
+    // A label that literally reads `&amp;` survives the round trip; decoding
+    // again inside the parser used to turn it into `&`.
+    final figure =
+        decodePlotlyJsonStrings(
+              sanitizePlotlyJson(<String, Object?>{
+                'text': 'R&amp;D',
+                'x': 1,
+                'y': 2,
+              }),
+            )!
+            as Map<String, Object?>;
+    final annotation = convertPlotlyAnnotation(figure, 0, layout: null);
+    expect(annotation!.text, 'R&amp;D');
   });
 
   test(

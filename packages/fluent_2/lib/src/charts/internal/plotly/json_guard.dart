@@ -62,6 +62,31 @@ String decodePlotlyHtmlEntities(String value) {
   return out.replaceAll('&amp;', '&');
 }
 
+/// Returns a deep copy of [value] with every string decoded by
+/// [decodePlotlyHtmlEntities].
+///
+/// The transformers' side of [sanitizePlotlyJson]. Upstream hands the encoded
+/// strings to the DOM, which decodes them on the way in; every string here
+/// ends in a Flutter `Text` instead, which renders `&amp;` literally — so a
+/// label typed `R&D` or `TK'nin` drew as `R&amp;D` / `TK&#39;nin`. Decoding
+/// the whole figure once, after routing and before any transformer, is the
+/// DOM's step, and it keeps [sanitizePlotlyJson]'s depth check and fresh copy.
+Object? decodePlotlyJsonStrings(Object? value) {
+  if (value is String) {
+    return decodePlotlyHtmlEntities(value);
+  }
+  if (value is Map<Object?, Object?>) {
+    return <String, Object?>{
+      for (final entry in value.entries)
+        '${entry.key}': decodePlotlyJsonStrings(entry.value),
+    };
+  }
+  if (value is List<Object?>) {
+    return <Object?>[for (final child in value) decodePlotlyJsonStrings(child)];
+  }
+  return value;
+}
+
 /// Throws when [value] nests deeper than [kPlotlyMaxJsonDepth].
 ///
 /// hardened: `PlotlySchemaConverter.ts:177-195` checks the depth *while* it
