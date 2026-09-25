@@ -20,6 +20,7 @@ import 'internal/plotly/legends.dart';
 import 'internal/plotly/predicates.dart';
 import 'internal/plotly/router.dart';
 import 'internal/plotly/transform_bar.dart';
+import 'internal/plotly/transform_extensions.dart';
 import 'internal/plotly/transform_pie.dart';
 import 'internal/plotly/transform_xy.dart';
 import 'model/chart_common.dart';
@@ -553,6 +554,21 @@ class _FluentDeclarativeChartState extends State<FluentDeclarativeChart> {
         return transformPlotlyToScatter(
           _lineAreaPreTransform(group),
           isMultiPlot: isMultiPlot,
+          colorMap: colorMap,
+          colorwayType: colorwayType,
+          isDark: isDark,
+        );
+      // Extension, not upstream: see `fluentChartExtensionKind`.
+      case FluentPlotlyChartKind.sparkline:
+        return transformPlotlyToSparkline(
+          group,
+          colorMap: colorMap,
+          colorwayType: colorwayType,
+          isDark: isDark,
+        );
+      case FluentPlotlyChartKind.horizontalBarChart:
+        return transformPlotlyToHorizontalBarChart(
+          group,
           colorMap: colorMap,
           colorwayType: colorwayType,
           isDark: isDark,

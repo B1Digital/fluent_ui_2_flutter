@@ -1248,4 +1248,51 @@ void main() {
       );
     });
   });
+
+  testWidgets('a series repeated across rows draws one legend, not a key clash', (
+    tester,
+  ) async {
+    // Upstream emits a legend per point; a stacked chart whose rows share
+    // series names repeats them, which Flutter's Row rejects as duplicate keys.
+    await tester.pumpWidget(
+      FluentApp(
+        theme: FluentThemeData.light(fontPlatform: FluentFontPlatform.web),
+        home: Center(
+          child: SizedBox(
+            width: 600,
+            height: 300,
+            child: FluentHorizontalBarChart(
+              data: <FluentChartData>[
+                for (final row in <String>['TK1', 'TK2'])
+                  FluentChartData(
+                    chartTitle: row,
+                    chartData: const <FluentChartDataPoint>[
+                      FluentChartDataPoint(
+                        legend: 'Economy',
+                        color: Color(0xFF0078D4),
+                        horizontalBarChartData: FluentHorizontalDataPoint(
+                          x: 120,
+                        ),
+                      ),
+                      FluentChartDataPoint(
+                        legend: 'Business',
+                        color: Color(0xFF8764B8),
+                        horizontalBarChartData: FluentHorizontalDataPoint(
+                          x: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Economy'), findsOneWidget);
+    expect(find.text('Business'), findsOneWidget);
+  });
 }

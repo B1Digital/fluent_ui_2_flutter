@@ -1363,10 +1363,22 @@ class _FluentGaugeChartState extends State<FluentGaugeChart> {
             textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
           );
 
+          // The arc box fills a bounded height, as the svg fills the flex root.
+          // An unbounded one (a scroll view, or FluentDeclarativeChart's own
+          // Column) cannot be expanded into, so the box takes the height the
+          // layout was computed at instead — upstream sizes the `<svg>` from
+          // the `height` prop (GaugeChart.tsx:593-594) whatever its container
+          // does, and the legend stacks below it either way.
+          // An `Expanded` here under an unbounded height was this port's own
+          // flex error, one FluentDeclarativeChart's errorBuilder never saw.
+          Widget arcBox({required Widget child}) => constraints.hasBoundedHeight
+              ? Expanded(child: child)
+              : SizedBox(height: layout.size.height, child: child);
+
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Expanded(
+              arcBox(
                 // GaugeChart.tsx:593-594 sizes the `<svg>` from the `width`
                 // PROP, and `useGaugeChartStyles.styles.ts:35-43` makes its
                 // root `display: flex; flex-direction: column; align-items:

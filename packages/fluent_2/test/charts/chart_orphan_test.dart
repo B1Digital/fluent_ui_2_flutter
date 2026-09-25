@@ -143,20 +143,12 @@ import 'package:flutter_test/flutter_test.dart';
 /// from
 /// `crawlers/fluentui-react-charts/out/charts/src` while writing it, and every
 /// `lib/` line was read from the file named.
+///
+/// `FluentSparkline` left the list when the declarative extension route
+/// (`fluentChartExtensionKind` in internal/plotly/router.dart) gave the package
+/// its own `lib/` caller, exactly as its entry said removing it would mean.
 const Map<String, String> kChartOrphanAllowlist = <String, String>{
   // --- Deliberate: the caller is not in lib/ and never will be -------------
-  'FluentSparkline':
-      'sparkline.dart:206, a published StatelessWidget. Its callers are '
-      'consumers of the package, which live outside lib/ by construction — the '
-      'same reason isAttached is on this list, and the reason FluentAreaChart '
-      'is not: a StatefulWidget is named by the `State<T>` in its own file and '
-      'a stateless one has no such back-reference. It is the entire measured '
-      'cost of refinement 4, and it does not hide a gap. Upstream has no '
-      'declarative route to a sparkline either — `grep -rn Sparkline` over '
-      'crawlers/fluentui-react-charts/out/charts/src hits only Sparkline.ts, '
-      'index.ts and components/Sparkline/, never DeclarativeChart — so no '
-      'unported adapter is going to arrive and call it. Removing this entry '
-      'means the package grows a lib/ consumer of its own sparkline.',
   'cachedCount':
       'Test and diagnostic observability on the measurer memo, declared as '
       'such at chart_text_measurer.dart:120. FluentChartTextMeasurer is the '

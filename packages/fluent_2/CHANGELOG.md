@@ -1,3 +1,30 @@
+## Unreleased
+
+### Added
+
+- **Declarative routes to the two charts no schema could reach** (extension,
+  not upstream: `PlotlySchemaConverter.ts` has no arm for either). A Plotly
+  trace whose free-form `meta` carries `{"fluentChart": "sparkline"}` (on a
+  `scatter`/`scattergl`) renders `FluentSparkline`, and
+  `{"fluentChart": "horizontalBarChart"}` (on `bar` with `orientation: "h"`)
+  renders the axis-free part-to-whole `FluentHorizontalBarChart` — one row per
+  `y`, one segment per trace, optional `meta.totals` / `meta.variant`.
+  Without the marker every trace routes exactly as upstream does; Plotly itself
+  never interprets `meta`, so the figure stays valid elsewhere.
+  `FluentPlotlyChartKind` gains `sparkline` and `horizontalBarChart`.
+
+### Fixed
+
+- **`FluentGaugeChart` under an unbounded height** — a scroll view, or
+  `FluentDeclarativeChart`'s own column for an `indicator` trace — threw a flex
+  error that `errorBuilder` never saw. The arc box now takes the height the
+  layout was computed at (`height`, else the intrinsic one), as upstream sizes
+  the svg from the `height` prop; a bounded height still expands as before.
+
+- **`FluentHorizontalBarChart` with a series repeated across rows** threw a
+  duplicate-key error: upstream builds a legend per point and React only warns.
+  One legend per title now, first-seen.
+
 ## 0.0.6
 
 ### Added
